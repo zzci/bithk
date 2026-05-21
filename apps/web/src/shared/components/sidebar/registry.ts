@@ -5,6 +5,7 @@ import { policiesNav } from "@/app/routes/_app/admin/-policies.nav";
 import { settingsNav } from "@/app/routes/_app/admin/-settings.nav";
 import { usersNav } from "@/app/routes/_app/admin/-users.nav";
 import { documentsNav } from "@/app/routes/_app/portal/-documents.nav";
+import { driveNav } from "@/app/routes/_app/portal/-drive.nav";
 import { issuesNav } from "@/app/routes/_app/portal/-issues.nav";
 import { portalNav } from "@/app/routes/_app/portal/-portal.nav";
 
@@ -12,6 +13,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   portalNav,
   issuesNav,
   documentsNav,
+  driveNav,
   usersNav,
   policiesNav,
   auditNav,

@@ -5,6 +5,7 @@ export type NavArea = "portal" | "admin";
 export interface NavItem {
   readonly area: NavArea;
   readonly key: string;
+  readonly labelKey?: string;
   readonly path: string;
   readonly icon: LucideIcon;
   readonly matchPrefix?: string;

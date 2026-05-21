@@ -1,0 +1,42 @@
+{
+  "nav": "Drive",
+  "page": {
+    "title": "Drive"
+  },
+  "toolbar": {
+    "files": "Files",
+    "trash": "Trash",
+    "newFolder": "New folder",
+    "upload": "Upload"
+  },
+  "breadcrumbs": {
+    "root": "My Drive"
+  },
+  "table": {
+    "name": "Name",
+    "size": "Size",
+    "updated": "Updated",
+    "actions": "Actions"
+  },
+  "empty": {
+    "folder": "No files or folders",
+    "trash": "Trash is empty"
+  },
+  "actions": {
+    "more": "More actions",
+    "download": "Download",
+    "rename": "Rename",
+    "favorite": "Favorite",
+    "unfavorite": "Remove favorite",
+    "trash": "Move to trash",
+    "restore": "Restore",
+    "deleteForever": "Delete forever"
+  },
+  "dialog": {
+    "folderTitle": "New folder",
+    "folderDescription": "Create a folder in the current location.",
+    "renameTitle": "Rename entry",
+    "renameDescription": "Update the display name for this drive entry.",
+    "namePlaceholder": "Name"
+  }
+}

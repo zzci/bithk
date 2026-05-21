@@ -143,7 +143,7 @@ function LogoToggle() {
 }
 
 export function AppSidebar() {
-  const { t, i18n } = useTranslation(["common", "settings"]);
+  const { t, i18n } = useTranslation(["common", "settings", "drive"]);
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuthStore();
   const routerState = useRouterState();
@@ -205,10 +205,10 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     isActive={isNavActive(item, currentPath)}
                     render={<Link to={item.path} />}
-                    tooltip={t(`nav.${item.key}`)}
+                    tooltip={t(item.labelKey ?? `common:nav.${item.key}`)}
                   >
                     <item.icon />
-                    <span>{t(`nav.${item.key}`)}</span>
+                    <span>{t(item.labelKey ?? `common:nav.${item.key}`)}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -226,10 +226,10 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         isActive={isNavActive(item, currentPath)}
                         render={<Link to={item.path} />}
-                        tooltip={t(`nav.${item.key}`)}
+                        tooltip={t(item.labelKey ?? `common:nav.${item.key}`)}
                       >
                         <item.icon />
-                        <span>{t(`nav.${item.key}`)}</span>
+                        <span>{t(item.labelKey ?? `common:nav.${item.key}`)}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}

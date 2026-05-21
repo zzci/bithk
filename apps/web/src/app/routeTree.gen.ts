@@ -18,6 +18,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as AppPortalIndexRouteImport } from './routes/_app/portal/index'
 import { Route as AppPortalIssuesRouteImport } from './routes/_app/portal/issues'
+import { Route as AppPortalDriveRouteImport } from './routes/_app/portal/drive'
 import { Route as AppPortalDocumentsRouteImport } from './routes/_app/portal/documents'
 import { Route as AppAdminUsersRouteImport } from './routes/_app/admin/users'
 import { Route as AppAdminSettingsRouteImport } from './routes/_app/admin/settings'
@@ -75,6 +76,13 @@ const AppPortalIssuesRoute = AppPortalIssuesRouteImport.update({
   path: '/portal/issues',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPortalDriveRoute = AppPortalDriveRouteImport.update({
+  id: '/portal/drive',
+  path: '/portal/drive',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/portal/drive.lazy').then((d) => d.Route),
+)
 const AppPortalDocumentsRoute = AppPortalDocumentsRouteImport.update({
   id: '/portal/documents',
   path: '/portal/documents',
@@ -157,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AppAdminSettingsRoute
   '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/portal/documents': typeof AppPortalDocumentsRoute
+  '/portal/drive': typeof AppPortalDriveRoute
   '/portal/issues': typeof AppPortalIssuesRouteWithChildren
   '/portal/': typeof AppPortalIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
@@ -176,6 +185,7 @@ export interface FileRoutesByTo {
   '/admin/policies': typeof AppAdminPoliciesRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/portal/documents': typeof AppPortalDocumentsRoute
+  '/portal/drive': typeof AppPortalDriveRoute
   '/portal': typeof AppPortalIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/portal/issues/$issueId': typeof AppPortalIssuesIssueIdRoute
@@ -197,6 +207,7 @@ export interface FileRoutesById {
   '/_app/admin/settings': typeof AppAdminSettingsRoute
   '/_app/admin/users': typeof AppAdminUsersRouteWithChildren
   '/_app/portal/documents': typeof AppPortalDocumentsRoute
+  '/_app/portal/drive': typeof AppPortalDriveRoute
   '/_app/portal/issues': typeof AppPortalIssuesRouteWithChildren
   '/_app/portal/': typeof AppPortalIndexRoute
   '/_app/admin/users/groups': typeof AppAdminUsersGroupsRoute
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/users'
     | '/portal/documents'
+    | '/portal/drive'
     | '/portal/issues'
     | '/portal/'
     | '/admin/users/groups'
@@ -238,6 +250,7 @@ export interface FileRouteTypes {
     | '/admin/policies'
     | '/admin/settings'
     | '/portal/documents'
+    | '/portal/drive'
     | '/portal'
     | '/admin/users/groups'
     | '/portal/issues/$issueId'
@@ -258,6 +271,7 @@ export interface FileRouteTypes {
     | '/_app/admin/settings'
     | '/_app/admin/users'
     | '/_app/portal/documents'
+    | '/_app/portal/drive'
     | '/_app/portal/issues'
     | '/_app/portal/'
     | '/_app/admin/users/groups'
@@ -338,6 +352,13 @@ declare module '@tanstack/react-router' {
       path: '/portal/issues'
       fullPath: '/portal/issues'
       preLoaderRoute: typeof AppPortalIssuesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/portal/drive': {
+      id: '/_app/portal/drive'
+      path: '/portal/drive'
+      fullPath: '/portal/drive'
+      preLoaderRoute: typeof AppPortalDriveRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/portal/documents': {
@@ -464,6 +485,7 @@ const AppPortalIssuesRouteWithChildren = AppPortalIssuesRoute._addFileChildren(
 interface AppRouteChildren {
   AppAdminRoute: typeof AppAdminRouteWithChildren
   AppPortalDocumentsRoute: typeof AppPortalDocumentsRoute
+  AppPortalDriveRoute: typeof AppPortalDriveRoute
   AppPortalIssuesRoute: typeof AppPortalIssuesRouteWithChildren
   AppPortalIndexRoute: typeof AppPortalIndexRoute
 }
@@ -471,6 +493,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAdminRoute: AppAdminRouteWithChildren,
   AppPortalDocumentsRoute: AppPortalDocumentsRoute,
+  AppPortalDriveRoute: AppPortalDriveRoute,
   AppPortalIssuesRoute: AppPortalIssuesRouteWithChildren,
   AppPortalIndexRoute: AppPortalIndexRoute,
 }
