@@ -1,42 +1,203 @@
 {
   "nav": "Drive",
   "page": {
-    "title": "Drive"
+    "title": "Drive",
+    "tab": {
+      "myFiles": "My files",
+      "teamDirectories": "Team directories",
+      "sharedWithMe": "Shared with me"
+    },
+    "shared": {
+      "received": "Shared with me",
+      "sent": "Shared by me",
+      "links": "Public links"
+    },
+    "team": {
+      "back": "Back to directories"
+    }
   },
-  "toolbar": {
-    "files": "Files",
-    "trash": "Trash",
+  "browser": {
+    "upload": "Upload",
     "newFolder": "New folder",
-    "upload": "Upload"
+    "newTextFile": "New text file",
+    "create": "Create",
+    "searchPlaceholder": "Search files",
+    "breadcrumbRoot": "Root",
+    "dropHere": "Drop files to upload",
+    "selectAll": "Select all",
+    "selectEntry": "Select {{name}}",
+    "selectedCount": "{{count}} selected",
+    "clearSelection": "Clear",
+    "filter": {
+      "type": "Filter by type",
+      "all": "All",
+      "folders": "Folders",
+      "files": "Files"
+    },
+    "status": {
+      "label": "View",
+      "files": "Files",
+      "trash": "Trash"
+    },
+    "column": {
+      "name": "Name",
+      "size": "Size",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "empty": {
+      "folder": "No files or folders",
+      "trash": "Trash is empty"
+    },
+    "action": {
+      "more": "More actions",
+      "preview": "Preview",
+      "download": "Download",
+      "share": "Share",
+      "copyLink": "Copy link",
+      "rename": "Rename",
+      "move": "Move",
+      "favorite": "Favorite",
+      "unfavorite": "Remove favorite",
+      "trash": "Move to trash",
+      "restore": "Restore",
+      "deleteForever": "Delete forever"
+    },
+    "dialog": {
+      "folderTitle": "New folder",
+      "folderDescription": "Create a folder in the current location.",
+      "nameLabel": "Name",
+      "namePlaceholder": "Name",
+      "textFileTitle": "New text file",
+      "textFileDescription": "Create a text file in the current location.",
+      "textFileNamePlaceholder": "filename.txt",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Type the file contents…",
+      "renameTitle": "Rename",
+      "renameDescription": "Update the name of this entry.",
+      "moveTitle": "Move",
+      "moveDescription": "Move \"{{name}}\" to another folder.",
+      "moveUp": "Up one level",
+      "moveNoFolders": "No subfolders here",
+      "moveHere": "Move here"
+    }
   },
-  "breadcrumbs": {
-    "root": "My Drive"
+  "share": {
+    "title": "Share \"{{name}}\"",
+    "description": "Share this item with people or via a link.",
+    "tab": {
+      "direct": "People",
+      "link": "Public link"
+    },
+    "field": {
+      "user": "User",
+      "permission": "Permission",
+      "password": "Password",
+      "expiry": "Expires",
+      "maxDownloads": "Max downloads"
+    },
+    "userPlaceholder": "Select a user",
+    "passwordPlaceholder": "Optional password",
+    "passwordKeep": "Leave blank to keep current",
+    "passwordSet": "Password protected",
+    "unlimited": "Unlimited",
+    "permission": {
+      "view": "View",
+      "download": "Download",
+      "edit": "Edit"
+    },
+    "type": {
+      "direct": "Direct",
+      "public_link": "Link"
+    },
+    "action": {
+      "share": "Share",
+      "generate": "Generate link",
+      "copyLink": "Copy link",
+      "removePassword": "Remove password",
+      "updateLink": "Update link",
+      "revoke": "Revoke",
+      "download": "Download"
+    },
+    "linkReady": "Public link",
+    "copied": "Copied",
+    "noExpiry": "No expiry",
+    "publicAnyone": "Anyone with the link",
+    "existing": "Existing shares",
+    "col": {
+      "name": "Name",
+      "size": "Size",
+      "type": "Type",
+      "permission": "Permission",
+      "downloads": "Downloads",
+      "expires": "Expires",
+      "actions": "Actions"
+    },
+    "empty": {
+      "entry": "Not shared yet",
+      "received": "Nothing shared with you",
+      "sent": "You have not shared anything",
+      "links": "No public links"
+    }
   },
-  "table": {
-    "name": "Name",
-    "size": "Size",
-    "updated": "Updated",
-    "actions": "Actions"
+  "team": {
+    "list": {
+      "title": "Team directories",
+      "create": "New directory"
+    },
+    "col": {
+      "name": "Name",
+      "members": "Members",
+      "role": "Role",
+      "actions": "Actions"
+    },
+    "empty": "No team directories",
+    "role": {
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Viewer"
+    },
+    "action": {
+      "rename": "Rename",
+      "delete": "Delete",
+      "members": "Manage members"
+    },
+    "delete": {
+      "title": "Delete directory",
+      "description": "Delete \"{{name}}\" and all its contents? This cannot be undone."
+    },
+    "edit": {
+      "createTitle": "New team directory",
+      "renameTitle": "Edit directory",
+      "createDescription": "Create a shared directory for your team.",
+      "renameDescription": "Update this directory's name and description.",
+      "namePlaceholder": "Directory name",
+      "description": "Description",
+      "descriptionPlaceholder": "Optional description"
+    },
+    "members": {
+      "title": "Members of {{name}}",
+      "description": "Manage who can access this directory.",
+      "addUser": "Add user",
+      "role": "Role",
+      "add": "Add member",
+      "remove": "Remove",
+      "empty": "No members yet"
+    }
   },
-  "empty": {
-    "folder": "No files or folders",
-    "trash": "Trash is empty"
-  },
-  "actions": {
-    "more": "More actions",
+  "preview": {
+    "description": "File preview",
+    "loading": "Loading preview…",
+    "error": "Could not load this file.",
+    "pdfTitle": "PDF preview",
     "download": "Download",
-    "rename": "Rename",
-    "favorite": "Favorite",
-    "unfavorite": "Remove favorite",
-    "trash": "Move to trash",
-    "restore": "Restore",
-    "deleteForever": "Delete forever"
+    "unsupportedTitle": "Preview not available",
+    "unsupportedDescription": "This file type can't be previewed. Download it to view."
   },
-  "dialog": {
-    "folderTitle": "New folder",
-    "folderDescription": "Create a folder in the current location.",
-    "renameTitle": "Rename entry",
-    "renameDescription": "Update the display name for this drive entry.",
-    "namePlaceholder": "Name"
+  "picker": {
+    "title": "Select a file",
+    "description": "Browse your drive and choose a file.",
+    "root": "My Drive",
+    "empty": "This folder is empty"
   }
 }

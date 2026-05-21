@@ -268,14 +268,14 @@ export function FileBrowser({
         open={dialog?.type === "folder"}
         onOpenChange={open => !open && closeDialog()}
         pending={createFolder.isPending}
-        onCreate={name => createFolder.mutate({ name, parentEntryId }, { onSuccess: closeDialog })}
+        onCreate={name => createFolder.mutate({ name, parentEntryId, ownerType, ownerId }, { onSuccess: closeDialog })}
       />
       <CreateTextFileDialog
         open={dialog?.type === "text"}
         onOpenChange={open => !open && closeDialog()}
         pending={createTextFile.isPending}
         onCreate={({ name, content }) =>
-          createTextFile.mutate({ name, content, parentEntryId }, { onSuccess: closeDialog })}
+          createTextFile.mutate({ name, content, parentEntryId, ownerType, ownerId }, { onSuccess: closeDialog })}
       />
       <RenameDialog
         open={dialog?.type === "rename"}
