@@ -5,6 +5,7 @@ import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
 import { cronRoutes } from "@/modules/cron";
 import { documentRoutes } from "@/modules/document";
+import { driveRoutes } from "@/modules/drive";
 import { fileRoutes } from "@/modules/file";
 import { issueRoutes } from "@/modules/issue";
 import { policyRoutes } from "@/modules/policy";
@@ -21,6 +22,7 @@ export function protectedRoutes() {
   app.route("/", issueRoutes());
   app.route("/", policyRoutes());
   app.route("/", documentRoutes());
+  app.route("/", driveRoutes());
   app.route("/", settingsRoutes());
   app.route("/", auditRoutes());
   app.route("/", backupRoutes());
