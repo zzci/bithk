@@ -1,0 +1,16 @@
+services:
+  app:
+    container_name: bit
+    hostname: bit
+    image: bit:latest
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    volumes:
+      - ./data-docker:/app/data
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
