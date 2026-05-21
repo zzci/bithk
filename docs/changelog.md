@@ -11,6 +11,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- Drive web UI: a three-tab page (My files / Team directories / Shared
+  with me) assembling the file browser, share dialog + lists, team-directory
+  list + member management, and file preview into one route, with full
+  EN/ZH i18n.
+- Owner-aware folder and text-file creation from the UI — creating inside a
+  team directory now produces team-owned entries (editor+ gated), wired
+  through `useCreateDriveFolder` / `useCreateTextFile`.
+- Live e2e coverage for owner-scoped entry listing and folder/text-file
+  create gating by team-directory role.
+
 ## 2026-05-21
 
 ### Removed

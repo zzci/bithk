@@ -231,7 +231,14 @@ export function useFavoriteEntries() {
 
 // ── Entries: mutations ──
 
-export function useCreateDriveFolder(): UseMutationResult<DriveEntry, Error, { name: string; parentEntryId: string | null }> {
+export interface CreateDriveFolderInput {
+  readonly name: string;
+  readonly parentEntryId: string | null;
+  readonly ownerType?: DriveOwnerType | undefined;
+  readonly ownerId?: string | undefined;
+}
+
+export function useCreateDriveFolder(): UseMutationResult<DriveEntry, Error, CreateDriveFolderInput> {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: payload => rawJson<ApiEnvelope<DriveEntry>>("/drive/folders", {
@@ -275,6 +282,8 @@ export interface CreateTextFileInput {
   readonly name: string;
   readonly content: string;
   readonly parentEntryId: string | null;
+  readonly ownerType?: DriveOwnerType | undefined;
+  readonly ownerId?: string | undefined;
 }
 
 export function useCreateTextFile(): UseMutationResult<DriveEntry, Error, CreateTextFileInput> {

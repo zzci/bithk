@@ -115,9 +115,13 @@ rename, delete) is gated on the directory role (`getDirectoryRole`), not on
 the global admin role — even a global admin must be the directory's
 creator/admin to manage its membership.
 
-Uploads to a `team_directory` owner require the caller to be an `editor`
-or `admin` of that directory; uploads default to the caller's personal
-drive and reject any attempt to target another user's drive.
+Creating into a `team_directory` owner — file upload (`/files/upload`),
+folder create (`/folders`), and server-side text-file create
+(`/entries/text-file`) — requires the caller to be an `editor` or `admin`
+of that directory; all three default to the caller's personal drive and
+reject any attempt to target another user's drive. Listing
+(`GET /drive/entries?ownerType=team_directory&ownerId=…`) is scoped to
+members (`viewer`+); a non-member fails closed with `403`.
 
 ## Upload validation
 
@@ -175,7 +179,12 @@ in `tests/e2e/run.ts`):
 - **`team-directories.test.ts`** — directory create / list / get / rename,
   member add → editor uploads, demote to viewer → upload `403` but
   read/download still work, admin-only member management (`403` for a
-  non-admin), member removal → non-member `403`, and directory delete.
+  non-admin), member removal → non-member `403`, and directory delete. A
+  second case covers owner-scoped listing and create gating: an `editor`
+  lists the directory's entries and creates a team-owned folder +
+  text-file (`201`), a demoted `viewer` still lists (`200`) but is denied
+  both creates (`403`), and a removed non-member is denied the listing
+  (`403`).
 - **`backup.test.ts`** — `/api/backup/modules` lists `drive`; export
   round-trips a `drive_entries` row; and a drive write lands an
   `audit_events` row reachable via `/api/audit`.
@@ -186,9 +195,25 @@ the real file storage driver — no DB or service mocking).
 
 ## Frontend integration
 
-A `DriveFilePicker` component is planned so other modules can attach drive
-files; the frontend baseline exists but **no consumer is wired to it yet**
-(TODO — to be built by a later subtask).
+The drive web UI is a three-tab page (`apps/web/src/app/routes/_app/portal/
+drive.lazy.tsx`): **My files** (`FileBrowser` over the caller's personal
+drive), **Team directories** (a directory list that opens each directory's
+`FileBrowser`, role-gated, with a member-management panel for admins), and
+**Shared with me** (received / sent / public-link share lists). A
+page-level `ShareDialog` and `FilePreviewDialog` are driven by the
+`onShareEntry` / `onPreviewEntry` callbacks each `FileBrowser` emits.
+
+A `DriveFilePicker` component lets other modules browse the drive and pick
+a file to attach. Import it as:
+
+```ts
+import { DriveFilePicker } from "@/app/routes/_app/portal/-drive-file-picker";
+```
+
+It accepts `{ open, onOpenChange, onPick, ownerType?, ownerId? }` and
+returns the chosen `DriveEntry` via `onPick`. The component exists and is
+build-clean, but **no consumer is wired to it yet** (TODO — an
+item-attachment proxy is the intended first caller).
 
 ## Out of scope
 

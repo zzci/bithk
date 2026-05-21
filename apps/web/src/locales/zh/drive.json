@@ -1,42 +1,203 @@
 {
   "nav": "网盘",
   "page": {
-    "title": "网盘"
+    "title": "网盘",
+    "tab": {
+      "myFiles": "我的文件",
+      "teamDirectories": "团队目录",
+      "sharedWithMe": "与我共享"
+    },
+    "shared": {
+      "received": "与我共享",
+      "sent": "我的分享",
+      "links": "公开链接"
+    },
+    "team": {
+      "back": "返回目录列表"
+    }
   },
-  "toolbar": {
-    "files": "文件",
-    "trash": "回收站",
+  "browser": {
+    "upload": "上传",
     "newFolder": "新建文件夹",
-    "upload": "上传"
+    "newTextFile": "新建文本文件",
+    "create": "创建",
+    "searchPlaceholder": "搜索文件",
+    "breadcrumbRoot": "根目录",
+    "dropHere": "拖放文件以上传",
+    "selectAll": "全选",
+    "selectEntry": "选择 {{name}}",
+    "selectedCount": "已选择 {{count}} 项",
+    "clearSelection": "清除",
+    "filter": {
+      "type": "按类型筛选",
+      "all": "全部",
+      "folders": "文件夹",
+      "files": "文件"
+    },
+    "status": {
+      "label": "视图",
+      "files": "文件",
+      "trash": "回收站"
+    },
+    "column": {
+      "name": "名称",
+      "size": "大小",
+      "updated": "更新于",
+      "actions": "操作"
+    },
+    "empty": {
+      "folder": "暂无文件或文件夹",
+      "trash": "回收站为空"
+    },
+    "action": {
+      "more": "更多操作",
+      "preview": "预览",
+      "download": "下载",
+      "share": "分享",
+      "copyLink": "复制链接",
+      "rename": "重命名",
+      "move": "移动",
+      "favorite": "收藏",
+      "unfavorite": "取消收藏",
+      "trash": "移到回收站",
+      "restore": "恢复",
+      "deleteForever": "永久删除"
+    },
+    "dialog": {
+      "folderTitle": "新建文件夹",
+      "folderDescription": "在当前位置创建文件夹。",
+      "nameLabel": "名称",
+      "namePlaceholder": "名称",
+      "textFileTitle": "新建文本文件",
+      "textFileDescription": "在当前位置创建文本文件。",
+      "textFileNamePlaceholder": "文件名.txt",
+      "contentLabel": "内容",
+      "contentPlaceholder": "输入文件内容……",
+      "renameTitle": "重命名",
+      "renameDescription": "更新此条目的名称。",
+      "moveTitle": "移动",
+      "moveDescription": "将 \"{{name}}\" 移动到其他文件夹。",
+      "moveUp": "上一级",
+      "moveNoFolders": "此处没有子文件夹",
+      "moveHere": "移动到此处"
+    }
   },
-  "breadcrumbs": {
-    "root": "我的网盘"
+  "share": {
+    "title": "分享 \"{{name}}\"",
+    "description": "通过指定用户或链接分享此项目。",
+    "tab": {
+      "direct": "指定用户",
+      "link": "公开链接"
+    },
+    "field": {
+      "user": "用户",
+      "permission": "权限",
+      "password": "密码",
+      "expiry": "过期时间",
+      "maxDownloads": "最大下载次数"
+    },
+    "userPlaceholder": "选择用户",
+    "passwordPlaceholder": "可选密码",
+    "passwordKeep": "留空则保持不变",
+    "passwordSet": "已设置密码",
+    "unlimited": "不限",
+    "permission": {
+      "view": "查看",
+      "download": "下载",
+      "edit": "编辑"
+    },
+    "type": {
+      "direct": "指定用户",
+      "public_link": "链接"
+    },
+    "action": {
+      "share": "分享",
+      "generate": "生成链接",
+      "copyLink": "复制链接",
+      "removePassword": "移除密码",
+      "updateLink": "更新链接",
+      "revoke": "撤销",
+      "download": "下载"
+    },
+    "linkReady": "公开链接",
+    "copied": "已复制",
+    "noExpiry": "永不过期",
+    "publicAnyone": "任何拥有链接的人",
+    "existing": "已有分享",
+    "col": {
+      "name": "名称",
+      "size": "大小",
+      "type": "类型",
+      "permission": "权限",
+      "downloads": "下载次数",
+      "expires": "过期时间",
+      "actions": "操作"
+    },
+    "empty": {
+      "entry": "尚未分享",
+      "received": "没有收到分享",
+      "sent": "你还没有分享任何内容",
+      "links": "没有公开链接"
+    }
   },
-  "table": {
-    "name": "名称",
-    "size": "大小",
-    "updated": "更新于",
-    "actions": "操作"
+  "team": {
+    "list": {
+      "title": "团队目录",
+      "create": "新建目录"
+    },
+    "col": {
+      "name": "名称",
+      "members": "成员",
+      "role": "角色",
+      "actions": "操作"
+    },
+    "empty": "没有团队目录",
+    "role": {
+      "admin": "管理员",
+      "editor": "编辑者",
+      "viewer": "查看者"
+    },
+    "action": {
+      "rename": "重命名",
+      "delete": "删除",
+      "members": "管理成员"
+    },
+    "delete": {
+      "title": "删除目录",
+      "description": "删除 \"{{name}}\" 及其全部内容？此操作不可撤销。"
+    },
+    "edit": {
+      "createTitle": "新建团队目录",
+      "renameTitle": "编辑目录",
+      "createDescription": "为团队创建共享目录。",
+      "renameDescription": "更新该目录的名称与描述。",
+      "namePlaceholder": "目录名称",
+      "description": "描述",
+      "descriptionPlaceholder": "可选描述"
+    },
+    "members": {
+      "title": "{{name}} 的成员",
+      "description": "管理可访问此目录的成员。",
+      "addUser": "添加用户",
+      "role": "角色",
+      "add": "添加成员",
+      "remove": "移除",
+      "empty": "暂无成员"
+    }
   },
-  "empty": {
-    "folder": "暂无文件或文件夹",
-    "trash": "回收站为空"
-  },
-  "actions": {
-    "more": "更多操作",
+  "preview": {
+    "description": "文件预览",
+    "loading": "正在加载预览…",
+    "error": "无法加载此文件。",
+    "pdfTitle": "PDF 预览",
     "download": "下载",
-    "rename": "重命名",
-    "favorite": "收藏",
-    "unfavorite": "取消收藏",
-    "trash": "移到回收站",
-    "restore": "恢复",
-    "deleteForever": "永久删除"
+    "unsupportedTitle": "无法预览",
+    "unsupportedDescription": "此文件类型无法预览，请下载后查看。"
   },
-  "dialog": {
-    "folderTitle": "新建文件夹",
-    "folderDescription": "在当前位置创建文件夹。",
-    "renameTitle": "重命名条目",
-    "renameDescription": "更新此网盘条目的显示名称。",
-    "namePlaceholder": "名称"
+  "picker": {
+    "title": "选择文件",
+    "description": "浏览你的云盘并选择一个文件。",
+    "root": "我的云盘",
+    "empty": "此文件夹为空"
   }
 }

@@ -100,4 +100,55 @@ describe("/api/drive/team-directories", () => {
     await admin.raw(`/api/drive/entries/${entry.id}/permanent`, { method: "DELETE" });
     expect((await admin.raw(`/api/drive/team-directories/${dirId}`, { method: "DELETE" })).status).toBe(200);
   });
+
+  it("scopes entry listing by membership and gates folder / text-file create by role", async () => {
+    const admin = await getClient("admin@example.com", "admin");
+    const user = await getClient("user@example.com", "admin");
+    const memberId = await userId(admin, "user@example.com");
+
+    const created = await admin.json<{ data: Directory }>("/api/drive/team-directories", {
+      method: "POST",
+      body: { name: `team-scope-${Date.now()}`, description: "scope" },
+    });
+    const dirId = created.data.id;
+
+    // Add the user as an editor.
+    const added = await admin.json<{ data: Member }>(`/api/drive/team-directories/${dirId}/members`, {
+      method: "POST",
+      body: { userId: memberId, role: "editor" },
+    });
+
+    const owner = (extra: Record<string, unknown>) => ({ ownerType: "team_directory", ownerId: dirId, ...extra });
+    const listPath = `/api/drive/entries?ownerType=team_directory&ownerId=${dirId}`;
+
+    // An editor creates a team-owned folder and text file.
+    const folderRes = await user.raw("/api/drive/folders", { method: "POST", body: owner({ name: "team-folder" }) });
+    expect(folderRes.status).toBe(201);
+    const folder = (await folderRes.json() as { data: Entry }).data;
+
+    const textRes = await user.raw("/api/drive/entries/text-file", { method: "POST", body: owner({ name: "team-note.txt", content: "shared text" }) });
+    expect(textRes.status).toBe(201);
+    const note = (await textRes.json() as { data: Entry }).data;
+
+    // A member (editor) can list the directory's entries.
+    const listed = await user.json<{ data: Entry[] }>(listPath);
+    expect(listed.data.find(e => e.id === folder.id)).toBeDefined();
+    expect(listed.data.find(e => e.id === note.id)).toBeDefined();
+
+    // Demote to viewer → reads still work, creates are forbidden.
+    await admin.raw(`/api/drive/team-directories/${dirId}/members/${added.data.id}`, { method: "PUT", body: { role: "viewer" } });
+    expect((await user.raw(listPath)).status).toBe(200);
+    expect((await user.raw("/api/drive/folders", { method: "POST", body: owner({ name: "blocked-folder" }) })).status).toBe(403);
+    expect((await user.raw("/api/drive/entries/text-file", { method: "POST", body: owner({ name: "blocked.txt", content: "no" }) })).status).toBe(403);
+
+    // Remove the member → a non-member can neither list nor create.
+    await admin.raw(`/api/drive/team-directories/${dirId}/members/${added.data.id}`, { method: "DELETE" });
+    expect((await user.raw(listPath)).status).toBe(403);
+    expect((await user.raw("/api/drive/folders", { method: "POST", body: owner({ name: "outsider" }) })).status).toBe(403);
+
+    // Cleanup.
+    await admin.raw(`/api/drive/entries/${folder.id}/permanent`, { method: "DELETE" });
+    await admin.raw(`/api/drive/entries/${note.id}/permanent`, { method: "DELETE" });
+    expect((await admin.raw(`/api/drive/team-directories/${dirId}`, { method: "DELETE" })).status).toBe(200);
+  });
 });
