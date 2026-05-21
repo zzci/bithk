@@ -62,6 +62,8 @@ const listSchema = z.object({
 const createFolderSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   name: z.string().min(1).max(255),
+  ownerType: z.enum(["user", "team_directory"]).optional(),
+  ownerId: z.string().optional(),
 });
 
 const updateEntrySchema = z.object({
@@ -76,6 +78,8 @@ const createTextFileSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   name: z.string().min(1).max(255),
   content: z.string(),
+  ownerType: z.enum(["user", "team_directory"]).optional(),
+  ownerId: z.string().optional(),
 });
 
 const sharePermissionSchema = z.enum(["view", "download", "edit"]);
@@ -197,8 +201,9 @@ export function driveRoutes() {
   router.post("/drive/entries/text-file", async (c) => {
     const user = c.get("user")!;
     const body = createTextFileSchema.parse(await c.req.json());
+    const owner = await resolveCreateOwner(c, body.ownerType, body.ownerId);
     const entry = await createDriveTextFile(c.get("db"), c.get("config"), {
-      ...personalOwner(user.id),
+      ...owner,
       createdBy: user.id,
       parentEntryId: body.parentEntryId,
       name: body.name,
@@ -220,8 +225,9 @@ export function driveRoutes() {
   router.post("/drive/folders", async (c) => {
     const user = c.get("user")!;
     const body = createFolderSchema.parse(await c.req.json());
+    const owner = await resolveCreateOwner(c, body.ownerType, body.ownerId);
     const entry = await createDriveFolder(c.get("db"), {
-      ...personalOwner(user.id),
+      ...owner,
       createdBy: user.id,
       parentEntryId: body.parentEntryId,
       name: body.name,
@@ -686,6 +692,33 @@ async function resolveListOwner(
   const role = await getDirectoryRole(c.get("db"), ownerId, user.id);
   if (role === null)
     throw new ForbiddenError("You do not have access to this team directory");
+  return { ownerType: "team_directory", ownerId };
+}
+
+/**
+ * Resolve the owner for a JSON create request (folder / text-file). Mirrors
+ * `resolveUploadOwner`: personal by default, and a `team_directory` target
+ * requires editor-or-admin — viewers are read-only and cannot create. The
+ * `user` path rejects a foreign `ownerId` so creation stays caller-scoped.
+ */
+async function resolveCreateOwner(
+  c: Context<AppEnv>,
+  ownerType: "user" | "team_directory" | undefined,
+  ownerId: string | undefined,
+): Promise<DriveOwner> {
+  const user = c.get("user")!;
+
+  if (ownerType === undefined || ownerType === "user") {
+    if (ownerId && ownerId !== user.id)
+      throw new ForbiddenError("Cannot create in another user's drive");
+    return personalOwner(user.id);
+  }
+
+  if (!ownerId)
+    throw new AppError("ownerId is required for team_directory creation", 400, "VALIDATION_ERROR");
+  const role = await getDirectoryRole(c.get("db"), ownerId, user.id);
+  if (role !== "admin" && role !== "editor")
+    throw new ForbiddenError("Editor access required to create in this team directory");
   return { ownerType: "team_directory", ownerId };
 }
 

@@ -197,7 +197,7 @@ describe("drive files", () => {
   });
 });
 
-describe("GET /drive/entries owner scope", () => {
+describe("drive routes owner scope", () => {
   // Pre-set `user` from an `x-uid` header so the route's `authRequired` and
   // the global `policyMiddleware` both short-circuit on `c.get("user")` —
   // this avoids mutating the process-global auth provider (which would leak
@@ -207,6 +207,7 @@ describe("GET /drive/entries owner scope", () => {
     const app = new Hono<AppEnv>();
     app.use("*", async (c, next) => {
       c.set("db", db);
+      c.set("config", config as unknown as AppEnv["Variables"]["config"]);
       c.set("logger", noopLogger);
       c.set("requestId", "t");
       const uid = c.req.header("x-uid");
@@ -263,6 +264,79 @@ describe("GET /drive/entries owner scope", () => {
     expect((await own.json()).data.map((e: { name: string }) => e.name)).toEqual(["Mine"]);
 
     const foreign = await app.request(`/drive/entries?ownerId=${otherId}`, { headers: { "x-uid": callerId } });
+    expect(foreign.status).toBe(403);
+  });
+
+  test("editor creates a folder in a team directory; viewer and non-member are denied", async () => {
+    const ownerId = await seedUser("Owner");
+    const editorId = await seedUser("Editor");
+    const viewerId = await seedUser("Viewer");
+    const strangerId = await seedUser("Stranger");
+
+    const dir = await createTeamDirectory(db, { name: "Team", createdBy: ownerId });
+    await addTeamMember(db, dir.id, ownerId, { userId: editorId, role: "editor" });
+    await addTeamMember(db, dir.id, ownerId, { userId: viewerId, role: "viewer" });
+
+    const app = buildApp();
+    const post = (uid: string, name: string) => app.request("/drive/folders", {
+      method: "POST",
+      headers: { "x-uid": uid, "content-type": "application/json" },
+      body: JSON.stringify({ name, ownerType: "team_directory", ownerId: dir.id }),
+    });
+
+    const byEditor = await post(editorId, "EditorFolder");
+    expect(byEditor.status).toBe(201);
+    const created = (await byEditor.json()).data;
+    expect(created.ownerType).toBe("team_directory");
+    expect(created.ownerId).toBe(dir.id);
+
+    expect((await post(viewerId, "ViewerFolder")).status).toBe(403);
+    expect((await post(strangerId, "StrangerFolder")).status).toBe(403);
+  });
+
+  test("editor creates a text-file in a team directory; viewer is denied", async () => {
+    const ownerId = await seedUser("Owner");
+    const editorId = await seedUser("Editor");
+    const viewerId = await seedUser("Viewer");
+
+    const dir = await createTeamDirectory(db, { name: "Team", createdBy: ownerId });
+    await addTeamMember(db, dir.id, ownerId, { userId: editorId, role: "editor" });
+    await addTeamMember(db, dir.id, ownerId, { userId: viewerId, role: "viewer" });
+
+    const app = buildApp();
+    const post = (uid: string, name: string) => app.request("/drive/entries/text-file", {
+      method: "POST",
+      headers: { "x-uid": uid, "content-type": "application/json" },
+      body: JSON.stringify({ name, content: "hello", ownerType: "team_directory", ownerId: dir.id }),
+    });
+
+    const byEditor = await post(editorId, "note.txt");
+    expect(byEditor.status).toBe(201);
+    expect((await byEditor.json()).data.ownerId).toBe(dir.id);
+
+    expect((await post(viewerId, "viewer.txt")).status).toBe(403);
+  });
+
+  test("folder/text-file creation with ownerType=user stays caller-scoped", async () => {
+    const callerId = await seedUser("Caller");
+    const otherId = await seedUser("Other");
+    const app = buildApp();
+
+    const ownFolder = await app.request("/drive/folders", {
+      method: "POST",
+      headers: { "x-uid": callerId, "content-type": "application/json" },
+      body: JSON.stringify({ name: "Mine" }),
+    });
+    expect(ownFolder.status).toBe(201);
+    const folder = (await ownFolder.json()).data;
+    expect(folder.ownerType).toBe("user");
+    expect(folder.ownerId).toBe(callerId);
+
+    const foreign = await app.request("/drive/folders", {
+      method: "POST",
+      headers: { "x-uid": callerId, "content-type": "application/json" },
+      body: JSON.stringify({ name: "Sneaky", ownerType: "user", ownerId: otherId }),
+    });
     expect(foreign.status).toBe(403);
   });
 });
