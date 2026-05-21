@@ -55,6 +55,8 @@ const entryIdSchema = z.string().min(1);
 const listSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   status: z.enum(["normal", "trash"]).optional(),
+  ownerType: z.enum(["user", "team_directory"]).optional(),
+  ownerId: z.string().optional(),
 });
 
 const createFolderSchema = z.object({
@@ -148,13 +150,15 @@ export function driveRoutes() {
   // ── Listing / sidebar views (static paths registered before :id) ────────
 
   router.get("/drive/entries", async (c) => {
-    const user = c.get("user")!;
     const query = listSchema.parse({
       parentEntryId: c.req.query("parentEntryId") ?? null,
       status: c.req.query("status") ?? undefined,
+      ownerType: c.req.query("ownerType") ?? undefined,
+      ownerId: c.req.query("ownerId") ?? undefined,
     });
+    const owner = await resolveListOwner(c, query.ownerType, query.ownerId);
     const data = await listDriveEntries(c.get("db"), {
-      ...personalOwner(user.id),
+      ...owner,
       parentEntryId: query.parentEntryId,
       status: query.status,
     });
@@ -655,6 +659,34 @@ export function driveRoutes() {
   });
 
   return router;
+}
+
+/**
+ * Resolve the listing scope from query params. Defaults to the caller's
+ * personal drive. A `team_directory` scope requires the caller to be a
+ * member of that directory (any role — viewers can browse). Mirrors the
+ * `user`-path guard used by the upload handler so a different `ownerId`
+ * cannot read another user's drive.
+ */
+async function resolveListOwner(
+  c: Context<AppEnv>,
+  ownerType: "user" | "team_directory" | undefined,
+  ownerId: string | undefined,
+): Promise<DriveOwner> {
+  const user = c.get("user")!;
+
+  if (ownerType === undefined || ownerType === "user") {
+    if (ownerId && ownerId !== user.id)
+      throw new ForbiddenError("Cannot list another user's drive");
+    return personalOwner(user.id);
+  }
+
+  if (!ownerId)
+    throw new AppError("ownerId is required for team_directory listing", 400, "VALIDATION_ERROR");
+  const role = await getDirectoryRole(c.get("db"), ownerId, user.id);
+  if (role === null)
+    throw new ForbiddenError("You do not have access to this team directory");
+  return { ownerType: "team_directory", ownerId };
 }
 
 /**
