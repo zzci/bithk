@@ -16,9 +16,8 @@ application".
 |---|---|
 | `account` (users, auth, groups, TOTP, single-user mode) | [account.md](account.md) |
 | `audit` (event log + retention sweep) | [audit.md](audit.md) |
-| `backup` (export / restore + DEK proof) | [backup.md](backup.md) |
+| `backup` (export / restore) | [backup.md](backup.md) |
 | `cron` (scheduler + action registry) | [cron.md](cron.md) |
-| `encryption` (ECIES at-rest, master/dek, unlock) | [encryption.md](encryption.md) |
 | `file` (storage drivers + ref-counted GC) | [file.md](file.md) |
 | `item` (base composition row + comments + attachments) | [item.md](item.md) |
 | `policy` (Zanzibar tuples + access rules) | [policy.md](policy.md) |

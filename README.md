@@ -2,9 +2,9 @@
 
 A Bun monorepo template for OAuth-backed internal workspaces. Ships with:
 
-- **API** — Hono on Bun, SQLite via Drizzle, optional ECIES at-rest encryption.
+- **API** — Hono on Bun, SQLite (`bun:sqlite`) via Drizzle.
 - **Web** — React 19 + TanStack Router + Tailwind v4, file-based routes, dual EN/ZH i18n.
-- **Modules** — account/auth (OAuth + TOTP), groups, Zanzibar relation tuples, `item` base + `file` storage, documents, issues, cron, settings, audit logs, encryption admin, JSON backup.
+- **Modules** — account/auth (OAuth + TOTP), groups, Zanzibar relation tuples, `item` base + `file` storage, documents, issues, cron, settings, audit logs, JSON backup.
 - **Build** — single Bun executable via `scripts/compile.ts`.
 
 ## Quick start
@@ -21,7 +21,7 @@ Already have an OAuth/OIDC provider? Point `OAUTH_ISSUER` at it in `.env` and us
 
 ### Reset local state
 
-After `bun run dev:all` has run, `data/` contains the SQLite DB, uploaded blobs, and the OIDC discovery cache. To start over (e.g. after experimenting with `DB_ENCRYPTION=true` and forgetting the master password):
+After `bun run dev:all` has run, `data/` contains the SQLite DB, uploaded blobs, and the OIDC discovery cache. To start over:
 
 ```bash
 bun run clean        # build artefacts only (dist/, .vite/, .tanstack/, coverage/)
@@ -29,16 +29,6 @@ bun run clean:all    # also wipes data/ — DB, uploads, logs, oidc cache
 ```
 
 `clean:all` is destructive; uncommitted local data is gone. Use it on a fresh clone or after intentionally tearing down a local experiment.
-
-### First-run setup (only when `DB_ENCRYPTION=true`)
-
-`DB_ENCRYPTION` defaults to `false` in dev — `bun run dev:all` lands you on login directly. If you enable encryption (recommended for production deploys), the first boot adds:
-
-1. Visit `/<base>/setup`.
-2. Paste the bootstrap token. It is auto-generated at every boot and surfaced via stderr / `<data dir>/bootstrap-token.txt` while the system is in setup mode; both go away once init succeeds.
-3. Choose a master password — this derives the master keypair that wraps the data-encryption key (DEK).
-4. Save the recovery key file (`<APP_NAME>-master-key.txt`).
-5. Sign in via OAuth. The first user matching `DEFAULT_ADMIN` becomes admin.
 
 ## Customize
 
@@ -57,7 +47,7 @@ bun run build          # Build all packages
 bun run lint           # ESLint
 bun run typecheck      # tsc --noEmit
 bun run test           # Unit tests (bun:test + vitest)
-bun run test:e2e       # Live e2e: dex + API + encrypted DB + every module
+bun run test:e2e       # Live e2e: dex + API + every module
 bun run check          # lint + typecheck + test + build + check:i18n + check:env-docs + check:api-docs
 bun run gen:env-docs   # regenerate docs/reference/env-reference.md from the zod schema + .env.example
 bun run gen:api-docs   # regenerate docs/reference/api-routes.md from the in-process Hono routes
@@ -70,7 +60,7 @@ bun run clean          # Remove build artifacts
 ```text
 apps/api/          Hono API; Drizzle schema lives per-module
 apps/web/          React 19 SPA (TanStack Router file-based)
-packages/shared/   ECIES utilities used by both api and web
+packages/shared/   Shared utilities used by both api and web
 packages/tsconfig/ Shared TS config
 docs/              Architecture, module standards, deployment, rebranding
 tests/e2e/         Live e2e harness (dex + API)

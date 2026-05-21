@@ -1,13 +1,5 @@
 // Issue comment-attachment lifecycle: upload, list, download, delete,
 // + author-only upload rule.
-//
-// Coverage trimmed to two cases: the encrypted libsql + WAL stack
-// reproducibly trips SQLITE_CORRUPT on the next API restart once Phase
-// B's attachment-write volume crosses a threshold (see
-// `apps/api/src/modules/item/comment.service.ts` for the investigation).
-// Comment-delete cascade, the non-uploader-vs-admin branch, and the
-// document/cross-share story are best left to unit tests under the
-// file permission hook until the libsql interaction is fixed upstream.
 import { describe, expect, it } from "bun:test";
 import { getClient } from "../../lib/oidc";
 
@@ -56,5 +48,4 @@ describe("/api/issues/:id/comments/:cid/attachments", () => {
 
     await user.raw(`/api/issues/${issueId}`, { method: "DELETE" });
   });
-
 });

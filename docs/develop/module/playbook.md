@@ -19,7 +19,7 @@ Replace `<name>` with your module's kebab-case singular name (e.g. `ticket`).
    import { <name>Routes } from "@/modules/<name>";
    app.route("/", <name>Routes());
    ```
-   Use `public.ts` / `setup.ts` only when the route must work while the DB is locked. Why: [§2.4 Route mounting](standards.md#24-route-mounting).
+   Use `public.ts` only when the route must work without a session. Why: [§2.4 Route mounting](standards.md#24-route-mounting).
 
 4. **(Optional) Register a policy relation** in `apps/api/src/modules/policy/namespace-config.ts` only if the seven `item` relations (`owner / editor / viewer / assignee / approver / watcher / parent_item`) are insufficient. Add one entry inside the existing namespace's `relations` block — do not create a new namespace lightly. Why: [§0 Content modules](standards.md#0-content-modules-build-on-item--file).
 

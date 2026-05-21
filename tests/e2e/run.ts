@@ -1,23 +1,16 @@
 #!/usr/bin/env bun
 /* eslint-disable no-console */
-// Unified e2e orchestrator. Boots the API with DB_ENCRYPTION=true, walks
-// the full encryption setup, then exercises every module against the live
-// stack, and finally restarts to verify the unlock cycle.
+// Unified e2e orchestrator. Boots dex and the live API, then exercises every
+// module against the running stack.
 //
 // Phases (single shared data dir under tests/e2e/.cache/data/<rid>):
 //
 //   1. dex up (OIDC fixture).
-//   2. API up — fresh, encrypted, no meta.db → status "uninitialized".
-//   3. modules/encryption/init.test.ts → init flow → status "unlocked".
-//   4. modules/{system,account,policy,document,issue,settings,audit,backup}
-//      → all module tests against the unlocked API. Includes
-//      modules/system/security.test.ts (CSRF + Origin guard cases).
-//   5. API restart — sees meta.db → status "locked".
-//   6. modules/encryption/rate-limit.test.ts → bursts unlock-challenge to
-//      verify the 429 path. Trips the in-memory limiter.
-//   7. API restart — drops the limiter so the unlock test starts clean.
-//   8. modules/encryption/unlock.test.ts → unlock flow → status "unlocked".
-//   9. Tear everything down; remove the data dir.
+//   2. API up — plaintext bun:sqlite DB, dex-wired OAuth, DEFAULT_ADMIN set
+//      so the first OIDC login auto-promotes admin@example.com to admin.
+//   3. modules/{system,account,policy,document,issue,settings,audit,backup,cron}
+//      → every module test against the live API.
+//   4. Tear everything down; remove the data dir.
 //
 // Per-phase JUnit XML lands in tests/e2e/.cache/reports/<run-ts>/<phase>.xml,
 // and a `latest/` symlink points to the most recent run. The orchestrator
@@ -41,23 +34,7 @@ const DEX_PORT = 5566;
 const API_PORT = 3010;
 const DEX_BASE = `http://127.0.0.1:${DEX_PORT}/dex`;
 const API_BASE = `http://127.0.0.1:${API_PORT}/app`;
-const MASTER_PASSWORD = "e2e-master-password";
 
-/**
- * The API auto-generates a one-time bootstrap token at every boot and writes
- * it to <DATA_DIR>/bootstrap-token.txt while the system is in setup mode.
- * Read the file once the API is up; the value is consumed by phase A and
- * deleted server-side on /encryption/init success.
- */
-function readBootstrapToken(dataDir: string): string {
-  const file = join(dataDir, "bootstrap-token.txt");
-  return readFileSync(file, "utf-8").trim();
-}
-
-const ENCRYPTION_INIT_TEST = join(E2E_DIR, "modules/encryption/init.test.ts");
-const ENCRYPTION_UNLOCK_TEST = join(E2E_DIR, "modules/encryption/unlock.test.ts");
-const ENCRYPTION_ADMIN_TEST = join(E2E_DIR, "modules/encryption/admin.test.ts");
-const ENCRYPTION_RATE_LIMIT_TEST = join(E2E_DIR, "modules/encryption/rate-limit.test.ts");
 const MODULE_DIRS = [
   "system",
   "account",
@@ -138,7 +115,6 @@ function spawnApi(dataDir: string): Subprocess {
       HOST: "127.0.0.1",
       BASE_PATH: "/app",
       DB_PATH: join(dataDir, "app.db"),
-      DB_ENCRYPTION: "true",
       LOG_LEVEL: "warn",
       LOG_FILE: join(dataDir, "api.log"),
       LOG_TO_STDOUT: "true",
@@ -187,7 +163,6 @@ async function runPhase(phaseId: string, label: string, paths: readonly string[]
     ...process.env,
     E2E_API_BASE: API_BASE,
     E2E_DEX_BASE: DEX_BASE,
-    E2E_PASSWORD: MASTER_PASSWORD,
     ...extraEnv,
   }).quiet().nothrow();
   process.stdout.write(result.stdout);
@@ -273,53 +248,17 @@ async function main() {
     dex = Bun.spawn([DEX_BIN, "serve", DEX_CONFIG], { stdout: "pipe", stderr: "pipe" });
     await waitFor(`${DEX_BASE}/.well-known/openid-configuration`, "dex");
 
-    // ── 2. API (encrypted, no DB → uninitialized).
-    console.log("[run] starting api (phase A — uninitialized)");
+    // ── 2. API. First OIDC login as admin@example.com auto-promotes the
+    //      user to admin via DEFAULT_ADMIN; nothing else needs to bootstrap.
+    console.log("[run] starting api");
     api = spawnApi(dataDir);
     await waitFor(`${API_BASE}/api/health`, "api", { acceptAny: true });
 
-    // ── 3. encryption init phase. Read the auto-generated bootstrap token
-    // off the filesystem and forward it to the test process.
-    const bootstrapToken = readBootstrapToken(dataDir);
-    const init = await runPhase("phase-a-encryption-init", "phase A: encryption init", [ENCRYPTION_INIT_TEST], reportDir, { E2E_BOOTSTRAP_TOKEN: bootstrapToken });
-    summaries.push(init.summary);
-    if (init.exit !== 0) {
-      exitCode = init.exit;
-      throw new Error("init phase failed; aborting");
-    }
-
-    // ── 4. modules (business modules + admin encryption ops which need an
-    // unlocked + admin session)
-    const modules = await runPhase("phase-b-modules", "phase B: module suites", [...MODULE_DIRS, ENCRYPTION_ADMIN_TEST], reportDir);
+    // ── 3. module suites against the live API.
+    const modules = await runPhase("modules", "module suites", MODULE_DIRS, reportDir);
     summaries.push(modules.summary);
     if (modules.exit !== 0)
       exitCode = modules.exit;
-
-    // ── 5. restart API to re-lock (rate-limit pass uses a fresh in-memory
-    //      bucket; the unlock pass then gets a second restart so the limiter
-    //      tripped by the burst does not bleed into it).
-    await stopApi();
-    console.log("[run] restarting api (phase C-rate-limit — locked)");
-    api = spawnApi(dataDir);
-    await waitFor(`${API_BASE}/api/health`, "api", { acceptAny: true });
-
-    // ── 6. encryption rate-limit phase (locked, fresh limiter)
-    const rateLimit = await runPhase("phase-c-encryption-rate-limit", "phase C: encryption rate-limit", [ENCRYPTION_RATE_LIMIT_TEST], reportDir);
-    summaries.push(rateLimit.summary);
-    if (rateLimit.exit !== 0)
-      exitCode = rateLimit.exit;
-
-    // ── 7. restart API to drop the rate-limit bucket before unlock
-    await stopApi();
-    console.log("[run] restarting api (phase C-unlock — locked, fresh limiter)");
-    api = spawnApi(dataDir);
-    await waitFor(`${API_BASE}/api/health`, "api", { acceptAny: true });
-
-    // ── 8. encryption unlock phase
-    const unlock = await runPhase("phase-c-encryption-unlock", "phase C: encryption unlock", [ENCRYPTION_UNLOCK_TEST], reportDir);
-    summaries.push(unlock.summary);
-    if (unlock.exit !== 0)
-      exitCode = unlock.exit;
   }
   catch (err) {
     console.error("[run]", err instanceof Error ? err.message : err);

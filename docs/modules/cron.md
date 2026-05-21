@@ -73,7 +73,7 @@ hooks the same start / stop seams as `audit` retention and `file` GC.
 
 | Phase | Hook | Effect |
 |---|---|---|
-| Boot (DB unlocked) | `app.ts buildFullApp` → `initCronActions(); if (config.CRON_ENABLED) await startCron(...)` | `initCronActions()` populates the in-memory action catalog + create-time validator (idempotent). `startCron` is only invoked when the gate is on; it auto-seeds default-cron rows, loads every `enabled && !is_deleted` row into Baker, and bakes the timer. |
+| Boot | `app.ts buildApp` → `initCronActions(); if (config.CRON_ENABLED) await startCron(...)` | `initCronActions()` populates the in-memory action catalog + create-time validator (idempotent). `startCron` is only invoked when the gate is on; it auto-seeds default-cron rows, loads every `enabled && !is_deleted` row into Baker, and bakes the timer. |
 | Live | `cron.routes.ts` → `getScheduler()` | Routes are mounted unconditionally and use the nullable handle. When the scheduler is running, admin mutations call `scheduler.syncJob(name)` so Baker reflects the new row without a restart. When the scheduler is off (gate disabled or `startCron` not yet run), the same mutations write to the DB and the Baker side effects are skipped. |
 | Shutdown | `index.ts shutdown` → `await stopCron()` | Stops + destroys every Baker timer; clears the singleton. Idempotent — a no-op when `startCron` was never called (i.e. `CRON_ENABLED=false`). |
 
@@ -243,16 +243,12 @@ resolve on import. No cross-module `deps` — nothing references
 `tests/e2e/modules/cron/cron.test.ts` drives the routes through the
 live API process.
 
-Active (always-on) cases:
+Cases:
 
 - **Actions catalog** — built-in `log-cleanup` present in
   `/cron/actions`; 401 for anonymous, 403 for non-admin.
 - **Default seeding read** — the auto-seeded `log-cleanup` row shows up
   in `/cron/jobs`.
-
-Skipped under a `FIXME(libsql-encryption)` block (full bodies preserved
-in the same file as documentation of the intended coverage):
-
 - **CRUD happy path** — create → list → soft-delete + `deleted` toggle.
 - **Validation matrix** — `JOB_NAME_CONFLICT` / `INVALID_CRON` /
   `INVALID_ACTION_CONFIG`.
@@ -261,20 +257,6 @@ in the same file as documentation of the intended coverage):
   delete returns 404 for unknown ids.
 - **Audit landing** — a `cron.job.triggered` row shows up in
   `/api/audit` filtered by the new job's id.
-
-**Reason for the skip.** The orchestrator's phase-A → phase-B → phase-C
-restart sequence trips an upstream libsql encrypted-WAL bug — an
-`INSERT cron_jobs` immediately followed by an `audit_events` insert and
-then a SIGTERM leaves the next-open database with `SQLITE_CORRUPT:
-database disk image is malformed` on the first
-`SELECT FROM "__drizzle_migrations"`. The pattern reproduces only with
-`DB_ENCRYPTION=true` and only when the process is killed seconds after
-the write, so production deployments (which do not restart at e2e
-cadence) are unaffected. The same write paths are exercised in unit
-tests under `apps/api/src/modules/cron/cron.test.ts` against a
-plain-text temp SQLite, so the service-layer logic stays covered.
-Re-enable the skipped `describe` block once libsql ships the upstream
-fix and the e2e orchestrator runs cleanly through phase C.
 
 ## Out of scope
 

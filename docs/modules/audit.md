@@ -40,7 +40,7 @@ apps/api/src/modules/audit/
 
 Audit records are stored in `audit_events` with actor, action, resource, request metadata, result, and optional JSON detail.
 
-The service is used by account, policy, document, issue, settings, encryption, and backup code paths.
+The service is used by account, policy, document, issue, settings, and backup code paths.
 
 ## Retention
 
@@ -52,5 +52,3 @@ The retention sweep is controlled by `AUDIT_RETENTION_DAYS`:
 | `> 0` | Drop events older than the configured number of days. The sweep fires at boot and every hour thereafter. |
 
 Set this in production to avoid unbounded table growth (a moderately busy box accrues ~10k rows/day). The sweep deletes via `WHERE created_at < cutoff` so it is index-friendly; deletion counts are logged at `info` level when non-zero.
-
-The sweep runs only on an unlocked database — locked instances skip it because the API never enters `buildFullApp`.

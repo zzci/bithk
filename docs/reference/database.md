@@ -13,7 +13,7 @@ from the source-of-truth schema files.
 
 | Topic           | Current behavior                                                                                                |
 | --------------- | --------------------------------------------------------------------------------------------------------------- |
-| Database        | SQLite (`libsql` driver, optional at-rest encryption)                                                            |
+| Database        | SQLite via Bun's built-in `bun:sqlite` (Drizzle's `bun-sqlite` adapter)                                          |
 | ORM             | Drizzle ORM                                                                                                     |
 | Time fields     | ISO 8601 strings (`text`)                                                                                       |
 | Booleans        | SQLite integer booleans (Drizzle's `integer({ mode: "boolean" })`)                                              |

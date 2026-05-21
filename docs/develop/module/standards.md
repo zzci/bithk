@@ -60,8 +60,8 @@ What the **`item` module** owns and the sub-type must NOT re-implement:
 | Soft-delete + tuple cleanup | `ItemService.softDeleteItem`                                                              |
 
 What about other concerns (non-content modules)? `account`, `audit`,
-`backup`, `encryption`, `policy`, `settings`, `system` are infrastructure
-— they own their own schema and stay out of scope for the `item` rule.
+`backup`, `policy`, `settings`, `system` are infrastructure — they own
+their own schema and stay out of scope for the `item` rule.
 
 ### Required wiring for a new content sub-type
 
@@ -136,17 +136,16 @@ apps/api/src/modules/<name>/
 
 ### 2.4 Route mounting
 
-Three route groups exist under `apps/api/src/routes/`:
+Two route groups exist under `apps/api/src/routes/`:
 
-| Group | File | Mounted in | Use case |
-|---|---|---|---|
-| public | `public.ts` | locked + unlocked | Reachable in both states (health, encryption status) |
-| setup | `setup.ts` | locked only | Reachable only while the DB is locked (encryption init / unlock) |
-| protected | `protected.ts` | unlocked only (`requireUnlocked` defense-in-depth) | Business routes; modules apply their own `authRequired` / `adminRequired` |
+| Group | File | Use case |
+|---|---|---|
+| public | `public.ts` | Reachable without a session (health, etc.) |
+| protected | `protected.ts` | Business routes; modules apply their own `authRequired` / `adminRequired` |
 
-A new module's routes default to `protected.ts`. Use `public.ts` only when the route legitimately must answer in both states. Use `setup.ts` only when the route exists exclusively to recover the system from a locked state.
+A new module's routes default to `protected.ts`. Use `public.ts` only when the route legitimately must answer without a session.
 
-- `protected.ts` applies `requireUnlocked` by default; the module itself wraps `authRequired` / `adminRequired` explicitly inside its `<name>.routes.ts`.
+- The module wraps `authRequired` / `adminRequired` explicitly inside its `<name>.routes.ts`.
 - Inbound validation: parse the body with the module's zod schema (`schema.parse(await c.req.json())`); the shared `errorHandler` turns the resulting `ZodError` into a uniform 422 `VALIDATION_ERROR`.
 - Error response shape: `{ success: false, error: { code, message } }`. Success response shape: `{ success: true, data, meta? }`.
 - Webhook / Bearer-token routes: create a separate `<name>.external.routes.ts`; the CSRF guard automatically lets `Authorization: Bearer …` requests through.
@@ -159,7 +158,7 @@ A new module's routes default to `protected.ts`. Use `public.ts` only when the r
 
 ### 2.6 Schema sharding (mandatory)
 
-A module that owns persistent state **must** carry its own schema file; `db/schema.ts` is only a re-export aggregator. Schemaless modules (e.g. `system`, `encryption`, `backup`) own no tables and therefore add no entry to `db/schema.ts`.
+A module that owns persistent state **must** carry its own schema file; `db/schema.ts` is only a re-export aggregator. Schemaless modules (e.g. `system`, `backup`) own no tables and therefore add no entry to `db/schema.ts`.
 
 ```text
 apps/api/src/modules/<name>/
@@ -213,7 +212,7 @@ Non-human actors (webhook / system): `actorId=client:<id>`, `actorName=client:<n
 
 ### 2.8 Backup contribution (mandatory for modules that own tables)
 
-Any module that owns persistent tables **must** register a `BackupContribution` so its rows participate in `/api/backup/export` and `/api/backup/import`. Modules without tables (e.g. `system`, `encryption`) skip this section.
+Any module that owns persistent tables **must** register a `BackupContribution` so its rows participate in `/api/backup/export` and `/api/backup/import`. Modules without tables (e.g. `system`) skip this section.
 
 **Files**:
 
@@ -303,7 +302,7 @@ A module **must** load via i18next namespaces; **do not** append new module keys
 - Module components use `useTranslation("<module>")`; keys do **not** carry the `<module>.` prefix (the namespace already isolates them).
 - Global keys such as `common.*` / `nav.*` / `page.*` resolve automatically via `fallbackNS: "common"` — no need to write a `common:` prefix on every `t()` call.
 - When a module needs another namespace, use `useTranslation(["<module>", "<other>"])` and access the other namespace as `t("<other>:key")` (see `settings-dialog.tsx`, which mounts `common + users`).
-- `common.json` only retains global keys (layout, buttons, error messages): app / theme / auth / totp / profile / common / nav / page / portal / login / denied / encryption / settings; new module keys are no longer accepted.
+- `common.json` only retains global keys (layout, buttons, error messages): app / theme / auth / totp / profile / common / nav / page / portal / login / denied / settings; new module keys are no longer accepted.
 
 **Module-owned locale shards (recommended target pattern, not yet enabled)**:
 
@@ -340,7 +339,7 @@ Every new module must update the following documents before merging (**all in th
 
 Two **non-negotiable** rules drive every test the module ships:
 
-1. **Unit + e2e together MUST cover 100% of every line in the module.** Each line of source belongs to exactly one of the two test layers — there is no third bucket. If a line is not reachable from a unit test (because it depends on a real OAuth IdP, libsql encryption, browser cookies, or the live Bun.serve fetch pipeline), then it MUST be reached by an e2e test. "Covered by neither" is rejected at review.
+1. **Unit + e2e together MUST cover 100% of every line in the module.** Each line of source belongs to exactly one of the two test layers — there is no third bucket. If a line is not reachable from a unit test (because it depends on a real OAuth IdP, browser cookies, or the live Bun.serve fetch pipeline), then it MUST be reached by an e2e test. "Covered by neither" is rejected at review.
 
 2. **Every user-facing endpoint MUST have 100% e2e coverage.** A "user-facing endpoint" is any HTTP route exposed to the SPA, mobile clients, or external integrators (i.e. anything mounted under `routes/protected.ts` or `routes/public.ts`). Each such route must have at least one e2e case that drives it through the live API process — no exceptions for "internal" or "rarely used" routes. If an admin can call it, an attacker can call it, and the e2e suite is the regression net.
 
@@ -349,12 +348,12 @@ Concretely:
 | Layer | Where it lives | What it covers |
 |---|---|---|
 | Unit | `*.test.ts` next to the source under `apps/api/src/**` | Pure logic: services, helpers, middleware, registries, schema validators, state machines, error envelopes. Aim for 100% on every file the unit-test runner can reach. |
-| Live e2e | `tests/e2e/modules/<module>/*.test.ts` | Every HTTP path under `*.routes.ts`, every permission branch, every multipart / streaming / encrypted flow, every audit landing. The user-facing surface is owned here. |
+| Live e2e | `tests/e2e/modules/<module>/*.test.ts` | Every HTTP path under `*.routes.ts`, every permission branch, every multipart / streaming flow, every audit landing. The user-facing surface is owned here. |
 
 How the two add up to 100%:
 
-- Unit tests own logic that can be exercised in-process without faking infrastructure (DB schema is real via a temp SQLite; libsql encryption / OAuth / fs uploads are NOT faked).
-- e2e owns everything that requires the live stack: HTTP wire behaviour, OAuth token exchange against dex, libsql encryption rewrap, ECIES handshakes, TOTP lifecycle, file-system attachment uploads, CSRF + Origin guards under a real `Bun.serve` pipeline, encryption-state restart cycles.
+- Unit tests own logic that can be exercised in-process without faking infrastructure (DB schema is real via a temp SQLite; OAuth and fs uploads are NOT faked).
+- e2e owns everything that requires the live stack: HTTP wire behaviour, OAuth token exchange against dex, TOTP lifecycle, file-system attachment uploads, CSRF + Origin guards under a real `Bun.serve` pipeline.
 - Anything in between (e.g. a service function that walks the DB but is also called from a route) is allowed to be covered by either or both — but the line MUST be hit by at least one.
 
 The coverage report enforces the unit half via `apps/api/bunfig.toml` thresholds (≥ 85% lines / ≥ 70% functions on the unit-testable surface, with `*.routes.ts` and process-level helpers excluded). The e2e half is enforced by review: every new route file MUST land with a matching `tests/e2e/modules/<module>/*.test.ts` that exercises it.
@@ -381,9 +380,9 @@ The coverage report enforces the unit half via `apps/api/bunfig.toml` thresholds
 
 **Hard rule**: every HTTP route mounted to a user (the SPA, mobile clients, external integrators) MUST have e2e coverage. There is no "internal route" exemption; every entry registered under `routes/protected.ts` or `routes/public.ts` is reachable from outside the process and therefore is in the e2e contract. A new route landing in a PR without a matching `tests/e2e/modules/<module>/*.test.ts` case is rejected at review.
 
-The single live e2e suite is the system-of-record for HTTP behaviour: `tests/e2e/modules/<name>/*.test.ts`, run via `bun run test:e2e`. The orchestrator boots dex (auto-extracted from the official OCI image — no docker required), starts the API with `DB_ENCRYPTION=true` against a temp DB under `tests/e2e/.cache/data/<run-id>/`, performs the encryption setup, then runs every module's tests against the live stack, and finally restarts to verify the rate-limit and unlock cycles. JUnit XML + a JSON summary land in `tests/e2e/.cache/reports/<run-ts>/` (with a `latest/` symlink for CI).
+The single live e2e suite is the system-of-record for HTTP behaviour: `tests/e2e/modules/<name>/*.test.ts`, run via `bun run test:e2e`. The orchestrator boots dex (auto-extracted from the official OCI image — no docker required), starts the API against a temp DB under `tests/e2e/.cache/data/<run-id>/`, and runs every module's tests against the live stack. JUnit XML + a JSON summary land in `tests/e2e/.cache/reports/<run-ts>/` (with a `latest/` symlink for CI).
 
-In-process integration tests under `apps/api/tests/` were removed deliberately — they overlapped with the live e2e and the duplication created drift. Cross-cutting security guards (CSRF / Origin) live in `tests/e2e/modules/system/security.test.ts`; the encryption rate-limit case lives in its own phase under `tests/e2e/modules/encryption/rate-limit.test.ts`.
+In-process integration tests under `apps/api/tests/` were removed deliberately — they overlapped with the live e2e and the duplication created drift. Cross-cutting security guards (CSRF / Origin) live in `tests/e2e/modules/system/security.test.ts`.
 
 #### What every new module must add to the live e2e suite
 
@@ -394,7 +393,6 @@ For each new module **\<module\>**:
 - Use the shared helpers — never re-implement them:
   - `getClient(email)` from `tests/e2e/lib/oidc.ts` returns a cached, logged-in `ApiClient` (and self-heals on 401). Use `loginAs(email)` only when the test exercises the login flow itself.
   - `ApiClient` from `tests/e2e/lib/api.ts` carries the cookie jar and supports JSON + multipart (`formData`).
-  - For ECIES dance (challenge/unlock/rotate-dek/backup-export), import the same helpers the SPA uses from `packages/shared/src/index` via a relative path — `tests/e2e/` is not a workspace member, so the workspace symlink is not reachable.
 - Two pre-seeded dex users are available; both have password `admin`:
   - `admin@example.com` (matches `DEFAULT_ADMIN`, becomes admin on first login).
   - `user@example.com` (regular user).
@@ -405,7 +403,7 @@ For each new module **\<module\>**:
   - **Multipart / streaming endpoints**: upload + download round-trips, plus the size cap (assert the > limit case is rejected).
   - **Audit landing**: drive an audited write, then read `/api/audit` as admin and assert the new event row.
 - Cleanup: every test that creates persistent state (groups, documents, settings keys, TOTP devices) must delete what it created. The orchestrator wipes the data dir at the end of the run, but tests that share state across files (cached sessions, DEFAULT_ADMIN-style fixtures) need to leave the system in the state the next file expects.
-- If the module flips encryption, locks the system, or otherwise mutates global state across processes, document the requirement in the PR and add a fresh phase to `run.ts` rather than leaking state into Phase B (`encryption/init.test.ts` and `encryption/unlock.test.ts` are the worked examples).
+- If the module mutates global state across processes (restart with a fresh DB, e.g.), document the requirement in the PR and isolate that case into its own test file with its own API subprocess (see `account/single-user.test.ts` / `backup/restore.test.ts` for the worked patterns).
 
 Browser-level e2e (Playwright) is intentionally not integrated: every cross-page flow currently in scope is reachable via HTTP without DOM. Add Playwright if and when a module ships behaviour that genuinely requires a browser (rich-text collab, file preview, etc.); add `bunx playwright test` to the root `package.json` at the same time.
 
@@ -475,7 +473,7 @@ When opening the PR, the module author must check off every item in the PR descr
 
 - [ ] PR description states the design (file layout, schema, routes, dependencies, risks, out-of-scope).
 - [ ] Schema lives in `modules/<name>/schema.ts`; `db/schema.ts` only adds one `export *` line (**no table definitions**).
-- [ ] Routes mounted under `routes/protected.ts` (or `routes/public.ts` for routes that must work while the system is locked); the module-own code and aggregate-file additions are split per the two-phase commit rule (see 7.4).
+- [ ] Routes mounted under `routes/protected.ts` (or `routes/public.ts` for routes that must work without a session); the module-own code and aggregate-file additions are split per the two-phase commit rule (see 7.4).
 - [ ] Aggregate files each receive at most one line of change (schema re-export / route mount / sidebar NavItems / docs table row); `common.json` has **no new module keys**.
 - [ ] Every write route calls `audit(db, logger, …)`.
 - [ ] If the module owns tables, a `<name>.backup.ts` exports a `BackupContribution` and the module's `index.ts` calls `registerBackupContribution(...)` (see §2.8). E2E covers the export / import round-trip.

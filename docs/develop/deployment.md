@@ -15,7 +15,7 @@ bun run compile
 docker build -t myapp .
 ```
 
-The runtime layer uses `debian:stable-slim` by default — publicly pullable so forks `docker build` without an upstream credential dance. Override via `--build-arg RUNTIME_BASE=...` (e.g. distroless / a hardened internal base). The compiled binary embeds the frontend assets and Drizzle migrations so the runtime layer only needs glibc + the libsql native binding (already copied in) + `curl` for the HEALTHCHECK.
+The runtime layer uses `debian:stable-slim` by default — publicly pullable so forks `docker build` without an upstream credential dance. Override via `--build-arg RUNTIME_BASE=...` (e.g. distroless / a hardened internal base). The compiled binary embeds the frontend assets and Drizzle migrations so the runtime layer only needs glibc + `curl` for the HEALTHCHECK.
 
 Inject the source revision via `--build-arg BUILD_COMMIT=$(git rev-parse --short HEAD)` so `app --version` and `/api/system/version` report the real hash — `.git` is excluded from the build context, so the build cannot resolve it on its own. CI / release pipelines should always set this.
 
@@ -34,7 +34,7 @@ Highlights for a production deploy:
 | `APP_URL` | Production redirect-URI base; forwarded headers are not trusted in prod |
 | `CORS_ORIGIN` | Comma-separated allow-list; fail-closed in prod when unset |
 | `BASE_PATH` | URL prefix the app is mounted under. Leave unset for root mount; set to the reverse-proxy mount (e.g. `/app`) when serving under a prefix |
-| `DB_PATH`, `DB_ENCRYPTION` | Persistent volume for the DB; encryption defaults to off for dev — turn on in prod |
+| `DB_PATH` | Persistent volume for the SQLite DB |
 | `OAUTH_*` | OIDC issuer or full endpoint set, plus client id/secret |
 | `DEFAULT_ADMIN` | Comma-separated emails that get admin role on first login (no-op if users exist) |
 | `LOG_FILE` / `LOG_TO_STDOUT` | Either rotates on disk or hands lines to the runtime |
@@ -47,7 +47,7 @@ The container declares `VOLUME /app/data`. Inside that volume the runtime writes
 
 | Path | Derived from | Holds | Backup priority |
 |---|---|---|---|
-| `${DB_PATH}` (default `${ROOT_DIR}/data/db/app.db`) | `DB_PATH` (or `ROOT_DIR` when unset) | `app.db`, `app.db-wal`, `app.db-shm`, `meta.db` | Critical |
+| `${DB_PATH}` (default `${ROOT_DIR}/data/db/app.db`) | `DB_PATH` (or `ROOT_DIR` when unset) | `app.db`, `app.db-wal`, `app.db-shm` | Critical |
 | `${FILE_STORAGE_LOCAL_ROOT}` (default `${ROOT_DIR}/data/uploads/files/`) | `FILE_STORAGE_LOCAL_ROOT` (or `ROOT_DIR` when unset) | All attachments (documents, issues, …); content-addressable blobs under the `file` module | Critical |
 | `${ROOT_DIR}/data/logs/` | `ROOT_DIR` (`LOG_FILE` may override the file path) | Runtime logs | Operational |
 
@@ -61,8 +61,7 @@ The container declares `VOLUME /app/data`. Inside that volume the runtime writes
 The API exposes two distinct probes:
 
 - `GET /<base>/api/health` → `200 {status:"ok"}` whenever the process is alive. Use for **liveness** — restart-on-failure semantics.
-- `GET /<base>/api/health/ready` → `200 {status:"ready"}` when the DB is unlocked **and** reachable; `503 {status:"locked"\|"no_db"\|"db_unavailable"}` otherwise. Use for **readiness** — load-balancer pool membership.
-- `GET /<base>/api/encryption/status` is still available for richer debug info (returns `{initialized, locked, status, dbError}`) but should **not** be used as a probe — its 200 response doesn't imply ready.
+- `GET /<base>/api/health/ready` → `200 {status:"ready"}` when the DB is reachable; `503 {status:"db_unavailable"}` otherwise. Use for **readiness** — load-balancer pool membership.
 
 Recommended Kubernetes / docker-compose probes:
 
@@ -75,7 +74,7 @@ readinessProbe:
   httpGet:
     path: /app/api/health/ready
     port: 3000
-  # 200 = ready (db unlocked + reachable); 503 = drain traffic
+  # 200 = ready (db reachable); 503 = drain traffic
 ```
 
 ## Reference compose stack (local dev / smoke test)
@@ -88,7 +87,7 @@ cp .env.example .env                # populate APP_NAME, secrets, APP_URL, etc.
 docker compose up --build
 ```
 
-Required env (in `.env` next to the compose file): `APP_NAME`, `APP_DISPLAY_NAME`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `APP_URL`. The bootstrap token gating `/api/encryption/init` is auto-generated at every boot and printed to stderr / written to `<data dir>/bootstrap-token.txt` while the system is in setup mode (no `meta.db` yet) — there is nothing to set in `.env`. Strip the `dex` service and replace it with your real IdP for any non-toy deploy.
+Required env (in `.env` next to the compose file): `APP_NAME`, `APP_DISPLAY_NAME`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `APP_URL`. Strip the `dex` service and replace it with your real IdP for any non-toy deploy.
 
 ## Reverse proxy
 
@@ -128,7 +127,7 @@ The reference `examples/compose/Caddyfile` ships with plain `:80` for local smok
 
 `TRUST_PROXY` controls whether the app reads `X-Forwarded-For` (and, as a
 fallback, `X-Real-IP`) to determine the client IP used for rate limits,
-lockouts, audit logs, and DEK challenge caps.
+lockouts, and audit logs.
 
 - **Default (`TRUST_PROXY=false`)** — the app uses the connection peer IP only. Safe everywhere; appropriate when the app is reachable directly or behind a single trusted proxy that does not need to attribute per-client IPs.
 - **`TRUST_PROXY=true`** — the app honours the **rightmost** `X-Forwarded-For` entry (the hop closest to our process — the one set by the trusted proxy). `X-Real-IP` is read only when XFF is absent. Set this **only** when every request reaches the app through a proxy that **overwrites** both headers with the verified client IP.
@@ -182,10 +181,7 @@ The reference stack under `examples/compose/` is local-dev grade. For a producti
 Treat the following env vars as secrets and inject them via your platform's secret manager rather than committing them in `.env`:
 
 - `OAUTH_CLIENT_SECRET` — IdP client secret.
-- `MASTER_PASSWORD_FILE` — path to a single-use file containing the master password for unattended unlock (see [`operations.md`](operations.md) § Sealed-file unlock). Mount via the platform's secret manager so the file appears at runtime, is read once, and is then deleted by the app. Avoid `MASTER_PASSWORD` in plain env vars — `docker inspect` and process listings expose it.
 - `SERVICE_TOKEN_METRICS` / `SERVICE_TOKEN_BACKUP` — bearer tokens for scrape / sidecar callers. Each min 32 chars; rotate independently.
-
-The encryption bootstrap token is **not** an env var — it is generated at every boot, surfaced via stderr and `<data dir>/bootstrap-token.txt`, and consumed once by the setup wizard. Pull it from container logs (`docker compose logs app | grep BOOTSTRAP_TOKEN`) or the on-disk file; both are removed on `/encryption/init` success.
 
 In compose, prefer `secrets:` files over `environment:` for the values that *are* secrets, so they do not show up in `docker inspect`:
 
@@ -292,7 +288,7 @@ A ready-to-drop example lives at
 
 ## Operations runbook
 
-Day-2 procedures (master-password rotation, lost-password recovery, snapshot restore, audit-log investigation) live in [`operations.md`](operations.md). Bookmark it before you cut over to production.
+Day-2 procedures (snapshot restore, audit-log investigation) live in [`operations.md`](operations.md). Bookmark it before you cut over to production.
 
 ## Backup & restore
 
@@ -300,12 +296,12 @@ Day-2 procedures (master-password rotation, lost-password recovery, snapshot res
 
 The DB is a single SQLite file with WAL. Two viable strategies:
 
-1. **`sqlite3 .backup`** — atomic, doesn't block writers. Run out-of-band via cron; pair with `gpg --encrypt` if the box doesn't host the master password.
+1. **`sqlite3 .backup`** — atomic, doesn't block writers. Run out-of-band via cron; pair with `gpg --encrypt` (and a separately-managed key) for off-host snapshots.
 2. **[litestream](https://litestream.io/)** — continuous WAL replication to S3-compatible storage. Recommended for anything past a single-tenant tool.
 
 ### Application-level export
 
-The `/api/backup/export` admin endpoint produces a JSON dump of selected modules. It requires the master password to prove DEK ownership, and import is **schema-version-locked** — see "Upgrade" below.
+The `/api/backup/export` admin endpoint produces a JSON dump of selected modules. Import is **schema-version-locked** — see "Upgrade" below.
 
 ### Uploaded files
 
@@ -323,11 +319,3 @@ SQLite migrations are embedded in the binary and run on boot. The risky cases:
 | Major schema reshuffle | Use `/api/backup/export` (still on old binary), deploy new binary, `/api/backup/import` to a fresh DB. Skip in-place migration entirely. |
 
 Always run a restore drill (export → import on a scratch DB) before a production upgrade — it's the only way to know the schema-version locked import path is still intact.
-
-### Master-key rotation
-
-`/api/encryption/rotate-dek` is marked **EXPERIMENTAL** and gated behind `ENABLE_EXPERIMENTAL_DEK_ROTATION` (default `false`). With the flag off the route returns **501 Not Implemented**. With the flag on it can still fail under busy WAL with the known `SQLITE_IOERR`; the e2e suite asserts the current 500/`ROTATE_FAILED` contract so a future fix is detected automatically. Until it lands, prefer `/api/encryption/change-master` (changes the master password / re-wraps the DEK without touching ciphertext).
-
-## Disabling encryption
-
-Setting `DB_ENCRYPTION=false` skips the locked/unlocked dance entirely — useful for staging or air-gapped boxes where the OS already encrypts the disk. Once turned off, do not flip back on against a populated DB without going through the export → fresh init → import path.

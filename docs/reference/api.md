@@ -44,16 +44,13 @@ Errors use the shared error handler:
 | Level         | Meaning                                                                                                  |
 | ------------- | -------------------------------------------------------------------------------------------------------- |
 | Public        | No session required.                                                                                      |
-| Setup         | Available before the encrypted database is unlocked.                                                      |
 | Authenticated | Requires a valid session cookie.                                                                          |
 | Admin         | Requires a valid session and `user.role === "admin"`.                                                     |
 | Service Token | Requires a scoped bearer (`SERVICE_TOKEN_METRICS` for `/api/metrics`, `SERVICE_TOKEN_BACKUP` for `/api/backup/export-via-token`). For non-interactive tooling (scrapers, backup). |
 
-Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`,
-which itself wraps a `requireUnlocked` guard — they're unreachable until
-the database is decrypted.
+Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`.
 
-## System and setup
+## System
 
 | Method | Path                                       | Access        | Description                                                                                                                            |
 | ------ | ------------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |

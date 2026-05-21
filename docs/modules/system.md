@@ -29,7 +29,7 @@ auth is enforced inside each handler by `authRequired` /
 | Method | Path                          | Access        | Description                                                                                                                            |
 | ------ | ----------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | GET    | `/api/health`                 | Public        | **Liveness**. Always `200 {status:"ok"}` unless the runtime is wedged. Used by k8s `livenessProbe` / Docker `HEALTHCHECK`.               |
-| GET    | `/api/health/ready`           | Public        | **Readiness**. `200 {status:"ready"}` only when the DB is unlocked AND reachable; `503` with `status:"locked"\|"no_db"\|"db_unavailable"` otherwise. Used by k8s `readinessProbe` / load-balancer pool draining. |
+| GET    | `/api/health/ready`           | Public        | **Readiness**. `200 {status:"ready"}` when the DB is reachable; `503 {status:"db_unavailable"}` otherwise. Used by k8s `readinessProbe` / load-balancer pool draining. |
 | GET    | `/api/system/version`         | Admin         | Build provenance: commit hash + build time. Mirrors what `app --version` prints in the standalone binary.                                |
 | GET    | `/api/system/upload-limits`   | Authenticated | `{ maxFileSize, maxAttachmentsPerResource, totalQuota }`. Frontend reads this to render correct client-side hints.                       |
 | GET    | `/api/metrics`                | Service Token | Prometheus text exposition. Gated by `SERVICE_TOKEN_METRICS`; returns 503 when unset so scrape jobs fail closed.                  |

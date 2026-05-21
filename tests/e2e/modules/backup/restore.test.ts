@@ -64,7 +64,6 @@ beforeAll(async () => {
   const SCRUB = new Set([
     "PORT",
     "DB_PATH",
-    "DB_ENCRYPTION",
     "LOG_FILE",
     "APP_URL",
     "OAUTH_ISSUER",
@@ -96,10 +95,6 @@ beforeAll(async () => {
       HOST: "127.0.0.1",
       BASE_PATH: "/app",
       DB_PATH: join(dataDir, "app.db"),
-      // Plaintext DB removes the DEK challenge requirement on the
-      // import / export endpoints — orthogonal to what we're testing
-      // here, and skipping it keeps the round-trip simple.
-      DB_ENCRYPTION: "false",
       LOG_LEVEL: "warn",
       LOG_TO_STDOUT: "true",
       APP_URL: `http://127.0.0.1:${API_PORT}`,

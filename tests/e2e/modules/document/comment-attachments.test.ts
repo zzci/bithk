@@ -1,8 +1,6 @@
 // Document comment-attachment lifecycle. Route surface comes from
-// mountItemCommentRoutes; this file only covers the happy-path cycle
-// against `/api/documents/...` to keep Phase B's encrypted-WAL volume
-// under the libsql SQLITE_CORRUPT threshold (see the issue counterpart
-// + comment.service.ts).
+// mountItemCommentRoutes; this file covers the happy-path cycle against
+// `/api/documents/...`.
 import { describe, expect, it } from "bun:test";
 import { getClient } from "../../lib/oidc";
 

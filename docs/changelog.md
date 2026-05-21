@@ -11,6 +11,21 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## 2026-05-21
+
+### Removed
+
+- libsql, the `encryption` module, and the locked/setup/unlock lifecycle.
+  API now uses `bun:sqlite` directly via Drizzle's `bun-sqlite` adapter.
+- Env vars `DB_ENCRYPTION`, `MASTER_PASSWORD_FILE`,
+  `ENABLE_EXPERIMENTAL_DEK_ROTATION`.
+- Endpoints under `/api/encryption` and the frontend `/setup` and
+  `/unlock` routes.
+
+This is a breaking change with no backward-compatibility path: at-rest
+encryption is now the operator's responsibility (full-disk encryption,
+volume-level encryption, or column wrapping at the application layer).
+
 ## v0.1.0 — 2026-05-14
 
 First tagged template release. Subsequent forks should anchor their

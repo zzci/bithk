@@ -102,8 +102,7 @@ The built-in `local` driver:
 - Two-phase writes (`tmp → rename`) so a crash between write and DB
   insert leaves a sweepable `.tmp` rather than an orphan at the final
   name.
-- 0o700 directory perms (cleartext blob tree is readable only by the
-  runtime user — matters when DB encryption is on).
+- 0o700 directory perms (blob tree is readable only by the runtime user).
 - No `presignDownload` — downloads always stream through the API.
 
 ## Service surface
