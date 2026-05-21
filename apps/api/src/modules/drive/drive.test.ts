@@ -1,17 +1,21 @@
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
+import type { AppEnv } from "@/shared/lib/types";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { fileReferences, files } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
+import { policyMiddleware } from "@/modules/policy";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
+import { driveRoutes } from "./drive.routes";
 import {
   createDriveFolder,
   deleteDriveEntryPermanently,
@@ -21,6 +25,7 @@ import {
   updateDriveEntry,
   uploadDriveFile,
 } from "./drive.service";
+import { addTeamMember, createTeamDirectory } from "./drive.team-directory.service";
 import { driveEntries } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
@@ -189,5 +194,75 @@ describe("drive files", () => {
     expect(trashRoot.map(entry => entry.name)).toEqual(["Parent"]);
     const normalRoot = await listDriveEntries(db, { ...personal(userId) });
     expect(normalRoot.map(entry => entry.name)).toEqual(["Child"]);
+  });
+});
+
+describe("GET /drive/entries owner scope", () => {
+  // Pre-set `user` from an `x-uid` header so the route's `authRequired` and
+  // the global `policyMiddleware` both short-circuit on `c.get("user")` —
+  // this avoids mutating the process-global auth provider (which would leak
+  // into other test files).
+  function buildApp() {
+    const noopLogger = { error() {}, warn() {}, info() {}, debug() {} } as unknown as AppEnv["Variables"]["logger"];
+    const app = new Hono<AppEnv>();
+    app.use("*", async (c, next) => {
+      c.set("db", db);
+      c.set("logger", noopLogger);
+      c.set("requestId", "t");
+      const uid = c.req.header("x-uid");
+      if (uid) {
+        const u = await db.select().from(users).where(eq(users.id, uid)).get();
+        if (u)
+          c.set("user", u);
+      }
+      await next();
+    });
+    app.use("*", policyMiddleware({ basePath: "" }));
+    app.route("/", driveRoutes());
+    app.onError((err, c) => {
+      const status = (err as { statusCode?: number }).statusCode ?? 500;
+      return c.json({ success: false }, status as 400);
+    });
+    return app;
+  }
+
+  test("a directory member can list the directory's entries; a non-member is denied", async () => {
+    const ownerId = await seedUser("Owner");
+    const memberId = await seedUser("Member");
+    const strangerId = await seedUser("Stranger");
+
+    const dir = await createTeamDirectory(db, { name: "Team", createdBy: ownerId });
+    await addTeamMember(db, dir.id, ownerId, { userId: memberId, role: "viewer" });
+    await createDriveFolder(db, {
+      ownerType: "team_directory",
+      ownerId: dir.id,
+      createdBy: ownerId,
+      name: "Shared",
+    });
+
+    const app = buildApp();
+    const path = `/drive/entries?ownerType=team_directory&ownerId=${dir.id}`;
+
+    const memberRes = await app.request(path, { headers: { "x-uid": memberId } });
+    expect(memberRes.status).toBe(200);
+    expect((await memberRes.json()).data.map((e: { name: string }) => e.name)).toEqual(["Shared"]);
+
+    const strangerRes = await app.request(path, { headers: { "x-uid": strangerId } });
+    expect(strangerRes.status).toBe(403);
+  });
+
+  test("ownerType=user ignores a foreign ownerId and stays scoped to the caller", async () => {
+    const callerId = await seedUser("Caller");
+    const otherId = await seedUser("Other");
+
+    await createDriveFolder(db, { ...personal(callerId), createdBy: callerId, name: "Mine" });
+    const app = buildApp();
+
+    const own = await app.request("/drive/entries", { headers: { "x-uid": callerId } });
+    expect(own.status).toBe(200);
+    expect((await own.json()).data.map((e: { name: string }) => e.name)).toEqual(["Mine"]);
+
+    const foreign = await app.request(`/drive/entries?ownerId=${otherId}`, { headers: { "x-uid": callerId } });
+    expect(foreign.status).toBe(403);
   });
 });
