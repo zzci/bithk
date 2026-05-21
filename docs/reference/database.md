@@ -243,12 +243,95 @@ different purposes; neither derives the other. Document sharing is also
 expressed as policy tuples (`viewer` / `editor`), not as a dedicated
 shares table.
 
+### Drive
+
+Personal and team file storage. The drive owns its own five tables (it is
+**not** a sub-type of `item`); file bytes are held by the `file` module
+(`files` / `file_references`).
+
+#### `drive_entries`
+A folder or file node in a drive tree.
+
+| Column              | Notes                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `id`                | PK — 8-char nanoid.                                                                                            |
+| `owner_type`        | Enum text: `'user' \| 'team_directory'`.                                                                       |
+| `owner_id`          | `users.id` (personal) or `team_directories.id` (team).                                                         |
+| `parent_entry_id`   | Parent folder id, or `''` for a root entry (empty string, not null).                                           |
+| `entry_type`        | Enum text: `'folder' \| 'file'`.                                                                               |
+| `name`              | Entry name (no path separators; ≤ 255 chars).                                                                 |
+| `file_reference_id` | Nullable FK → `file_references.id ON DELETE RESTRICT` — the current version pointer (files only).            |
+| `favorite`          | Enum text `'0' \| '1'`. Default `'0'`.                                                                          |
+| `status`            | Enum text: `'normal' \| 'trash'`. Default `'normal'` (soft delete).                                            |
+| `created_by`        | FK → `users.id ON DELETE CASCADE`.                                                                            |
+| `created_at` / `updated_at` | ISO strings.                                                                                            |
+
+Unique on `(owner_type, owner_id, parent_entry_id, name, status)` — no two
+live entries share a name in the same folder.
+
+#### `team_directories`
+A shared drive root with role-based membership.
+
+| Column         | Notes                                                       |
+| -------------- | ----------------------------------------------------------- |
+| `id`           | PK — 8-char nanoid.                                         |
+| `name`         | Directory name.                                             |
+| `description`  | Nullable text.                                              |
+| `created_by`   | FK → `users.id ON DELETE CASCADE`. The creator is an implicit admin. |
+| `created_at` / `updated_at` | ISO strings.                                   |
+
+#### `team_directory_members`
+Explicit membership rows (the creator is admin without a row).
+
+| Column         | Notes                                                                 |
+| -------------- | --------------------------------------------------------------------- |
+| `id`           | PK — 8-char nanoid.                                                   |
+| `directory_id` | FK → `team_directories.id ON DELETE CASCADE`.                        |
+| `user_id`      | FK → `users.id ON DELETE CASCADE`. Unique with `directory_id`.       |
+| `role`         | Enum text: `'admin' \| 'editor' \| 'viewer'`. Default `'viewer'`.    |
+| `created_at`   | ISO string.                                                           |
+
+#### `drive_file_versions`
+Append-only version history for a file entry.
+
+| Column              | Notes                                                                  |
+| ------------------- | ---------------------------------------------------------------------- |
+| `id`                | PK — 8-char nanoid.                                                    |
+| `drive_entry_id`    | FK → `drive_entries.id ON DELETE CASCADE`.                            |
+| `file_reference_id` | FK → `file_references.id ON DELETE RESTRICT` — this version's bytes.  |
+| `version_no`        | Monotonic per entry; unique with `drive_entry_id`.                     |
+| `uploaded_by`       | FK → `users.id ON DELETE CASCADE`.                                   |
+| `created_at`        | ISO string.                                                            |
+
+A version is "current" when `drive_entries.file_reference_id` equals its
+`file_reference_id`. Permanent delete releases every version reference.
+
+#### `drive_file_shares`
+Direct (user-to-user) and public-link shares for a file entry.
+
+| Column                | Notes                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `id`                  | PK — 8-char nanoid.                                                                   |
+| `drive_entry_id`      | FK → `drive_entries.id ON DELETE CASCADE`.                                           |
+| `token`               | Unique 256-bit url-safe random hex token.                                             |
+| `share_type`          | Enum text: `'direct' \| 'public_link'`. Default `'public_link'`.                      |
+| `shared_with_user_id` | FK → `users.id ON DELETE CASCADE` — the recipient (direct shares only).             |
+| `permission`          | Enum text: `'view' \| 'download' \| 'edit'`. Default `'view'`.                        |
+| `password`            | Nullable `Bun.password` hash (public links only).                                     |
+| `expires_at`          | Nullable ISO string.                                                                  |
+| `max_downloads`       | Nullable cap; `download_count` is the running total (default 0).                      |
+| `is_active`           | Integer boolean; revoke flips it to 0. Default 1.                                     |
+| `created_by`          | FK → `users.id ON DELETE CASCADE`.                                                   |
+| `created_at` / `updated_at` | ISO strings.                                                                    |
+
 ## Schema scope
 
 The current schema covers: accounts (users / groups / sessions / TOTP /
 preferences / PKCE state / auth lockouts), audit, settings, Zanzibar
-tuples, items + item comments, files + file references, and the two
-sub-type detail tables (`issue_details`, `document_details`).
+tuples, items + item comments, files + file references, the two
+sub-type detail tables (`issue_details`, `document_details`), and the
+drive's own five tables (`drive_entries`, `team_directories`,
+`team_directory_members`, `drive_file_versions`, `drive_file_shares`).
 
 Group membership is **not** a dedicated table — it lives as
 `relation_tuples` rows in the `group` namespace, queried via

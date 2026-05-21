@@ -208,6 +208,51 @@ delegates to the `policy` engine.
 | GET    | `/api/files/:id/metadata?ref=<refId>`      | Authenticated | `{ id, size, mimetype, filename, ownerType, ownerId, createdAt }` if the actor can read the reference's owner. |
 | GET    | `/api/files/:id/content?ref=<refId>`       | Authenticated | Streams or 302-presigns. `inline=true` for inline-safe types. Presigning kicks in when the active driver supports it AND `FILE_PRESIGN_ENABLED=true`. |
 
+## Drive
+
+Personal and team file storage. Every route below requires authentication
+(`authRequired`) **except** the two public-link routes, which answer
+without a session. `:id` is an 8-char entry / share / directory nanoid.
+Per-entry access is resolved from ownership, team-directory role, direct
+shares and global admin (see [drive.md](../modules/drive.md#permissions)).
+
+| Method | Path                                                   | Access            | Description                                                                                  |
+| ------ | ------------------------------------------------------ | ----------------- | -------------------------------------------------------------------------------------------- |
+| GET    | `/api/drive/entries`                                   | Authenticated     | List a folder's children. Query: `parentEntryId` (root when omitted), `status` (`normal`/`trash`). |
+| GET    | `/api/drive/entries/recent`                            | Authenticated     | The caller's 50 most recently updated files.                                                 |
+| GET    | `/api/drive/entries/favorites`                         | Authenticated     | The caller's favorited entries.                                                              |
+| DELETE | `/api/drive/entries/trash`                             | Authenticated     | Permanently purge every trashed entry the caller owns; releases their blobs.                 |
+| POST   | `/api/drive/entries/text-file`                         | Authenticated     | Create a server-side `text/plain` file. Body: `{ name, content, parentEntryId? }`.           |
+| POST   | `/api/drive/folders`                                   | Authenticated     | Create a folder. Body: `{ name, parentEntryId? }`.                                           |
+| POST   | `/api/drive/files/upload`                              | Authenticated     | Upload a file (multipart `file=`). Optional `parentEntryId`, `ownerType`/`ownerId` (team dir; editor+). |
+| GET    | `/api/drive/entries/:id`                               | Entry read        | Entry detail.                                                                                |
+| GET    | `/api/drive/entries/:id/content`                       | Entry download    | Stream the current version. `?inline=true` for inline rendering.                             |
+| PATCH  | `/api/drive/entries/:id`                               | Entry update      | Rename / move / (un)favorite. Body: any of `{ name, parentEntryId, favorite }`.              |
+| POST   | `/api/drive/entries/:id/restore`                       | Entry update      | Restore a trashed entry subtree.                                                             |
+| DELETE | `/api/drive/entries/:id`                               | Entry delete      | Soft delete (move subtree to trash).                                                         |
+| DELETE | `/api/drive/entries/:id/permanent`                     | Entry delete      | Permanently delete the subtree; releases every file reference it holds.                      |
+| GET    | `/api/drive/entries/:id/versions`                      | Entry read        | List versions, newest first, each flagged `isCurrent`.                                       |
+| POST   | `/api/drive/entries/:id/versions`                      | Entry update      | Upload a new version (multipart `file=`); becomes current.                                   |
+| POST   | `/api/drive/entries/:id/versions/:versionId/current`   | Entry update      | Switch the current pointer to an existing version.                                           |
+| GET    | `/api/drive/entries/:id/shares`                        | Entry share       | List shares created for the entry.                                                           |
+| POST   | `/api/drive/entries/:id/shares`                        | Entry share       | Create a `direct` or `public_link` share.                                                    |
+| GET    | `/api/drive/shares/received`                           | Authenticated     | Active direct shares where the caller is the recipient.                                      |
+| GET    | `/api/drive/shares/sent`                               | Authenticated     | Direct shares the caller created.                                                            |
+| GET    | `/api/drive/shares/links`                              | Authenticated     | Public-link shares the caller created.                                                       |
+| PUT    | `/api/drive/shares/:id`                                | Share owner       | Update a share (permission / password / expiry / max-downloads / active).                    |
+| DELETE | `/api/drive/shares/:id`                                | Share owner       | Revoke a share (sets `is_active=0`).                                                          |
+| GET    | `/api/drive/team-directories`                          | Authenticated     | Directories the caller owns or is a member of.                                               |
+| POST   | `/api/drive/team-directories`                          | Authenticated     | Create a team directory (creator becomes admin).                                             |
+| GET    | `/api/drive/team-directories/:id`                      | Directory member  | Directory detail + the caller's effective role.                                              |
+| PUT    | `/api/drive/team-directories/:id`                      | Directory admin   | Rename / re-describe.                                                                         |
+| DELETE | `/api/drive/team-directories/:id`                      | Directory creator | Delete an empty directory.                                                                    |
+| GET    | `/api/drive/team-directories/:id/members`              | Directory member  | List members.                                                                                |
+| POST   | `/api/drive/team-directories/:id/members`              | Directory admin   | Add / upsert a member. Body: `{ userId, role? }`.                                            |
+| PUT    | `/api/drive/team-directories/:id/members/:memberId`    | Directory admin   | Change a member's role.                                                                       |
+| DELETE | `/api/drive/team-directories/:id/members/:memberId`    | Directory admin   | Remove a member.                                                                              |
+| GET    | `/api/drive/shared/:token`                             | **Public**        | Public-link metadata only (never bytes or password hash).                                    |
+| POST   | `/api/drive/shared/:token`                             | **Public**        | Verify password + quota; stream a download (`download`/`edit`) or return view metadata.      |
+
 ## Settings
 
 All settings routes require admin access.

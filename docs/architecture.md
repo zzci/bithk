@@ -84,6 +84,7 @@ apps/api/src/modules/
   backup/
   cron/
   document/        # sub-type of item
+  drive/           # personal + team file drive (folders, versions, shares)
   file/            # blob storage; pluggable drivers + content dedupe
   issue/           # sub-type of item
   item/            # base for content sub-types
@@ -99,6 +100,7 @@ apps/api/src/modules/
 | `backup` | JSON backup export and import (admin + service-token surfaces). | [backup.md](modules/backup.md) |
 | `cron` | In-process job scheduler: cron-driven actions with run history. | [cron.md](modules/cron.md) |
 | `document` | Documents, attachments, comments, shares; sub-type of `item`. | [document.md](modules/document.md) |
+| `drive` | Personal + team file drive: folders, file versions, direct / public-link shares. Owns its own tables (not a sub-type of `item`). | [drive.md](modules/drive.md) |
 | `file` | Content-addressable blob storage with pluggable drivers and ref counting. | [file.md](modules/file.md) |
 | `issue` | Issues, attachments, comments; sub-type of `item`. | [issue.md](modules/issue.md) |
 | `item` | Base primitive for content sub-types (common metadata + comments + permission edges). | [item.md](modules/item.md) |
