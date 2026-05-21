@@ -282,8 +282,8 @@ function TextPreview({ url, i18nNs }: { readonly url: string; readonly i18nNs: s
       // different origin, and a same-origin POST through `httpRaw`
       // wouldn't follow the redirect with credentials cleanly. GET +
       // no CSRF surface, so the only loss vs `httpRaw` is the global
-      // `system-locked` / `unauthorized` event emission — acceptable
-      // for a read-only preview that gracefully degrades to an error.
+      // `unauthorized` event emission — acceptable for a read-only
+      // preview that gracefully degrades to an error.
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok)
         throw new Error(`HTTP ${res.status}`);

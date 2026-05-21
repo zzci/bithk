@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemLockedError } from "@/shared/lib/http";
 
 // Hoisted mock — must be set before importing the store so the module
 // captures our stub instead of the real implementation.
@@ -50,15 +49,6 @@ describe("useAuthStore.fetchUser", () => {
     await useAuthStore.getState().fetchUser();
     const state = useAuthStore.getState();
     expect(state.user).toBeNull();
-    expect(state.loading).toBe(false);
-  });
-
-  it("preserves existing user on SystemLockedError (system not ready)", async () => {
-    useAuthStore.setState({ user: sampleUser, loading: true });
-    httpMock.mockRejectedValue(new SystemLockedError());
-    await useAuthStore.getState().fetchUser();
-    const state = useAuthStore.getState();
-    expect(state.user?.id).toBe("u_1");
     expect(state.loading).toBe(false);
   });
 });

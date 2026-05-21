@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { BASE_PATH, http, HttpError, SystemLockedError } from "@/shared/lib/http";
+import { BASE_PATH, http, HttpError } from "@/shared/lib/http";
 
 type Role = "admin" | "user";
 
@@ -25,15 +25,14 @@ interface User {
 /**
  * Discriminated outcome of {@link AuthState.fetchUser}. The caller needs
  * to tell "couldn't reach the server" (network / 5xx — show retry) apart
- * from "server says you're not logged in" (clean 401 — redirect to login)
- * apart from "system not ready yet". Returning this instead of probing
- * `/account/me` separately keeps it to a single request per mount.
+ * from "server says you're not logged in" (clean 401 — redirect to login).
+ * Returning this instead of probing `/account/me` separately keeps it to a
+ * single request per mount.
  */
 export type FetchUserResult
   = | { readonly kind: "ok" }
     | { readonly kind: "unauthorized" }
-    | { readonly kind: "networkError" }
-    | { readonly kind: "systemLocked" };
+    | { readonly kind: "networkError" };
 
 interface AuthState {
   readonly user: User | null;
@@ -58,11 +57,6 @@ export const useAuthStore = create<AuthState>(set => ({
       return { kind: "ok" };
     }
     catch (err) {
-      // Don't clear user on SYSTEM_LOCKED — system just isn't ready yet
-      if (err instanceof SystemLockedError) {
-        set({ loading: false });
-        return { kind: "systemLocked" };
-      }
       set({ user: null, loading: false });
       // A clean HTTP failure < 500 (notably 401) means the server
       // answered "not authenticated". Anything else (network failure,

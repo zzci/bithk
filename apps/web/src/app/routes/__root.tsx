@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createRootRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { FullPageLoader } from "@/shared/components/full-page-loader";
@@ -13,7 +13,7 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundPage,
 });
 
-const BYPASS_SUFFIXES = ["/setup", "/unlock", "/denied", "/login", "/totp-verify", "/error"];
+const BYPASS_SUFFIXES = ["/denied", "/login", "/totp-verify", "/error"];
 
 function redirectToLogin() {
   // Carry the query string too so deep-link context (filters, ids,
@@ -29,7 +29,6 @@ function RootLayout() {
   const { t } = useTranslation();
   useDocumentTitle();
 
-  const navigate = useNavigate();
   const { status, dbError, fetchStatus, startPolling, stopPolling } = useSystemStore();
 
   useEffect(() => {
@@ -43,27 +42,8 @@ function RootLayout() {
       if (type === "unauthorized") {
         redirectToLogin();
       }
-      else if (type === "system-locked") {
-        void useSystemStore.getState().fetchStatus();
-      }
     });
   }, []);
-
-  useEffect(() => {
-    if (status === "loading" || status === "error" || status === "db-error")
-      return;
-
-    const path = window.location.pathname;
-    if (BYPASS_SUFFIXES.some(s => path.startsWith(`${BASE_PATH}${s}`)))
-      return;
-
-    if (status === "uninitialized") {
-      void navigate({ to: "/setup", replace: true });
-    }
-    else if (status === "locked") {
-      void navigate({ to: "/unlock", replace: true });
-    }
-  }, [status, navigate]);
 
   if (status === "loading") {
     return <FullPageLoader onRetry={() => void fetchStatus()} />;

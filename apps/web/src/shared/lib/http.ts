@@ -3,13 +3,6 @@ const BASE_URL = `${BASE_PATH}/api`;
 
 export { BASE_PATH };
 
-export class SystemLockedError extends Error {
-  constructor() {
-    super("System is locked");
-    this.name = "SystemLockedError";
-  }
-}
-
 export class HttpError extends Error {
   readonly status: number;
   readonly code: string | undefined;
@@ -24,7 +17,7 @@ export class HttpError extends Error {
   }
 }
 
-type HttpEventType = "unauthorized" | "system-locked";
+type HttpEventType = "unauthorized";
 type HttpEventListener = (type: HttpEventType) => void;
 
 const listeners = new Set<HttpEventListener>();
@@ -42,16 +35,16 @@ function emit(type: HttpEventType) {
  * Low-level helper for non-JSON responses (downloads, multipart uploads,
  * SSE). Applies the same defaults `http()` does (credentials, CSRF
  * header on mutating methods, JSON Content-Type unless the body is
- * FormData) and emits the same `unauthorized` / `system-locked` events
- * so the SPA's global handlers fire consistently regardless of which
- * shape the response is.
+ * FormData) and emits the same `unauthorized` event so the SPA's
+ * global handler fires consistently regardless of which shape the
+ * response is.
  *
  * Returns the raw `Response` on success; callers decide how to read the
  * body (`blob()`, `arrayBuffer()`, stream pump, etc.).
  *
  * On failure it parses the JSON envelope when possible (the API uses a
  * uniform `{ success, error: { code, message } }` shape) and throws
- * `HttpError` / `SystemLockedError` exactly like `http()`.
+ * `HttpError`.
  */
 export async function httpRaw(path: string, init?: RequestInit): Promise<Response> {
   const hasBody = init?.body != null;
@@ -80,11 +73,6 @@ export async function httpRaw(path: string, init?: RequestInit): Promise<Respons
   // `HTTP <status>` message.
   const body = await res.clone().json().catch(() => ({})) as { error?: { code?: string; message?: string } };
   const errorCode = body.error?.code;
-
-  if (errorCode === "SYSTEM_LOCKED") {
-    emit("system-locked");
-    throw new SystemLockedError();
-  }
 
   let retryAfter: number | undefined;
   const ra = res.headers.get("retry-after");

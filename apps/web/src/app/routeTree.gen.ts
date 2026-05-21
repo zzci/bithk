@@ -9,9 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UnlockRouteImport } from './routes/unlock'
 import { Route as TotpVerifyRouteImport } from './routes/totp-verify'
-import { Route as SetupRouteImport } from './routes/setup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ErrorRouteImport } from './routes/error'
 import { Route as DeniedRouteImport } from './routes/denied'
@@ -31,19 +29,9 @@ import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/user
 import { Route as AppPortalIssuesIssueIdRouteImport } from './routes/_app/portal/issues/$issueId'
 import { Route as AppAdminUsersGroupsRouteImport } from './routes/_app/admin/users/groups'
 
-const UnlockRoute = UnlockRouteImport.update({
-  id: '/unlock',
-  path: '/unlock',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TotpVerifyRoute = TotpVerifyRouteImport.update({
   id: '/totp-verify',
   path: '/totp-verify',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SetupRoute = SetupRouteImport.update({
-  id: '/setup',
-  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -161,9 +149,7 @@ export interface FileRoutesByFullPath {
   '/denied': typeof DeniedRoute
   '/error': typeof ErrorRoute
   '/login': typeof LoginRoute
-  '/setup': typeof SetupRoute
   '/totp-verify': typeof TotpVerifyRoute
-  '/unlock': typeof UnlockRoute
   '/admin': typeof AppAdminRouteWithChildren
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/cron': typeof AppAdminCronRoute
@@ -183,9 +169,7 @@ export interface FileRoutesByTo {
   '/denied': typeof DeniedRoute
   '/error': typeof ErrorRoute
   '/login': typeof LoginRoute
-  '/setup': typeof SetupRoute
   '/totp-verify': typeof TotpVerifyRoute
-  '/unlock': typeof UnlockRoute
   '/admin': typeof AppAdminRouteWithChildren
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/cron': typeof AppAdminCronRoute
@@ -205,9 +189,7 @@ export interface FileRoutesById {
   '/denied': typeof DeniedRoute
   '/error': typeof ErrorRoute
   '/login': typeof LoginRoute
-  '/setup': typeof SetupRoute
   '/totp-verify': typeof TotpVerifyRoute
-  '/unlock': typeof UnlockRoute
   '/_app/admin': typeof AppAdminRouteWithChildren
   '/_app/admin/audit': typeof AppAdminAuditRoute
   '/_app/admin/cron': typeof AppAdminCronRoute
@@ -229,9 +211,7 @@ export interface FileRouteTypes {
     | '/denied'
     | '/error'
     | '/login'
-    | '/setup'
     | '/totp-verify'
-    | '/unlock'
     | '/admin'
     | '/admin/audit'
     | '/admin/cron'
@@ -251,9 +231,7 @@ export interface FileRouteTypes {
     | '/denied'
     | '/error'
     | '/login'
-    | '/setup'
     | '/totp-verify'
-    | '/unlock'
     | '/admin'
     | '/admin/audit'
     | '/admin/cron'
@@ -272,9 +250,7 @@ export interface FileRouteTypes {
     | '/denied'
     | '/error'
     | '/login'
-    | '/setup'
     | '/totp-verify'
-    | '/unlock'
     | '/_app/admin'
     | '/_app/admin/audit'
     | '/_app/admin/cron'
@@ -296,32 +272,16 @@ export interface RootRouteChildren {
   DeniedRoute: typeof DeniedRoute
   ErrorRoute: typeof ErrorRoute
   LoginRoute: typeof LoginRoute
-  SetupRoute: typeof SetupRoute
   TotpVerifyRoute: typeof TotpVerifyRoute
-  UnlockRoute: typeof UnlockRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/unlock': {
-      id: '/unlock'
-      path: '/unlock'
-      fullPath: '/unlock'
-      preLoaderRoute: typeof UnlockRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/totp-verify': {
       id: '/totp-verify'
       path: '/totp-verify'
       fullPath: '/totp-verify'
       preLoaderRoute: typeof TotpVerifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup': {
-      id: '/setup'
-      path: '/setup'
-      fullPath: '/setup'
-      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -523,9 +483,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeniedRoute: DeniedRoute,
   ErrorRoute: ErrorRoute,
   LoginRoute: LoginRoute,
-  SetupRoute: SetupRoute,
   TotpVerifyRoute: TotpVerifyRoute,
-  UnlockRoute: UnlockRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

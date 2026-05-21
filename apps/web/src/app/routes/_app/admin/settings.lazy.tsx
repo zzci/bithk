@@ -4,7 +4,6 @@ import { Mail, Shield, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { AuthSettingsTab } from "./-settings-auth";
-import { EncryptionSettingsTab } from "./-settings-encryption";
 import { SmtpSettingsTab } from "./-settings-smtp";
 import { WebhookSettingsTab } from "./-settings-webhook";
 
@@ -36,10 +35,6 @@ function SettingsPage() {
             <Webhook className="mr-1.5 size-4" />
             {t("tabs.webhook")}
           </TabsTrigger>
-          <TabsTrigger value="encryption">
-            <Shield className="mr-1.5 size-4" />
-            {t("tabs.encryption")}
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="auth">
@@ -50,9 +45,6 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="webhook">
           <WebhookSettingsTab />
-        </TabsContent>
-        <TabsContent value="encryption">
-          <EncryptionSettingsTab />
         </TabsContent>
       </Tabs>
     </div>

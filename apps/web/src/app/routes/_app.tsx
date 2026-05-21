@@ -48,19 +48,19 @@ function AppLayout() {
   }, [fetchUser]);
 
   useEffect(() => {
-    if (systemStatus === "unlocked")
+    if (systemStatus === "ready")
       void loadUser();
   }, [systemStatus, loadUser]);
 
   useEffect(() => {
-    if (loading || systemStatus !== "unlocked" || user || networkError)
+    if (loading || systemStatus !== "ready" || user || networkError)
       return;
     const current = window.location.pathname + window.location.search;
     void navigate({ to: "/login", search: { redirect: current }, replace: true });
   }, [loading, systemStatus, user, networkError, navigate]);
 
-  // System not unlocked — __root.tsx handles redirect to /unlock or /setup
-  if (systemStatus !== "unlocked") {
+  // Wait for the readiness probe before mounting the auth-gated UI.
+  if (systemStatus !== "ready") {
     return <FullPageLoader />;
   }
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { http, HttpError, onHttpEvent, SystemLockedError } from "./http";
+import { http, HttpError, onHttpEvent } from "./http";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -71,22 +71,6 @@ describe("http()", () => {
       try {
         await expect(http("/foo")).rejects.toThrow(HttpError);
         expect(events).toContain("unauthorized");
-      }
-      finally {
-        off();
-      }
-    });
-
-    it("throws SystemLockedError when error.code === SYSTEM_LOCKED", async () => {
-      fetchMock.mockResolvedValue(jsonResponse(
-        { error: { code: "SYSTEM_LOCKED", message: "locked" } },
-        { status: 503 },
-      ));
-      const events: string[] = [];
-      const off = onHttpEvent(t => events.push(t));
-      try {
-        await expect(http("/foo")).rejects.toThrow(SystemLockedError);
-        expect(events).toContain("system-locked");
       }
       finally {
         off();
