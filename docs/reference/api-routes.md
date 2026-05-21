@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 112 routes total.
+> 146 routes total.
 
 | Method | Path |
 |---|---|
@@ -76,6 +76,40 @@
 | GET | `/api/documents/tags` |
 | GET | `/api/documents/tree` |
 | GET | `/api/documents/users` |
+| GET | `/api/drive/entries` |
+| DELETE | `/api/drive/entries/:id` |
+| GET | `/api/drive/entries/:id` |
+| PATCH | `/api/drive/entries/:id` |
+| GET | `/api/drive/entries/:id/content` |
+| DELETE | `/api/drive/entries/:id/permanent` |
+| POST | `/api/drive/entries/:id/restore` |
+| GET | `/api/drive/entries/:id/shares` |
+| POST | `/api/drive/entries/:id/shares` |
+| GET | `/api/drive/entries/:id/versions` |
+| POST | `/api/drive/entries/:id/versions` |
+| POST | `/api/drive/entries/:id/versions/:versionId/current` |
+| GET | `/api/drive/entries/favorites` |
+| GET | `/api/drive/entries/recent` |
+| POST | `/api/drive/entries/text-file` |
+| DELETE | `/api/drive/entries/trash` |
+| POST | `/api/drive/files/upload` |
+| POST | `/api/drive/folders` |
+| GET | `/api/drive/shared/:token` |
+| POST | `/api/drive/shared/:token` |
+| DELETE | `/api/drive/shares/:id` |
+| PUT | `/api/drive/shares/:id` |
+| GET | `/api/drive/shares/links` |
+| GET | `/api/drive/shares/received` |
+| GET | `/api/drive/shares/sent` |
+| GET | `/api/drive/team-directories` |
+| POST | `/api/drive/team-directories` |
+| DELETE | `/api/drive/team-directories/:id` |
+| GET | `/api/drive/team-directories/:id` |
+| PUT | `/api/drive/team-directories/:id` |
+| GET | `/api/drive/team-directories/:id/members` |
+| POST | `/api/drive/team-directories/:id/members` |
+| DELETE | `/api/drive/team-directories/:id/members/:memberId` |
+| PUT | `/api/drive/team-directories/:id/members/:memberId` |
 | GET | `/api/files/:id/content` |
 | GET | `/api/files/:id/metadata` |
 | GET | `/api/health` |

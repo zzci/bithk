@@ -16,7 +16,7 @@ import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
 import { cronRoutes } from "@/modules/cron";
 import { documentRoutes } from "@/modules/document";
-import { driveRoutes } from "@/modules/drive";
+import { drivePublicRoutes, driveRoutes } from "@/modules/drive";
 import { fileRoutes } from "@/modules/file";
 import { issueRoutes } from "@/modules/issue";
 import { policyRoutes } from "@/modules/policy";
@@ -35,6 +35,7 @@ const OUT_PATH = resolve(ROOT, "docs/reference/api-routes.md");
 
 const app = new Hono();
 app.route("/", systemRoutes());
+app.route("/", drivePublicRoutes());
 app.route("/", accountRoutes());
 app.route("/", issueRoutes());
 app.route("/", policyRoutes());
