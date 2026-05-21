@@ -1,7 +1,7 @@
 import type { DriveOwnerType } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import {
   buildDownloadResponse,
   getFileById,
@@ -12,7 +12,7 @@ import {
 import { fileReferences, files } from "@/modules/file/schema";
 import { AppError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
-import { driveEntries } from "./schema";
+import { driveEntries, driveFileVersions } from "./schema";
 
 export type DriveEntryRow = typeof driveEntries.$inferSelect;
 
@@ -99,6 +99,91 @@ export async function getDriveEntry(
   return row ? composeDriveEntryView(row) : undefined;
 }
 
+/**
+ * Fetch an entry by id regardless of owner. Used by routes that have already
+ * cleared the capability check (team-directory / shared access) and so must
+ * not re-restrict to the personal owner.
+ */
+export async function getDriveEntryById(db: AppDatabase, id: string): Promise<DriveEntryView | undefined> {
+  const row = await db
+    .select({
+      entry: driveEntries,
+      fileId: fileReferences.fileId,
+      filename: fileReferences.filename,
+      mimetype: files.mimetype,
+      size: files.size,
+    })
+    .from(driveEntries)
+    .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
+    .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .where(eq(driveEntries.id, id))
+    .get();
+  return row ? composeDriveEntryView(row) : undefined;
+}
+
+/** Resolve an entry's real owner (throws 404 when missing). */
+export async function getEntryOwner(db: AppDatabase, id: string): Promise<DriveOwner> {
+  const row = await db
+    .select({ ownerType: driveEntries.ownerType, ownerId: driveEntries.ownerId })
+    .from(driveEntries)
+    .where(eq(driveEntries.id, id))
+    .get();
+  if (!row)
+    throw new AppError("Drive entry not found", 404, "NOT_FOUND");
+  return { ownerType: row.ownerType, ownerId: row.ownerId };
+}
+
+const RECENT_LIMIT = 50;
+
+/** The caller's own recently-updated files (normal status), newest first. */
+export async function listRecentDriveEntries(db: AppDatabase, userId: string): Promise<readonly DriveEntryView[]> {
+  const rows = await db
+    .select({
+      entry: driveEntries,
+      fileId: fileReferences.fileId,
+      filename: fileReferences.filename,
+      mimetype: files.mimetype,
+      size: files.size,
+    })
+    .from(driveEntries)
+    .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
+    .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .where(and(
+      eq(driveEntries.ownerType, "user"),
+      eq(driveEntries.ownerId, userId),
+      eq(driveEntries.entryType, "file"),
+      eq(driveEntries.status, "normal"),
+    ))
+    .orderBy(desc(driveEntries.updatedAt), desc(driveEntries.id))
+    .limit(RECENT_LIMIT)
+    .all();
+  return rows.map(composeDriveEntryView);
+}
+
+/** The caller's own favorited entries (normal status). */
+export async function listFavoriteDriveEntries(db: AppDatabase, userId: string): Promise<readonly DriveEntryView[]> {
+  const rows = await db
+    .select({
+      entry: driveEntries,
+      fileId: fileReferences.fileId,
+      filename: fileReferences.filename,
+      mimetype: files.mimetype,
+      size: files.size,
+    })
+    .from(driveEntries)
+    .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
+    .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .where(and(
+      eq(driveEntries.ownerType, "user"),
+      eq(driveEntries.ownerId, userId),
+      eq(driveEntries.favorite, "1"),
+      eq(driveEntries.status, "normal"),
+    ))
+    .orderBy(desc(driveEntries.updatedAt), desc(driveEntries.id))
+    .all();
+  return rows.map(composeDriveEntryView);
+}
+
 export interface CreateDriveFolderInput extends DriveOwner {
   readonly createdBy: string;
   readonly parentEntryId?: string | null | undefined;
@@ -153,16 +238,84 @@ export async function uploadDriveFile(
   });
 
   try {
-    await db.insert(driveEntries).values({
-      id,
-      ownerType: owner.ownerType,
-      ownerId: owner.ownerId,
-      parentEntryId,
-      entryType: "file",
-      name,
-      fileReferenceId: uploaded.reference.id,
-      createdBy: input.createdBy,
-    }).run();
+    db.transaction((tx) => {
+      tx.insert(driveEntries).values({
+        id,
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        parentEntryId,
+        entryType: "file",
+        name,
+        fileReferenceId: uploaded.reference.id,
+        createdBy: input.createdBy,
+      }).run();
+      tx.insert(driveFileVersions).values({
+        id: nanoid(),
+        driveEntryId: id,
+        fileReferenceId: uploaded.reference.id,
+        versionNo: 1,
+        uploadedBy: input.createdBy,
+      }).run();
+    });
+  }
+  catch (err) {
+    await releaseReference(db, config, { referenceId: uploaded.reference.id });
+    throwDuplicateName(err);
+    throw err;
+  }
+
+  return requireDriveEntry(db, owner, id);
+}
+
+export interface CreateDriveTextFileInput extends DriveOwner {
+  readonly createdBy: string;
+  readonly parentEntryId?: string | null | undefined;
+  readonly name: string;
+  readonly content: string;
+}
+
+/**
+ * Create a server-generated plain-text file entry. The text is persisted
+ * through the file module exactly like an upload (so dedupe / GC / download
+ * all work uniformly) and a version-1 row is recorded. Always `text/plain`.
+ */
+export async function createDriveTextFile(
+  db: AppDatabase,
+  config: Pick<Config, "MAX_UPLOAD_BYTES" | "MAX_ATTACHMENTS_PER_RESOURCE" | "UPLOADS_TOTAL_BYTES" | "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS">,
+  input: CreateDriveTextFileInput,
+): Promise<DriveEntryView> {
+  const owner: DriveOwner = { ownerType: input.ownerType, ownerId: input.ownerId };
+  const parentEntryId = await validateParent(db, owner, input.parentEntryId);
+  const id = nanoid();
+  const name = normalizeEntryName(input.name);
+  const file = new File([input.content], name, { type: "text/plain" });
+  const uploaded = await uploadAndReference(db, config, {
+    file,
+    ownerType: "drive_entry",
+    ownerId: id,
+    uploadedBy: input.createdBy,
+  });
+
+  try {
+    db.transaction((tx) => {
+      tx.insert(driveEntries).values({
+        id,
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        parentEntryId,
+        entryType: "file",
+        name,
+        fileReferenceId: uploaded.reference.id,
+        createdBy: input.createdBy,
+      }).run();
+      tx.insert(driveFileVersions).values({
+        id: nanoid(),
+        driveEntryId: id,
+        fileReferenceId: uploaded.reference.id,
+        versionNo: 1,
+        uploadedBy: input.createdBy,
+      }).run();
+    });
   }
   catch (err) {
     await releaseReference(db, config, { referenceId: uploaded.reference.id });
@@ -258,18 +411,72 @@ export async function deleteDriveEntryPermanently(
 ): Promise<void> {
   await requireDriveEntryRow(db, owner, id);
   const ids = await collectEntryTreeIds(db, owner, id);
-  const refs = await db
+  await purgeEntries(db, config, ids);
+}
+
+/**
+ * Permanently delete a set of entries and release every file reference they
+ * hold — both the current pointer (`driveEntries.fileReferenceId`) and every
+ * historical version reference (`drive_file_versions.fileReferenceId`). Refs
+ * are de-duplicated so a reference that is simultaneously "current" and a
+ * version row is released exactly once. The cascade FK drops version/share
+ * child rows when the entries are deleted.
+ */
+async function purgeEntries(
+  db: AppDatabase,
+  config: Pick<Config, "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS">,
+  ids: readonly string[],
+): Promise<void> {
+  if (ids.length === 0)
+    return;
+
+  const entryRefs = await db
     .select({ id: driveEntries.fileReferenceId })
     .from(driveEntries)
-    .where(inArray(driveEntries.id, ids))
+    .where(inArray(driveEntries.id, [...ids]))
+    .all();
+  const versionRefs = await db
+    .select({ id: driveFileVersions.fileReferenceId })
+    .from(driveFileVersions)
+    .where(inArray(driveFileVersions.driveEntryId, [...ids]))
     .all();
 
-  await db.delete(driveEntries).where(inArray(driveEntries.id, ids)).run();
-
-  for (const ref of refs) {
-    if (ref.id)
-      await releaseReference(db, config, { referenceId: ref.id });
+  const refIds = new Set<string>();
+  for (const r of entryRefs) {
+    if (r.id)
+      refIds.add(r.id);
   }
+  for (const r of versionRefs)
+    refIds.add(r.id);
+
+  await db.delete(driveEntries).where(inArray(driveEntries.id, [...ids])).run();
+
+  for (const refId of refIds)
+    await releaseReference(db, config, { referenceId: refId });
+}
+
+/**
+ * Permanently delete every trashed entry the caller owns and release all
+ * their file references. Returns the number of top-level entries removed.
+ */
+export async function emptyDriveTrash(
+  db: AppDatabase,
+  config: Pick<Config, "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS">,
+  owner: DriveOwner,
+): Promise<number> {
+  const trashed = await db
+    .select({ id: driveEntries.id })
+    .from(driveEntries)
+    .where(and(
+      eq(driveEntries.ownerType, owner.ownerType),
+      eq(driveEntries.ownerId, owner.ownerId),
+      eq(driveEntries.status, "trash"),
+    ))
+    .all();
+
+  const ids = trashed.map(row => row.id);
+  await purgeEntries(db, config, ids);
+  return ids.length;
 }
 
 export async function buildDriveEntryDownloadResponse(
