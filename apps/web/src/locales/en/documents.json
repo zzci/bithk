@@ -95,5 +95,14 @@
   "conflict": {
     "title": "Document changed elsewhere",
     "body": "This document was updated in another session. Your draft is preserved here — copy your changes, then reload to merge."
+  },
+  "public": {
+    "notFound": "This link is no longer available.",
+    "password": "Password",
+    "passwordPlaceholder": "Enter the link password",
+    "wrongPassword": "Incorrect password. Please try again.",
+    "open": "Open",
+    "contents": "Contents",
+    "loadError": "Could not load this document. Please try again."
   }
 }

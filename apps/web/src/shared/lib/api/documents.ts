@@ -185,6 +185,7 @@ export const documentsKeys = {
   publicLinks: (id: string) => ["documents", id, "public-links"] as const,
   attachments: (id: string) => ["documents", id, "attachments"] as const,
   comments: (id: string) => ["documents", id, "comments"] as const,
+  publicShare: (token: string) => ["documents", "shared", token] as const,
 };
 
 // ── Query hooks ──
@@ -417,4 +418,120 @@ export function useRevokeDocumentPublicLink(): UseMutationResult<void, Error, { 
       void qc.invalidateQueries({ queryKey: documentsKeys.publicLinks(docId) });
     },
   });
+}
+
+// ── Public share access (unauthenticated viewer) ──
+//
+// Mirrors the unauthenticated backend at
+// `apps/api/src/modules/document/document.public.routes.ts`. These
+// requests carry no session; the endpoints ignore the cookie the client
+// sends, so nothing privileged leaks. Mutating POSTs still go through
+// `httpRaw`, which applies the `X-Requested-With` CSRF header the global
+// guard requires. Never hand-roll fetch here.
+
+/** Gate metadata for a public document link — enough to render the prompt. */
+export interface PublicDocumentMeta {
+  readonly token: string;
+  readonly title: string;
+  readonly hasPassword: boolean;
+}
+
+/** A node in the link's shared subtree (root reports `parentId: null`). */
+export interface PublicSubtreeNode {
+  readonly id: string;
+  readonly title: string;
+  readonly parentId: string | null;
+}
+
+/** One attachment on a shared document — never carries bytes. */
+export interface PublicDocumentAttachment {
+  readonly id: string;
+  readonly filename: string;
+  readonly mimetype: string;
+  readonly size: number;
+}
+
+/** Full payload returned once a public link's password (if any) is verified. */
+export interface PublicDocumentContent {
+  readonly token: string;
+  readonly hasPassword: boolean;
+  readonly document: Document;
+  readonly attachments: readonly PublicDocumentAttachment[];
+  readonly subtree: readonly PublicSubtreeNode[];
+}
+
+/**
+ * Fetch public-link gate metadata (title + whether a password is needed).
+ * 404 when the token is unknown / inactive / expired / soft-deleted —
+ * the server never reveals which, so existence cannot be probed.
+ */
+export async function getPublicDocument(token: string): Promise<PublicDocumentMeta> {
+  return rawJson<ApiEnvelope<PublicDocumentMeta>>(`/documents/shared/${encodeURIComponent(token)}`).then(r => r.data);
+}
+
+export function usePublicDocument(token: string | undefined) {
+  return useQuery({
+    queryKey: documentsKeys.publicShare(token ?? ""),
+    queryFn: () => getPublicDocument(token!),
+    enabled: !!token,
+    retry: false,
+    staleTime: 5_000,
+  });
+}
+
+/**
+ * Access a shared document's content. Verifies the optional password
+ * server-side (403 on missing/wrong) then returns the addressed document
+ * with its attachments and the navigable subtree. `docId` selects a
+ * descendant short_id; omit it for the link's root document.
+ */
+export async function accessPublicDocument(
+  token: string,
+  opts: { readonly password?: string | undefined; readonly docId?: string | undefined } = {},
+): Promise<PublicDocumentContent> {
+  const payload: Record<string, string> = {};
+  if (opts.password !== undefined)
+    payload.password = opts.password;
+  if (opts.docId !== undefined)
+    payload.docId = opts.docId;
+  return rawJson<ApiEnvelope<PublicDocumentContent>>(`/documents/shared/${encodeURIComponent(token)}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }).then(r => r.data);
+}
+
+/**
+ * Fetch one attachment from a shared document. Image / PDF types are
+ * opened inline in a new tab for preview; everything else triggers a
+ * browser download. The owning document is validated against the link's
+ * subtree server-side, so an out-of-subtree `aid` cannot be pulled.
+ */
+export async function openPublicDocumentAttachment(
+  token: string,
+  attachment: PublicDocumentAttachment,
+  password?: string,
+): Promise<void> {
+  const inline = attachment.mimetype.startsWith("image/") || attachment.mimetype === "application/pdf";
+  const res = await httpRaw(
+    `/documents/shared/${encodeURIComponent(token)}/attachments/${encodeURIComponent(attachment.id)}${inline ? "?inline=true" : ""}`,
+    {
+      method: "POST",
+      body: JSON.stringify(password !== undefined ? { password } : {}),
+    },
+  );
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  if (inline) {
+    // Open the preview in a new tab; revoke late so the tab can load it.
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = attachment.filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }

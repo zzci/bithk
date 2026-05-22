@@ -95,5 +95,14 @@
   "conflict": {
     "title": "文档已在别处被修改",
     "body": "此文档已在另一个会话中被更新。您的草稿已保留在此——请复制您的更改，然后重新加载以合并。"
+  },
+  "public": {
+    "notFound": "该链接已失效。",
+    "password": "密码",
+    "passwordPlaceholder": "请输入链接密码",
+    "wrongPassword": "密码错误，请重试。",
+    "open": "打开",
+    "contents": "目录",
+    "loadError": "无法加载此文档，请重试。"
   }
 }
