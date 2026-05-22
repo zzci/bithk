@@ -3,11 +3,17 @@
 // returns the chosen file entry via `onPick`. Built so other modules can
 // attach a drive file (e.g. as an item-attachment proxy).
 //
+// Browsing + navigation is delegated to the shared `DriveFileListSurface` in
+// its compact variant: the picker only feeds it items and resolves itself when
+// a file is opened. It exposes the navigate-folders capability alone — picking
+// a file, not managing the drive.
+//
 // Import path: @/app/routes/_app/portal/-drive-file-picker
 
+import type { DriveFileListCapabilities, DriveFileListSurfaceActions, FolderToolbarConfig } from "./-drive-file-list-surface";
+import type { DisplayItem } from "./-file-browser-types";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 
-import { ChevronRight, FileText, Folder } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,7 +26,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDriveEntries } from "@/shared/lib/api/drive";
+import { DriveFileListSurface } from "./-drive-file-list-surface";
+import { entryToDisplayItem } from "./-file-browser-types";
 
 interface FolderCrumb {
   readonly id: string;
@@ -34,6 +43,23 @@ interface DriveFilePickerProps {
   readonly ownerType?: DriveOwnerType | undefined;
   readonly ownerId?: string | undefined;
 }
+
+// Browsing only — no create/upload/share/delete/favorite/rename affordances.
+const PICKER_CAPABILITIES: DriveFileListCapabilities = {
+  navigateFolders: true,
+  download: false,
+  share: false,
+  favorite: false,
+  rename: false,
+  delete: false,
+  restore: false,
+  batchDownload: false,
+  batchDelete: false,
+  batchRestore: false,
+  createFolder: false,
+  upload: false,
+  createTextFile: false,
+};
 
 export function DriveFilePicker({ open, onOpenChange, onPick, ownerType, ownerId }: DriveFilePickerProps) {
   const { t } = useTranslation(["drive", "common"]);
@@ -50,73 +76,69 @@ export function DriveFilePicker({ open, onOpenChange, onPick, ownerType, ownerId
   const currentFolderId = folderStack.at(-1)?.id ?? null;
   const entriesQuery = useDriveEntries(currentFolderId, "normal", owner);
   const entries = useMemo(() => entriesQuery.data ?? [], [entriesQuery.data]);
+  const items = useMemo(() => entries.map(entryToDisplayItem), [entries]);
 
-  const enterFolder = (entry: DriveEntry) =>
-    setFolderStack(prev => [...prev, { id: entry.id, name: entry.name }]);
-  const showRoot = () => setFolderStack([]);
-  const showCrumb = (index: number) => setFolderStack(prev => prev.slice(0, index + 1));
+  const folderPath = useMemo<FolderToolbarConfig["folderPath"]>(
+    () => [
+      { id: null, name: t("picker.root") },
+      ...folderStack.map(crumb => ({ id: crumb.id, name: crumb.name })),
+    ],
+    [folderStack, t],
+  );
 
-  const selectFile = (entry: DriveEntry) => {
-    onPick(entry);
-    onOpenChange(false);
+  const toolbar: FolderToolbarConfig = {
+    kind: "folder",
+    variant: "compact",
+    ownerType: ownerType === "team_directory" ? "team" : "user",
+    folderPath,
+    showCreateActions: false,
+    onNavigateToBreadcrumb: index => setFolderStack(prev => prev.slice(0, index)),
+  };
+
+  // Opening a file (surface double-click / preview path) is how the picker
+  // resolves: surface a folder via navigation, resolve the picker on a file.
+  const pickEntry = (item: DisplayItem) => {
+    const entry = entries.find(candidate => candidate.id === item.id);
+    if (entry) {
+      onPick(entry);
+      onOpenChange(false);
+    }
+  };
+
+  const noop = () => {};
+  const actions: DriveFileListSurfaceActions = {
+    onRefresh: () => void entriesQuery.refetch(),
+    onNavigateToFolder: (entryId, folderName) =>
+      setFolderStack(prev => [...prev, { id: entryId, name: folderName }]),
+    onPreview: pickEntry,
+    onDownload: noop,
+    onShare: noop,
+    onDelete: noop,
+    onBatchDelete: noop,
+    onRename: noop,
+    onFavoriteChange: noop,
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[80vh] flex-col gap-3 sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t("drive:picker.title")}</DialogTitle>
-          <DialogDescription>{t("drive:picker.description")}</DialogDescription>
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="px-6 pt-6">
+          <DialogTitle>{t("picker.title")}</DialogTitle>
+          <DialogDescription>{t("picker.description")}</DialogDescription>
         </DialogHeader>
 
-        <nav className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-muted-foreground">
-          <button type="button" className="truncate rounded px-1 hover:text-foreground" onClick={showRoot}>
-            {t("drive:picker.root")}
-          </button>
-          {folderStack.map((crumb, index) => (
-            <span key={crumb.id} className="flex min-w-0 items-center gap-1">
-              <ChevronRight className="size-3 shrink-0" />
-              <button
-                type="button"
-                className="truncate rounded px-1 hover:text-foreground"
-                onClick={() => showCrumb(index)}
-              >
-                {crumb.name}
-              </button>
-            </span>
-          ))}
-        </nav>
-
-        <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border">
-          {entriesQuery.isLoading && (
-            <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t("common:common.loading")}</p>
-          )}
-          {entriesQuery.error && (
-            <p className="px-3 py-6 text-center text-sm text-destructive">{entriesQuery.error.message}</p>
-          )}
-          {!entriesQuery.isLoading && !entriesQuery.error && entries.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t("drive:picker.empty")}</p>
-          )}
-          <ul className="divide-y divide-border">
-            {entries.map(entry => (
-              <li key={entry.id}>
-                <button
-                  type="button"
-                  className="flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60"
-                  onClick={() => (entry.type === "folder" ? enterFolder(entry) : selectFile(entry))}
-                >
-                  {entry.type === "folder"
-                    ? <Folder className="size-4 shrink-0 text-primary" />
-                    : <FileText className="size-4 shrink-0 text-muted-foreground" />}
-                  <span className="truncate">{entry.name}</span>
-                  {entry.type === "folder" && <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" />}
-                </button>
-              </li>
-            ))}
-          </ul>
+        <div className="h-[60vh] min-h-0 flex-1 border-y border-border">
+          <DriveFileListSurface
+            items={items}
+            loading={entriesQuery.isLoading}
+            toolbar={toolbar}
+            capabilities={PICKER_CAPABILITIES}
+            actions={actions}
+            banner={<ErrorBanner message={entriesQuery.error?.message} className="mx-4 mt-2" />}
+          />
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("common:common.cancel")}
           </Button>
