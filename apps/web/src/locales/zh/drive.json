@@ -2,10 +2,6 @@
   "nav": "网盘",
   "page": {
     "title": "网盘",
-    "shared": {
-      "sent": "我的分享",
-      "links": "公开链接"
-    },
     "team": {
       "back": "返回目录列表"
     }

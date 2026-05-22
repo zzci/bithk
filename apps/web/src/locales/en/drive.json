@@ -2,10 +2,6 @@
   "nav": "Drive",
   "page": {
     "title": "Drive",
-    "shared": {
-      "sent": "Shared by me",
-      "links": "Public links"
-    },
     "team": {
       "back": "Back to directories"
     }
