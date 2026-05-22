@@ -1,33 +1,27 @@
-// Documents page — folder-style tree sidebar (parent-id backed) + a
-// detail/edit/create pane.
+// Documents page — master-detail LAYOUT route.
 //
-// Layout: a secondary tree sidebar on the left (folder-like icons for
-// top-level nodes with children, hover-add to create sub-docs, search
-// dialog opened from a header icon) + a right pane that renders one of
-// three modes — empty placeholder, create form, or detail view (which
-// internally toggles between read-only render and an explicit
-// edit-with-save). Selection is local state, not URL — there are no
-// child routes under this path.
+// The tree sidebar (folder-like icons for top-level nodes with children,
+// hover-add to create sub-docs, search dialog) stays mounted here while
+// the right pane swaps via <Outlet/>. Selection lives in the URL as the
+// `$docId` path param (empty selection = the index child), so reloading a
+// deep URL restores the open doc and switching docs never remounts the
+// sidebar.
 
 /* eslint-disable react-refresh/only-export-components */
-import { createLazyFileRoute } from "@tanstack/react-router";
+import { createLazyFileRoute, Outlet, useNavigate, useParams } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { useDocumentTree } from "@/shared/lib/api/documents";
-import { CreateForm, EmptyState } from "./-documents-create";
-import { DocumentDetail } from "./-documents-detail";
 import { DocumentsSidebar } from "./-documents-sidebar";
 
 export const Route = createLazyFileRoute("/_app/portal/documents")({
-  component: DocumentsPage,
+  component: DocumentsLayout,
 });
-
-type Mode = { type: "empty" } | { type: "new" } | { type: "detail"; docId: string };
 
 // Sidebar resize — width persists across reloads via localStorage. Bounds
 // keep the column usable: too narrow and titles vanish, too wide and the
@@ -68,11 +62,15 @@ function useSidebarWidth() {
   return [width, setAndPersist] as const;
 }
 
-function DocumentsPage() {
+function DocumentsLayout() {
   const { t } = useTranslation("documents");
+  const navigate = useNavigate();
   const treeQuery = useDocumentTree();
   const tree = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
-  const [mode, setMode] = useState<Mode>({ type: "empty" });
+  // `strict: false` reads the param from whichever child is mounted: the
+  // `$docId` route supplies it, index/new leave it undefined.
+  const { docId } = useParams({ strict: false });
+  const selectedId = docId ?? null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
 
@@ -97,27 +95,14 @@ function DocumentsPage() {
     document.addEventListener("mouseup", onUp);
   }, [sidebarWidth, setSidebarWidth]);
 
-  // When a doc gets deleted (or selection becomes invalid for any other
-  // reason), drop the mode back to empty so the right pane doesn't render
-  // against a stale id.
-  useEffect(() => {
-    if (mode.type !== "detail")
-      return;
-    if (treeQuery.isLoading)
-      return;
-    if (!tree.some(n => n.id === mode.docId))
-      // eslint-disable-next-line react/set-state-in-effect -- recover from external deletion.
-      setMode({ type: "empty" });
-  }, [mode, tree, treeQuery.isLoading]);
-
   // Selecting a doc / starting a new one on mobile also collapses the
   // sidebar sheet so the main pane becomes visible.
   const selectDoc = (id: string) => {
-    setMode({ type: "detail", docId: id });
+    void navigate({ to: "/portal/documents/$docId", params: { docId: id } });
     setSidebarOpen(false);
   };
   const startCreate = () => {
-    setMode({ type: "new" });
+    void navigate({ to: "/portal/documents/new" });
     setSidebarOpen(false);
   };
 
@@ -125,7 +110,7 @@ function DocumentsPage() {
     tree,
     loading: treeQuery.isLoading,
     error: treeQuery.error,
-    selectedId: mode.type === "detail" ? mode.docId : null,
+    selectedId,
     onSelect: selectDoc,
     onCreate: startCreate,
   } as const;
@@ -203,20 +188,7 @@ function DocumentsPage() {
               own scroll: view-mode body has `overflow-y-auto`, the
               editor's `.md-editor-shell` scrolls internally. */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            {mode.type === "empty" && <EmptyState onCreate={startCreate} />}
-            {mode.type === "new" && (
-              <CreateForm
-                onCancel={() => setMode({ type: "empty" })}
-                onCreated={id => setMode({ type: "detail", docId: id })}
-              />
-            )}
-            {mode.type === "detail" && (
-              <DocumentDetail
-                key={mode.docId}
-                docId={mode.docId}
-                onDeleted={() => setMode({ type: "empty" })}
-              />
-            )}
+            <Outlet />
           </div>
         </main>
       </div>
