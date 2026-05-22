@@ -205,7 +205,22 @@
     "pdfTitle": "PDF preview",
     "download": "Download",
     "unsupportedTitle": "Preview not available",
-    "unsupportedDescription": "This file type can't be previewed. Download it to view."
+    "unsupportedDescription": "This file type can't be previewed. Download it to view.",
+    "tools": {
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "rotateLeft": "Rotate left",
+      "rotateRight": "Rotate right",
+      "resetView": "Reset view",
+      "fullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen",
+      "showThumbnails": "Show thumbnails",
+      "hideThumbnails": "Hide thumbnails",
+      "close": "Close"
+    }
   },
   "picker": {
     "title": "Select a file",

@@ -205,7 +205,22 @@
     "pdfTitle": "PDF 预览",
     "download": "下载",
     "unsupportedTitle": "无法预览",
-    "unsupportedDescription": "此文件类型无法预览，请下载后查看。"
+    "unsupportedDescription": "此文件类型无法预览，请下载后查看。",
+    "tools": {
+      "edit": "编辑",
+      "save": "保存",
+      "cancel": "取消",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "rotateLeft": "向左旋转",
+      "rotateRight": "向右旋转",
+      "resetView": "重置视图",
+      "fullscreen": "全屏",
+      "exitFullscreen": "退出全屏",
+      "showThumbnails": "显示缩略图",
+      "hideThumbnails": "隐藏缩略图",
+      "close": "关闭"
+    }
   },
   "picker": {
     "title": "选择文件",
