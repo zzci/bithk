@@ -5,9 +5,7 @@ import { items } from "@/modules/item/schema";
 import { defineResource } from "@/modules/policy";
 import { check } from "@/modules/policy/zanzibar.engine";
 
-async function isAdminOrOwner(ctx: PolicyContext, objectId: string): Promise<boolean> {
-  if (ctx.actor.role === "admin")
-    return true;
+async function isOwner(ctx: PolicyContext, objectId: string): Promise<boolean> {
   const result = await check(ctx.db, "item", objectId, "owner", "user", ctx.actor.id);
   return result.allowed;
 }
@@ -77,7 +75,6 @@ export const documentAccess = defineResource({
     },
   },
   hooks: {
-    bypass: ctx => ctx.actor.role === "admin",
     resolveObjectId: async (c, params) => {
       const shortId = params.id;
       if (!shortId)
@@ -97,8 +94,8 @@ export const documentAccess = defineResource({
         .get();
       return row ? { name: row.title, type: "document", url: `/documents/${row.shortId}` } : null;
     },
-    canGrant: (ctx, params) => isAdminOrOwner(ctx, params.objectId),
-    canRevoke: (ctx, params) => isAdminOrOwner(ctx, params.objectId),
+    canGrant: (ctx, params) => isOwner(ctx, params.objectId),
+    canRevoke: (ctx, params) => isOwner(ctx, params.objectId),
     onGranted: (ctx, tuple) => emitShareAudit(ctx, "document.share_added", tuple),
     onRevoked: (ctx, key) => emitShareAudit(ctx, "document.share_removed", key),
   },

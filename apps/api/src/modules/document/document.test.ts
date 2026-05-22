@@ -37,7 +37,7 @@ const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 let db: AppDatabase;
 let dbPath: string;
 
-async function seedUser(name: string) {
+async function seedUser(name: string, role: "user" | "admin" = "user") {
   const id = nanoid();
   const now = new Date().toISOString();
   await db.insert(users).values({
@@ -46,7 +46,7 @@ async function seedUser(name: string) {
     username: `${name.toLowerCase()}-${id}`,
     name,
     email: `${id}@test.com`,
-    role: "user",
+    role,
     status: "active",
     createdAt: now,
     updatedAt: now,
@@ -429,13 +429,13 @@ describe("listMyDocuments", () => {
 });
 
 describe("getDocumentTreeForUser", () => {
-  test("admin sees every document; child node reports parentId as short_id", async () => {
+  test("owner sees their own docs; child node reports parentId as short_id", async () => {
     const alice = await seedUser("Alice");
     const a = await createDocument(db, { title: "alpha", creatorId: alice });
     const b = await createDocument(db, { title: "Beta", creatorId: alice });
     const c = await createDocument(db, { title: "alpha-child", creatorId: alice, parentId: a.id });
 
-    const tree = await getDocumentTreeForUser(db, { id: "anyone", role: "admin" });
+    const tree = await getDocumentTreeForUser(db, { id: alice });
     const ids = tree.map(n => n.id);
     expect(ids).toContain(a.id);
     expect(ids).toContain(b.id);
@@ -444,12 +444,94 @@ describe("getDocumentTreeForUser", () => {
     expect(childNode?.parentId).toBe(a.id);
   });
 
-  test("non-admin only sees their own + their visible docs", async () => {
+  test("only sees their own + their visible docs", async () => {
     const alice = await seedUser("Alice");
     const bob = await seedUser("Bob");
     await createDocument(db, { title: "alice doc", creatorId: alice });
     const bobDoc = await createDocument(db, { title: "bob doc", creatorId: bob });
-    const tree = await getDocumentTreeForUser(db, { id: bob, role: "user" });
+    const tree = await getDocumentTreeForUser(db, { id: bob });
     expect(tree.map(n => n.id)).toEqual([bobDoc.id]);
+  });
+
+  test("admin gets no bypass: cannot see another admin's unshared doc in the tree", async () => {
+    const adminA = await seedUser("AdminA", "admin");
+    const adminB = await seedUser("AdminB", "admin");
+    await createDocument(db, { title: "admin B doc", creatorId: adminB });
+    const ownDoc = await createDocument(db, { title: "admin A doc", creatorId: adminA });
+
+    const tree = await getDocumentTreeForUser(db, { id: adminA });
+    expect(tree.map(n => n.id)).toEqual([ownDoc.id]);
+  });
+});
+
+describe("admin de-privilege over HTTP (owner-scoped, no bypass)", () => {
+  test("admin A cannot read admin B's unshared document", async () => {
+    const adminA = await seedUser("AdminA", "admin");
+    const adminB = await seedUser("AdminB", "admin");
+    const docB = await createDocument(db, { title: "B private", creatorId: adminB });
+    const app = buildDocumentApp();
+
+    const res = await app.request(`/documents/${docB.id}`, {
+      headers: { cookie: await sessionCookieFor(adminA) },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test("admin A's list excludes admin B's unshared document", async () => {
+    const adminA = await seedUser("AdminA", "admin");
+    const adminB = await seedUser("AdminB", "admin");
+    const docB = await createDocument(db, { title: "B private", creatorId: adminB });
+    const ownDoc = await createDocument(db, { title: "A own", creatorId: adminA });
+    const app = buildDocumentApp();
+
+    const res = await app.request("/documents", {
+      headers: { cookie: await sessionCookieFor(adminA) },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: Array<{ id: string }>; meta: { total: number } };
+    const ids = body.data.map(d => d.id);
+    expect(ids).toContain(ownDoc.id);
+    expect(ids).not.toContain(docB.id);
+    expect(body.meta.total).toBe(1);
+  });
+
+  test("admin A's tree endpoint excludes admin B's unshared document", async () => {
+    const adminA = await seedUser("AdminA", "admin");
+    const adminB = await seedUser("AdminB", "admin");
+    const docB = await createDocument(db, { title: "B private", creatorId: adminB });
+    const ownDoc = await createDocument(db, { title: "A own", creatorId: adminA });
+    const app = buildDocumentApp();
+
+    const res = await app.request("/documents/tree", {
+      headers: { cookie: await sessionCookieFor(adminA) },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: Array<{ id: string }> };
+    const ids = body.data.map(d => d.id);
+    expect(ids).toContain(ownDoc.id);
+    expect(ids).not.toContain(docB.id);
+  });
+
+  test("owner and explicitly-shared admin can still read the document", async () => {
+    const owner = await seedUser("Owner");
+    const adminViewer = await seedUser("AdminViewer", "admin");
+    const doc = await createDocument(db, { title: "Shared", creatorId: owner });
+    await addDocumentShare(policyCtx(owner), {
+      documentId: doc.id,
+      targetType: "user",
+      targetId: adminViewer,
+      permission: "viewer",
+    });
+    const app = buildDocumentApp();
+
+    const ownerRes = await app.request(`/documents/${doc.id}`, {
+      headers: { cookie: await sessionCookieFor(owner) },
+    });
+    expect(ownerRes.status).toBe(200);
+
+    const sharedRes = await app.request(`/documents/${doc.id}`, {
+      headers: { cookie: await sessionCookieFor(adminViewer) },
+    });
+    expect(sharedRes.status).toBe(200);
   });
 });

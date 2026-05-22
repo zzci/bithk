@@ -376,15 +376,12 @@ export async function listDescendantIds(db: AppDatabase, shortId: string): Promi
 export interface ListDocumentsParams {
   readonly q?: string | undefined;
   readonly tag?: string | undefined;
-  readonly creatorId?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
 
 async function buildDocumentConditions(params: ListDocumentsParams) {
   const conditions = [eq(items.type, "document"), isNull(items.deletedAt)];
-  if (params.creatorId)
-    conditions.push(eq(items.creatorId, params.creatorId));
   if (params.q) {
     conditions.push(like(items.title, `%${escapeLike(params.q)}%`));
   }
@@ -411,31 +408,6 @@ async function listVisibleItemIds(db: AppDatabase, userId: string): Promise<read
     SELECT id FROM chain
   `);
   return rows.map(r => r.id);
-}
-
-export async function listDocuments(db: AppDatabase, params: ListDocumentsParams = {}) {
-  const conditions = await buildDocumentConditions(params);
-  let where = and(...conditions);
-  if (params.tag) {
-    const ids = await db.select({ itemId: documentDetails.itemId })
-      .from(documentDetails)
-      .where(like(documentDetails.tags, `%"${escapeLike(params.tag)}"%`))
-      .all();
-    if (ids.length === 0)
-      return { data: [] as DocumentRow[], total: 0 };
-    where = and(where, inArray(items.id, ids.map(r => r.itemId)));
-  }
-
-  const page = Math.max(1, params.page ?? 1);
-  const limit = Math.min(100, Math.max(1, params.limit ?? 20));
-
-  const totalRow = await db.select({ value: count() }).from(items).where(where).get();
-  const total = totalRow?.value ?? 0;
-  const rows = await db.select().from(items).where(where).orderBy(desc(items.updatedAt), desc(items.id)).limit(limit).offset((page - 1) * limit).all();
-  const data: DocumentRow[] = [];
-  for (const r of rows)
-    data.push(await composeDocument(db, r));
-  return { data, total };
 }
 
 export async function listMyDocuments(db: AppDatabase, params: ListDocumentsParams & { userId: string }) {
@@ -490,39 +462,31 @@ interface TreeRow {
 
 export async function getDocumentTreeForUser(
   db: AppDatabase,
-  user: { id: string; role: string },
+  user: { id: string },
 ): Promise<readonly DocumentTreeNode[]> {
-  const isAdmin = user.role === "admin";
+  // Owner-scoped for everyone, admins included: the tree is limited to
+  // documents the user created plus those explicitly shared with them
+  // (and the descendants of shared docs, via listVisibleItemIds).
   let rows: readonly TreeRow[];
-  if (isAdmin) {
+  const visibleIds = await listVisibleItemIds(db, user.id);
+  if (visibleIds.length === 0) {
     rows = await db.all<TreeRow>(sql`
       SELECT i.id, i.short_id, i.title, dd.parent_id, i.updated_at
       FROM ${items} i JOIN ${documentDetails} dd ON dd.item_id = i.id
       WHERE i.type = 'document' AND i.deleted_at IS NULL
+        AND i.creator_id = ${user.id}
       ORDER BY LOWER(i.title) ASC
     `);
   }
   else {
-    const visibleIds = await listVisibleItemIds(db, user.id);
-    if (visibleIds.length === 0) {
-      rows = await db.all<TreeRow>(sql`
-        SELECT i.id, i.short_id, i.title, dd.parent_id, i.updated_at
-        FROM ${items} i JOIN ${documentDetails} dd ON dd.item_id = i.id
-        WHERE i.type = 'document' AND i.deleted_at IS NULL
-          AND i.creator_id = ${user.id}
-        ORDER BY LOWER(i.title) ASC
-      `);
-    }
-    else {
-      rows = await db.all<TreeRow>(sql`
-        SELECT i.id, i.short_id, i.title, dd.parent_id, i.updated_at
-        FROM ${items} i JOIN ${documentDetails} dd ON dd.item_id = i.id
-        WHERE i.type = 'document' AND i.deleted_at IS NULL
-          AND (i.creator_id = ${user.id}
-               OR i.id IN (SELECT value FROM json_each(${JSON.stringify([...visibleIds])})))
-        ORDER BY LOWER(i.title) ASC
-      `);
-    }
+    rows = await db.all<TreeRow>(sql`
+      SELECT i.id, i.short_id, i.title, dd.parent_id, i.updated_at
+      FROM ${items} i JOIN ${documentDetails} dd ON dd.item_id = i.id
+      WHERE i.type = 'document' AND i.deleted_at IS NULL
+        AND (i.creator_id = ${user.id}
+             OR i.id IN (SELECT value FROM json_each(${JSON.stringify([...visibleIds])})))
+      ORDER BY LOWER(i.title) ASC
+    `);
   }
 
   // Map internal ids → short ids for the rendered tree.
@@ -563,8 +527,8 @@ export async function getDocumentPermission(
     return null;
   // No creator-special-case: `createDocument` writes the owner tuple
   // for the creator, and the engine's `editor ⊇ owner` rewrite picks
-  // it up. Goes through the framework so the same admin / bypass /
-  // hook chain that gates routes also applies to this read helper.
+  // it up. Goes through the framework so the same owner-scoped hook
+  // chain that gates routes also applies to this read helper.
   // Read-only path → onGranted / onRevoked won't fire, so the shared
   // NOOP_POLICY_LOGGER constant keeps PolicyContext type-complete
   // without forcing every caller of this internal helper to thread one
