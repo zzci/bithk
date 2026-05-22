@@ -272,7 +272,7 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-[600px] gap-0 overflow-visible p-0">
+      <DialogContent className="flex max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-visible p-0 sm:max-w-[600px]">
         <DialogHeader className="w-full min-w-0 px-6 pt-5 pb-3">
           <DialogTitle className="flex min-w-0 items-center gap-2 pr-10 text-xl font-medium">
             <Share2 className="size-5 shrink-0" />
@@ -297,7 +297,7 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
           </TooltipProvider>
         </DialogHeader>
 
-        <div className="flex min-h-[220px] flex-col gap-4 px-6 pb-5">
+        <div className="flex min-h-[220px] w-full min-w-0 flex-col gap-4 px-6 pb-5">
           <section className="relative flex flex-col gap-2">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-base font-medium">{t("drive:share.peopleWithAccess")}</h3>
@@ -564,7 +564,7 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
 
         <Separator />
 
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex w-full min-w-0 items-center justify-between px-6 py-4">
           <Button
             type="button"
             variant="outline"
