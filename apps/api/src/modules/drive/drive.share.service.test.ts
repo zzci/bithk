@@ -358,4 +358,18 @@ describe("share listings", () => {
     const forEntry = await listSharesForEntry(db, entry.id);
     expect(forEntry.map(s => s.id).sort()).toEqual([direct.id, link.id].sort());
   });
+
+  test("revoked shares drop out of the sent / links lists", async () => {
+    const owner = await seedUser("Owner");
+    const recipient = await seedUser("Recipient");
+    const entry = await fileEntryRow(owner);
+    const direct = await createShare(db, { entry, createdBy: owner, shareType: "direct", permission: "view", sharedWithUserId: recipient });
+    const link = await createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "view" });
+
+    await revokeShare(db, direct.id, owner);
+    await revokeShare(db, link.id, owner);
+
+    expect(await listSentShares(db, owner)).toEqual([]);
+    expect(await listLinkShares(db, owner)).toEqual([]);
+  });
 });

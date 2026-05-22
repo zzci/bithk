@@ -191,19 +191,21 @@ export async function listReceivedShares(db: AppDatabase, userId: string): Promi
   )!);
 }
 
-/** Direct shares created by the caller. */
+/** Active direct shares created by the caller (revoked ones are dropped). */
 export async function listSentShares(db: AppDatabase, userId: string): Promise<readonly DriveShareView[]> {
   return queryShareViews(db, and(
     eq(driveFileShares.createdBy, userId),
     eq(driveFileShares.shareType, "direct"),
+    eq(driveFileShares.isActive, 1),
   )!);
 }
 
-/** Public-link shares created by the caller. */
+/** Active public-link shares created by the caller (revoked ones are dropped). */
 export async function listLinkShares(db: AppDatabase, userId: string): Promise<readonly DriveShareView[]> {
   return queryShareViews(db, and(
     eq(driveFileShares.createdBy, userId),
     eq(driveFileShares.shareType, "public_link"),
+    eq(driveFileShares.isActive, 1),
   )!);
 }
 
