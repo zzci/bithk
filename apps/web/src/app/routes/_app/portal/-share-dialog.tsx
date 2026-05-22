@@ -115,7 +115,6 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
   const [recipientQuery, setRecipientQuery] = useState("");
   const [pendingUserIds, setPendingUserIds] = useState<string[]>([]);
   const [directPermission, setDirectPermission] = useState<DirectPermission>("edit");
-  const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [accessMode, setAccessMode] = useState<AccessMode>("restricted");
   const [publicSettingsOpen, setPublicSettingsOpen] = useState(false);
   const [publicExpiresIn, setPublicExpiresIn] = useState("never");
@@ -146,20 +145,17 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
   );
   const availableUsers = users.filter(user => user.id !== currentUser?.id && !sharedUserIds.has(user.id));
   const pendingUsers = users.filter(user => pendingUserIds.includes(user.id));
-  const filteredUsers = availableUsers.filter((user) => {
-    if (!addPeopleOpen)
-      return false;
-    const query = recipientQuery.trim().toLowerCase();
-    if (!query)
-      return true;
-    return userLabel(user).toLowerCase().includes(query) || user.username.toLowerCase().includes(query);
-  });
+  const recipientSearch = recipientQuery.trim().toLowerCase();
+  const filteredUsers = recipientSearch
+    ? availableUsers.filter(user =>
+        userLabel(user).toLowerCase().includes(recipientSearch)
+        || user.username.toLowerCase().includes(recipientSearch))
+    : [];
 
   const resetState = () => {
     setRecipientQuery("");
     setPendingUserIds([]);
     setDirectPermission("edit");
-    setAddPeopleOpen(false);
     setPublicSettingsOpen(false);
     setPublicPassword("");
   };
@@ -172,22 +168,6 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
 
   const togglePendingUser = (userId: string) => {
     setPendingUserIds(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]);
-  };
-
-  const closeAddPeople = () => {
-    setAddPeopleOpen(false);
-    setRecipientQuery("");
-    setPendingUserIds([]);
-    setDirectPermission("edit");
-  };
-
-  const toggleAddPeople = () => {
-    if (addPeopleOpen) {
-      closeAddPeople();
-      return;
-    }
-    setPublicSettingsOpen(false);
-    setAddPeopleOpen(true);
   };
 
   const closePublicSettings = () => {
@@ -204,7 +184,6 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
     setPublicExpiresIn(expirationValueFrom(publicShare?.expiresAt));
     setPublicPassword("");
     setPublicSettingsOpen(true);
-    setAddPeopleOpen(false);
   };
 
   const handleCopyLink = () => {
@@ -299,97 +278,52 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
 
         <div className="flex min-h-[220px] w-full min-w-0 flex-col gap-4 px-6 pb-5">
           <section className="relative flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-base font-medium">{t("drive:share.peopleWithAccess")}</h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="rounded-full px-4"
-                aria-label={t("drive:share.addPeoplePlaceholder")}
-                aria-expanded={addPeopleOpen}
-                onClick={toggleAddPeople}
-              >
-                {t("common:common.add")}
-              </Button>
+            <h3 className="text-base font-medium">{t("drive:share.peopleWithAccess")}</h3>
+
+            {/* Inline user search: type, Enter (or click a result) adds the
+                person to the list below — no overlay that hides the footer. */}
+            <div className="relative">
+              <Input
+                value={recipientQuery}
+                onChange={event => setRecipientQuery(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    const first = filteredUsers[0];
+                    if (first) {
+                      togglePendingUser(first.id);
+                      setRecipientQuery("");
+                    }
+                  }
+                }}
+                placeholder={t("drive:share.addPeoplePlaceholder")}
+                className="h-10"
+              />
+              {filteredUsers.length > 0 && (
+                <div className="absolute top-11 right-0 left-0 z-30 max-h-56 overflow-auto rounded-md border bg-popover p-1 shadow-md">
+                  {filteredUsers.map(user => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => {
+                        togglePendingUser(user.id);
+                        setRecipientQuery("");
+                      }}
+                      className="flex w-full items-center gap-3 rounded px-3 py-2 text-left hover:bg-accent"
+                    >
+                      <Avatar>
+                        <AvatarFallback>{initials(userLabel(user))}</AvatarFallback>
+                      </Avatar>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{userLabel(user)}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{user.username}</span>
+                      </span>
+                      {pendingUserIds.includes(user.id) && <Check className="size-4 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-
-            {addPeopleOpen && (
-              <div className="absolute top-9 right-0 z-20 w-[420px] max-w-[calc(100vw-3rem)] rounded-xl border bg-popover p-4 shadow-lg">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">{t("drive:share.addPeoplePlaceholder")}</p>
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common:common.close")} onClick={closeAddPeople}>
-                    <X className="size-4" />
-                  </Button>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <div className="relative">
-                    <Input
-                      value={recipientQuery}
-                      onChange={event => setRecipientQuery(event.currentTarget.value)}
-                      placeholder={t("drive:share.addPeoplePlaceholder")}
-                      className="h-10"
-                    />
-                    {filteredUsers.length > 0 && (
-                      <div className="absolute top-12 right-0 left-0 z-50 max-h-56 overflow-auto rounded-md border bg-popover p-1 shadow-md">
-                        {filteredUsers.map(user => (
-                          <button
-                            key={user.id}
-                            type="button"
-                            onClick={() => togglePendingUser(user.id)}
-                            className="flex w-full items-center gap-3 rounded px-3 py-2 text-left hover:bg-accent"
-                          >
-                            <Avatar>
-                              <AvatarFallback>{initials(userLabel(user))}</AvatarFallback>
-                            </Avatar>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium">{userLabel(user)}</span>
-                              <span className="block truncate text-xs text-muted-foreground">{user.username}</span>
-                            </span>
-                            {pendingUserIds.includes(user.id) && <Check className="size-4 text-primary" />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {pendingUsers.length > 0 && (
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex min-w-0 flex-wrap gap-2">
-                        {pendingUsers.map(user => (
-                          <span key={user.id} className="inline-flex max-w-[220px] items-center gap-2 rounded-full bg-secondary px-3 py-1 text-sm">
-                            <span className="truncate">{userLabel(user)}</span>
-                            <button type="button" aria-label={t("drive:share.action.remove")} onClick={() => togglePendingUser(user.id)}>
-                              <X className="size-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                      <Select value={directPermission} onValueChange={value => value && setDirectPermission(value as DirectPermission)}>
-                        <SelectTrigger className="w-[120px] shrink-0">
-                          <SelectValue>
-                            {(v: string) => t(`drive:share.permission.${v}`)}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="view">{t("drive:share.permission.view")}</SelectItem>
-                          <SelectItem value="edit">{t("drive:share.permission.edit")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="ghost" onClick={closeAddPeople}>
-                      {t("common:common.cancel")}
-                    </Button>
-                    <Button type="button" disabled={pendingUserIds.length === 0} onClick={() => setAddPeopleOpen(false)}>
-                      {t("common:common.add")}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {currentUser && (
               <div className="flex items-center gap-3">
@@ -441,6 +375,9 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
                     <SelectItem value="edit">{t("drive:share.permission.edit")}</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button type="button" variant="ghost" size="icon-sm" aria-label={t("drive:share.action.remove")} onClick={() => togglePendingUser(user.id)}>
+                  <X className="size-4" />
+                </Button>
               </div>
             ))}
           </section>
