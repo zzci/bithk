@@ -63,6 +63,23 @@ export interface DocumentShare {
   readonly inheritedFrom: { readonly id: string; readonly title: string } | null;
 }
 
+/**
+ * View-only public-link grant on a document. Mirrors the backend
+ * `DocumentPublicLinkView` (document.share.service.ts) exactly — the
+ * password hash is never serialized, only `hasPassword`.
+ */
+export interface DocumentPublicLink {
+  readonly id: string;
+  readonly documentId: string;
+  readonly token: string;
+  readonly hasPassword: boolean;
+  readonly expiresAt: string | null;
+  readonly isActive: boolean;
+  readonly createdBy: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 export interface Attachment {
   readonly id: string;
   readonly documentId: string;
@@ -165,6 +182,7 @@ export const documentsKeys = {
   users: () => ["documents", "users"] as const,
   groups: () => ["documents", "groups"] as const,
   shares: (id: string) => ["documents", id, "shares"] as const,
+  publicLinks: (id: string) => ["documents", id, "public-links"] as const,
   attachments: (id: string) => ["documents", id, "attachments"] as const,
   comments: (id: string) => ["documents", id, "comments"] as const,
 };
@@ -319,6 +337,84 @@ export function useMoveDocument(): UseMutationResult<Document, Error, { readonly
     onSuccess: (doc) => {
       qc.setQueryData(documentsKeys.detail(doc.id), doc);
       void qc.invalidateQueries({ queryKey: documentsKeys.tree() });
+    },
+  });
+}
+
+// ── Public links (owner-only management) ──
+//
+// `:id` in these routes is the document short_id (the same value the
+// rest of the documents client passes as `doc.id`). Mutations go through
+// `rawJson`/`httpRaw`, so credentials and the `X-Requested-With` CSRF
+// header are applied automatically — never hand-roll fetch here.
+
+export function useDocumentPublicLinks(docId: string | undefined) {
+  return useQuery({
+    queryKey: documentsKeys.publicLinks(docId ?? ""),
+    queryFn: () => rawJson<ApiEnvelope<readonly DocumentPublicLink[]>>(`/documents/${docId}/public-links`).then(r => r.data),
+    enabled: !!docId,
+    staleTime: 5_000,
+  });
+}
+
+export interface CreateDocumentPublicLinkInput {
+  readonly docId: string;
+  readonly password?: string;
+  readonly expiresAt?: string | null;
+}
+
+export function useCreateDocumentPublicLink(): UseMutationResult<DocumentPublicLink, Error, CreateDocumentPublicLinkInput> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ docId, ...body }) => {
+      const res = await rawJson<ApiEnvelope<DocumentPublicLink>>(`/documents/${docId}/public-links`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      return res.data;
+    },
+    onSuccess: (_data, { docId }) => {
+      void qc.invalidateQueries({ queryKey: documentsKeys.publicLinks(docId) });
+    },
+  });
+}
+
+export interface UpdateDocumentPublicLinkInput {
+  readonly docId: string;
+  readonly linkId: string;
+  /** `undefined` keeps the password, `null` clears it, a string sets it. */
+  readonly password?: string | null;
+  readonly expiresAt?: string | null;
+  readonly isActive?: boolean;
+}
+
+export function useUpdateDocumentPublicLink(): UseMutationResult<DocumentPublicLink, Error, UpdateDocumentPublicLinkInput> {
+  const qc = useQueryClient();
+  return useMutation({
+    // `undefined` fields are dropped by JSON.stringify, so an omitted
+    // `password` reaches the server as "keep" while an explicit `null`
+    // clears it — matching the backend PATCH contract.
+    mutationFn: async ({ docId, linkId, ...body }) => {
+      const res = await rawJson<ApiEnvelope<DocumentPublicLink>>(`/documents/${docId}/public-links/${linkId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      return res.data;
+    },
+    onSuccess: (_data, { docId }) => {
+      void qc.invalidateQueries({ queryKey: documentsKeys.publicLinks(docId) });
+    },
+  });
+}
+
+export function useRevokeDocumentPublicLink(): UseMutationResult<void, Error, { readonly docId: string; readonly linkId: string }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ docId, linkId }) => {
+      await rawJson<ApiEnvelope<null>>(`/documents/${docId}/public-links/${linkId}`, { method: "DELETE" });
+    },
+    onSuccess: (_data, { docId }) => {
+      void qc.invalidateQueries({ queryKey: documentsKeys.publicLinks(docId) });
     },
   });
 }
