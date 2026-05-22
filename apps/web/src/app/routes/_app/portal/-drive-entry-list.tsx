@@ -35,28 +35,37 @@ import { ShareDialog } from "./-share-dialog";
 
 export type DriveListSource = "recent" | "favorites" | "trash";
 
+export interface FolderTarget {
+  readonly id: string;
+  readonly name: string;
+}
+
 interface ListProps {
   readonly source: DriveListSource;
   readonly userId: string;
   readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
+  /** Open a folder from a collection — the page jumps to My files at it. */
+  readonly onOpenFolder?: ((folder: FolderTarget) => void) | undefined;
 }
 
 // One fetch wrapper per source so only the active view's query runs; React
 // forbids calling the other query hooks conditionally from a single component.
-export function DriveEntryListView({ source, userId, onPreviewEntry }: ListProps) {
+export function DriveEntryListView({ source, userId, onPreviewEntry, onOpenFolder }: ListProps) {
   if (source === "recent")
-    return <RecentCollection onPreviewEntry={onPreviewEntry} />;
+    return <RecentCollection onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />;
   if (source === "favorites")
-    return <FavoritesCollection onPreviewEntry={onPreviewEntry} />;
+    return <FavoritesCollection onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />;
   return <TrashCollection userId={userId} onPreviewEntry={onPreviewEntry} />;
 }
 
-function RecentCollection({ onPreviewEntry }: Pick<ListProps, "onPreviewEntry">) {
-  return <Collection mode="recent" query={useRecentEntries()} onPreviewEntry={onPreviewEntry} />;
+type CollectionWrapperProps = Pick<ListProps, "onPreviewEntry" | "onOpenFolder">;
+
+function RecentCollection({ onPreviewEntry, onOpenFolder }: CollectionWrapperProps) {
+  return <Collection mode="recent" query={useRecentEntries()} onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />;
 }
 
-function FavoritesCollection({ onPreviewEntry }: Pick<ListProps, "onPreviewEntry">) {
-  return <Collection mode="favorites" query={useFavoriteEntries()} onPreviewEntry={onPreviewEntry} />;
+function FavoritesCollection({ onPreviewEntry, onOpenFolder }: CollectionWrapperProps) {
+  return <Collection mode="favorites" query={useFavoriteEntries()} onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />;
 }
 
 function TrashCollection({ userId, onPreviewEntry }: Pick<ListProps, "userId" | "onPreviewEntry">) {
@@ -105,7 +114,7 @@ const COLLECTION_CAPABILITIES: Record<DriveListSource, DriveFileListCapabilities
     batchDownload: true,
     batchDelete: false,
     batchRestore: false,
-    navigateFolders: false,
+    navigateFolders: true,
   },
   favorites: {
     download: true,
@@ -117,7 +126,7 @@ const COLLECTION_CAPABILITIES: Record<DriveListSource, DriveFileListCapabilities
     batchDownload: true,
     batchDelete: false,
     batchRestore: false,
-    navigateFolders: false,
+    navigateFolders: true,
   },
   trash: {
     download: false,
@@ -137,9 +146,10 @@ interface CollectionProps {
   readonly mode: DriveListSource;
   readonly query: UseQueryResult<readonly DriveEntry[]>;
   readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
+  readonly onOpenFolder?: ((folder: FolderTarget) => void) | undefined;
 }
 
-function Collection({ mode, query, onPreviewEntry }: CollectionProps) {
+function Collection({ mode, query, onPreviewEntry, onOpenFolder }: CollectionProps) {
   const { t } = useTranslation("drive");
 
   const updateEntry = useUpdateDriveEntry();
@@ -176,7 +186,7 @@ function Collection({ mode, query, onPreviewEntry }: CollectionProps) {
 
   const actions: DriveFileListSurfaceActions = useMemo(() => ({
     onRefresh: () => void refetch(),
-    onNavigateToFolder: () => {},
+    onNavigateToFolder: (folderId, folderName) => onOpenFolder?.({ id: folderId, name: folderName }),
     onDownload: (fileId) => {
       const entry = entryByFileId.get(fileId);
       if (entry)
@@ -225,7 +235,7 @@ function Collection({ mode, query, onPreviewEntry }: CollectionProps) {
         setRenameEntry(entry);
     },
     onFavoriteChange: (item, favorite) => updateEntry.mutate({ id: item.id, favorite }),
-  }), [entryById, entryByFileId, isTrash, onPreviewEntry, permanentDelete, refetch, restoreEntry, t, updateEntry]);
+  }), [entryById, entryByFileId, isTrash, onOpenFolder, onPreviewEntry, permanentDelete, refetch, restoreEntry, t, updateEntry]);
 
   const error = query.error ?? updateEntry.error ?? restoreEntry.error ?? permanentDelete.error;
 

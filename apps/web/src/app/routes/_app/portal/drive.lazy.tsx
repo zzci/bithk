@@ -67,6 +67,9 @@ function DrivePage() {
 
   const [activeView, setActiveView] = useState<DriveView | null>("my-files");
   const [activeTeamDir, setActiveTeamDir] = useState<TeamDirectory | null>(null);
+  // When a folder is opened from a collection (Recent/Favorites), My files
+  // re-seeds inside it.
+  const [myFilesFolder, setMyFilesFolder] = useState<{ readonly id: string; readonly name: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
 
@@ -94,12 +97,21 @@ function DrivePage() {
   const selectView = (view: DriveView) => {
     setActiveView(view);
     setActiveTeamDir(null);
+    setMyFilesFolder(null);
     setSidebarOpen(false);
   };
 
   const selectTeamDir = (directory: TeamDirectory) => {
     setActiveTeamDir(directory);
     setActiveView(null);
+    setSidebarOpen(false);
+  };
+
+  // Opening a folder from a collection jumps to My files seeded inside it.
+  const openFolder = (folder: { readonly id: string; readonly name: string }) => {
+    setMyFilesFolder(folder);
+    setActiveTeamDir(null);
+    setActiveView("my-files");
     setSidebarOpen(false);
   };
 
@@ -158,6 +170,8 @@ function DrivePage() {
               view={activeView}
               userId={user?.id ?? null}
               activeTeamDir={activeTeamDir}
+              myFilesFolder={myFilesFolder}
+              onOpenFolder={openFolder}
               onShareEntry={setShareEntry}
               onPreviewEntry={setPreviewEntry}
             />
@@ -194,12 +208,16 @@ function DriveViewContent({
   view,
   userId,
   activeTeamDir,
+  myFilesFolder,
+  onOpenFolder,
   onShareEntry,
   onPreviewEntry,
 }: ViewCallbacks & {
   readonly view: DriveView | null;
   readonly userId: string | null;
   readonly activeTeamDir: TeamDirectory | null;
+  readonly myFilesFolder: { readonly id: string; readonly name: string } | null;
+  readonly onOpenFolder: (folder: { readonly id: string; readonly name: string }) => void;
 }) {
   const { t } = useTranslation("drive");
 
@@ -227,9 +245,11 @@ function DriveViewContent({
     case "my-files":
       return (
         <FileBrowser
+          key={myFilesFolder?.id ?? "root"}
           ownerType="user"
           ownerId={userId}
           rootLabel={t("sidebar.myFiles")}
+          initialFolder={myFilesFolder ?? undefined}
           onShareEntry={onShareEntry}
           onPreviewEntry={onPreviewEntry}
         />
@@ -240,7 +260,7 @@ function DriveViewContent({
     case "trash":
       return (
         <div className="min-h-0 flex-1 overflow-auto">
-          <DriveEntryListView source={view} userId={userId} onPreviewEntry={onPreviewEntry} />
+          <DriveEntryListView source={view} userId={userId} onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />
         </div>
       );
 
