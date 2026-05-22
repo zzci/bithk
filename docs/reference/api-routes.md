@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 146 routes total.
+> 153 routes total.
 
 | Method | Path |
 |---|---|
@@ -69,10 +69,17 @@
 | DELETE | `/api/documents/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/documents/:id/comments/:cid/attachments/:aid` |
 | PATCH | `/api/documents/:id/move` |
+| GET | `/api/documents/:id/public-links` |
+| POST | `/api/documents/:id/public-links` |
+| DELETE | `/api/documents/:id/public-links/:linkId` |
+| PATCH | `/api/documents/:id/public-links/:linkId` |
 | GET | `/api/documents/:id/shares` |
 | POST | `/api/documents/:id/shares` |
 | DELETE | `/api/documents/:id/shares/:shareId` |
 | GET | `/api/documents/groups` |
+| GET | `/api/documents/shared/:token` |
+| POST | `/api/documents/shared/:token` |
+| POST | `/api/documents/shared/:token/attachments/:aid` |
 | GET | `/api/documents/tags` |
 | GET | `/api/documents/tree` |
 | GET | `/api/documents/users` |
