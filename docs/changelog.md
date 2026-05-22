@@ -31,8 +31,25 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   [decision 001](decisions/001-drive-preview-stack.md).
 - `context-menu` UI primitive (`@base-ui/react/context-menu`) for right-click
   per-item and blank-area "create here" menus.
+- Document collaborator sharing wired into the documents detail UI (add /
+  remove user or group viewer/editor, inherited grants shown and
+  non-removable), replacing the previous "coming soon" stub.
+- Document public-link sharing: view-only token links with optional password
+  (argon2id, write-only) and expiry, owner-only management, and folder/subtree
+  recursion so a link on a folder grants view access to its whole subtree.
+  Adds the `document_public_links` table + migration, unauthenticated token
+  routes (gate metadata / content / attachment streaming), and a ShareDialog
+  public-link section (create / revoke / copy URL) with EN/ZH i18n.
+- Public documents viewer page (`/documents/shared/:token`): unauthenticated,
+  view-only markdown rendering with password and expiry enforcement, subtree
+  navigation for folder links, and attachment view/download.
 
 ### Changed
+
+- Documents selection now lives in the URL as a path param
+  (`/portal/documents/:docId`) via a master-detail layout that keeps the tree
+  sidebar mounted across switches; creating a document (root or child) now
+  navigates to the new document instead of bouncing back to the empty state.
 
 - Every drive entry list now renders through one reusable
   `DriveFileListSurface` (search / filter / sort / grid-list / multi-select /
@@ -44,6 +61,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 - Dead `-use-drive-selection.ts` hook (selection state now lives inside the
   shared surface).
+
+### Security
+
+- Documents are now owner-scoped: the admin role no longer bypasses document
+  access on list, read, tree, or share-management paths. Admins see only their
+  own and explicitly shared documents, matching drive personal-file behavior.
+  Breaking change (R&D): admins lose blanket visibility into other users'
+  documents.
 
 ## 2026-05-21
 
