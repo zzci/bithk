@@ -658,7 +658,7 @@ function FileToolbar({
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={(
-                            <Button variant="ghost" size="icon" className="size-9" aria-label={t("browser.create")} />
+                            <Button variant="default" size="icon" className="size-9" aria-label={t("browser.create")} />
                           )}
                         >
                           <Plus className="size-4" />

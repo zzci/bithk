@@ -272,7 +272,7 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-visible p-0 sm:max-w-[600px]">
+      <DialogContent className="flex max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-visible p-0 sm:max-w-[480px]">
         <DialogHeader className="w-full min-w-0 px-6 pt-5 pb-3">
           <DialogTitle className="flex min-w-0 items-center gap-2 pr-10 text-xl font-medium">
             <Share2 className="size-5 shrink-0" />
