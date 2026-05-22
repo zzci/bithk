@@ -2,18 +2,31 @@
   "nav": "Drive",
   "page": {
     "title": "Drive",
-    "tab": {
-      "myFiles": "My files",
-      "teamDirectories": "Team directories",
-      "sharedWithMe": "Shared with me"
-    },
     "shared": {
-      "received": "Shared with me",
       "sent": "Shared by me",
       "links": "Public links"
     },
     "team": {
       "back": "Back to directories"
+    }
+  },
+  "sidebar": {
+    "section": {
+      "files": "Files",
+      "shared": "Shared",
+      "team": "Team"
+    },
+    "myFiles": "My files",
+    "recent": "Recent",
+    "favorites": "Favorites",
+    "trash": "Trash",
+    "sharedWithMe": "Shared with me",
+    "sharedByMe": "Shared by me",
+    "teamDirectories": "Team directories",
+    "empty": {
+      "recent": "No recent files",
+      "favorites": "No favorites yet",
+      "trash": "Trash is empty"
     }
   },
   "browser": {

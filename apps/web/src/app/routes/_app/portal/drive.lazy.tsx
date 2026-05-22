@@ -1,15 +1,24 @@
+// Drive page — a left view-nav sidebar (aligned with the documents page
+// layout) + a main pane that renders one of the drive's primary views:
+// the folder-browsing file browser, the recent/favorites/trash lists, the
+// shared-with-me / shared-by-me share lists, or team directories.
+
 /* eslint-disable react-refresh/only-export-components */
+import type { DriveView } from "./-drive-sidebar";
 import type { DriveEntry, TeamDirectory } from "@/shared/lib/api/drive";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Menu } from "lucide-react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
+import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { useTeamDirectory } from "@/shared/lib/api/drive";
 import { useAuthStore } from "@/shared/stores/auth";
 
+import { DriveEntryListView } from "./-drive-entry-list";
+import { DriveSidebar } from "./-drive-sidebar";
 import { FileBrowser } from "./-file-browser";
 import { FilePreviewDialog } from "./-file-preview-dialog";
 import { ShareDialog } from "./-share-dialog";
@@ -20,46 +29,146 @@ export const Route = createLazyFileRoute("/_app/portal/drive")({
   component: DrivePage,
 });
 
+const SIDEBAR_WIDTH_MIN = 200;
+const SIDEBAR_WIDTH_MAX = 420;
+const SIDEBAR_WIDTH_DEFAULT = 248;
+const SIDEBAR_WIDTH_KEY = "drive.sidebarWidth";
+
+function clampWidth(n: number) {
+  if (!Number.isFinite(n))
+    return SIDEBAR_WIDTH_DEFAULT;
+  return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, n));
+}
+
+function useSidebarWidth() {
+  const [width, setWidth] = useState<number>(() => {
+    if (typeof window === "undefined")
+      return SIDEBAR_WIDTH_DEFAULT;
+    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    return clampWidth(raw ? Number.parseInt(raw, 10) : SIDEBAR_WIDTH_DEFAULT);
+  });
+  const setAndPersist = useCallback((next: number) => {
+    const v = clampWidth(next);
+    setWidth(v);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(v));
+      }
+      catch {
+        // no-op: width still applied for this session.
+      }
+    }
+  }, []);
+  return [width, setAndPersist] as const;
+}
+
+const VIEW_LABEL_KEY: Record<DriveView, string> = {
+  "my-files": "sidebar.myFiles",
+  "recent": "sidebar.recent",
+  "favorites": "sidebar.favorites",
+  "trash": "sidebar.trash",
+  "shared-with-me": "sidebar.sharedWithMe",
+  "shared-by-me": "sidebar.sharedByMe",
+  "team-directories": "sidebar.teamDirectories",
+};
+
 function DrivePage() {
   const { t } = useTranslation("drive");
   const user = useAuthStore(s => s.user);
 
-  // Page-level dialog targets, driven by the FileBrowser callbacks across tabs.
+  const [activeView, setActiveView] = useState<DriveView>("my-files");
+  const [activeDir, setActiveDir] = useState<TeamDirectory | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
+
+  // Page-level dialog targets, driven by the file browser / list callbacks.
   const [shareEntry, setShareEntry] = useState<DriveEntry | null>(null);
   const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
 
+  const startSidebarResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    const onMove = (mv: MouseEvent) => setSidebarWidth(startWidth + (mv.clientX - startX));
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [sidebarWidth, setSidebarWidth]);
+
+  const selectView = (view: DriveView) => {
+    setActiveView(view);
+    if (view !== "team-directories")
+      setActiveDir(null);
+    setSidebarOpen(false);
+  };
+
+  const sidebarProps = { activeView, onSelect: selectView } as const;
+
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3 md:px-6">
-        <h1 className="text-base font-semibold tracking-tight">{t("page.title")}</h1>
-      </header>
+    <TooltipProvider delay={50}>
+      <div className="relative -mx-4 -my-3 flex h-[calc(100svh-3rem-1px)] min-w-0 flex-col overflow-hidden md:-mx-6 md:-my-4 md:h-svh md:flex-row">
+        {/* Desktop sidebar — inline column at md+. */}
+        <aside
+          style={{ width: sidebarWidth }}
+          className="hidden md:flex md:shrink-0 md:flex-col md:overflow-hidden md:border-r md:border-border md:bg-muted/30"
+        >
+          <DriveSidebar {...sidebarProps} />
+        </aside>
+        {/* Drag handle overlaying the sidebar/main boundary. */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("page.title")}
+          onMouseDown={startSidebarResize}
+          style={{ left: `${sidebarWidth - 2}px` }}
+          className="absolute inset-y-0 z-20 hidden w-1 cursor-col-resize bg-transparent transition-colors hover:bg-border md:block md:active:bg-border"
+        />
 
-      <Tabs defaultValue="my-files" className="min-h-0 flex-1 gap-3 px-4 py-3 md:px-6">
-        <TabsList>
-          <TabsTrigger value="my-files">{t("page.tab.myFiles")}</TabsTrigger>
-          <TabsTrigger value="team">{t("page.tab.teamDirectories")}</TabsTrigger>
-          <TabsTrigger value="shared">{t("page.tab.sharedWithMe")}</TabsTrigger>
-        </TabsList>
+        {/* Mobile sidebar — slide-in Sheet from the left. */}
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" showCloseButton={false} className="flex w-[85vw] max-w-sm flex-col gap-0 bg-background p-0">
+            <SheetTitle className="sr-only">{t("page.title")}</SheetTitle>
+            <SheetDescription className="sr-only">{t("page.title")}</SheetDescription>
+            <DriveSidebar {...sidebarProps} />
+          </SheetContent>
+        </Sheet>
 
-        <TabsContent value="my-files" className="min-h-0">
-          {user && (
-            <FileBrowser
-              ownerType="user"
-              ownerId={user.id}
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {/* Content header — view title + mobile sidebar toggle. */}
+          <div className="flex h-[45px] shrink-0 items-center gap-2 border-b border-border px-3 md:px-4">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="md:hidden"
+              onClick={() => setSidebarOpen(true)}
+              title={t("page.title")}
+            >
+              <Menu className="size-4" />
+            </Button>
+            <span className="truncate text-sm font-semibold tracking-tight">
+              {t(VIEW_LABEL_KEY[activeView])}
+            </span>
+          </div>
+
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4 md:p-6">
+            <DriveViewContent
+              view={activeView}
+              userId={user?.id ?? null}
+              activeDir={activeDir}
+              onOpenDir={setActiveDir}
               onShareEntry={setShareEntry}
               onPreviewEntry={setPreviewEntry}
             />
-          )}
-        </TabsContent>
-
-        <TabsContent value="team" className="min-h-0 overflow-auto">
-          <TeamDirectoriesTab onShareEntry={setShareEntry} onPreviewEntry={setPreviewEntry} />
-        </TabsContent>
-
-        <TabsContent value="shared" className="min-h-0 overflow-auto">
-          <SharedTab />
-        </TabsContent>
-      </Tabs>
+          </div>
+        </main>
+      </div>
 
       {shareEntry && (
         <ShareDialog
@@ -75,28 +184,99 @@ function DrivePage() {
           onOpenChange={open => !open && setPreviewEntry(null)}
         />
       )}
-    </div>
+    </TooltipProvider>
   );
 }
 
-interface TabCallbacks {
+interface ViewCallbacks {
   readonly onShareEntry: (entry: DriveEntry) => void;
   readonly onPreviewEntry: (entry: DriveEntry) => void;
 }
 
-function TeamDirectoriesTab({ onShareEntry, onPreviewEntry }: TabCallbacks) {
-  const [activeDir, setActiveDir] = useState<TeamDirectory | null>(null);
+function DriveViewContent({
+  view,
+  userId,
+  activeDir,
+  onOpenDir,
+  onShareEntry,
+  onPreviewEntry,
+}: ViewCallbacks & {
+  readonly view: DriveView;
+  readonly userId: string | null;
+  readonly activeDir: TeamDirectory | null;
+  readonly onOpenDir: (dir: TeamDirectory | null) => void;
+}) {
+  if (!userId)
+    return null;
 
-  if (!activeDir)
-    return <TeamDirectoryList onOpenDirectory={setActiveDir} />;
+  switch (view) {
+    case "my-files":
+      return (
+        <FileBrowser
+          ownerType="user"
+          ownerId={userId}
+          onShareEntry={onShareEntry}
+          onPreviewEntry={onPreviewEntry}
+        />
+      );
 
+    case "recent":
+    case "favorites":
+    case "trash":
+      return (
+        <div className="min-h-0 flex-1 overflow-auto">
+          <DriveEntryListView source={view} userId={userId} onPreviewEntry={onPreviewEntry} />
+        </div>
+      );
+
+    case "shared-with-me":
+      return (
+        <div className="min-h-0 flex-1 overflow-auto">
+          <ReceivedSharesList />
+        </div>
+      );
+
+    case "shared-by-me":
+      return <SharedByMe />;
+
+    case "team-directories":
+      return activeDir
+        ? (
+            <TeamDirectoryView
+              directory={activeDir}
+              onBack={() => onOpenDir(null)}
+              onShareEntry={onShareEntry}
+              onPreviewEntry={onPreviewEntry}
+            />
+          )
+        : (
+            <div className="min-h-0 flex-1 overflow-auto">
+              <TeamDirectoryList onOpenDirectory={onOpenDir} />
+            </div>
+          );
+
+    default:
+      return null;
+  }
+}
+
+function SharedByMe() {
+  const { t } = useTranslation("drive");
   return (
-    <TeamDirectoryView
-      directory={activeDir}
-      onBack={() => setActiveDir(null)}
-      onShareEntry={onShareEntry}
-      onPreviewEntry={onPreviewEntry}
-    />
+    <div className="min-h-0 flex-1 space-y-6 overflow-auto">
+      <section className="space-y-2">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+          {t("page.shared.sent")}
+        </h3>
+        <SentSharesList />
+      </section>
+      <section className="space-y-2">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+          {t("page.shared.links")}
+        </h3>
+        <PublicLinksList />
+      </section>
+    </div>
   );
 }
 
@@ -105,7 +285,7 @@ function TeamDirectoryView({
   onBack,
   onShareEntry,
   onPreviewEntry,
-}: TabCallbacks & {
+}: ViewCallbacks & {
   readonly directory: TeamDirectory;
   readonly onBack: () => void;
 }) {
@@ -139,27 +319,5 @@ function TeamDirectoryView({
         />
       </div>
     </div>
-  );
-}
-
-function SharedTab() {
-  const { t } = useTranslation("drive");
-  return (
-    <Tabs defaultValue="received" className="gap-3">
-      <TabsList>
-        <TabsTrigger value="received">{t("page.shared.received")}</TabsTrigger>
-        <TabsTrigger value="sent">{t("page.shared.sent")}</TabsTrigger>
-        <TabsTrigger value="links">{t("page.shared.links")}</TabsTrigger>
-      </TabsList>
-      <TabsContent value="received">
-        <ReceivedSharesList />
-      </TabsContent>
-      <TabsContent value="sent">
-        <SentSharesList />
-      </TabsContent>
-      <TabsContent value="links">
-        <PublicLinksList />
-      </TabsContent>
-    </Tabs>
   );
 }

@@ -2,18 +2,31 @@
   "nav": "网盘",
   "page": {
     "title": "网盘",
-    "tab": {
-      "myFiles": "我的文件",
-      "teamDirectories": "团队目录",
-      "sharedWithMe": "与我共享"
-    },
     "shared": {
-      "received": "与我共享",
       "sent": "我的分享",
       "links": "公开链接"
     },
     "team": {
       "back": "返回目录列表"
+    }
+  },
+  "sidebar": {
+    "section": {
+      "files": "文件",
+      "shared": "分享",
+      "team": "团队"
+    },
+    "myFiles": "我的文件",
+    "recent": "最近",
+    "favorites": "收藏",
+    "trash": "回收站",
+    "sharedWithMe": "与我共享",
+    "sharedByMe": "我的分享",
+    "teamDirectories": "团队目录",
+    "empty": {
+      "recent": "暂无最近文件",
+      "favorites": "暂无收藏",
+      "trash": "回收站为空"
     }
   },
   "browser": {
