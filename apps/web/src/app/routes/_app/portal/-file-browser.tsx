@@ -47,6 +47,8 @@ export interface FileBrowserProps {
   readonly onPreviewEntry?: (entry: DriveEntry) => void;
   /** When false, all mutating affordances are hidden or disabled (viewer role). */
   readonly canManage?: boolean;
+  /** Label for the root breadcrumb (defaults to the generic "Root"). */
+  readonly rootLabel?: string;
 }
 
 interface FolderCrumb {
@@ -67,6 +69,7 @@ export function FileBrowser({
   onShareEntry,
   onPreviewEntry,
   canManage = true,
+  rootLabel,
 }: FileBrowserProps) {
   const { t } = useTranslation("drive");
 
@@ -174,7 +177,7 @@ export function FileBrowser({
     kind: "folder",
     ownerType: ownerType === "team_directory" ? "team" : "user",
     folderPath: [
-      { id: null, name: t("browser.breadcrumbRoot") },
+      { id: null, name: rootLabel ?? t("browser.breadcrumbRoot") },
       ...folderStack.map(crumb => ({ id: crumb.id, name: crumb.name })),
     ],
     showCreateActions: canManage,

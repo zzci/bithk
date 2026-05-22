@@ -193,6 +193,8 @@ function DriveViewContent({
   readonly activeDir: TeamDirectory | null;
   readonly onOpenDir: (dir: TeamDirectory | null) => void;
 }) {
+  const { t } = useTranslation("drive");
+
   if (!userId)
     return null;
 
@@ -202,6 +204,7 @@ function DriveViewContent({
         <FileBrowser
           ownerType="user"
           ownerId={userId}
+          rootLabel={t("sidebar.myFiles")}
           onShareEntry={onShareEntry}
           onPreviewEntry={onPreviewEntry}
         />
@@ -301,6 +304,7 @@ function TeamDirectoryView({
           ownerType="team_directory"
           ownerId={directory.id}
           canManage={canManage}
+          rootLabel={current.name}
           onShareEntry={onShareEntry}
           onPreviewEntry={onPreviewEntry}
         />
