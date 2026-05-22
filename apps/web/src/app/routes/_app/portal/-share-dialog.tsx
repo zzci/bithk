@@ -367,7 +367,9 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
                       </div>
                       <Select value={directPermission} onValueChange={value => value && setDirectPermission(value as DirectPermission)}>
                         <SelectTrigger className="w-[120px] shrink-0">
-                          <SelectValue />
+                          <SelectValue>
+                            {(v: string) => t(`drive:share.permission.${v}`)}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="view">{t("drive:share.permission.view")}</SelectItem>
@@ -430,7 +432,9 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
                 </div>
                 <Select value={directPermission} onValueChange={value => value && setDirectPermission(value as DirectPermission)}>
                   <SelectTrigger className="w-[120px] border-0 shadow-none">
-                    <SelectValue />
+                    <SelectValue>
+                      {(v: string) => t(`drive:share.permission.${v}`)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="view">{t("drive:share.permission.view")}</SelectItem>
@@ -457,7 +461,9 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
                     disabled={savingChanges}
                   >
                     <SelectTrigger className="h-8 w-[220px] border-0 px-0 shadow-none">
-                      <SelectValue />
+                      <SelectValue>
+                        {(v: string) => t(v === "anyone" ? "drive:share.linkAnyone" : "drive:share.linkRestricted")}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="restricted">{t("drive:share.linkRestricted")}</SelectItem>
@@ -497,7 +503,13 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
                     {t("drive:share.expiration")}
                     <Select value={publicExpiresIn} onValueChange={value => value && setPublicExpiresIn(value)}>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue>
+                          {(v: string) => t(v === "never"
+                            ? "drive:share.expiresNever"
+                            : v === "1"
+                              ? "drive:share.expires1Day"
+                              : v === "7" ? "drive:share.expires7Days" : "drive:share.expires30Days")}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="never">{t("drive:share.expiresNever")}</SelectItem>
@@ -614,7 +626,9 @@ function DirectShareRow({
       </div>
       <Select value={value} onValueChange={next => next && onPermissionChange(next as SharePermission)} disabled={disabled}>
         <SelectTrigger className="w-[120px] border-0 shadow-none">
-          <SelectValue />
+          <SelectValue>
+            {(v: string) => t(`drive:share.permission.${v}`)}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="view">{t("drive:share.permission.view")}</SelectItem>
