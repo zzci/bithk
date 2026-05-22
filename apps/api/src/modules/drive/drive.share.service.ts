@@ -140,7 +140,10 @@ export async function createShare(db: AppDatabase, input: CreateShareInput): Pro
 }
 
 export async function listSharesForEntry(db: AppDatabase, entryId: string): Promise<readonly DriveShareView[]> {
-  return queryShareViews(db, eq(driveFileShares.driveEntryId, entryId));
+  return queryShareViews(db, and(
+    eq(driveFileShares.driveEntryId, entryId),
+    eq(driveFileShares.isActive, 1),
+  )!);
 }
 
 export interface UpdateShareInput {

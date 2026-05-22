@@ -371,5 +371,6 @@ describe("share listings", () => {
 
     expect(await listSentShares(db, owner)).toEqual([]);
     expect(await listLinkShares(db, owner)).toEqual([]);
+    expect(await listSharesForEntry(db, entry.id)).toEqual([]);
   });
 });
