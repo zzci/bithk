@@ -251,7 +251,7 @@ export function driveRoutes() {
     const file = form.get("file");
     if (!(file instanceof File))
       throw new AppError("Upload field 'file' is required", 400, "VALIDATION_ERROR");
-    await validateDriveUpload(file, c.get("config"));
+    validateDriveUpload(file, c.get("config"));
 
     const parentEntryId = form.get("parentEntryId");
     if (parentEntryId !== null && typeof parentEntryId !== "string")
@@ -318,7 +318,7 @@ export function driveRoutes() {
     const file = form.get("file");
     if (!(file instanceof File))
       throw new AppError("Upload field 'file' is required", 400, "VALIDATION_ERROR");
-    await validateDriveUpload(file, c.get("config"));
+    validateDriveUpload(file, c.get("config"));
 
     const data = await uploadEntryVersion(c.get("db"), c.get("config"), {
       entry,

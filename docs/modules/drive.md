@@ -17,7 +17,7 @@ apps/api/src/modules/drive/
   drive.share.service.ts           # direct + public-link shares, public access flow
   drive.team-directory.service.ts  # team directory CRUD + membership + role resolution
   drive.version.service.ts         # version list / upload / switch-current
-  drive.upload-validation.ts       # size + extension + MIME + magic-byte gate
+  drive.upload-validation.ts       # empty + size gate (any file type allowed)
   drive.permission.ts              # capability resolution + policy resource (`driveAccess`)
   drive.file-permission.ts         # file-module read/delete hook for `drive_entry` references
   drive.routes.ts                  # /api/drive/... (authenticated)
@@ -125,12 +125,15 @@ members (`viewer`+); a non-member fails closed with `403`.
 
 ## Upload validation
 
-`validateDriveUpload` runs before any blob I/O on every upload path
-(`/files/upload`, `/entries/text-file` indirectly, version upload): empty
-files and files over `MAX_UPLOAD_BYTES` are rejected, the extension must be
-in the allow-list, the declared MIME must be in the allow-list, and a
-magic-byte sniff must agree with the declared MIME (spoofed types are
-rejected). This mirrors and front-runs the file module's own checks.
+The drive is a general file manager and accepts **any file type**. The only
+upload gates are emptiness and the per-file size ceiling: `validateDriveUpload`
+rejects empty files and files over `MAX_UPLOAD_BYTES` before any blob I/O, and
+the drive upload paths (`/files/upload`, `/entries/text-file`, version upload)
+call the shared `uploadAndReference` with `allowAnyType: true`, which skips the
+file module's MIME allow-list and magic-byte sniff (size and per-resource/quota
+limits still apply). This is safe because downloads are served as attachments
+for everything except a small inline-safe media set (`buildDownloadResponse`),
+so an uploaded SVG/HTML/script cannot execute inline.
 
 ## Auditing
 

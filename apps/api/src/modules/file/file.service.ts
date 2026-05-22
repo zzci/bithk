@@ -34,6 +34,14 @@ export interface UploadInput {
   readonly ownerId: string;
   readonly uploadedBy: string;
   readonly metadata?: Record<string, unknown> | undefined;
+  /**
+   * Skip the MIME allow-list and magic-byte match. The size ceiling and
+   * per-resource/quota limits still apply. Used by the drive module, which
+   * is a general file manager that accepts any file type; downloads are
+   * always served as attachments for non-inline-safe types, so arbitrary
+   * uploads cannot be executed inline.
+   */
+  readonly allowAnyType?: boolean | undefined;
 }
 
 export interface UploadResult {
@@ -62,7 +70,7 @@ export async function uploadAndReference(
   if (!isWithinFileSize(file.size, config)) {
     throw new AppError("File size exceeds per-file limit", 400, "FILE_TOO_LARGE");
   }
-  if (!ALLOWED_MIMETYPES.test(file.type)) {
+  if (!input.allowAnyType && !ALLOWED_MIMETYPES.test(file.type)) {
     throw new AppError("File type not allowed", 400, "INVALID_MIMETYPE");
   }
 
@@ -74,7 +82,7 @@ export async function uploadAndReference(
   const buffer = await file.arrayBuffer();
 
   const sniffWindow = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 1024));
-  if (!mimeMatchesContent(file.type, sniffWindow)) {
+  if (!input.allowAnyType && !mimeMatchesContent(file.type, sniffWindow)) {
     throw new AppError("File contents do not match declared type", 400, "MIME_MISMATCH");
   }
 
