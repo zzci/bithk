@@ -203,6 +203,70 @@ drive), **Team directories** (a directory list that opens each directory's
 page-level `ShareDialog` and `FilePreviewDialog` are driven by the
 `onShareEntry` / `onPreviewEntry` callbacks each `FileBrowser` emits.
 
+### Shared file-list surface
+
+Every list of drive entries renders through **one** reusable presentational
+component, `DriveFileListSurface` (`-drive-file-list-surface.tsx`). It owns
+all the cross-cutting list behaviour — search, type/owner/modified/source
+filters, name/modified sorting (folders first), grid|list view persisted to
+`localStorage`, multi-select with rubber-band drag, the batch action bar,
+per-row "more actions" dropdowns, and right-click context menus (per-item
+actions + a blank-area "create here" menu). It never touches the API
+client: each consumer feeds it `DisplayItem[]` plus an `actions` bag and a
+`ToolbarConfig`.
+
+The `ToolbarConfig` is a discriminated union:
+
+- **`FolderToolbarConfig`** — full folder browsing (breadcrumbs, create /
+  upload, navigation). Used by `FileBrowser` (`-file-browser.tsx`,
+  folder-mode) for both personal and team-directory roots.
+- **`CollectionToolbarConfig`** — a flat, read-mostly collection (no
+  breadcrumbs / create). Used by `-drive-entry-list.tsx` (recent /
+  favorites / trash), the share lists (`-share-lists.tsx`), and the
+  compact `DriveFilePicker`.
+
+The context menus are backed by a new shared UI primitive,
+`@/shared/components/ui/context-menu`, wrapping `@base-ui/react/context-menu`
+in the same style as the other `ui/*` primitives (shadcn base-nova ships no
+context-menu). See [decision 001](../decisions/001-drive-preview-stack.md).
+
+### File preview rendering stack
+
+`FilePreviewDialog` (`-file-preview-dialog.tsx`) is a full-fidelity in-app
+viewer. There is no separate viewer route: it renders as a **custom
+full-bleed overlay modal** (`fixed inset-0`, `role="dialog"`) rather than
+the shadcn `Dialog`, because the original surface is edge-to-edge (see
+[decision 001](../decisions/001-drive-preview-stack.md)). It fetches the
+entry's bytes through the shared `httpRaw` client (`inline=true`) and
+`resolvePreviewKind(mimetype, filename)` (mimetype authoritative, extension
+fallback) picks the renderer:
+
+| Kind | Renderer |
+| --- | --- |
+| image | **react-zoom-pan-pinch** — zoom / pan / rotate / reset |
+| `application/pdf` | **react-pdf** paged `<Document>`/`<Page>` — zoom, thumbnail rail, ctrl/meta-wheel page nav |
+| markdown | sanitized `MarkdownPreview` (rehype-sanitize); editable via a shiki-backed source editor |
+| text / code | **shiki** (`shiki/bundle/web`) syntax highlight, theme-synced to the app theme; plain `<pre>` fallback; editable |
+| everything else | a download fallback card |
+
+Markdown and code/text are **editable inline**: the dialog saves edits by
+uploading a new version through `useUploadVersion` (the version becomes the
+entry's current pointer), so edits flow through the same versioning path as
+any other upload.
+
+**Lazy loading.** The heavy renderers (`react-pdf` + `pdfjs-dist`,
+`react-zoom-pan-pinch`, `shiki`) are loaded only on demand via dynamic
+`import()`, so they stay out of the route shell and the shared vendor
+chunks; only the chunk matching the opened file kind is fetched. shiki
+further splits per-language grammar and per-theme chunks. The pdf.js worker
+is wired as a Vite asset URL import
+(`pdfjs-dist/build/pdf.worker.min.mjs?url`) and ships as its own `.mjs`
+asset. `pdfjs-dist` is pinned to the exact version `react-pdf` bundles.
+
+**Security.** Untrusted file bytes are never injected as raw HTML: markdown
+goes only through `MarkdownPreview` (rehype-sanitize), shiki emits HTML it
+generates from escaped text, and plain text renders as text nodes.
+
 A `DriveFilePicker` component lets other modules browse the drive and pick
 a file to attach. Import it as:
 

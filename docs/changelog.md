@@ -22,6 +22,28 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   through `useCreateDriveFolder` / `useCreateTextFile`.
 - Live e2e coverage for owner-scoped entry listing and folder/text-file
   create gating by team-directory role.
+- Faithful drive file preview: in-app full-bleed viewer rendering images
+  (react-zoom-pan-pinch zoom/pan/rotate), PDFs (react-pdf paged render with
+  thumbnails), markdown (sanitized preview), and code/text (shiki
+  theme-synced highlight), with inline edit + save via version upload. The
+  heavy renderers (react-pdf/pdfjs-dist, react-zoom-pan-pinch, shiki) and
+  the pdf.js worker are lazy-loaded as on-demand chunks. See
+  [decision 001](decisions/001-drive-preview-stack.md).
+- `context-menu` UI primitive (`@base-ui/react/context-menu`) for right-click
+  per-item and blank-area "create here" menus.
+
+### Changed
+
+- Every drive entry list now renders through one reusable
+  `DriveFileListSurface` (search / filter / sort / grid-list / multi-select /
+  context menus), with folder vs collection toolbar configs. Consumers: the
+  folder file-browser, the recent/favorites/trash entry list, the share
+  lists, and the file picker.
+
+### Removed
+
+- Dead `-use-drive-selection.ts` hook (selection state now lives inside the
+  shared surface).
 
 ## 2026-05-21
 
