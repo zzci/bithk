@@ -49,8 +49,6 @@ export interface FileBrowserProps {
   readonly canManage?: boolean;
   /** Label for the root breadcrumb (defaults to the generic "Root"). */
   readonly rootLabel?: string;
-  /** Seed the browser inside this folder (e.g. opening a folder from Favorites). */
-  readonly initialFolder?: FolderCrumb | undefined;
 }
 
 interface FolderCrumb {
@@ -72,11 +70,10 @@ export function FileBrowser({
   onPreviewEntry,
   canManage = true,
   rootLabel,
-  initialFolder,
 }: FileBrowserProps) {
   const { t } = useTranslation("drive");
 
-  const [folderStack, setFolderStack] = useState<readonly FolderCrumb[]>(initialFolder ? [initialFolder] : []);
+  const [folderStack, setFolderStack] = useState<readonly FolderCrumb[]>([]);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [dragDepth, setDragDepth] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);

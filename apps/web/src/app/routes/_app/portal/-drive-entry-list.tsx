@@ -12,6 +12,8 @@ import type {
   DriveFileListCapabilities,
   DriveFileListSurfaceActions,
   FileListAction,
+  FolderToolbarConfig,
+  ToolbarConfig,
 } from "./-drive-file-list-surface";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import { Clock, Star, Trash2 } from "lucide-react";
@@ -35,42 +37,35 @@ import { ShareDialog } from "./-share-dialog";
 
 export type DriveListSource = "recent" | "favorites" | "trash";
 
-export interface FolderTarget {
-  readonly id: string;
-  readonly name: string;
-}
-
 interface ListProps {
   readonly source: DriveListSource;
   readonly userId: string;
   readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
-  /** Open a folder from a collection — the page jumps to My files at it. */
-  readonly onOpenFolder?: ((folder: FolderTarget) => void) | undefined;
 }
 
 // One fetch wrapper per source so only the active view's query runs; React
 // forbids calling the other query hooks conditionally from a single component.
-export function DriveEntryListView({ source, userId, onPreviewEntry, onOpenFolder }: ListProps) {
+export function DriveEntryListView({ source, userId, onPreviewEntry }: ListProps) {
   if (source === "recent")
-    return <RecentCollection onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />;
+    return <RecentCollection userId={userId} onPreviewEntry={onPreviewEntry} />;
   if (source === "favorites")
-    return <FavoritesCollection onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />;
+    return <FavoritesCollection userId={userId} onPreviewEntry={onPreviewEntry} />;
   return <TrashCollection userId={userId} onPreviewEntry={onPreviewEntry} />;
 }
 
-type CollectionWrapperProps = Pick<ListProps, "onPreviewEntry" | "onOpenFolder">;
+type CollectionWrapperProps = Pick<ListProps, "userId" | "onPreviewEntry">;
 
-function RecentCollection({ onPreviewEntry, onOpenFolder }: CollectionWrapperProps) {
-  return <Collection mode="recent" query={useRecentEntries()} onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />;
+function RecentCollection({ userId, onPreviewEntry }: CollectionWrapperProps) {
+  return <Collection mode="recent" userId={userId} query={useRecentEntries()} onPreviewEntry={onPreviewEntry} />;
 }
 
-function FavoritesCollection({ onPreviewEntry, onOpenFolder }: CollectionWrapperProps) {
-  return <Collection mode="favorites" query={useFavoriteEntries()} onPreviewEntry={onPreviewEntry} onOpenFolder={onOpenFolder} />;
+function FavoritesCollection({ userId, onPreviewEntry }: CollectionWrapperProps) {
+  return <Collection mode="favorites" userId={userId} query={useFavoriteEntries()} onPreviewEntry={onPreviewEntry} />;
 }
 
-function TrashCollection({ userId, onPreviewEntry }: Pick<ListProps, "userId" | "onPreviewEntry">) {
+function TrashCollection({ userId, onPreviewEntry }: CollectionWrapperProps) {
   const query = useDriveEntries(null, "trash", { ownerType: "user", ownerId: userId });
-  return <Collection mode="trash" query={query} onPreviewEntry={onPreviewEntry} />;
+  return <Collection mode="trash" userId={userId} query={query} onPreviewEntry={onPreviewEntry} />;
 }
 
 const COLLECTION_TOOLBAR: Record<DriveListSource, {
@@ -144,12 +139,12 @@ const COLLECTION_CAPABILITIES: Record<DriveListSource, DriveFileListCapabilities
 
 interface CollectionProps {
   readonly mode: DriveListSource;
+  readonly userId: string;
   readonly query: UseQueryResult<readonly DriveEntry[]>;
   readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
-  readonly onOpenFolder?: ((folder: FolderTarget) => void) | undefined;
 }
 
-function Collection({ mode, query, onPreviewEntry, onOpenFolder }: CollectionProps) {
+function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
   const { t } = useTranslation("drive");
 
   const updateEntry = useUpdateDriveEntry();
@@ -161,7 +156,15 @@ function Collection({ mode, query, onPreviewEntry, onOpenFolder }: CollectionPro
   const [shareEntry, setShareEntry] = useState<DriveEntry | null>(null);
   const [renameEntry, setRenameEntry] = useState<DriveEntry | null>(null);
 
-  const entries = useMemo(() => query.data ?? [], [query.data]);
+  // Opening a folder browses it in place: the flat collection is replaced by
+  // the folder's children, with a breadcrumb rooted at the collection title.
+  const [folderStack, setFolderStack] = useState<readonly { readonly id: string; readonly name: string }[]>([]);
+  const currentFolderId = folderStack.at(-1)?.id ?? null;
+  const inFolder = folderStack.length > 0;
+  const folderQuery = useDriveEntries(currentFolderId, "normal", { ownerType: "user", ownerId: userId });
+  const activeQuery = inFolder ? folderQuery : query;
+
+  const entries = useMemo(() => activeQuery.data ?? [], [activeQuery.data]);
   const items = useMemo(() => entries.map(entryToDisplayItem), [entries]);
   const entryById = useMemo(
     () => new Map(entries.map(entry => [entry.id, entry])),
@@ -173,20 +176,28 @@ function Collection({ mode, query, onPreviewEntry, onOpenFolder }: CollectionPro
   );
 
   const config = COLLECTION_TOOLBAR[mode];
-  const toolbar: CollectionToolbarConfig = {
-    kind: "collection",
-    titleKey: config.titleKey,
-    emptyIcon: config.emptyIcon,
-    emptyTitleKey: config.emptyTitleKey,
-    emptyDescKey: config.emptyDescKey,
-  };
+  const toolbar: ToolbarConfig = inFolder
+    ? {
+      kind: "folder",
+      ownerType: "user",
+      folderPath: [{ id: null, name: t(config.titleKey) }, ...folderStack],
+      showCreateActions: false,
+      // folderPath[0] is the collection root; index>0 maps to folderStack[i-1].
+      onNavigateToBreadcrumb: index => setFolderStack(prev => (index <= 0 ? [] : prev.slice(0, index))),
+    } satisfies FolderToolbarConfig
+    : {
+      kind: "collection",
+      titleKey: config.titleKey,
+      emptyIcon: config.emptyIcon,
+      emptyTitleKey: config.emptyTitleKey,
+      emptyDescKey: config.emptyDescKey,
+    } satisfies CollectionToolbarConfig;
 
   const isTrash = mode === "trash";
-  const refetch = query.refetch;
 
   const actions: DriveFileListSurfaceActions = useMemo(() => ({
-    onRefresh: () => void refetch(),
-    onNavigateToFolder: (folderId, folderName) => onOpenFolder?.({ id: folderId, name: folderName }),
+    onRefresh: () => void activeQuery.refetch(),
+    onNavigateToFolder: (folderId, folderName) => setFolderStack(prev => [...prev, { id: folderId, name: folderName }]),
     onDownload: (fileId) => {
       const entry = entryByFileId.get(fileId);
       if (entry)
@@ -235,15 +246,15 @@ function Collection({ mode, query, onPreviewEntry, onOpenFolder }: CollectionPro
         setRenameEntry(entry);
     },
     onFavoriteChange: (item, favorite) => updateEntry.mutate({ id: item.id, favorite }),
-  }), [entryById, entryByFileId, isTrash, onOpenFolder, onPreviewEntry, permanentDelete, refetch, restoreEntry, t, updateEntry]);
+  }), [activeQuery, entryById, entryByFileId, isTrash, onPreviewEntry, permanentDelete, restoreEntry, t, updateEntry]);
 
-  const error = query.error ?? updateEntry.error ?? restoreEntry.error ?? permanentDelete.error;
+  const error = activeQuery.error ?? updateEntry.error ?? restoreEntry.error ?? permanentDelete.error;
 
   return (
     <>
       <DriveFileListSurface
         items={items}
-        loading={query.isLoading}
+        loading={activeQuery.isLoading}
         toolbar={toolbar}
         capabilities={COLLECTION_CAPABILITIES[mode]}
         actions={actions}
