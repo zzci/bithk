@@ -30,7 +30,6 @@ import {
   listAllGroups,
   listAllTags,
   listDescendantIds,
-  listDocuments,
   listDocumentSharesWithInheritance,
   listMyDocuments,
   removeDocumentShare,
@@ -115,14 +114,12 @@ export function documentRoutes() {
     const user = c.get("user")!;
     const q = c.req.query("q");
     const tag = c.req.query("tag");
-    const creatorId = c.req.query("creator_id");
     const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
     const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
 
-    const isAdmin = user.role === "admin";
-    const result = isAdmin
-      ? await listDocuments(db, { q, tag, creatorId, page, limit })
-      : await listMyDocuments(db, { userId: user.id, q, tag, page, limit });
+    // Documents are owner-scoped: every caller — admins included — sees
+    // only their own and explicitly-shared documents.
+    const result = await listMyDocuments(db, { userId: user.id, q, tag, page, limit });
 
     return c.json({
       success: true,
@@ -184,9 +181,13 @@ export function documentRoutes() {
     // Defense in depth: the global policyMiddleware already gates this,
     // but it falls through when the route-binding registry desyncs or
     // the id doesn't resolve there. Re-assert in-handler so object-level
-    // authz never depends solely on the registry. Admin short-circuits
-    // via the `bypass` hook inside `can()`.
-    await documentAccess.assert(policyContext(c)!, "document:read", doc.id);
+    // authz never depends solely on the registry. Documents are
+    // owner-scoped — admin gets no bypass here. Policy tuples key on the
+    // internal item id, so resolve it (doc.id is the short_id).
+    const item = await resolveDocumentItem(db, id);
+    if (!item)
+      throw new NotFoundError("Document", id);
+    await documentAccess.assert(policyContext(c)!, "document:read", item.id);
     return c.json({ success: true, data: doc });
   });
 
@@ -496,7 +497,7 @@ export function documentRoutes() {
     // This handler previously had NO in-handler check at all and leaked
     // the (inherited) sharing graph to any authenticated user if the
     // policy binding desynced. Resolve + assert document:manage (owner)
-    // explicitly; admin short-circuits via the bypass hook.
+    // explicitly; documents are owner-scoped, so admin gets no bypass.
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
