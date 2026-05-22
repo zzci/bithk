@@ -1,12 +1,19 @@
 // Flat view-nav sidebar for the drive page, styled to match the documents
-// page sidebar. Switches the main pane between the drive's primary views.
+// page sidebar. Fixed views switch the main pane; the Team section lists the
+// user's team directories inline — selecting one opens its file browser
+// directly (the content reuses the shared surface, no separate list page).
 
 import type { ChangeEvent } from "react";
+import type { EditState } from "./-team-directory-list";
+import type { TeamDirectory } from "@/shared/lib/api/drive";
 import {
   Clock,
   FilePlus2,
+  FolderCog,
   FolderPlus,
   HardDrive,
+  MoreHorizontal,
+  Pencil,
   Plus,
   Share2,
   Star,
@@ -18,6 +25,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
+import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,11 +35,15 @@ import {
 import {
   useCreateDriveFolder,
   useCreateTextFile,
+  useDeleteTeamDirectory,
+  useTeamDirectories,
 } from "@/shared/lib/api/drive";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { useDriveUploader } from "./-drive-upload";
 import { CreateFolderDialog, CreateTextFileDialog } from "./-entry-create-dialogs";
+import { DirectoryEditDialog } from "./-team-directory-list";
+import { TeamDirectoryMembersPanel } from "./-team-directory-members";
 
 export type DriveView
   = | "my-files"
@@ -39,8 +51,7 @@ export type DriveView
     | "favorites"
     | "trash"
     | "shared-with-me"
-    | "shared-by-me"
-    | "team-directories";
+    | "shared-by-me";
 
 interface NavItem {
   readonly view: DriveView;
@@ -70,20 +81,20 @@ const SECTIONS: readonly NavSection[] = [
       { view: "shared-by-me", icon: Upload, labelKey: "sidebar.sharedByMe" },
     ],
   },
-  {
-    labelKey: "sidebar.section.team",
-    items: [
-      { view: "team-directories", icon: Users, labelKey: "sidebar.teamDirectories" },
-    ],
-  },
 ];
+
+const NAV_ITEM_CLASS = "mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs transition-colors";
 
 export function DriveSidebar({
   activeView,
   onSelect,
+  activeTeamDirId,
+  onSelectTeamDir,
 }: {
-  readonly activeView: DriveView;
+  readonly activeView: DriveView | null;
   readonly onSelect: (view: DriveView) => void;
+  readonly activeTeamDirId: string | null;
+  readonly onSelectTeamDir: (directory: TeamDirectory) => void;
 }) {
   const { t } = useTranslation("drive");
   const user = useAuthStore(s => s.user);
@@ -95,6 +106,15 @@ export function DriveSidebar({
   const enqueueUploads = useDriveUploader();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dialog, setDialog] = useState<"folder" | "text" | null>(null);
+
+  // Team directory management is hosted here since the section is the only
+  // place team directories are listed now.
+  const dirsQuery = useTeamDirectories();
+  const directories = dirsQuery.data ?? [];
+  const deleteDirectory = useDeleteTeamDirectory();
+  const [edit, setEdit] = useState<EditState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TeamDirectory | null>(null);
+  const [membersDir, setMembersDir] = useState<TeamDirectory | null>(null);
 
   const rootOwner = user ? { ownerType: "user" as const, ownerId: user.id, parentEntryId: null } : null;
 
@@ -198,7 +218,7 @@ export function DriveSidebar({
                       onClick={() => onSelect(item.view)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs transition-colors",
+                        NAV_ITEM_CLASS,
                         isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/40",
                       )}
                     >
@@ -211,7 +231,104 @@ export function DriveSidebar({
             </ul>
           </div>
         ))}
+
+        {/* Team directories listed inline; selecting one opens its browser. */}
+        <div className="mb-2">
+          <div className="flex items-center justify-between gap-1 px-4 py-1">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+              {t("sidebar.section.team")}
+            </span>
+            <button
+              type="button"
+              onClick={() => setEdit({ type: "create" })}
+              disabled={!user}
+              aria-label={t("team.list.create")}
+              title={t("team.list.create")}
+              className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              <Plus className="size-3.5" />
+            </button>
+          </div>
+          <ul>
+            {directories.length === 0 && (
+              <li className="px-4 py-1 text-xs text-muted-foreground/60">{t("team.empty")}</li>
+            )}
+            {directories.map((directory) => {
+              const isActive = activeTeamDirId === directory.id;
+              return (
+                <li key={directory.id} className="group/dir relative">
+                  <button
+                    type="button"
+                    onClick={() => onSelectTeamDir(directory)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      NAV_ITEM_CLASS,
+                      "pr-8",
+                      isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/40",
+                    )}
+                  >
+                    <FolderCog className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+                    <span className="flex-1 truncate">{directory.name}</span>
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={(
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t("team.col.actions")}
+                          className="absolute top-1/2 right-2 size-6 -translate-y-1/2 opacity-0 transition-opacity group-hover/dir:opacity-100 data-[popup-open]:opacity-100"
+                        />
+                      )}
+                    >
+                      <MoreHorizontal className="size-3.5" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-40">
+                      <DropdownMenuItem onClick={() => setMembersDir(directory)}>
+                        <Users className="mr-2 size-4" />
+                        {t("team.action.members")}
+                      </DropdownMenuItem>
+                      {directory.role === "admin" && (
+                        <>
+                          <DropdownMenuItem onClick={() => setEdit({ type: "rename", directory })}>
+                            <Pencil className="mr-2 size-4" />
+                            {t("team.action.rename")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(directory)}>
+                            <Trash2 className="mr-2 size-4" />
+                            {t("team.action.delete")}
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </nav>
+
+      <DirectoryEditDialog state={edit} onClose={() => setEdit(null)} />
+      {membersDir && (
+        <TeamDirectoryMembersPanel
+          directoryId={membersDir.id}
+          open
+          onOpenChange={open => !open && setMembersDir(null)}
+        />
+      )}
+      <ConfirmDeleteDialog
+        open={deleteTarget !== null}
+        onOpenChange={open => !open && setDeleteTarget(null)}
+        title={t("team.delete.title")}
+        description={t("team.delete.description", { name: deleteTarget?.name ?? "" })}
+        pending={deleteDirectory.isPending}
+        onConfirm={() => {
+          if (!deleteTarget)
+            return;
+          deleteDirectory.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+        }}
+      />
     </div>
   );
 }

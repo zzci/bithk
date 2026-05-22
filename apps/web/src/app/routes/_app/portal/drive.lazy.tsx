@@ -7,14 +7,13 @@
 import type { DriveView } from "./-drive-sidebar";
 import type { DriveEntry, TeamDirectory } from "@/shared/lib/api/drive";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
-import { useTeamDirectory } from "@/shared/lib/api/drive";
 import { useAuthStore } from "@/shared/stores/auth";
 
 import { DriveEntryListView } from "./-drive-entry-list";
@@ -24,7 +23,6 @@ import { FileBrowser } from "./-file-browser";
 import { FilePreviewDialog } from "./-file-preview-dialog";
 import { ShareDialog } from "./-share-dialog";
 import { OutgoingSharesList, ReceivedSharesList } from "./-share-lists";
-import { ManageMembersButton, TeamDirectoryList } from "./-team-directory-list";
 
 export const Route = createLazyFileRoute("/_app/portal/drive")({
   component: DrivePage,
@@ -67,8 +65,8 @@ function DrivePage() {
   const { t } = useTranslation("drive");
   const user = useAuthStore(s => s.user);
 
-  const [activeView, setActiveView] = useState<DriveView>("my-files");
-  const [activeDir, setActiveDir] = useState<TeamDirectory | null>(null);
+  const [activeView, setActiveView] = useState<DriveView | null>("my-files");
+  const [activeTeamDir, setActiveTeamDir] = useState<TeamDirectory | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
 
@@ -95,12 +93,22 @@ function DrivePage() {
 
   const selectView = (view: DriveView) => {
     setActiveView(view);
-    if (view !== "team-directories")
-      setActiveDir(null);
+    setActiveTeamDir(null);
     setSidebarOpen(false);
   };
 
-  const sidebarProps = { activeView, onSelect: selectView } as const;
+  const selectTeamDir = (directory: TeamDirectory) => {
+    setActiveTeamDir(directory);
+    setActiveView(null);
+    setSidebarOpen(false);
+  };
+
+  const sidebarProps = {
+    activeView,
+    onSelect: selectView,
+    activeTeamDirId: activeTeamDir?.id ?? null,
+    onSelectTeamDir: selectTeamDir,
+  } as const;
 
   return (
     <TooltipProvider delay={50}>
@@ -149,8 +157,7 @@ function DrivePage() {
             <DriveViewContent
               view={activeView}
               userId={user?.id ?? null}
-              activeDir={activeDir}
-              onOpenDir={setActiveDir}
+              activeTeamDir={activeTeamDir}
               onShareEntry={setShareEntry}
               onPreviewEntry={setPreviewEntry}
             />
@@ -186,20 +193,35 @@ interface ViewCallbacks {
 function DriveViewContent({
   view,
   userId,
-  activeDir,
-  onOpenDir,
+  activeTeamDir,
   onShareEntry,
   onPreviewEntry,
 }: ViewCallbacks & {
-  readonly view: DriveView;
+  readonly view: DriveView | null;
   readonly userId: string | null;
-  readonly activeDir: TeamDirectory | null;
-  readonly onOpenDir: (dir: TeamDirectory | null) => void;
+  readonly activeTeamDir: TeamDirectory | null;
 }) {
   const { t } = useTranslation("drive");
 
   if (!userId)
     return null;
+
+  // A selected team directory takes over the main pane and reuses the file
+  // browser surface directly — no intermediate list.
+  if (activeTeamDir) {
+    const canManage = activeTeamDir.role === "admin" || activeTeamDir.role === "editor";
+    return (
+      <FileBrowser
+        key={activeTeamDir.id}
+        ownerType="team_directory"
+        ownerId={activeTeamDir.id}
+        canManage={canManage}
+        rootLabel={activeTeamDir.name}
+        onShareEntry={onShareEntry}
+        onPreviewEntry={onPreviewEntry}
+      />
+    );
+  }
 
   switch (view) {
     case "my-files":
@@ -236,66 +258,7 @@ function DriveViewContent({
         </div>
       );
 
-    case "team-directories":
-      return activeDir
-        ? (
-            <TeamDirectoryView
-              directory={activeDir}
-              onBack={() => onOpenDir(null)}
-              onShareEntry={onShareEntry}
-              onPreviewEntry={onPreviewEntry}
-            />
-          )
-        : (
-            <div className="min-h-0 flex-1 overflow-auto p-4">
-              <TeamDirectoryList onOpenDirectory={onOpenDir} />
-            </div>
-          );
-
     default:
       return null;
   }
-}
-
-function TeamDirectoryView({
-  directory,
-  onBack,
-  onShareEntry,
-  onPreviewEntry,
-}: ViewCallbacks & {
-  readonly directory: TeamDirectory;
-  readonly onBack: () => void;
-}) {
-  const { t } = useTranslation("drive");
-  // Re-fetch the directory so the role gate reflects the latest membership.
-  const dirQuery = useTeamDirectory(directory.id);
-  const current = dirQuery.data ?? directory;
-  const canManage = current.role === "admin" || current.role === "editor";
-
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2 px-4 pt-4">
-        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4" />
-          {t("page.team.back")}
-        </Button>
-        <span className="min-w-0 truncate text-sm font-medium">{current.name}</span>
-        {current.role === "admin" && (
-          <span className="ml-auto">
-            <ManageMembersButton directory={current} />
-          </span>
-        )}
-      </div>
-      <div className="min-h-0 flex-1">
-        <FileBrowser
-          ownerType="team_directory"
-          ownerId={directory.id}
-          canManage={canManage}
-          rootLabel={current.name}
-          onShareEntry={onShareEntry}
-          onPreviewEntry={onPreviewEntry}
-        />
-      </div>
-    </div>
-  );
 }
