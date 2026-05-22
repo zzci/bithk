@@ -31,7 +31,7 @@ export const Route = createLazyFileRoute("/_app/portal/drive")({
 
 const SIDEBAR_WIDTH_MIN = 200;
 const SIDEBAR_WIDTH_MAX = 420;
-const SIDEBAR_WIDTH_DEFAULT = 248;
+const SIDEBAR_WIDTH_DEFAULT = 224;
 const SIDEBAR_WIDTH_KEY = "drive.sidebarWidth";
 
 function clampWidth(n: number) {
@@ -61,16 +61,6 @@ function useSidebarWidth() {
   }, []);
   return [width, setAndPersist] as const;
 }
-
-const VIEW_LABEL_KEY: Record<DriveView, string> = {
-  "my-files": "sidebar.myFiles",
-  "recent": "sidebar.recent",
-  "favorites": "sidebar.favorites",
-  "trash": "sidebar.trash",
-  "shared-with-me": "sidebar.sharedWithMe",
-  "shared-by-me": "sidebar.sharedByMe",
-  "team-directories": "sidebar.teamDirectories",
-};
 
 function DrivePage() {
   const { t } = useTranslation("drive");
@@ -141,23 +131,20 @@ function DrivePage() {
         </Sheet>
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Content header — view title + mobile sidebar toggle. */}
-          <div className="flex h-[45px] shrink-0 items-center gap-2 border-b border-border px-3 md:px-4">
+          {/* Mobile-only sidebar toggle; on desktop the surface renders its own
+              title so no separate header bar is needed. */}
+          <div className="flex h-[45px] shrink-0 items-center gap-2 border-b border-border px-3 md:hidden">
             <Button
               variant="ghost"
               size="icon-sm"
-              className="md:hidden"
               onClick={() => setSidebarOpen(true)}
               title={t("page.title")}
             >
               <Menu className="size-4" />
             </Button>
-            <span className="truncate text-sm font-semibold tracking-tight">
-              {t(VIEW_LABEL_KEY[activeView])}
-            </span>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4 md:p-6">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <DriveViewContent
               view={activeView}
               userId={user?.id ?? null}
@@ -250,7 +237,7 @@ function DriveViewContent({
             />
           )
         : (
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="min-h-0 flex-1 overflow-auto p-4">
               <TeamDirectoryList onOpenDirectory={onOpenDir} />
             </div>
           );
@@ -263,7 +250,7 @@ function DriveViewContent({
 function SharedByMe() {
   const { t } = useTranslation("drive");
   return (
-    <div className="min-h-0 flex-1 space-y-6 overflow-auto">
+    <div className="min-h-0 flex-1 space-y-6 overflow-auto p-4">
       <section className="space-y-2">
         <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
           {t("page.shared.sent")}
@@ -297,7 +284,7 @@ function TeamDirectoryView({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 px-4 pt-4">
         <Button type="button" variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="size-4" />
           {t("page.team.back")}
