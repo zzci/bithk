@@ -294,6 +294,7 @@
     "passwordPlaceholder": "Enter the link password",
     "download": "Download",
     "viewOnly": "This link is view-only; downloading is not permitted.",
-    "downloadError": "Could not download. Check the password and try again."
+    "downloadError": "Could not download. Check the password and try again.",
+    "open": "Open"
   }
 }

@@ -15,9 +15,11 @@ import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createDriveFolder, uploadDriveFile } from "./drive.service";
 import {
   accessPublicShare,
+  accessPublicShareFile,
   createShare,
   getPublicShareMeta,
   listLinkShares,
+  listPublicShareEntries,
   listReceivedShares,
   listSentShares,
   listSharesForEntry,
@@ -119,12 +121,55 @@ describe("createShare — direct", () => {
     await expect(createShare(db, { entry, createdBy: owner, shareType: "direct", permission: "view", sharedWithUserId: owner })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
   });
 
-  test("rejects sharing a folder entry", async () => {
+  test("allows sharing a folder entry", async () => {
     const owner = await seedUser("Owner");
     const recipient = await seedUser("Recipient");
     const folderView = await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "F" });
     const folder = (await db.select().from(driveEntries).where(eq(driveEntries.id, folderView.id)).get())!;
-    await expect(createShare(db, { entry: folder, createdBy: owner, shareType: "direct", permission: "view", sharedWithUserId: recipient })).rejects.toMatchObject({ code: "INVALID_ENTRY_TYPE" });
+    const share = await createShare(db, { entry: folder, createdBy: owner, shareType: "direct", permission: "view", sharedWithUserId: recipient });
+    expect(share.driveEntryId).toBe(folder.id);
+  });
+});
+
+describe("public folder share", () => {
+  async function shareFolderWithFile() {
+    const owner = await seedUser("Owner");
+    const folderView = await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "Shared" });
+    const inside = await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, parentEntryId: folderView.id, file: textFile("inside.txt", "secret") });
+    const folder = (await db.select().from(driveEntries).where(eq(driveEntries.id, folderView.id)).get())!;
+    const share = await createShare(db, { entry: folder, createdBy: owner, shareType: "public_link", permission: "download" });
+    return { owner, share, folderId: folderView.id, fileId: inside.id };
+  }
+
+  test("meta flags the share as a folder", async () => {
+    const { share } = await shareFolderWithFile();
+    const meta = await getPublicShareMeta(db, share.token);
+    expect(meta.isFolder).toBe(true);
+  });
+
+  test("lists entries inside the shared folder with a breadcrumb", async () => {
+    const { share, fileId } = await shareFolderWithFile();
+    const listing = await listPublicShareEntries(db, share.token, undefined, undefined);
+    expect(listing.breadcrumb).toHaveLength(1);
+    expect(listing.entries.map(e => e.id)).toContain(fileId);
+  });
+
+  test("downloads a file inside the shared folder", async () => {
+    const { share, fileId } = await shareFolderWithFile();
+    const result = await accessPublicShareFile(db, share.token, undefined, fileId);
+    expect(result.reference.filename).toBe("inside.txt");
+  });
+
+  test("rejects listing a folder outside the shared subtree", async () => {
+    const { owner, share } = await shareFolderWithFile();
+    const other = await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "Other" });
+    await expect(listPublicShareEntries(db, share.token, undefined, other.id)).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test("rejects downloading a file outside the shared subtree", async () => {
+    const { owner, share } = await shareFolderWithFile();
+    const outside = await fileEntryRow(owner);
+    await expect(accessPublicShareFile(db, share.token, undefined, outside.id)).rejects.toMatchObject({ statusCode: 404 });
   });
 });
 

@@ -45,6 +45,26 @@ export interface PublicShareMeta {
   readonly requiresPassword: boolean;
   readonly expired: boolean;
   readonly exhausted: boolean;
+  /** True when the share points at a folder (browse via the listing routes). */
+  readonly isFolder: boolean;
+}
+
+/** One entry inside a publicly shared folder. */
+export interface PublicShareEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly type: "file" | "folder";
+  readonly size: number | null;
+  readonly mimetype: string | null;
+}
+
+/**
+ * A listing within a shared folder subtree: the entries plus a breadcrumb
+ *  from the shared root (index 0) down to the listed folder.
+ */
+export interface PublicShareListing {
+  readonly breadcrumb: readonly { readonly id: string; readonly name: string }[];
+  readonly entries: readonly PublicShareEntry[];
 }
 
 export type PublicShareAccess
@@ -57,9 +77,12 @@ function generateShareToken(): string {
   return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
 }
 
-function assertFileEntry(entry: DriveEntryRow): void {
-  if (entry.entryType !== "file" || !entry.fileReferenceId)
-    throw new AppError("Only file entries can be shared", 400, "INVALID_ENTRY_TYPE");
+function assertShareableEntry(entry: DriveEntryRow): void {
+  if (entry.entryType === "file" && entry.fileReferenceId)
+    return;
+  if (entry.entryType === "folder")
+    return;
+  throw new AppError("Only files or folders can be shared", 400, "INVALID_ENTRY_TYPE");
 }
 
 export interface CreateShareInput {
@@ -74,7 +97,7 @@ export interface CreateShareInput {
 }
 
 export async function createShare(db: AppDatabase, input: CreateShareInput): Promise<DriveShareView> {
-  assertFileEntry(input.entry);
+  assertShareableEntry(input.entry);
 
   let sharedWithUserId: string | null = null;
   let password: string | null = null;
@@ -187,6 +210,7 @@ export async function listLinkShares(db: AppDatabase, userId: string): Promise<r
 interface ShareJoinRow {
   readonly share: DriveShareRow;
   readonly entryName: string;
+  readonly entryType: "file" | "folder";
   readonly filename: string | null;
   readonly mimetype: string | null;
   readonly size: number | null;
@@ -197,6 +221,7 @@ async function getPublicShareJoin(db: AppDatabase, token: string): Promise<Share
     .select({
       share: driveFileShares,
       entryName: driveEntries.name,
+      entryType: driveEntries.entryType,
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,
@@ -230,6 +255,7 @@ function toPublicMeta(row: ShareJoinRow): PublicShareMeta {
     requiresPassword: row.share.password !== null,
     expired: isExpired(row.share),
     exhausted: isExhausted(row.share),
+    isFolder: row.entryType === "folder",
   };
 }
 
@@ -271,6 +297,11 @@ export async function accessPublicShare(
       throw new ForbiddenError("Invalid password");
   }
 
+  // Folder shares are browsed through the listing routes, not downloaded as a
+  // single blob; the base POST only confirms access (password/expiry).
+  if (row.entryType === "folder")
+    return { kind: "view", meta: toPublicMeta(row) };
+
   // View-only links never expose bytes.
   if (share.permission === "view")
     return { kind: "view", meta: toPublicMeta(row) };
@@ -308,6 +339,168 @@ export async function accessPublicShare(
   return { kind: "download", file, reference: ref };
 }
 
+// ─── Public folder shares ─────────────────────────────────────────────────
+
+/**
+ * Resolve + gate an active public-link share (password / expiry), throwing
+ *  the same errors the single-file path uses. Returns the joined row.
+ */
+async function gatePublicShare(
+  db: AppDatabase,
+  token: string,
+  password: string | undefined,
+): Promise<ShareJoinRow> {
+  const row = await getPublicShareJoin(db, token);
+  if (!row || row.share.isActive !== 1)
+    throw new NotFoundError("Share link", token);
+  if (isExpired(row.share))
+    throw new AppError("Share link has expired", 410, "SHARE_EXPIRED");
+  if (isExhausted(row.share))
+    throw new AppError("Share download limit reached", 410, "SHARE_EXHAUSTED");
+  if (row.share.password !== null) {
+    if (!password)
+      throw new ForbiddenError("Password required");
+    if (!(await Bun.password.verify(password, row.share.password)))
+      throw new ForbiddenError("Invalid password");
+  }
+  return row;
+}
+
+/**
+ * Walk parent links from `entryId` up to `rootId`. Bounded to guard against
+ *  cycles. Returns the breadcrumb (root→…→entry) when within the subtree,
+ *  or null when `entryId` is not the root or one of its descendants.
+ */
+async function resolveSubtreePath(
+  db: AppDatabase,
+  entryId: string,
+  rootId: string,
+  rootName: string,
+): Promise<{ readonly id: string; readonly name: string }[] | null> {
+  if (entryId === rootId)
+    return [{ id: rootId, name: rootName }];
+  const chain: { readonly id: string; readonly name: string }[] = [];
+  let currentId = entryId;
+  for (let depth = 0; depth < 64; depth++) {
+    const row = await db
+      .select({ id: driveEntries.id, name: driveEntries.name, parentEntryId: driveEntries.parentEntryId, status: driveEntries.status })
+      .from(driveEntries)
+      .where(eq(driveEntries.id, currentId))
+      .get();
+    if (!row || row.status !== "normal")
+      return null;
+    chain.unshift({ id: row.id, name: row.name });
+    if (row.parentEntryId === rootId)
+      return [{ id: rootId, name: rootName }, ...chain];
+    if (!row.parentEntryId)
+      return null;
+    currentId = row.parentEntryId;
+  }
+  return null;
+}
+
+/**
+ * List the entries directly under a folder inside a public folder share. The
+ * folder defaults to the shared root; any other `parentEntryId` must be a
+ * descendant of the shared root (subtree-scoped — no traversal to siblings or
+ * parents of the shared folder).
+ */
+export async function listPublicShareEntries(
+  db: AppDatabase,
+  token: string,
+  password: string | undefined,
+  parentEntryId: string | undefined,
+): Promise<PublicShareListing> {
+  const row = await gatePublicShare(db, token, password);
+  if (row.entryType !== "folder")
+    throw new AppError("Share is not a folder", 400, "INVALID_ENTRY_TYPE");
+
+  const rootId = row.share.driveEntryId;
+  const target = parentEntryId ?? rootId;
+  const breadcrumb = await resolveSubtreePath(db, target, rootId, row.entryName);
+  if (!breadcrumb)
+    throw new NotFoundError("Folder", target);
+
+  const rows = await db
+    .select({
+      id: driveEntries.id,
+      name: driveEntries.name,
+      entryType: driveEntries.entryType,
+      filename: fileReferences.filename,
+      mimetype: files.mimetype,
+      size: files.size,
+    })
+    .from(driveEntries)
+    .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
+    .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .where(and(eq(driveEntries.parentEntryId, target), eq(driveEntries.status, "normal")))
+    .all();
+
+  const entries: PublicShareEntry[] = rows
+    .map(r => ({
+      id: r.id,
+      name: r.name,
+      type: r.entryType,
+      size: r.size,
+      mimetype: r.mimetype,
+    }))
+    .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "folder" ? -1 : 1));
+
+  return { breadcrumb, entries };
+}
+
+/**
+ * Download one file from inside a public folder share. The file must be a
+ * descendant of the shared folder; the share's download budget is shared
+ * across all files in the folder.
+ */
+export async function accessPublicShareFile(
+  db: AppDatabase,
+  token: string,
+  password: string | undefined,
+  entryId: string,
+): Promise<{ readonly file: FileRow; readonly reference: FileReferenceRow }> {
+  const row = await gatePublicShare(db, token, password);
+  if (row.entryType !== "folder")
+    throw new AppError("Share is not a folder", 400, "INVALID_ENTRY_TYPE");
+  if (row.share.permission === "view")
+    throw new ForbiddenError("This link is view-only");
+
+  const entry = await db.select().from(driveEntries).where(eq(driveEntries.id, entryId)).get();
+  if (!entry || entry.status !== "normal" || entry.entryType !== "file" || !entry.fileReferenceId)
+    throw new NotFoundError("Shared file", entryId);
+
+  // The requested file must live inside the shared folder subtree.
+  const path = await resolveSubtreePath(db, entry.parentEntryId, row.share.driveEntryId, row.entryName);
+  if (!path)
+    throw new NotFoundError("Shared file", entryId);
+
+  const reserved = db.transaction((tx) => {
+    const current = tx
+      .select({ downloadCount: driveFileShares.downloadCount, maxDownloads: driveFileShares.maxDownloads, isActive: driveFileShares.isActive })
+      .from(driveFileShares)
+      .where(eq(driveFileShares.id, row.share.id))
+      .get();
+    if (!current || current.isActive !== 1)
+      return false;
+    if (current.maxDownloads !== null && current.downloadCount >= current.maxDownloads)
+      return false;
+    tx.update(driveFileShares).set({ downloadCount: current.downloadCount + 1 }).where(eq(driveFileShares.id, row.share.id)).run();
+    return true;
+  });
+  if (!reserved)
+    throw new AppError("Share download limit reached", 410, "SHARE_EXHAUSTED");
+
+  const ref = await db.select().from(fileReferences).where(eq(fileReferences.id, entry.fileReferenceId)).get();
+  if (!ref)
+    throw new NotFoundError("Shared file", entryId);
+  const file = await db.select().from(files).where(eq(files.id, ref.fileId)).get();
+  if (!file)
+    throw new NotFoundError("Shared file", entryId);
+
+  return { file, reference: ref };
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────
 
 async function queryShareViews(db: AppDatabase, where: SQL): Promise<readonly DriveShareView[]> {
@@ -315,6 +508,7 @@ async function queryShareViews(db: AppDatabase, where: SQL): Promise<readonly Dr
     .select({
       share: driveFileShares,
       entryName: driveEntries.name,
+      entryType: driveEntries.entryType,
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,

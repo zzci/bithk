@@ -83,9 +83,14 @@ table in [api.md](../reference/api.md#drive). Summary:
 `GET|POST /drive/team-directories/:id/members`,
 `PUT|DELETE /drive/team-directories/:id/members/:memberId`.
 
-**Public (no session):** `GET /drive/shared/:token` (metadata only),
-`POST /drive/shared/:token` (verify password + quota, then download or
-view-only metadata).
+**Public (no session):** `GET /drive/shared/:token` (metadata only, includes
+`isFolder`), `POST /drive/shared/:token` (verify password + quota, then
+download or view-only metadata). For **folder** public links:
+`POST /drive/shared/:token/list` (browse a subtree-scoped listing with a
+breadcrumb) and `POST /drive/shared/:token/file/:entryId` (download one file,
+validated as a descendant of the shared folder). Both files and folders can be
+shared; a folder link opens a read-only public browser at the `/drive/shared/
+:token` page.
 
 ## Permissions
 

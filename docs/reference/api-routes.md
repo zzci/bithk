@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 153 routes total.
+> 155 routes total.
 
 | Method | Path |
 |---|---|
@@ -103,6 +103,8 @@
 | POST | `/api/drive/folders` |
 | GET | `/api/drive/shared/:token` |
 | POST | `/api/drive/shared/:token` |
+| POST | `/api/drive/shared/:token/file/:entryId` |
+| POST | `/api/drive/shared/:token/list` |
 | DELETE | `/api/drive/shares/:id` |
 | PUT | `/api/drive/shares/:id` |
 | GET | `/api/drive/shares/links` |

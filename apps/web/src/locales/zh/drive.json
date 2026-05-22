@@ -294,6 +294,7 @@
     "passwordPlaceholder": "请输入链接密码",
     "download": "下载",
     "viewOnly": "该链接仅供查看，不允许下载。",
-    "downloadError": "下载失败，请检查密码后重试。"
+    "downloadError": "下载失败，请检查密码后重试。",
+    "open": "打开"
   }
 }

@@ -118,7 +118,7 @@ export interface DriveFileListSurfaceActions {
   readonly onRefresh: () => void;
   readonly onNavigateToFolder: (entryId: string, folderName: string) => void;
   readonly onDownload: (fileId: string, fileName: string) => void;
-  readonly onShare: (fileId: string, name: string) => void;
+  readonly onShare: (entryId: string, name: string) => void;
   readonly onDelete: (entryId: string) => void;
   readonly onBatchDelete: (entryIds: Set<string>) => void;
   readonly onRestore?: (entryId: string) => void;
@@ -883,7 +883,7 @@ interface FileListProps {
   readonly onSelectedIdsChange: (ids: Set<string>) => void;
   readonly onNavigateToFolder: (entryId: string, folderName: string) => void;
   readonly onDownload: (fileId: string, fileName: string) => void;
-  readonly onShare: (fileId: string, name: string) => void;
+  readonly onShare: (entryId: string, name: string) => void;
   readonly onDelete: (entryId: string) => void;
   readonly onRestore?: ((entryId: string) => void) | undefined;
   readonly onBatchRestore?: (() => void) | undefined;
@@ -1301,8 +1301,8 @@ function FileList({
                       {t("browser.action.download")}
                     </DropdownMenuItem>
                   )}
-                  {canShare && !item.isFolder && item.fileId && (
-                    <DropdownMenuItem onClick={() => onShare(item.fileId!, item.name)}>
+                  {canShare && (item.fileId || item.isFolder) && (
+                    <DropdownMenuItem onClick={() => onShare(item.id, item.name)}>
                       <Share2 className="mr-2 size-4" />
                       {t("browser.action.share")}
                     </DropdownMenuItem>
@@ -1408,7 +1408,7 @@ function FileList({
 
     return (
       <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 @max-[980px]:hidden">
-        {canShare && !item.isFolder && item.fileId && (
+        {canShare && (item.fileId || item.isFolder) && (
           <Button
             data-drive-action
             variant="ghost"
@@ -1418,7 +1418,7 @@ function FileList({
             aria-label={t("browser.action.share")}
             onClick={(event) => {
               event.stopPropagation();
-              onShare(item.fileId!, item.name);
+              onShare(item.id, item.name);
             }}
           >
             <Share2 className="size-4" />

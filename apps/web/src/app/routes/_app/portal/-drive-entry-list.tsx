@@ -182,8 +182,8 @@ function Collection({ mode, query, onPreviewEntry }: CollectionProps) {
       if (entry)
         void downloadDriveEntry(entry);
     },
-    onShare: (fileId) => {
-      const entry = entryByFileId.get(fileId);
+    onShare: (entryId) => {
+      const entry = entryById.get(entryId);
       if (entry)
         setShareEntry(entry);
     },

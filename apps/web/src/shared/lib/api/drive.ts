@@ -96,6 +96,20 @@ export interface PublicShareMetadata {
   readonly requiresPassword: boolean;
   readonly expired: boolean;
   readonly exhausted: boolean;
+  readonly isFolder: boolean;
+}
+
+export interface PublicShareEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly type: DriveEntryType;
+  readonly size: number | null;
+  readonly mimetype: string | null;
+}
+
+export interface PublicShareListing {
+  readonly breadcrumb: readonly { readonly id: string; readonly name: string }[];
+  readonly entries: readonly PublicShareEntry[];
 }
 
 export interface TeamDirectory {
@@ -561,6 +575,45 @@ export async function accessPublicShare(token: string, password?: string): Promi
   }
   const body = await res.json() as ApiEnvelope<PublicShareMetadata>;
   return { kind: "view", meta: body.data };
+}
+
+/** List entries inside a public folder share (subtree-scoped server-side). */
+export async function listPublicShareEntries(
+  token: string,
+  opts: { readonly password?: string | undefined; readonly parentEntryId?: string | undefined } = {},
+): Promise<PublicShareListing> {
+  const payload: Record<string, string> = {};
+  if (opts.password !== undefined)
+    payload.password = opts.password;
+  if (opts.parentEntryId !== undefined)
+    payload.parentEntryId = opts.parentEntryId;
+  return rawJson<ApiEnvelope<PublicShareListing>>(`/drive/shared/${encodeURIComponent(token)}/list`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }).then(r => r.data);
+}
+
+/** Download one file from inside a public folder share, triggering a browser save. */
+export async function downloadPublicShareFile(
+  token: string,
+  entryId: string,
+  filename: string,
+  password?: string,
+): Promise<void> {
+  const res = await httpRaw(`/drive/shared/${encodeURIComponent(token)}/file/${encodeURIComponent(entryId)}`, {
+    method: "POST",
+    body: JSON.stringify(password !== undefined ? { password } : {}),
+  });
+  const blob = await res.blob();
+  const name = parseContentDispositionFilename(res.headers.get("content-disposition")) ?? filename;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ── Team directories ──

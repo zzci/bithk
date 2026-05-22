@@ -4,9 +4,10 @@ import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
 import { buildDownloadResponse } from "@/modules/file";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { accessPublicShare, getPublicShareMeta } from "./drive.share.service";
+import { accessPublicShare, accessPublicShareFile, getPublicShareMeta, listPublicShareEntries } from "./drive.share.service";
 
 const accessShareSchema = z.object({ password: z.string().optional() });
+const listShareSchema = z.object({ password: z.string().optional(), parentEntryId: z.string().optional() });
 
 /**
  * Unauthenticated public-link share access. Mounted in `routes/public.ts`
@@ -46,6 +47,37 @@ export function drivePublicRoutes() {
 
     if (result.kind === "view")
       return c.json({ success: true, data: result.meta });
+
+    return buildDownloadResponse(c.get("config"), result.file, result.reference, { inline: false });
+  });
+
+  // Folder shares: list entries within the shared subtree.
+  router.post("/drive/shared/:token/list", async (c) => {
+    const token = c.req.param("token");
+    const body = listShareSchema.parse(await c.req.json().catch(() => ({})));
+    const data = await listPublicShareEntries(c.get("db"), token, body.password, body.parentEntryId);
+    return c.json({ success: true, data });
+  });
+
+  // Folder shares: download one file from inside the shared subtree.
+  router.post("/drive/shared/:token/file/:entryId", async (c) => {
+    const token = c.req.param("token");
+    const entryId = c.req.param("entryId");
+    const body = accessShareSchema.parse(await c.req.json().catch(() => ({})));
+    const result = await accessPublicShareFile(c.get("db"), token, body.password, entryId);
+
+    await audit(c.get("db"), c.get("logger"), {
+      actorId: "client:public",
+      actorName: "client:public",
+      action: "drive.share.accessed",
+      resourceType: "drive_share",
+      resourceId: token,
+      resourceName: result.reference.filename,
+      detail: { kind: "folder-file", entryId },
+      ip: getClientIp(c),
+      userAgent: c.req.header("user-agent") ?? "unknown",
+      result: "success",
+    });
 
     return buildDownloadResponse(c.get("config"), result.file, result.reference, { inline: false });
   });
