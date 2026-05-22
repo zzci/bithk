@@ -501,6 +501,14 @@ export function useRevokeShare(): UseMutationResult<{ readonly id: string }, Err
       void queryClient.invalidateQueries({ queryKey: driveKeys.sentShares() });
       void queryClient.invalidateQueries({ queryKey: driveKeys.links() });
       void queryClient.invalidateQueries({ queryKey: driveKeys.receivedShares() });
+      // The revoke response only carries the share id, not its entry, so
+      // refresh every open per-entry share view (the share dialog) by prefix.
+      void queryClient.invalidateQueries({
+        predicate: query =>
+          query.queryKey[0] === "drive"
+          && query.queryKey[1] === "entries"
+          && query.queryKey[3] === "shares",
+      });
     },
   });
 }

@@ -1511,8 +1511,8 @@ function FileList({
                     {t("browser.action.download")}
                   </ContextMenuItem>
                 )}
-                {canShare && !item.isFolder && item.fileId && (
-                  <ContextMenuItem onClick={() => onShare(item.fileId!, item.name)}>
+                {canShare && (item.fileId || item.isFolder) && (
+                  <ContextMenuItem onClick={() => onShare(item.id, item.name)}>
                     <Share2 className="mr-2 size-4" />
                     {t("browser.action.share")}
                   </ContextMenuItem>
