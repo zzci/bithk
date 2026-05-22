@@ -1,23 +1,24 @@
-// Flat, read-mostly entry list for the sidebar-driven "recent", "favorites",
-// and "trash" drive views. The folder-navigation browser lives in
-// -file-browser.tsx; this is the lighter list the original project used for
-// these aggregate views.
+// Collection views (recent / favorites / trash) for the drive page. Each view
+// renders through the shared `DriveFileListSurface` in collection mode: it
+// fetches its `DriveEntry[]` from the API layer, bridges them to `DisplayItem`s
+// with `entryToDisplayItem`, and routes every mutating affordance through the
+// surface `actions` bag (plus `getCustomActions` for the trash-only permanent
+// delete). The folder-navigation browser lives in -file-browser.tsx.
 
 import type { UseQueryResult } from "@tanstack/react-query";
+import type { LucideIcon } from "lucide-react";
+import type {
+  CollectionToolbarConfig,
+  DriveFileListCapabilities,
+  DriveFileListSurfaceActions,
+  FileListAction,
+} from "./-drive-file-list-surface";
 import type { DriveEntry } from "@/shared/lib/api/drive";
-import {
-  Clock,
-  Download,
-  Eye,
-  FileText,
-  Folder,
-  RotateCcw,
-  Star,
-  Trash2,
-} from "lucide-react";
+import { Clock, Star, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Button } from "@/shared/components/ui/button";
+import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
   downloadDriveEntry,
   useDeleteDriveEntryPermanently,
@@ -27,16 +28,12 @@ import {
   useRestoreDriveEntry,
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
-import { cn } from "@/shared/lib/utils";
-import { formatBytes, formatDate } from "./-share-lists";
+import { DriveFileListSurface } from "./-drive-file-list-surface";
+import { RenameDialog } from "./-entry-create-dialogs";
+import { entryToDisplayItem } from "./-file-browser-types";
+import { ShareDialog } from "./-share-dialog";
 
 export type DriveListSource = "recent" | "favorites" | "trash";
-
-const EMPTY_ICON: Record<DriveListSource, typeof Clock> = {
-  recent: Clock,
-  favorites: Star,
-  trash: Trash2,
-};
 
 interface ListProps {
   readonly source: DriveListSource;
@@ -44,148 +41,223 @@ interface ListProps {
   readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
 }
 
-// One fetch wrapper per source so only the active view's query runs (React
-// forbids calling the other hooks conditionally).
+// One fetch wrapper per source so only the active view's query runs; React
+// forbids calling the other query hooks conditionally from a single component.
 export function DriveEntryListView({ source, userId, onPreviewEntry }: ListProps) {
   if (source === "recent")
-    return <RecentList source={source} userId={userId} onPreviewEntry={onPreviewEntry} />;
+    return <RecentCollection onPreviewEntry={onPreviewEntry} />;
   if (source === "favorites")
-    return <FavoritesList source={source} userId={userId} onPreviewEntry={onPreviewEntry} />;
-  return <TrashList source={source} userId={userId} onPreviewEntry={onPreviewEntry} />;
+    return <FavoritesCollection onPreviewEntry={onPreviewEntry} />;
+  return <TrashCollection userId={userId} onPreviewEntry={onPreviewEntry} />;
 }
 
-function RecentList(props: ListProps) {
-  return <EntryList {...props} query={useRecentEntries()} />;
+function RecentCollection({ onPreviewEntry }: Pick<ListProps, "onPreviewEntry">) {
+  return <Collection mode="recent" query={useRecentEntries()} onPreviewEntry={onPreviewEntry} />;
 }
 
-function FavoritesList(props: ListProps) {
-  return <EntryList {...props} query={useFavoriteEntries()} />;
+function FavoritesCollection({ onPreviewEntry }: Pick<ListProps, "onPreviewEntry">) {
+  return <Collection mode="favorites" query={useFavoriteEntries()} onPreviewEntry={onPreviewEntry} />;
 }
 
-function TrashList(props: ListProps) {
-  const query = useDriveEntries(null, "trash", { ownerType: "user", ownerId: props.userId });
-  return <EntryList {...props} query={query} />;
+function TrashCollection({ userId, onPreviewEntry }: Pick<ListProps, "userId" | "onPreviewEntry">) {
+  const query = useDriveEntries(null, "trash", { ownerType: "user", ownerId: userId });
+  return <Collection mode="trash" query={query} onPreviewEntry={onPreviewEntry} />;
 }
 
-function EntryList({
-  source,
-  onPreviewEntry,
-  query,
-}: ListProps & { readonly query: UseQueryResult<readonly DriveEntry[]> }) {
+const COLLECTION_TOOLBAR: Record<DriveListSource, {
+  readonly titleKey: string;
+  readonly emptyIcon: LucideIcon;
+  readonly emptyTitleKey: string;
+  readonly emptyDescKey: string;
+}> = {
+  recent: {
+    titleKey: "sidebar.recent",
+    emptyIcon: Clock,
+    emptyTitleKey: "sidebar.empty.recent",
+    emptyDescKey: "browser.empty.recentDesc",
+  },
+  favorites: {
+    titleKey: "sidebar.favorites",
+    emptyIcon: Star,
+    emptyTitleKey: "sidebar.empty.favorites",
+    emptyDescKey: "browser.empty.favoritesDesc",
+  },
+  trash: {
+    titleKey: "sidebar.trash",
+    emptyIcon: Trash2,
+    emptyTitleKey: "sidebar.empty.trash",
+    emptyDescKey: "browser.empty.trashDesc",
+  },
+};
+
+// Recent/favorites are read-mostly collections (download/share/favorite/rename,
+// no folder navigation); trash swaps sharing/favoriting for restore + permanent
+// delete. Capabilities the surface defaults to `true` are pinned off here so a
+// future surface default change cannot silently re-enable them for collections.
+const COLLECTION_CAPABILITIES: Record<DriveListSource, DriveFileListCapabilities> = {
+  recent: {
+    download: true,
+    share: true,
+    favorite: true,
+    rename: true,
+    delete: false,
+    restore: false,
+    batchDownload: true,
+    batchDelete: false,
+    batchRestore: false,
+    navigateFolders: false,
+  },
+  favorites: {
+    download: true,
+    share: true,
+    favorite: true,
+    rename: true,
+    delete: false,
+    restore: false,
+    batchDownload: true,
+    batchDelete: false,
+    batchRestore: false,
+    navigateFolders: false,
+  },
+  trash: {
+    download: false,
+    share: false,
+    favorite: false,
+    rename: false,
+    delete: false,
+    restore: true,
+    batchDownload: false,
+    batchDelete: true,
+    batchRestore: true,
+    navigateFolders: false,
+  },
+};
+
+interface CollectionProps {
+  readonly mode: DriveListSource;
+  readonly query: UseQueryResult<readonly DriveEntry[]>;
+  readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
+}
+
+function Collection({ mode, query, onPreviewEntry }: CollectionProps) {
   const { t } = useTranslation("drive");
 
   const updateEntry = useUpdateDriveEntry();
   const restoreEntry = useRestoreDriveEntry();
   const permanentDelete = useDeleteDriveEntryPermanently();
 
-  const entries = query.data ?? [];
-  const isTrash = source === "trash";
-  const EmptyIcon = EMPTY_ICON[source];
+  // Page-driven dialogs are scoped to this collection (the page only forwards a
+  // preview callback), so share/rename dialogs are owned and rendered here.
+  const [shareEntry, setShareEntry] = useState<DriveEntry | null>(null);
+  const [renameEntry, setRenameEntry] = useState<DriveEntry | null>(null);
 
-  if (query.isLoading && entries.length === 0) {
-    return (
-      <div className="px-4 py-10 text-center text-xs text-muted-foreground">
-        {t("common.loading")}
-      </div>
-    );
-  }
+  const entries = useMemo(() => query.data ?? [], [query.data]);
+  const items = useMemo(() => entries.map(entryToDisplayItem), [entries]);
+  const entryById = useMemo(
+    () => new Map(entries.map(entry => [entry.id, entry])),
+    [entries],
+  );
+  const entryByFileId = useMemo(
+    () => new Map(entries.filter(entry => entry.file).map(entry => [entry.file!.fileId, entry])),
+    [entries],
+  );
 
-  if (entries.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-        <EmptyIcon className="size-9 text-muted-foreground/40" />
-        <p className="text-sm font-medium text-muted-foreground">
-          {t(`sidebar.empty.${source}`)}
-        </p>
-      </div>
-    );
-  }
+  const config = COLLECTION_TOOLBAR[mode];
+  const toolbar: CollectionToolbarConfig = {
+    kind: "collection",
+    titleKey: config.titleKey,
+    emptyIcon: config.emptyIcon,
+    emptyTitleKey: config.emptyTitleKey,
+    emptyDescKey: config.emptyDescKey,
+  };
+
+  const isTrash = mode === "trash";
+  const refetch = query.refetch;
+
+  const actions: DriveFileListSurfaceActions = useMemo(() => ({
+    onRefresh: () => void refetch(),
+    onNavigateToFolder: () => {},
+    onDownload: (fileId) => {
+      const entry = entryByFileId.get(fileId);
+      if (entry)
+        void downloadDriveEntry(entry);
+    },
+    onShare: (fileId) => {
+      const entry = entryByFileId.get(fileId);
+      if (entry)
+        setShareEntry(entry);
+    },
+    // Permanent deletion is wired for trash only; recent/favorites disable the
+    // delete capabilities, so these stay no-ops there to guard live entries.
+    onDelete: isTrash ? id => permanentDelete.mutate(id) : () => {},
+    onBatchDelete: isTrash
+      ? (ids) => {
+          for (const id of ids)
+            permanentDelete.mutate(id);
+        }
+      : () => {},
+    ...(isTrash
+      ? {
+          onRestore: (id: string) => restoreEntry.mutate(id),
+          onBatchRestore: (ids: Set<string>) => {
+            for (const id of ids)
+              restoreEntry.mutate(id);
+          },
+          getCustomActions: (): FileListAction[] => [
+            {
+              key: "permanent-delete",
+              label: t("browser.action.deleteForever"),
+              icon: <Trash2 className="mr-2 size-4" />,
+              variant: "destructive",
+              onSelect: target => permanentDelete.mutate(target.id),
+            },
+          ],
+        }
+      : {}),
+    onPreview: (item) => {
+      const entry = entryById.get(item.id);
+      if (entry)
+        onPreviewEntry?.(entry);
+    },
+    onRename: (item) => {
+      const entry = entryById.get(item.id);
+      if (entry)
+        setRenameEntry(entry);
+    },
+    onFavoriteChange: (item, favorite) => updateEntry.mutate({ id: item.id, favorite }),
+  }), [entryById, entryByFileId, isTrash, onPreviewEntry, permanentDelete, refetch, restoreEntry, t, updateEntry]);
+
+  const error = query.error ?? updateEntry.error ?? restoreEntry.error ?? permanentDelete.error;
 
   return (
-    <ul className="flex flex-col gap-0.5">
-      {entries.map(entry => (
-        <li
-          key={entry.id}
-          className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40"
-        >
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            {entry.type === "folder"
-              ? <Folder className="size-4" strokeWidth={1.75} />
-              : <FileText className="size-4" strokeWidth={1.75} />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{entry.name}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {entry.file ? `${formatBytes(entry.file.size)} · ` : ""}
-              {formatDate(entry.updatedAt)}
-            </p>
-          </div>
+    <>
+      <DriveFileListSurface
+        items={items}
+        loading={query.isLoading}
+        toolbar={toolbar}
+        capabilities={COLLECTION_CAPABILITIES[mode]}
+        actions={actions}
+        viewModeStorageKey={`drive.collectionViewMode.${mode}`}
+        banner={error ? <div className="px-4 pt-2"><ErrorBanner message={error.message} /></div> : undefined}
+      />
 
-          <div className="flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:focus-within:opacity-100">
-            {isTrash
-              ? (
-                  <>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      disabled={restoreEntry.isPending}
-                      title={t("browser.action.restore")}
-                      onClick={() => restoreEntry.mutate(entry.id)}
-                    >
-                      <RotateCcw className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      disabled={permanentDelete.isPending}
-                      title={t("browser.action.deleteForever")}
-                      onClick={() => permanentDelete.mutate(entry.id)}
-                    >
-                      <Trash2 className="size-4 text-destructive" />
-                    </Button>
-                  </>
-                )
-              : (
-                  <>
-                    {entry.type === "file" && onPreviewEntry && (
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        title={t("browser.action.preview")}
-                        onClick={() => onPreviewEntry(entry)}
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                    )}
-                    {entry.type === "file" && (
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        title={t("browser.action.download")}
-                        onClick={() => void downloadDriveEntry(entry)}
-                      >
-                        <Download className="size-4" />
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      disabled={updateEntry.isPending}
-                      title={entry.favorite ? t("browser.action.unfavorite") : t("browser.action.favorite")}
-                      onClick={() => updateEntry.mutate({ id: entry.id, favorite: !entry.favorite })}
-                    >
-                      <Star className={cn("size-4", entry.favorite && "fill-current text-amber-500")} />
-                    </Button>
-                  </>
-                )}
-          </div>
-        </li>
-      ))}
-    </ul>
+      {shareEntry && (
+        <ShareDialog
+          entry={shareEntry}
+          open
+          onOpenChange={open => !open && setShareEntry(null)}
+        />
+      )}
+      <RenameDialog
+        open={renameEntry !== null}
+        onOpenChange={open => !open && setRenameEntry(null)}
+        entry={renameEntry}
+        pending={updateEntry.isPending}
+        onRename={(name) => {
+          if (renameEntry)
+            updateEntry.mutate({ id: renameEntry.id, name }, { onSuccess: () => setRenameEntry(null) });
+        }}
+      />
+    </>
   );
 }
