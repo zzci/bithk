@@ -638,7 +638,13 @@ export function FilePreviewDialog({ entry, open, onOpenChange }: FilePreviewDial
         return;
 
       if (kind === "image" || kind === "pdf") {
-        setObjectUrl(URL.createObjectURL(blob));
+        // The content endpoint serves non-inline-safe types (e.g. SVG) as
+        // application/octet-stream, which `<img>` will not render. Re-type the
+        // blob to the entry's declared mimetype so the image displays. An
+        // `<img>`-loaded SVG does not execute scripts, so this stays XSS-safe.
+        const mime = file?.mimetype;
+        const typed = kind === "image" && mime ? blob.slice(0, blob.size, mime) : blob;
+        setObjectUrl(URL.createObjectURL(typed));
         return;
       }
 
