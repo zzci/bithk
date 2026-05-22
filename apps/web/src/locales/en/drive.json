@@ -80,7 +80,10 @@
     "empty": {
       "folder": "No files or folders",
       "folderDesc": "Upload files or create a folder to get started",
-      "trash": "Trash is empty"
+      "trash": "Trash is empty",
+      "recentDesc": "Files you open will show up here",
+      "favoritesDesc": "Star files to find them quickly",
+      "trashDesc": "Items you delete land here before they are removed for good"
     },
     "action": {
       "more": "More actions",

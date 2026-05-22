@@ -80,7 +80,10 @@
     "empty": {
       "folder": "暂无文件或文件夹",
       "folderDesc": "上传文件或新建文件夹以开始",
-      "trash": "回收站为空"
+      "trash": "回收站为空",
+      "recentDesc": "你打开过的文件会显示在这里",
+      "favoritesDesc": "收藏文件以便快速查找",
+      "trashDesc": "删除的项目会先进入这里，之后才会被彻底移除"
     },
     "action": {
       "more": "更多操作",
