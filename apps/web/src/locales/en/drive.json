@@ -285,5 +285,15 @@
     "description": "Browse your drive and choose a file.",
     "root": "My Drive",
     "empty": "This folder is empty"
+  },
+  "public": {
+    "notFound": "This link is no longer available.",
+    "expired": "This link has expired.",
+    "exhausted": "This link has reached its download limit.",
+    "password": "Password",
+    "passwordPlaceholder": "Enter the link password",
+    "download": "Download",
+    "viewOnly": "This link is view-only; downloading is not permitted.",
+    "downloadError": "Could not download. Check the password and try again."
   }
 }

@@ -285,5 +285,15 @@
     "description": "浏览你的云盘并选择一个文件。",
     "root": "我的云盘",
     "empty": "此文件夹为空"
+  },
+  "public": {
+    "notFound": "该链接已失效。",
+    "expired": "该链接已过期。",
+    "exhausted": "该链接已达到下载次数上限。",
+    "password": "密码",
+    "passwordPlaceholder": "请输入链接密码",
+    "download": "下载",
+    "viewOnly": "该链接仅供查看，不允许下载。",
+    "downloadError": "下载失败，请检查密码后重试。"
   }
 }
