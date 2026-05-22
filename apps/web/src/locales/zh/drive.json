@@ -33,19 +33,37 @@
     "upload": "上传",
     "newFolder": "新建文件夹",
     "newTextFile": "新建文本文件",
+    "newMarkdownFile": "新建 Markdown 文件",
+    "importFromDrive": "从网盘导入",
     "create": "创建",
+    "refresh": "刷新",
     "searchPlaceholder": "搜索文件",
     "breadcrumbRoot": "根目录",
     "dropHere": "拖放文件以上传",
     "selectAll": "全选",
     "selectEntry": "选择 {{name}}",
     "selectedCount": "已选择 {{count}} 项",
+    "deleteSelected": "删除所选",
     "clearSelection": "清除",
+    "viewGrid": "网格视图",
+    "viewList": "列表视图",
     "filter": {
       "type": "按类型筛选",
+      "typeLabel": "类型",
       "all": "全部",
       "folders": "文件夹",
-      "files": "文件"
+      "files": "文件",
+      "images": "图片",
+      "documents": "文档",
+      "spreadsheets": "表格",
+      "people": "所有者",
+      "ownedByMe": "我拥有的",
+      "modified": "修改时间",
+      "modifiedToday": "今天",
+      "modified7Days": "最近 7 天",
+      "modified30Days": "最近 30 天",
+      "source": "来源",
+      "currentSource": "当前位置"
     },
     "status": {
       "label": "视图",
@@ -54,12 +72,14 @@
     },
     "column": {
       "name": "名称",
+      "owner": "所有者",
       "size": "大小",
       "updated": "更新于",
       "actions": "操作"
     },
     "empty": {
       "folder": "暂无文件或文件夹",
+      "folderDesc": "上传文件或新建文件夹以开始",
       "trash": "回收站为空"
     },
     "action": {

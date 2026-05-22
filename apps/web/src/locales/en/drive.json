@@ -33,19 +33,37 @@
     "upload": "Upload",
     "newFolder": "New folder",
     "newTextFile": "New text file",
+    "newMarkdownFile": "New Markdown file",
+    "importFromDrive": "Import from Drive",
     "create": "Create",
+    "refresh": "Refresh",
     "searchPlaceholder": "Search files",
     "breadcrumbRoot": "Root",
     "dropHere": "Drop files to upload",
     "selectAll": "Select all",
     "selectEntry": "Select {{name}}",
     "selectedCount": "{{count}} selected",
+    "deleteSelected": "Delete selected",
     "clearSelection": "Clear",
+    "viewGrid": "Grid view",
+    "viewList": "List view",
     "filter": {
       "type": "Filter by type",
+      "typeLabel": "Type",
       "all": "All",
       "folders": "Folders",
-      "files": "Files"
+      "files": "Files",
+      "images": "Images",
+      "documents": "Documents",
+      "spreadsheets": "Spreadsheets",
+      "people": "People",
+      "ownedByMe": "Owned by me",
+      "modified": "Modified",
+      "modifiedToday": "Today",
+      "modified7Days": "Last 7 days",
+      "modified30Days": "Last 30 days",
+      "source": "Source",
+      "currentSource": "Current location"
     },
     "status": {
       "label": "View",
@@ -54,12 +72,14 @@
     },
     "column": {
       "name": "Name",
+      "owner": "Owner",
       "size": "Size",
       "updated": "Updated",
       "actions": "Actions"
     },
     "empty": {
       "folder": "No files or folders",
+      "folderDesc": "Upload files or create a folder to get started",
       "trash": "Trash is empty"
     },
     "action": {
