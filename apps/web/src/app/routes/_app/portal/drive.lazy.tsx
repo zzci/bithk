@@ -15,7 +15,6 @@ import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { useTeamDirectory } from "@/shared/lib/api/drive";
-import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 
 import { DriveEntryListView } from "./-drive-entry-list";
@@ -23,7 +22,7 @@ import { DriveSidebar } from "./-drive-sidebar";
 import { FileBrowser } from "./-file-browser";
 import { FilePreviewDialog } from "./-file-preview-dialog";
 import { ShareDialog } from "./-share-dialog";
-import { PublicLinksList, ReceivedSharesList, SentSharesList } from "./-share-lists";
+import { OutgoingSharesList, ReceivedSharesList } from "./-share-lists";
 import { ManageMembersButton, TeamDirectoryList } from "./-team-directory-list";
 
 export const Route = createLazyFileRoute("/_app/portal/drive")({
@@ -228,7 +227,11 @@ function DriveViewContent({
       );
 
     case "shared-by-me":
-      return <SharedByMe />;
+      return (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <OutgoingSharesList />
+        </div>
+      );
 
     case "team-directories":
       return activeDir
@@ -249,40 +252,6 @@ function DriveViewContent({
     default:
       return null;
   }
-}
-
-const SHARE_TYPES = ["direct", "public_link"] as const;
-type OutgoingShareType = typeof SHARE_TYPES[number];
-
-function SharedByMe() {
-  const { t } = useTranslation("drive");
-  // One list at a time, switched by share type, instead of two stacked lists.
-  const [shareType, setShareType] = useState<OutgoingShareType>("direct");
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-      <div className="flex shrink-0 items-center gap-0.5 self-start rounded-lg bg-muted/50 p-0.5">
-        {SHARE_TYPES.map(type => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => setShareType(type)}
-            className={cn(
-              "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-              shareType === type
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t(`share.type.${type}`)}
-          </button>
-        ))}
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {shareType === "direct" ? <SentSharesList /> : <PublicLinksList />}
-      </div>
-    </div>
-  );
 }
 
 function TeamDirectoryView({

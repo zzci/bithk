@@ -182,6 +182,7 @@
     "addPeoplePlaceholder": "添加用户",
     "youSuffix": "（你）",
     "owner": "所有者",
+    "categoryLabel": "分享类别",
     "generalAccess": "通用访问权限",
     "linkRestricted": "受限",
     "linkRestrictedDesc": "仅限有权访问的人打开",

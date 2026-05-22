@@ -43,7 +43,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
@@ -132,6 +132,18 @@ export interface DriveFileListSurfaceActions {
   readonly getCustomActions?: (item: DisplayItem) => FileListAction[];
 }
 
+/**
+ * A caller-owned extra filter dropdown, rendered after the built-in filters.
+ * The caller filters its own data; the surface only renders the control.
+ * Use `"all"` as the not-filtering value so the active-state highlight works.
+ */
+export interface SurfaceExtraFilter {
+  readonly label: string;
+  readonly value: string;
+  readonly options: readonly { readonly value: string; readonly label: string }[];
+  readonly onChange: (value: string) => void;
+}
+
 export interface DriveFileListSurfaceProps {
   readonly items: readonly DisplayItem[];
   readonly loading: boolean;
@@ -141,6 +153,7 @@ export interface DriveFileListSurfaceProps {
   readonly initialViewMode?: "grid" | "list";
   readonly viewModeStorageKey?: string;
   readonly banner?: ReactNode;
+  readonly extraFilters?: readonly SurfaceExtraFilter[] | undefined;
 }
 
 const DEFAULT_CAPABILITIES: Required<DriveFileListCapabilities> = {
@@ -175,6 +188,7 @@ export function DriveFileListSurface({
   initialViewMode = "list",
   viewModeStorageKey,
   banner,
+  extraFilters,
 }: DriveFileListSurfaceProps) {
   const { t } = useTranslation("drive");
   const user = useAuthStore(s => s.user);
@@ -283,6 +297,7 @@ export function DriveFileListSurface({
       onOwnerFilterChange={setOwnerFilter}
       onModifiedFilterChange={setModifiedFilter}
       onSourceFilterChange={setSourceFilter}
+      extraFilters={extraFilters}
     />
   );
 
@@ -690,6 +705,7 @@ interface DriveFilterBarProps {
   readonly onOwnerFilterChange: (value: DriveOwnerFilter) => void;
   readonly onModifiedFilterChange: (value: DriveModifiedFilter) => void;
   readonly onSourceFilterChange: (value: DriveSourceFilter) => void;
+  readonly extraFilters?: readonly SurfaceExtraFilter[] | undefined;
 }
 
 function DriveFilterBar({
@@ -701,6 +717,7 @@ function DriveFilterBar({
   onOwnerFilterChange,
   onModifiedFilterChange,
   onSourceFilterChange,
+  extraFilters,
 }: DriveFilterBarProps) {
   const { t } = useTranslation("drive");
 
@@ -816,6 +833,11 @@ function DriveFilterBar({
         (Object.keys(sourceFilterLabels) as DriveSourceFilter[]).map(value => ({ value, label: sourceFilterLabels[value] })),
         onSourceFilterChange,
       )}
+      {(extraFilters ?? []).map(filter => (
+        <Fragment key={filter.label}>
+          {filterMenu(filter.label, filter.value, [...filter.options], filter.onChange)}
+        </Fragment>
+      ))}
     </div>
   );
 }

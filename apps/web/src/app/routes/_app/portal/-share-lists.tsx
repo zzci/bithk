@@ -17,6 +17,7 @@ import type {
   DriveFileListCapabilities,
   DriveFileListSurfaceActions,
   FileListAction,
+  SurfaceExtraFilter,
 } from "./-drive-file-list-surface";
 import type { DisplayItem } from "./-file-browser-types";
 import type { SimpleUser } from "@/shared/lib/api/documents";
@@ -173,11 +174,13 @@ function ShareListSurface({
   shares,
   loading,
   onRefresh,
+  extraFilters,
 }: {
   readonly mode: ShareListMode;
   readonly shares: readonly DriveShare[];
   readonly loading: boolean;
   readonly onRefresh: () => void;
+  readonly extraFilters?: readonly SurfaceExtraFilter[] | undefined;
 }) {
   const { t } = useTranslation("drive");
   const revoke = useRevokeShare();
@@ -270,6 +273,7 @@ function ShareListSurface({
         }}
         capabilities={SHARE_CAPABILITIES}
         actions={actions}
+        extraFilters={extraFilters}
       />
     </div>
   );
@@ -289,26 +293,49 @@ export function ReceivedSharesList() {
   );
 }
 
-export function SentSharesList() {
-  const query = useSentShares();
+type OutgoingCategory = "all" | "direct" | "public_link";
+
+/**
+ * "Shared by me" as a single list: direct shares + public links combined,
+ * narrowed by an in-content "share category" filter (rendered in the surface
+ * filter bar) rather than a separate top-of-page tab.
+ */
+export function OutgoingSharesList() {
+  const { t } = useTranslation("drive");
+  const sentQuery = useSentShares();
+  const linksQuery = usePublicLinks();
+  const [category, setCategory] = useState<OutgoingCategory>("all");
+
+  const allShares = useMemo(
+    () => [...(sentQuery.data ?? []), ...(linksQuery.data ?? [])],
+    [sentQuery.data, linksQuery.data],
+  );
+  const shares = useMemo(
+    () => category === "all" ? allShares : allShares.filter(share => share.shareType === category),
+    [allShares, category],
+  );
+
+  const extraFilters: SurfaceExtraFilter[] = [{
+    label: t("share.categoryLabel"),
+    value: category,
+    options: [
+      { value: "all", label: t("browser.filter.all") },
+      { value: "direct", label: t("share.type.direct") },
+      { value: "public_link", label: t("share.type.public_link") },
+    ],
+    onChange: value => setCategory(value as OutgoingCategory),
+  }];
+
   return (
     <ShareListSurface
       mode="sent"
-      shares={query.data ?? []}
-      loading={query.isLoading}
-      onRefresh={() => void query.refetch()}
-    />
-  );
-}
-
-export function PublicLinksList() {
-  const query = usePublicLinks();
-  return (
-    <ShareListSurface
-      mode="links"
-      shares={query.data ?? []}
-      loading={query.isLoading}
-      onRefresh={() => void query.refetch()}
+      shares={shares}
+      loading={sentQuery.isLoading || linksQuery.isLoading}
+      onRefresh={() => {
+        void sentQuery.refetch();
+        void linksQuery.refetch();
+      }}
+      extraFilters={extraFilters}
     />
   );
 }

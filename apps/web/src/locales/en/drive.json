@@ -182,6 +182,7 @@
     "addPeoplePlaceholder": "Add people",
     "youSuffix": "(you)",
     "owner": "Owner",
+    "categoryLabel": "Share type",
     "generalAccess": "General access",
     "linkRestricted": "Restricted",
     "linkRestrictedDesc": "Only people with access can open",
