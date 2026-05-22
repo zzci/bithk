@@ -1,10 +1,23 @@
-import type { ChangeEvent, DragEvent } from "react";
-import type { FolderCrumb } from "./-file-breadcrumbs";
-import type { DriveTypeFilter } from "./-file-filter-bar";
-import type { DriveEntry, DriveEntryStatus, DriveOwnerType } from "@/shared/lib/api/drive";
-import { Upload } from "lucide-react";
+// Folder-mode wrapper over the shared DriveFileListSurface.
+//
+// This component owns folder navigation state and the create/rename/move
+// dialogs, fetches the current folder's entries from the API, bridges them to
+// the surface's `DisplayItem[]`, and wires every mutating affordance through
+// the surface `actions` bag. The list rendering, search, filters, sorting,
+// selection, and context menus all live in the surface.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent } from "react";
+import type {
+  DriveFileListCapabilities,
+  DriveFileListSurfaceActions,
+  FileListAction,
+  FolderToolbarConfig,
+} from "./-drive-file-list-surface";
+import type { DisplayItem } from "./-file-browser-types";
+import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
+import { FolderInput, Upload } from "lucide-react";
+
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 
@@ -12,25 +25,20 @@ import {
   downloadDriveEntry,
   useCreateDriveFolder,
   useCreateTextFile,
-  useDeleteDriveEntryPermanently,
   useDriveEntries,
-  useRestoreDriveEntry,
   useTrashDriveEntry,
   useUpdateDriveEntry,
   useUploadDriveFile,
 } from "@/shared/lib/api/drive";
 import { cn } from "@/shared/lib/utils";
+import { DriveFileListSurface } from "./-drive-file-list-surface";
 import {
   CreateFolderDialog,
   CreateTextFileDialog,
   MoveDialog,
   RenameDialog,
 } from "./-entry-create-dialogs";
-import { FileBreadcrumbs } from "./-file-breadcrumbs";
-import { FileFilterBar } from "./-file-filter-bar";
-import { FileList } from "./-file-list";
-import { FileToolbar } from "./-file-toolbar";
-import { useDriveSelection } from "./-use-drive-selection";
+import { entryToDisplayItem } from "./-file-browser-types";
 
 export interface FileBrowserProps {
   readonly ownerType: DriveOwnerType;
@@ -41,9 +49,14 @@ export interface FileBrowserProps {
   readonly canManage?: boolean;
 }
 
+interface FolderCrumb {
+  readonly id: string;
+  readonly name: string;
+}
+
 type DialogState
   = | { readonly type: "folder" }
-    | { readonly type: "text" }
+    | { readonly type: "text"; readonly markdown: boolean }
     | { readonly type: "rename"; readonly entry: DriveEntry }
     | { readonly type: "move"; readonly entry: DriveEntry }
     | null;
@@ -57,21 +70,15 @@ export function FileBrowser({
 }: FileBrowserProps) {
   const { t } = useTranslation("drive");
 
-  const [status, setStatus] = useState<DriveEntryStatus>("normal");
   const [folderStack, setFolderStack] = useState<readonly FolderCrumb[]>([]);
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<DriveTypeFilter>("all");
   const [dialog, setDialog] = useState<DialogState>(null);
   const [dragDepth, setDragDepth] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const selection = useDriveSelection();
 
   const owner = useMemo(() => ({ ownerType, ownerId }), [ownerType, ownerId]);
-  const currentFolderId = folderStack.at(-1)?.id ?? null;
-  // Trash is a flat list; folder scoping only applies to the normal view.
-  const parentEntryId = status === "normal" ? currentFolderId : null;
+  const parentEntryId = folderStack.at(-1)?.id ?? null;
 
-  const entriesQuery = useDriveEntries(parentEntryId, status, owner);
+  const entriesQuery = useDriveEntries(parentEntryId, "normal", owner);
   const entries = useMemo(() => entriesQuery.data ?? [], [entriesQuery.data]);
 
   const createFolder = useCreateDriveFolder();
@@ -79,56 +86,31 @@ export function FileBrowser({
   const uploadFile = useUploadDriveFile();
   const updateEntry = useUpdateDriveEntry();
   const trashEntry = useTrashDriveEntry();
-  const restoreEntry = useRestoreDriveEntry();
-  const permanentDelete = useDeleteDriveEntryPermanently();
-
-  const busy = createFolder.isPending
-    || createTextFile.isPending
-    || uploadFile.isPending
-    || updateEntry.isPending
-    || trashEntry.isPending
-    || restoreEntry.isPending
-    || permanentDelete.isPending;
 
   const error = entriesQuery.error
     ?? createFolder.error
     ?? createTextFile.error
     ?? uploadFile.error
     ?? updateEntry.error
-    ?? trashEntry.error
-    ?? restoreEntry.error
-    ?? permanentDelete.error;
+    ?? trashEntry.error;
 
-  // Selection is scoped to one folder/status view; reset it on navigation.
-  const clearSelection = selection.clear;
-  useEffect(() => {
-    clearSelection();
-  }, [parentEntryId, status, clearSelection]);
+  // Look up the source entry behind a surface item: the surface passes back an
+  // entry id (preview/rename/favorite) or a file id (download/share) only.
+  const entryById = useMemo(
+    () => new Map(entries.map(entry => [entry.id, entry])),
+    [entries],
+  );
+  const entryByFileId = useMemo(
+    () => new Map(entries.filter(entry => entry.file).map(entry => [entry.file!.fileId, entry])),
+    [entries],
+  );
 
-  const visibleEntries = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return entries.filter((entry) => {
-      if (typeFilter === "folders" && entry.type !== "folder")
-        return false;
-      if (typeFilter === "files" && entry.type !== "file")
-        return false;
-      if (query && !entry.name.toLowerCase().includes(query))
-        return false;
-      return true;
-    });
-  }, [entries, typeFilter, search]);
+  const items = useMemo<readonly DisplayItem[]>(
+    () => entries.map(entryToDisplayItem),
+    [entries],
+  );
 
   const closeDialog = useCallback(() => setDialog(null), []);
-
-  const openFolder = useCallback((entry: DriveEntry) => {
-    if (entry.type !== "folder" || status !== "normal")
-      return;
-    setFolderStack(prev => [...prev, { id: entry.id, name: entry.name }]);
-  }, [status]);
-
-  const navigate = useCallback((index: number) => {
-    setFolderStack(prev => (index < 0 ? [] : prev.slice(0, index + 1)));
-  }, []);
 
   const uploadFiles = useCallback((files: readonly File[]) => {
     for (const file of files)
@@ -143,31 +125,29 @@ export function FileBrowser({
       uploadFiles(list);
   };
 
-  const dropEnabled = canManage && status === "normal";
-
   const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
-    if (!dropEnabled || !event.dataTransfer.types.includes("Files"))
+    if (!canManage || !event.dataTransfer.types.includes("Files"))
       return;
     event.preventDefault();
     setDragDepth(depth => depth + 1);
   };
 
   const onDragOver = (event: DragEvent<HTMLDivElement>) => {
-    if (!dropEnabled || !event.dataTransfer.types.includes("Files"))
+    if (!canManage || !event.dataTransfer.types.includes("Files"))
       return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   };
 
   const onDragLeave = (event: DragEvent<HTMLDivElement>) => {
-    if (!dropEnabled)
+    if (!canManage)
       return;
     event.preventDefault();
     setDragDepth(depth => Math.max(0, depth - 1));
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
-    if (!dropEnabled)
+    if (!canManage)
       return;
     event.preventDefault();
     setDragDepth(0);
@@ -176,45 +156,100 @@ export function FileBrowser({
       uploadFiles(list);
   };
 
-  const handleBulkTrash = useCallback(() => {
-    for (const id of selection.selected)
-      trashEntry.mutate(id);
-    selection.clear();
-  }, [selection, trashEntry]);
+  const capabilities: DriveFileListCapabilities = {
+    navigateFolders: true,
+    download: true,
+    share: Boolean(onShareEntry),
+    favorite: canManage,
+    rename: canManage,
+    delete: canManage,
+    batchDownload: true,
+    batchDelete: canManage,
+    createFolder: canManage,
+    upload: canManage,
+    createTextFile: canManage,
+  };
+
+  const toolbar: FolderToolbarConfig = {
+    kind: "folder",
+    ownerType: ownerType === "team_directory" ? "team" : "user",
+    folderPath: [
+      { id: null, name: t("browser.breadcrumbRoot") },
+      ...folderStack.map(crumb => ({ id: crumb.id, name: crumb.name })),
+    ],
+    showCreateActions: canManage,
+    // folderPath[0] is the synthetic root; index i>0 maps to folderStack[i-1].
+    onNavigateToBreadcrumb: index =>
+      setFolderStack(prev => (index <= 0 ? [] : prev.slice(0, index))),
+  };
+
+  const getCustomActions = useCallback((item: DisplayItem): FileListAction[] => {
+    if (!canManage)
+      return [];
+    const entry = entryById.get(item.id);
+    if (!entry)
+      return [];
+    return [{
+      key: "move",
+      label: t("browser.action.move"),
+      icon: <FolderInput className="mr-2 size-4" />,
+      onSelect: () => setDialog({ type: "move", entry }),
+    }];
+  }, [canManage, entryById, t]);
+
+  const actions: DriveFileListSurfaceActions = {
+    onRefresh: () => void entriesQuery.refetch(),
+    onNavigateToFolder: (entryId, folderName) =>
+      setFolderStack(prev => [...prev, { id: entryId, name: folderName }]),
+    onDownload: (fileId) => {
+      const entry = entryByFileId.get(fileId);
+      if (entry)
+        void downloadDriveEntry(entry);
+    },
+    onShare: (fileId) => {
+      const entry = entryByFileId.get(fileId);
+      if (entry)
+        onShareEntry?.(entry);
+    },
+    onDelete: entryId => trashEntry.mutate(entryId),
+    onBatchDelete: (entryIds) => {
+      for (const id of entryIds)
+        trashEntry.mutate(id);
+    },
+    onPreview: (item) => {
+      const entry = entryById.get(item.id);
+      if (entry)
+        onPreviewEntry?.(entry);
+    },
+    onRename: (item) => {
+      const entry = entryById.get(item.id);
+      if (entry)
+        setDialog({ type: "rename", entry });
+    },
+    onFavoriteChange: (item, favorite) => updateEntry.mutate({ id: item.id, favorite }),
+    onCreateFolder: () => setDialog({ type: "folder" }),
+    onUploadClick: () => fileInputRef.current?.click(),
+    onCreateTextFile: kind => setDialog({ type: "text", markdown: kind === "markdown" }),
+    getCustomActions,
+  };
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {status === "normal"
-            ? (
-                <FileBreadcrumbs
-                  crumbs={folderStack}
-                  rootLabel={t("browser.breadcrumbRoot")}
-                  onNavigate={navigate}
-                />
-              )
-            : <span className="text-sm font-medium text-muted-foreground">{t("browser.status.trash")}</span>}
-          {status === "normal" && (
-            <FileToolbar
-              canManage={canManage}
-              busy={busy}
-              onUpload={() => fileInputRef.current?.click()}
-              onNewFolder={() => setDialog({ type: "folder" })}
-              onNewTextFile={() => setDialog({ type: "text" })}
-            />
-          )}
+    <div
+      className={cn(
+        "relative flex h-full min-h-0 min-w-0 flex-col rounded-lg",
+        dragDepth > 0 && "outline-2 outline-offset-2 outline-primary",
+      )}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {dragDepth > 0 && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-primary/5 text-sm font-medium text-primary">
+          <Upload className="size-6" />
+          {t("browser.dropHere")}
         </div>
-
-        <FileFilterBar
-          search={search}
-          onSearchChange={setSearch}
-          typeFilter={typeFilter}
-          onTypeFilterChange={setTypeFilter}
-          status={status}
-          onStatusChange={setStatus}
-        />
-      </div>
+      )}
 
       <input
         ref={fileInputRef}
@@ -224,45 +259,14 @@ export function FileBrowser({
         onChange={onUploadInputChange}
       />
 
-      <ErrorBanner message={error?.message} />
-
-      <div
-        className={cn(
-          "relative min-h-0 flex-1 overflow-auto rounded-lg",
-          dragDepth > 0 && "outline-2 outline-offset-2 outline-primary",
-        )}
-        onDragEnter={onDragEnter}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
-        {dragDepth > 0 && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-primary/5 text-sm font-medium text-primary">
-            <Upload className="size-6" />
-            {t("browser.dropHere")}
-          </div>
-        )}
-        <FileList
-          entries={visibleEntries}
-          status={status}
-          loading={entriesQuery.isLoading}
-          canManage={canManage}
-          busy={busy}
-          selection={selection}
-          onOpenFolder={openFolder}
-          onRename={entry => setDialog({ type: "rename", entry })}
-          onMove={entry => setDialog({ type: "move", entry })}
-          onFavoriteToggle={entry => updateEntry.mutate({ id: entry.id, favorite: !entry.favorite })}
-          onDownload={entry => void downloadDriveEntry(entry)}
-          onShare={onShareEntry}
-          onPreview={onPreviewEntry}
-          onCopyLink={onShareEntry}
-          onTrash={entry => trashEntry.mutate(entry.id)}
-          onRestore={entry => restoreEntry.mutate(entry.id)}
-          onPermanentDelete={entry => permanentDelete.mutate(entry.id)}
-          onBulkTrash={handleBulkTrash}
-        />
-      </div>
+      <DriveFileListSurface
+        items={items}
+        loading={entriesQuery.isLoading}
+        toolbar={toolbar}
+        capabilities={capabilities}
+        actions={actions}
+        banner={error ? <ErrorBanner message={error.message} className="mx-4 mb-2" /> : undefined}
+      />
 
       <CreateFolderDialog
         open={dialog?.type === "folder"}
@@ -272,6 +276,7 @@ export function FileBrowser({
       />
       <CreateTextFileDialog
         open={dialog?.type === "text"}
+        markdown={dialog?.type === "text" ? dialog.markdown : false}
         onOpenChange={open => !open && closeDialog()}
         pending={createTextFile.isPending}
         onCreate={({ name, content }) =>
