@@ -91,14 +91,16 @@ interface CreateTextFileDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly pending: boolean;
+  /** Markdown variant differs only in copy and the suggested filename. */
+  readonly markdown?: boolean;
   readonly onCreate: (input: { readonly name: string; readonly content: string }) => void;
 }
 
-export function CreateTextFileDialog({ open, onOpenChange, pending, onCreate }: CreateTextFileDialogProps) {
+export function CreateTextFileDialog({ open, onOpenChange, pending, markdown = false, onCreate }: CreateTextFileDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <CreateTextFileForm pending={pending} onCreate={onCreate} />
+        <CreateTextFileForm pending={pending} markdown={markdown} onCreate={onCreate} />
       </DialogContent>
     </Dialog>
   );
@@ -106,9 +108,11 @@ export function CreateTextFileDialog({ open, onOpenChange, pending, onCreate }: 
 
 function CreateTextFileForm({
   pending,
+  markdown,
   onCreate,
 }: {
   readonly pending: boolean;
+  readonly markdown: boolean;
   readonly onCreate: (input: { readonly name: string; readonly content: string }) => void;
 }) {
   const { t } = useTranslation("drive");
@@ -125,8 +129,8 @@ function CreateTextFileForm({
   return (
     <form className="grid gap-4" onSubmit={submit}>
       <DialogHeader>
-        <DialogTitle>{t("browser.dialog.textFileTitle")}</DialogTitle>
-        <DialogDescription>{t("browser.dialog.textFileDescription")}</DialogDescription>
+        <DialogTitle>{t(markdown ? "browser.dialog.markdownFileTitle" : "browser.dialog.textFileTitle")}</DialogTitle>
+        <DialogDescription>{t(markdown ? "browser.dialog.markdownFileDescription" : "browser.dialog.textFileDescription")}</DialogDescription>
       </DialogHeader>
       <div className="grid gap-2">
         <Label htmlFor="drive-text-name">{t("browser.dialog.nameLabel")}</Label>
@@ -135,7 +139,7 @@ function CreateTextFileForm({
           autoFocus
           value={name}
           onChange={event => setName(event.currentTarget.value)}
-          placeholder={t("browser.dialog.textFileNamePlaceholder")}
+          placeholder={t(markdown ? "browser.dialog.markdownFileNamePlaceholder" : "browser.dialog.textFileNamePlaceholder")}
         />
       </div>
       <div className="grid gap-2">
