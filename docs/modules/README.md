@@ -33,4 +33,5 @@ project diverges from the template defaults.
 | Module | Page |
 |---|---|
 | `document` (nested + share-inherited markdown documents) | [document.md](document.md) |
+| `drive` (personal folders/files on the shared file module) | [drive.md](drive.md) |
 | `issue` (issue tracker with comments + attachments) | [issue.md](issue.md) |

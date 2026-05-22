@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+apps/web/src/app/routeTree.gen.ts linguist-generated=true
+apps/api/drizzle/meta/*.json linguist-generated=true
+coverage/** linguist-generated=true
+dist/** linguist-generated=true

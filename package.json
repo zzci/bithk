@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Bun monorepo template for OAuth-backed internal workspaces.",
+  "engines": {
+    "bun": "1.3.14",
+    "node": "24.14.x"
+  },
   "homepage": "https://github.com/zzci",
   "repository": {
     "type": "git",
