@@ -5,6 +5,7 @@ import { documentBackupContribution } from "./document.backup";
 // framework. The `documentAccess` client is re-exported below so other
 // modules can compose against the same vocabulary.
 export { documentAccess } from "./document.permission";
+export { documentPublicRoutes } from "./document.public.routes";
 export { documentRoutes } from "./document.routes";
 
 registerBackupContribution(documentBackupContribution);

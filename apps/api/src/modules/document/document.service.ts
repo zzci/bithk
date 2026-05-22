@@ -718,3 +718,58 @@ export async function listAllGroups(db: AppDatabase) {
 export async function resolveDocumentItem(db: AppDatabase, shortId: string) {
   return await getItemByShortId(db, shortId);
 }
+
+// ─── Public-link subtree access ──────────────────────────────────────
+
+/** A node in a public-link subtree. `id`/`parentId` are short_ids. */
+export interface PublicSubtreeNode {
+  readonly id: string; // short_id
+  readonly itemId: string; // internal items.id
+  readonly title: string;
+  /** short_id of the parent *within* the subtree; null for the root. */
+  readonly parentId: string | null;
+}
+
+/**
+ * The document identified by `rootItemId` plus every non-deleted
+ * descendant, walked through `document_details.parent_id`. Drives
+ * public-link subtree access: a link on a folder document reaches the
+ * whole subtree. Soft-deleted documents are filtered out, so a cascade
+ * delete (which stamps `deleted_at` across the subtree) removes them
+ * here too. Returns `[]` when the root itself is missing or deleted.
+ */
+export async function listPublicSubtree(db: AppDatabase, rootItemId: string): Promise<readonly PublicSubtreeNode[]> {
+  const rows = await db.all<{ id: string; short_id: string; title: string; parent_id: string | null }>(sql`
+    WITH RECURSIVE subtree(id) AS (
+      SELECT ${rootItemId}
+      UNION
+      SELECT dd.item_id FROM ${documentDetails} dd JOIN subtree s ON dd.parent_id = s.id
+    )
+    SELECT i.id, i.short_id, i.title, dd.parent_id
+    FROM subtree st
+    JOIN ${items} i ON i.id = st.id
+    JOIN ${documentDetails} dd ON dd.item_id = i.id
+    WHERE i.deleted_at IS NULL
+  `);
+  const idToShort = new Map(rows.map(r => [r.id, r.short_id]));
+  return rows.map(r => ({
+    id: r.short_id,
+    itemId: r.id,
+    title: r.title,
+    // Parent is scoped to the subtree: the root (whose parent_id points
+    // outside the walked set, or is null) reports parentId=null.
+    parentId: r.id === rootItemId
+      ? null
+      : (r.parent_id && idToShort.has(r.parent_id) ? idToShort.get(r.parent_id)! : null),
+  }));
+}
+
+/** Compose a document by its internal item id; `undefined` if missing or soft-deleted. */
+export async function getDocumentByItemId(db: AppDatabase, itemId: string): Promise<DocumentRow | undefined> {
+  const item = await db.select().from(items).where(
+    and(eq(items.id, itemId), eq(items.type, "document"), isNull(items.deletedAt)),
+  ).get();
+  if (!item)
+    return undefined;
+  return await composeDocument(db, item);
+}

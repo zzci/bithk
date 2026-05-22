@@ -65,6 +65,10 @@ export const documentAccess = defineResource({
     { method: "GET", path: "/documents/:id/shares", action: "document:manage" },
     { method: "POST", path: "/documents/:id/shares", action: "document:manage" },
     { method: "DELETE", path: "/documents/:id/shares/:shareId", action: "document:manage" },
+    { method: "GET", path: "/documents/:id/public-links", action: "document:manage" },
+    { method: "POST", path: "/documents/:id/public-links", action: "document:manage" },
+    { method: "PATCH", path: "/documents/:id/public-links/:linkId", action: "document:manage" },
+    { method: "DELETE", path: "/documents/:id/public-links/:linkId", action: "document:manage" },
   ] as const,
   // `document:update` admits editors, but only owners may flip the
   // comment lock. The field rule keeps the rest of the patch payload
