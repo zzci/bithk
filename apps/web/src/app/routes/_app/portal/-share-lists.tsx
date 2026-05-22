@@ -1,31 +1,31 @@
 /* eslint-disable react-refresh/only-export-components */
 // Drive share lists + shared share-UI helpers.
 //
-// Exposes the three "share inbox/outbox" lists wired by the drive page
-// (Shared with me / Shared by me / Public links) plus small primitives
-// reused by `-share-dialog.tsx`: the public-link URL builder, a clipboard
-// hook, a permission badge, the visible-users picker source, and the byte/
-// date formatters. Keeping these here avoids duplicating share concerns
-// across the dialog and the lists.
+// The three "share inbox/outbox" lists (Shared with me / Shared by me /
+// Public links) all render through the ONE shared `DriveFileListSurface`
+// in collection mode. Each share row maps to a `DisplayItem`; share-specific
+// behaviour (copy public link, revoke, download a received file) is injected
+// through the surface's `getCustomActions` so the surface itself stays
+// presentational and never learns about shares.
+//
+// This module also exposes small primitives reused by `-share-dialog.tsx`
+// and other drive views: the public-link URL builder, a clipboard hook, the
+// visible-users picker source, and the byte/date formatters.
 
+import type {
+  CollectionToolbarConfig,
+  DriveFileListCapabilities,
+  DriveFileListSurfaceActions,
+  FileListAction,
+} from "./-drive-file-list-surface";
+import type { DisplayItem } from "./-file-browser-types";
 import type { SimpleUser } from "@/shared/lib/api/documents";
-import type { DriveShare, SharePermission } from "@/shared/lib/api/drive";
+import type { DriveShare } from "@/shared/lib/api/drive";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Download, Link2, Trash2 } from "lucide-react";
-import { useCallback, useState } from "react";
-
+import { Copy, Download, Inbox, Link2, Share2, Trash2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/shared/components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
+
 import {
   downloadDriveEntry,
   usePublicLinks,
@@ -34,6 +34,8 @@ import {
   useSentShares,
 } from "@/shared/lib/api/drive";
 import { http } from "@/shared/lib/http";
+import { DriveFileListSurface } from "./-drive-file-list-surface";
+import { detectFileType } from "./-file-browser-types";
 
 // ── Shared helpers ──
 
@@ -66,11 +68,6 @@ export function useVisibleUsers() {
   });
 }
 
-export function PermissionBadge({ permission }: { readonly permission: SharePermission }) {
-  const { t } = useTranslation("drive");
-  return <Badge variant="secondary">{t(`share.permission.${permission}`)}</Badge>;
-}
-
 export function formatBytes(value: number): string {
   if (value < 1024)
     return `${value} B`;
@@ -91,201 +88,227 @@ export function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-// ── Shared list scaffolding ──
+// ── Surface-backed share list ──
 
-function ListState({ loading, error, empty, emptyLabel, cols }: {
-  readonly loading: boolean;
-  readonly error: Error | null;
-  readonly empty: boolean;
-  readonly emptyLabel: string;
-  readonly cols: number;
-}) {
-  const { t } = useTranslation(["drive", "common"]);
-  if (loading) {
-    return (
-      <TableRow>
-        <TableCell colSpan={cols} className="h-20 text-center text-muted-foreground">{t("common:common.loading")}</TableCell>
-      </TableRow>
-    );
-  }
-  if (error) {
-    return (
-      <TableRow>
-        <TableCell colSpan={cols} className="h-20 text-center text-destructive">{error.message}</TableCell>
-      </TableRow>
-    );
-  }
-  if (empty) {
-    return (
-      <TableRow>
-        <TableCell colSpan={cols} className="h-20 text-center text-muted-foreground">{emptyLabel}</TableCell>
-      </TableRow>
-    );
-  }
-  return null;
+type ShareListMode = "received" | "sent" | "links";
+
+const COLLECTION_CONFIG: Record<ShareListMode, Pick<CollectionToolbarConfig, "titleKey" | "emptyTitleKey" | "emptyDescKey"> & { readonly emptyIcon: typeof Inbox }> = {
+  received: {
+    titleKey: "share.list.receivedTitle",
+    emptyIcon: Inbox,
+    emptyTitleKey: "share.empty.received",
+    emptyDescKey: "share.emptyDesc.received",
+  },
+  sent: {
+    titleKey: "share.list.sentTitle",
+    emptyIcon: Share2,
+    emptyTitleKey: "share.empty.sent",
+    emptyDescKey: "share.emptyDesc.sent",
+  },
+  links: {
+    titleKey: "share.list.linksTitle",
+    emptyIcon: Link2,
+    emptyTitleKey: "share.empty.links",
+    emptyDescKey: "share.emptyDesc.links",
+  },
+};
+
+/**
+ * Capabilities are uniformly off — shares are listed read-only and every
+ *  mutating action is injected through `getCustomActions`.
+ */
+const SHARE_CAPABILITIES: DriveFileListCapabilities = {
+  download: false,
+  share: false,
+  favorite: false,
+  rename: false,
+  delete: false,
+  batchDownload: false,
+  batchDelete: false,
+  navigateFolders: false,
+  createFolder: false,
+  upload: false,
+  createTextFile: false,
+};
+
+function shareToDisplayItem(share: DriveShare, ownerLabel: string): DisplayItem {
+  return {
+    id: share.id,
+    name: share.entryName,
+    type: share.file ? detectFileType(share.file.mimetype) : "file",
+    modified: share.updatedAt || share.createdAt,
+    ownerType: "user",
+    ownerId: share.createdBy,
+    owner: ownerLabel,
+    isFolder: false,
+    fileId: null,
+    isFavorite: false,
+    ...(share.file ? { size: share.file.size, mimeType: share.file.mimetype } : {}),
+  };
 }
 
-// ── Received: "Shared with me" ──
+/**
+ * Download a file a recipient received via a share. The content endpoint
+ *  authorizes the recipient through the share grant, so the minimal entry
+ *  shape the downloader needs is reconstructed from the share view.
+ */
+function downloadReceivedShare(share: DriveShare): void {
+  void downloadDriveEntry({
+    id: share.driveEntryId,
+    ownerType: "user",
+    ownerId: "",
+    parentEntryId: null,
+    type: "file",
+    name: share.entryName,
+    favorite: false,
+    status: "normal",
+    createdAt: share.createdAt,
+    updatedAt: share.updatedAt,
+    file: share.file ? { referenceId: "", fileId: "", ...share.file } : null,
+  });
+}
 
-export function ReceivedSharesList() {
+function ShareListSurface({
+  mode,
+  shares,
+  loading,
+  onRefresh,
+}: {
+  readonly mode: ShareListMode;
+  readonly shares: readonly DriveShare[];
+  readonly loading: boolean;
+  readonly onRefresh: () => void;
+}) {
   const { t } = useTranslation("drive");
-  const query = useReceivedShares();
-  const shares = query.data ?? [];
+  const revoke = useRevokeShare();
+  const { copy } = useClipboard();
+  const usersQuery = useVisibleUsers();
 
-  const download = (share: DriveShare) => {
-    // The content endpoint authorizes the recipient through the share grant;
-    // build the minimal entry view the downloader needs.
-    void downloadDriveEntry({
-      id: share.driveEntryId,
-      ownerType: "user",
-      ownerId: "",
-      parentEntryId: null,
-      type: "file",
-      name: share.entryName,
-      favorite: false,
-      status: "normal",
-      createdAt: share.createdAt,
-      updatedAt: share.updatedAt,
-      file: share.file ? { referenceId: "", fileId: "", ...share.file } : null,
+  const userNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const user of usersQuery.data ?? [])
+      map.set(user.id, user.name || user.username);
+    return map;
+  }, [usersQuery.data]);
+
+  const ownerLabel = useCallback((share: DriveShare): string => {
+    if (mode === "sent")
+      return share.shareType === "public_link" ? t("share.publicLink") : (userNames.get(share.sharedWithUserId ?? "") ?? share.sharedWithUserId ?? "—");
+    if (mode === "links")
+      return t("share.publicLink");
+    return userNames.get(share.createdBy) ?? share.createdBy;
+  }, [mode, t, userNames]);
+
+  const shareMap = useMemo(() => new Map(shares.map(share => [share.id, share])), [shares]);
+  const items = useMemo(
+    () => shares.map(share => shareToDisplayItem(share, ownerLabel(share))),
+    [shares, ownerLabel],
+  );
+
+  const getCustomActions = useCallback((item: DisplayItem): FileListAction[] => {
+    const share = shareMap.get(item.id);
+    if (!share)
+      return [];
+
+    if (mode === "received") {
+      if (share.file && share.permission !== "view") {
+        return [{
+          key: "download",
+          label: t("share.action.download"),
+          icon: <Download className="mr-2 size-4" />,
+          onSelect: () => downloadReceivedShare(share),
+        }];
+      }
+      return [];
+    }
+
+    const actions: FileListAction[] = [];
+    if (share.shareType === "public_link") {
+      actions.push({
+        key: "copy-link",
+        label: t("share.action.copyLink"),
+        icon: <Copy className="mr-2 size-4" />,
+        onSelect: () => copy(buildPublicShareUrl(share.token)),
+      });
+    }
+    actions.push({
+      key: "revoke",
+      label: t("share.action.revoke"),
+      icon: <Trash2 className="mr-2 size-4" />,
+      variant: "destructive",
+      onSelect: () => revoke.mutate(share.id),
     });
+    return actions;
+  }, [copy, mode, revoke, shareMap, t]);
+
+  const config = COLLECTION_CONFIG[mode];
+  const actions: DriveFileListSurfaceActions = {
+    onRefresh,
+    onNavigateToFolder: () => undefined,
+    onDownload: () => undefined,
+    onShare: () => undefined,
+    onDelete: () => undefined,
+    onBatchDelete: () => undefined,
+    onPreview: () => undefined,
+    onRename: () => undefined,
+    onFavoriteChange: () => undefined,
+    getCustomActions,
   };
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("share.col.name")}</TableHead>
-          <TableHead className="hidden w-28 md:table-cell">{t("share.col.size")}</TableHead>
-          <TableHead className="w-28">{t("share.col.permission")}</TableHead>
-          <TableHead className="w-12 text-right">{t("share.col.actions")}</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        <ListState loading={query.isLoading} error={query.error} empty={shares.length === 0} emptyLabel={t("share.empty.received")} cols={4} />
-        {shares.map(share => (
-          <TableRow key={share.id}>
-            <TableCell className="min-w-0 truncate">{share.entryName}</TableCell>
-            <TableCell className="hidden text-muted-foreground md:table-cell">{share.file ? formatBytes(share.file.size) : "-"}</TableCell>
-            <TableCell><PermissionBadge permission={share.permission} /></TableCell>
-            <TableCell className="text-right">
-              {share.permission !== "view" && share.file && (
-                <Button type="button" variant="ghost" size="icon-sm" title={t("share.action.download")} onClick={() => download(share)}>
-                  <Download className="size-4" />
-                </Button>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <div className="flex h-full min-h-96 flex-col">
+      <DriveFileListSurface
+        items={items}
+        loading={loading}
+        viewModeStorageKey="drive.shareList.viewMode"
+        toolbar={{
+          kind: "collection",
+          titleKey: config.titleKey,
+          emptyIcon: config.emptyIcon,
+          emptyTitleKey: config.emptyTitleKey,
+          emptyDescKey: config.emptyDescKey,
+        }}
+        capabilities={SHARE_CAPABILITIES}
+        actions={actions}
+      />
+    </div>
   );
 }
 
-// ── Sent: "Shared by me" ──
+// ── Public exports wired by the drive page ──
+
+export function ReceivedSharesList() {
+  const query = useReceivedShares();
+  return (
+    <ShareListSurface
+      mode="received"
+      shares={query.data ?? []}
+      loading={query.isLoading}
+      onRefresh={() => void query.refetch()}
+    />
+  );
+}
 
 export function SentSharesList() {
-  const { t } = useTranslation("drive");
   const query = useSentShares();
-  const revoke = useRevokeShare();
-  const shares = query.data ?? [];
-
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("share.col.name")}</TableHead>
-          <TableHead className="hidden w-28 md:table-cell">{t("share.col.type")}</TableHead>
-          <TableHead className="w-28">{t("share.col.permission")}</TableHead>
-          <TableHead className="w-12 text-right">{t("share.col.actions")}</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        <ListState loading={query.isLoading} error={query.error} empty={shares.length === 0} emptyLabel={t("share.empty.sent")} cols={4} />
-        {shares.map(share => (
-          <TableRow key={share.id}>
-            <TableCell className="min-w-0 truncate">{share.entryName}</TableCell>
-            <TableCell className="hidden md:table-cell">
-              <Badge variant="outline">{t(`share.type.${share.shareType}`)}</Badge>
-            </TableCell>
-            <TableCell><PermissionBadge permission={share.permission} /></TableCell>
-            <TableCell className="text-right">
-              <Button type="button" variant="ghost" size="icon-sm" title={t("share.action.revoke")} disabled={revoke.isPending} onClick={() => revoke.mutate(share.id)}>
-                <Trash2 className="size-4 text-destructive" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <ShareListSurface
+      mode="sent"
+      shares={query.data ?? []}
+      loading={query.isLoading}
+      onRefresh={() => void query.refetch()}
+    />
   );
 }
 
-// ── Public links ──
-
 export function PublicLinksList() {
-  const { t } = useTranslation("drive");
   const query = usePublicLinks();
-  const revoke = useRevokeShare();
-  const { copied, copy } = useClipboard();
-  const links = query.data ?? [];
-
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("share.col.name")}</TableHead>
-          <TableHead className="w-28">{t("share.col.permission")}</TableHead>
-          <TableHead className="hidden w-28 md:table-cell">{t("share.col.downloads")}</TableHead>
-          <TableHead className="hidden w-44 lg:table-cell">{t("share.col.expires")}</TableHead>
-          <TableHead className="w-24 text-right">{t("share.col.actions")}</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        <ListState loading={query.isLoading} error={query.error} empty={links.length === 0} emptyLabel={t("share.empty.links")} cols={5} />
-        {links.map(link => (
-          <TableRow key={link.id}>
-            <TableCell className="min-w-0 truncate">
-              <span className="flex min-w-0 items-center gap-2">
-                <Link2 className="size-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">{link.entryName}</span>
-              </span>
-            </TableCell>
-            <TableCell><PermissionBadge permission={link.permission} /></TableCell>
-            <TableCell className="hidden text-muted-foreground md:table-cell">
-              {link.downloadCount}
-              {link.maxDownloads !== null ? ` / ${link.maxDownloads}` : ""}
-            </TableCell>
-            <TableCell className="hidden text-muted-foreground lg:table-cell">
-              {link.expiresAt ? formatDate(link.expiresAt) : t("share.noExpiry")}
-            </TableCell>
-            <TableCell className="text-right">
-              <span className="inline-flex items-center justify-end gap-1">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={(
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          title={t("share.action.copyLink")}
-                          onClick={() => copy(buildPublicShareUrl(link.token))}
-                        />
-                      )}
-                    >
-                      <Copy className="size-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>{copied ? t("share.copied") : t("share.action.copyLink")}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <Button type="button" variant="ghost" size="icon-sm" title={t("share.action.revoke")} disabled={revoke.isPending} onClick={() => revoke.mutate(link.id)}>
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
-              </span>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <ShareListSurface
+      mode="links"
+      shares={query.data ?? []}
+      loading={query.isLoading}
+      onRefresh={() => void query.refetch()}
+    />
   );
 }

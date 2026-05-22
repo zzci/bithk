@@ -156,7 +156,10 @@
       "removePassword": "Remove password",
       "updateLink": "Update link",
       "revoke": "Revoke",
-      "download": "Download"
+      "download": "Download",
+      "update": "Update",
+      "done": "Done",
+      "remove": "Remove"
     },
     "linkReady": "Public link",
     "copied": "Copied",
@@ -177,6 +180,33 @@
       "received": "Nothing shared with you",
       "sent": "You have not shared anything",
       "links": "No public links"
+    },
+    "heading": "Share",
+    "peopleWithAccess": "People with access",
+    "addPeoplePlaceholder": "Add people",
+    "youSuffix": "(you)",
+    "owner": "Owner",
+    "generalAccess": "General access",
+    "linkRestricted": "Restricted",
+    "linkRestrictedDesc": "Only people with access can open",
+    "linkAnyone": "Anyone with the link",
+    "publicLinkReadOnlyDesc": "Anyone with the link can view",
+    "publicLinkOptions": "Link options",
+    "publicLink": "Public link",
+    "expiration": "Expiration",
+    "expiresNever": "Never",
+    "expires1Day": "1 day",
+    "expires7Days": "7 days",
+    "expires30Days": "30 days",
+    "list": {
+      "receivedTitle": "Shared with me",
+      "sentTitle": "Shared by me",
+      "linksTitle": "Public links"
+    },
+    "emptyDesc": {
+      "received": "Files other people share with you appear here",
+      "sent": "Files you share with others appear here",
+      "links": "Public links you create appear here"
     }
   },
   "team": {
