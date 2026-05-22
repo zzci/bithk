@@ -27,10 +27,10 @@ import {
 import {
   useCreateDriveFolder,
   useCreateTextFile,
-  useUploadDriveFile,
 } from "@/shared/lib/api/drive";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
+import { useDriveUploader } from "./-drive-upload";
 import { CreateFolderDialog, CreateTextFileDialog } from "./-entry-create-dialogs";
 
 export type DriveView
@@ -92,7 +92,7 @@ export function DriveSidebar({
   // so the new entry/upload is visible.
   const createFolder = useCreateDriveFolder();
   const createTextFile = useCreateTextFile();
-  const uploadFile = useUploadDriveFile();
+  const enqueueUploads = useDriveUploader();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dialog, setDialog] = useState<"folder" | "text" | null>(null);
 
@@ -103,8 +103,7 @@ export function DriveSidebar({
     const list = files ? Array.from(files) : [];
     event.currentTarget.value = "";
     if (list.length > 0 && rootOwner) {
-      for (const file of list)
-        uploadFile.mutate({ file, ...rootOwner });
+      enqueueUploads(list, rootOwner);
       onSelect("my-files");
     }
   };

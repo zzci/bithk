@@ -19,6 +19,7 @@ import { useAuthStore } from "@/shared/stores/auth";
 
 import { DriveEntryListView } from "./-drive-entry-list";
 import { DriveSidebar } from "./-drive-sidebar";
+import { DriveUploadPanel } from "./-drive-upload-panel";
 import { FileBrowser } from "./-file-browser";
 import { FilePreviewDialog } from "./-file-preview-dialog";
 import { ShareDialog } from "./-share-dialog";
@@ -171,6 +172,8 @@ function DrivePage() {
           onOpenChange={open => !open && setPreviewEntry(null)}
         />
       )}
+
+      <DriveUploadPanel />
     </TooltipProvider>
   );
 }

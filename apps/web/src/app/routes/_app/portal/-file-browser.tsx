@@ -28,10 +28,10 @@ import {
   useDriveEntries,
   useTrashDriveEntry,
   useUpdateDriveEntry,
-  useUploadDriveFile,
 } from "@/shared/lib/api/drive";
 import { cn } from "@/shared/lib/utils";
 import { DriveFileListSurface } from "./-drive-file-list-surface";
+import { useDriveUploader } from "./-drive-upload";
 import {
   CreateFolderDialog,
   CreateTextFileDialog,
@@ -86,14 +86,13 @@ export function FileBrowser({
 
   const createFolder = useCreateDriveFolder();
   const createTextFile = useCreateTextFile();
-  const uploadFile = useUploadDriveFile();
+  const enqueueUploads = useDriveUploader();
   const updateEntry = useUpdateDriveEntry();
   const trashEntry = useTrashDriveEntry();
 
   const error = entriesQuery.error
     ?? createFolder.error
     ?? createTextFile.error
-    ?? uploadFile.error
     ?? updateEntry.error
     ?? trashEntry.error;
 
@@ -116,9 +115,8 @@ export function FileBrowser({
   const closeDialog = useCallback(() => setDialog(null), []);
 
   const uploadFiles = useCallback((files: readonly File[]) => {
-    for (const file of files)
-      uploadFile.mutate({ file, parentEntryId, ownerType, ownerId });
-  }, [uploadFile, parentEntryId, ownerType, ownerId]);
+    enqueueUploads(files, { ownerType, ownerId, parentEntryId });
+  }, [enqueueUploads, parentEntryId, ownerType, ownerId]);
 
   const onUploadInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.currentTarget.files;
