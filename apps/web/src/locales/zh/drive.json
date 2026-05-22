@@ -150,7 +150,10 @@
       "removePassword": "移除密码",
       "updateLink": "更新链接",
       "revoke": "撤销",
-      "download": "下载"
+      "download": "下载",
+      "update": "更新",
+      "done": "完成",
+      "remove": "移除"
     },
     "linkReady": "公开链接",
     "copied": "已复制",
@@ -171,6 +174,33 @@
       "received": "没有收到分享",
       "sent": "你还没有分享任何内容",
       "links": "没有公开链接"
+    },
+    "heading": "分享",
+    "peopleWithAccess": "有权访问的人",
+    "addPeoplePlaceholder": "添加用户",
+    "youSuffix": "（你）",
+    "owner": "所有者",
+    "generalAccess": "通用访问权限",
+    "linkRestricted": "受限",
+    "linkRestrictedDesc": "仅限有权访问的人打开",
+    "linkAnyone": "知道链接的任何人",
+    "publicLinkReadOnlyDesc": "知道链接的任何人均可查看",
+    "publicLinkOptions": "链接选项",
+    "publicLink": "公开链接",
+    "expiration": "有效期",
+    "expiresNever": "永不过期",
+    "expires1Day": "1 天",
+    "expires7Days": "7 天",
+    "expires30Days": "30 天",
+    "list": {
+      "receivedTitle": "与我共享",
+      "sentTitle": "我的共享",
+      "linksTitle": "公开链接"
+    },
+    "emptyDesc": {
+      "received": "他人与你共享的文件会显示在这里",
+      "sent": "你共享给他人的文件会显示在这里",
+      "links": "你创建的公开链接会显示在这里"
     }
   },
   "team": {
