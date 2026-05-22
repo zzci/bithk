@@ -12,7 +12,6 @@
   "deleteConfirm": "Are you sure you want to delete the document \"{{title}}\"? This action cannot be undone.",
   "searchPlaceholder": "Search by title or content...",
   "untitledPlaceholder": "Untitled",
-  "shareComingSoon": "Sharing is coming soon.",
   "tagsPlaceholder": "Add tag...",
   "totalCount": "{{count}} documents",
   "noResults": "No documents found.",

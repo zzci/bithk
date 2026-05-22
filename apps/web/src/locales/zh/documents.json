@@ -12,7 +12,6 @@
   "deleteConfirm": "确定要删除文档「{{title}}」吗？此操作无法撤销。",
   "searchPlaceholder": "按标题或内容搜索...",
   "untitledPlaceholder": "无标题",
-  "shareComingSoon": "分享功能即将推出。",
   "tagsPlaceholder": "添加标签...",
   "totalCount": "{{count}} 个文档",
   "noResults": "未找到文档。",

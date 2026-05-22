@@ -32,6 +32,7 @@ import {
   parseTags,
   useDeleteDocument,
   useDocument,
+  useDocumentGroups,
   useDocumentUsers,
   useUpdateDocument,
 } from "@/shared/lib/api/documents";
@@ -41,6 +42,7 @@ import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { formatLongDate } from "./-documents-shared";
 import { TagsRow } from "./-documents-tags";
+import { ShareDialog } from "./documents/-sections";
 
 export function DocumentDetail({
   docId,
@@ -52,6 +54,7 @@ export function DocumentDetail({
   const { t } = useTranslation("documents");
   const docQuery = useDocument(docId);
   const usersQuery = useDocumentUsers();
+  const groupsQuery = useDocumentGroups();
   const updateMutation = useUpdateDocument();
   const deleteMutation = useDeleteDocument();
   const user = useAuthStore(s => s.user);
@@ -86,6 +89,7 @@ export function DocumentDetail({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   // When the in-body H1 scrolls out of view, surface a shrunken copy
   // in the header's left slot. The body div is the scroll root, so the
   // observer needs `root` set to it (not the viewport).
@@ -192,7 +196,7 @@ export function DocumentDetail({
   };
 
   const handleShare = () => {
-    toast(t("shareComingSoon"));
+    setShareOpen(true);
   };
 
   const handleDelete = () => {
@@ -419,6 +423,16 @@ export function DocumentDetail({
         pending={deleteMutation.isPending}
         onConfirm={handleDelete}
       />
+
+      {shareOpen && (
+        <ShareDialog
+          doc={doc}
+          users={usersQuery.data ?? []}
+          groups={groupsQuery.data ?? []}
+          userMap={userMap}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
     </div>
   );
 }
