@@ -72,7 +72,7 @@ describe("createPublicLink", () => {
     const view = await createPublicLink(db, { documentId: docId, createdBy: userId });
 
     expect(view.documentId).toBe(docId);
-    expect(view.token).toHaveLength(64);
+    expect(view.token).toHaveLength(10);
     expect(view.isActive).toBe(true);
     expect(view.hasPassword).toBe(false);
     expect(view.expiresAt).toBeNull();

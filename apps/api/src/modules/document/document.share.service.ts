@@ -21,10 +21,9 @@ export interface DocumentPublicLinkView {
   readonly updatedAt: string;
 }
 
-/** 256-bit url-safe random token — unguessable, unique per link. */
+/** Short url-safe token — `nanoid(10)`, unguessable and unique per link. */
 function generatePublicLinkToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+  return nanoid(10);
 }
 
 /** A public link is expired once its (optional) `expiresAt` is in the past. */

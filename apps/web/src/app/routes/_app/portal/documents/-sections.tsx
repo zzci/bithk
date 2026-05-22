@@ -183,7 +183,7 @@ export function ShareDialog({
           </div>
         </div>
 
-        <div className="space-y-2 mt-2">
+        <div className="min-w-0 space-y-2 mt-2">
           {sharesQuery.isLoading
             ? <div className="text-sm text-muted-foreground text-center py-3">{t("common.loading")}</div>
             : shares.length === 0
@@ -327,7 +327,7 @@ function PublicLinkSection({ docId }: { readonly docId: string }) {
   };
 
   return (
-    <div className="space-y-3 border-t pt-3">
+    <div className="min-w-0 space-y-3 border-t pt-3">
       <div className="flex items-center gap-2">
         <Globe className="size-4 text-muted-foreground" />
         <div className="min-w-0">
