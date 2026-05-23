@@ -996,7 +996,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
           {kind === "markdown" && !loading && (
             markdownEditing
               ? (
-                  <div className="-mt-3 flex h-full min-h-0 flex-col overflow-y-auto bg-background">
+                  <div className="-mt-4 flex h-full min-h-0 flex-col overflow-y-auto bg-background">
                     <MarkdownEditor
                       value={content}
                       onChange={setContent}
