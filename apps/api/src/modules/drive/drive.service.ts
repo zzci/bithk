@@ -296,6 +296,7 @@ export async function createDriveTextFile(
     ownerId: id,
     uploadedBy: input.createdBy,
     allowAnyType: true,
+    allowEmpty: true,
   });
 
   try {

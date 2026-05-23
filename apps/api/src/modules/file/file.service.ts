@@ -42,6 +42,12 @@ export interface UploadInput {
    * uploads cannot be executed inline.
    */
   readonly allowAnyType?: boolean | undefined;
+  /**
+   * Permit a zero-byte file. Server-generated text files (the drive "new
+   * document" flow) are created empty and filled in via the editor
+   * afterwards. The per-file ceiling still applies.
+   */
+  readonly allowEmpty?: boolean | undefined;
 }
 
 export interface UploadResult {
@@ -67,7 +73,7 @@ export async function uploadAndReference(
 ): Promise<UploadResult> {
   const { file, ownerType, ownerId, uploadedBy } = input;
 
-  if (!isWithinFileSize(file.size, config)) {
+  if (!isWithinFileSize(file.size, config) && !(input.allowEmpty && file.size === 0)) {
     throw new AppError("File size exceeds per-file limit", 400, "FILE_TOO_LARGE");
   }
   if (!input.allowAnyType && !ALLOWED_MIMETYPES.test(file.type)) {

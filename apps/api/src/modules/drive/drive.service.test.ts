@@ -171,6 +171,13 @@ describe("createDriveTextFile", () => {
     expect(entry.file?.size).toBe("line one\nline two".length);
   });
 
+  test("allows empty content (new-document flow fills it in later)", async () => {
+    const owner = await seedUser("Owner");
+    const entry = await createDriveTextFile(db, config, { ...personal(owner), createdBy: owner, name: "blank.txt", content: "" });
+    expect(entry.type).toBe("file");
+    expect(entry.file?.size).toBe(0);
+  });
+
   test("rejects illegal names", async () => {
     const owner = await seedUser("Owner");
     const create = (name: string) =>
