@@ -7,9 +7,10 @@
 // Mirrors the unauth backend at `/api/drive/shared/:token(/list|/file/:id)`.
 
 import type { FormEvent } from "react";
-import type { DriveEntry, PublicShareListing, PublicShareMetadata } from "@/shared/lib/api/drive";
+import type { DisplayItem } from "./_app/portal/-file-browser-types";
+import type { DriveEntry, PublicShareEntry, PublicShareListing, PublicShareMetadata } from "@/shared/lib/api/drive";
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRight, Download, Eye, FileText, Folder, Loader2, Lock, ShieldAlert } from "lucide-react";
+import { Download, Eye, FileText, Folder, Loader2, Lock, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +21,8 @@ import { Input } from "@/shared/components/ui/input";
 import { downloadPublicShareFile, listPublicShareEntries, usePublicShare } from "@/shared/lib/api/drive";
 import { errorMessage } from "@/shared/lib/errors";
 import { httpRaw } from "@/shared/lib/http";
+import { DriveFileListSurface } from "./_app/portal/-drive-file-list-surface";
+import { detectFileType } from "./_app/portal/-file-browser-types";
 import { FilePreviewDialog, resolvePreviewKind } from "./_app/portal/-file-preview-dialog";
 
 export const Route = createFileRoute("/drive/shared/$token")({
@@ -37,6 +40,40 @@ function formatBytes(value: number): string {
     i++;
   }
   return `${size.toFixed(1)} ${units[i]}`;
+}
+
+/** Minimal `DriveEntry` the in-app viewer needs; bytes come from a fetch override. */
+function buildPreviewEntry(parts: { id: string; name: string; mimetype: string; size: number }): DriveEntry {
+  return {
+    id: parts.id,
+    ownerType: "user",
+    ownerId: "",
+    parentEntryId: null,
+    type: "file",
+    name: parts.name,
+    favorite: false,
+    status: "normal",
+    createdAt: "",
+    updatedAt: "",
+    file: { referenceId: "", fileId: "", filename: parts.name, mimetype: parts.mimetype, size: parts.size },
+  };
+}
+
+/** Map a public listing entry to the shared list surface's display shape. */
+function publicEntryToItem(entry: PublicShareEntry): DisplayItem {
+  return {
+    id: entry.id,
+    name: entry.name,
+    type: entry.type === "folder" ? "folder" : detectFileType(entry.mimetype ?? ""),
+    modified: "",
+    ownerType: "user",
+    ownerId: "",
+    isFolder: entry.type === "folder",
+    fileId: entry.type === "file" ? entry.id : null,
+    isFavorite: false,
+    ...(entry.size != null ? { size: entry.size } : {}),
+    ...(entry.mimetype ? { mimeType: entry.mimetype } : {}),
+  };
 }
 
 function Shell({ children, wide }: { readonly children: React.ReactNode; readonly wide?: boolean }) {
@@ -115,19 +152,10 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
   }, [token, meta.requiresPassword, password]);
 
   // Minimal entry shape the viewer needs; bytes come from `fetchContent`.
-  const previewEntry = useMemo<DriveEntry>(() => ({
-    id: meta.token,
-    ownerType: "user",
-    ownerId: "",
-    parentEntryId: null,
-    type: "file",
-    name: meta.filename,
-    favorite: false,
-    status: "normal",
-    createdAt: "",
-    updatedAt: "",
-    file: { referenceId: "", fileId: "", filename: meta.filename, mimetype: meta.mimetype, size: meta.size },
-  }), [meta.token, meta.filename, meta.mimetype, meta.size]);
+  const previewEntry = useMemo<DriveEntry>(
+    () => buildPreviewEntry({ id: meta.token, name: meta.filename, mimetype: meta.mimetype, size: meta.size }),
+    [meta.token, meta.filename, meta.mimetype, meta.size],
+  );
 
   const handleDownload = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -231,6 +259,26 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
     // eslint-disable-next-line react/exhaustive-deps -- password is captured intentionally; reloads are driven by parentEntryId/unlock.
   }, [unlocked, parentEntryId]);
 
+  // Inline preview of a file inside the shared folder. Bytes are fetched from
+  // the subtree-scoped per-file endpoint; `previewFetch` stays stable per file
+  // so the viewer's load effect doesn't loop.
+  const [previewItem, setPreviewItem] = useState<PublicShareEntry | null>(null);
+  const previewFetch = useCallback(async (signal: AbortSignal): Promise<Blob> => {
+    const id = previewItem?.id;
+    if (!id)
+      throw new Error("no file");
+    const res = await httpRaw(`/drive/shared/${encodeURIComponent(token)}/file/${encodeURIComponent(id)}`, {
+      method: "POST",
+      body: JSON.stringify(meta.requiresPassword ? { password } : {}),
+      signal,
+    });
+    return res.blob();
+  }, [token, previewItem?.id, meta.requiresPassword, password]);
+  const previewEntry = useMemo<DriveEntry | null>(
+    () => previewItem ? buildPreviewEntry({ id: previewItem.id, name: previewItem.name, mimetype: previewItem.mimetype ?? "", size: previewItem.size ?? 0 }) : null,
+    [previewItem],
+  );
+
   if (!unlocked) {
     return (
       <Shell>
@@ -258,65 +306,68 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
     );
   }
 
+  const breadcrumb = listing?.breadcrumb ?? [{ id: meta.token, name: meta.filename }];
+  const folderPath = breadcrumb.map((crumb, i) => ({ id: i === 0 ? null : crumb.id, name: crumb.name }));
+  const items = (listing?.entries ?? []).map(publicEntryToItem);
+  const entryById = new Map((listing?.entries ?? []).map(entry => [entry.id, entry]));
+  const pwd = meta.requiresPassword ? password : undefined;
+
   return (
     <Shell wide>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-1 text-sm">
-          {(listing?.breadcrumb ?? [{ id: meta.token, name: meta.filename }]).map((crumb, i, arr) => (
-            <span key={crumb.id} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground/60" />}
-              <button
-                type="button"
-                onClick={() => setParentEntryId(i === 0 ? undefined : crumb.id)}
-                className={i === arr.length - 1 ? "font-medium" : "text-muted-foreground hover:text-foreground"}
-              >
-                {crumb.name}
-              </button>
-            </span>
-          ))}
-        </div>
-
-        {error && <p className="text-sm text-destructive">{error}</p>}
-
-        {loading
-          ? (
-              <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
-                <Loader2 className="size-5 animate-spin" />
-                {t("common:common.loading")}
-              </div>
-            )
-          : (listing?.entries.length ?? 0) === 0
-              ? <div className="py-10 text-center text-sm text-muted-foreground">{t("picker.empty")}</div>
-              : (
-                  <ul className="flex flex-col gap-0.5">
-                    {listing!.entries.map(entry => (
-                      <li key={entry.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (entry.type === "folder")
-                              setParentEntryId(entry.id);
-                            else
-                              void downloadPublicShareFile(token, entry.id, entry.name, meta.requiresPassword ? password : undefined);
-                          }}
-                          className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/40"
-                        >
-                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            {entry.type === "folder" ? <Folder className="size-4" /> : <FileText className="size-4" />}
-                          </div>
-                          <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
-                          {entry.type === "file" && (
-                            <>
-                              <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(entry.size ?? 0)}</span>
-                              <Download className="size-4 shrink-0 text-muted-foreground" />
-                            </>
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      <div className="h-[70vh]">
+        <DriveFileListSurface
+          items={items}
+          loading={loading}
+          toolbar={{
+            kind: "folder",
+            variant: "compact",
+            ownerType: "user",
+            folderPath,
+            showCreateActions: false,
+            onNavigateToBreadcrumb: index => setParentEntryId(index === 0 ? undefined : breadcrumb[index]?.id),
+          }}
+          capabilities={{
+            download: true,
+            navigateFolders: true,
+            share: false,
+            favorite: false,
+            rename: false,
+            delete: false,
+            batchDownload: false,
+            batchDelete: false,
+            upload: false,
+            createFolder: false,
+            createTextFile: false,
+          }}
+          actions={{
+            onRefresh: () => void load(parentEntryId, password),
+            onNavigateToFolder: entryId => setParentEntryId(entryId),
+            onDownload: (fileId, fileName) => void downloadPublicShareFile(token, fileId, fileName, pwd),
+            onShare: () => undefined,
+            onDelete: () => undefined,
+            onBatchDelete: () => undefined,
+            onPreview: (item) => {
+              const entry = entryById.get(item.id);
+              if (entry?.type === "file")
+                setPreviewItem(entry);
+            },
+            onRename: () => undefined,
+            onFavoriteChange: () => undefined,
+          }}
+        />
       </div>
+
+      {previewEntry && (
+        <FilePreviewDialog
+          entry={previewEntry}
+          open
+          readOnly
+          fetchContent={previewFetch}
+          onDownload={() => previewItem && void downloadPublicShareFile(token, previewItem.id, previewItem.name, pwd)}
+          onOpenChange={open => !open && setPreviewItem(null)}
+        />
+      )}
     </Shell>
   );
 }
