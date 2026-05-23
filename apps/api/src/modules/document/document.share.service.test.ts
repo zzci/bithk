@@ -88,12 +88,29 @@ describe("createPublicLink", () => {
     expect(createPublicLink(db, { documentId: "missing", createdBy: userId })).rejects.toThrow("not found");
   });
 
-  test("mints unique tokens across links", async () => {
+  test("mints unique tokens across documents", async () => {
+    const userId = await seedUser("Alice");
+    const docA = await seedDocument(userId);
+    const docB = await seedDocument(userId);
+    const a = await createPublicLink(db, { documentId: docA, createdBy: userId });
+    const b = await createPublicLink(db, { documentId: docB, createdBy: userId });
+    expect(a.token).not.toBe(b.token);
+  });
+
+  test("rejects a second active public link for the same document", async () => {
     const userId = await seedUser("Alice");
     const docId = await seedDocument(userId);
-    const a = await createPublicLink(db, { documentId: docId, createdBy: userId });
-    const b = await createPublicLink(db, { documentId: docId, createdBy: userId });
-    expect(a.token).not.toBe(b.token);
+    await createPublicLink(db, { documentId: docId, createdBy: userId });
+    expect(createPublicLink(db, { documentId: docId, createdBy: userId })).rejects.toThrow();
+  });
+
+  test("allows a new link once the existing one is revoked", async () => {
+    const userId = await seedUser("Alice");
+    const docId = await seedDocument(userId);
+    const first = await createPublicLink(db, { documentId: docId, createdBy: userId });
+    await revokePublicLink(db, first.id, userId);
+    const second = await createPublicLink(db, { documentId: docId, createdBy: userId });
+    expect(second.token).not.toBe(first.token);
   });
 });
 
@@ -194,10 +211,13 @@ describe("revokePublicLink", () => {
 });
 
 describe("listPublicLinks", () => {
-  test("returns the document's links newest-first, free of password hashes", async () => {
+  test("returns the document's links (active + revoked) newest-first, free of password hashes", async () => {
     const userId = await seedUser("Alice");
     const docId = await seedDocument(userId);
-    await createPublicLink(db, { documentId: docId, createdBy: userId, password: "pw" });
+    // Only one active link is allowed at a time, so revoke the first before
+    // minting a second — the list still returns both rows (history).
+    const first = await createPublicLink(db, { documentId: docId, createdBy: userId, password: "pw" });
+    await revokePublicLink(db, first.id, userId);
     await createPublicLink(db, { documentId: docId, createdBy: userId });
 
     const links = await listPublicLinks(db, docId);

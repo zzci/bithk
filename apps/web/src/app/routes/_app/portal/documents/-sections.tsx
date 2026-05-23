@@ -338,52 +338,54 @@ function PublicLinkSection({ docId }: { readonly docId: string }) {
 
       <ErrorBanner message={error} />
 
-      <div className="flex gap-2">
-        <Select value={expiresIn} onValueChange={v => v && setExpiresIn(v)}>
-          <SelectTrigger size="sm" className="w-28">
-            <SelectValue>
-              {(v: string) => t(v === "never"
-                ? "publicLink.expiresNever"
-                : v === "1"
-                  ? "publicLink.expires1Day"
-                  : v === "7" ? "publicLink.expires7Days" : "publicLink.expires30Days")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="never">{t("publicLink.expiresNever")}</SelectItem>
-            <SelectItem value="1">{t("publicLink.expires1Day")}</SelectItem>
-            <SelectItem value="7">{t("publicLink.expires7Days")}</SelectItem>
-            <SelectItem value="30">{t("publicLink.expires30Days")}</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={e => setPassword(e.currentTarget.value)}
-          placeholder={t("publicLink.passwordPlaceholder")}
-          className="h-8 flex-1"
-        />
-        <Button size="sm" disabled={createLink.isPending} onClick={handleCreate}>
-          {createLink.isPending && <Loader2 className="size-4 animate-spin" />}
-          {t("publicLink.create")}
-        </Button>
-      </div>
+      {/* A document has at most one active public link: the create form only
+          shows while none exists; otherwise the link itself is rendered. */}
+      {!linksQuery.isLoading && links.length === 0 && (
+        <div className="flex gap-2">
+          <Select value={expiresIn} onValueChange={v => v && setExpiresIn(v)}>
+            <SelectTrigger size="sm" className="w-28">
+              <SelectValue>
+                {(v: string) => t(v === "never"
+                  ? "publicLink.expiresNever"
+                  : v === "1"
+                    ? "publicLink.expires1Day"
+                    : v === "7" ? "publicLink.expires7Days" : "publicLink.expires30Days")}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="never">{t("publicLink.expiresNever")}</SelectItem>
+              <SelectItem value="1">{t("publicLink.expires1Day")}</SelectItem>
+              <SelectItem value="7">{t("publicLink.expires7Days")}</SelectItem>
+              <SelectItem value="30">{t("publicLink.expires30Days")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={e => setPassword(e.currentTarget.value)}
+            placeholder={t("publicLink.passwordPlaceholder")}
+            className="h-8 flex-1"
+          />
+          <Button size="sm" disabled={createLink.isPending} onClick={handleCreate}>
+            {createLink.isPending && <Loader2 className="size-4 animate-spin" />}
+            {t("publicLink.create")}
+          </Button>
+        </div>
+      )}
 
-      <div className="space-y-2">
-        {linksQuery.isLoading
-          ? <div className="text-sm text-muted-foreground text-center py-2">{t("common.loading")}</div>
-          : links.length === 0
-            ? <div className="text-sm text-muted-foreground text-center py-2">{t("publicLink.noLinks")}</div>
-            : links.map(link => (
-                <PublicLinkRow
-                  key={link.id}
-                  link={link}
-                  onRevoke={() => handleRevoke(link.id)}
-                  disabled={revokeLink.isPending}
-                />
-              ))}
-      </div>
+      {links.length > 0 && (
+        <div className="space-y-2">
+          {links.map(link => (
+            <PublicLinkRow
+              key={link.id}
+              link={link}
+              onRevoke={() => handleRevoke(link.id)}
+              disabled={revokeLink.isPending}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -399,11 +401,16 @@ function PublicLinkRow({
 }) {
   const { t } = useTranslation("documents");
   const { copied, copy } = useClipboard();
+  const url = buildDocumentPublicLinkUrl(link.token);
   return (
-    <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{buildDocumentPublicLinkUrl(link.token)}</div>
-        <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+    <div className="space-y-2 rounded-md border px-3 py-2">
+      {/* Full URL in a scrollable monospace block — no truncation; the row
+          scrolls horizontally so the whole link stays readable. */}
+      <code className="block overflow-x-auto whitespace-nowrap rounded bg-muted px-2 py-1.5 font-mono text-xs text-foreground">
+        {url}
+      </code>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           <span>{t("publicLink.viewOnly")}</span>
           {link.hasPassword && (
             <>
@@ -417,26 +424,28 @@ function PublicLinkRow({
           <span className="text-muted-foreground/50">·</span>
           <span>{link.expiresAt ? t("publicLink.expiresOn", { date: formatExpiry(link.expiresAt) }) : t("publicLink.neverExpires")}</span>
         </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={copied ? t("publicLink.copied") : t("publicLink.copy")}
+            aria-label={t("publicLink.copy")}
+            onClick={() => copy(url)}
+          >
+            {copied ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={t("publicLink.revoke")}
+            aria-label={t("publicLink.revoke")}
+            disabled={disabled}
+            onClick={onRevoke}
+          >
+            <Trash2 className="size-4 text-destructive" />
+          </Button>
+        </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        title={copied ? t("publicLink.copied") : t("publicLink.copy")}
-        aria-label={t("publicLink.copy")}
-        onClick={() => copy(buildDocumentPublicLinkUrl(link.token))}
-      >
-        {copied ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        title={t("publicLink.revoke")}
-        aria-label={t("publicLink.revoke")}
-        disabled={disabled}
-        onClick={onRevoke}
-      >
-        <Trash2 className="size-4 text-destructive" />
-      </Button>
     </div>
   );
 }

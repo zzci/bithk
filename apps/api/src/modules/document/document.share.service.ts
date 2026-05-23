@@ -1,7 +1,7 @@
 import type { AppDatabase } from "@/db";
 import { and, desc, eq } from "drizzle-orm";
 import { items } from "@/modules/item/schema";
-import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import { documentPublicLinks } from "./schema";
 
@@ -80,6 +80,16 @@ export interface CreatePublicLinkInput {
 
 export async function createPublicLink(db: AppDatabase, input: CreatePublicLinkInput): Promise<DocumentPublicLinkView> {
   await assertDocumentExists(db, input.documentId);
+
+  // A document carries at most one active public link. Revoke the existing
+  // one before issuing a new token.
+  const existing = await db
+    .select({ id: documentPublicLinks.id })
+    .from(documentPublicLinks)
+    .where(and(eq(documentPublicLinks.documentId, input.documentId), eq(documentPublicLinks.isActive, 1)))
+    .get();
+  if (existing)
+    throw new AppError("This document already has a public link", 409, "PUBLIC_LINK_EXISTS");
 
   const id = nanoid();
   await db.insert(documentPublicLinks).values({
