@@ -52,6 +52,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Unified sharing into one `share` module backed by a single polymorphic
+  `shares` table (`resource_type` + `resource_id`, no DB FK). Replaces the
+  former per-module `document_public_links` and `drive_file_shares` tables and
+  their duplicated services/routes. Resource specifics (validation, public
+  content rendering, manage authorization) plug in through a per-resource
+  adapter registry; documents and drive register adapters via side-effect
+  imports. Management API: `/shares/:type/:id`, `/shares/:shareId`,
+  `/shares/{received,sent,links}`, `/shares/capabilities/:type`. Public access:
+  `/shared/:token` (+ `/list`, `/download[/:childId]`). Document collaborator
+  (viewer/editor) grants stay policy tuples — out of scope. Breaking: drops the
+  old tables and routes (no data migration). See FEAT-002 / PLAN-002.
+
 - Documents selection now lives in the URL as a path param
   (`/portal/documents/:docId`) via a master-detail layout that keeps the tree
   sidebar mounted across switches; creating a document (root or child) now
@@ -67,6 +79,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 - Dead `-use-drive-selection.ts` hook (selection state now lives inside the
   shared surface).
+- `document_public_links` and `drive_file_shares` tables and their
+  `*.share.service.ts` / `*.public.routes.ts` modules, superseded by the
+  unified `share` module. The former gap where `document_public_links` was
+  never included in backups is closed by the new `share` backup contribution.
 
 ### Security
 

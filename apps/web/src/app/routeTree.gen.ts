@@ -15,10 +15,9 @@ import { Route as ErrorRouteImport } from './routes/error'
 import { Route as DeniedRouteImport } from './routes/denied'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SharedTokenRouteImport } from './routes/shared.$token'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as AppPortalIndexRouteImport } from './routes/_app/portal/index'
-import { Route as DriveSharedTokenRouteImport } from './routes/drive.shared.$token'
-import { Route as DocumentsSharedTokenRouteImport } from './routes/documents.shared.$token'
 import { Route as AppPortalIssuesRouteImport } from './routes/_app/portal/issues'
 import { Route as AppPortalDriveRouteImport } from './routes/_app/portal/drive'
 import { Route as AppPortalDocumentsRouteImport } from './routes/_app/portal/documents'
@@ -64,6 +63,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SharedTokenRoute = SharedTokenRouteImport.update({
+  id: '/shared/$token',
+  path: '/shared/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppAdminRoute = AppAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -76,16 +80,6 @@ const AppPortalIndexRoute = AppPortalIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/portal/index.lazy').then((d) => d.Route),
 )
-const DriveSharedTokenRoute = DriveSharedTokenRouteImport.update({
-  id: '/drive/shared/$token',
-  path: '/drive/shared/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DocumentsSharedTokenRoute = DocumentsSharedTokenRouteImport.update({
-  id: '/documents/shared/$token',
-  path: '/documents/shared/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppPortalIssuesRoute = AppPortalIssuesRouteImport.update({
   id: '/portal/issues',
   path: '/portal/issues',
@@ -195,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/totp-verify': typeof TotpVerifyRoute
   '/admin': typeof AppAdminRouteWithChildren
+  '/shared/$token': typeof SharedTokenRoute
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/cron': typeof AppAdminCronRoute
   '/admin/policies': typeof AppAdminPoliciesRoute
@@ -203,8 +198,6 @@ export interface FileRoutesByFullPath {
   '/portal/documents': typeof AppPortalDocumentsRouteWithChildren
   '/portal/drive': typeof AppPortalDriveRoute
   '/portal/issues': typeof AppPortalIssuesRouteWithChildren
-  '/documents/shared/$token': typeof DocumentsSharedTokenRoute
-  '/drive/shared/$token': typeof DriveSharedTokenRoute
   '/portal/': typeof AppPortalIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/portal/documents/$docId': typeof AppPortalDocumentsDocIdRoute
@@ -221,13 +214,12 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/totp-verify': typeof TotpVerifyRoute
   '/admin': typeof AppAdminRouteWithChildren
+  '/shared/$token': typeof SharedTokenRoute
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/cron': typeof AppAdminCronRoute
   '/admin/policies': typeof AppAdminPoliciesRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/portal/drive': typeof AppPortalDriveRoute
-  '/documents/shared/$token': typeof DocumentsSharedTokenRoute
-  '/drive/shared/$token': typeof DriveSharedTokenRoute
   '/portal': typeof AppPortalIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/portal/documents/$docId': typeof AppPortalDocumentsDocIdRoute
@@ -246,6 +238,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/totp-verify': typeof TotpVerifyRoute
   '/_app/admin': typeof AppAdminRouteWithChildren
+  '/shared/$token': typeof SharedTokenRoute
   '/_app/admin/audit': typeof AppAdminAuditRoute
   '/_app/admin/cron': typeof AppAdminCronRoute
   '/_app/admin/policies': typeof AppAdminPoliciesRoute
@@ -254,8 +247,6 @@ export interface FileRoutesById {
   '/_app/portal/documents': typeof AppPortalDocumentsRouteWithChildren
   '/_app/portal/drive': typeof AppPortalDriveRoute
   '/_app/portal/issues': typeof AppPortalIssuesRouteWithChildren
-  '/documents/shared/$token': typeof DocumentsSharedTokenRoute
-  '/drive/shared/$token': typeof DriveSharedTokenRoute
   '/_app/portal/': typeof AppPortalIndexRoute
   '/_app/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/_app/portal/documents/$docId': typeof AppPortalDocumentsDocIdRoute
@@ -274,6 +265,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/totp-verify'
     | '/admin'
+    | '/shared/$token'
     | '/admin/audit'
     | '/admin/cron'
     | '/admin/policies'
@@ -282,8 +274,6 @@ export interface FileRouteTypes {
     | '/portal/documents'
     | '/portal/drive'
     | '/portal/issues'
-    | '/documents/shared/$token'
-    | '/drive/shared/$token'
     | '/portal/'
     | '/admin/users/groups'
     | '/portal/documents/$docId'
@@ -300,13 +290,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/totp-verify'
     | '/admin'
+    | '/shared/$token'
     | '/admin/audit'
     | '/admin/cron'
     | '/admin/policies'
     | '/admin/settings'
     | '/portal/drive'
-    | '/documents/shared/$token'
-    | '/drive/shared/$token'
     | '/portal'
     | '/admin/users/groups'
     | '/portal/documents/$docId'
@@ -324,6 +313,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/totp-verify'
     | '/_app/admin'
+    | '/shared/$token'
     | '/_app/admin/audit'
     | '/_app/admin/cron'
     | '/_app/admin/policies'
@@ -332,8 +322,6 @@ export interface FileRouteTypes {
     | '/_app/portal/documents'
     | '/_app/portal/drive'
     | '/_app/portal/issues'
-    | '/documents/shared/$token'
-    | '/drive/shared/$token'
     | '/_app/portal/'
     | '/_app/admin/users/groups'
     | '/_app/portal/documents/$docId'
@@ -351,8 +339,7 @@ export interface RootRouteChildren {
   ErrorRoute: typeof ErrorRoute
   LoginRoute: typeof LoginRoute
   TotpVerifyRoute: typeof TotpVerifyRoute
-  DocumentsSharedTokenRoute: typeof DocumentsSharedTokenRoute
-  DriveSharedTokenRoute: typeof DriveSharedTokenRoute
+  SharedTokenRoute: typeof SharedTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -399,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shared/$token': {
+      id: '/shared/$token'
+      path: '/shared/$token'
+      fullPath: '/shared/$token'
+      preLoaderRoute: typeof SharedTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/admin': {
       id: '/_app/admin'
       path: '/admin'
@@ -412,20 +406,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/'
       preLoaderRoute: typeof AppPortalIndexRouteImport
       parentRoute: typeof AppRoute
-    }
-    '/drive/shared/$token': {
-      id: '/drive/shared/$token'
-      path: '/drive/shared/$token'
-      fullPath: '/drive/shared/$token'
-      preLoaderRoute: typeof DriveSharedTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/documents/shared/$token': {
-      id: '/documents/shared/$token'
-      path: '/documents/shared/$token'
-      fullPath: '/documents/shared/$token'
-      preLoaderRoute: typeof DocumentsSharedTokenRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/_app/portal/issues': {
       id: '/_app/portal/issues'
@@ -623,8 +603,7 @@ const rootRouteChildren: RootRouteChildren = {
   ErrorRoute: ErrorRoute,
   LoginRoute: LoginRoute,
   TotpVerifyRoute: TotpVerifyRoute,
-  DocumentsSharedTokenRoute: DocumentsSharedTokenRoute,
-  DriveSharedTokenRoute: DriveSharedTokenRoute,
+  SharedTokenRoute: SharedTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatBytes, formatDate } from "./-share-lists";
+import { formatBytes, formatDate } from "./share-helpers";
 
 describe("formatBytes", () => {
   it("reports raw bytes below 1 KiB", () => {

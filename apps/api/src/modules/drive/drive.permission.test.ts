@@ -11,11 +11,14 @@ import { users } from "@/modules/account/users/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
+import { createShare } from "@/modules/share/share.service";
 import { assertEntryCapability, resolveEntryCapabilities } from "./drive.permission";
 import { createDriveFolder, uploadDriveFile } from "./drive.service";
-import { createShare } from "./drive.share.service";
 import { addTeamMember, createTeamDirectory } from "./drive.team-directory.service";
 import { driveEntries } from "./schema";
+// Side-effect import: registers the drive share adapter so `createShare` can
+// resolve `drive_entry` resources.
+import "./drive.share-adapter";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -148,7 +151,7 @@ describe("resolveEntryCapabilities — additive direct shares", () => {
     const recipient = await seedUser("Recipient");
     const file = await uploadDriveFile(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, file: textFile("doc.txt") });
     const row = (await entryRow(file.id))!;
-    await createShare(db, { entry: row, createdBy: owner, shareType: "direct", permission, sharedWithUserId: recipient });
+    await createShare(db, { resourceType: "drive_entry", resourceId: row.id, createdBy: owner, shareType: "direct", permission, sharedWithUserId: recipient });
     return { row, recipient };
   }
 

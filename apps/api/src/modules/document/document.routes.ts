@@ -37,12 +37,6 @@ import {
   softDeleteDocument,
   updateDocument,
 } from "./document.service";
-import {
-  createPublicLink,
-  listPublicLinks,
-  revokePublicLink,
-  updatePublicLink,
-} from "./document.share.service";
 
 const tagSchema = z.string().min(1).max(50).regex(/^[\w-]+$/);
 
@@ -547,140 +541,11 @@ export function documentRoutes() {
     return c.json({ success: true, data: null });
   });
 
-  // ── Public-link endpoints (owner-only, view-only links) ──
-  //
-  // Anonymous read access lives in `document.public.routes.ts` (mounted
-  // without auth). These management endpoints are owner-scoped: the
-  // route table in `document.permission.ts` binds them to
-  // `document:manage` (owner — admin gets no bypass), and we re-assert
-  // in-handler as defense in depth (see GET /documents/:id).
-
-  const createLinkSchema = z.object({
-    password: z.string().min(1).max(128).optional(),
-    expiresAt: z.string().datetime().nullable().optional(),
-  });
-
-  const updateLinkSchema = z.object({
-    password: z.string().min(1).max(128).nullable().optional(),
-    expiresAt: z.string().datetime().nullable().optional(),
-    isActive: z.boolean().optional(),
-  }).refine(d => d.password !== undefined || d.expiresAt !== undefined || d.isActive !== undefined, {
-    message: "At least one field must be provided",
-  });
-
-  async function requireManagedDocument(c: Context<AppEnv>, shortId: string) {
-    const db = c.get("db");
-    // getDocumentById filters soft-deleted rows, so a deleted document
-    // is a 404 here — public links cannot be minted for it.
-    const doc = await getDocumentById(db, shortId);
-    if (!doc)
-      throw new NotFoundError("Document", shortId);
-    const item = await resolveDocumentItem(db, shortId);
-    if (!item)
-      throw new NotFoundError("Document", shortId);
-    await documentAccess.assert(policyContext(c)!, "document:manage", item.id);
-    return { db, doc, item };
-  }
-
-  router.get("/documents/:id/public-links", async (c) => {
-    const id = c.req.param("id")!;
-    const { db, item } = await requireManagedDocument(c, id);
-    const data = await listPublicLinks(db, item.id);
-    return c.json({ success: true, data });
-  });
-
-  router.post("/documents/:id/public-links", async (c) => {
-    const id = c.req.param("id")!;
-    const { db, doc, item } = await requireManagedDocument(c, id);
-    const user = c.get("user")!;
-    const body = createLinkSchema.parse(await c.req.json().catch(() => ({})));
-
-    const link = await createPublicLink(db, {
-      documentId: item.id,
-      createdBy: user.id,
-      password: body.password,
-      expiresAt: body.expiresAt,
-    });
-
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "document.public_link_created",
-      resourceType: "document",
-      resourceId: id,
-      resourceName: doc.title,
-      detail: { linkId: link.id, hasPassword: link.hasPassword },
-      ...auditMeta(c),
-      result: "success",
-    });
-
-    return c.json({
-      success: true,
-      data: link,
-      note: "Public link grants view-only access to this document and all descendant documents.",
-    }, 201);
-  });
-
-  router.patch("/documents/:id/public-links/:linkId", async (c) => {
-    const id = c.req.param("id")!;
-    const linkId = c.req.param("linkId")!;
-    const { db, doc, item } = await requireManagedDocument(c, id);
-    const user = c.get("user")!;
-    const body = updateLinkSchema.parse(await c.req.json());
-
-    // The link must belong to this document, otherwise a manager of one
-    // document could mutate another document's link by id.
-    const links = await listPublicLinks(db, item.id);
-    if (!links.some(l => l.id === linkId))
-      throw new NotFoundError("Public link", linkId);
-
-    const updated = await updatePublicLink(db, linkId, user.id, {
-      password: body.password,
-      expiresAt: body.expiresAt,
-      isActive: body.isActive,
-    });
-
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "document.public_link_updated",
-      resourceType: "document",
-      resourceId: id,
-      resourceName: doc.title,
-      detail: { linkId, isActive: updated.isActive },
-      ...auditMeta(c),
-      result: "success",
-    });
-
-    return c.json({ success: true, data: updated });
-  });
-
-  router.delete("/documents/:id/public-links/:linkId", async (c) => {
-    const id = c.req.param("id")!;
-    const linkId = c.req.param("linkId")!;
-    const { db, doc, item } = await requireManagedDocument(c, id);
-    const user = c.get("user")!;
-
-    const links = await listPublicLinks(db, item.id);
-    if (!links.some(l => l.id === linkId))
-      throw new NotFoundError("Public link", linkId);
-
-    await revokePublicLink(db, linkId, user.id);
-
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "document.public_link_revoked",
-      resourceType: "document",
-      resourceId: id,
-      resourceName: doc.title,
-      detail: { linkId },
-      ...auditMeta(c),
-      result: "success",
-    });
-
-    return c.json({ success: true, data: null });
-  });
+  // Anonymous public-link access now lives in the unified share module
+  // (`modules/share`): public links are `shares` rows with
+  // `resource_type='document'`, managed via `/shares/document/:id` and
+  // served via `/shared/:token`. Collaborator (viewer/editor) grants above
+  // remain policy tuples.
 
   return router;
 }

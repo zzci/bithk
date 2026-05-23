@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { accessPublicDocument, getPublicDocument } from "./documents";
+import { accessPublicShare, getPublicShareMeta } from "./share";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -19,46 +19,50 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-describe("getPublicDocument", () => {
+describe("getPublicShareMeta", () => {
   it("requests share metadata and unwraps the envelope", async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
-      data: { token: "tok", title: "Doc", hasPassword: true },
+      data: {
+        token: "tok",
+        resourceType: "document",
+        name: "Doc",
+        isFolder: false,
+        permission: "view",
+        requiresPassword: true,
+        expired: false,
+        exhausted: false,
+      },
     }));
-    const meta = await getPublicDocument("tok");
-    expect(meta).toEqual({ token: "tok", title: "Doc", hasPassword: true });
+    const meta = await getPublicShareMeta("tok");
+    expect(meta.token).toBe("tok");
+    expect(meta.resourceType).toBe("document");
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toContain("/documents/shared/tok");
+    expect(String(url)).toContain("/shared/tok");
     // GET must not carry the CSRF header.
     expect((init?.headers as Record<string, string>)["X-Requested-With"]).toBeUndefined();
   });
 });
 
-describe("accessPublicDocument", () => {
-  it("sends password + docId and the CSRF header", async () => {
+describe("accessPublicShare", () => {
+  it("sends password + childId and the CSRF header", async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
-      data: {
-        token: "tok",
-        hasPassword: true,
-        document: { id: "d1", title: "Doc", content: "# hi", parentId: null },
-        attachments: [],
-        subtree: [{ id: "d1", title: "Doc", parentId: null }],
-      },
+      data: { document: { id: "d1", title: "Doc", content: "# hi" }, attachments: [], subtree: [] },
     }));
-    const content = await accessPublicDocument("tok", { password: "pw", docId: "d1" });
+    const content = await accessPublicShare<{ document: { id: string } }>("tok", { password: "pw", childId: "d1" });
     expect(content.document.id).toBe("d1");
     const init = fetchMock.mock.calls[0]![1]!;
     expect((init.headers as Record<string, string>)["X-Requested-With"]).toBe("XMLHttpRequest");
-    expect(JSON.parse(init.body as string)).toEqual({ password: "pw", docId: "d1" });
+    expect(JSON.parse(init.body as string)).toEqual({ password: "pw", childId: "d1" });
   });
 
-  it("omits password and docId when not provided", async () => {
+  it("omits password and childId when not provided", async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
-      data: { token: "tok", hasPassword: false, document: { id: "d1" }, attachments: [], subtree: [] },
+      data: { name: "file.txt", isFolder: false, file: null, permission: "download" },
     }));
-    await accessPublicDocument("tok");
+    await accessPublicShare("tok");
     const init = fetchMock.mock.calls[0]![1]!;
     expect(JSON.parse(init.body as string)).toEqual({});
   });

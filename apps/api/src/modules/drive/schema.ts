@@ -15,12 +15,6 @@ export type DriveOwnerType = typeof DRIVE_OWNER_TYPES[number];
 export const TEAM_DIRECTORY_ROLES = ["admin", "editor", "viewer"] as const;
 export type TeamDirectoryRole = typeof TEAM_DIRECTORY_ROLES[number];
 
-export const DRIVE_SHARE_TYPES = ["direct", "public_link"] as const;
-export type DriveShareType = typeof DRIVE_SHARE_TYPES[number];
-
-export const DRIVE_SHARE_PERMISSIONS = ["view", "download", "edit"] as const;
-export type DriveSharePermission = typeof DRIVE_SHARE_PERMISSIONS[number];
-
 export const driveEntries = sqliteTable("drive_entries", {
   id: text("id").primaryKey(),
   ownerType: text("owner_type", { enum: DRIVE_OWNER_TYPES }).notNull(),
@@ -82,26 +76,6 @@ export const driveFileVersions = sqliteTable("drive_file_versions", {
   index("drive_file_versions_file_reference_idx").on(table.fileReferenceId),
 ]);
 
-export const driveFileShares = sqliteTable("drive_file_shares", {
-  id: text("id").primaryKey(),
-  driveEntryId: text("drive_entry_id").notNull().references(() => driveEntries.id, { onDelete: "cascade" }),
-  token: text("token").notNull(),
-  shareType: text("share_type", { enum: DRIVE_SHARE_TYPES }).notNull().default("public_link"),
-  sharedWithUserId: text("shared_with_user_id").references(() => users.id, { onDelete: "cascade" }),
-  permission: text("permission", { enum: DRIVE_SHARE_PERMISSIONS }).notNull().default("view"),
-  password: text("password"),
-  expiresAt: text("expires_at"),
-  maxDownloads: integer("max_downloads"),
-  downloadCount: integer("download_count").notNull().default(0),
-  isActive: integer("is_active").notNull().default(1),
-  createdBy: text("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
-  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()).$onUpdateFn(() => new Date().toISOString()),
-}, table => [
-  uniqueIndex("drive_file_shares_token_idx").on(table.token),
-  index("drive_file_shares_entry_idx").on(table.driveEntryId),
-  index("drive_file_shares_created_by_idx").on(table.createdBy),
-  index("drive_file_shares_shared_with_idx").on(table.sharedWithUserId),
-  index("drive_file_shares_share_type_idx").on(table.shareType),
-  index("drive_file_shares_active_expires_idx").on(table.isActive, table.expiresAt),
-]);
+// Token-based shares (direct + public link) moved to the unified `shares`
+// table in `modules/share`. Direct-share access is resolved there by
+// `drive.permission.ts`; public links are served by the share module.

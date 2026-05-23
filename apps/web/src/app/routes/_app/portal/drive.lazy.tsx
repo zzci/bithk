@@ -11,6 +11,7 @@ import { Menu } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useShare } from "@/shared/components/share";
 import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
@@ -21,7 +22,6 @@ import { DriveSidebar } from "./-drive-sidebar";
 import { DriveUploadPanel } from "./-drive-upload-panel";
 import { FileBrowser } from "./-file-browser";
 import { FilePreviewDialog } from "./-file-preview-dialog";
-import { ShareDialog } from "./-share-dialog";
 import { OutgoingSharesList, ReceivedSharesList } from "./-share-lists";
 
 export const Route = createLazyFileRoute("/_app/portal/drive")({
@@ -64,6 +64,7 @@ function useSidebarWidth() {
 function DrivePage() {
   const { t } = useTranslation("drive");
   const user = useAuthStore(s => s.user);
+  const { openShare } = useShare();
 
   const [activeView, setActiveView] = useState<DriveView | null>("my-files");
   const [activeTeamDir, setActiveTeamDir] = useState<TeamDirectory | null>(null);
@@ -71,8 +72,11 @@ function DrivePage() {
   const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
 
   // Page-level dialog targets, driven by the file browser / list callbacks.
-  const [shareEntry, setShareEntry] = useState<DriveEntry | null>(null);
   const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
+  const shareEntry = useCallback(
+    (entry: DriveEntry) => openShare({ resourceType: "drive_entry", resourceId: entry.id, name: entry.name }),
+    [openShare],
+  );
   const [previewEditing, setPreviewEditing] = useState(false);
   // Open the preview viewer; `edit` starts it in edit mode (used after
   // creating a blank file so creation reuses the viewer's editor).
@@ -166,20 +170,13 @@ function DrivePage() {
               view={activeView}
               userId={user?.id ?? null}
               activeTeamDir={activeTeamDir}
-              onShareEntry={setShareEntry}
+              onShareEntry={shareEntry}
               onPreviewEntry={openPreview}
             />
           </div>
         </main>
       </div>
 
-      {shareEntry && (
-        <ShareDialog
-          entry={shareEntry}
-          open
-          onOpenChange={open => !open && setShareEntry(null)}
-        />
-      )}
       {previewEntry && (
         <FilePreviewDialog
           entry={previewEntry}

@@ -20,6 +20,7 @@ import { Clock, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useShare } from "@/shared/components/share";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
   downloadDriveEntry,
@@ -33,7 +34,6 @@ import {
 import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { RenameDialog } from "./-entry-create-dialogs";
 import { entryToDisplayItem } from "./-file-browser-types";
-import { ShareDialog } from "./-share-dialog";
 
 export type DriveListSource = "recent" | "favorites" | "trash";
 
@@ -151,9 +151,9 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
   const restoreEntry = useRestoreDriveEntry();
   const permanentDelete = useDeleteDriveEntryPermanently();
 
-  // Page-driven dialogs are scoped to this collection (the page only forwards a
-  // preview callback), so share/rename dialogs are owned and rendered here.
-  const [shareEntry, setShareEntry] = useState<DriveEntry | null>(null);
+  // Sharing opens the app-level dialog via useShare; the rename dialog is
+  // scoped to this collection (the page only forwards a preview callback).
+  const { openShare } = useShare();
   const [renameEntry, setRenameEntry] = useState<DriveEntry | null>(null);
 
   // Opening a folder browses it in place: the flat collection is replaced by
@@ -206,7 +206,7 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
     onShare: (entryId) => {
       const entry = entryById.get(entryId);
       if (entry)
-        setShareEntry(entry);
+        openShare({ resourceType: "drive_entry", resourceId: entry.id, name: entry.name });
     },
     // Permanent deletion is wired for trash only; recent/favorites disable the
     // delete capabilities, so these stay no-ops there to guard live entries.
@@ -246,7 +246,7 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
         setRenameEntry(entry);
     },
     onFavoriteChange: (item, favorite) => updateEntry.mutate({ id: item.id, favorite }),
-  }), [activeQuery, entryById, entryByFileId, isTrash, onPreviewEntry, permanentDelete, restoreEntry, t, updateEntry]);
+  }), [activeQuery, entryById, entryByFileId, isTrash, onPreviewEntry, openShare, permanentDelete, restoreEntry, t, updateEntry]);
 
   const error = activeQuery.error ?? updateEntry.error ?? restoreEntry.error ?? permanentDelete.error;
 
@@ -262,13 +262,6 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
         banner={error ? <div className="px-4 pt-2"><ErrorBanner message={error.message} /></div> : undefined}
       />
 
-      {shareEntry && (
-        <ShareDialog
-          entry={shareEntry}
-          open
-          onOpenChange={open => !open && setShareEntry(null)}
-        />
-      )}
       <RenameDialog
         open={renameEntry !== null}
         onOpenChange={open => !open && setRenameEntry(null)}

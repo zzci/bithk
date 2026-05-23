@@ -120,95 +120,6 @@
       "moveHere": "移动到此处"
     }
   },
-  "share": {
-    "title": "分享 \"{{name}}\"",
-    "description": "通过指定用户或链接分享此项目。",
-    "tab": {
-      "direct": "指定用户",
-      "link": "公开链接"
-    },
-    "field": {
-      "user": "用户",
-      "permission": "权限",
-      "password": "密码",
-      "expiry": "过期时间",
-      "maxDownloads": "最大下载次数"
-    },
-    "userPlaceholder": "选择用户",
-    "passwordPlaceholder": "可选密码",
-    "passwordKeep": "留空则保持不变",
-    "passwordSet": "已设置密码",
-    "unlimited": "不限",
-    "permission": {
-      "view": "查看",
-      "download": "下载",
-      "edit": "编辑"
-    },
-    "type": {
-      "direct": "指定用户",
-      "public_link": "链接"
-    },
-    "action": {
-      "share": "分享",
-      "generate": "生成链接",
-      "copyLink": "复制链接",
-      "removePassword": "移除密码",
-      "updateLink": "更新链接",
-      "revoke": "撤销",
-      "download": "下载",
-      "update": "更新",
-      "done": "完成",
-      "remove": "移除"
-    },
-    "linkReady": "公开链接",
-    "copied": "已复制",
-    "noExpiry": "永不过期",
-    "publicAnyone": "任何拥有链接的人",
-    "existing": "已有分享",
-    "col": {
-      "name": "名称",
-      "size": "大小",
-      "type": "类型",
-      "permission": "权限",
-      "downloads": "下载次数",
-      "expires": "过期时间",
-      "actions": "操作"
-    },
-    "empty": {
-      "entry": "尚未分享",
-      "received": "没有收到分享",
-      "sent": "你还没有分享任何内容",
-      "links": "没有公开链接"
-    },
-    "heading": "分享",
-    "peopleWithAccess": "有权访问的人",
-    "addPeoplePlaceholder": "添加用户",
-    "youSuffix": "（你）",
-    "owner": "所有者",
-    "categoryLabel": "分享类别",
-    "generalAccess": "通用访问权限",
-    "linkRestricted": "受限",
-    "linkRestrictedDesc": "仅限有权访问的人打开",
-    "linkAnyone": "知道链接的任何人",
-    "publicLinkReadOnlyDesc": "知道链接的任何人均可查看和下载",
-    "publicLinkOptions": "链接选项",
-    "publicLink": "公开链接",
-    "expiration": "有效期",
-    "expiresNever": "永不过期",
-    "expires1Day": "1 天",
-    "expires7Days": "7 天",
-    "expires30Days": "30 天",
-    "list": {
-      "receivedTitle": "与我共享",
-      "sentTitle": "我的共享",
-      "linksTitle": "公开链接"
-    },
-    "emptyDesc": {
-      "received": "他人与你共享的文件会显示在这里",
-      "sent": "你共享给他人的文件会显示在这里",
-      "links": "你创建的公开链接会显示在这里"
-    }
-  },
   "team": {
     "list": {
       "title": "团队目录",
@@ -251,7 +162,8 @@
       "role": "角色",
       "add": "添加成员",
       "remove": "移除",
-      "empty": "暂无成员"
+      "empty": "暂无成员",
+      "userPlaceholder": "选择用户"
     }
   },
   "preview": {
@@ -283,16 +195,5 @@
     "description": "浏览你的云盘并选择一个文件。",
     "root": "我的云盘",
     "empty": "此文件夹为空"
-  },
-  "public": {
-    "notFound": "该链接已失效。",
-    "expired": "该链接已过期。",
-    "exhausted": "该链接已达到下载次数上限。",
-    "password": "密码",
-    "passwordPlaceholder": "请输入链接密码",
-    "download": "下载",
-    "preview": "预览",
-    "downloadError": "下载失败，请检查密码后重试。",
-    "open": "打开"
   }
 }

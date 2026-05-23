@@ -1,15 +1,13 @@
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
-import { documentPublicRoutes } from "@/modules/document";
-import { drivePublicRoutes } from "@/modules/drive";
+import { sharePublicRoutes } from "@/modules/share";
 import { systemRoutes } from "@/modules/system";
 
 export function publicRoutes() {
   const app = new Hono<AppEnv>();
 
   app.route("/", systemRoutes());
-  app.route("/", drivePublicRoutes());
-  app.route("/", documentPublicRoutes());
+  app.route("/", sharePublicRoutes());
 
   return app;
 }

@@ -1,16 +1,12 @@
-/* eslint-disable react-refresh/only-export-components */
-// Drive share lists + shared share-UI helpers.
+// Share inbox/outbox lists (Shared with me / Shared by me / Public links),
+// rendered through the ONE shared `DriveFileListSurface` in collection mode.
+// Each share row maps to a `DisplayItem`; share-specific behaviour (copy
+// public link, revoke, download a received file) is injected through the
+// surface's `getCustomActions` so the surface stays presentational and never
+// learns about shares.
 //
-// The three "share inbox/outbox" lists (Shared with me / Shared by me /
-// Public links) all render through the ONE shared `DriveFileListSurface`
-// in collection mode. Each share row maps to a `DisplayItem`; share-specific
-// behaviour (copy public link, revoke, download a received file) is injected
-// through the surface's `getCustomActions` so the surface itself stays
-// presentational and never learns about shares.
-//
-// This module also exposes small primitives reused by `-share-dialog.tsx`
-// and other drive views: the public-link URL builder, a clipboard hook, the
-// visible-users picker source, and the byte/date formatters.
+// Backed by the unified `share` API (shared/lib/api/share.ts): the same lists
+// now surface shares of any resource type, not just drive entries.
 
 import type {
   CollectionToolbarConfig,
@@ -20,74 +16,23 @@ import type {
   SurfaceExtraFilter,
 } from "./-drive-file-list-surface";
 import type { DisplayItem } from "./-file-browser-types";
-import type { SimpleUser } from "@/shared/lib/api/documents";
-import type { DriveEntry, DriveShare } from "@/shared/lib/api/drive";
-import { useQuery } from "@tanstack/react-query";
+import type { DriveEntry } from "@/shared/lib/api/drive";
+import type { ShareView } from "@/shared/lib/api/share";
 import { Copy, Download, Inbox, Link2, Share2, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useClipboard, useVisibleUsers } from "@/shared/components/share/share-helpers";
+import { downloadDriveEntry } from "@/shared/lib/api/drive";
 import {
-  downloadDriveEntry,
-  usePublicLinks,
+  buildShareUrl,
+  useLinkShares,
   useReceivedShares,
   useRevokeShare,
   useSentShares,
-} from "@/shared/lib/api/drive";
-import { http } from "@/shared/lib/http";
+} from "@/shared/lib/api/share";
 import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { detectFileType } from "./-file-browser-types";
-
-// ── Shared helpers ──
-
-/** Absolute, copy-ready URL for a public share token. */
-export function buildPublicShareUrl(token: string): string {
-  return `${window.location.origin}/drive/shared/${encodeURIComponent(token)}`;
-}
-
-/** Clipboard helper with a transient "copied" flag for button feedback. */
-export function useClipboard(resetMs = 1500): {
-  readonly copied: boolean;
-  readonly copy: (text: string) => void;
-} {
-  const [copied, setCopied] = useState(false);
-  const copy = useCallback((text: string) => {
-    void navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(setCopied, resetMs, false);
-    });
-  }, [resetMs]);
-  return { copied, copy };
-}
-
-/** Visible users for the direct-share / member pickers (shared client). */
-export function useVisibleUsers() {
-  return useQuery({
-    queryKey: ["account", "visible-users"],
-    queryFn: () => http<{ readonly data: readonly SimpleUser[] }>("/account/visible-users").then(r => r.data),
-    staleTime: 30_000,
-  });
-}
-
-export function formatBytes(value: number): string {
-  if (value < 1024)
-    return `${value} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let next = value / 1024;
-  let index = 0;
-  while (next >= 1024 && index < units.length - 1) {
-    next /= 1024;
-    index += 1;
-  }
-  return `${next.toFixed(next >= 10 ? 0 : 1)} ${units[index]}`;
-}
-
-export function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime()))
-    return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
-}
 
 // ── Surface-backed share list ──
 
@@ -95,22 +40,22 @@ type ShareListMode = "received" | "sent" | "links";
 
 const COLLECTION_CONFIG: Record<ShareListMode, Pick<CollectionToolbarConfig, "titleKey" | "emptyTitleKey" | "emptyDescKey"> & { readonly emptyIcon: typeof Inbox }> = {
   received: {
-    titleKey: "share.list.receivedTitle",
+    titleKey: "list.receivedTitle",
     emptyIcon: Inbox,
-    emptyTitleKey: "share.empty.received",
-    emptyDescKey: "share.emptyDesc.received",
+    emptyTitleKey: "empty.received",
+    emptyDescKey: "emptyDesc.received",
   },
   sent: {
-    titleKey: "share.list.sentTitle",
+    titleKey: "list.sentTitle",
     emptyIcon: Share2,
-    emptyTitleKey: "share.empty.sent",
-    emptyDescKey: "share.emptyDesc.sent",
+    emptyTitleKey: "empty.sent",
+    emptyDescKey: "emptyDesc.sent",
   },
   links: {
-    titleKey: "share.list.linksTitle",
+    titleKey: "list.linksTitle",
     emptyIcon: Link2,
-    emptyTitleKey: "share.empty.links",
-    emptyDescKey: "share.emptyDesc.links",
+    emptyTitleKey: "empty.links",
+    emptyDescKey: "emptyDesc.links",
   },
 };
 
@@ -132,16 +77,16 @@ const SHARE_CAPABILITIES: DriveFileListCapabilities = {
   createTextFile: false,
 };
 
-function shareToDisplayItem(share: DriveShare, ownerLabel: string): DisplayItem {
+function shareToDisplayItem(share: ShareView, ownerLabel: string): DisplayItem {
   return {
     id: share.id,
-    name: share.entryName,
+    name: share.resourceName,
     type: share.file ? detectFileType(share.file.mimetype) : "file",
     modified: share.updatedAt || share.createdAt,
     ownerType: "user",
     ownerId: share.createdBy,
     owner: ownerLabel,
-    isFolder: false,
+    isFolder: share.isFolder,
     fileId: null,
     isFavorite: false,
     ...(share.file ? { size: share.file.size, mimeType: share.file.mimetype } : {}),
@@ -149,18 +94,19 @@ function shareToDisplayItem(share: DriveShare, ownerLabel: string): DisplayItem 
 }
 
 /**
- * Reconstruct the minimal `DriveEntry` a share row stands for. The content /
- *  download endpoints authorize the caller through the share grant and key off
- *  `driveEntryId`, so this shape is enough for both preview and download.
+ * Reconstruct the minimal `DriveEntry` a drive share row stands for. The
+ *  content / download endpoints authorize the caller through the share grant
+ *  and key off the entry id, so this shape is enough for both preview and
+ *  download. Only drive_entry shares produce a previewable entry.
  */
-function shareToEntry(share: DriveShare): DriveEntry {
+function shareToEntry(share: ShareView): DriveEntry {
   return {
-    id: share.driveEntryId,
+    id: share.resourceId,
     ownerType: "user",
     ownerId: "",
     parentEntryId: null,
     type: "file",
-    name: share.entryName,
+    name: share.resourceName,
     favorite: false,
     status: "normal",
     createdAt: share.createdAt,
@@ -169,8 +115,8 @@ function shareToEntry(share: DriveShare): DriveEntry {
   };
 }
 
-/** Download a file a recipient received via a share. */
-function downloadReceivedShare(share: DriveShare): void {
+/** Download a drive file a recipient received via a share. */
+function downloadReceivedShare(share: ShareView): void {
   void downloadDriveEntry(shareToEntry(share));
 }
 
@@ -183,13 +129,13 @@ function ShareListSurface({
   onPreviewEntry,
 }: {
   readonly mode: ShareListMode;
-  readonly shares: readonly DriveShare[];
+  readonly shares: readonly ShareView[];
   readonly loading: boolean;
   readonly onRefresh: () => void;
   readonly extraFilters?: readonly SurfaceExtraFilter[] | undefined;
   readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
 }) {
-  const { t } = useTranslation("drive");
+  const { t } = useTranslation("share");
   const revoke = useRevokeShare();
   const { copy } = useClipboard();
   const usersQuery = useVisibleUsers();
@@ -201,11 +147,11 @@ function ShareListSurface({
     return map;
   }, [usersQuery.data]);
 
-  const ownerLabel = useCallback((share: DriveShare): string => {
+  const ownerLabel = useCallback((share: ShareView): string => {
     if (mode === "sent")
-      return share.shareType === "public_link" ? t("share.publicLink") : (userNames.get(share.sharedWithUserId ?? "") ?? share.sharedWithUserId ?? "—");
+      return share.shareType === "public_link" ? t("publicLink") : (userNames.get(share.sharedWithUserId ?? "") ?? share.sharedWithUserId ?? "—");
     if (mode === "links")
-      return t("share.publicLink");
+      return t("publicLink");
     return userNames.get(share.createdBy) ?? share.createdBy;
   }, [mode, t, userNames]);
 
@@ -215,16 +161,20 @@ function ShareListSurface({
     [shares, ownerLabel],
   );
 
+  // Only drive files preview / download in-app; document shares carry no
+  // drive file and are skipped from the preview/download actions.
+  const isDriveFile = (share: ShareView): boolean => share.resourceType === "drive_entry" && !!share.file;
+
   const getCustomActions = useCallback((item: DisplayItem): FileListAction[] => {
     const share = shareMap.get(item.id);
     if (!share)
       return [];
 
     if (mode === "received") {
-      if (share.file) {
+      if (isDriveFile(share)) {
         return [{
           key: "download",
-          label: t("share.action.download"),
+          label: t("action.download"),
           icon: <Download className="mr-2 size-4" />,
           onSelect: () => downloadReceivedShare(share),
         }];
@@ -236,14 +186,14 @@ function ShareListSurface({
     if (share.shareType === "public_link") {
       actions.push({
         key: "copy-link",
-        label: t("share.action.copyLink"),
+        label: t("action.copyLink"),
         icon: <Copy className="mr-2 size-4" />,
-        onSelect: () => copy(buildPublicShareUrl(share.token)),
+        onSelect: () => copy(buildShareUrl(share.token)),
       });
     }
     actions.push({
       key: "revoke",
-      label: t("share.action.revoke"),
+      label: t("action.revoke"),
       icon: <Trash2 className="mr-2 size-4" />,
       variant: "destructive",
       onSelect: () => revoke.mutate(share.id),
@@ -260,9 +210,8 @@ function ShareListSurface({
     onDelete: () => undefined,
     onBatchDelete: () => undefined,
     onPreview: (item) => {
-      // Only files preview; folder shares carry no `file`.
       const share = shareMap.get(item.id);
-      if (share?.file)
+      if (share && isDriveFile(share))
         onPreviewEntry?.(shareToEntry(share));
     },
     onRename: () => undefined,
@@ -286,6 +235,7 @@ function ShareListSurface({
         capabilities={SHARE_CAPABILITIES}
         actions={actions}
         extraFilters={extraFilters}
+        i18nNs="share"
       />
     </div>
   );
@@ -318,9 +268,9 @@ type OutgoingCategory = "all" | "direct" | "public_link";
 export function OutgoingSharesList({ onPreviewEntry }: {
   readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
 }) {
-  const { t } = useTranslation("drive");
+  const { t } = useTranslation("share");
   const sentQuery = useSentShares();
-  const linksQuery = usePublicLinks();
+  const linksQuery = useLinkShares();
   const [category, setCategory] = useState<OutgoingCategory>("all");
 
   const allShares = useMemo(
@@ -333,12 +283,12 @@ export function OutgoingSharesList({ onPreviewEntry }: {
   );
 
   const extraFilters: SurfaceExtraFilter[] = [{
-    label: t("share.categoryLabel"),
+    label: t("categoryLabel"),
     value: category,
     options: [
-      { value: "all", label: t("browser.filter.all") },
-      { value: "direct", label: t("share.type.direct") },
-      { value: "public_link", label: t("share.type.public_link") },
+      { value: "all", label: t("filterAll") },
+      { value: "direct", label: t("type.direct") },
+      { value: "public_link", label: t("type.public_link") },
     ],
     onChange: value => setCategory(value as OutgoingCategory),
   }];

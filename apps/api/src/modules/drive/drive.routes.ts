@@ -27,15 +27,6 @@ import {
   uploadDriveFile,
 } from "./drive.service";
 import {
-  createShare,
-  listLinkShares,
-  listReceivedShares,
-  listSentShares,
-  listSharesForEntry,
-  revokeShare,
-  updateShare,
-} from "./drive.share.service";
-import {
   addTeamMember,
   createTeamDirectory,
   deleteTeamDirectory,
@@ -81,34 +72,6 @@ const createTextFileSchema = z.object({
   ownerType: z.enum(["user", "team_directory"]).optional(),
   ownerId: z.string().optional(),
 });
-
-const sharePermissionSchema = z.enum(["view", "download", "edit"]);
-
-const createShareSchema = z.discriminatedUnion("shareType", [
-  z.object({
-    shareType: z.literal("direct"),
-    sharedWithUserId: z.string().min(1),
-    permission: sharePermissionSchema,
-  }),
-  z.object({
-    shareType: z.literal("public_link"),
-    permission: sharePermissionSchema.default("view"),
-    password: z.string().min(1).optional(),
-    expiresAt: z.string().min(1).optional(),
-    maxDownloads: z.number().int().positive().optional(),
-  }),
-]);
-
-const updateShareSchema = z.object({
-  permission: sharePermissionSchema.optional(),
-  password: z.string().min(1).nullable().optional(),
-  expiresAt: z.string().min(1).nullable().optional(),
-  maxDownloads: z.number().int().positive().nullable().optional(),
-  isActive: z.boolean().optional(),
-}).refine(
-  v => v.permission !== undefined || v.password !== undefined || v.expiresAt !== undefined || v.maxDownloads !== undefined || v.isActive !== undefined,
-  { message: "At least one field must be provided" },
-);
 
 const directoryRoleSchema = z.enum(["admin", "editor", "viewer"]);
 
@@ -358,43 +321,9 @@ export function driveRoutes() {
     return c.json({ success: true, data });
   });
 
-  // ── Entry-scoped shares ──────────────────────────────────────────────
-
-  router.get("/drive/entries/:id/shares", async (c) => {
-    const id = entryIdSchema.parse(c.req.param("id"));
-    await assertEntryCapability(c.get("db"), actorOf(c), id, "share");
-    const data = await listSharesForEntry(c.get("db"), id);
-    return c.json({ success: true, data });
-  });
-
-  router.post("/drive/entries/:id/shares", async (c) => {
-    const user = c.get("user")!;
-    const id = entryIdSchema.parse(c.req.param("id"));
-    const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "share");
-    const body = createShareSchema.parse(await c.req.json());
-    const data = await createShare(c.get("db"), {
-      entry,
-      createdBy: user.id,
-      shareType: body.shareType,
-      permission: body.permission,
-      sharedWithUserId: body.shareType === "direct" ? body.sharedWithUserId : undefined,
-      password: body.shareType === "public_link" ? body.password : undefined,
-      expiresAt: body.shareType === "public_link" ? body.expiresAt : undefined,
-      maxDownloads: body.shareType === "public_link" ? body.maxDownloads : undefined,
-    });
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "drive.share.created",
-      resourceType: "drive_share",
-      resourceId: data.id,
-      resourceName: entry.name,
-      detail: { shareType: data.shareType, permission: data.permission },
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data }, 201);
-  });
+  // Sharing now lives in the unified share module (`modules/share`): drive
+  // shares are `shares` rows with `resource_type='drive_entry'`, managed via
+  // `/shares/drive_entry/:id` and served via `/shared/:token`.
 
   router.patch("/drive/entries/:id", async (c) => {
     const user = c.get("user")!;
@@ -471,61 +400,6 @@ export function driveRoutes() {
       result: "success",
     });
     return c.json({ success: true, data: { id } });
-  });
-
-  // ── Share inboxes / outboxes (static paths before :id) ─────────────────
-
-  router.get("/drive/shares/received", async (c) => {
-    const user = c.get("user")!;
-    const data = await listReceivedShares(c.get("db"), user.id);
-    return c.json({ success: true, data });
-  });
-
-  router.get("/drive/shares/sent", async (c) => {
-    const user = c.get("user")!;
-    const data = await listSentShares(c.get("db"), user.id);
-    return c.json({ success: true, data });
-  });
-
-  router.get("/drive/shares/links", async (c) => {
-    const user = c.get("user")!;
-    const data = await listLinkShares(c.get("db"), user.id);
-    return c.json({ success: true, data });
-  });
-
-  router.put("/drive/shares/:id", async (c) => {
-    const user = c.get("user")!;
-    const shareId = entryIdSchema.parse(c.req.param("id"));
-    const body = updateShareSchema.parse(await c.req.json());
-    const data = await updateShare(c.get("db"), shareId, user.id, body);
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "drive.share.updated",
-      resourceType: "drive_share",
-      resourceId: data.id,
-      resourceName: data.entryName,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data });
-  });
-
-  router.delete("/drive/shares/:id", async (c) => {
-    const user = c.get("user")!;
-    const shareId = entryIdSchema.parse(c.req.param("id"));
-    await revokeShare(c.get("db"), shareId, user.id);
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "drive.share.revoked",
-      resourceType: "drive_share",
-      resourceId: shareId,
-      resourceName: shareId,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: { id: shareId } });
   });
 
   // ── Team directories ──────────────────────────────────────────────────

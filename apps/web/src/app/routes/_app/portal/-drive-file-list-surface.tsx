@@ -154,6 +154,13 @@ export interface DriveFileListSurfaceProps {
   readonly viewModeStorageKey?: string;
   readonly banner?: ReactNode;
   readonly extraFilters?: readonly SurfaceExtraFilter[] | undefined;
+  /**
+   * Namespace for the collection toolbar's `titleKey` / `emptyTitleKey` /
+   * `emptyDescKey` only. Defaults to `"drive"`; the share lists pass
+   * `"share"` so their copy lives in the unified share namespace. All other
+   * surface labels (filters, columns, actions) always use `"drive"`.
+   */
+  readonly i18nNs?: string;
 }
 
 const DEFAULT_CAPABILITIES: Required<DriveFileListCapabilities> = {
@@ -189,8 +196,9 @@ export function DriveFileListSurface({
   viewModeStorageKey,
   banner,
   extraFilters,
+  i18nNs = "drive",
 }: DriveFileListSurfaceProps) {
-  const { t } = useTranslation("drive");
+  const { t } = useTranslation(["drive", i18nNs]);
   const user = useAuthStore(s => s.user);
   const resolvedCapabilities = { ...DEFAULT_CAPABILITIES, ...capabilities };
 
@@ -305,7 +313,7 @@ export function DriveFileListSurface({
     <div className="flex shrink-0 flex-col bg-background">
       <div className="flex h-14 shrink-0 items-center justify-between gap-4 px-4">
         <div className="flex min-w-0 items-center gap-2 text-lg">
-          <span className="min-w-0 truncate font-medium text-foreground">{t(config.titleKey)}</span>
+          <span className="min-w-0 truncate font-medium text-foreground">{t(config.titleKey, { ns: i18nNs })}</span>
           <button
             type="button"
             onClick={actions.onRefresh}
@@ -363,8 +371,8 @@ export function DriveFileListSurface({
       <div className="flex h-full min-h-[360px] w-full flex-1 items-center justify-center">
         <div className="text-center">
           <EmptyIcon className="mx-auto mb-3 size-10 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-muted-foreground">{t(config.emptyTitleKey)}</p>
-          <p className="mt-1 text-xs text-muted-foreground/70">{t(config.emptyDescKey)}</p>
+          <p className="text-sm font-medium text-muted-foreground">{t(config.emptyTitleKey, { ns: i18nNs })}</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">{t(config.emptyDescKey, { ns: i18nNs })}</p>
         </div>
       </div>
     );

@@ -4,9 +4,10 @@ import type { AppDatabase } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { and, eq } from "drizzle-orm";
 import { defineResource } from "@/modules/policy";
+import { shares } from "@/modules/share/schema";
 import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { getDirectoryRole } from "./drive.team-directory.service";
-import { driveEntries, driveFileShares } from "./schema";
+import { driveEntries } from "./schema";
 
 type DriveAction
   = | "drive:read"
@@ -79,13 +80,14 @@ export async function resolveEntryCapabilities(
   }
 
   const share = await db
-    .select({ permission: driveFileShares.permission })
-    .from(driveFileShares)
+    .select({ permission: shares.permission })
+    .from(shares)
     .where(and(
-      eq(driveFileShares.driveEntryId, entry.id),
-      eq(driveFileShares.shareType, "direct"),
-      eq(driveFileShares.sharedWithUserId, actor.id),
-      eq(driveFileShares.isActive, 1),
+      eq(shares.resourceType, "drive_entry"),
+      eq(shares.resourceId, entry.id),
+      eq(shares.shareType, "direct"),
+      eq(shares.sharedWithUserId, actor.id),
+      eq(shares.isActive, 1),
     ))
     .get();
   if (share) {

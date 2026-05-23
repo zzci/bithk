@@ -120,95 +120,6 @@
       "moveHere": "Move here"
     }
   },
-  "share": {
-    "title": "Share \"{{name}}\"",
-    "description": "Share this item with people or via a link.",
-    "tab": {
-      "direct": "People",
-      "link": "Public link"
-    },
-    "field": {
-      "user": "User",
-      "permission": "Permission",
-      "password": "Password",
-      "expiry": "Expires",
-      "maxDownloads": "Max downloads"
-    },
-    "userPlaceholder": "Select a user",
-    "passwordPlaceholder": "Optional password",
-    "passwordKeep": "Leave blank to keep current",
-    "passwordSet": "Password protected",
-    "unlimited": "Unlimited",
-    "permission": {
-      "view": "View",
-      "download": "Download",
-      "edit": "Edit"
-    },
-    "type": {
-      "direct": "Direct",
-      "public_link": "Link"
-    },
-    "action": {
-      "share": "Share",
-      "generate": "Generate link",
-      "copyLink": "Copy link",
-      "removePassword": "Remove password",
-      "updateLink": "Update link",
-      "revoke": "Revoke",
-      "download": "Download",
-      "update": "Update",
-      "done": "Done",
-      "remove": "Remove"
-    },
-    "linkReady": "Public link",
-    "copied": "Copied",
-    "noExpiry": "No expiry",
-    "publicAnyone": "Anyone with the link",
-    "existing": "Existing shares",
-    "col": {
-      "name": "Name",
-      "size": "Size",
-      "type": "Type",
-      "permission": "Permission",
-      "downloads": "Downloads",
-      "expires": "Expires",
-      "actions": "Actions"
-    },
-    "empty": {
-      "entry": "Not shared yet",
-      "received": "Nothing shared with you",
-      "sent": "You have not shared anything",
-      "links": "No public links"
-    },
-    "heading": "Share",
-    "peopleWithAccess": "People with access",
-    "addPeoplePlaceholder": "Add people",
-    "youSuffix": "(you)",
-    "owner": "Owner",
-    "categoryLabel": "Share type",
-    "generalAccess": "General access",
-    "linkRestricted": "Restricted",
-    "linkRestrictedDesc": "Only people with access can open",
-    "linkAnyone": "Anyone with the link",
-    "publicLinkReadOnlyDesc": "Anyone with the link can view and download",
-    "publicLinkOptions": "Link options",
-    "publicLink": "Public link",
-    "expiration": "Expiration",
-    "expiresNever": "Never",
-    "expires1Day": "1 day",
-    "expires7Days": "7 days",
-    "expires30Days": "30 days",
-    "list": {
-      "receivedTitle": "Shared with me",
-      "sentTitle": "Shared by me",
-      "linksTitle": "Public links"
-    },
-    "emptyDesc": {
-      "received": "Files other people share with you appear here",
-      "sent": "Files you share with others appear here",
-      "links": "Public links you create appear here"
-    }
-  },
   "team": {
     "list": {
       "title": "Team directories",
@@ -251,7 +162,8 @@
       "role": "Role",
       "add": "Add member",
       "remove": "Remove",
-      "empty": "No members yet"
+      "empty": "No members yet",
+      "userPlaceholder": "Select a user"
     }
   },
   "preview": {
@@ -283,16 +195,5 @@
     "description": "Browse your drive and choose a file.",
     "root": "My Drive",
     "empty": "This folder is empty"
-  },
-  "public": {
-    "notFound": "This link is no longer available.",
-    "expired": "This link has expired.",
-    "exhausted": "This link has reached its download limit.",
-    "password": "Password",
-    "passwordPlaceholder": "Enter the link password",
-    "download": "Download",
-    "preview": "Preview",
-    "downloadError": "Could not download. Check the password and try again.",
-    "open": "Open"
   }
 }

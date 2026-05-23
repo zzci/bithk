@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 155 routes total.
+> 150 routes total.
 
 | Method | Path |
 |---|---|
@@ -69,17 +69,10 @@
 | DELETE | `/api/documents/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/documents/:id/comments/:cid/attachments/:aid` |
 | PATCH | `/api/documents/:id/move` |
-| GET | `/api/documents/:id/public-links` |
-| POST | `/api/documents/:id/public-links` |
-| DELETE | `/api/documents/:id/public-links/:linkId` |
-| PATCH | `/api/documents/:id/public-links/:linkId` |
 | GET | `/api/documents/:id/shares` |
 | POST | `/api/documents/:id/shares` |
 | DELETE | `/api/documents/:id/shares/:shareId` |
 | GET | `/api/documents/groups` |
-| GET | `/api/documents/shared/:token` |
-| POST | `/api/documents/shared/:token` |
-| POST | `/api/documents/shared/:token/attachments/:aid` |
 | GET | `/api/documents/tags` |
 | GET | `/api/documents/tree` |
 | GET | `/api/documents/users` |
@@ -90,8 +83,6 @@
 | GET | `/api/drive/entries/:id/content` |
 | DELETE | `/api/drive/entries/:id/permanent` |
 | POST | `/api/drive/entries/:id/restore` |
-| GET | `/api/drive/entries/:id/shares` |
-| POST | `/api/drive/entries/:id/shares` |
 | GET | `/api/drive/entries/:id/versions` |
 | POST | `/api/drive/entries/:id/versions` |
 | POST | `/api/drive/entries/:id/versions/:versionId/current` |
@@ -101,15 +92,6 @@
 | DELETE | `/api/drive/entries/trash` |
 | POST | `/api/drive/files/upload` |
 | POST | `/api/drive/folders` |
-| GET | `/api/drive/shared/:token` |
-| POST | `/api/drive/shared/:token` |
-| POST | `/api/drive/shared/:token/file/:entryId` |
-| POST | `/api/drive/shared/:token/list` |
-| DELETE | `/api/drive/shares/:id` |
-| PUT | `/api/drive/shares/:id` |
-| GET | `/api/drive/shares/links` |
-| GET | `/api/drive/shares/received` |
-| GET | `/api/drive/shares/sent` |
 | GET | `/api/drive/team-directories` |
 | POST | `/api/drive/team-directories` |
 | DELETE | `/api/drive/team-directories/:id` |
@@ -162,5 +144,18 @@
 | DELETE | `/api/settings/:key` |
 | GET | `/api/settings/:key` |
 | PUT | `/api/settings/:key` |
+| GET | `/api/shared/:token` |
+| POST | `/api/shared/:token` |
+| POST | `/api/shared/:token/download` |
+| POST | `/api/shared/:token/download/:childId` |
+| POST | `/api/shared/:token/list` |
+| DELETE | `/api/shares/:shareId` |
+| PATCH | `/api/shares/:shareId` |
+| GET | `/api/shares/:type/:id` |
+| POST | `/api/shares/:type/:id` |
+| GET | `/api/shares/capabilities/:type` |
+| GET | `/api/shares/links` |
+| GET | `/api/shares/received` |
+| GET | `/api/shares/sent` |
 | GET | `/api/system/upload-limits` |
 | GET | `/api/system/version` |

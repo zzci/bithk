@@ -4,10 +4,11 @@
 // response shape matches the corresponding service view exactly:
 //   - DriveEntry        ↔ DriveEntryView      (drive.service.ts)
 //   - DriveFileVersion  ↔ DriveVersionView    (drive.version.service.ts)
-//   - DriveShare        ↔ DriveShareView      (drive.share.service.ts)
-//   - PublicShareMetadata ↔ PublicShareMeta   (drive.share.service.ts)
 //   - TeamDirectory     ↔ TeamDirectoryView   (drive.team-directory.service.ts)
 //   - TeamDirectoryMember ↔ team_directory_members row
+//
+// Sharing lives in the unified `share` module (shared/lib/api/share.ts);
+// this module no longer carries any share types, keys, or hooks.
 //
 // All requests go through the shared `httpRaw` client so credentials, the
 // CSRF header on mutating methods, and the global `unauthorized` event stay
@@ -27,8 +28,6 @@ interface ApiEnvelope<T> {
 export type DriveOwnerType = "user" | "team_directory";
 export type DriveEntryType = "folder" | "file";
 export type DriveEntryStatus = "normal" | "trash";
-export type ShareType = "direct" | "public_link";
-export type SharePermission = "view" | "download" | "edit";
 export type TeamDirectoryRole = "admin" | "editor" | "viewer";
 
 export interface DriveEntry {
@@ -61,55 +60,6 @@ export interface DriveFileVersion {
   readonly createdAt: string;
   /** True when this version's reference is the entry's current pointer. */
   readonly isCurrent: boolean;
-}
-
-export interface DriveShare {
-  readonly id: string;
-  readonly driveEntryId: string;
-  readonly entryName: string;
-  readonly token: string;
-  readonly shareType: ShareType;
-  readonly sharedWithUserId: string | null;
-  readonly permission: SharePermission;
-  readonly hasPassword: boolean;
-  readonly expiresAt: string | null;
-  readonly maxDownloads: number | null;
-  readonly downloadCount: number;
-  readonly isActive: boolean;
-  readonly createdBy: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly file: {
-    readonly filename: string;
-    readonly mimetype: string;
-    readonly size: number;
-  } | null;
-}
-
-/** Public-facing share metadata — never carries bytes or the password hash. */
-export interface PublicShareMetadata {
-  readonly token: string;
-  readonly filename: string;
-  readonly mimetype: string;
-  readonly size: number;
-  readonly permission: SharePermission;
-  readonly requiresPassword: boolean;
-  readonly expired: boolean;
-  readonly exhausted: boolean;
-  readonly isFolder: boolean;
-}
-
-export interface PublicShareEntry {
-  readonly id: string;
-  readonly name: string;
-  readonly type: DriveEntryType;
-  readonly size: number | null;
-  readonly mimetype: string | null;
-}
-
-export interface PublicShareListing {
-  readonly breadcrumb: readonly { readonly id: string; readonly name: string }[];
-  readonly entries: readonly PublicShareEntry[];
 }
 
 export interface TeamDirectory {
@@ -154,14 +104,9 @@ export const driveKeys = {
   recent: () => ["drive", "entries", "recent"] as const,
   favorites: () => ["drive", "entries", "favorites"] as const,
   versions: (entryId: string) => ["drive", "entries", entryId, "versions"] as const,
-  entryShares: (entryId: string) => ["drive", "entries", entryId, "shares"] as const,
-  receivedShares: () => ["drive", "shares", "received"] as const,
-  sentShares: () => ["drive", "shares", "sent"] as const,
-  links: () => ["drive", "shares", "links"] as const,
   teamDirectories: () => ["drive", "team-directories"] as const,
   teamDirectory: (id: string) => ["drive", "team-directories", id] as const,
   directoryMembers: (id: string) => ["drive", "team-directories", id, "members"] as const,
-  publicShare: (token: string) => ["drive", "shared", token] as const,
 };
 
 // ── Helpers ──
@@ -425,203 +370,6 @@ export function useSwitchVersion(): UseMutationResult<readonly DriveFileVersion[
       void queryClient.invalidateQueries({ queryKey: driveKeys.all });
     },
   });
-}
-
-// ── Shares ──
-
-export type CreateShareInput
-  = | {
-    readonly shareType: "direct";
-    readonly sharedWithUserId: string;
-    readonly permission: SharePermission;
-  }
-  | {
-    readonly shareType: "public_link";
-    readonly permission?: SharePermission;
-    readonly password?: string;
-    readonly expiresAt?: string;
-    readonly maxDownloads?: number;
-  };
-
-export function useEntryShares(entryId: string | undefined) {
-  return useQuery({
-    queryKey: driveKeys.entryShares(entryId ?? ""),
-    queryFn: () => rawJson<ApiEnvelope<readonly DriveShare[]>>(`/drive/entries/${encodeURIComponent(entryId!)}/shares`).then(r => r.data),
-    enabled: !!entryId,
-    staleTime: 5_000,
-  });
-}
-
-export function useCreateShare(): UseMutationResult<DriveShare, Error, { entryId: string } & CreateShareInput> {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ entryId, ...body }) => rawJson<ApiEnvelope<DriveShare>>(`/drive/entries/${encodeURIComponent(entryId)}/shares`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }).then(r => r.data),
-    onSuccess: (_data, { entryId }) => {
-      void queryClient.invalidateQueries({ queryKey: driveKeys.entryShares(entryId) });
-      void queryClient.invalidateQueries({ queryKey: driveKeys.sentShares() });
-      void queryClient.invalidateQueries({ queryKey: driveKeys.links() });
-    },
-  });
-}
-
-export interface UpdateShareInput {
-  readonly permission?: SharePermission;
-  readonly password?: string | null;
-  readonly expiresAt?: string | null;
-  readonly maxDownloads?: number | null;
-  readonly isActive?: boolean;
-}
-
-export function useUpdateShare(): UseMutationResult<DriveShare, Error, { id: string } & UpdateShareInput> {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, ...body }) => rawJson<ApiEnvelope<DriveShare>>(`/drive/shares/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }).then(r => r.data),
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: driveKeys.entryShares(data.driveEntryId) });
-      void queryClient.invalidateQueries({ queryKey: driveKeys.sentShares() });
-      void queryClient.invalidateQueries({ queryKey: driveKeys.links() });
-      void queryClient.invalidateQueries({ queryKey: driveKeys.receivedShares() });
-    },
-  });
-}
-
-export function useRevokeShare(): UseMutationResult<{ readonly id: string }, Error, string> {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: id => rawJson<ApiEnvelope<{ readonly id: string }>>(`/drive/shares/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }).then(r => r.data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: driveKeys.sentShares() });
-      void queryClient.invalidateQueries({ queryKey: driveKeys.links() });
-      void queryClient.invalidateQueries({ queryKey: driveKeys.receivedShares() });
-      // The revoke response only carries the share id, not its entry, so
-      // refresh every open per-entry share view (the share dialog) by prefix.
-      void queryClient.invalidateQueries({
-        predicate: query =>
-          query.queryKey[0] === "drive"
-          && query.queryKey[1] === "entries"
-          && query.queryKey[3] === "shares",
-      });
-    },
-  });
-}
-
-export function useReceivedShares() {
-  return useQuery({
-    queryKey: driveKeys.receivedShares(),
-    queryFn: () => rawJson<ApiEnvelope<readonly DriveShare[]>>("/drive/shares/received").then(r => r.data),
-    staleTime: 5_000,
-  });
-}
-
-export function useSentShares() {
-  return useQuery({
-    queryKey: driveKeys.sentShares(),
-    queryFn: () => rawJson<ApiEnvelope<readonly DriveShare[]>>("/drive/shares/sent").then(r => r.data),
-    staleTime: 5_000,
-  });
-}
-
-export function usePublicLinks() {
-  return useQuery({
-    queryKey: driveKeys.links(),
-    queryFn: () => rawJson<ApiEnvelope<readonly DriveShare[]>>("/drive/shares/links").then(r => r.data),
-    staleTime: 5_000,
-  });
-}
-
-// ── Public share access (unauthenticated link) ──
-
-export type PublicShareAccess
-  = | { readonly kind: "view"; readonly meta: PublicShareMetadata }
-    | { readonly kind: "download"; readonly blob: Blob; readonly filename: string };
-
-/**
- * Fetch public-link metadata. Routed through the shared client like every
- * other request; the endpoint requires no session, and the server ignores
- * the cookie the client sends, so no privileged data leaks.
- */
-export async function getPublicShare(token: string): Promise<PublicShareMetadata> {
-  return rawJson<ApiEnvelope<PublicShareMetadata>>(`/drive/shared/${encodeURIComponent(token)}`).then(r => r.data);
-}
-
-export function usePublicShare(token: string | undefined) {
-  return useQuery({
-    queryKey: driveKeys.publicShare(token ?? ""),
-    queryFn: () => getPublicShare(token!),
-    enabled: !!token,
-    staleTime: 5_000,
-  });
-}
-
-/**
- * Access a public link: verifies the optional password server-side, then
- * either returns view-only metadata or a downloadable blob. The two cases are
- * distinguished by the presence of a `Content-Disposition` header (set only
- * on the streamed file response).
- */
-export async function accessPublicShare(token: string, password?: string): Promise<PublicShareAccess> {
-  const res = await httpRaw(`/drive/shared/${encodeURIComponent(token)}`, {
-    method: "POST",
-    body: JSON.stringify(password !== undefined ? { password } : {}),
-  });
-  const disposition = res.headers.get("content-disposition");
-  if (disposition) {
-    const blob = await res.blob();
-    return {
-      kind: "download",
-      blob,
-      filename: parseContentDispositionFilename(disposition) ?? token,
-    };
-  }
-  const body = await res.json() as ApiEnvelope<PublicShareMetadata>;
-  return { kind: "view", meta: body.data };
-}
-
-/** List entries inside a public folder share (subtree-scoped server-side). */
-export async function listPublicShareEntries(
-  token: string,
-  opts: { readonly password?: string | undefined; readonly parentEntryId?: string | undefined } = {},
-): Promise<PublicShareListing> {
-  const payload: Record<string, string> = {};
-  if (opts.password !== undefined)
-    payload.password = opts.password;
-  if (opts.parentEntryId !== undefined)
-    payload.parentEntryId = opts.parentEntryId;
-  return rawJson<ApiEnvelope<PublicShareListing>>(`/drive/shared/${encodeURIComponent(token)}/list`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  }).then(r => r.data);
-}
-
-/** Download one file from inside a public folder share, triggering a browser save. */
-export async function downloadPublicShareFile(
-  token: string,
-  entryId: string,
-  filename: string,
-  password?: string,
-): Promise<void> {
-  const res = await httpRaw(`/drive/shared/${encodeURIComponent(token)}/file/${encodeURIComponent(entryId)}`, {
-    method: "POST",
-    body: JSON.stringify(password !== undefined ? { password } : {}),
-  });
-  const blob = await res.blob();
-  const name = parseContentDispositionFilename(res.headers.get("content-disposition")) ?? filename;
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = name;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 // ── Team directories ──

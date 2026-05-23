@@ -10,6 +10,7 @@ import {
   uploadAndReference,
 } from "@/modules/file";
 import { fileReferences, files } from "@/modules/file/schema";
+import { deleteSharesForResource } from "@/modules/share";
 import { AppError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import { driveEntries, driveFileVersions } from "./schema";
@@ -422,8 +423,8 @@ export async function deleteDriveEntryPermanently(
  * hold — both the current pointer (`driveEntries.fileReferenceId`) and every
  * historical version reference (`drive_file_versions.fileReferenceId`). Refs
  * are de-duplicated so a reference that is simultaneously "current" and a
- * version row is released exactly once. The cascade FK drops version/share
- * child rows when the entries are deleted.
+ * version row is released exactly once. The cascade FK drops version child
+ * rows; shares are removed explicitly (polymorphic table, no FK).
  */
 async function purgeEntries(
   db: AppDatabase,
@@ -453,6 +454,11 @@ async function purgeEntries(
     refIds.add(r.id);
 
   await db.delete(driveEntries).where(inArray(driveEntries.id, [...ids])).run();
+
+  // Shares live in the polymorphic `shares` table (no FK to drive_entries),
+  // so the entry deletion above does not cascade to them — remove explicitly.
+  for (const entryId of ids)
+    await deleteSharesForResource(db, "drive_entry", entryId);
 
   for (const refId of refIds)
     await releaseReference(db, config, { referenceId: refId });

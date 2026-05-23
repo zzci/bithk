@@ -8,6 +8,7 @@ import { Trash2, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -33,8 +34,6 @@ import {
   useUpdateMember,
 } from "@/shared/lib/api/drive";
 import { displayName } from "@/shared/lib/users";
-
-import { useVisibleUsers } from "./-share-lists";
 
 const ROLES: readonly TeamDirectoryRole[] = ["admin", "editor", "viewer"];
 
@@ -91,7 +90,7 @@ export function TeamDirectoryMembersPanel({ directoryId, open, onOpenChange }: M
               <Label htmlFor="member-user">{t("drive:team.members.addUser")}</Label>
               <Select value={newUserId ?? ""} onValueChange={v => setNewUserId(v || null)}>
                 <SelectTrigger id="member-user" className="w-full">
-                  <SelectValue placeholder={t("drive:share.userPlaceholder")} />
+                  <SelectValue placeholder={t("team.members.userPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {candidates.map(u => (

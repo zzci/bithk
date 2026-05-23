@@ -1,135 +1,54 @@
-/* eslint-disable react-refresh/only-export-components */
-// Public, unauthenticated, view-only landing page for a document
-// public-link share (`/documents/shared/:token`, the URL the document
-// ShareDialog copies). Mirrors the unauth backend at
-// `/api/documents/shared/:token(/attachments/:aid)`:
-//   - GET  metadata (title + whether a password is required)
-//   - POST content (root or a subtree descendant) once the password verifies
-// A link on a folder document grants the same view-only access to every
-// descendant; the returned subtree is navigable on the same token. No
-// edit, no comments — content is rendered with the same Markdown
-// renderer the in-app document detail view uses.
+// Public, view-only document share preview: Markdown body + navigable subtree
+// + attachments. A link on a folder document grants the same view-only access
+// to every descendant; the returned subtree is navigable on the same token.
 
 import type { FormEvent } from "react";
 import type {
   PublicDocumentAttachment,
   PublicDocumentContent,
-  PublicDocumentMeta,
-  PublicSubtreeNode,
-} from "@/shared/lib/api/documents";
-import { createFileRoute } from "@tanstack/react-router";
-import { Download, Eye, FileText, Loader2, Lock, Paperclip, ShieldAlert } from "lucide-react";
+  PublicDocumentNode,
+  PublicShareMeta,
+} from "@/shared/lib/api/share";
+import { FileText, Loader2, Lock, Paperclip } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/shared/components/editor";
-import { Logo } from "@/shared/components/logo";
-import { ModeToggle } from "@/shared/components/mode-toggle";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import {
-  accessPublicDocument,
-  openPublicDocumentAttachment,
-  usePublicDocument,
-} from "@/shared/lib/api/documents";
+import { accessPublicShare, fetchPublicShareChild } from "@/shared/lib/api/share";
 import { errorMessage } from "@/shared/lib/errors";
 import { HttpError } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 
-export const Route = createFileRoute("/documents/shared/$token")({
-  component: PublicDocumentPage,
-});
+import { formatBytes } from "../share-helpers";
+import { ShareShell, ShareStatus } from "./shell";
 
-function formatBytes(value: number): string {
-  if (value < 1024)
-    return `${value} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let size = value / 1024;
-  let i = 0;
-  while (size >= 1024 && i < units.length - 1) {
-    size /= 1024;
-    i++;
-  }
-  return `${size.toFixed(1)} ${units[i]}`;
-}
-
-function Shell({ children, wide }: { readonly children: React.ReactNode; readonly wide?: boolean }) {
-  return (
-    <div className="flex min-h-svh flex-col bg-muted/30">
-      <header className="flex items-center justify-between px-4 py-3 md:px-6">
-        <Logo />
-        <ModeToggle />
-      </header>
-      <main className="flex flex-1 items-start justify-center p-4">
-        <div className={`w-full ${wide ? "max-w-5xl" : "max-w-md"} rounded-xl border bg-background p-6 shadow-sm`}>
-          {children}
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function Status({ icon, title }: { readonly icon: React.ReactNode; readonly title: string }) {
-  return (
-    <div className="flex flex-col items-center gap-3 py-6 text-center">
-      {icon}
-      <p className="text-sm font-medium text-muted-foreground">{title}</p>
-    </div>
-  );
-}
-
-function PublicDocumentPage() {
-  const { token } = Route.useParams();
-  const { t } = useTranslation("documents");
-  const query = usePublicDocument(token);
-
-  if (query.isLoading) {
-    return (
-      <Shell>
-        <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
-          {t("common:common.loading")}
-        </div>
-      </Shell>
-    );
-  }
-
-  const meta = query.data;
-  if (query.error || !meta)
-    return <Shell><Status icon={<ShieldAlert className="size-8 text-destructive" />} title={t("public.notFound")} /></Shell>;
-
-  return <DocumentViewer token={token} meta={meta} />;
-}
-
-function DocumentViewer({ token, meta }: { readonly token: string; readonly meta: PublicDocumentMeta }) {
-  const { t } = useTranslation("documents");
+export function DocumentPublicPreview({ meta, token }: { readonly meta: PublicShareMeta; readonly token: string }) {
+  const { t } = useTranslation("share");
   const [password, setPassword] = useState("");
-  const [unlocked, setUnlocked] = useState(!meta.hasPassword);
+  const [unlocked, setUnlocked] = useState(!meta.requiresPassword);
   const [content, setContent] = useState<PublicDocumentContent | null>(null);
-  const [activeDocId, setActiveDocId] = useState<string | undefined>(undefined);
+  const [activeChildId, setActiveChildId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
-  // Auth errors keep the user on the password prompt; content errors
-  // surface inside the loaded view.
   const [authError, setAuthError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (docId: string | undefined, pwd: string) => {
+  const load = useCallback(async (childId: string | undefined, pwd: string) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await accessPublicDocument(token, {
-        password: meta.hasPassword ? pwd : undefined,
-        docId,
+      const data = await accessPublicShare<PublicDocumentContent>(token, {
+        password: meta.requiresPassword ? pwd : undefined,
+        childId,
       });
       setContent(data);
-      setActiveDocId(docId);
+      setActiveChildId(childId);
       setUnlocked(true);
       setAuthError(null);
     }
     catch (err) {
       if (err instanceof HttpError && err.status === 403) {
-        // Wrong / missing password — drop back to the prompt without
-        // ever rendering content.
         setUnlocked(false);
         setContent(null);
         setAuthError(t("public.wrongPassword"));
@@ -144,52 +63,50 @@ function DocumentViewer({ token, meta }: { readonly token: string; readonly meta
     finally {
       setLoading(false);
     }
-  }, [token, meta.hasPassword, t]);
+  }, [token, meta.requiresPassword, t]);
 
-  // Auto-load the root document once unlocked (immediately when there is
-  // no password). Re-fetches are otherwise driven by subtree navigation.
   useEffect(() => {
     if (unlocked && !content)
       void load(undefined, password);
-    // eslint-disable-next-line react/exhaustive-deps -- password captured intentionally; loads are driven by unlock + explicit navigation.
+    // eslint-disable-next-line react/exhaustive-deps -- password captured intentionally; loads driven by unlock + navigation.
   }, [unlocked]);
 
   if (!unlocked) {
     return (
-      <Shell>
+      <ShareShell>
         <PasswordPrompt
-          title={meta.title}
+          title={meta.name}
           value={password}
           onChange={setPassword}
           error={authError}
           loading={loading}
           onSubmit={() => void load(undefined, password)}
         />
-      </Shell>
+      </ShareShell>
     );
   }
 
   if (loading && !content) {
     return (
-      <Shell wide>
+      <ShareShell wide>
         <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
           {t("common:common.loading")}
         </div>
-      </Shell>
+      </ShareShell>
     );
   }
 
   if (error && !content)
-    return <Shell><Status icon={<ShieldAlert className="size-8 text-destructive" />} title={error} /></Shell>;
+    return <ShareShell><ShareStatus icon={<FileText className="size-8 text-destructive" />} title={error} /></ShareShell>;
 
   if (!content)
-    return <Shell><Status icon={<ShieldAlert className="size-8 text-destructive" />} title={t("public.notFound")} /></Shell>;
+    return <ShareShell><ShareStatus icon={<FileText className="size-8 text-destructive" />} title={t("public.notFound")} /></ShareShell>;
 
   const hasSubtree = content.subtree.length > 1;
 
   return (
-    <Shell wide>
+    <ShareShell wide>
       <div className={cn("flex flex-col gap-6", hasSubtree && "md:flex-row md:gap-8")}>
         {hasSubtree && (
           <nav className="shrink-0 md:w-56 md:border-r md:pr-4">
@@ -198,10 +115,10 @@ function DocumentViewer({ token, meta }: { readonly token: string; readonly meta
             </p>
             <SubtreeNav
               nodes={content.subtree}
-              activeId={activeDocId ?? rootId(content.subtree)}
+              activeId={activeChildId ?? rootId(content.subtree)}
               disabled={loading}
               onSelect={(node) => {
-                if (node.id !== (activeDocId ?? rootId(content.subtree)))
+                if (node.id !== (activeChildId ?? rootId(content.subtree)))
                   void load(node.parentId === null ? undefined : node.id, password);
               }}
             />
@@ -211,7 +128,7 @@ function DocumentViewer({ token, meta }: { readonly token: string; readonly meta
         <article className="min-w-0 flex-1">
           <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground/80">
             <FileText className="size-5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-            <span className="min-w-0 truncate">{content.document.title || t("untitledPlaceholder")}</span>
+            <span className="min-w-0 truncate">{content.document.title || t("public.untitled")}</span>
           </h1>
 
           {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
@@ -224,22 +141,22 @@ function DocumentViewer({ token, meta }: { readonly token: string; readonly meta
 
           {content.document.content
             ? <MarkdownEditor value={content.document.content} readOnly />
-            : <p className="text-sm italic text-muted-foreground/70">{t("field.noContent")}</p>}
+            : <p className="text-sm italic text-muted-foreground/70">{t("public.noContent")}</p>}
 
           {content.attachments.length > 0 && (
             <AttachmentList
               token={token}
               attachments={content.attachments}
-              password={meta.hasPassword ? password : undefined}
+              password={meta.requiresPassword ? password : undefined}
             />
           )}
         </article>
       </div>
-    </Shell>
+    </ShareShell>
   );
 }
 
-function rootId(nodes: readonly PublicSubtreeNode[]): string | undefined {
+function rootId(nodes: readonly PublicDocumentNode[]): string | undefined {
   return nodes.find(n => n.parentId === null)?.id;
 }
 
@@ -258,7 +175,7 @@ function PasswordPrompt({
   readonly loading: boolean;
   readonly onSubmit: () => void;
 }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("share");
   return (
     <form
       className="flex flex-col gap-4"
@@ -295,11 +212,11 @@ function PasswordPrompt({
   );
 }
 
-interface TreeItem extends PublicSubtreeNode {
+interface TreeItem extends PublicDocumentNode {
   readonly children: TreeItem[];
 }
 
-function buildTree(nodes: readonly PublicSubtreeNode[]): TreeItem[] {
+function buildTree(nodes: readonly PublicDocumentNode[]): TreeItem[] {
   const byId = new Map<string, TreeItem>(nodes.map(n => [n.id, { ...n, children: [] }]));
   const roots: TreeItem[] = [];
   for (const node of byId.values()) {
@@ -318,10 +235,10 @@ function SubtreeNav({
   disabled,
   onSelect,
 }: {
-  readonly nodes: readonly PublicSubtreeNode[];
+  readonly nodes: readonly PublicDocumentNode[];
   readonly activeId: string | undefined;
   readonly disabled: boolean;
-  readonly onSelect: (node: PublicSubtreeNode) => void;
+  readonly onSelect: (node: PublicDocumentNode) => void;
 }) {
   const tree = useMemo(() => buildTree(nodes), [nodes]);
   return (
@@ -344,7 +261,7 @@ function TreeRow({
   readonly depth: number;
   readonly activeId: string | undefined;
   readonly disabled: boolean;
-  readonly onSelect: (node: PublicSubtreeNode) => void;
+  readonly onSelect: (node: PublicDocumentNode) => void;
 }) {
   return (
     <li>
@@ -372,6 +289,26 @@ function TreeRow({
   );
 }
 
+/** Open one attachment: images/PDFs inline in a new tab, everything else downloads. */
+async function openAttachment(token: string, attachment: PublicDocumentAttachment, password: string | undefined): Promise<void> {
+  const inline = attachment.mimetype.startsWith("image/") || attachment.mimetype === "application/pdf";
+  const res = await fetchPublicShareChild(token, attachment.id, password);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  if (inline) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = attachment.filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 function AttachmentList({
   token,
   attachments,
@@ -381,7 +318,7 @@ function AttachmentList({
   readonly attachments: readonly PublicDocumentAttachment[];
   readonly password: string | undefined;
 }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("share");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -389,7 +326,7 @@ function AttachmentList({
     setBusyId(attachment.id);
     setError(null);
     try {
-      await openPublicDocumentAttachment(token, attachment, password);
+      await openAttachment(token, attachment, password);
     }
     catch (err) {
       setError(errorMessage(err, t("public.loadError")));
@@ -403,34 +340,27 @@ function AttachmentList({
     <section className="mt-8 border-t pt-5">
       <p className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground/80">
         <Paperclip className="size-4 text-muted-foreground" />
-        {t("attachments.title")}
+        {t("public.attachments")}
       </p>
       {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
       <ul className="flex flex-col gap-1">
-        {attachments.map((att) => {
-          const inline = att.mimetype.startsWith("image/") || att.mimetype === "application/pdf";
-          return (
-            <li key={att.id}>
-              <button
-                type="button"
-                disabled={busyId === att.id}
-                onClick={() => void open(att)}
-                className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/40 disabled:opacity-50"
-              >
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <FileText className="size-4" />
-                </div>
-                <span className="min-w-0 flex-1 truncate text-sm">{att.filename}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(att.size)}</span>
-                {busyId === att.id
-                  ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
-                  : inline
-                    ? <Eye className="size-4 shrink-0 text-muted-foreground" />
-                    : <Download className="size-4 shrink-0 text-muted-foreground" />}
-              </button>
-            </li>
-          );
-        })}
+        {attachments.map(att => (
+          <li key={att.id}>
+            <button
+              type="button"
+              disabled={busyId === att.id}
+              onClick={() => void open(att)}
+              className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/40 disabled:opacity-50"
+            >
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                <FileText className="size-4" />
+              </div>
+              <span className="min-w-0 flex-1 truncate text-sm">{att.filename}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(att.size)}</span>
+              {busyId === att.id && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
+            </button>
+          </li>
+        ))}
       </ul>
     </section>
   );
