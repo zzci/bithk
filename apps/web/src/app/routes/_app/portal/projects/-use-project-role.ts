@@ -21,14 +21,19 @@ export interface ProjectRoleInfo {
 /**
  * Pure derivation of the caller's project role from the members list. Extracted
  * from the hook so it can be unit-tested without a render harness.
+ *
+ * App admins are treated as pm-equivalent even without a membership row: they
+ * can view and manage every project (mirrors the backend admin bypass), which
+ * prevents a project from being locked out when its last pm member is removed.
  */
 export function computeProjectRole(
   members: readonly ProjectMemberView[] | undefined,
   userId: string | null,
+  isAppAdmin: boolean,
 ): ProjectRoleInfo {
   const member = members?.find(m => m.userId !== null && m.userId === userId) ?? null;
   const role = member?.role ?? null;
-  const isPm = role === "pm";
+  const isPm = role === "pm" || isAppAdmin;
   return {
     member,
     role,
@@ -39,5 +44,6 @@ export function computeProjectRole(
 
 export function useProjectRole(members: readonly ProjectMemberView[] | undefined): ProjectRoleInfo {
   const userId = useAuthStore(s => s.user?.id ?? null);
-  return useMemo(() => computeProjectRole(members, userId), [members, userId]);
+  const isAppAdmin = useAuthStore(s => s.user?.role === "admin");
+  return useMemo(() => computeProjectRole(members, userId, isAppAdmin), [members, userId, isAppAdmin]);
 }

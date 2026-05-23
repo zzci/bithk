@@ -578,7 +578,8 @@ async function resolveListOwner(
     if (!ownerId)
       throw new AppError("ownerId is required for project listing", 400, "VALIDATION_ERROR");
     const projectId = await resolveProjectOwnerId(c, ownerId);
-    if (!(await isMember(c.get("db"), projectId, user.id)))
+    // App admins bypass project membership (consistent with project routes).
+    if (user.role !== "admin" && !(await isMember(c.get("db"), projectId, user.id)))
       throw new ForbiddenError("You do not have access to this project");
     return { ownerType: "project", ownerId: projectId };
   }
@@ -613,9 +614,9 @@ async function resolveCreateOwner(
   if (ownerType === "project") {
     if (!ownerId)
       throw new AppError("ownerId is required for project creation", 400, "VALIDATION_ERROR");
-    // pm and member both hold full management capabilities.
+    // pm and member both hold full management capabilities; app admins bypass.
     const projectId = await resolveProjectOwnerId(c, ownerId);
-    if (!(await isMember(c.get("db"), projectId, user.id)))
+    if (user.role !== "admin" && !(await isMember(c.get("db"), projectId, user.id)))
       throw new ForbiddenError("Project membership required to create in this project");
     return { ownerType: "project", ownerId: projectId };
   }
@@ -656,9 +657,9 @@ async function resolveUploadOwner(c: Context<AppEnv>, form: FormData): Promise<D
   if (ownerTypeRaw === "project") {
     if (typeof ownerIdRaw !== "string" || !ownerIdRaw)
       throw new AppError("ownerId is required for project uploads", 400, "VALIDATION_ERROR");
-    // pm and member both hold full management capabilities.
+    // pm and member both hold full management capabilities; app admins bypass.
     const projectId = await resolveProjectOwnerId(c, ownerIdRaw);
-    if (!(await isMember(c.get("db"), projectId, user.id)))
+    if (user.role !== "admin" && !(await isMember(c.get("db"), projectId, user.id)))
       throw new ForbiddenError("Project membership required to upload to this project");
     return { ownerType: "project", ownerId: projectId };
   }

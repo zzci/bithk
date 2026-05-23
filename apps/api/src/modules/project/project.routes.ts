@@ -87,6 +87,11 @@ async function requireProjectAccess(
   const projectId = await resolveProjectId(db, shortId);
   if (!projectId)
     throw new NotFoundError("Project", shortId);
+  // App admins bypass project membership entirely: they can always view and
+  // manage every project. This prevents a project from being locked out when
+  // its last pm member is removed (the admin can always re-add a pm).
+  if (c.get("user")!.role === "admin")
+    return projectId;
   const role = await getRole(db, projectId, actorId(c));
   if (role === null)
     throw new NotFoundError("Project", shortId);

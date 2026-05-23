@@ -74,11 +74,14 @@ function auditMeta(c: Context) {
  */
 async function requireProjectMember(c: Context<AppEnv>, shortId: string): Promise<string> {
   const db = c.get("db");
-  const userId = c.get("user")!.id;
+  const user = c.get("user")!;
   const projectId = await resolveProjectId(db, shortId);
   if (!projectId)
     throw new NotFoundError("Project", shortId);
-  const role = await getRole(db, projectId, userId);
+  // App admins bypass project membership entirely (view/manage every project).
+  if (user.role === "admin")
+    return projectId;
+  const role = await getRole(db, projectId, user.id);
   if (role === null)
     throw new NotFoundError("Project", shortId);
   return projectId;

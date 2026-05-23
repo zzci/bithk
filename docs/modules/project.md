@@ -77,6 +77,17 @@ the project `short_id`.
 | Procurement read | Member **and** (`pm` or `can_view_procurement`) — see [`procurement`](./procurement.md). |
 | Project files | Resolved by the drive capability branch against `project_members`. |
 
+**App-admin bypass.** A user with `role = 'admin'` bypasses every project
+membership check above — they list, read, and manage (pm-equivalent) every
+project, its work orders, procurement, and files, regardless of membership.
+This is deliberate: without it, removing a project's last `pm` member would
+lock the project out permanently. The bypass lives in each route gate
+(`requireProjectAccess`, the procurement and project-issue gates, and the drive
+project owner resolvers) and in the drive capability resolver's global-admin
+branch; the frontend mirrors it (`computeProjectRole` treats an app admin as
+pm-equivalent). Project **read is otherwise member-scoped** — the `GET
+/api/projects` list returns only the caller's projects for non-admins.
+
 ## Public service helpers (cross-module contract)
 
 Imported by `issue`, `procurement`, and `drive`. `projectId` is the **internal

@@ -21,7 +21,7 @@ function member(overrides: Partial<ProjectMemberView>): ProjectMemberView {
 
 describe("computeProjectRole", () => {
   it("returns the empty role when members are undefined", () => {
-    const r = computeProjectRole(undefined, "u1");
+    const r = computeProjectRole(undefined, "u1", false);
     expect(r.member).toBeNull();
     expect(r.role).toBeNull();
     expect(r.isPm).toBe(false);
@@ -29,31 +29,39 @@ describe("computeProjectRole", () => {
   });
 
   it("returns the empty role when the user is not a member", () => {
-    const r = computeProjectRole([member({ id: "m1", userId: "other" })], "u1");
+    const r = computeProjectRole([member({ id: "m1", userId: "other" })], "u1", false);
     expect(r.member).toBeNull();
     expect(r.role).toBeNull();
   });
 
   it("never matches an external member with a null userId against a null caller", () => {
-    const r = computeProjectRole([member({ userId: null })], null);
+    const r = computeProjectRole([member({ userId: null })], null, false);
     expect(r.member).toBeNull();
   });
 
   it("flags a pm and grants procurement implicitly", () => {
-    const r = computeProjectRole([member({ id: "pm1", userId: "u1", role: "pm" })], "u1");
+    const r = computeProjectRole([member({ id: "pm1", userId: "u1", role: "pm" })], "u1", false);
     expect(r.isPm).toBe(true);
     expect(r.role).toBe("pm");
     expect(r.canViewProcurement).toBe(true);
   });
 
   it("denies procurement to a plain member without the grant", () => {
-    const r = computeProjectRole([member({ userId: "u1", role: "member", canViewProcurement: false })], "u1");
+    const r = computeProjectRole([member({ userId: "u1", role: "member", canViewProcurement: false })], "u1", false);
     expect(r.isPm).toBe(false);
     expect(r.canViewProcurement).toBe(false);
   });
 
   it("grants procurement to a member with the explicit flag", () => {
-    const r = computeProjectRole([member({ userId: "u1", role: "member", canViewProcurement: true })], "u1");
+    const r = computeProjectRole([member({ userId: "u1", role: "member", canViewProcurement: true })], "u1", true);
+    expect(r.canViewProcurement).toBe(true);
+  });
+
+  it("treats an app admin as pm even without a membership row", () => {
+    const r = computeProjectRole([member({ userId: "other", role: "pm" })], "admin1", true);
+    expect(r.member).toBeNull();
+    expect(r.role).toBeNull();
+    expect(r.isPm).toBe(true);
     expect(r.canViewProcurement).toBe(true);
   });
 });

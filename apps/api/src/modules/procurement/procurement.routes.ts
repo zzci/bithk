@@ -68,6 +68,9 @@ async function requireProcurementAccess(c: Context<AppEnv>, projectShortId: stri
   const projectId = await resolveProjectId(db, projectShortId);
   if (!projectId)
     throw new NotFoundError("Project", projectShortId);
+  // App admins bypass project membership and the procurement grant entirely.
+  if (c.get("user")!.role === "admin")
+    return projectId;
   const role = await getRole(db, projectId, actorId(c));
   if (role === null)
     throw new NotFoundError("Project", projectShortId);
