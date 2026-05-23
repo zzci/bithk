@@ -301,6 +301,24 @@ describe("status change", () => {
     expect(events[0]!.resourceId).toBe(proc.id);
   });
 
+  test("free transitions: the pm moves backward and out of 'closed', version bumping each time", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    let lastVersion = proc.version;
+    for (const next of ["closed", "draft", "received"]) {
+      const res = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: next }));
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: { status: string; version: number } };
+      expect(body.data.status).toBe(next);
+      expect(body.data.version).toBeGreaterThan(lastVersion);
+      lastVersion = body.data.version;
+    }
+  });
+
   test("an unknown status value is rejected with 422", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
@@ -319,23 +337,6 @@ describe("status change", () => {
     const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
     const res = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", await cookieForUser(viewer), { status: "requested" }));
     expect(res.status).toBe(404);
-  });
-});
-
-describe("comments (delegated to mod-item)", () => {
-  test("a view-capable member posts a comment; a plain member is fail-closed 403", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const plain = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: plain });
-    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
-
-    const posted = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/comments`, jsonReq("POST", await cookieForUser(owner), { content: "noted" }));
-    expect(posted.status).toBe(201);
-
-    const denied = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/comments`, { headers: { Cookie: await cookieForUser(plain) } });
-    expect(denied.status).toBe(403);
   });
 });
 

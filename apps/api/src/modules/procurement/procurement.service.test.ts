@@ -1,3 +1,4 @@
+import type { ProcurementStatus } from "./schema";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
@@ -306,5 +307,82 @@ describe("capability gating (procurement.view)", () => {
     expect(await hasCapability(db, project.id, granted, "procurement.view")).toBe(true);
     expect(await hasCapability(db, project.id, plain, "procurement.view")).toBe(false);
     expect(await getMemberCapabilities(db, project.id, outsider)).toBeNull();
+  });
+});
+
+// Lock-in for L1 DECISION 1 (2026-05-23): procurement status is an intentional
+// FREE-TRANSITION manual tracker (any -> any), enum-validated and fully
+// audited — NOT a state machine. These tests pin that contract so a future
+// change cannot silently introduce transition restrictions.
+// See docs/decisions/2026-05-23-procurement-free-transitions.md.
+describe("status free transitions (lock-in)", () => {
+  test("every status reachable from every other status, each audited with from/to + version bump", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const row = await createProcurement(db, { projectId: project.id, itemName: "Valves", creatorId: creator });
+    expect(row.status).toBe("draft");
+
+    // A deliberately non-linear tour: forward, backward, skip-ahead, and both
+    // into and back OUT of the terminal-looking "closed" state.
+    const tour: ProcurementStatus[] = [
+      "requested",
+      "ordered",
+      "draft", // backward
+      "closed", // skip ahead to the terminal-looking state
+      "received", // OUT of closed — proves it is not terminal
+      "ordered", // backward again
+    ];
+
+    let previous = row.status;
+    let lastVersion = row.version;
+    for (const next of tour) {
+      const updated = await changeStatus(
+        db,
+        logger,
+        row.id,
+        next,
+        { id: creator, name: "Alice" },
+        { ip: "127.0.0.1", userAgent: "test" },
+      );
+      expect(updated?.status).toBe(next);
+      expect(updated!.version).toBeGreaterThan(lastVersion);
+      lastVersion = updated!.version;
+      previous = next;
+    }
+    expect(previous).toBe("ordered");
+
+    // One audit event per transition, each carrying the correct from/to pair.
+    const events = await db.select().from(auditEvents).where(eq(auditEvents.action, "procurement.status_changed")).all();
+    expect(events).toHaveLength(tour.length);
+    const pairs = events
+      .map(e => JSON.parse(e.detail!) as { from: string; to: string })
+      .map(d => `${d.from}->${d.to}`);
+    expect(pairs).toEqual([
+      "draft->requested",
+      "requested->ordered",
+      "ordered->draft",
+      "draft->closed",
+      "closed->received",
+      "received->ordered",
+    ]);
+  });
+
+  test("the isProcurementStatus guard rejects an unknown status (defence behind the zod boundary)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const row = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: creator });
+
+    await expect(changeStatus(
+      db,
+      logger,
+      row.id,
+      "shipped" as ProcurementStatus, // not in PROCUREMENT_STATUSES
+      { id: creator, name: "Alice" },
+      { ip: "127.0.0.1", userAgent: "test" },
+    )).rejects.toThrow();
+
+    // The rejected change leaves the stored status untouched.
+    const after = await getProcurementByShortId(db, row.id);
+    expect(after?.status).toBe("draft");
   });
 });
