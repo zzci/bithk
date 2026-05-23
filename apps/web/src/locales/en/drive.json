@@ -111,8 +111,6 @@
       "markdownFileTitle": "New Markdown file",
       "markdownFileDescription": "Create a Markdown file in the current location.",
       "markdownFileNamePlaceholder": "filename.md",
-      "contentLabel": "Content",
-      "contentPlaceholder": "Type the file contents…",
       "renameTitle": "Rename",
       "renameDescription": "Update the name of this entry.",
       "moveTitle": "Move",

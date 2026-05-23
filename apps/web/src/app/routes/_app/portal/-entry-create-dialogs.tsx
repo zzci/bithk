@@ -17,7 +17,6 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import { useDriveEntries } from "@/shared/lib/api/drive";
 
 interface DriveOwner {
@@ -93,7 +92,7 @@ interface CreateTextFileDialogProps {
   readonly pending: boolean;
   /** Markdown variant differs only in copy and the suggested filename. */
   readonly markdown?: boolean;
-  readonly onCreate: (input: { readonly name: string; readonly content: string }) => void;
+  readonly onCreate: (input: { readonly name: string }) => void;
 }
 
 export function CreateTextFileDialog({ open, onOpenChange, pending, markdown = false, onCreate }: CreateTextFileDialogProps) {
@@ -106,6 +105,11 @@ export function CreateTextFileDialog({ open, onOpenChange, pending, markdown = f
   );
 }
 
+/** Append the variant's extension unless the name already carries it. */
+function withExtension(name: string, extension: string): string {
+  return name.toLowerCase().endsWith(extension) ? name : `${name}${extension}`;
+}
+
 function CreateTextFileForm({
   pending,
   markdown,
@@ -113,17 +117,16 @@ function CreateTextFileForm({
 }: {
   readonly pending: boolean;
   readonly markdown: boolean;
-  readonly onCreate: (input: { readonly name: string; readonly content: string }) => void;
+  readonly onCreate: (input: { readonly name: string }) => void;
 }) {
   const { t } = useTranslation("drive");
   const [name, setName] = useState("");
-  const [content, setContent] = useState("");
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = name.trim();
     if (trimmed)
-      onCreate({ name: trimmed, content });
+      onCreate({ name: withExtension(trimmed, markdown ? ".md" : ".txt") });
   };
 
   return (
@@ -140,16 +143,6 @@ function CreateTextFileForm({
           value={name}
           onChange={event => setName(event.currentTarget.value)}
           placeholder={t(markdown ? "browser.dialog.markdownFileNamePlaceholder" : "browser.dialog.textFileNamePlaceholder")}
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="drive-text-content">{t("browser.dialog.contentLabel")}</Label>
-        <Textarea
-          id="drive-text-content"
-          value={content}
-          onChange={event => setContent(event.currentTarget.value)}
-          placeholder={t("browser.dialog.contentPlaceholder")}
-          className="min-h-40"
         />
       </div>
       <DialogFooter>

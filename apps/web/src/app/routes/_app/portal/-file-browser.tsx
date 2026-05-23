@@ -44,7 +44,7 @@ export interface FileBrowserProps {
   readonly ownerType: DriveOwnerType;
   readonly ownerId: string;
   readonly onShareEntry?: (entry: DriveEntry) => void;
-  readonly onPreviewEntry?: (entry: DriveEntry) => void;
+  readonly onPreviewEntry?: (entry: DriveEntry, edit?: boolean) => void;
   /** When false, all mutating affordances are hidden or disabled (viewer role). */
   readonly canManage?: boolean;
   /** Label for the root breadcrumb (defaults to the generic "Root"). */
@@ -280,8 +280,13 @@ export function FileBrowser({
         markdown={dialog?.type === "text" ? dialog.markdown : false}
         onOpenChange={open => !open && closeDialog()}
         pending={createTextFile.isPending}
-        onCreate={({ name, content }) =>
-          createTextFile.mutate({ name, content, parentEntryId, ownerType, ownerId }, { onSuccess: closeDialog })}
+        onCreate={({ name }) =>
+          createTextFile.mutate({ name, content: "", parentEntryId, ownerType, ownerId }, {
+            onSuccess: (entry) => {
+              closeDialog();
+              onPreviewEntry?.(entry, true);
+            },
+          })}
       />
       <RenameDialog
         open={dialog?.type === "rename"}

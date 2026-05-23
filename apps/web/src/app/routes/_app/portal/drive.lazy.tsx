@@ -73,6 +73,13 @@ function DrivePage() {
   // Page-level dialog targets, driven by the file browser / list callbacks.
   const [shareEntry, setShareEntry] = useState<DriveEntry | null>(null);
   const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
+  const [previewEditing, setPreviewEditing] = useState(false);
+  // Open the preview viewer; `edit` starts it in edit mode (used after
+  // creating a blank file so creation reuses the viewer's editor).
+  const openPreview = useCallback((entry: DriveEntry, edit = false) => {
+    setPreviewEntry(entry);
+    setPreviewEditing(edit);
+  }, []);
 
   const startSidebarResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -108,6 +115,7 @@ function DrivePage() {
     onSelect: selectView,
     activeTeamDirId: activeTeamDir?.id ?? null,
     onSelectTeamDir: selectTeamDir,
+    onOpenEntry: openPreview,
   } as const;
 
   return (
@@ -159,7 +167,7 @@ function DrivePage() {
               userId={user?.id ?? null}
               activeTeamDir={activeTeamDir}
               onShareEntry={setShareEntry}
-              onPreviewEntry={setPreviewEntry}
+              onPreviewEntry={openPreview}
             />
           </div>
         </main>
@@ -176,6 +184,7 @@ function DrivePage() {
         <FilePreviewDialog
           entry={previewEntry}
           open
+          initialEditing={previewEditing}
           onOpenChange={open => !open && setPreviewEntry(null)}
         />
       )}
@@ -187,7 +196,7 @@ function DrivePage() {
 
 interface ViewCallbacks {
   readonly onShareEntry: (entry: DriveEntry) => void;
-  readonly onPreviewEntry: (entry: DriveEntry) => void;
+  readonly onPreviewEntry: (entry: DriveEntry, edit?: boolean) => void;
 }
 
 function DriveViewContent({

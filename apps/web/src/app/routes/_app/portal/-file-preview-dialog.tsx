@@ -47,6 +47,7 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { MarkdownEditor } from "@/shared/components/editor";
 import { MarkdownPreview } from "@/shared/components/editor/markdown-preview";
 import { useTheme } from "@/shared/components/theme-provider";
 import { Button } from "@/shared/components/ui/button";
@@ -279,6 +280,8 @@ interface FilePreviewDialogProps {
   readonly onDownload?: () => void;
   // Read-only mode hides edit/save (public viewers cannot save versions).
   readonly readOnly?: boolean;
+  // Open directly in edit mode (used right after creating a blank file).
+  readonly initialEditing?: boolean;
 }
 
 // ── shiki-backed renderers ──
@@ -323,70 +326,6 @@ function CodePreview({ code, language, isDark }: { readonly code: string; readon
     <pre className="overflow-auto rounded-md bg-muted p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap break-words">
       <code>{code}</code>
     </pre>
-  );
-}
-
-function MarkdownSourceEditor({
-  value,
-  onChange,
-  isDark,
-}: {
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-  readonly isDark: boolean;
-}) {
-  const highlightRef = useRef<HTMLDivElement>(null);
-  const [html, setHtml] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const { codeToHtml } = await import("shiki/bundle/web");
-        const next = await codeToHtml(value || " ", { lang: "markdown", theme: shikiTheme(isDark) });
-        if (!cancelled)
-          setHtml(next);
-      }
-      catch {
-        if (!cancelled)
-          setHtml("");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [value, isDark]);
-
-  return (
-    <div className="relative h-full overflow-hidden bg-background font-mono text-sm leading-relaxed">
-      {html && (
-        <div
-          ref={highlightRef}
-          className="pointer-events-none absolute inset-0 overflow-hidden [&_pre]:m-0 [&_pre]:bg-transparent! [&_pre]:p-0"
-          aria-hidden="true"
-          // shiki output generated from the textarea contents — see CodePreview.
-          // eslint-disable-next-line react/dom-no-dangerously-set-innerhtml
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      )}
-      <textarea
-        className={cn(
-          "relative h-full w-full resize-none bg-transparent font-mono text-sm leading-relaxed outline-none",
-          html ? "text-transparent caret-foreground selection:bg-primary/20" : "text-foreground",
-        )}
-        value={value}
-        onChange={event => onChange(event.target.value)}
-        onScroll={(event) => {
-          if (!highlightRef.current)
-            return;
-          highlightRef.current.scrollTop = event.currentTarget.scrollTop;
-          highlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
-        }}
-        spellCheck={false}
-      />
-    </div>
   );
 }
 
@@ -569,7 +508,7 @@ function ImagePreview({
 
 // ── dialog ──
 
-export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onDownload, readOnly = false }: FilePreviewDialogProps) {
+export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onDownload, readOnly = false, initialEditing = false }: FilePreviewDialogProps) {
   const { t } = useTranslation("drive");
   const isDark = useIsDark();
   const uploadVersion = useUploadVersion();
@@ -684,6 +623,27 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
       clearObjectUrl();
     };
   }, [open, loadFile, clearObjectUrl, reloadNonce]);
+
+  // Enter edit mode once after the first load when asked (e.g. a freshly
+  // created blank file). A ref ensures it fires only on the initial open, not
+  // after a save-triggered reload.
+  const autoEditDoneRef = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      autoEditDoneRef.current = false;
+      return;
+    }
+    if (!initialEditing || autoEditDoneRef.current || loading || readOnly)
+      return;
+    if (kind === "markdown") {
+      setMarkdownEditing(true);
+      autoEditDoneRef.current = true;
+    }
+    else if (kind === "text") {
+      setTextEditing(true);
+      autoEditDoneRef.current = true;
+    }
+  }, [open, initialEditing, loading, readOnly, kind]);
 
   // Lazy-load react-pdf (+ worker) and react-zoom-pan-pinch only when the
   // matching kind is being previewed.
@@ -1035,7 +995,11 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
 
           {kind === "markdown" && !loading && (
             markdownEditing
-              ? <MarkdownSourceEditor value={content} onChange={setContent} isDark={isDark} />
+              ? (
+                  <div className="h-full overflow-auto bg-background">
+                    <MarkdownEditor value={content} onChange={setContent} minHeight={320} className="px-6 py-4" />
+                  </div>
+                )
               : (
                   <div className="h-full overflow-auto bg-background">
                     <MarkdownPreview value={content} />

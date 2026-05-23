@@ -5,7 +5,7 @@
 
 import type { ChangeEvent } from "react";
 import type { EditState } from "./-team-directory-list";
-import type { TeamDirectory } from "@/shared/lib/api/drive";
+import type { DriveEntry, TeamDirectory } from "@/shared/lib/api/drive";
 import {
   Clock,
   FilePlus2,
@@ -90,11 +90,13 @@ export function DriveSidebar({
   onSelect,
   activeTeamDirId,
   onSelectTeamDir,
+  onOpenEntry,
 }: {
   readonly activeView: DriveView | null;
   readonly onSelect: (view: DriveView) => void;
   readonly activeTeamDirId: string | null;
   readonly onSelectTeamDir: (directory: TeamDirectory) => void;
+  readonly onOpenEntry?: (entry: DriveEntry, edit?: boolean) => void;
 }) {
   const { t } = useTranslation("drive");
   const user = useAuthStore(s => s.user);
@@ -189,13 +191,14 @@ export function DriveSidebar({
         open={dialog === "text"}
         onOpenChange={open => !open && setDialog(null)}
         pending={createTextFile.isPending}
-        onCreate={({ name, content }) => {
+        onCreate={({ name }) => {
           if (!rootOwner)
             return;
-          createTextFile.mutate({ name, content, ...rootOwner }, {
-            onSuccess: () => {
+          createTextFile.mutate({ name, content: "", ...rootOwner }, {
+            onSuccess: (entry) => {
               setDialog(null);
               onSelect("my-files");
+              onOpenEntry?.(entry, true);
             },
           });
         }}
