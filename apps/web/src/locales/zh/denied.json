@@ -1,6 +1,6 @@
 {
   "requestId": "请求 ID",
-  "backToPortal": "返回门户",
+  "backToOverview": "返回概览",
   "switchAccount": "切换账号",
   "signInDifferent": "使用其他账号登录",
   "signOut": "退出登录",

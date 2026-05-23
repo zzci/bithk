@@ -66,6 +66,17 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Removed the `portal` concept from the frontend entirely. The dashboard
+  moved from `/portal` to `/overview`, and module routes now mount at the
+  root (`/drive`, `/documents`, `/issues`, `/projects`); `/admin/*` and the
+  root redirect are unchanged. Default post-login landing and the drive share
+  URL updated accordingly. The rename also covers the sidebar nav area
+  (`NavArea` `portal` → `overview`), nav key/label, the `portal` i18n
+  namespace (`portal.json` → `overview.json`, "Portal"/"门户" → "Overview"/"概览"),
+  `denied.backToPortal` → `backToOverview`, and the `shared/components/portal/`
+  document-tree utils directory → `shared/components/documents/`. React DOM
+  portals (`createPortal`, `*.Portal`) are unrelated and untouched.
+  See REFACTOR-001 / PLAN-006.
 - Unified sharing into one `share` module backed by a single polymorphic
   `shares` table (`resource_type` + `resource_id`, no DB FK). Replaces the
   former per-module `document_public_links` and `drive_file_shares` tables and

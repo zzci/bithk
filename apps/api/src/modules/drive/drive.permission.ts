@@ -176,7 +176,7 @@ export const driveAccess = defineResource<DriveAction>({
         .from(driveEntries)
         .where(eq(driveEntries.id, objectId))
         .get();
-      return row ? { name: row.name, type: "drive_entry", url: `/portal/drive` } : null;
+      return row ? { name: row.name, type: "drive_entry", url: `/drive` } : null;
     },
   },
 });

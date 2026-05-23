@@ -7,3 +7,4 @@
 | [PLAN-003](PLAN-003.md) | Markdown editor source view toggle | Done | 2026-05-23 |
 | [PLAN-004](PLAN-004.md) | 工程项目管理模块 | Done | 2026-05-23 |
 | [PLAN-005](PLAN-005.md) | Move drive direct shares to policy tuples | Draft | 2026-05-23 |
+| [PLAN-006](PLAN-006.md) | Flatten `portal` out of frontend routing | Done | 2026-05-23 |

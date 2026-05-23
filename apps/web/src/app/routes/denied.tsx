@@ -59,7 +59,7 @@ function DeniedPage() {
     });
   }, [auditId]);
 
-  const showBackToPortal = reason === "no_viewer_relation";
+  const showBackToOverview = reason === "no_viewer_relation";
   const showSwitchAccount = reason === "no_viewer_relation" || reason === "user_disabled";
   const showSignInDifferent = reason === "user_not_registered";
   const showSignOut = reason === "user_disabled";
@@ -94,12 +94,12 @@ function DeniedPage() {
         )}
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          {showBackToPortal && (
+          {showBackToOverview && (
             <Link
-              to="/portal"
+              to="/overview"
               className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
             >
-              {t("denied:backToPortal")}
+              {t("denied:backToOverview")}
             </Link>
           )}
 

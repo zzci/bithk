@@ -29,9 +29,9 @@ export const Route = createFileRoute("/login")({
 
 function isSafeRedirect(url: string | undefined): string {
   if (!url)
-    return `${BASE_PATH}/portal`;
+    return `${BASE_PATH}/overview`;
   if (!url.startsWith("/") || url.startsWith("//"))
-    return `${BASE_PATH}/portal`;
+    return `${BASE_PATH}/overview`;
   return url;
 }
 

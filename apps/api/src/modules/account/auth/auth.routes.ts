@@ -270,7 +270,7 @@ export function authRoutes() {
     }
     const oauth = getOAuthConfig(config);
     const callbackUrl = `${deriveOrigin(c.req.raw, config)}${base}/api/account/auth/callback`;
-    const redirectUri = sanitizeRedirect(c.req.query("redirect") ?? `${base}/portal`, base);
+    const redirectUri = sanitizeRedirect(c.req.query("redirect") ?? `${base}/overview`, base);
 
     const { state, codeChallenge } = await createPkceChallenge(c.get("db"), redirectUri);
     const authorizeUrl = buildAuthorizeUrl({

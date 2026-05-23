@@ -1,17 +1,17 @@
 import type { NavArea, NavItem } from "./types";
+import { documentsNav } from "@/app/routes/_app/-documents.nav";
+import { driveNav } from "@/app/routes/_app/-drive.nav";
+import { issuesNav } from "@/app/routes/_app/-issues.nav";
+import { overviewNav } from "@/app/routes/_app/-overview.nav";
+import { projectsNav } from "@/app/routes/_app/-projects.nav";
 import { auditNav } from "@/app/routes/_app/admin/-audit.nav";
 import { cronNav } from "@/app/routes/_app/admin/-cron.nav";
 import { policiesNav } from "@/app/routes/_app/admin/-policies.nav";
 import { settingsNav } from "@/app/routes/_app/admin/-settings.nav";
 import { usersNav } from "@/app/routes/_app/admin/-users.nav";
-import { documentsNav } from "@/app/routes/_app/portal/-documents.nav";
-import { driveNav } from "@/app/routes/_app/portal/-drive.nav";
-import { issuesNav } from "@/app/routes/_app/portal/-issues.nav";
-import { portalNav } from "@/app/routes/_app/portal/-portal.nav";
-import { projectsNav } from "@/app/routes/_app/portal/-projects.nav";
 
 const NAV_ITEMS: readonly NavItem[] = [
-  portalNav,
+  overviewNav,
   issuesNav,
   documentsNav,
   driveNav,

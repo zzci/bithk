@@ -3,15 +3,15 @@
 // file previewable / downloadable). Subtree-scoped server-side.
 
 import type { FormEvent } from "react";
-import type { FileType } from "@/app/routes/_app/portal/-file-browser-types";
+import type { FileType } from "@/app/routes/_app/-file-browser-types";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { PublicDriveContent, PublicShareEntry, PublicShareListing, PublicShareMeta } from "@/shared/lib/api/share";
 import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileText, Folder, Loader2, Lock } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { detectFileType, FILE_ICONS } from "@/app/routes/_app/portal/-file-browser-types";
-import { FilePreviewDialog, resolvePreviewKind } from "@/app/routes/_app/portal/-file-preview-dialog";
+import { detectFileType, FILE_ICONS } from "@/app/routes/_app/-file-browser-types";
+import { FilePreviewDialog, resolvePreviewKind } from "@/app/routes/_app/-file-preview-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {

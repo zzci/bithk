@@ -8,9 +8,9 @@ describe("getNavItems", () => {
     expect(items.every(i => i.area === "admin")).toBe(true);
   });
 
-  it("returns portal entries sorted by order", () => {
-    const items = getNavItems("portal");
-    expect(items.map(i => i.key)).toEqual(["portal", "myIssues", "documents", "drive", "projects"]);
-    expect(items.every(i => i.area === "portal")).toBe(true);
+  it("returns overview entries sorted by order", () => {
+    const items = getNavItems("overview");
+    expect(items.map(i => i.key)).toEqual(["overview", "myIssues", "documents", "drive", "projects"]);
+    expect(items.every(i => i.area === "overview")).toBe(true);
   });
 });

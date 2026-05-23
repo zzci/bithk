@@ -53,7 +53,7 @@ function isNavActive(
   pathname: string,
 ): boolean {
   const prefix = item.matchPrefix ?? item.path;
-  if (prefix === "/portal" || prefix === "/") {
+  if (prefix === "/overview" || prefix === "/") {
     return pathname === prefix || pathname === `${prefix}/`;
   }
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -150,7 +150,7 @@ export function AppSidebar() {
   const currentPath = routerState.location.pathname;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const portalNav = getNavItems("portal");
+  const overviewNav = getNavItems("overview");
   const adminNav = getNavItems("admin");
 
   return (
@@ -175,7 +175,7 @@ export function AppSidebar() {
           {/* Expanded layout (hidden when collapsed). */}
           <div className="flex w-full items-center gap-2 group-data-[collapsible=icon]:hidden">
             <Link
-              to="/portal"
+              to="/overview"
               className="flex min-w-0 items-center gap-2 rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               aria-label={t("nav.home")}
             >
@@ -197,10 +197,10 @@ export function AppSidebar() {
 
         {/* Nav */}
         <SidebarContent>
-          {/* Portal nav */}
+          {/* Overview nav */}
           <SidebarGroup>
             <SidebarMenu>
-              {portalNav.map(item => (
+              {overviewNav.map(item => (
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
                     isActive={isNavActive(item, currentPath)}

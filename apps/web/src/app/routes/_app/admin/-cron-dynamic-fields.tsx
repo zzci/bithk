@@ -35,7 +35,7 @@ export function ActionMetaCard({ action }: { readonly action: ActionCatalogEntry
   const { t } = useTranslation("cron");
   // Wrap the looked-up component in a stable holder object so the
   // linter's "components declared during render" guard doesn't trip on
-  // `<Icon />`; pattern matches `PortalPage`'s `<tile.icon />`.
+  // `<Icon />`; pattern matches `OverviewPage`'s `<tile.icon />`.
   const icon = { Component: resolveActionIcon(action.icon) };
   return (
     <div className="rounded-md border bg-muted/30 p-3">
