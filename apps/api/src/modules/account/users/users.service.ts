@@ -1,5 +1,5 @@
 import type { AppDatabase } from "@/db";
-import { and, asc, count, eq, inArray, like, or } from "drizzle-orm";
+import { and, asc, count, eq, inArray, or, sql } from "drizzle-orm";
 import { groups } from "@/modules/account/groups/schema";
 import { users } from "@/modules/account/users/schema";
 import {
@@ -39,8 +39,17 @@ export async function listUsers(db: AppDatabase, params: ListUsersParams) {
   const conditions = [];
 
   if (q) {
-    const pattern = `%${q}%`;
-    conditions.push(or(like(users.name, pattern), like(users.email, pattern), like(users.username, pattern)));
+    // SQLite LIKE has no default escape character, so escape the term's
+    // backslash + wildcard literals and bind an explicit ESCAPE clause.
+    // Without this, a query containing `%` or `_` would over-match (the
+    // user's wildcards leak through) and a backslash would match literally.
+    const escaped = q.replace(/[\\%_]/g, "\\$&");
+    const pattern = `%${escaped}%`;
+    conditions.push(or(
+      sql`${users.name} LIKE ${pattern} ESCAPE '\\'`,
+      sql`${users.email} LIKE ${pattern} ESCAPE '\\'`,
+      sql`${users.username} LIKE ${pattern} ESCAPE '\\'`,
+    ));
   }
   if (role) {
     conditions.push(eq(users.role, role));

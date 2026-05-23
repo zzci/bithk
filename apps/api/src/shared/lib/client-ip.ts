@@ -112,7 +112,11 @@ function parseCidr(entry: string): ParsedCidr | undefined {
   if (ipBits === undefined)
     return undefined;
   const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
-  return { ipBits: ipBits & mask, mask };
+  // `&` yields a signed int32; normalise to unsigned so the stored network
+  // address matches the unsigned value `isAllowedPeer` derives. Without this
+  // any range whose network address has its high bit set (first octet >= 128,
+  // e.g. 172.16.0.0/12 or 192.168.0.0/16) would never match its own peers.
+  return { ipBits: (ipBits & mask) >>> 0, mask };
 }
 
 function ipv4ToInt(ip: string): number | undefined {
