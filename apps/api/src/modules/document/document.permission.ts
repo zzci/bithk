@@ -53,6 +53,9 @@ export const documentAccess = defineResource({
     "document:delete": "owner",
     "document:manage": "owner",
   } as const,
+  // Owner-scoped: a caller with no read access cannot tell a private
+  // document apart from a non-existent one (404, not 403). See decision 003.
+  readAction: "document:read",
   routes: [
     { method: "GET", path: "/documents/:id", action: "document:read" },
     { method: "PATCH", path: "/documents/:id", action: "document:update" },

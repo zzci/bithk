@@ -528,7 +528,9 @@ describe("document pins (per-user)", () => {
       method: "PUT",
       headers: { cookie: await sessionCookieFor(outsider) },
     });
-    expect(forbidden.status).toBe(403);
+    // Pin is a read-level action; an outsider with no access sees 404, not 403,
+    // so the document's existence is not leaked. Decision 003.
+    expect(forbidden.status).toBe(404);
 
     const ok = await app.request(`/documents/${doc.id}/pin`, {
       method: "PUT",
@@ -549,7 +551,8 @@ describe("admin de-privilege over HTTP (owner-scoped, no bypass)", () => {
     const res = await app.request(`/documents/${docB.id}`, {
       headers: { cookie: await sessionCookieFor(adminA) },
     });
-    expect(res.status).toBe(403);
+    // No access relationship ⇒ hide existence with 404, not 403. Decision 003.
+    expect(res.status).toBe(404);
   });
 
   test("admin A's list excludes admin B's unshared document", async () => {
@@ -608,6 +611,58 @@ describe("admin de-privilege over HTTP (owner-scoped, no bypass)", () => {
       headers: { cookie: await sessionCookieFor(adminViewer) },
     });
     expect(sharedRes.status).toBe(200);
+  });
+});
+
+describe("fail-closed 404 existence policy (decision 003)", () => {
+  test("no-access read of a document returns 404 (hides existence)", async () => {
+    const owner = await seedUser("Owner");
+    const outsider = await seedUser("Outsider");
+    const doc = await createDocument(db, { title: "Private", creatorId: owner });
+    const app = buildDocumentApp();
+
+    const res = await app.request(`/documents/${doc.id}`, {
+      headers: { cookie: await sessionCookieFor(outsider) },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test("no-access read of a document's shares returns 404 (hides existence)", async () => {
+    const owner = await seedUser("Owner");
+    const outsider = await seedUser("Outsider");
+    const doc = await createDocument(db, { title: "Private", creatorId: owner });
+    const app = buildDocumentApp();
+
+    const res = await app.request(`/documents/${doc.id}/shares`, {
+      headers: { cookie: await sessionCookieFor(outsider) },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test("a viewer can read the document but lacks manage ⇒ 403 on its shares (capability denial stays 403)", async () => {
+    const owner = await seedUser("Owner");
+    const viewer = await seedUser("Viewer");
+    const doc = await createDocument(db, { title: "Shared", creatorId: owner });
+    await addDocumentShare(policyCtx(owner), {
+      documentId: doc.id,
+      targetType: "user",
+      targetId: viewer,
+      permission: "viewer",
+    });
+    const app = buildDocumentApp();
+
+    // The viewer can see the document...
+    const readRes = await app.request(`/documents/${doc.id}`, {
+      headers: { cookie: await sessionCookieFor(viewer) },
+    });
+    expect(readRes.status).toBe(200);
+
+    // ...but lacks `manage`, so listing its shares is a capability denial (403),
+    // NOT a 404 — the viewer already knows the document exists.
+    const sharesRes = await app.request(`/documents/${doc.id}/shares`, {
+      headers: { cookie: await sessionCookieFor(viewer) },
+    });
+    expect(sharesRes.status).toBe(403);
   });
 });
 

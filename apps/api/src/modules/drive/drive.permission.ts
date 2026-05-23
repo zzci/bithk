@@ -126,8 +126,16 @@ export async function assertEntryCapability(
   if (!entry)
     throw new NotFoundError("Drive entry", entryId);
   const caps = await resolveEntryCapabilities(db, entry, actor);
-  if (!caps.has(capability))
+  if (!caps.has(capability)) {
+    // No capability at all means no access relationship (not owner, not a
+    // team-directory/project member, no share). Hide the entry's existence
+    // with a 404 rather than leaking it via 403. A caller who CAN see the
+    // entry (any capability) but lacks this specific one gets 403. See
+    // docs/decisions/003-fail-closed-404-existence-policy.md.
+    if (caps.size === 0)
+      throw new NotFoundError("Drive entry", entryId);
     throw new ForbiddenError();
+  }
   return entry;
 }
 
@@ -141,6 +149,9 @@ export const driveAccess = defineResource<DriveAction>({
     "drive:delete": "owner",
     "drive:download": "viewer",
   },
+  // A caller with no capability on an entry cannot tell it apart from a
+  // missing one (404, not 403). See decision 003.
+  readAction: "drive:read",
   routes: [
     { method: "GET", path: "/drive/entries/:id", action: "drive:read" },
     { method: "GET", path: "/drive/entries/:id/content", action: "drive:download" },

@@ -2,6 +2,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import type { ResourceAccess } from "./permission";
 import type { PolicyContext, PolicyRequest, ResourceRouteSpec } from "./registry";
 import type { RouteBinding } from "./route-registry";
+import type { AppError } from "@/shared/lib/errors";
 import type { AppEnv } from "@/shared/lib/types";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { ForbiddenError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
@@ -33,6 +34,29 @@ export function policyContext(c: Context<AppEnv>): PolicyContext | null {
     actor: { id: user.id, type: "user", role: user.role, name: user.name },
     request: buildPolicyRequest(c),
   };
+}
+
+/**
+ * Build the right error for a failed `can()` check under the fail-closed
+ * existence policy (decision 003). A caller with no access relationship to
+ * the resource must not be able to tell "exists but forbidden" from "does
+ * not exist", so they get 404; a caller who can already read the resource
+ * but lacks the requested capability gets 403. Resources opt in with
+ * `definition.readAction`; without it the legacy 403 is kept.
+ */
+async function accessDenied(
+  resource: ResourceAccess<string>,
+  ctx: PolicyContext,
+  action: string,
+  objectId: string,
+  externalId: string,
+): Promise<AppError> {
+  const readAction = resource.definition.readAction;
+  if (readAction !== undefined
+    && (action === readAction || !(await resource.can(ctx, readAction, objectId)))) {
+    return new NotFoundError(resource.name, externalId);
+  }
+  return new ForbiddenError();
 }
 
 /**
@@ -80,7 +104,7 @@ export function requirePermission<T extends string>(
       throw new NotFoundError(resource.name, params[options.idParam ?? "id"] ?? "");
 
     if (!(await resource.can(ctx, action, objectId)))
-      throw new ForbiddenError();
+      throw await accessDenied(resource, ctx, action, objectId, params[options.idParam ?? "id"] ?? objectId);
 
     await next();
   };
@@ -197,8 +221,15 @@ export function policyMiddleware(options: { readonly basePath?: string } = {}): 
     if (!ctx)
       throw new UnauthorizedError();
 
-    if (!(await access.can(ctx, match.binding.action, objectId)))
-      throw new ForbiddenError();
+    if (!(await access.can(ctx, match.binding.action, objectId))) {
+      throw await accessDenied(
+        access,
+        ctx,
+        match.binding.action,
+        objectId,
+        params[route?.idParam ?? "id"] ?? objectId,
+      );
+    }
 
     await next();
   };
