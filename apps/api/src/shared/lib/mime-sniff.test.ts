@@ -67,3 +67,39 @@ describe("mimeMatchesContent", () => {
     expect(mimeMatchesContent("image/svg+xml", new TextEncoder().encode("<svg/>"))).toBe(false);
   });
 });
+
+describe("sniffKind — signature variants and the text heuristic", () => {
+  test("recognises gif87a, big-endian tiff, and the empty/spanned zip headers", () => {
+    expect(sniffKind(bytes(0x47, 0x49, 0x46, 0x38, 0x37, 0x61))).toBe("gif"); // gif87a
+    expect(sniffKind(bytes(0x4D, 0x4D, 0x00, 0x2A))).toBe("tiff"); // big-endian
+    expect(sniffKind(bytes(0x50, 0x4B, 0x05, 0x06))).toBe("zip"); // empty archive
+    expect(sniffKind(bytes(0x50, 0x4B, 0x07, 0x08))).toBe("zip"); // spanned archive
+  });
+
+  test("a single embedded NUL byte collapses the text classification", () => {
+    expect(sniffKind(bytes(0x68, 0x69, 0x00, 0x68, 0x69))).toBeNull();
+  });
+
+  test("mostly-binary noise below the printable threshold is not text", () => {
+    const noise = new Uint8Array(64);
+    for (let i = 0; i < noise.length; i++)
+      noise[i] = (i % 2 === 0) ? 0x01 : 0x02; // control bytes, no NULs
+    expect(sniffKind(noise)).toBeNull();
+  });
+});
+
+describe("mimeMatchesContent — alias coverage", () => {
+  test("accepts x-zip-compressed, x-ms-bmp, and x-tiff aliases", () => {
+    expect(mimeMatchesContent("application/x-zip-compressed", bytes(0x50, 0x4B, 0x03, 0x04))).toBe(true);
+    expect(mimeMatchesContent("image/x-ms-bmp", bytes(0x42, 0x4D, 0x00, 0x00))).toBe(true);
+    expect(mimeMatchesContent("image/x-tiff", bytes(0x49, 0x49, 0x2A, 0x00))).toBe(true);
+  });
+
+  test("matching is case-insensitive on the claimed type", () => {
+    expect(mimeMatchesContent("IMAGE/PNG", bytes(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A))).toBe(true);
+  });
+
+  test("7z bytes claiming application/zip are rejected", () => {
+    expect(mimeMatchesContent("application/zip", bytes(0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C))).toBe(false);
+  });
+});

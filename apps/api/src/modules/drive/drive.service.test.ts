@@ -26,6 +26,7 @@ import {
   listFavoriteDriveEntries,
   listRecentDriveEntries,
   restoreDriveEntry,
+  searchDriveEntriesByOwners,
   trashDriveEntry,
   updateDriveEntry,
   uploadDriveFile,
@@ -246,6 +247,81 @@ describe("buildDriveEntryDownloadResponse", () => {
     const owner = await seedUser("Owner");
     const folder = await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "F" });
     await expect(buildDriveEntryDownloadResponse(db, config, personal(owner), folder.id, false)).rejects.toMatchObject({ code: "INVALID_ENTRY_TYPE" });
+  });
+});
+
+describe("searchDriveEntriesByOwners", () => {
+  test("matches files by name across the owner set, files only", async () => {
+    const owner = await seedUser("Owner");
+    // A matching folder must be excluded — search returns files only.
+    await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "report-folder" });
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("quarterly-report.txt") });
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("report-summary.txt") });
+    // A non-matching file must not appear.
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("invoice.txt") });
+
+    const results = await searchDriveEntriesByOwners(db, [personal(owner)], "report", 50);
+    expect(results.every(r => r.type === "file")).toBe(true);
+    expect(results.map(r => r.name).sort()).toEqual(["quarterly-report.txt", "report-summary.txt"]);
+  });
+
+  test("treats % and _ in the term as literals, not LIKE wildcards", async () => {
+    const owner = await seedUser("Owner");
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("50%off.txt") });
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("50Xoff.txt") });
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("a_b.txt") });
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("aXb.txt") });
+
+    // Literal "%" must match only the file that actually contains it.
+    const pct = await searchDriveEntriesByOwners(db, [personal(owner)], "50%off", 50);
+    expect(pct.map(r => r.name)).toEqual(["50%off.txt"]);
+
+    // Literal "_" must not behave as the single-char wildcard.
+    const underscore = await searchDriveEntriesByOwners(db, [personal(owner)], "a_b", 50);
+    expect(underscore.map(r => r.name)).toEqual(["a_b.txt"]);
+  });
+
+  test("scopes results to the supplied owners and returns nothing for outsiders", async () => {
+    const owner = await seedUser("Owner");
+    const other = await seedUser("Other");
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("secret-plan.txt") });
+
+    expect(await searchDriveEntriesByOwners(db, [personal(other)], "secret", 50)).toEqual([]);
+    expect((await searchDriveEntriesByOwners(db, [personal(owner)], "secret", 50)).map(r => r.name)).toEqual(["secret-plan.txt"]);
+  });
+
+  test("returns [] for an empty owner set or a blank term", async () => {
+    const owner = await seedUser("Owner");
+    await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("doc.txt") });
+    expect(await searchDriveEntriesByOwners(db, [], "doc", 50)).toEqual([]);
+    expect(await searchDriveEntriesByOwners(db, [personal(owner)], "   ", 50)).toEqual([]);
+  });
+});
+
+describe("validateParent guards", () => {
+  test("rejects parenting under a file (not a folder)", async () => {
+    const owner = await seedUser("Owner");
+    const file = await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("doc.txt") });
+    await expect(createDriveFolder(db, { ...personal(owner), createdBy: owner, parentEntryId: file.id, name: "sub" }))
+      .rejects
+      .toMatchObject({ code: "INVALID_PARENT" });
+  });
+
+  test("rejects parenting under a trashed folder", async () => {
+    const owner = await seedUser("Owner");
+    const folder = await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "F" });
+    await trashDriveEntry(db, personal(owner), folder.id);
+    await expect(createDriveFolder(db, { ...personal(owner), createdBy: owner, parentEntryId: folder.id, name: "sub" }))
+      .rejects
+      .toMatchObject({ code: "INVALID_PARENT" });
+  });
+
+  test("rejects moving an entry into itself", async () => {
+    const owner = await seedUser("Owner");
+    const folder = await createDriveFolder(db, { ...personal(owner), createdBy: owner, name: "F" });
+    await expect(updateDriveEntry(db, { ...personal(owner), id: folder.id, parentEntryId: folder.id }))
+      .rejects
+      .toMatchObject({ code: "INVALID_PARENT" });
   });
 });
 
