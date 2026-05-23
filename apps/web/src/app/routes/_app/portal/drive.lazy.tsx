@@ -247,14 +247,14 @@ function DriveViewContent({
     case "shared-with-me":
       return (
         <div className="min-h-0 flex-1 overflow-auto">
-          <ReceivedSharesList />
+          <ReceivedSharesList onPreviewEntry={onPreviewEntry} />
         </div>
       );
 
     case "shared-by-me":
       return (
         <div className="min-h-0 flex-1 overflow-hidden">
-          <OutgoingSharesList />
+          <OutgoingSharesList onPreviewEntry={onPreviewEntry} />
         </div>
       );
 

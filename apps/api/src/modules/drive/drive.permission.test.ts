@@ -152,10 +152,10 @@ describe("resolveEntryCapabilities — additive direct shares", () => {
     return { row, recipient };
   }
 
-  test("view share → read only, never delete or share", async () => {
+  test("view share → read + download, never delete or share", async () => {
     const { row, recipient } = await sharedFile("view");
     const caps = await resolveEntryCapabilities(db, row, { id: recipient, role: "user" });
-    expect([...caps].sort()).toEqual(["read"]);
+    expect([...caps].sort()).toEqual(["download", "read"]);
   });
 
   test("download share → read + download", async () => {

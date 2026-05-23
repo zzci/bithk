@@ -21,7 +21,7 @@ import type {
 } from "./-drive-file-list-surface";
 import type { DisplayItem } from "./-file-browser-types";
 import type { SimpleUser } from "@/shared/lib/api/documents";
-import type { DriveShare } from "@/shared/lib/api/drive";
+import type { DriveEntry, DriveShare } from "@/shared/lib/api/drive";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Download, Inbox, Link2, Share2, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
@@ -149,12 +149,12 @@ function shareToDisplayItem(share: DriveShare, ownerLabel: string): DisplayItem 
 }
 
 /**
- * Download a file a recipient received via a share. The content endpoint
- *  authorizes the recipient through the share grant, so the minimal entry
- *  shape the downloader needs is reconstructed from the share view.
+ * Reconstruct the minimal `DriveEntry` a share row stands for. The content /
+ *  download endpoints authorize the caller through the share grant and key off
+ *  `driveEntryId`, so this shape is enough for both preview and download.
  */
-function downloadReceivedShare(share: DriveShare): void {
-  void downloadDriveEntry({
+function shareToEntry(share: DriveShare): DriveEntry {
+  return {
     id: share.driveEntryId,
     ownerType: "user",
     ownerId: "",
@@ -166,7 +166,12 @@ function downloadReceivedShare(share: DriveShare): void {
     createdAt: share.createdAt,
     updatedAt: share.updatedAt,
     file: share.file ? { referenceId: "", fileId: "", ...share.file } : null,
-  });
+  };
+}
+
+/** Download a file a recipient received via a share. */
+function downloadReceivedShare(share: DriveShare): void {
+  void downloadDriveEntry(shareToEntry(share));
 }
 
 function ShareListSurface({
@@ -175,12 +180,14 @@ function ShareListSurface({
   loading,
   onRefresh,
   extraFilters,
+  onPreviewEntry,
 }: {
   readonly mode: ShareListMode;
   readonly shares: readonly DriveShare[];
   readonly loading: boolean;
   readonly onRefresh: () => void;
   readonly extraFilters?: readonly SurfaceExtraFilter[] | undefined;
+  readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
 }) {
   const { t } = useTranslation("drive");
   const revoke = useRevokeShare();
@@ -214,7 +221,7 @@ function ShareListSurface({
       return [];
 
     if (mode === "received") {
-      if (share.file && share.permission !== "view") {
+      if (share.file) {
         return [{
           key: "download",
           label: t("share.action.download"),
@@ -252,7 +259,12 @@ function ShareListSurface({
     onShare: () => undefined,
     onDelete: () => undefined,
     onBatchDelete: () => undefined,
-    onPreview: () => undefined,
+    onPreview: (item) => {
+      // Only files preview; folder shares carry no `file`.
+      const share = shareMap.get(item.id);
+      if (share?.file)
+        onPreviewEntry?.(shareToEntry(share));
+    },
     onRename: () => undefined,
     onFavoriteChange: () => undefined,
     getCustomActions,
@@ -281,7 +293,9 @@ function ShareListSurface({
 
 // ── Public exports wired by the drive page ──
 
-export function ReceivedSharesList() {
+export function ReceivedSharesList({ onPreviewEntry }: {
+  readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
+}) {
   const query = useReceivedShares();
   return (
     <ShareListSurface
@@ -289,6 +303,7 @@ export function ReceivedSharesList() {
       shares={query.data ?? []}
       loading={query.isLoading}
       onRefresh={() => void query.refetch()}
+      onPreviewEntry={onPreviewEntry}
     />
   );
 }
@@ -300,7 +315,9 @@ type OutgoingCategory = "all" | "direct" | "public_link";
  * narrowed by an in-content "share category" filter (rendered in the surface
  * filter bar) rather than a separate top-of-page tab.
  */
-export function OutgoingSharesList() {
+export function OutgoingSharesList({ onPreviewEntry }: {
+  readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
+}) {
   const { t } = useTranslation("drive");
   const sentQuery = useSentShares();
   const linksQuery = usePublicLinks();
@@ -336,6 +353,7 @@ export function OutgoingSharesList() {
         void linksQuery.refetch();
       }}
       extraFilters={extraFilters}
+      onPreviewEntry={onPreviewEntry}
     />
   );
 }

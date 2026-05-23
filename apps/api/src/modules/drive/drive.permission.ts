@@ -48,9 +48,10 @@ interface EntryOwnerInfo {
  * - Global `admin` actors and the personal owner get the full set.
  * - Team-directory `admin` / `editor` get full management (create / update /
  *   delete / share); `viewer` gets read + download only.
- * - An active direct share to the actor is **additive**: `view` → read,
- *   `download` → read + download, `edit` → read + download + update. Direct
- *   shares never confer `share` or `delete`.
+ * - An active direct share to the actor is **additive**: any grant confers
+ *   read + download (a recipient can always view and download what was shared
+ *   with them); `edit` additionally confers update. Direct shares never confer
+ *   `share` or `delete`.
  */
 export async function resolveEntryCapabilities(
   db: AppDatabase,
@@ -89,8 +90,7 @@ export async function resolveEntryCapabilities(
     .get();
   if (share) {
     caps.add("read");
-    if (share.permission === "download" || share.permission === "edit")
-      caps.add("download");
+    caps.add("download");
     if (share.permission === "edit")
       caps.add("update");
   }
