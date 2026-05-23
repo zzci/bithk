@@ -7,10 +7,10 @@
 // Mirrors the unauth backend at `/api/drive/shared/:token(/list|/file/:id)`.
 
 import type { FormEvent } from "react";
-import type { DisplayItem } from "./_app/portal/-file-browser-types";
+import type { FileType } from "./_app/portal/-file-browser-types";
 import type { DriveEntry, PublicShareEntry, PublicShareListing, PublicShareMetadata } from "@/shared/lib/api/drive";
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, Eye, FileText, Folder, Loader2, Lock, ShieldAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileText, Folder, Loader2, Lock, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,8 +21,7 @@ import { Input } from "@/shared/components/ui/input";
 import { downloadPublicShareFile, listPublicShareEntries, usePublicShare } from "@/shared/lib/api/drive";
 import { errorMessage } from "@/shared/lib/errors";
 import { httpRaw } from "@/shared/lib/http";
-import { DriveFileListSurface } from "./_app/portal/-drive-file-list-surface";
-import { detectFileType } from "./_app/portal/-file-browser-types";
+import { detectFileType, FILE_ICONS } from "./_app/portal/-file-browser-types";
 import { FilePreviewDialog, resolvePreviewKind } from "./_app/portal/-file-preview-dialog";
 
 export const Route = createFileRoute("/drive/shared/$token")({
@@ -59,21 +58,19 @@ function buildPreviewEntry(parts: { id: string; name: string; mimetype: string; 
   };
 }
 
-/** Map a public listing entry to the shared list surface's display shape. */
-function publicEntryToItem(entry: PublicShareEntry): DisplayItem {
-  return {
-    id: entry.id,
-    name: entry.name,
-    type: entry.type === "folder" ? "folder" : detectFileType(entry.mimetype ?? ""),
-    modified: "",
-    ownerType: "user",
-    ownerId: "",
-    isFolder: entry.type === "folder",
-    fileId: entry.type === "file" ? entry.id : null,
-    isFavorite: false,
-    ...(entry.size != null ? { size: entry.size } : {}),
-    ...(entry.mimetype ? { mimeType: entry.mimetype } : {}),
-  };
+/** Display file-type for a public listing entry (drives the row icon). */
+function entryFileType(entry: PublicShareEntry): FileType {
+  return entry.type === "folder" ? "folder" : detectFileType(entry.mimetype ?? "");
+}
+
+/** Folders first, then by name; `dir` flips the name comparison only. */
+function sortEntries(entries: readonly PublicShareEntry[], dir: "asc" | "desc"): PublicShareEntry[] {
+  return [...entries].sort((a, b) => {
+    if ((a.type === "folder") !== (b.type === "folder"))
+      return a.type === "folder" ? -1 : 1;
+    const cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+    return dir === "asc" ? cmp : -cmp;
+  });
 }
 
 function Shell({ children, wide }: { readonly children: React.ReactNode; readonly wide?: boolean }) {
@@ -279,6 +276,9 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
     [previewItem],
   );
 
+  // Client-side name sort (the only sort this minimal list offers).
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
   if (!unlocked) {
     return (
       <Shell>
@@ -307,55 +307,89 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
   }
 
   const breadcrumb = listing?.breadcrumb ?? [{ id: meta.token, name: meta.filename }];
-  const folderPath = breadcrumb.map((crumb, i) => ({ id: i === 0 ? null : crumb.id, name: crumb.name }));
-  const items = (listing?.entries ?? []).map(publicEntryToItem);
-  const entryById = new Map((listing?.entries ?? []).map(entry => [entry.id, entry]));
+  const entries = sortEntries(listing?.entries ?? [], sortDir);
   const pwd = meta.requiresPassword ? password : undefined;
+  const previewable = (entry: PublicShareEntry) => entry.type === "file" && resolvePreviewKind(entry.mimetype ?? "", entry.name) !== "unsupported";
 
   return (
     <Shell wide>
-      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
-      <div className="h-[70vh]">
-        <DriveFileListSurface
-          items={items}
-          loading={loading}
-          toolbar={{
-            kind: "folder",
-            variant: "compact",
-            ownerType: "user",
-            folderPath,
-            showCreateActions: false,
-            onNavigateToBreadcrumb: index => setParentEntryId(index === 0 ? undefined : breadcrumb[index]?.id),
-          }}
-          capabilities={{
-            download: true,
-            navigateFolders: true,
-            share: false,
-            favorite: false,
-            rename: false,
-            delete: false,
-            batchDownload: false,
-            batchDelete: false,
-            upload: false,
-            createFolder: false,
-            createTextFile: false,
-          }}
-          actions={{
-            onRefresh: () => void load(parentEntryId, password),
-            onNavigateToFolder: entryId => setParentEntryId(entryId),
-            onDownload: (fileId, fileName) => void downloadPublicShareFile(token, fileId, fileName, pwd),
-            onShare: () => undefined,
-            onDelete: () => undefined,
-            onBatchDelete: () => undefined,
-            onPreview: (item) => {
-              const entry = entryById.get(item.id);
-              if (entry?.type === "file")
-                setPreviewItem(entry);
-            },
-            onRename: () => undefined,
-            onFavoriteChange: () => undefined,
-          }}
-        />
+      <div className="flex flex-col gap-3">
+        {/* Breadcrumb */}
+        <div className="flex flex-wrap items-center gap-1 text-sm">
+          {breadcrumb.map((crumb, i, arr) => (
+            <span key={crumb.id} className="flex items-center gap-1">
+              {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground/60" />}
+              <button
+                type="button"
+                onClick={() => setParentEntryId(i === 0 ? undefined : crumb.id)}
+                className={i === arr.length - 1 ? "font-medium" : "text-muted-foreground hover:text-foreground"}
+              >
+                {crumb.name}
+              </button>
+            </span>
+          ))}
+        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {/* Name-sortable header */}
+        <button
+          type="button"
+          onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
+          className="flex w-fit items-center gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          {t("browser.column.name")}
+          {sortDir === "asc" ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+        </button>
+
+        {loading
+          ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+                {t("common:common.loading")}
+              </div>
+            )
+          : entries.length === 0
+            ? <div className="py-10 text-center text-sm text-muted-foreground">{t("picker.empty")}</div>
+            : (
+                <ul className="flex flex-col gap-0.5">
+                  {entries.map(entry => (
+                    <li
+                      key={entry.id}
+                      className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (entry.type === "folder")
+                            setParentEntryId(entry.id);
+                          else if (previewable(entry))
+                            setPreviewItem(entry);
+                        }}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      >
+                        {FILE_ICONS[entryFileType(entry)]("size-5 shrink-0")}
+                        <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
+                        {entry.type === "file" && (
+                          <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(entry.size ?? 0)}</span>
+                        )}
+                      </button>
+                      {entry.type === "file" && (
+                        <div className="flex shrink-0 items-center gap-1">
+                          {previewable(entry) && (
+                            <Button type="button" variant="ghost" size="icon-sm" aria-label={t("public.preview")} onClick={() => setPreviewItem(entry)}>
+                              <Eye className="size-4" />
+                            </Button>
+                          )}
+                          <Button type="button" variant="ghost" size="icon-sm" aria-label={t("public.download")} onClick={() => void downloadPublicShareFile(token, entry.id, entry.name, pwd)}>
+                            <Download className="size-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
       </div>
 
       {previewEntry && (
