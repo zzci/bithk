@@ -695,6 +695,25 @@ describe("listMyDocuments filtering", () => {
     const page2 = await listMyDocuments(db, { userId: me, page: 2, limit: 2 });
     expect(page2.data).toHaveLength(1);
   });
+
+  test("q treats % and _ as literals, not LIKE wildcards (ESCAPE clause)", async () => {
+    const me = await seedUser("Me");
+    const pct = await createDocument(db, { title: "50% off sale", creatorId: me });
+    await createDocument(db, { title: "50 off sale", creatorId: me });
+    const under = await createDocument(db, { title: "a_b config", creatorId: me });
+    await createDocument(db, { title: "axb config", creatorId: me });
+
+    // A literal "%" must match only the title that actually contains it.
+    // Without the ESCAPE clause the escaped term ("50\% off") matches
+    // nothing (the backslash is taken literally), so this would be empty.
+    const byPercent = await listMyDocuments(db, { userId: me, q: "50% off" });
+    expect(byPercent.data.map(d => d.id)).toEqual([pct.id]);
+
+    // A literal "_" must not behave as the single-char wildcard: "a_b"
+    // matches, "axb" does not.
+    const byUnderscore = await listMyDocuments(db, { userId: me, q: "a_b" });
+    expect(byUnderscore.data.map(d => d.id)).toEqual([under.id]);
+  });
 });
 
 describe("listAllTags + tag cache", () => {

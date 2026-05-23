@@ -1,6 +1,6 @@
 import type { AppDatabase, RunResult } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
-import { and, count, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { groups } from "@/modules/account/groups/schema";
 import { documentAccess } from "@/modules/document/document.permission";
 import { documentDetails, documentPins } from "@/modules/document/schema";
@@ -11,7 +11,14 @@ import { listUserResources } from "@/modules/policy/zanzibar.engine";
 import { deleteSharesForResource } from "@/modules/share";
 import { nanoid, ulid } from "@/shared/lib/id";
 
-const LIKE_SPECIAL_RE = /[%_]/g;
+// Escape the LIKE wildcards (`%`, `_`) *and* the escape character itself
+// (`\`) so a user-supplied term is matched literally. Backslash must be
+// escaped first / together — handled here by the single character class — so
+// `\` → `\\` rather than being re-consumed by a later pass. Pair every
+// pattern built with this helper with an explicit `ESCAPE '\'` clause:
+// SQLite's LIKE has no default escape character, so without it the
+// backslashes would match literally and over-match user `%` / `_`.
+const LIKE_SPECIAL_RE = /[\\%_]/g;
 
 function escapeLike(v: string): string {
   return v.replace(LIKE_SPECIAL_RE, "\\$&");
@@ -397,7 +404,7 @@ export interface ListDocumentsParams {
 async function buildDocumentConditions(params: ListDocumentsParams) {
   const conditions = [eq(items.type, "document"), isNull(items.deletedAt)];
   if (params.q) {
-    conditions.push(like(items.title, `%${escapeLike(params.q)}%`));
+    conditions.push(sql`${items.title} LIKE ${`%${escapeLike(params.q)}%`} ESCAPE '\\'`);
   }
   return conditions;
 }
@@ -437,7 +444,7 @@ export async function listMyDocuments(db: AppDatabase, params: ListDocumentsPara
   if (params.tag) {
     const ids = await db.select({ itemId: documentDetails.itemId })
       .from(documentDetails)
-      .where(like(documentDetails.tags, `%"${escapeLike(params.tag)}"%`))
+      .where(sql`${documentDetails.tags} LIKE ${`%"${escapeLike(params.tag)}"%`} ESCAPE '\\'`)
       .all();
     if (ids.length === 0)
       return { data: [] as DocumentRow[], total: 0 };
