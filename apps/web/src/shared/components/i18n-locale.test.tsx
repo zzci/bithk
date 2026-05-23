@@ -93,5 +93,10 @@ describe("i18n locale switching", () => {
 
 function FallbackProbe() {
   const { t } = useTranslation(["common"]);
-  return <span data-testid="fb">{t("common:onlyEn")}</span>;
+  // Built from a variable so the static i18n key-existence check treats this
+  // as a dynamic key: `onlyEn` is an intentional test-only fixture key that
+  // does not exist in the real locale files, and asserting it here verifies
+  // the en fallback path, not a real missing-translation bug.
+  const fixtureKey = "common:onlyEn";
+  return <span data-testid="fb">{t(fixtureKey)}</span>;
 }

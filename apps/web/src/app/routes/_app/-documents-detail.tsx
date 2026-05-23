@@ -131,10 +131,15 @@ export function DocumentDetail({
     });
   }, [docQuery.data]);
 
-  if (docQuery.isLoading || !draft)
+  if (docQuery.isLoading)
     return <CenteredHint>{t("common.loading")}</CenteredHint>;
+  // Check the error/empty case before the draft gate: on a failed load the
+  // draft never seeds (no data arrives), so gating on `!draft` first would
+  // mask the failure behind a perpetual loading hint.
   if (docQuery.error || !docQuery.data)
     return <CenteredHint>{errorMessage(docQuery.error, t("common.error.loadFailed"))}</CenteredHint>;
+  if (!draft)
+    return <CenteredHint>{t("common.loading")}</CenteredHint>;
 
   const doc = docQuery.data;
   const userMap = new Map((usersQuery.data ?? []).map(u => [u.id, u]));
@@ -283,6 +288,7 @@ export function DocumentDetail({
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          aria-label={t("attachments.upload")}
                           onClick={() => fileInputRef.current?.click()}
                           disabled={uploadMutation.isPending}
                         />
@@ -295,7 +301,7 @@ export function DocumentDetail({
                   <Tooltip>
                     <TooltipTrigger
                       render={(
-                        <Button variant="ghost" size="icon-sm" onClick={handleShare} />
+                        <Button variant="ghost" size="icon-sm" aria-label={t("share")} onClick={handleShare} />
                       )}
                     >
                       <Share2 className="size-4" />
@@ -305,7 +311,7 @@ export function DocumentDetail({
                   <Tooltip>
                     <TooltipTrigger
                       render={(
-                        <Button variant="ghost" size="icon-sm" onClick={() => setEditing(true)} />
+                        <Button variant="ghost" size="icon-sm" aria-label={t("common.edit")} onClick={() => setEditing(true)} />
                       )}
                     >
                       <Pencil className="size-4" />
@@ -318,6 +324,7 @@ export function DocumentDetail({
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          aria-label={t("common.delete")}
                           onClick={() => setDeleteOpen(true)}
                         />
                       )}
