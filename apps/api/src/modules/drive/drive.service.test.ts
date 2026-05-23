@@ -170,6 +170,20 @@ describe("createDriveTextFile", () => {
     expect(entry.file?.mimetype).toMatch(/^text\/plain/);
     expect(entry.file?.size).toBe("line one\nline two".length);
   });
+
+  test("rejects illegal names", async () => {
+    const owner = await seedUser("Owner");
+    const create = (name: string) =>
+      createDriveTextFile(db, config, { ...personal(owner), createdBy: owner, name, content: "x" });
+    await expect(create("   ")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(create("a/b.txt")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(create("a\\b.txt")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(create("bad\nname.txt")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(create("nul\x00.txt")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(create(".")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(create("..")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(create(`${"a".repeat(256)}.txt`)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
 });
 
 describe("emptyDriveTrash", () => {

@@ -609,12 +609,21 @@ function composeDriveEntryView(row: {
   };
 }
 
+// Control characters (incl. NUL and newlines) are never valid in a display
+// filename and would corrupt UI rendering and downstream headers.
+// eslint-disable-next-line no-control-regex
+const RE_CONTROL_CHARS = /[\x00-\x1F\x7F]/;
+
 function normalizeEntryName(value: string): string {
   const name = value.trim();
   if (!name)
     throw new AppError("Drive entry name is required", 400, "VALIDATION_ERROR");
+  if (RE_CONTROL_CHARS.test(name))
+    throw new AppError("Drive entry name cannot contain control characters", 400, "VALIDATION_ERROR");
   if (name.includes("/") || name.includes("\\"))
     throw new AppError("Drive entry name cannot contain path separators", 400, "VALIDATION_ERROR");
+  if (name === "." || name === "..")
+    throw new AppError("Drive entry name is reserved", 400, "VALIDATION_ERROR");
   if (name.length > 255)
     throw new AppError("Drive entry name is too long", 400, "VALIDATION_ERROR");
   return name;
