@@ -97,22 +97,16 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
   const [password, setPassword] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewOnly, setViewOnly] = useState(false);
 
   const handleDownload = async (event?: FormEvent) => {
     event?.preventDefault();
     setDownloading(true);
     setError(null);
-    setViewOnly(false);
     try {
       const res = await httpRaw(`/drive/shared/${encodeURIComponent(token)}`, {
         method: "POST",
         body: JSON.stringify(meta.requiresPassword ? { password } : {}),
       });
-      if ((res.headers.get("content-type") ?? "").includes("application/json")) {
-        setViewOnly(true);
-        return;
-      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -131,8 +125,6 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
     }
   };
 
-  const canDownload = meta.permission !== "view";
-
   return (
     <Shell>
       <div className="flex flex-col gap-5">
@@ -149,15 +141,10 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
         <form className="flex flex-col gap-3" onSubmit={handleDownload}>
           {meta.requiresPassword && <PasswordField value={password} onChange={setPassword} />}
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {viewOnly && <p className="text-sm text-muted-foreground">{t("public.viewOnly")}</p>}
-          {canDownload
-            ? (
-                <Button type="submit" disabled={downloading || (meta.requiresPassword && !password)}>
-                  {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-                  {t("public.download")}
-                </Button>
-              )
-            : <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">{t("public.viewOnly")}</p>}
+          <Button type="submit" disabled={downloading || (meta.requiresPassword && !password)}>
+            {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            {t("public.download")}
+          </Button>
         </form>
       </div>
     </Shell>

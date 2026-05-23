@@ -192,7 +192,7 @@
     "linkRestricted": "受限",
     "linkRestrictedDesc": "仅限有权访问的人打开",
     "linkAnyone": "知道链接的任何人",
-    "publicLinkReadOnlyDesc": "知道链接的任何人均可查看",
+    "publicLinkReadOnlyDesc": "知道链接的任何人均可查看和下载",
     "publicLinkOptions": "链接选项",
     "publicLink": "公开链接",
     "expiration": "有效期",
@@ -293,7 +293,6 @@
     "password": "密码",
     "passwordPlaceholder": "请输入链接密码",
     "download": "下载",
-    "viewOnly": "该链接仅供查看，不允许下载。",
     "downloadError": "下载失败，请检查密码后重试。",
     "open": "打开"
   }

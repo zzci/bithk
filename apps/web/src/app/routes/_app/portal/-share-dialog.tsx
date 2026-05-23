@@ -231,7 +231,9 @@ export function ShareDialog({ entry, open, onOpenChange }: ShareDialogProps) {
         await createShare.mutateAsync({
           entryId: entry.id,
           shareType: "public_link",
-          permission: "view",
+          // A public link grants full access — anyone with the link can view
+          // and download.
+          permission: "download",
           ...(expiresAt ? { expiresAt } : {}),
           ...(publicPassword.trim() ? { password: publicPassword.trim() } : {}),
         });

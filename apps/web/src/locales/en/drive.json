@@ -192,7 +192,7 @@
     "linkRestricted": "Restricted",
     "linkRestrictedDesc": "Only people with access can open",
     "linkAnyone": "Anyone with the link",
-    "publicLinkReadOnlyDesc": "Anyone with the link can view",
+    "publicLinkReadOnlyDesc": "Anyone with the link can view and download",
     "publicLinkOptions": "Link options",
     "publicLink": "Public link",
     "expiration": "Expiration",
@@ -293,7 +293,6 @@
     "password": "Password",
     "passwordPlaceholder": "Enter the link password",
     "download": "Download",
-    "viewOnly": "This link is view-only; downloading is not permitted.",
     "downloadError": "Could not download. Check the password and try again.",
     "open": "Open"
   }

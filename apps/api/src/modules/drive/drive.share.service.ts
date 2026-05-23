@@ -71,10 +71,9 @@ export type PublicShareAccess
   = | { readonly kind: "download"; readonly file: FileRow; readonly reference: FileReferenceRow }
     | { readonly kind: "view"; readonly meta: PublicShareMeta };
 
-/** 256-bit url-safe random token — unguessable, unique per share. */
+/** Short url-safe token — `nanoid(10)`, unguessable and unique per share. */
 function generateShareToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+  return nanoid(10);
 }
 
 function assertShareableEntry(entry: DriveEntryRow): void {

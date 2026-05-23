@@ -100,7 +100,7 @@ describe("createShare — direct", () => {
     expect(share.sharedWithUserId).toBe(recipient);
     expect(share.permission).toBe("download");
     expect(share.hasPassword).toBe(false);
-    expect(share.token).toHaveLength(64);
+    expect(share.token).toHaveLength(10);
   });
 
   test("rejects a missing sharedWithUserId", async () => {
@@ -192,7 +192,7 @@ describe("createShare — public_link password hashing", () => {
     const a = await createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "view" });
     const b = await createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "view" });
     expect(a.token).not.toBe(b.token);
-    expect(a.token).toMatch(/^[0-9a-f]{64}$/);
+    expect(a.token).toMatch(/^[0-9a-z]{10}$/);
   });
 });
 
