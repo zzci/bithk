@@ -13,28 +13,29 @@ import {
   uploadAndReference,
 } from "@/modules/file";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
-import { getRole, resolveProjectId } from "@/modules/project/project.service";
+import { isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
 import {
   createIssue,
   getIssueByShortId,
-  getUserById,
   listByProject,
-  listIssues,
-  listMyIssues,
-  resolveAccess,
   resolveIssueItem,
+  resolveIssueProjectId,
+  resolveProjectIssueAccess,
   softDeleteIssue,
   updateIssue,
 } from "./issue.service";
 
+// Project work order: the assignment target is a `project_members.id`. The
+// project comes from the `:projectId` path param.
 const createSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional(),
+  status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-  assigneeId: z.string().min(1).optional(),
+  assigneeMemberId: z.string().min(1).optional(),
   dueDate: z.string().max(30).optional(),
 });
 
@@ -43,21 +44,10 @@ const updateSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-  assigneeId: z.string().min(1).nullable().optional(),
+  assigneeMemberId: z.string().min(1).nullable().optional(),
   dueDate: z.string().max(30).nullable().optional(),
 }).refine(d => Object.values(d).some(v => v !== undefined), {
   message: "At least one field must be provided",
-});
-
-// Project work order: the assignment target is a `project_members.id`, not a
-// user id. The project comes from the `:projectId` path param.
-const createProjectIssueSchema = z.object({
-  title: z.string().min(1).max(500),
-  description: z.string().max(2000).optional(),
-  status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-  assigneeMemberId: z.string().min(1).optional(),
-  dueDate: z.string().max(30).optional(),
 });
 
 function auditMeta(c: Context) {
@@ -81,10 +71,34 @@ async function requireProjectMember(c: Context<AppEnv>, shortId: string): Promis
   // App admins bypass project membership entirely (view/manage every project).
   if (user.role === "admin")
     return projectId;
-  const role = await getRole(db, projectId, user.id);
-  if (role === null)
+  if (!await isProjectMember(db, projectId, user.id))
     throw new NotFoundError("Project", shortId);
   return projectId;
+}
+
+/**
+ * Resolve a project issue within its project scope. Asserts membership on the
+ * path project and that the issue actually belongs to it; both failures are a
+ * fail-closed 404. Returns the resolved internal project id, the `items` row,
+ * and the actor's access flags.
+ */
+async function loadProjectIssue(c: Context<AppEnv>) {
+  const db = c.get("db");
+  const user = c.get("user")!;
+  const projectShort = c.req.param("projectId")!;
+  const issueShort = c.req.param("id")!;
+  const projectId = await requireProjectMember(c, projectShort);
+
+  const item = await resolveIssueItem(db, issueShort);
+  if (!item)
+    throw new NotFoundError("Issue", issueShort);
+  const ownerProject = await resolveIssueProjectId(db, issueShort);
+  if (ownerProject !== projectId)
+    throw new NotFoundError("Issue", issueShort);
+
+  const access = await resolveProjectIssueAccess(db, item, projectId, user.id);
+  const isAdmin = user.role === "admin";
+  return { db, user, projectId, projectShort, issueShort, item, access, isAdmin };
 }
 
 export function issueRoutes() {
@@ -92,74 +106,7 @@ export function issueRoutes() {
   router.use("*", authRequired);
 
   // ─── List ──────────────────────────────────────────────────────────
-  router.get("/issues", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user")!;
-    const q = c.req.query("q");
-    const status = c.req.query("status");
-    const priority = c.req.query("priority");
-    const assigneeId = c.req.query("assignee_id");
-    const creatorId = c.req.query("creator_id");
-    const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
-    const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
-
-    const isAdmin = user.role === "admin";
-    const result = isAdmin
-      ? await listIssues(db, { q, status, priority, assigneeId, creatorId, page, limit })
-      : await listMyIssues(db, { userId: user.id, q, status, priority, page, limit });
-
-    return c.json({
-      success: true,
-      data: result.data,
-      meta: { total: result.total, page, limit },
-    });
-  });
-
-  // ─── Create ────────────────────────────────────────────────────────
-  router.post("/issues", async (c) => {
-    const db = c.get("db");
-    const body = createSchema.parse(await c.req.json());
-    const actor = c.get("user")!;
-
-    if (body.assigneeId) {
-      const assignee = await getUserById(db, body.assigneeId);
-      if (!assignee)
-        throw new NotFoundError("User", body.assigneeId);
-    }
-
-    const issue = await createIssue(db, { ...body, creatorId: actor.id });
-
-    await audit(db, c.get("logger"), {
-      actorId: actor.id,
-      actorName: actor.name,
-      action: "issue.created",
-      resourceType: "issue",
-      resourceId: issue.id,
-      resourceName: issue.title,
-      ...(body.assigneeId ? { detail: { assigneeId: body.assigneeId } } : {}),
-      ...auditMeta(c),
-      result: "success",
-    });
-
-    if (body.assigneeId) {
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
-        action: "issue.assigned",
-        resourceType: "issue",
-        resourceId: issue.id,
-        resourceName: issue.title,
-        detail: { from: null, to: body.assigneeId },
-        ...auditMeta(c),
-        result: "success",
-      });
-    }
-
-    return c.json({ success: true, data: issue }, 201);
-  });
-
-  // ─── Project work orders ───────────────────────────────────────────
-  // List a project's issues. Member-gated; non-members get a fail-closed 404.
+  // Member-gated; non-members get a fail-closed 404.
   router.get("/projects/:projectId/issues", async (c) => {
     const projectId = await requireProjectMember(c, c.req.param("projectId"));
     const db = c.get("db");
@@ -177,14 +124,15 @@ export function issueRoutes() {
     });
   });
 
-  // Create a project issue. Member-gated; the assignee (if any) must be a
-  // member of this project — `createIssue` validates it via the project module.
+  // ─── Create ────────────────────────────────────────────────────────
+  // Member-gated; the assignee (if any) must be a member of this project —
+  // `createIssue` validates it via the project module.
   router.post("/projects/:projectId/issues", async (c) => {
     const shortId = c.req.param("projectId");
     const projectId = await requireProjectMember(c, shortId);
     const db = c.get("db");
     const actor = c.get("user")!;
-    const body = createProjectIssueSchema.parse(await c.req.json());
+    const body = createSchema.parse(await c.req.json());
 
     const issue = await createIssue(db, {
       ...body,
@@ -208,51 +156,35 @@ export function issueRoutes() {
   });
 
   // ─── Detail ────────────────────────────────────────────────────────
-  router.get("/issues/:id", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id");
-    const issue = await getIssueByShortId(db, id);
+  router.get("/projects/:projectId/issues/:id", async (c) => {
+    const { db, issueShort } = await loadProjectIssue(c);
+    const issue = await getIssueByShortId(db, issueShort);
     if (!issue)
-      throw new NotFoundError("Issue", id);
-    if (user.role !== "admin" && issue.creatorId !== user.id && issue.assigneeId !== user.id) {
-      throw new ForbiddenError();
-    }
+      throw new NotFoundError("Issue", issueShort);
     return c.json({ success: true, data: issue });
   });
 
   // ─── Update ────────────────────────────────────────────────────────
-  router.patch("/issues/:id", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id");
-    const existing = await getIssueByShortId(db, id);
+  router.patch("/projects/:projectId/issues/:id", async (c) => {
+    const { db, user, issueShort, access, isAdmin } = await loadProjectIssue(c);
+    const existing = await getIssueByShortId(db, issueShort);
     if (!existing)
-      throw new NotFoundError("Issue", id);
+      throw new NotFoundError("Issue", issueShort);
 
-    const isAdmin = user.role === "admin";
-    const isCreator = existing.creatorId === user.id;
-    const isAssignee = existing.assigneeId === user.id;
-    if (!isAdmin && !isCreator && !isAssignee) {
+    const canEditAll = isAdmin || access.canEdit;
+    if (!canEditAll && !access.isAssignee)
       throw new ForbiddenError();
-    }
 
     const body = updateSchema.parse(await c.req.json());
 
-    if (!isAdmin && !isCreator) {
+    // Assignees (who are not pm / creator) may only change status.
+    if (!canEditAll) {
       const nonStatusKeys = Object.keys(body).filter(k => k !== "status");
-      if (nonStatusKeys.length > 0) {
+      if (nonStatusKeys.length > 0)
         throw new AppError("Assignees can only update status", 403, "FORBIDDEN");
-      }
     }
 
-    if (body.assigneeId) {
-      const assignee = await getUserById(db, body.assigneeId);
-      if (!assignee)
-        throw new NotFoundError("User", body.assigneeId);
-    }
-
-    const updated = await updateIssue(db, id, body);
+    const updated = await updateIssue(db, issueShort, body);
 
     const detail: Record<string, unknown> = {};
     if (body.status && body.status !== existing.status) {
@@ -265,7 +197,7 @@ export function issueRoutes() {
       actorName: user.name,
       action: "issue.updated",
       resourceType: "issue",
-      resourceId: id,
+      resourceId: issueShort,
       resourceName: existing.title,
       ...(Object.keys(detail).length > 0 ? { detail } : {}),
       ...auditMeta(c),
@@ -278,7 +210,7 @@ export function issueRoutes() {
         actorName: user.name,
         action: "issue.status_changed",
         resourceType: "issue",
-        resourceId: id,
+        resourceId: issueShort,
         resourceName: existing.title,
         detail: { previous: existing.status, new: body.status },
         ...auditMeta(c),
@@ -286,15 +218,15 @@ export function issueRoutes() {
       });
     }
 
-    if (body.assigneeId !== undefined && body.assigneeId !== existing.assigneeId) {
+    if (body.assigneeMemberId !== undefined && body.assigneeMemberId !== existing.assigneeMemberId) {
       await audit(db, c.get("logger"), {
         actorId: user.id,
         actorName: user.name,
         action: "issue.assigned",
         resourceType: "issue",
-        resourceId: id,
+        resourceId: issueShort,
         resourceName: existing.title,
-        detail: { from: existing.assigneeId, to: body.assigneeId },
+        detail: { from: existing.assigneeMemberId, to: body.assigneeMemberId },
         ...auditMeta(c),
         result: "success",
       });
@@ -304,23 +236,20 @@ export function issueRoutes() {
   });
 
   // ─── Delete (soft) ─────────────────────────────────────────────────
-  router.delete("/issues/:id", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id");
-    const existing = await getIssueByShortId(db, id);
+  router.delete("/projects/:projectId/issues/:id", async (c) => {
+    const { db, user, issueShort, access, isAdmin } = await loadProjectIssue(c);
+    const existing = await getIssueByShortId(db, issueShort);
     if (!existing)
-      throw new NotFoundError("Issue", id);
-    if (user.role !== "admin" && existing.creatorId !== user.id) {
+      throw new NotFoundError("Issue", issueShort);
+    if (!isAdmin && !access.canEdit)
       throw new ForbiddenError();
-    }
-    await softDeleteIssue(db, id);
+    await softDeleteIssue(db, issueShort);
     await audit(db, c.get("logger"), {
       actorId: user.id,
       actorName: user.name,
       action: "issue.deleted",
       resourceType: "issue",
-      resourceId: id,
+      resourceId: issueShort,
       resourceName: existing.title,
       ...auditMeta(c),
       result: "success",
@@ -329,31 +258,23 @@ export function issueRoutes() {
   });
 
   // ─── Attachments (delegating to mod-file) ─────────────────────────
-  router.post("/issues/:id/attachments", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id");
-    const issue = await getIssueByShortId(db, id);
-    if (!issue)
-      throw new NotFoundError("Issue", id);
-    if (user.role !== "admin" && issue.creatorId !== user.id && issue.assigneeId !== user.id) {
+  router.post("/projects/:projectId/issues/:id/attachments", async (c) => {
+    const { db, user, issueShort, item, access, isAdmin } = await loadProjectIssue(c);
+    if (!isAdmin && !access.canEdit && !access.isAssignee)
       throw new ForbiddenError();
-    }
-    const item = await resolveIssueItem(db, id);
-    if (!item)
-      throw new NotFoundError("Issue", id);
+    const issue = await getIssueByShortId(db, issueShort);
+    if (!issue)
+      throw new NotFoundError("Issue", issueShort);
 
     const config = c.get("config");
     const contentLength = Number(c.req.header("content-length") ?? "0");
-    if (contentLength > config.MAX_UPLOAD_BYTES) {
+    if (contentLength > config.MAX_UPLOAD_BYTES)
       throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
-    }
 
     const formData = await c.req.formData();
     const file = formData.get("file");
-    if (!(file instanceof File)) {
+    if (!(file instanceof File))
       throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-    }
 
     const { reference, file: uploaded } = await uploadAndReference(db, config, {
       file,
@@ -368,7 +289,7 @@ export function issueRoutes() {
       actorName: user.name,
       action: "issue.attachment_uploaded",
       resourceType: "issue",
-      resourceId: id,
+      resourceId: issueShort,
       resourceName: issue.title,
       detail: { attachmentId: reference.id, filename: file.name, size: file.size },
       ...auditMeta(c),
@@ -378,37 +299,15 @@ export function issueRoutes() {
     return c.json({ success: true, data: view }, 201);
   });
 
-  router.get("/issues/:id/attachments", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id");
-    const issue = await getIssueByShortId(db, id);
-    if (!issue)
-      throw new NotFoundError("Issue", id);
-    if (user.role !== "admin" && issue.creatorId !== user.id && issue.assigneeId !== user.id) {
-      throw new ForbiddenError();
-    }
-    const item = await resolveIssueItem(db, id);
-    if (!item)
-      throw new NotFoundError("Issue", id);
+  router.get("/projects/:projectId/issues/:id/attachments", async (c) => {
+    const { db, item } = await loadProjectIssue(c);
     const data = await listAttachmentsByOwner(db, "item_attachment", item.id);
     return c.json({ success: true, data });
   });
 
-  router.get("/issues/:id/attachments/:aid", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id");
+  router.get("/projects/:projectId/issues/:id/attachments/:aid", async (c) => {
+    const { db, item } = await loadProjectIssue(c);
     const aid = c.req.param("aid");
-    const issue = await getIssueByShortId(db, id);
-    if (!issue)
-      throw new NotFoundError("Issue", id);
-    if (user.role !== "admin" && issue.creatorId !== user.id && issue.assigneeId !== user.id) {
-      throw new ForbiddenError();
-    }
-    const item = await resolveIssueItem(db, id);
-    if (!item)
-      throw new NotFoundError("Issue", id);
     const ref = await getReferenceById(db, aid);
     if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
       throw new NotFoundError("Attachment", aid);
@@ -419,43 +318,32 @@ export function issueRoutes() {
     return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
   });
 
-  router.delete("/issues/:id/attachments/:aid", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id");
+  router.delete("/projects/:projectId/issues/:id/attachments/:aid", async (c) => {
+    const { db, user, item, access, isAdmin } = await loadProjectIssue(c);
     const aid = c.req.param("aid");
-    const issue = await getIssueByShortId(db, id);
-    if (!issue)
-      throw new NotFoundError("Issue", id);
-    if (user.role !== "admin" && issue.creatorId !== user.id && issue.assigneeId !== user.id) {
-      throw new ForbiddenError();
-    }
-    const item = await resolveIssueItem(db, id);
-    if (!item)
-      throw new NotFoundError("Issue", id);
     const ref = await getReferenceById(db, aid);
     if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
       throw new NotFoundError("Attachment", aid);
-    if (user.role !== "admin" && issue.creatorId !== user.id && ref.createdBy !== user.id) {
+    if (!isAdmin && !access.canEdit && ref.createdBy !== user.id)
       throw new ForbiddenError();
-    }
     await releaseReference(db, c.get("config"), { referenceId: aid });
     await audit(db, c.get("logger"), {
       actorId: user.id,
       actorName: user.name,
       action: "issue.attachment_deleted",
       resourceType: "issue",
-      resourceId: id,
-      resourceName: issue.title,
+      resourceId: c.req.param("id"),
+      resourceName: item.title,
       detail: { attachmentId: aid, filename: ref.filename },
       ...auditMeta(c),
       result: "success",
     });
     return c.json({ success: true, data: null });
   });
+
   // ─── Comments + attachments (delegated to mod-item) ───────────────
   mountItemCommentRoutes(router, {
-    routePrefix: "/issues",
+    routePrefix: "/projects/:projectId/issues",
     resourceType: "issue",
     async resolve(db, idParam) {
       const issue = await getIssueByShortId(db, idParam);
@@ -464,16 +352,22 @@ export function issueRoutes() {
       const item = await resolveIssueItem(db, idParam);
       if (!item)
         return null;
-      return { item, resource: issue, externalId: idParam, resourceName: issue.title };
+      const projectId = await resolveIssueProjectId(db, idParam);
+      if (!projectId)
+        return null;
+      return { item, resource: { projectId }, externalId: idParam, resourceName: issue.title };
     },
     async permissions(db, user, subject) {
-      const access = await resolveAccess(db, subject.item, user.id);
+      // Access is derived from the issue's real project membership; the path
+      // `:projectId` is structural only.
+      const { projectId } = subject.resource as { projectId: string };
+      const access = await resolveProjectIssueAccess(db, subject.item, projectId, user.id);
       const isAdmin = user.role === "admin";
-      const canAct = isAdmin || access.isCreator || access.isAssignee;
+      const canRead = isAdmin || access.canRead;
       return {
-        canRead: canAct,
-        canPost: canAct,
-        includeInternal: isAdmin || access.isCreator || access.isAssignee,
+        canRead,
+        canPost: canRead,
+        includeInternal: canRead,
         canDelete: authorId => isAdmin || authorId === user.id,
       };
     },

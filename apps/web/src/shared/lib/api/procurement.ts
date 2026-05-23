@@ -38,7 +38,8 @@ export interface ProcurementRow {
   readonly title: string | null;
   readonly itemName: string;
   readonly status: ProcurementStatus;
-  readonly supplierMemberId: string | null;
+  readonly supplierId: string | null;
+  readonly categoryId: string | null;
   readonly assigneeMemberId: string | null;
   readonly quantity: number | null;
   readonly amount: number | null;
@@ -59,8 +60,8 @@ export interface ProcurementListMeta {
 
 export const procurementKeys = {
   all: ["procurements"] as const,
-  list: (projectId: string, status: string, page: number) =>
-    ["procurements", projectId, "list", status, page] as const,
+  list: (projectId: string, status: string, category: string, page: number) =>
+    ["procurements", projectId, "list", status, category, page] as const,
   byProject: (projectId: string) => ["procurements", projectId] as const,
 };
 
@@ -68,6 +69,7 @@ export const procurementKeys = {
 
 export interface ProcurementsQuery {
   readonly status?: ProcurementStatus | undefined;
+  readonly categoryId?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -83,14 +85,17 @@ export function useProcurements(
   enabled = true,
 ) {
   const status = query.status;
+  const categoryId = query.categoryId;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   return useQuery<ProcurementsResult>({
-    queryKey: procurementKeys.list(projectId ?? "", status ?? "all", page),
+    queryKey: procurementKeys.list(projectId ?? "", status ?? "all", categoryId ?? "all", page),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
+      if (categoryId)
+        params.set("categoryId", categoryId);
       params.set("page", String(page));
       params.set("limit", String(limit));
       const res = await http<ApiListEnvelope<ProcurementRow>>(
@@ -110,7 +115,8 @@ export interface CreateProcurementInput {
   readonly itemName: string;
   readonly title?: string;
   readonly status?: ProcurementStatus;
-  readonly supplierMemberId?: string;
+  readonly supplierId?: string;
+  readonly categoryId?: string;
   readonly assigneeMemberId?: string;
   readonly quantity?: number;
   readonly amount?: number;
@@ -133,7 +139,8 @@ export function useCreateProcurement(): UseMutationResult<ProcurementRow, Error,
 export interface UpdateProcurementInput {
   readonly itemName?: string;
   readonly title?: string | null;
-  readonly supplierMemberId?: string | null;
+  readonly supplierId?: string | null;
+  readonly categoryId?: string | null;
   readonly assigneeMemberId?: string | null;
   readonly quantity?: number | null;
   readonly amount?: number | null;

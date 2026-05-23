@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 152 routes total.
+> 187 routes total.
 
 | Method | Path |
 |---|---|
@@ -69,6 +69,8 @@
 | DELETE | `/api/documents/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/documents/:id/comments/:cid/attachments/:aid` |
 | PATCH | `/api/documents/:id/move` |
+| DELETE | `/api/documents/:id/pin` |
+| PUT | `/api/documents/:id/pin` |
 | GET | `/api/documents/:id/shares` |
 | POST | `/api/documents/:id/shares` |
 | DELETE | `/api/documents/:id/shares/:shareId` |
@@ -105,22 +107,6 @@
 | GET | `/api/files/:id/metadata` |
 | GET | `/api/health` |
 | GET | `/api/health/ready` |
-| GET | `/api/issues` |
-| POST | `/api/issues` |
-| DELETE | `/api/issues/:id` |
-| GET | `/api/issues/:id` |
-| PATCH | `/api/issues/:id` |
-| GET | `/api/issues/:id/attachments` |
-| POST | `/api/issues/:id/attachments` |
-| DELETE | `/api/issues/:id/attachments/:aid` |
-| GET | `/api/issues/:id/attachments/:aid` |
-| GET | `/api/issues/:id/comments` |
-| POST | `/api/issues/:id/comments` |
-| DELETE | `/api/issues/:id/comments/:cid` |
-| GET | `/api/issues/:id/comments/:cid/attachments` |
-| POST | `/api/issues/:id/comments/:cid/attachments` |
-| DELETE | `/api/issues/:id/comments/:cid/attachments/:aid` |
-| GET | `/api/issues/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/metrics` |
 | POST | `/api/policy/check` |
 | GET | `/api/policy/entities` |
@@ -140,8 +126,56 @@
 | PATCH | `/api/policy/tuples/:id` |
 | POST | `/api/policy/tuples/batch` |
 | GET | `/api/policy/users/:id/access` |
+| GET | `/api/projects` |
+| POST | `/api/projects` |
+| DELETE | `/api/projects/:id` |
+| GET | `/api/projects/:id` |
+| PATCH | `/api/projects/:id` |
+| GET | `/api/projects/:id/contacts` |
+| POST | `/api/projects/:id/contacts` |
+| DELETE | `/api/projects/:id/contacts/:contactId` |
+| PATCH | `/api/projects/:id/contacts/:contactId` |
+| GET | `/api/projects/:id/members` |
+| POST | `/api/projects/:id/members` |
+| DELETE | `/api/projects/:id/members/:memberId` |
+| PATCH | `/api/projects/:id/members/:memberId` |
+| GET | `/api/projects/:id/procurement-categories` |
+| POST | `/api/projects/:id/procurement-categories` |
+| DELETE | `/api/projects/:id/procurement-categories/:categoryId` |
+| PATCH | `/api/projects/:id/procurement-categories/:categoryId` |
+| GET | `/api/projects/:id/roles` |
+| POST | `/api/projects/:id/roles` |
+| DELETE | `/api/projects/:id/roles/:roleId` |
+| PATCH | `/api/projects/:id/roles/:roleId` |
 | GET | `/api/projects/:projectId/issues` |
 | POST | `/api/projects/:projectId/issues` |
+| DELETE | `/api/projects/:projectId/issues/:id` |
+| GET | `/api/projects/:projectId/issues/:id` |
+| PATCH | `/api/projects/:projectId/issues/:id` |
+| GET | `/api/projects/:projectId/issues/:id/attachments` |
+| POST | `/api/projects/:projectId/issues/:id/attachments` |
+| DELETE | `/api/projects/:projectId/issues/:id/attachments/:aid` |
+| GET | `/api/projects/:projectId/issues/:id/attachments/:aid` |
+| GET | `/api/projects/:projectId/issues/:id/comments` |
+| POST | `/api/projects/:projectId/issues/:id/comments` |
+| DELETE | `/api/projects/:projectId/issues/:id/comments/:cid` |
+| GET | `/api/projects/:projectId/issues/:id/comments/:cid/attachments` |
+| POST | `/api/projects/:projectId/issues/:id/comments/:cid/attachments` |
+| DELETE | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` |
+| GET | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` |
+| GET | `/api/projects/:projectId/procurements` |
+| POST | `/api/projects/:projectId/procurements` |
+| DELETE | `/api/projects/:projectId/procurements/:id` |
+| GET | `/api/projects/:projectId/procurements/:id` |
+| PATCH | `/api/projects/:projectId/procurements/:id` |
+| GET | `/api/projects/:projectId/procurements/:id/comments` |
+| POST | `/api/projects/:projectId/procurements/:id/comments` |
+| DELETE | `/api/projects/:projectId/procurements/:id/comments/:cid` |
+| GET | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments` |
+| POST | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments` |
+| DELETE | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments/:aid` |
+| GET | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments/:aid` |
+| POST | `/api/projects/:projectId/procurements/:id/status` |
 | GET | `/api/settings` |
 | DELETE | `/api/settings/:key` |
 | GET | `/api/settings/:key` |
@@ -161,3 +195,4 @@
 | GET | `/api/shares/sent` |
 | GET | `/api/system/upload-limits` |
 | GET | `/api/system/version` |
+| GET | `/api/tags` |

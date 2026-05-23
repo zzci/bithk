@@ -6,7 +6,7 @@
 import type { LucideIcon } from "lucide-react";
 import type { SearchHit } from "@/shared/lib/api/search";
 import { useNavigate } from "@tanstack/react-router";
-import { Briefcase, CheckSquare, FileText, HardDrive, Search } from "lucide-react";
+import { Briefcase, CheckSquare, FileText, HardDrive, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hitTarget, matchesQuery } from "@/shared/components/command-palette.logic";
@@ -21,6 +21,7 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useGlobalSearch } from "@/shared/lib/api/search";
+import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 
 const HIT_ICON: Record<SearchHit["type"], LucideIcon> = {
@@ -156,12 +157,25 @@ export function CommandPalette({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl gap-0 p-0">
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          "flex flex-col gap-0 p-0",
+          // Mobile (< md): full-screen sheet — the centered popup is cramped
+          // on small viewports. Override the dialog's centering/sizing.
+          "top-0 left-0 h-dvh max-w-none translate-x-0 translate-y-0 rounded-none sm:max-w-none",
+          // Desktop (md+): restore the centered dialog.
+          "md:top-1/2 md:left-1/2 md:h-auto md:max-h-[80vh] md:max-w-xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-xl",
+        )}
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{t("common:search.title")}</DialogTitle>
           <DialogDescription>{t("common:search.placeholder")}</DialogDescription>
         </DialogHeader>
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        {/* Search bar doubles as the header — the close button lives here so
+            it never overlaps the input (the dialog's default floating X is
+            disabled above). */}
+        <div className="flex items-center gap-2 border-b border-border px-3">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <Input
             ref={inputRef}
@@ -169,10 +183,18 @@ export function CommandPalette({
             onChange={e => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder={t("common:search.placeholder")}
-            className="h-9 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
+            className="h-13 flex-1 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0 md:h-11 md:text-sm"
           />
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            aria-label={t("common:search.close")}
+            className="-mr-1 shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <X className="size-4" />
+          </button>
         </div>
-        <div className="max-h-[60vh] overflow-y-auto py-1">
+        <div className="flex-1 overflow-y-auto py-1 md:max-h-[60vh] md:flex-none">
           {empty
             ? <div className="px-3 py-6 text-center text-xs text-muted-foreground">{t("common:search.noResults")}</div>
             : groups.map(group => (
@@ -190,9 +212,9 @@ export function CommandPalette({
                             type="button"
                             data-active={isActive}
                             onClick={action.run}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground data-[active=true]:bg-accent data-[active=true]:text-accent-foreground"
+                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[15px] transition-colors hover:bg-accent hover:text-accent-foreground data-[active=true]:bg-accent data-[active=true]:text-accent-foreground md:py-2 md:text-sm"
                           >
-                            <action.icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+                            <action.icon className="size-4 shrink-0 text-muted-foreground md:size-3.5" strokeWidth={1.75} />
                             <span className="flex-1 truncate">{action.label}</span>
                             {action.subtitle && (
                               <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">

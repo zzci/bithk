@@ -1,8 +1,9 @@
-import type { MemberRole, MemberType, ProjectStatus } from "./schema";
-import type { AppDatabase } from "@/db";
-import { and, count, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import type { ProjectCapability, ProjectStatus } from "./schema";
+import type { AppDatabase, AppTransaction } from "@/db";
+import { and, count, desc, eq, inArray, isNull, like, ne, or, sql } from "drizzle-orm";
 import { nanoid, ulid } from "@/shared/lib/id";
-import { projectMembers, projects } from "./schema";
+import { parseCapabilities, seedDefaultRoles } from "./project.roles";
+import { projectMembers, projectRoles, projects, projectTags, tags } from "./schema";
 
 function escapeLike(v: string): string {
   return v.replace(/[%_]/g, "\\$&");
@@ -17,14 +18,18 @@ export type ProjectMemberRow = typeof projectMembers.$inferSelect;
 // marker never leave the API. Member rows expose their own nanoid `id` (the
 // canonical assignment target) but drop the redundant internal `projectId`.
 
+export interface ProjectTagView {
+  readonly id: string;
+  readonly name: string;
+}
+
 export interface ProjectView {
   readonly id: string; // project short_id
   readonly code: string;
   readonly name: string;
   readonly status: ProjectStatus;
   readonly description: string | null;
-  readonly startDate: string | null;
-  readonly endDate: string | null;
+  readonly tags: readonly ProjectTagView[];
   readonly creatorId: string;
   readonly version: number;
   readonly updatedAt: string;
@@ -32,26 +37,22 @@ export interface ProjectView {
 
 export interface ProjectMemberView {
   readonly id: string; // project_members nanoid — external assignment target
-  readonly memberType: MemberType;
-  readonly role: MemberRole;
-  readonly userId: string | null;
+  readonly userId: string | null; // null = virtual member
   readonly displayName: string | null;
-  readonly externalRef: string | null;
-  readonly supplierInfo: string | null;
-  readonly canViewProcurement: number;
+  readonly roleId: string;
+  readonly title: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
 
-export function composeProject(row: ProjectRow): ProjectView {
+export function composeProject(row: ProjectRow, projectTagList: readonly ProjectTagView[] = []): ProjectView {
   return {
     id: row.shortId,
     code: row.code,
     name: row.name,
     status: row.status,
     description: row.description,
-    startDate: row.startDate,
-    endDate: row.endDate,
+    tags: projectTagList,
     creatorId: row.creatorId,
     version: row.version,
     updatedAt: row.updatedAt,
@@ -61,16 +62,63 @@ export function composeProject(row: ProjectRow): ProjectView {
 export function composeMember(row: ProjectMemberRow): ProjectMemberView {
   return {
     id: row.id,
-    memberType: row.memberType,
-    role: row.role,
     userId: row.userId,
     displayName: row.displayName,
-    externalRef: row.externalRef,
-    supplierInfo: row.supplierInfo,
-    canViewProcurement: row.canViewProcurement,
+    roleId: row.roleId,
+    title: row.title,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+// ─── Tags ───────────────────────────────────────────────────────────────
+
+export async function listTags(db: AppDatabase): Promise<readonly ProjectTagView[]> {
+  return await db.select({ id: tags.id, name: tags.name }).from(tags).orderBy(tags.name).all();
+}
+
+/** Load tags for a set of internal project ids, grouped by project id. */
+async function loadTagsByProject(db: AppDatabase, projectIds: readonly string[]): Promise<Map<string, ProjectTagView[]>> {
+  const map = new Map<string, ProjectTagView[]>();
+  if (projectIds.length === 0)
+    return map;
+  const rows = await db.select({ projectId: projectTags.projectId, id: tags.id, name: tags.name })
+    .from(projectTags)
+    .innerJoin(tags, eq(tags.id, projectTags.tagId))
+    .where(inArray(projectTags.projectId, [...projectIds]))
+    .all();
+  for (const r of rows) {
+    const list = map.get(r.projectId) ?? [];
+    list.push({ id: r.id, name: r.name });
+    map.set(r.projectId, list);
+  }
+  return map;
+}
+
+async function loadTagsForProject(db: AppDatabase, projectId: string): Promise<ProjectTagView[]> {
+  return (await loadTagsByProject(db, [projectId])).get(projectId) ?? [];
+}
+
+/**
+ * Replace a project's tags with the given names (upsert into the global `tags`
+ * vocabulary, then rewrite `project_tags`). Runs synchronously inside a tx.
+ */
+function syncTagsTx(tx: AppTransaction, projectId: string, names: readonly string[], now: string): void {
+  tx.delete(projectTags).where(eq(projectTags.projectId, projectId)).run();
+  const seen = new Set<string>();
+  for (const raw of names) {
+    const name = raw.trim();
+    if (!name || seen.has(name.toLowerCase()))
+      continue;
+    seen.add(name.toLowerCase());
+    const existing = tx.select({ id: tags.id }).from(tags).where(eq(tags.name, name)).get();
+    let tagId = existing?.id;
+    if (!tagId) {
+      tagId = nanoid();
+      tx.insert(tags).values({ id: tagId, name, createdAt: now, updatedAt: now }).run();
+    }
+    tx.insert(projectTags).values({ projectId, tagId }).run();
+  }
 }
 
 // ─── Project CRUD ───────────────────────────────────────────────────────
@@ -80,16 +128,15 @@ export interface CreateProjectInput {
   readonly name: string;
   readonly status?: ProjectStatus | undefined;
   readonly description?: string | null | undefined;
-  readonly startDate?: string | null | undefined;
-  readonly endDate?: string | null | undefined;
+  readonly tags?: readonly string[] | undefined;
   readonly creatorId: string;
 }
 
 /**
- * Create a project row and, in the same synchronous transaction, the creator
- * as a `pm` `internal` member. `code` is auto-generated from the short id when
- * not supplied. bun:sqlite transactions are synchronous — keep them sync so
- * COMMIT/ROLLBACK semantics hold.
+ * Create a project and, in the same synchronous transaction, seed its default
+ * roles and add the creator as a "Project Manager" member. `code` is
+ * auto-generated from the short id when not supplied. bun:sqlite transactions
+ * are synchronous — keep the callback sync so COMMIT/ROLLBACK semantics hold.
  */
 export async function createProject(db: AppDatabase, input: CreateProjectInput): Promise<ProjectRow> {
   const id = ulid();
@@ -105,27 +152,27 @@ export async function createProject(db: AppDatabase, input: CreateProjectInput):
       name: input.name,
       status: input.status ?? "active",
       description: input.description ?? null,
-      startDate: input.startDate ?? null,
-      endDate: input.endDate ?? null,
       creatorId: input.creatorId,
       version: 1,
       deletedAt: null,
       updatedAt: now,
     }).run();
 
+    const { pmRoleId } = seedDefaultRoles(tx, id, now);
+
     tx.insert(projectMembers).values({
       id: nanoid(),
       projectId: id,
-      memberType: "internal",
-      role: "pm",
       userId: input.creatorId,
       displayName: null,
-      externalRef: null,
-      supplierInfo: null,
-      canViewProcurement: 1,
+      roleId: pmRoleId,
+      title: null,
       createdAt: now,
       updatedAt: now,
     }).run();
+
+    if (input.tags && input.tags.length > 0)
+      syncTagsTx(tx, id, input.tags, now);
   });
 
   return (await db.select().from(projects).where(eq(projects.id, id)).get())!;
@@ -135,6 +182,11 @@ export async function getProjectByShortId(db: AppDatabase, shortId: string): Pro
   return await db.select().from(projects).where(
     and(eq(projects.shortId, shortId), isNull(projects.deletedAt)),
   ).get();
+}
+
+/** Compose a single project view with its tags loaded. */
+export async function composeProjectWithTags(db: AppDatabase, row: ProjectRow): Promise<ProjectView> {
+  return composeProject(row, await loadTagsForProject(db, row.id));
 }
 
 /** Resolve the internal project id (ULID) from a short id, excluding soft-deleted rows. */
@@ -147,18 +199,20 @@ export async function resolveProjectId(db: AppDatabase, shortId: string): Promis
 
 export interface ListProjectParams {
   readonly status?: ProjectStatus | undefined;
-  // Title search: matches project name or code (LIKE, escaped).
   readonly q?: string | undefined;
+  readonly tagId?: string | undefined;
+  // Hide archived projects (the default list view shows them only when the
+  // caller explicitly filters `status: "archived"`). No effect when `status`
+  // is set. Defaults to off so other callers (e.g. search) are unchanged.
+  readonly excludeArchived?: boolean | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
-  // When set (non-admin callers), restrict the list to projects this user is a
-  // member of. Omit for admins, who see every project. Read = member, so the
-  // global list must not leak projects the caller has no membership in.
+  // When set (non-admin callers), restrict to projects this user is a member of.
   readonly memberUserId?: string | undefined;
 }
 
 export interface ListProjectResult {
-  readonly data: readonly ProjectRow[];
+  readonly data: readonly ProjectView[];
   readonly total: number;
 }
 
@@ -169,9 +223,17 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
   const conditions = [isNull(projects.deletedAt)];
   if (params.status)
     conditions.push(eq(projects.status, params.status));
+  else if (params.excludeArchived)
+    conditions.push(ne(projects.status, "archived"));
   if (params.q) {
     const pattern = `%${escapeLike(params.q)}%`;
     conditions.push(or(like(projects.name, pattern), like(projects.code, pattern))!);
+  }
+  if (params.tagId) {
+    const taggedIds = await db.select({ projectId: projectTags.projectId }).from(projectTags).where(eq(projectTags.tagId, params.tagId)).all();
+    if (taggedIds.length === 0)
+      return { data: [], total: 0 };
+    conditions.push(inArray(projects.id, taggedIds.map(r => r.projectId)));
   }
   if (params.memberUserId !== undefined) {
     const memberProjectIds = await db
@@ -188,7 +250,9 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
   const totalRow = await db.select({ value: count() }).from(projects).where(where).get();
   const total = totalRow?.value ?? 0;
 
-  const data = await db.select().from(projects).where(where).orderBy(desc(projects.id)).limit(limit).offset((page - 1) * limit).all();
+  const rows = await db.select().from(projects).where(where).orderBy(desc(projects.id)).limit(limit).offset((page - 1) * limit).all();
+  const tagMap = await loadTagsByProject(db, rows.map(r => r.id));
+  const data = rows.map(r => composeProject(r, tagMap.get(r.id) ?? []));
 
   return { data, total };
 }
@@ -198,8 +262,7 @@ export interface UpdateProjectInput {
   readonly name?: string | undefined;
   readonly status?: ProjectStatus | undefined;
   readonly description?: string | null | undefined;
-  readonly startDate?: string | null | undefined;
-  readonly endDate?: string | null | undefined;
+  readonly tags?: readonly string[] | undefined;
 }
 
 export async function updateProject(db: AppDatabase, shortId: string, input: UpdateProjectInput): Promise<ProjectRow | undefined> {
@@ -209,30 +272,23 @@ export async function updateProject(db: AppDatabase, shortId: string, input: Upd
 
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { updatedAt: now, version: sql`${projects.version} + 1` };
-  if (input.code !== undefined)
-    patch.code = input.code;
-  if (input.name !== undefined)
-    patch.name = input.name;
-  if (input.status !== undefined)
-    patch.status = input.status;
-  if (input.description !== undefined)
-    patch.description = input.description;
-  if (input.startDate !== undefined)
-    patch.startDate = input.startDate;
-  if (input.endDate !== undefined)
-    patch.endDate = input.endDate;
+  for (const key of ["code", "name", "status", "description"] as const) {
+    if (input[key] !== undefined)
+      patch[key] = input[key];
+  }
 
-  await db.update(projects).set(patch).where(eq(projects.id, project.id)).run();
+  db.transaction((tx) => {
+    tx.update(projects).set(patch).where(eq(projects.id, project.id)).run();
+    if (input.tags !== undefined)
+      syncTagsTx(tx, project.id, input.tags, now);
+  });
   return await db.select().from(projects).where(eq(projects.id, project.id)).get();
 }
 
 /**
- * Soft-delete a project (stamp `deleted_at`). Projects are NOT hard-deleted,
- * so the FK ON DELETE CASCADE on `project_members` / detail rows does NOT
- * fire here — members and downstream rows stay intact and are simply hidden
- * because every read filters on `deleted_at IS NULL`. Cascade only applies if
- * the row is ever physically deleted (e.g. a user account removal cascading
- * through `creator_id`).
+ * Soft-delete a project (stamp `deleted_at`). Reads everywhere filter on
+ * `deleted_at IS NULL`, so members / issues / procurement stay intact and
+ * simply become invisible.
  */
 export async function softDeleteProject(db: AppDatabase, shortId: string): Promise<void> {
   const project = await db.select().from(projects).where(eq(projects.shortId, shortId)).get();
@@ -248,13 +304,10 @@ export async function softDeleteProject(db: AppDatabase, shortId: string): Promi
 // ─── Member CRUD ────────────────────────────────────────────────────────
 
 export interface AddMemberInput {
-  readonly memberType: MemberType;
-  readonly role?: MemberRole | undefined;
-  readonly userId?: string | null | undefined;
-  readonly displayName?: string | null | undefined;
-  readonly externalRef?: string | null | undefined;
-  readonly supplierInfo?: string | null | undefined;
-  readonly canViewProcurement?: boolean | undefined;
+  readonly roleId: string;
+  readonly userId?: string | null | undefined; // real member
+  readonly displayName?: string | null | undefined; // virtual member
+  readonly title?: string | null | undefined;
 }
 
 export async function addMember(db: AppDatabase, projectId: string, input: AddMemberInput): Promise<ProjectMemberRow> {
@@ -263,13 +316,10 @@ export async function addMember(db: AppDatabase, projectId: string, input: AddMe
   await db.insert(projectMembers).values({
     id,
     projectId,
-    memberType: input.memberType,
-    role: input.role ?? "member",
-    userId: input.memberType === "internal" ? (input.userId ?? null) : null,
+    userId: input.userId ?? null,
     displayName: input.displayName ?? null,
-    externalRef: input.externalRef ?? null,
-    supplierInfo: input.supplierInfo ?? null,
-    canViewProcurement: input.canViewProcurement ? 1 : 0,
+    roleId: input.roleId,
+    title: input.title ?? null,
     createdAt: now,
     updatedAt: now,
   }).run();
@@ -281,13 +331,10 @@ export async function listMembers(db: AppDatabase, projectId: string): Promise<r
 }
 
 export interface UpdateMemberInput {
-  readonly role?: MemberRole | undefined;
-  readonly canViewProcurement?: boolean | undefined;
+  readonly roleId?: string | undefined;
   readonly displayName?: string | null | undefined;
-  readonly externalRef?: string | null | undefined;
-  readonly supplierInfo?: string | null | undefined;
-  /** Promote an external member to internal by attaching a real user id. */
-  readonly userId?: string | null | undefined;
+  readonly title?: string | null | undefined;
+  readonly userId?: string | null | undefined; // promote a virtual member to a real user
 }
 
 export async function updateMember(
@@ -304,21 +351,14 @@ export async function updateMember(
 
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { updatedAt: now };
-  if (input.role !== undefined)
-    patch.role = input.role;
-  if (input.canViewProcurement !== undefined)
-    patch.canViewProcurement = input.canViewProcurement ? 1 : 0;
+  if (input.roleId !== undefined)
+    patch.roleId = input.roleId;
   if (input.displayName !== undefined)
     patch.displayName = input.displayName;
-  if (input.externalRef !== undefined)
-    patch.externalRef = input.externalRef;
-  if (input.supplierInfo !== undefined)
-    patch.supplierInfo = input.supplierInfo;
-  // Promote external → internal: attaching a user id flips the member type.
-  if (input.userId !== undefined && input.userId !== null) {
+  if (input.title !== undefined)
+    patch.title = input.title;
+  if (input.userId !== undefined)
     patch.userId = input.userId;
-    patch.memberType = "internal";
-  }
 
   await db.update(projectMembers).set(patch).where(eq(projectMembers.id, memberId)).run();
   return await db.select().from(projectMembers).where(eq(projectMembers.id, memberId)).get();
@@ -331,9 +371,9 @@ export async function removeMember(db: AppDatabase, projectId: string, memberId:
   return result.changes > 0;
 }
 
-// ─── Public contract (consumed by issue / procurement modules) ────────────
+// ─── Public contract (consumed by issue / procurement / drive modules) ─────
 
-/** True when `userId` holds any member row on the project. */
+/** True when `userId` (a real user) holds any member row on the project. */
 export async function isMember(db: AppDatabase, projectId: string, userId: string): Promise<boolean> {
   const row = await db.select({ id: projectMembers.id }).from(projectMembers).where(
     and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)),
@@ -341,34 +381,37 @@ export async function isMember(db: AppDatabase, projectId: string, userId: strin
   return !!row;
 }
 
-/** Resolve the user's role on a project, or `null` when they are not a member. */
-export async function getRole(db: AppDatabase, projectId: string, userId: string): Promise<MemberRole | null> {
-  const row = await db.select({ role: projectMembers.role }).from(projectMembers).where(
-    and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)),
-  ).get();
-  return row?.role ?? null;
+/**
+ * Resolve the capabilities a real user has on a project (via their member row's
+ * role), or `null` when they are not a member. Virtual members carry no
+ * `userId` so they never resolve here.
+ */
+export async function getMemberCapabilities(db: AppDatabase, projectId: string, userId: string): Promise<Set<ProjectCapability> | null> {
+  const row = await db.select({ capabilities: projectRoles.capabilities })
+    .from(projectMembers)
+    .innerJoin(projectRoles, eq(projectRoles.id, projectMembers.roleId))
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
+    .get();
+  if (!row)
+    return null;
+  return new Set(parseCapabilities(row.capabilities));
 }
 
-/** True when the user is a pm OR their member row carries `can_view_procurement`. */
-export async function canViewProcurement(db: AppDatabase, projectId: string, userId: string): Promise<boolean> {
-  const row = await db.select({ role: projectMembers.role, canView: projectMembers.canViewProcurement }).from(projectMembers).where(
-    and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)),
-  ).get();
-  if (!row)
-    return false;
-  return row.role === "pm" || row.canView === 1;
+/** True when the user is a member whose role grants `capability`. */
+export async function hasCapability(db: AppDatabase, projectId: string, userId: string, capability: ProjectCapability): Promise<boolean> {
+  const caps = await getMemberCapabilities(db, projectId, userId);
+  return caps?.has(capability) ?? false;
 }
 
 export interface AssignableMember {
   readonly id: string;
-  readonly memberType: MemberType;
   readonly userId: string | null;
 }
 
 /**
  * Validate that a `project_members.id` belongs to the given project and return
  * its assignment-relevant fields. Used by issue / procurement to validate an
- * assignment target. Returns `null` when the member does not belong here.
+ * assignment target. `userId` is null for virtual members.
  */
 export async function resolveAssignableMember(
   db: AppDatabase,
@@ -377,7 +420,6 @@ export async function resolveAssignableMember(
 ): Promise<AssignableMember | null> {
   const row = await db.select({
     id: projectMembers.id,
-    memberType: projectMembers.memberType,
     userId: projectMembers.userId,
   }).from(projectMembers).where(
     and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)),

@@ -149,11 +149,18 @@ export function AppSidebar() {
   const { user, logout } = useAuthStore();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+  const { setOpenMobile, state } = useSidebar();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const overviewNav = getNavItems("overview");
   const adminNav = getNavItems("admin");
+
+  // Auto-close the mobile drawer on navigation — selecting a destination
+  // should dismiss the full-screen menu, not leave it covering the page.
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [currentPath, setOpenMobile]);
 
   // Global ⌘/Ctrl+K opens the command palette. ⌘B (sidebar toggle) is owned
   // by the Sidebar component and untouched.
@@ -233,12 +240,24 @@ export function AppSidebar() {
                   {item.key === "overview" && (
                     <SidebarMenuItem>
                       <SidebarMenuButton
-                        onClick={() => setSearchOpen(true)}
+                        onClick={() => {
+                          // Open the palette first so its backdrop covers the
+                          // page before the drawer closes — otherwise the tap
+                          // can fall through to the page behind on mobile.
+                          setSearchOpen(true);
+                          setOpenMobile(false);
+                        }}
                         tooltip={t("common:search.title")}
                       >
                         <Search />
                         <span>{t("common:search.title")}</span>
-                        <kbd className="ml-auto hidden text-[10px] text-muted-foreground/70 group-data-[collapsible=icon]:hidden md:inline">⌘K</kbd>
+                        {/* Render the hint only when expanded. A trailing kbd
+                            would steal `:last-child` from the label and defeat
+                            the sidebar's built-in collapse-hide; omitting it in
+                            icon mode keeps the label as the last child. */}
+                        {state !== "collapsed" && (
+                          <kbd className="ml-auto hidden text-[10px] text-muted-foreground/70 md:inline">⌘K</kbd>
+                        )}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )}

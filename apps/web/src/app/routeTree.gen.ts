@@ -17,15 +17,12 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SharedTokenRouteImport } from './routes/shared.$token'
 import { Route as AppOverviewRouteImport } from './routes/_app/overview'
-import { Route as AppIssuesRouteImport } from './routes/_app/issues'
 import { Route as AppDriveRouteImport } from './routes/_app/drive'
 import { Route as AppDocumentsRouteImport } from './routes/_app/documents'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
-import { Route as AppIssuesIndexRouteImport } from './routes/_app/issues/index'
 import { Route as AppDocumentsIndexRouteImport } from './routes/_app/documents/index'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
-import { Route as AppIssuesIssueIdRouteImport } from './routes/_app/issues/$issueId'
 import { Route as AppDocumentsNewRouteImport } from './routes/_app/documents/new'
 import { Route as AppDocumentsDocIdRouteImport } from './routes/_app/documents/$docId'
 import { Route as AppAdminUsersRouteImport } from './routes/_app/admin/users'
@@ -35,6 +32,8 @@ import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/users/index'
 import { Route as AppAdminUsersGroupsRouteImport } from './routes/_app/admin/users/groups'
+import { Route as AppProjectsProjectIdIssuesIssueIdRouteImport } from './routes/_app/projects/$projectId.issues.$issueId'
+import { Route as AppProjectsProjectIdIssuesIssueIdFullRouteImport } from './routes/_app/projects/$projectId_.issues.$issueId.full'
 
 const TotpVerifyRoute = TotpVerifyRouteImport.update({
   id: '/totp-verify',
@@ -75,11 +74,6 @@ const AppOverviewRoute = AppOverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => AppRoute,
 } as any).lazy(() => import('./routes/_app/overview.lazy').then((d) => d.Route))
-const AppIssuesRoute = AppIssuesRouteImport.update({
-  id: '/issues',
-  path: '/issues',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppDriveRoute = AppDriveRouteImport.update({
   id: '/drive',
   path: '/drive',
@@ -104,13 +98,6 @@ const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/projects/index.lazy').then((d) => d.Route),
 )
-const AppIssuesIndexRoute = AppIssuesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppIssuesRoute,
-} as any).lazy(() =>
-  import('./routes/_app/issues/index.lazy').then((d) => d.Route),
-)
 const AppDocumentsIndexRoute = AppDocumentsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -124,13 +111,6 @@ const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
   getParentRoute: () => AppRoute,
 } as any).lazy(() =>
   import('./routes/_app/projects/$projectId.lazy').then((d) => d.Route),
-)
-const AppIssuesIssueIdRoute = AppIssuesIssueIdRouteImport.update({
-  id: '/$issueId',
-  path: '/$issueId',
-  getParentRoute: () => AppIssuesRoute,
-} as any).lazy(() =>
-  import('./routes/_app/issues/$issueId.lazy').then((d) => d.Route),
 )
 const AppDocumentsNewRoute = AppDocumentsNewRouteImport.update({
   id: '/new',
@@ -193,6 +173,26 @@ const AppAdminUsersGroupsRoute = AppAdminUsersGroupsRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/admin/users/groups.lazy').then((d) => d.Route),
 )
+const AppProjectsProjectIdIssuesIssueIdRoute =
+  AppProjectsProjectIdIssuesIssueIdRouteImport.update({
+    id: '/issues/$issueId',
+    path: '/issues/$issueId',
+    getParentRoute: () => AppProjectsProjectIdRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId.issues.$issueId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const AppProjectsProjectIdIssuesIssueIdFullRoute =
+  AppProjectsProjectIdIssuesIssueIdFullRouteImport.update({
+    id: '/projects/$projectId_/issues/$issueId/full',
+    path: '/projects/$projectId/issues/$issueId/full',
+    getParentRoute: () => AppRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId_.issues.$issueId.full.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -203,7 +203,6 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AppAdminRouteWithChildren
   '/documents': typeof AppDocumentsRouteWithChildren
   '/drive': typeof AppDriveRoute
-  '/issues': typeof AppIssuesRouteWithChildren
   '/overview': typeof AppOverviewRoute
   '/shared/$token': typeof SharedTokenRoute
   '/admin/audit': typeof AppAdminAuditRoute
@@ -213,13 +212,13 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
-  '/issues/$issueId': typeof AppIssuesIssueIdRoute
-  '/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
   '/documents/': typeof AppDocumentsIndexRoute
-  '/issues/': typeof AppIssuesIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
+  '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -237,13 +236,13 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AppAdminSettingsRoute
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
-  '/issues/$issueId': typeof AppIssuesIssueIdRoute
-  '/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
   '/documents': typeof AppDocumentsIndexRoute
-  '/issues': typeof AppIssuesIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
+  '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -256,7 +255,6 @@ export interface FileRoutesById {
   '/_app/admin': typeof AppAdminRouteWithChildren
   '/_app/documents': typeof AppDocumentsRouteWithChildren
   '/_app/drive': typeof AppDriveRoute
-  '/_app/issues': typeof AppIssuesRouteWithChildren
   '/_app/overview': typeof AppOverviewRoute
   '/shared/$token': typeof SharedTokenRoute
   '/_app/admin/audit': typeof AppAdminAuditRoute
@@ -266,13 +264,13 @@ export interface FileRoutesById {
   '/_app/admin/users': typeof AppAdminUsersRouteWithChildren
   '/_app/documents/$docId': typeof AppDocumentsDocIdRoute
   '/_app/documents/new': typeof AppDocumentsNewRoute
-  '/_app/issues/$issueId': typeof AppIssuesIssueIdRoute
-  '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
   '/_app/documents/': typeof AppDocumentsIndexRoute
-  '/_app/issues/': typeof AppIssuesIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
+  '/_app/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/_app/projects/$projectId_/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -285,7 +283,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/documents'
     | '/drive'
-    | '/issues'
     | '/overview'
     | '/shared/$token'
     | '/admin/audit'
@@ -295,13 +292,13 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/documents/$docId'
     | '/documents/new'
-    | '/issues/$issueId'
     | '/projects/$projectId'
     | '/documents/'
-    | '/issues/'
     | '/projects/'
     | '/admin/users/groups'
     | '/admin/users/'
+    | '/projects/$projectId/issues/$issueId'
+    | '/projects/$projectId/issues/$issueId/full'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -319,13 +316,13 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/documents/$docId'
     | '/documents/new'
-    | '/issues/$issueId'
     | '/projects/$projectId'
     | '/documents'
-    | '/issues'
     | '/projects'
     | '/admin/users/groups'
     | '/admin/users'
+    | '/projects/$projectId/issues/$issueId'
+    | '/projects/$projectId/issues/$issueId/full'
   id:
     | '__root__'
     | '/'
@@ -337,7 +334,6 @@ export interface FileRouteTypes {
     | '/_app/admin'
     | '/_app/documents'
     | '/_app/drive'
-    | '/_app/issues'
     | '/_app/overview'
     | '/shared/$token'
     | '/_app/admin/audit'
@@ -347,13 +343,13 @@ export interface FileRouteTypes {
     | '/_app/admin/users'
     | '/_app/documents/$docId'
     | '/_app/documents/new'
-    | '/_app/issues/$issueId'
     | '/_app/projects/$projectId'
     | '/_app/documents/'
-    | '/_app/issues/'
     | '/_app/projects/'
     | '/_app/admin/users/groups'
     | '/_app/admin/users/'
+    | '/_app/projects/$projectId/issues/$issueId'
+    | '/_app/projects/$projectId_/issues/$issueId/full'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -424,13 +420,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOverviewRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/issues': {
-      id: '/_app/issues'
-      path: '/issues'
-      fullPath: '/issues'
-      preLoaderRoute: typeof AppIssuesRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/drive': {
       id: '/_app/drive'
       path: '/drive'
@@ -459,13 +448,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/issues/': {
-      id: '/_app/issues/'
-      path: '/'
-      fullPath: '/issues/'
-      preLoaderRoute: typeof AppIssuesIndexRouteImport
-      parentRoute: typeof AppIssuesRoute
-    }
     '/_app/documents/': {
       id: '/_app/documents/'
       path: '/'
@@ -479,13 +461,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId'
       preLoaderRoute: typeof AppProjectsProjectIdRouteImport
       parentRoute: typeof AppRoute
-    }
-    '/_app/issues/$issueId': {
-      id: '/_app/issues/$issueId'
-      path: '/$issueId'
-      fullPath: '/issues/$issueId'
-      preLoaderRoute: typeof AppIssuesIssueIdRouteImport
-      parentRoute: typeof AppIssuesRoute
     }
     '/_app/documents/new': {
       id: '/_app/documents/new'
@@ -550,6 +525,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersGroupsRouteImport
       parentRoute: typeof AppAdminUsersRoute
     }
+    '/_app/projects/$projectId/issues/$issueId': {
+      id: '/_app/projects/$projectId/issues/$issueId'
+      path: '/issues/$issueId'
+      fullPath: '/projects/$projectId/issues/$issueId'
+      preLoaderRoute: typeof AppProjectsProjectIdIssuesIssueIdRouteImport
+      parentRoute: typeof AppProjectsProjectIdRoute
+    }
+    '/_app/projects/$projectId_/issues/$issueId/full': {
+      id: '/_app/projects/$projectId_/issues/$issueId/full'
+      path: '/projects/$projectId/issues/$issueId/full'
+      fullPath: '/projects/$projectId/issues/$issueId/full'
+      preLoaderRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -603,38 +592,37 @@ const AppDocumentsRouteWithChildren = AppDocumentsRoute._addFileChildren(
   AppDocumentsRouteChildren,
 )
 
-interface AppIssuesRouteChildren {
-  AppIssuesIssueIdRoute: typeof AppIssuesIssueIdRoute
-  AppIssuesIndexRoute: typeof AppIssuesIndexRoute
+interface AppProjectsProjectIdRouteChildren {
+  AppProjectsProjectIdIssuesIssueIdRoute: typeof AppProjectsProjectIdIssuesIssueIdRoute
 }
 
-const AppIssuesRouteChildren: AppIssuesRouteChildren = {
-  AppIssuesIssueIdRoute: AppIssuesIssueIdRoute,
-  AppIssuesIndexRoute: AppIssuesIndexRoute,
+const AppProjectsProjectIdRouteChildren: AppProjectsProjectIdRouteChildren = {
+  AppProjectsProjectIdIssuesIssueIdRoute:
+    AppProjectsProjectIdIssuesIssueIdRoute,
 }
 
-const AppIssuesRouteWithChildren = AppIssuesRoute._addFileChildren(
-  AppIssuesRouteChildren,
-)
+const AppProjectsProjectIdRouteWithChildren =
+  AppProjectsProjectIdRoute._addFileChildren(AppProjectsProjectIdRouteChildren)
 
 interface AppRouteChildren {
   AppAdminRoute: typeof AppAdminRouteWithChildren
   AppDocumentsRoute: typeof AppDocumentsRouteWithChildren
   AppDriveRoute: typeof AppDriveRoute
-  AppIssuesRoute: typeof AppIssuesRouteWithChildren
   AppOverviewRoute: typeof AppOverviewRoute
-  AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRoute
+  AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRouteWithChildren
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
+  AppProjectsProjectIdIssuesIssueIdFullRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAdminRoute: AppAdminRouteWithChildren,
   AppDocumentsRoute: AppDocumentsRouteWithChildren,
   AppDriveRoute: AppDriveRoute,
-  AppIssuesRoute: AppIssuesRouteWithChildren,
   AppOverviewRoute: AppOverviewRoute,
-  AppProjectsProjectIdRoute: AppProjectsProjectIdRoute,
+  AppProjectsProjectIdRoute: AppProjectsProjectIdRouteWithChildren,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
+  AppProjectsProjectIdIssuesIssueIdFullRoute:
+    AppProjectsProjectIdIssuesIssueIdFullRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

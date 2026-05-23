@@ -46,7 +46,6 @@
     "overview": "Overview",
     "users": "Users",
     "policies": "Policies",
-    "myIssues": "My Issues",
     "documents": "Documents",
     "projects": "Projects",
     "audit": "Audit Log",
@@ -61,6 +60,7 @@
   "search": {
     "title": "Search",
     "placeholder": "Search documents, issues, projects, files…",
+    "close": "Close",
     "quickEntry": "Quick entry",
     "noResults": "No results",
     "documents": "Documents",

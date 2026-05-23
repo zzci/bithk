@@ -10,7 +10,7 @@ describe("getNavItems", () => {
 
   it("returns overview entries sorted by order", () => {
     const items = getNavItems("overview");
-    expect(items.map(i => i.key)).toEqual(["overview", "myIssues", "documents", "drive", "projects"]);
+    expect(items.map(i => i.key)).toEqual(["overview", "documents", "drive", "projects"]);
     expect(items.every(i => i.area === "overview")).toBe(true);
   });
 });

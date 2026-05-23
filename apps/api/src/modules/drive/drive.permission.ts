@@ -4,7 +4,7 @@ import type { AppDatabase } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { and, eq } from "drizzle-orm";
 import { defineResource } from "@/modules/policy";
-import { getRole as getProjectRole } from "@/modules/project/project.service";
+import { isMember as isProjectMember } from "@/modules/project/project.service";
 import { shares } from "@/modules/share/schema";
 import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { getDirectoryRole } from "./drive.team-directory.service";
@@ -83,9 +83,9 @@ export async function resolveEntryCapabilities(
     }
   }
   else if (entry.ownerType === "project") {
-    const role = await getProjectRole(db, entry.ownerId, actor.id);
-    // pm ≈ team admin, member ≈ team editor: both get full management.
-    if (role === "pm" || role === "member")
+    // Any project member gets full file management (editor-equivalent); the
+    // project file root is protected at the route layer, not here.
+    if (await isProjectMember(db, entry.ownerId, actor.id))
       addAll(caps);
   }
 

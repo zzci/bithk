@@ -3,7 +3,7 @@ import type { PolicyContext } from "@/modules/policy";
 import { and, count, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { groups } from "@/modules/account/groups/schema";
 import { documentAccess } from "@/modules/document/document.permission";
-import { documentDetails } from "@/modules/document/schema";
+import { documentDetails, documentPins } from "@/modules/document/schema";
 import { items } from "@/modules/item/schema";
 import { NOOP_POLICY_LOGGER } from "@/modules/policy";
 import { relationTuples } from "@/modules/policy/schema";
@@ -450,6 +450,7 @@ export interface DocumentTreeNode {
   readonly parentId: string | null;
   readonly updatedAt: string;
   readonly childCount: number;
+  readonly pinned: boolean;
 }
 
 interface TreeRow {
@@ -458,6 +459,7 @@ interface TreeRow {
   readonly title: string;
   readonly parent_id: string | null;
   readonly updated_at: string;
+  readonly pinned: number;
 }
 
 export async function getDocumentTreeForUser(
@@ -469,9 +471,14 @@ export async function getDocumentTreeForUser(
   // (and the descendants of shared docs, via listVisibleItemIds).
   let rows: readonly TreeRow[];
   const visibleIds = await listVisibleItemIds(db, user.id);
+  // `pinned` is per-user: a row counts as pinned only when this caller
+  // owns the pin, so a shared doc pinned by someone else still shows
+  // unpinned here.
+  const pinnedExpr = sql<number>`(SELECT 1 FROM ${documentPins} dp WHERE dp.item_id = i.id AND dp.user_id = ${user.id})`;
   if (visibleIds.length === 0) {
     rows = await db.all<TreeRow>(sql`
-      SELECT i.id, i.short_id, i.title, dd.parent_id, i.updated_at
+      SELECT i.id, i.short_id, i.title, dd.parent_id, i.updated_at,
+             COALESCE(${pinnedExpr}, 0) AS pinned
       FROM ${items} i JOIN ${documentDetails} dd ON dd.item_id = i.id
       WHERE i.type = 'document' AND i.deleted_at IS NULL
         AND i.creator_id = ${user.id}
@@ -480,7 +487,8 @@ export async function getDocumentTreeForUser(
   }
   else {
     rows = await db.all<TreeRow>(sql`
-      SELECT i.id, i.short_id, i.title, dd.parent_id, i.updated_at
+      SELECT i.id, i.short_id, i.title, dd.parent_id, i.updated_at,
+             COALESCE(${pinnedExpr}, 0) AS pinned
       FROM ${items} i JOIN ${documentDetails} dd ON dd.item_id = i.id
       WHERE i.type = 'document' AND i.deleted_at IS NULL
         AND (i.creator_id = ${user.id}
@@ -507,7 +515,39 @@ export async function getDocumentTreeForUser(
     parentId: r.parent_id ? idToShort.get(r.parent_id) ?? null : null,
     updatedAt: r.updated_at,
     childCount: childCount.get(r.id) ?? 0,
+    pinned: r.pinned === 1,
   }));
+}
+
+// ─── Pins (per-user) ──────────────────────────────────────────────────
+
+/**
+ * Pin a document for `userId`. Idempotent — re-pinning is a no-op.
+ * Read-access enforcement lives at the route layer (the global policy
+ * middleware plus an in-handler `document:read` assert), so this helper
+ * trusts its caller and only resolves the short_id to an internal id.
+ * Returns `false` when the short_id does not resolve to a live document.
+ */
+export async function pinDocument(db: AppDatabase, userId: string, shortId: string): Promise<boolean> {
+  const item = await getItemByShortId(db, shortId);
+  if (!item)
+    return false;
+  await db.insert(documentPins)
+    .values({ userId, itemId: item.id })
+    .onConflictDoNothing()
+    .run();
+  return true;
+}
+
+/** Remove a user's pin on a document. Idempotent — unpinning twice is a no-op. */
+export async function unpinDocument(db: AppDatabase, userId: string, shortId: string): Promise<boolean> {
+  const item = await getItemByShortId(db, shortId);
+  if (!item)
+    return false;
+  await db.delete(documentPins)
+    .where(and(eq(documentPins.userId, userId), eq(documentPins.itemId, item.id)))
+    .run();
+  return true;
 }
 
 // ─── Permissions ─────────────────────────────────────────────────────

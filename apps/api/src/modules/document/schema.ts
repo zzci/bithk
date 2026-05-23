@@ -1,5 +1,6 @@
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { users } from "@/modules/account/users/schema";
 import { items } from "@/modules/item/schema";
 
 // `document` is a Tier-C sub-type of the `item` base. The base owns the
@@ -40,3 +41,18 @@ export const documentDetails = sqliteTable("document_details", {
 
 // Anonymous public links moved to the unified `shares` table in
 // `modules/share` (`resource_type='document'`), served by the share module.
+
+// Per-user document pins. Pin is a personal UI affordance, not an
+// authorization relation — deliberately kept out of `relationTuples` and
+// out of `document_details` (which is shared across everyone who can see
+// the doc). A document shared with several users can be pinned by each of
+// them independently. Both FKs cascade: deleting the user or hard-deleting
+// the item drops the pin row.
+export const documentPins = sqliteTable("document_pins", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  itemId: text("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+}, t => [
+  primaryKey({ columns: [t.userId, t.itemId] }),
+  index("idx_document_pins_user").on(t.userId),
+]);

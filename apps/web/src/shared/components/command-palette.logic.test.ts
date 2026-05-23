@@ -8,9 +8,9 @@ describe("hitTarget", () => {
       to: "/documents/$docId",
       params: { docId: "d1" },
     });
-    expect(hitTarget({ type: "issue", id: "i1", title: "x" })).toEqual({
-      to: "/issues/$issueId",
-      params: { issueId: "i1" },
+    expect(hitTarget({ type: "issue", id: "i1", title: "x", projectId: "p1" })).toEqual({
+      to: "/projects/$projectId/issues/$issueId",
+      params: { projectId: "p1", issueId: "i1" },
     });
     expect(hitTarget({ type: "project", id: "p1", title: "x" })).toEqual({
       to: "/projects/$projectId",

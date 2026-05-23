@@ -12,6 +12,9 @@ export interface SearchHit {
   readonly id: string;
   readonly title: string;
   readonly subtitle?: string;
+  // For issue hits: the owning project's short_id, used to deep-link into the
+  // project-scoped issue route.
+  readonly projectId?: string;
 }
 
 export interface GlobalSearchResult {

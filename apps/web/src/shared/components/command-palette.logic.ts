@@ -5,7 +5,7 @@ import type { SearchHit } from "@/shared/lib/api/search";
 
 export type HitTarget
   = | { readonly to: "/documents/$docId"; readonly params: { readonly docId: string } }
-    | { readonly to: "/issues/$issueId"; readonly params: { readonly issueId: string } }
+    | { readonly to: "/projects/$projectId/issues/$issueId"; readonly params: { readonly projectId: string; readonly issueId: string } }
     | { readonly to: "/projects/$projectId"; readonly params: { readonly projectId: string } }
     | { readonly to: "/drive" };
 
@@ -15,7 +15,8 @@ export function hitTarget(hit: SearchHit): HitTarget {
     case "document":
       return { to: "/documents/$docId", params: { docId: hit.id } };
     case "issue":
-      return { to: "/issues/$issueId", params: { issueId: hit.id } };
+      // Issues are project work orders; deep-link into the owning project.
+      return { to: "/projects/$projectId/issues/$issueId", params: { projectId: hit.projectId ?? "", issueId: hit.id } };
     case "project":
       return { to: "/projects/$projectId", params: { projectId: hit.id } };
     case "drive":

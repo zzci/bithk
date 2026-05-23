@@ -1,7 +1,7 @@
-// Create / edit project dialog. Used by the list (create) and the detail
-// header (edit). Only the name is required; all other fields are optional.
+// Create project dialog. Used by the list page. Only the name is required;
+// code, description, status and tags are optional.
 
-import type { CreateProjectInput, ProjectStatus, ProjectView } from "@/shared/lib/api/projects";
+import type { CreateProjectInput, ProjectStatus } from "@/shared/lib/api/projects";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
@@ -24,23 +24,13 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { TagsInput } from "./-tags-input";
 
-const STATUSES: readonly ProjectStatus[] = ["active", "archived", "closed"];
-
-export interface ProjectFormValues {
-  readonly name: string;
-  readonly code?: string;
-  readonly description?: string;
-  readonly status?: ProjectStatus;
-  readonly startDate?: string;
-  readonly endDate?: string;
-}
+const STATUSES: readonly ProjectStatus[] = ["active", "archived"];
 
 interface ProjectFormDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  readonly mode: "create" | "edit";
-  readonly initial?: ProjectView | null;
   readonly pending: boolean;
   readonly errorMessage?: string | null;
   readonly onSubmit: (values: CreateProjectInput) => void;
@@ -49,32 +39,28 @@ interface ProjectFormDialogProps {
 export function ProjectFormDialog({
   open,
   onOpenChange,
-  mode,
-  initial,
   pending,
   errorMessage,
   onSubmit,
 }: ProjectFormDialogProps) {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<ProjectStatus>("active");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [tags, setTags] = useState<readonly string[]>([]);
 
-  /* eslint-disable react/set-state-in-effect -- seed form fields from the
-     initial project whenever the dialog opens (create => blank, edit => row). */
+  /* eslint-disable react/set-state-in-effect -- reset the form fields whenever
+     the dialog opens so a previous draft never leaks into a new project. */
   useEffect(() => {
     if (!open)
       return;
-    setName(initial?.name ?? "");
-    setCode(initial?.code ?? "");
-    setDescription(initial?.description ?? "");
-    setStatus(initial?.status ?? "active");
-    setStartDate(initial?.startDate ?? "");
-    setEndDate(initial?.endDate ?? "");
-  }, [open, initial]);
+    setName("");
+    setCode("");
+    setDescription("");
+    setStatus("active");
+    setTags([]);
+  }, [open]);
   /* eslint-enable react/set-state-in-effect */
 
   const submit = (event: React.FormEvent) => {
@@ -86,21 +72,18 @@ export function ProjectFormDialog({
       status,
       ...(code.trim() ? { code: code.trim() } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
-      ...(startDate ? { startDate } : {}),
-      ...(endDate ? { endDate } : {}),
+      ...(tags.length > 0 ? { tags } : {}),
     };
     onSubmit(values);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("create.title") : t("edit.title")}</DialogTitle>
-            <DialogDescription>
-              {mode === "create" ? t("create.description") : t("edit.description")}
-            </DialogDescription>
+            <DialogTitle>{t("create.title")}</DialogTitle>
+            <DialogDescription>{t("create.description")}</DialogDescription>
           </DialogHeader>
 
           {errorMessage && <ErrorBanner message={errorMessage} />}
@@ -138,27 +121,6 @@ export function ProjectFormDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="project-start">{t("field.startDate")}</Label>
-              <Input
-                id="project-start"
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="project-end">{t("field.endDate")}</Label>
-              <Input
-                id="project-end"
-                type="date"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-              />
-            </div>
-          </div>
-
           <div className="space-y-1.5">
             <Label>{t("field.status")}</Label>
             <Select value={status} onValueChange={v => v !== null && setStatus(v as ProjectStatus)}>
@@ -175,12 +137,17 @@ export function ProjectFormDialog({
             </Select>
           </div>
 
+          <div className="space-y-1.5">
+            <Label>{t("field.tags")}</Label>
+            <TagsInput value={tags} onChange={setTags} />
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {mode === "create" ? t("create.submit") : t("edit.submit")}
+              {t("create.submit")}
             </Button>
           </DialogFooter>
         </form>

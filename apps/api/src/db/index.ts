@@ -87,6 +87,9 @@ async function runMigrations(db: ReturnType<typeof drizzle>) {
 
 export type AppDatabase = Awaited<ReturnType<typeof createDb>>;
 
+/** The transaction handle passed to `db.transaction(tx => …)` callbacks. */
+export type AppTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
+
 /**
  * Result shape returned by `bun:sqlite`'s `Statement.run()`. Drizzle's
  * `bun-sqlite` adapter declares `db.run()` as returning `void` at the type

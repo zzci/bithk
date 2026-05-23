@@ -7,6 +7,7 @@ import type {
   IssueStatus,
   ProjectMemberView,
 } from "@/shared/lib/api/projects";
+import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -68,6 +69,7 @@ interface ProjectIssuesTabProps {
 
 export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssuesTabProps) {
   const { t } = useTranslation(["projects", "common"]);
+  const navigate = useNavigate();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("__all__");
@@ -167,7 +169,11 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
               : issues.length === 0
                 ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">{t("issues.empty")}</TableCell></TableRow>
                 : issues.map(issue => (
-                    <TableRow key={issue.id}>
+                    <TableRow
+                      key={issue.id}
+                      className="cursor-pointer"
+                      onClick={() => void navigate({ to: "/projects/$projectId/issues/$issueId", params: { projectId, issueId: issue.id } })}
+                    >
                       <TableCell className="font-medium">{issue.title}</TableCell>
                       <TableCell>
                         <Badge variant={STATUS_VARIANTS[issue.status]} className="text-xs">

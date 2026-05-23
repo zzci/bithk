@@ -3,7 +3,7 @@ import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
-import { canViewProcurement, getRole, resolveProjectId } from "@/modules/project/project.service";
+import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
@@ -22,7 +22,8 @@ const createSchema = z.object({
   itemName: z.string().min(1).max(500),
   title: z.string().min(1).max(500).optional(),
   status: z.enum(PROCUREMENT_STATUSES).optional(),
-  supplierMemberId: z.string().min(1).nullable().optional(),
+  supplierId: z.string().min(1).nullable().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
   assigneeMemberId: z.string().min(1).nullable().optional(),
   quantity: z.number().int().nullable().optional(),
   amount: z.number().int().nullable().optional(),
@@ -32,7 +33,8 @@ const createSchema = z.object({
 const updateSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   itemName: z.string().min(1).max(500).optional(),
-  supplierMemberId: z.string().min(1).nullable().optional(),
+  supplierId: z.string().min(1).nullable().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
   assigneeMemberId: z.string().min(1).nullable().optional(),
   quantity: z.number().int().nullable().optional(),
   amount: z.number().int().nullable().optional(),
@@ -60,22 +62,25 @@ function auditMeta(c: Context<AppEnv>) {
  * Resolve the project ULID from its short id and assert the actor may view
  * procurements on it. Fail-closed: a missing project, a non-member, or a
  * member without procurement visibility all surface as 404 so neither the
- * project's existence nor its procurement list/detail leaks. The pm role
- * passes implicitly (canViewProcurement returns true for pm).
+ * project's existence nor its procurement list/detail leaks. `needManage`
+ * additionally requires the `procurement.manage` capability for mutations.
  */
-async function requireProcurementAccess(c: Context<AppEnv>, projectShortId: string): Promise<string> {
+async function requireProcurementAccess(c: Context<AppEnv>, projectShortId: string, needManage = false): Promise<string> {
   const db = c.get("db");
   const projectId = await resolveProjectId(db, projectShortId);
   if (!projectId)
     throw new NotFoundError("Project", projectShortId);
-  // App admins bypass project membership and the procurement grant entirely.
+  // App admins bypass project membership and procurement capabilities entirely.
   if (c.get("user")!.role === "admin")
     return projectId;
-  const role = await getRole(db, projectId, actorId(c));
-  if (role === null)
+  if (!await isProjectMember(db, projectId, actorId(c)))
     throw new NotFoundError("Project", projectShortId);
-  const canView = await canViewProcurement(db, projectId, actorId(c));
-  if (!canView)
+  // Visibility is fail-closed: lacking `procurement.view` hides the project's
+  // procurement entirely (404, same as a non-member) so neither the list nor a
+  // detail leaks. Mutations additionally require `procurement.manage`.
+  if (!await hasCapability(db, projectId, actorId(c), "procurement.view"))
+    throw new NotFoundError("Project", projectShortId);
+  if (needManage && !await hasCapability(db, projectId, actorId(c), "procurement.manage"))
     throw new NotFoundError("Project", projectShortId);
   return projectId;
 }
@@ -85,8 +90,8 @@ async function requireProcurementAccess(c: Context<AppEnv>, projectShortId: stri
  * the procurement belongs to that project. Returns the project ULID and the
  * procurement row. Fail-closed 404 on any mismatch.
  */
-async function requireProcurement(c: Context<AppEnv>, projectShortId: string, procurementShortId: string) {
-  const projectId = await requireProcurementAccess(c, projectShortId);
+async function requireProcurement(c: Context<AppEnv>, projectShortId: string, procurementShortId: string, needManage = false) {
+  const projectId = await requireProcurementAccess(c, projectShortId, needManage);
   const db = c.get("db");
   const procurement = await getProcurementByShortId(db, procurementShortId);
   // `procurement.projectId` is the project short_id (the external identifier),
@@ -105,9 +110,10 @@ export function procurementRoutes() {
     const projectId = await requireProcurementAccess(c, c.req.param("projectId"));
     const db = c.get("db");
     const status = c.req.query("status");
+    const categoryId = c.req.query("categoryId");
     const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
     const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
-    const result = await listByProject(db, projectId, { status, page, limit });
+    const result = await listByProject(db, projectId, { status, categoryId, page, limit });
     return c.json({
       success: true,
       data: result.data,
@@ -117,7 +123,7 @@ export function procurementRoutes() {
 
   // ─── Create ────────────────────────────────────────────────────────
   router.post("/projects/:projectId/procurements", async (c) => {
-    const projectId = await requireProcurementAccess(c, c.req.param("projectId"));
+    const projectId = await requireProcurementAccess(c, c.req.param("projectId"), true);
     const db = c.get("db");
     const body = createSchema.parse(await c.req.json());
     const procurement = await createProcurement(db, { ...body, projectId, creatorId: actorId(c) });
@@ -132,7 +138,7 @@ export function procurementRoutes() {
 
   // ─── Update ────────────────────────────────────────────────────────
   router.patch("/projects/:projectId/procurements/:id", async (c) => {
-    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"));
+    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"), true);
     const db = c.get("db");
     const body = updateSchema.parse(await c.req.json());
     const updated = await updateProcurement(db, procurement.id, body);
@@ -143,7 +149,7 @@ export function procurementRoutes() {
 
   // ─── Delete (soft) ─────────────────────────────────────────────────
   router.delete("/projects/:projectId/procurements/:id", async (c) => {
-    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"));
+    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"), true);
     const db = c.get("db");
     await softDeleteProcurement(db, procurement.id);
     return c.json({ success: true, data: null });
@@ -151,7 +157,7 @@ export function procurementRoutes() {
 
   // ─── Status change ─────────────────────────────────────────────────
   router.post("/projects/:projectId/procurements/:id/status", async (c) => {
-    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"));
+    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"), true);
     const db = c.get("db");
     const user = c.get("user")!;
     const body = statusSchema.parse(await c.req.json());
@@ -182,9 +188,9 @@ export function procurementRoutes() {
       return { item, resource: procurement, externalId: idParam, resourceName: procurement.itemName };
     },
     async permissions(db, user, subject) {
-      // Visibility is enforced by the project membership + canViewProcurement
-      // gate. Anyone who can view a procurement can read and post comments on
-      // it; admins bypass; authors (and admins) may delete their own comments.
+      // Visibility is enforced by the project membership + `procurement.view`
+      // capability gate. Anyone who can view a procurement can read and post
+      // comments on it; admins bypass; authors (and admins) delete their own.
       const procurement = subject.resource as { projectId: string };
       // `procurement.projectId` is the project short_id; the membership helpers
       // key on the internal ULID, so resolve it first.
@@ -198,8 +204,7 @@ export function procurementRoutes() {
           canDelete: authorId => isAdmin || authorId === user.id,
         };
       }
-      const role = await getRole(db, projectId, user.id);
-      const canView = isAdmin || (role !== null && await canViewProcurement(db, projectId, user.id));
+      const canView = isAdmin || (await isProjectMember(db, projectId, user.id) && await hasCapability(db, projectId, user.id, "procurement.view"));
       return {
         canRead: canView,
         canPost: canView,

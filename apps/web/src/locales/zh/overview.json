@@ -5,7 +5,7 @@
   },
   "welcome": "欢迎回来，{{name}}",
   "tile": {
-    "myIssuesDescription": "查看和管理您的事项。",
+    "projectsDescription": "浏览项目及其工单。",
     "documentsDescription": "浏览和编辑文档。"
   }
 }

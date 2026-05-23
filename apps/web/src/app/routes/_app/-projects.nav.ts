@@ -1,10 +1,10 @@
 import type { NavItem } from "@/shared/components/sidebar/types";
-import { Briefcase } from "lucide-react";
+import { Layers } from "lucide-react";
 
 export const projectsNav: NavItem = {
   area: "overview",
   key: "projects",
   path: "/projects",
-  icon: Briefcase,
+  icon: Layers,
   order: 40,
 };

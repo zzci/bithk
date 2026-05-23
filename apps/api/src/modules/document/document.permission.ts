@@ -58,6 +58,8 @@ export const documentAccess = defineResource({
     { method: "PATCH", path: "/documents/:id", action: "document:update" },
     { method: "PATCH", path: "/documents/:id/move", action: "document:update" },
     { method: "DELETE", path: "/documents/:id", action: "document:delete" },
+    { method: "PUT", path: "/documents/:id/pin", action: "document:read" },
+    { method: "DELETE", path: "/documents/:id/pin", action: "document:read" },
     { method: "POST", path: "/documents/:id/attachments", action: "document:upload" },
     { method: "GET", path: "/documents/:id/attachments", action: "document:read" },
     { method: "GET", path: "/documents/:id/attachments/:aid", action: "document:download" },

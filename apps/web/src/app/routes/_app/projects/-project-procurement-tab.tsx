@@ -1,6 +1,6 @@
-// Procurement tab: filterable list + create dialog + per-row status change
-// and delete. Mounted only when the caller is pm or has canViewProcurement,
-// so it assumes read access; create/delete/status are pm affordances.
+// Procurement tab: filterable list (status + category) + create dialog + per-row
+// status change and delete. Mounted only when the caller has procurement.view,
+// so it assumes read access; create/delete/status need canManage.
 
 import type {
   CreateProcurementInput,
@@ -47,6 +47,10 @@ import {
   useDeleteProcurement,
   useProcurements,
 } from "@/shared/lib/api/procurement";
+import {
+  useProcurementCategories,
+  useProjectContacts,
+} from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { buildMemberLabelMap } from "./-member-helpers";
 
@@ -61,22 +65,34 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   const { t } = useTranslation(["projects", "common"]);
 
   const [statusFilter, setStatusFilter] = useState("__all__");
+  const [categoryFilter, setCategoryFilter] = useState("__all__");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProcurementRow | null>(null);
 
   const procurementsQuery = useProcurements(projectId, {
     status: statusFilter === "__all__" ? undefined : (statusFilter as ProcurementStatus),
+    categoryId: categoryFilter === "__all__" ? undefined : categoryFilter,
     page,
   });
+  const suppliersQuery = useProjectContacts(projectId, "supplier");
+  const categoriesQuery = useProcurementCategories(projectId);
   const changeStatus = useChangeProcurementStatus();
   const deleteProcurement = useDeleteProcurement();
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
+  const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
+  const supplierNames = useMemo(() => new Map(suppliers.map(s => [s.id, s.name])), [suppliers]);
+  const categoryNames = useMemo(() => new Map(categories.map(c => [c.id, c.name])), [categories]);
   const rows = procurementsQuery.data?.data ?? [];
   const meta = procurementsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
 
+  const supplierName = (id: string | null) =>
+    id ? supplierNames.get(id) ?? id : <span className="text-muted-foreground">{t("procurement.none")}</span>;
+  const categoryName = (id: string | null) =>
+    id ? categoryNames.get(id) ?? id : <span className="text-muted-foreground">{t("procurement.none")}</span>;
   const memberName = (id: string | null) =>
     id ? memberLabels.get(id) ?? id : <span className="text-muted-foreground">{t("procurement.none")}</span>;
 
@@ -89,27 +105,50 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            if (v === null)
-              return;
-            setStatusFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue>
-              {(v: string) => (v === "__all__" ? t("procurement.allStatuses") : t(`procurement.status.${v}` as const))}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">{t("procurement.allStatuses")}</SelectItem>
-            {PROCUREMENT_STATUSES.map(s => (
-              <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap gap-2">
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              if (v === null)
+                return;
+              setStatusFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue>
+                {(v: string) => (v === "__all__" ? t("procurement.allStatuses") : t(`procurement.status.${v}` as const))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("procurement.allStatuses")}</SelectItem>
+              {PROCUREMENT_STATUSES.map(s => (
+                <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={categoryFilter}
+            onValueChange={(v) => {
+              if (v === null)
+                return;
+              setCategoryFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue>
+                {(v: string) => (v === "__all__" ? t("procurement.allCategories") : categoryNames.get(v) ?? v)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("procurement.allCategories")}</SelectItem>
+              {categories.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         {canManage && (
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 size-4" />
@@ -127,6 +166,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
               <TableHead>{t("procurement.col.itemName")}</TableHead>
               <TableHead>{t("procurement.col.status")}</TableHead>
               <TableHead>{t("procurement.col.amount")}</TableHead>
+              <TableHead>{t("procurement.col.category")}</TableHead>
               <TableHead>{t("procurement.col.supplier")}</TableHead>
               <TableHead>{t("procurement.col.assignee")}</TableHead>
               {canManage && <TableHead>{t("procurement.col.actions")}</TableHead>}
@@ -134,9 +174,9 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           </TableHeader>
           <TableBody>
             {procurementsQuery.isLoading
-              ? <TableRow><TableCell colSpan={canManage ? 6 : 5} className="h-24 text-center text-muted-foreground">{t("procurement.loading")}</TableCell></TableRow>
+              ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.loading")}</TableCell></TableRow>
               : rows.length === 0
-                ? <TableRow><TableCell colSpan={canManage ? 6 : 5} className="h-24 text-center text-muted-foreground">{t("procurement.empty")}</TableCell></TableRow>
+                ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.empty")}</TableCell></TableRow>
                 : rows.map(row => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium">{row.itemName}</TableCell>
@@ -168,7 +208,8 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                             )}
                       </TableCell>
                       <TableCell className="text-sm">{formatAmount(row)}</TableCell>
-                      <TableCell className="text-sm">{memberName(row.supplierMemberId)}</TableCell>
+                      <TableCell className="text-sm">{categoryName(row.categoryId)}</TableCell>
+                      <TableCell className="text-sm">{supplierName(row.supplierId)}</TableCell>
                       <TableCell className="text-sm">{memberName(row.assigneeMemberId)}</TableCell>
                       {canManage && (
                         <TableCell>
@@ -213,6 +254,8 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           projectId={projectId}
           members={members}
           memberLabels={memberLabels}
+          suppliers={suppliers}
+          categories={categories}
           open={createOpen}
           onOpenChange={setCreateOpen}
         />
@@ -225,11 +268,13 @@ interface CreateProcurementDialogProps {
   readonly projectId: string;
   readonly members: readonly ProjectMemberView[];
   readonly memberLabels: ReadonlyMap<string, string>;
+  readonly suppliers: readonly { readonly id: string; readonly name: string }[];
+  readonly categories: readonly { readonly id: string; readonly name: string }[];
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
 
-function CreateProcurementDialog({ projectId, members, memberLabels, open, onOpenChange }: CreateProcurementDialogProps) {
+function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, categories, open, onOpenChange }: CreateProcurementDialogProps) {
   const { t } = useTranslation(["projects", "common"]);
   const createProcurement = useCreateProcurement();
   const [itemName, setItemName] = useState("");
@@ -237,7 +282,8 @@ function CreateProcurementDialog({ projectId, members, memberLabels, open, onOpe
   const [quantity, setQuantity] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("");
-  const [supplierMemberId, setSupplierMemberId] = useState("__none__");
+  const [supplierId, setSupplierId] = useState("__none__");
+  const [categoryId, setCategoryId] = useState("__none__");
   const [assigneeMemberId, setAssigneeMemberId] = useState("__none__");
 
   const reset = () => {
@@ -246,7 +292,8 @@ function CreateProcurementDialog({ projectId, members, memberLabels, open, onOpe
     setQuantity("");
     setAmount("");
     setCurrency("");
-    setSupplierMemberId("__none__");
+    setSupplierId("__none__");
+    setCategoryId("__none__");
     setAssigneeMemberId("__none__");
   };
 
@@ -260,7 +307,8 @@ function CreateProcurementDialog({ projectId, members, memberLabels, open, onOpe
       ...(quantity ? { quantity: Number(quantity) } : {}),
       ...(amount ? { amount: Number(amount) } : {}),
       ...(currency.trim() ? { currency: currency.trim() } : {}),
-      ...(supplierMemberId !== "__none__" ? { supplierMemberId } : {}),
+      ...(supplierId !== "__none__" ? { supplierId } : {}),
+      ...(categoryId !== "__none__" ? { categoryId } : {}),
       ...(assigneeMemberId !== "__none__" ? { assigneeMemberId } : {}),
     };
     createProcurement.mutate({ projectId, ...body }, {
@@ -271,32 +319,9 @@ function CreateProcurementDialog({ projectId, members, memberLabels, open, onOpe
     });
   };
 
-  const memberSelect = (
-    value: string,
-    onChange: (v: string) => void,
-    label: string,
-  ) => (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Select value={value} onValueChange={v => v !== null && onChange(v)}>
-        <SelectTrigger className="w-full">
-          <SelectValue>
-            {(v: string) => (v === "__none__" ? t("procurement.none") : memberLabels.get(v) ?? v)}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">{t("procurement.none")}</SelectItem>
-          {members.map(m => (
-            <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
             <DialogTitle>{t("procurement.createTitle")}</DialogTitle>
@@ -331,8 +356,55 @@ function CreateProcurementDialog({ projectId, members, memberLabels, open, onOpe
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            {memberSelect(supplierMemberId, setSupplierMemberId, t("procurement.field.supplier"))}
-            {memberSelect(assigneeMemberId, setAssigneeMemberId, t("procurement.field.assignee"))}
+            <div className="space-y-1.5">
+              <Label>{t("procurement.field.category")}</Label>
+              <Select value={categoryId} onValueChange={v => v !== null && setCategoryId(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v: string) => (v === "__none__" ? t("procurement.none") : categories.find(c => c.id === v)?.name ?? v)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">{t("procurement.none")}</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("procurement.field.supplier")}</Label>
+              <Select value={supplierId} onValueChange={v => v !== null && setSupplierId(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v: string) => (v === "__none__" ? t("procurement.none") : suppliers.find(s => s.id === v)?.name ?? v)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">{t("procurement.none")}</SelectItem>
+                  {suppliers.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t("procurement.field.assignee")}</Label>
+            <Select value={assigneeMemberId} onValueChange={v => v !== null && setAssigneeMemberId(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {(v: string) => (v === "__none__" ? t("procurement.none") : memberLabels.get(v) ?? v)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t("procurement.none")}</SelectItem>
+                {members.map(m => (
+                  <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <DialogFooter>

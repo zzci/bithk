@@ -1,4 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
+// Project work-order detail panel. Mounted as a drawer from the project Issues
+// tab and as a fullscreen page at `/projects/$projectId/issues/$issueId`.
+// Assignment is member-based (`project_members.id`); all reads/writes go
+// through the project-scoped issue endpoints.
+
+import type { UpdateProjectIssueInput } from "./-project-issue-hooks";
+import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import {
   ArrowLeft,
   Maximize2,
@@ -8,7 +15,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -35,30 +41,13 @@ import {
 } from "@/shared/components/ui/select";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
-import { http } from "@/shared/lib/http";
-import { displayName } from "@/shared/lib/users";
 import { useAuthStore } from "@/shared/stores/auth";
-
-// ── Types ──
-
-export interface Issue {
-  readonly id: string;
-  readonly title: string;
-  readonly description: string | null;
-  readonly status: "open" | "in_progress" | "done" | "cancelled";
-  readonly priority: "low" | "medium" | "high" | "urgent";
-  readonly creatorId: string;
-  readonly assigneeId: string | null;
-  readonly dueDate: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface SimpleUser {
-  readonly id: string;
-  readonly name: string;
-  readonly username: string;
-}
+import { buildMemberLabelMap } from "./-member-helpers";
+import {
+  useDeleteProjectIssue,
+  useProjectIssue,
+  useUpdateProjectIssue,
+} from "./-project-issue-hooks";
 
 // ── Helpers ──
 
@@ -89,24 +78,39 @@ export function priorityKey(p: string) {
 const STATUSES = ["open", "in_progress", "done", "cancelled"] as const;
 const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 
-// ── IssuePanel ──
+// ── ProjectIssuePanel ──
 
-interface IssuePanelProps {
+interface ProjectIssuePanelProps {
+  readonly projectId: string;
   readonly issueId: string;
+  readonly members: readonly ProjectMemberView[];
+  readonly userNames: ReadonlyMap<string, string>;
+  /** True when the caller is a pm or app admin (can edit every field). */
+  readonly canManage: boolean;
   readonly variant: "drawer" | "fullscreen";
   readonly onClose: (opts?: { deleted?: boolean }) => void;
   readonly onMaximize?: () => void;
-  readonly onMutated?: () => void;
 }
 
-export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }: IssuePanelProps) {
+export function ProjectIssuePanel({
+  projectId,
+  issueId,
+  members,
+  userNames,
+  canManage,
+  variant,
+  onClose,
+  onMaximize,
+}: ProjectIssuePanelProps) {
   const { t } = useTranslation("issues");
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
 
-  const [issue, setIssue] = useState<Issue | null>(null);
-  const [users, setUsers] = useState<SimpleUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const issueQuery = useProjectIssue(projectId, issueId);
+  const updateIssue = useUpdateProjectIssue();
+  const deleteIssue = useDeleteProjectIssue();
+  const issue = issueQuery.data ?? null;
+
   const [error, setError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -116,44 +120,31 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
   const panelRef = useRef<HTMLDivElement>(null);
   const dueDateInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchIssue = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await http<{ success: boolean; data: Issue }>(`/issues/${issueId}`);
-      setIssue(res.data);
-      setTitleDraft(res.data.title);
-      setDescDraft(res.data.description ?? "");
-    }
-    catch (err) {
-      setError(errorMessage(err, t("common.error.loadFailed")));
-    }
-    finally {
-      setLoading(false);
-    }
-  }, [issueId, t]);
-
-  const fetchUsers = useCallback(async () => {
-    try {
-      const res = await http<{ success: boolean; data: SimpleUser[] }>("/account/visible-users");
-      setUsers(res.data);
-    }
-    catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    void fetchIssue();
-  }, [fetchIssue]);
-
-  useEffect(() => {
-    void fetchUsers();
-  }, [fetchUsers]);
+  const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
+  // ResourceFooterSections renders comment authors from a `{ id, name }` map.
+  const userMap = useMemo(
+    () => new Map(Array.from(userNames, ([id, name]) => [id, { id, name }])),
+    [userNames],
+  );
 
   useEffect(() => {
     panelRef.current?.focus();
   }, []);
 
+  // Drafts are seeded when entering edit mode (below), so no effect sync.
+  const startEditTitle = () => {
+    if (!issue)
+      return;
+    setTitleDraft(issue.title);
+    setEditingTitle(true);
+  };
+  const startEditDesc = () => {
+    setDescDraft(issue?.description ?? "");
+    setEditingDesc(true);
+  };
+
   const { upload, fileInputRef, limits, attachmentCount } = useResourceAttachmentUpload({
-    resource: "issues",
+    resource: `projects/${projectId}/issues`,
     resourceId: issueId,
     onError: err => setError(errorMessage(err, t("common.error.uploadFailed"))),
   });
@@ -179,30 +170,23 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
     upload.mutate(selected);
   };
 
-  const patch = useCallback(async (body: Record<string, unknown>) => {
-    try {
-      const res = await http<{ success: boolean; data: Issue }>(`/issues/${issueId}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
-      setIssue(res.data);
-      onMutated?.();
-    }
-    catch (err) {
-      setError(errorMessage(err, t("common.error.operationFailed")));
-    }
-  }, [issueId, t, onMutated]);
+  const patch = (body: UpdateProjectIssueInput) => {
+    updateIssue.mutate({ projectId, issueId, ...body }, {
+      onError: err => setError(errorMessage(err, t("common.error.operationFailed"))),
+    });
+  };
 
-  const confirmDelete = async () => {
-    try {
-      await http(`/issues/${issueId}`, { method: "DELETE" });
-      setDeleteOpen(false);
-      onClose({ deleted: true });
-    }
-    catch (err) {
-      setError(errorMessage(err, t("common.error.deleteFailed")));
-      setDeleteOpen(false);
-    }
+  const confirmDelete = () => {
+    deleteIssue.mutate({ projectId, issueId }, {
+      onSuccess: () => {
+        setDeleteOpen(false);
+        onClose({ deleted: true });
+      },
+      onError: (err) => {
+        setError(errorMessage(err, t("common.error.deleteFailed")));
+        setDeleteOpen(false);
+      },
+    });
   };
 
   const permissions = useMemo(() => {
@@ -210,26 +194,22 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
       return { canEditAll: false, canEditStatus: false, canDelete: false };
     const isCreator = issue.creatorId === user.id;
     const isAssignee = issue.assigneeId === user.id;
-    const canEditAll = isAdmin || isCreator;
+    const canEditAll = isAdmin || canManage || isCreator;
     return {
       canEditAll,
       canEditStatus: canEditAll || isAssignee,
       canDelete: canEditAll,
     };
-  }, [issue, user, isAdmin]);
-
-  const userMap = useMemo(() => new Map(users.map(u => [u.id, u])), [users]);
+  }, [issue, user, isAdmin, canManage]);
 
   const canUploadAttachment = !!issue && (permissions.canEditAll || issue.assigneeId === user?.id);
 
   const saveTitle = () => {
     const trimmed = titleDraft.trim();
-    if (issue && trimmed && trimmed !== issue.title) {
-      void patch({ title: trimmed });
-    }
-    else if (issue) {
+    if (issue && trimmed && trimmed !== issue.title)
+      patch({ title: trimmed });
+    else if (issue)
       setTitleDraft(issue.title);
-    }
     setEditingTitle(false);
   };
 
@@ -238,9 +218,8 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
       return;
     const next = descDraft;
     const current = issue.description ?? "";
-    if (next !== current) {
-      void patch(next.trim() ? { description: next } : { description: null });
-    }
+    if (next !== current)
+      patch(next.trim() ? { description: next } : { description: null });
     setEditingDesc(false);
   };
 
@@ -263,13 +242,14 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
     }
   };
 
-  if (loading && !issue)
+  if (issueQuery.isLoading && !issue)
     return <CenteredHint>{t("common.loading")}</CenteredHint>;
 
   if (!issue)
     return <CenteredHint tone="destructive">{error ?? t("common.error.loadFailed")}</CenteredHint>;
 
-  const creatorName = displayName(userMap, issue.creatorId);
+  const creatorName = userNames.get(issue.creatorId) ?? issue.creatorId;
+  const assigneeLabel = issue.assigneeMemberId ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId : null;
 
   return (
     <div
@@ -315,7 +295,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
             : (
                 <h1
                   className={`truncate text-base font-semibold tracking-tight ${permissions.canEditAll ? "cursor-pointer hover:text-primary" : ""}`}
-                  onClick={() => permissions.canEditAll && setEditingTitle(true)}
+                  onClick={() => permissions.canEditAll && startEditTitle()}
                   title={permissions.canEditAll ? t("clickToEditTitle") : issue.title}
                 >
                   {issue.title}
@@ -365,7 +345,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
           {/* Status */}
           {permissions.canEditStatus
             ? (
-                <Select value={issue.status} onValueChange={v => v !== null && void patch({ status: v })}>
+                <Select value={issue.status} onValueChange={v => v !== null && patch({ status: v as typeof issue.status })}>
                   <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
                     <Badge variant={statusVariants[issue.status]} className="cursor-pointer">
                       {t(`status${statusKey(issue.status)}`)}
@@ -383,7 +363,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
           {/* Priority */}
           {permissions.canEditAll
             ? (
-                <Select value={issue.priority} onValueChange={v => v !== null && void patch({ priority: v })}>
+                <Select value={issue.priority} onValueChange={v => v !== null && patch({ priority: v as typeof issue.priority })}>
                   <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
                     <Badge variant={priorityVariants[issue.priority]} className="cursor-pointer">
                       {t(`priority${priorityKey(issue.priority)}`)}
@@ -409,11 +389,11 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
             {permissions.canEditAll
               ? (
                   <Select
-                    value={issue.assigneeId ?? "__none__"}
+                    value={issue.assigneeMemberId ?? "__none__"}
                     onValueChange={(v) => {
                       if (v === null)
                         return;
-                      void patch({ assigneeId: v === "__none__" ? null : v });
+                      patch({ assigneeMemberId: v === "__none__" ? null : v });
                     }}
                   >
                     <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-xs text-foreground hover:text-primary [&>svg:last-child]:size-3">
@@ -421,21 +401,21 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
                         {(v: string) => {
                           if (v === "__none__")
                             return <span className="text-muted-foreground">{t("unassigned")}</span>;
-                          return displayName(userMap, v);
+                          return memberLabels.get(v) ?? v;
                         }}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">{t("unassigned")}</SelectItem>
-                      {users.map(u => (
-                        <SelectItem key={u.id} value={u.id}>{`${u.name} (${u.username})`}</SelectItem>
+                      {members.map(m => (
+                        <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )
               : (
                   <span className="text-foreground">
-                    {issue.assigneeId ? displayName(userMap, issue.assigneeId) : t("unassigned")}
+                    {assigneeLabel ?? t("unassigned")}
                   </span>
                 )}
           </span>
@@ -469,7 +449,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
                       className="sr-only"
                       tabIndex={-1}
                       value={issue.dueDate ?? ""}
-                      onChange={e => void patch({ dueDate: e.target.value || null })}
+                      onChange={e => patch({ dueDate: e.target.value || null })}
                     />
                   </span>
                 )
@@ -492,7 +472,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
               <button
                 type="button"
                 className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                onClick={() => setEditingDesc(true)}
+                onClick={startEditDesc}
               >
                 <Pencil className="size-3" />
                 {t("common.edit")}
@@ -539,7 +519,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
                 ? (
                     <button
                       type="button"
-                      onClick={() => setEditingDesc(true)}
+                      onClick={startEditDesc}
                       className="w-full rounded-md border border-dashed bg-muted/30 px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
                     >
                       {t("field.noDescription")}
@@ -552,9 +532,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
                   )}
         </div>
 
-        {/* Creator + timestamps — subtle footer-style strip above the
-            attachments section, right-aligned and toned down so it
-            reads as auxiliary info rather than primary content. */}
+        {/* Creator + timestamps */}
         <div className="mt-4 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-[11px] text-muted-foreground/80">
           <span className="inline-flex items-center gap-1">
             <span className="text-muted-foreground/60">{t("col.creator")}</span>
@@ -573,7 +551,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
         </div>
 
         <ResourceFooterSections
-          resource="issues"
+          resource={`projects/${projectId}/issues`}
           resourceId={issue.id}
           i18nNs="issues"
           userMap={userMap}
@@ -589,7 +567,7 @@ export function IssuePanel({ issueId, variant, onClose, onMaximize, onMutated }:
         onOpenChange={setDeleteOpen}
         title={t("deleteTitle")}
         description={t("deleteConfirm", { title: issue.title })}
-        onConfirm={() => void confirmDelete()}
+        onConfirm={confirmDelete}
       />
     </div>
   );

@@ -27,9 +27,28 @@ interface ApiListEnvelope<T> {
 
 // ── Types ──
 
-export type ProjectStatus = "active" | "archived" | "closed";
-export type ProjectMemberType = "internal" | "external";
-export type ProjectRole = "pm" | "member";
+export type ProjectStatus = "active" | "archived";
+
+export const PROJECT_CAPABILITIES = [
+  "project.manage",
+  "members.manage",
+  "roles.manage",
+  "contacts.manage",
+  "categories.manage",
+  "procurement.view",
+  "procurement.manage",
+  "issue.manage",
+] as const;
+export type ProjectCapability = typeof PROJECT_CAPABILITIES[number];
+
+export type ContactType = "supplier" | "client" | "subcontractor" | "other";
+export const CONTACT_TYPES: readonly ContactType[] = ["supplier", "client", "subcontractor", "other"];
+export type ContactStatus = "active" | "inactive";
+
+export interface ProjectTag {
+  readonly id: string;
+  readonly name: string;
+}
 
 export interface ProjectView {
   readonly id: string;
@@ -37,8 +56,9 @@ export interface ProjectView {
   readonly name: string;
   readonly status: ProjectStatus;
   readonly description: string | null;
-  readonly startDate: string | null;
-  readonly endDate: string | null;
+  readonly tags: readonly ProjectTag[];
+  // Present only on the detail endpoint: the caller's effective capabilities.
+  readonly capabilities?: readonly ProjectCapability[];
   readonly creatorId: string;
   readonly version: number;
   readonly updatedAt: string;
@@ -46,13 +66,44 @@ export interface ProjectView {
 
 export interface ProjectMemberView {
   readonly id: string;
-  readonly memberType: ProjectMemberType;
-  readonly role: ProjectRole;
   readonly userId: string | null;
   readonly displayName: string | null;
-  readonly externalRef: string | null;
-  readonly supplierInfo: string | null;
-  readonly canViewProcurement: boolean;
+  readonly roleId: string;
+  readonly title: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ProjectRoleView {
+  readonly id: string;
+  readonly name: string;
+  readonly capabilities: readonly ProjectCapability[];
+  readonly isSystem: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ProjectContactView {
+  readonly id: string;
+  readonly type: ContactType;
+  readonly name: string;
+  readonly contactPerson: string | null;
+  readonly phone: string | null;
+  readonly email: string | null;
+  readonly address: string | null;
+  readonly taxId: string | null;
+  readonly rating: number | null;
+  readonly status: ContactStatus;
+  readonly note: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ProcurementCategoryView {
+  readonly id: string;
+  readonly name: string;
+  readonly code: string | null;
+  readonly description: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -87,16 +138,32 @@ export interface ListMeta {
 export const projectKeys = {
   all: ["projects"] as const,
   lists: () => ["projects", "list"] as const,
-  list: (status: string, page: number) => ["projects", "list", status, page] as const,
+  list: (status: string, tag: string, page: number) => ["projects", "list", status, tag, page] as const,
   detail: (id: string) => ["projects", "detail", id] as const,
   members: (id: string) => ["projects", id, "members"] as const,
+  roles: (id: string) => ["projects", id, "roles"] as const,
+  contacts: (id: string, type: string) => ["projects", id, "contacts", type] as const,
+  categories: (id: string) => ["projects", id, "categories"] as const,
   issues: (id: string, query: string) => ["projects", id, "issues", query] as const,
 };
+
+export const tagKeys = { all: ["tags"] as const };
+
+// ── Tags ──
+
+export function useTags() {
+  return useQuery<readonly ProjectTag[]>({
+    queryKey: tagKeys.all,
+    queryFn: () => http<ApiEnvelope<readonly ProjectTag[]>>("/tags").then(r => r.data),
+    staleTime: 30_000,
+  });
+}
 
 // ── Projects: queries ──
 
 export interface ProjectsQuery {
   readonly status?: ProjectStatus | undefined;
+  readonly tagId?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -108,14 +175,17 @@ export interface ProjectsListResult {
 
 export function useProjects(query: ProjectsQuery = {}) {
   const status = query.status;
+  const tagId = query.tagId;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   return useQuery<ProjectsListResult>({
-    queryKey: projectKeys.list(status ?? "all", page),
+    queryKey: projectKeys.list(status ?? "all", tagId ?? "all", page),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
+      if (tagId)
+        params.set("tagId", tagId);
       params.set("page", String(page));
       params.set("limit", String(limit));
       const res = await http<ApiListEnvelope<ProjectView>>(`/projects?${params.toString()}`);
@@ -138,11 +208,10 @@ export function useProject(id: string | undefined) {
 
 export interface CreateProjectInput {
   readonly name: string;
-  readonly code?: string | undefined;
-  readonly status?: ProjectStatus | undefined;
-  readonly description?: string | undefined;
-  readonly startDate?: string | undefined;
-  readonly endDate?: string | undefined;
+  readonly code?: string | null;
+  readonly description?: string | null;
+  readonly status?: ProjectStatus;
+  readonly tags?: readonly string[];
 }
 
 export function useCreateProject(): UseMutationResult<ProjectView, Error, CreateProjectInput> {
@@ -158,11 +227,10 @@ export function useCreateProject(): UseMutationResult<ProjectView, Error, Create
 
 export interface UpdateProjectInput {
   readonly name?: string;
-  readonly code?: string | null | undefined;
-  readonly status?: ProjectStatus | undefined;
-  readonly description?: string | null | undefined;
-  readonly startDate?: string | null | undefined;
-  readonly endDate?: string | null | undefined;
+  readonly code?: string | null;
+  readonly description?: string | null;
+  readonly status?: ProjectStatus;
+  readonly tags?: readonly string[];
 }
 
 export function useUpdateProject(): UseMutationResult<ProjectView, Error, { id: string } & UpdateProjectInput> {
@@ -204,13 +272,10 @@ export function useProjectMembers(projectId: string | undefined) {
 }
 
 export interface AddProjectMemberInput {
-  readonly memberType: ProjectMemberType;
-  readonly role?: ProjectRole;
+  readonly roleId: string;
   readonly userId?: string;
   readonly displayName?: string;
-  readonly externalRef?: string;
-  readonly supplierInfo?: string;
-  readonly canViewProcurement?: boolean;
+  readonly title?: string;
 }
 
 export function useAddProjectMember(): UseMutationResult<ProjectMemberView, Error, { projectId: string } & AddProjectMemberInput> {
@@ -227,13 +292,10 @@ export function useAddProjectMember(): UseMutationResult<ProjectMemberView, Erro
 }
 
 export interface UpdateProjectMemberInput {
-  readonly role?: ProjectRole;
-  readonly canViewProcurement?: boolean;
-  readonly displayName?: string;
-  readonly externalRef?: string;
-  readonly supplierInfo?: string;
+  readonly roleId?: string;
+  readonly displayName?: string | null;
+  readonly title?: string | null;
   readonly userId?: string;
-  readonly memberType?: ProjectMemberType;
 }
 
 export function useUpdateProjectMember(): UseMutationResult<ProjectMemberView, Error, { projectId: string; memberId: string } & UpdateProjectMemberInput> {
@@ -258,6 +320,183 @@ export function useRemoveProjectMember(): UseMutationResult<null, Error, { proje
     ).then(r => r.data),
     onSuccess: (_data, { projectId }) => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.members(projectId) });
+    },
+  });
+}
+
+// ── Roles ──
+
+export function useProjectRoles(projectId: string | undefined) {
+  return useQuery({
+    queryKey: projectKeys.roles(projectId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly ProjectRoleView[]>>(`/projects/${encodeURIComponent(projectId!)}/roles`).then(r => r.data),
+    enabled: !!projectId,
+    staleTime: 5_000,
+  });
+}
+
+export interface RoleInput {
+  readonly name?: string;
+  readonly capabilities?: readonly ProjectCapability[];
+}
+
+export function useCreateProjectRole(): UseMutationResult<ProjectRoleView, Error, { projectId: string; name: string; capabilities?: readonly ProjectCapability[] }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, ...body }) => http<ApiEnvelope<ProjectRoleView>>(`/projects/${encodeURIComponent(projectId)}/roles`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.roles(projectId) });
+    },
+  });
+}
+
+export function useUpdateProjectRole(): UseMutationResult<ProjectRoleView, Error, { projectId: string; roleId: string } & RoleInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, roleId, ...body }) => http<ApiEnvelope<ProjectRoleView>>(
+      `/projects/${encodeURIComponent(projectId)}/roles/${encodeURIComponent(roleId)}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.roles(projectId) });
+    },
+  });
+}
+
+export function useDeleteProjectRole(): UseMutationResult<null, Error, { projectId: string; roleId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, roleId }) => http<ApiEnvelope<null>>(
+      `/projects/${encodeURIComponent(projectId)}/roles/${encodeURIComponent(roleId)}`,
+      { method: "DELETE" },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.roles(projectId) });
+    },
+  });
+}
+
+// ── Contacts ──
+
+export function useProjectContacts(projectId: string | undefined, type?: ContactType) {
+  return useQuery({
+    queryKey: projectKeys.contacts(projectId ?? "", type ?? "all"),
+    queryFn: () => {
+      const qs = type ? `?type=${encodeURIComponent(type)}` : "";
+      return http<ApiEnvelope<readonly ProjectContactView[]>>(`/projects/${encodeURIComponent(projectId!)}/contacts${qs}`).then(r => r.data);
+    },
+    enabled: !!projectId,
+    staleTime: 5_000,
+  });
+}
+
+export interface ContactInput {
+  readonly type?: ContactType;
+  readonly name?: string;
+  readonly contactPerson?: string | null;
+  readonly phone?: string | null;
+  readonly email?: string | null;
+  readonly address?: string | null;
+  readonly taxId?: string | null;
+  readonly rating?: number | null;
+  readonly status?: ContactStatus;
+  readonly note?: string | null;
+}
+
+export function useCreateProjectContact(): UseMutationResult<ProjectContactView, Error, { projectId: string; type: ContactType; name: string } & ContactInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, ...body }) => http<ApiEnvelope<ProjectContactView>>(`/projects/${encodeURIComponent(projectId)}/contacts`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "contacts"] });
+    },
+  });
+}
+
+export function useUpdateProjectContact(): UseMutationResult<ProjectContactView, Error, { projectId: string; contactId: string } & ContactInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, contactId, ...body }) => http<ApiEnvelope<ProjectContactView>>(
+      `/projects/${encodeURIComponent(projectId)}/contacts/${encodeURIComponent(contactId)}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "contacts"] });
+    },
+  });
+}
+
+export function useDeleteProjectContact(): UseMutationResult<null, Error, { projectId: string; contactId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, contactId }) => http<ApiEnvelope<null>>(
+      `/projects/${encodeURIComponent(projectId)}/contacts/${encodeURIComponent(contactId)}`,
+      { method: "DELETE" },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "contacts"] });
+    },
+  });
+}
+
+// ── Procurement categories ──
+
+export function useProcurementCategories(projectId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: projectKeys.categories(projectId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly ProcurementCategoryView[]>>(`/projects/${encodeURIComponent(projectId!)}/procurement-categories`).then(r => r.data),
+    enabled: enabled && !!projectId,
+    staleTime: 5_000,
+  });
+}
+
+export interface CategoryInput {
+  readonly name?: string;
+  readonly code?: string | null;
+  readonly description?: string | null;
+}
+
+export function useCreateProcurementCategory(): UseMutationResult<ProcurementCategoryView, Error, { projectId: string; name: string } & CategoryInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, ...body }) => http<ApiEnvelope<ProcurementCategoryView>>(`/projects/${encodeURIComponent(projectId)}/procurement-categories`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.categories(projectId) });
+    },
+  });
+}
+
+export function useUpdateProcurementCategory(): UseMutationResult<ProcurementCategoryView, Error, { projectId: string; categoryId: string } & CategoryInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, categoryId, ...body }) => http<ApiEnvelope<ProcurementCategoryView>>(
+      `/projects/${encodeURIComponent(projectId)}/procurement-categories/${encodeURIComponent(categoryId)}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.categories(projectId) });
+    },
+  });
+}
+
+export function useDeleteProcurementCategory(): UseMutationResult<null, Error, { projectId: string; categoryId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, categoryId }) => http<ApiEnvelope<null>>(
+      `/projects/${encodeURIComponent(projectId)}/procurement-categories/${encodeURIComponent(categoryId)}`,
+      { method: "DELETE" },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.categories(projectId) });
     },
   });
 }

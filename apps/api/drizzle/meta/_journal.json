@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1778762896217,
-      "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1779395050146,
-      "tag": "0001_drive_entries",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1779398179671,
-      "tag": "0002_drive_polymorphic_owner",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1779461241268,
-      "tag": "0003_whole_legion",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1779552024430,
-      "tag": "0004_uneven_black_panther",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1779554672725,
-      "tag": "0005_friendly_praxagora",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1779555211429,
-      "tag": "0006_medical_rick_jones",
+      "when": 1779574766255,
+      "tag": "0000_solid_viper",
       "breakpoints": true
     }
   ]

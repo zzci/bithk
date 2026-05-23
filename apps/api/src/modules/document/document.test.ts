@@ -26,8 +26,10 @@ import {
   isVersionConflict,
   listDocumentSharesWithInheritance,
   listMyDocuments,
+  pinDocument,
   removeDocumentShare,
   softDeleteDocument,
+  unpinDocument,
   updateDocument,
 } from "./document.service";
 import "@/modules/account";
@@ -461,6 +463,68 @@ describe("getDocumentTreeForUser", () => {
 
     const tree = await getDocumentTreeForUser(db, { id: adminA });
     expect(tree.map(n => n.id)).toEqual([ownDoc.id]);
+  });
+});
+
+describe("document pins (per-user)", () => {
+  test("pin marks the tree node for the pinning user only", async () => {
+    const alice = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const doc = await createDocument(db, { title: "Shared", creatorId: alice });
+    await addDocumentShare(policyCtx(alice), {
+      documentId: doc.id,
+      targetType: "user",
+      targetId: bob,
+      permission: "viewer",
+    });
+
+    await pinDocument(db, alice, doc.id);
+
+    const aliceTree = await getDocumentTreeForUser(db, { id: alice });
+    expect(aliceTree.find(n => n.id === doc.id)?.pinned).toBe(true);
+
+    // Bob sees the shared doc, but Alice's pin does not leak to him.
+    const bobTree = await getDocumentTreeForUser(db, { id: bob });
+    expect(bobTree.find(n => n.id === doc.id)?.pinned).toBe(false);
+  });
+
+  test("pin is idempotent and unpin clears it", async () => {
+    const alice = await seedUser("Alice");
+    const doc = await createDocument(db, { title: "Doc", creatorId: alice });
+
+    await pinDocument(db, alice, doc.id);
+    await pinDocument(db, alice, doc.id); // no-op, no error
+    expect((await getDocumentTreeForUser(db, { id: alice })).find(n => n.id === doc.id)?.pinned).toBe(true);
+
+    await unpinDocument(db, alice, doc.id);
+    await unpinDocument(db, alice, doc.id); // no-op, no error
+    expect((await getDocumentTreeForUser(db, { id: alice })).find(n => n.id === doc.id)?.pinned).toBe(false);
+  });
+
+  test("returns false for an unknown document", async () => {
+    const alice = await seedUser("Alice");
+    expect(await pinDocument(db, alice, "missing01")).toBe(false);
+    expect(await unpinDocument(db, alice, "missing01")).toBe(false);
+  });
+
+  test("HTTP pin requires read access; fail-closed for outsiders", async () => {
+    const owner = await seedUser("Owner");
+    const outsider = await seedUser("Outsider");
+    const doc = await createDocument(db, { title: "Private", creatorId: owner });
+    const app = buildDocumentApp();
+
+    const forbidden = await app.request(`/documents/${doc.id}/pin`, {
+      method: "PUT",
+      headers: { cookie: await sessionCookieFor(outsider) },
+    });
+    expect(forbidden.status).toBe(403);
+
+    const ok = await app.request(`/documents/${doc.id}/pin`, {
+      method: "PUT",
+      headers: { cookie: await sessionCookieFor(owner) },
+    });
+    expect(ok.status).toBe(200);
+    expect((await getDocumentTreeForUser(db, { id: owner })).find(n => n.id === doc.id)?.pinned).toBe(true);
   });
 });
 

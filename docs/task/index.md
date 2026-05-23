@@ -9,4 +9,6 @@
 | [FEAT-005](FEAT-005.md) | Move drive direct shares to policy tuples | [PLAN-005](../plan/PLAN-005.md) | Planned | 2026-05-23 |
 | [REFACTOR-001](REFACTOR-001.md) | Drop `portal` segment from frontend routing | [PLAN-006](../plan/PLAN-006.md) | Done | 2026-05-23 |
 | [FEAT-006](FEAT-006.md) | 边栏全局搜索与命令面板 | [PLAN-007](../plan/PLAN-007.md) | Done | 2026-05-23 |
-| [FEAT-007](FEAT-007.md) | Document row actions menu + per-user pin + pinned home | [PLAN-008](../plan/PLAN-008.md) | In Progress | 2026-05-23 |
+| [FEAT-007](FEAT-007.md) | Document row actions menu + per-user pin + pinned home | [PLAN-008](../plan/PLAN-008.md) | Done | 2026-05-23 |
+| [REFACTOR-002](REFACTOR-002.md) | Migrate issues into the project module (no global issues) | [PLAN-009](../plan/PLAN-009.md) | Done | 2026-05-23 |
+| [FEAT-008](FEAT-008.md) | Project settings hub: metadata + supplier directory + procurement categories | [PLAN-010](../plan/PLAN-010.md) | Done | 2026-05-23 |

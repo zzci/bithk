@@ -3,7 +3,7 @@ import type { DriveOwner } from "@/modules/drive/drive.service";
 import { listMyDocuments } from "@/modules/document/document.service";
 import { searchDriveEntriesByOwners } from "@/modules/drive/drive.service";
 import { listTeamDirectories } from "@/modules/drive/drive.team-directory.service";
-import { listIssues, listMyIssues } from "@/modules/issue/issue.service";
+import { searchIssues } from "@/modules/issue/issue.service";
 import { listProjects } from "@/modules/project/project.service";
 
 export type SearchHitType = "document" | "issue" | "project" | "drive";
@@ -15,6 +15,9 @@ export interface SearchHit {
   readonly id: string;
   readonly title: string;
   readonly subtitle?: string;
+  // For issue hits: the owning project's short_id, needed to deep-link into
+  // the project-scoped issue route.
+  readonly projectId?: string;
 }
 
 export interface GlobalSearchParams {
@@ -64,9 +67,7 @@ export async function globalSearch(db: AppDatabase, params: GlobalSearchParams):
 
   const [docs, issues, projectsResult, driveOwners] = await Promise.all([
     listMyDocuments(db, { userId, q: term, limit }),
-    isAdmin
-      ? listIssues(db, { q: term, limit })
-      : listMyIssues(db, { userId, q: term, limit }),
+    searchIssues(db, { userId, isAdmin, q: term, limit }),
     listProjects(db, { q: term, limit, memberUserId: isAdmin ? undefined : userId }),
     resolveDriveOwners(db, userId),
   ]);
@@ -75,8 +76,8 @@ export async function globalSearch(db: AppDatabase, params: GlobalSearchParams):
 
   return {
     documents: docs.data.map(d => ({ type: "document", id: d.id, title: d.title })),
-    issues: issues.data.map(i => ({ type: "issue", id: i.id, title: i.title, subtitle: i.status })),
-    projects: projectsResult.data.map(p => ({ type: "project", id: p.shortId, title: p.name, subtitle: p.code })),
+    issues: issues.map(i => ({ type: "issue", id: i.id, title: i.title, subtitle: i.status, projectId: i.projectId })),
+    projects: projectsResult.data.map(p => ({ type: "project", id: p.id, title: p.name, subtitle: p.code })),
     drive: drive.map(e => ({ type: "drive", id: e.id, title: e.name })),
   };
 }

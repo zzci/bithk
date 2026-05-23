@@ -32,9 +32,11 @@ import {
   listDescendantIds,
   listDocumentSharesWithInheritance,
   listMyDocuments,
+  pinDocument,
   removeDocumentShare,
   resolveDocumentItem,
   softDeleteDocument,
+  unpinDocument,
   updateDocument,
 } from "./document.service";
 
@@ -329,6 +331,35 @@ export function documentRoutes() {
       });
     }
     return c.json({ success: true, data: null });
+  });
+
+  // ── Pin endpoints (per-user) ──
+
+  router.put("/documents/:id/pin", async (c) => {
+    const db = c.get("db");
+    const user = c.get("user")!;
+    const id = c.req.param("id")!;
+    const item = await resolveDocumentItem(db, id);
+    if (!item)
+      throw new NotFoundError("Document", id);
+    // Pin is gated by read access: any user who can see the doc (owner or
+    // shared) may pin it for themselves. Defense in depth — the global
+    // policyMiddleware already enforces this via the route table.
+    await documentAccess.assert(policyContext(c)!, "document:read", item.id);
+    await pinDocument(db, user.id, id);
+    return c.json({ success: true, data: { pinned: true } });
+  });
+
+  router.delete("/documents/:id/pin", async (c) => {
+    const db = c.get("db");
+    const user = c.get("user")!;
+    const id = c.req.param("id")!;
+    const item = await resolveDocumentItem(db, id);
+    if (!item)
+      throw new NotFoundError("Document", id);
+    await documentAccess.assert(policyContext(c)!, "document:read", item.id);
+    await unpinDocument(db, user.id, id);
+    return c.json({ success: true, data: { pinned: false } });
   });
 
   // ── Attachment endpoints ──

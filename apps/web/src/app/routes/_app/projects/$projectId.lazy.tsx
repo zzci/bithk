@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import type { CreateProjectInput } from "@/shared/lib/api/projects";
-import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { createLazyFileRoute, Outlet, useNavigate, useParams } from "@tanstack/react-router";
+import { ArrowLeft, Settings, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
@@ -19,16 +18,13 @@ import {
   useDeleteProject,
   useProject,
   useProjectMembers,
-  useUpdateProject,
 } from "@/shared/lib/api/projects";
-import { errorMessage } from "@/shared/lib/errors";
 import { FileBrowser } from "../-file-browser";
-import { ProjectFormDialog } from "./-project-form-dialog";
 import { ProjectIssuesTab } from "./-project-issues-tab";
-import { ProjectMembersTab } from "./-project-members-tab";
 import { ProjectOverviewTab } from "./-project-overview-tab";
 import { ProjectProcurementTab } from "./-project-procurement-tab";
-import { useProjectRole } from "./-use-project-role";
+import { ProjectSettingsDialog } from "./-project-settings-dialog";
+import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId")({
   component: ProjectDetailPage,
@@ -43,11 +39,11 @@ function ProjectDetailPage() {
   const membersQuery = useProjectMembers(projectId);
   const usersQuery = useVisibleUsers();
 
-  const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
 
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
-  const role = useProjectRole(members);
+  const project = projectQuery.data;
+  const caps = useProjectCapabilities(project);
 
   const userNames = useMemo(
     () => new Map((usersQuery.data ?? []).map(u => [u.id, u.name])),
@@ -55,10 +51,8 @@ function ProjectDetailPage() {
   );
 
   const [tab, setTab] = useState("overview");
-  const [editOpen, setEditOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  const project = projectQuery.data;
 
   if (projectQuery.isLoading) {
     return <p className="text-muted-foreground">{t("detail.loading")}</p>;
@@ -75,12 +69,6 @@ function ProjectDetailPage() {
       </div>
     );
   }
-
-  const handleUpdate = (values: CreateProjectInput) => {
-    updateProject.mutate({ id: project.id, ...values }, {
-      onSuccess: () => setEditOpen(false),
-    });
-  };
 
   const handleDelete = () => {
     deleteProject.mutate(project.id, {
@@ -108,16 +96,20 @@ function ProjectDetailPage() {
           </div>
           {project.code && <p className="text-sm text-muted-foreground">{project.code}</p>}
         </div>
-        {role.isPm && (
+        {(caps.canOpenSettings || caps.canManageProject) && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-              <Pencil className="mr-1 size-4" />
-              {t("common:common.edit")}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="mr-1 size-4 text-destructive" />
-              {t("common:common.delete")}
-            </Button>
+            {caps.canOpenSettings && (
+              <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+                <Settings className="mr-1 size-4" />
+                {t("detail.settings")}
+              </Button>
+            )}
+            {caps.canManageProject && (
+              <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="mr-1 size-4 text-destructive" />
+                {t("common:common.delete")}
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -126,9 +118,8 @@ function ProjectDetailPage() {
         <TabsList variant="line">
           <TabsTrigger value="overview">{t("tabs.overview")}</TabsTrigger>
           <TabsTrigger value="issues">{t("tabs.issues")}</TabsTrigger>
-          {role.canViewProcurement && <TabsTrigger value="procurement">{t("tabs.procurement")}</TabsTrigger>}
+          {caps.canViewProcurement && <TabsTrigger value="procurement">{t("tabs.procurement")}</TabsTrigger>}
           <TabsTrigger value="files">{t("tabs.files")}</TabsTrigger>
-          <TabsTrigger value="members">{t("tabs.members")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="pt-4">
@@ -139,13 +130,13 @@ function ProjectDetailPage() {
           <ProjectIssuesTab projectId={project.id} members={members} userNames={userNames} />
         </TabsContent>
 
-        {role.canViewProcurement && (
+        {caps.canViewProcurement && (
           <TabsContent value="procurement" className="pt-4">
             <ProjectProcurementTab
               projectId={project.id}
               members={members}
               userNames={userNames}
-              canManage={role.isPm}
+              canManage={caps.canManageProcurement}
             />
           </TabsContent>
         )}
@@ -155,31 +146,23 @@ function ProjectDetailPage() {
             <FileBrowser
               ownerType="project"
               ownerId={project.id}
-              canManage={role.role === "pm" || role.role === "member"}
+              canManage
               rootLabel={project.name}
             />
           </div>
         </TabsContent>
-
-        <TabsContent value="members" className="pt-4">
-          <ProjectMembersTab
-            projectId={project.id}
-            members={members}
-            userNames={userNames}
-            canManage={role.isPm}
-          />
-        </TabsContent>
       </Tabs>
 
-      <ProjectFormDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        mode="edit"
-        initial={project}
-        pending={updateProject.isPending}
-        errorMessage={updateProject.error ? errorMessage(updateProject.error, t("common:common.error.saveFailed")) : null}
-        onSubmit={handleUpdate}
-      />
+      {caps.canOpenSettings && (
+        <ProjectSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          project={project}
+          members={members}
+          userNames={userNames}
+          caps={caps}
+        />
+      )}
 
       <ConfirmDeleteDialog
         open={deleteOpen}
@@ -189,6 +172,10 @@ function ProjectDetailPage() {
         pending={deleteProject.isPending}
         onConfirm={handleDelete}
       />
+
+      {/* Nested issue drawer route (`/projects/$projectId/issues/$issueId`)
+          overlays this page while it stays mounted underneath. */}
+      <Outlet />
     </div>
   );
 }

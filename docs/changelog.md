@@ -11,8 +11,55 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Changed
+
+- Issues are now a project-only sub-module — there is no global / personal
+  issue. Every issue belongs to a project (`issue_details.project_id` is now
+  `NOT NULL`) and is assigned to a `project_members.id`. All issue endpoints
+  moved under `/projects/:projectId/issues[...]` (list, create, detail,
+  update, delete, attachments, comments), gated by project membership +
+  `resolveProjectIssueAccess`; the global `/issues*` routes were removed.
+  The full issue detail panel (inline edit, status/priority/assignee, due
+  date, comments, attachments, delete) is reachable via two routes: a drawer
+  overlay nested under the project page
+  (`/projects/$projectId/issues/$issueId`, the project detail stays mounted
+  underneath) and a standalone fullscreen page
+  (`/projects/$projectId/issues/$issueId/full`) reached via the drawer's
+  maximize action or a deep link. Global search still surfaces
+  issues but deep-links into the owning project and scopes to the projects a
+  user belongs to (admins: all). Removed the global Issues sidebar entry.
+  Breaking schema change (dev-stage, no data). See REFACTOR-002 / PLAN-009.
+
 ### Added
 
+- Project module overhaul (settings hub): configurable per-project **roles**
+  (`project_roles` + a capability set; route gates check capabilities, not role
+  names; a seeded undeletable "Project Manager" role guards against lock-out),
+  an **external contacts** directory (`project_contacts`, typed
+  supplier/client/subcontractor/other — procurement now references a
+  `type='supplier'` contact via `supplier_id`), **procurement categories**
+  (`procurement_categories` + `category_id` on procurement, with category
+  filtering), and user-defined **tags** (`tags` + `project_tags`, many-to-many).
+  The project itself keeps only basic fields — name, code, description, status
+  (`active` / `archived`), and tags. `project_members` is operator-only — real
+  users or **virtual** users (own staff without a login account), carrying a
+  `title` — and drops the old `member_type` / supplier columns; assignment
+  targets stay `project_members.id`. Procurement visibility/mutation moved to
+  the `procurement.view` / `procurement.manage` capabilities. Web: the project
+  list is a card grid with a single mutually-exclusive chip filter (`All` /
+  `Archived` / each tag; archived projects are hidden until the chip is picked),
+  a tabbed **Project Settings** dialog hosts General / Members & Roles /
+  Contacts / Procurement Categories (the standalone Members tab is gone), and
+  procurement forms pick supplier + category from the new directories. EN/ZH
+  i18n. Breaking schema change (dev-stage, no data). See FEAT-008 / PLAN-010.
+- Document row actions + per-user pin: each tree row now exposes a "⋯"
+  menu (new child, rename, pin/unpin, delete) replacing the hover-only "+".
+  Pins are per-user (new `document_pins` table, kept out of authz tuples
+  and out of the shared `document_details` so a shared doc can be pinned
+  independently by each viewer), gated by `document:read`. The documents
+  home, previously blank, now lists the caller's pinned documents (sorted
+  by last update) and falls back to the create prompt when none are
+  pinned. EN/ZH i18n. See FEAT-007 / PLAN-008.
 - Engineering project management: a new `project` aggregate module
   (`projects` + a single `project_members` table for internal users and
   external supplier/webhook actors, promotable in place), a `procurement`

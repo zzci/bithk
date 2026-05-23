@@ -5,7 +5,7 @@
   },
   "welcome": "Welcome, {{name}}",
   "tile": {
-    "myIssuesDescription": "View and manage your issues.",
+    "projectsDescription": "Browse projects and their work orders.",
     "documentsDescription": "Browse and edit documents."
   }
 }

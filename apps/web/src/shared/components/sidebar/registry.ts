@@ -1,7 +1,6 @@
 import type { NavArea, NavItem } from "./types";
 import { documentsNav } from "@/app/routes/_app/-documents.nav";
 import { driveNav } from "@/app/routes/_app/-drive.nav";
-import { issuesNav } from "@/app/routes/_app/-issues.nav";
 import { overviewNav } from "@/app/routes/_app/-overview.nav";
 import { projectsNav } from "@/app/routes/_app/-projects.nav";
 import { auditNav } from "@/app/routes/_app/admin/-audit.nav";
@@ -12,7 +11,6 @@ import { usersNav } from "@/app/routes/_app/admin/-users.nav";
 
 const NAV_ITEMS: readonly NavItem[] = [
   overviewNav,
-  issuesNav,
   documentsNav,
   driveNav,
   projectsNav,

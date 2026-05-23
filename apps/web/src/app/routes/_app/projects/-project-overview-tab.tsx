@@ -1,4 +1,4 @@
-// Overview tab: description, dates, status, creator, member count.
+// Overview tab: description, status, creator, member count, and the project tags.
 
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
 import { useTranslation } from "react-i18next";
@@ -12,13 +12,6 @@ interface ProjectOverviewTabProps {
 
 export function ProjectOverviewTab({ project, members, userNames }: ProjectOverviewTabProps) {
   const { t } = useTranslation("projects");
-
-  const dateRange = project.startDate || project.endDate
-    ? t("overview.dateRange", {
-        start: project.startDate ?? t("overview.notSet"),
-        end: project.endDate ?? t("overview.notSet"),
-      })
-    : t("overview.notSet");
 
   return (
     <div className="space-y-6">
@@ -37,8 +30,8 @@ export function ProjectOverviewTab({ project, members, userNames }: ProjectOverv
           </dd>
         </div>
         <div className="space-y-1">
-          <dt className="text-sm text-muted-foreground">{t("overview.dates")}</dt>
-          <dd className="text-sm">{dateRange}</dd>
+          <dt className="text-sm text-muted-foreground">{t("field.code")}</dt>
+          <dd className="text-sm">{project.code || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</dd>
         </div>
         <div className="space-y-1">
           <dt className="text-sm text-muted-foreground">{t("overview.members")}</dt>
@@ -49,6 +42,19 @@ export function ProjectOverviewTab({ project, members, userNames }: ProjectOverv
           <dd className="text-sm">{userNames.get(project.creatorId) ?? project.creatorId}</dd>
         </div>
       </dl>
+
+      <section className="space-y-1.5">
+        <h2 className="text-sm font-medium text-muted-foreground">{t("field.tags")}</h2>
+        {project.tags.length === 0
+          ? <p className="text-sm text-muted-foreground">{t("overview.noTags")}</p>
+          : (
+              <div className="flex flex-wrap gap-1.5">
+                {project.tags.map(tag => (
+                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+                ))}
+              </div>
+            )}
+      </section>
     </div>
   );
 }

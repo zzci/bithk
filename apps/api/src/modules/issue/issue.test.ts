@@ -12,14 +12,14 @@ import { users } from "@/modules/account/users/schema";
 import { items } from "@/modules/item/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { relationTuples } from "@/modules/policy/schema";
+import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
 import {
   createIssue,
   getIssueByShortId,
   listByProject,
-  listIssues,
-  listMyIssues,
   resolveProjectIssueAccess,
+  searchIssues,
   softDeleteIssue,
   updateIssue,
 } from "./issue.service";
@@ -30,11 +30,8 @@ let db: AppDatabase;
 let dbPath: string;
 let sqlite: Database;
 
-// The Drizzle migration adds the new `issue_details.project_id` /
-// `assignee_member_id` columns and the `projects` / `project_members` tables,
-// but the coordinator generates it after this work lands. Bootstrap the full
-// schema directly from the definitions so the suite is runnable now, mirroring
-// the approach in `project.service.test.ts`.
+// Bootstrap the full schema directly from the definitions so the suite is
+// runnable without applying migrations, mirroring `project.service.test.ts`.
 const SCHEMA_DDL: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -68,8 +65,6 @@ const SCHEMA_DDL: readonly string[] = [
     name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     description TEXT,
-    start_date TEXT,
-    end_date TEXT,
     creator_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     version INTEGER NOT NULL DEFAULT 1,
     deleted_at TEXT,
@@ -77,16 +72,22 @@ const SCHEMA_DDL: readonly string[] = [
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS projects_short_id_idx ON projects (short_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS projects_code_idx ON projects (code)`,
+  `CREATE TABLE IF NOT EXISTS project_roles (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    is_system INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS project_members (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    member_type TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'member',
     user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
     display_name TEXT,
-    external_ref TEXT,
-    supplier_info TEXT,
-    can_view_procurement INTEGER NOT NULL DEFAULT 0,
+    role_id TEXT NOT NULL REFERENCES project_roles(id),
+    title TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -96,7 +97,7 @@ const SCHEMA_DDL: readonly string[] = [
     description TEXT,
     priority TEXT NOT NULL DEFAULT 'medium',
     due_date TEXT,
-    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     assignee_member_id TEXT REFERENCES project_members(id) ON DELETE SET NULL
   )`,
   `CREATE INDEX IF NOT EXISTS issue_project_idx ON issue_details (project_id)`,
@@ -142,6 +143,12 @@ async function seedUser(name: string, role: "admin" | "user" = "user"): Promise<
   return id;
 }
 
+/** Resolve the seeded baseline "Member" role id for a project. */
+async function memberRoleId(projectId: string): Promise<string> {
+  const roles = await listRoles(db, projectId);
+  return roles.find(r => r.name === "Member")!.id;
+}
+
 beforeEach(() => {
   const dir = resolve(tmpdir(), `test-issue-${Date.now()}-${nanoid()}`);
   mkdirSync(dir, { recursive: true });
@@ -158,37 +165,21 @@ afterEach(() => {
 });
 
 describe("createIssue", () => {
-  test("creates with required fields", async () => {
-    const userId = await seedUser("Alice");
-    const issue = await createIssue(db, { title: "Test task", creatorId: userId });
+  test("creates a work order with required fields", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const issue = await createIssue(db, { title: "Test task", creatorId: creator, projectId: project.id });
     expect(issue.id).toHaveLength(8); // short_id
     expect(issue.title).toBe("Test task");
     expect(issue.status).toBe("open");
     expect(issue.priority).toBe("medium");
-    expect(issue.creatorId).toBe(userId);
+    expect(issue.creatorId).toBe(creator);
     expect(issue.assigneeId).toBeNull();
-    expect(issue.projectId).toBeNull();
+    expect(issue.projectId).toBe(project.shortId);
     expect(issue.assigneeMemberId).toBeNull();
     expect(issue.version).toBe(1);
-  });
 
-  test("writes the owner tuple + writes assignee tuple when provided", async () => {
-    const creator = await seedUser("Alice");
-    const assignee = await seedUser("Bob");
-    const issue = await createIssue(db, {
-      title: "Full task",
-      description: "Detailed",
-      priority: "high",
-      creatorId: creator,
-      assigneeId: assignee,
-      dueDate: "2026-12-31",
-    });
-    expect(issue.description).toBe("Detailed");
-    expect(issue.priority).toBe("high");
-    expect(issue.assigneeId).toBe(assignee);
-    expect(issue.dueDate).toBe("2026-12-31");
-
-    // The item id (ulid) is on `items.short_id = issue.id` → resolve back.
+    // The owner tuple is written; no assignee tuple without an assignee.
     const item = await db.select().from(items).where(eq(items.shortId, issue.id)).get();
     const tuples = await db.select().from(relationTuples).where(and(
       eq(relationTuples.namespace, "item"),
@@ -196,164 +187,29 @@ describe("createIssue", () => {
     )).all();
     const relations = new Set(tuples.map(t => `${t.relation}@${t.subjectId}`));
     expect(relations.has(`owner@${creator}`)).toBe(true);
-    expect(relations.has(`assignee@${assignee}`)).toBe(true);
-  });
-});
-
-describe("updateIssue", () => {
-  test("changes status; bumps version", async () => {
-    const userId = await seedUser("Alice");
-    const issue = await createIssue(db, { title: "T", creatorId: userId });
-    expect(issue.version).toBe(1);
-    const updated = await updateIssue(db, issue.id, { status: "in_progress" });
-    expect(updated?.status).toBe("in_progress");
-    expect(updated!.version).toBeGreaterThan(1);
+    expect([...relations].some(r => r.startsWith("assignee@"))).toBe(false);
   });
 
-  test("swaps the assignee tuple (1 in, 1 out)", async () => {
-    const creator = await seedUser("Alice");
-    const a = await seedUser("Bob");
-    const b = await seedUser("Carol");
-    const issue = await createIssue(db, { title: "T", creatorId: creator, assigneeId: a });
-    expect(issue.assigneeId).toBe(a);
-    const updated = await updateIssue(db, issue.id, { assigneeId: b });
-    expect(updated?.assigneeId).toBe(b);
-
-    const item = await db.select().from(items).where(eq(items.shortId, issue.id)).get();
-    const tuples = await db.select().from(relationTuples).where(and(
-      eq(relationTuples.namespace, "item"),
-      eq(relationTuples.objectId, item!.id),
-      eq(relationTuples.relation, "assignee"),
-    )).all();
-    expect(tuples).toHaveLength(1);
-    expect(tuples[0]!.subjectId).toBe(b);
-  });
-
-  test("setting assigneeId=null drops the tuple", async () => {
-    const creator = await seedUser("Alice");
-    const a = await seedUser("Bob");
-    const issue = await createIssue(db, { title: "T", creatorId: creator, assigneeId: a });
-    await updateIssue(db, issue.id, { assigneeId: null });
-    const refreshed = await getIssueByShortId(db, issue.id);
-    expect(refreshed?.assigneeId).toBeNull();
-  });
-});
-
-describe("softDeleteIssue", () => {
-  test("stamps deleted_at and clears every tuple", async () => {
-    const creator = await seedUser("Alice");
-    const a = await seedUser("Bob");
-    const issue = await createIssue(db, { title: "T", creatorId: creator, assigneeId: a });
-    await softDeleteIssue(db, issue.id);
-    expect(await getIssueByShortId(db, issue.id)).toBeUndefined();
-    const item = await db.select().from(items).where(eq(items.shortId, issue.id)).get();
-    const tuples = await db.select().from(relationTuples).where(and(
-      eq(relationTuples.namespace, "item"),
-      eq(relationTuples.objectId, item!.id),
-    )).all();
-    expect(tuples).toEqual([]);
-  });
-});
-
-describe("listIssues (admin path)", () => {
-  test("paginates and orders newest-first", async () => {
-    const userId = await seedUser("Alice");
-    for (let i = 0; i < 5; i++)
-      await createIssue(db, { title: `Task ${i}`, creatorId: userId });
-    const page1 = await listIssues(db, { page: 1, limit: 2 });
-    expect(page1.data).toHaveLength(2);
-    expect(page1.total).toBe(5);
-    const page3 = await listIssues(db, { page: 3, limit: 2 });
-    expect(page3.data).toHaveLength(1);
-  });
-
-  test("filters by status", async () => {
-    const userId = await seedUser("Alice");
-    await createIssue(db, { title: "Open", creatorId: userId, status: "open" });
-    await createIssue(db, { title: "Done", creatorId: userId, status: "done" });
-    const r = await listIssues(db, { status: "open" });
-    expect(r.data).toHaveLength(1);
-    expect(r.data[0]!.title).toBe("Open");
-  });
-
-  test("filters by priority", async () => {
-    const userId = await seedUser("Alice");
-    await createIssue(db, { title: "Low", creatorId: userId, priority: "low" });
-    await createIssue(db, { title: "High", creatorId: userId, priority: "high" });
-    const r = await listIssues(db, { priority: "high" });
-    expect(r.data).toHaveLength(1);
-    expect(r.data[0]!.title).toBe("High");
-  });
-
-  test("filters by search (LIKE on title)", async () => {
-    const userId = await seedUser("Alice");
-    await createIssue(db, { title: "Fix the bug", creatorId: userId });
-    await createIssue(db, { title: "Add feature", creatorId: userId });
-    const r = await listIssues(db, { q: "bug" });
-    expect(r.data).toHaveLength(1);
-    expect(r.data[0]!.title).toBe("Fix the bug");
-  });
-
-  test("filters by assignee id via the policy tuple set", async () => {
-    const creator = await seedUser("Alice");
-    const target = await seedUser("Bob");
-    const other = await seedUser("Carol");
-    await createIssue(db, { title: "Assigned", creatorId: creator, assigneeId: target });
-    await createIssue(db, { title: "Free", creatorId: creator });
-    await createIssue(db, { title: "Other", creatorId: creator, assigneeId: other });
-    const r = await listIssues(db, { assigneeId: target });
-    expect(r.data).toHaveLength(1);
-    expect(r.data[0]!.title).toBe("Assigned");
-  });
-
-  test("excludes project work orders from the personal admin list", async () => {
-    const creator = await seedUser("Alice");
-    await createIssue(db, { title: "Personal", creatorId: creator });
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    await createIssue(db, { title: "Work order", creatorId: creator, projectId: project.id });
-    const r = await listIssues(db, {});
-    expect(r.data.map(d => d.title)).toEqual(["Personal"]);
-  });
-});
-
-describe("listMyIssues", () => {
-  test("returns issues I created OR have been assigned", async () => {
-    const me = await seedUser("Me");
-    const other = await seedUser("Other");
-    const minePlain = await createIssue(db, { title: "Mine plain", creatorId: me });
-    const assignedToMe = await createIssue(db, { title: "Assigned to me", creatorId: other, assigneeId: me });
-    await createIssue(db, { title: "Theirs entirely", creatorId: other });
-    const r = await listMyIssues(db, { userId: me });
-    const ids = r.data.map(d => d.id).sort();
-    expect(ids).toEqual([minePlain.id, assignedToMe.id].sort());
-  });
-
-  test("excludes project work orders even when I created them", async () => {
-    const me = await seedUser("Me");
-    const personal = await createIssue(db, { title: "Personal", creatorId: me });
-    const project = await createProject(db, { name: "P", creatorId: me });
-    await createIssue(db, { title: "Work order", creatorId: me, projectId: project.id });
-    const r = await listMyIssues(db, { userId: me });
-    expect(r.data.map(d => d.id)).toEqual([personal.id]);
-  });
-});
-
-describe("project issues", () => {
   test("internal assignee writes BOTH the column and the user tuple", async () => {
     const creator = await seedUser("Alice");
     const bob = await seedUser("Bob");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    const member = await addMember(db, project.id, { memberType: "internal", userId: bob });
+    const member = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
 
     const issue = await createIssue(db, {
       title: "Work order",
+      description: "Detailed",
+      priority: "high",
+      dueDate: "2026-12-31",
       creatorId: creator,
       projectId: project.id,
       assigneeMemberId: member.id,
     });
-    expect(issue.projectId).toBe(project.shortId);
+    expect(issue.description).toBe("Detailed");
+    expect(issue.priority).toBe("high");
+    expect(issue.dueDate).toBe("2026-12-31");
     expect(issue.assigneeMemberId).toBe(member.id);
-    // Internal member → legacy user tuple is also written.
+    // Internal member → user tuple is also written.
     expect(issue.assigneeId).toBe(bob);
 
     const item = await db.select().from(items).where(eq(items.shortId, issue.id)).get();
@@ -369,7 +225,7 @@ describe("project issues", () => {
   test("external assignee writes ONLY the column (no user tuple)", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    const ext = await addMember(db, project.id, { memberType: "external", displayName: "Supplier" });
+    const ext = await addMember(db, project.id, { roleId: await memberRoleId(project.id), displayName: "Supplier" });
 
     const issue = await createIssue(db, {
       title: "External order",
@@ -394,7 +250,7 @@ describe("project issues", () => {
     const bob = await seedUser("Bob");
     const projectA = await createProject(db, { name: "A", creatorId: creator });
     const projectB = await createProject(db, { name: "B", creatorId: creator });
-    const memberB = await addMember(db, projectB.id, { memberType: "internal", userId: bob });
+    const memberB = await addMember(db, projectB.id, { roleId: await memberRoleId(projectB.id), userId: bob });
 
     await expect(createIssue(db, {
       title: "Bad",
@@ -403,27 +259,26 @@ describe("project issues", () => {
       assigneeMemberId: memberB.id,
     })).rejects.toThrow();
   });
+});
 
-  test("listByProject returns only that project's open work orders", async () => {
+describe("updateIssue", () => {
+  test("changes status; bumps version", async () => {
     const creator = await seedUser("Alice");
-    const projectA = await createProject(db, { name: "A", creatorId: creator });
-    const projectB = await createProject(db, { name: "B", creatorId: creator });
-    await createIssue(db, { title: "A1", creatorId: creator, projectId: projectA.id });
-    await createIssue(db, { title: "A2", creatorId: creator, projectId: projectA.id });
-    await createIssue(db, { title: "B1", creatorId: creator, projectId: projectB.id });
-    await createIssue(db, { title: "Personal", creatorId: creator });
-
-    const r = await listByProject(db, { projectId: projectA.id });
-    expect(r.total).toBe(2);
-    expect(r.data.map(d => d.title).sort()).toEqual(["A1", "A2"]);
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const issue = await createIssue(db, { title: "T", creatorId: creator, projectId: project.id });
+    expect(issue.version).toBe(1);
+    const updated = await updateIssue(db, issue.id, { status: "in_progress" });
+    expect(updated?.status).toBe("in_progress");
+    expect(updated!.version).toBeGreaterThan(1);
   });
 
-  test("reassigning a project issue resyncs the user tuple (internal → external)", async () => {
+  test("reassigning resyncs the user tuple (internal → external)", async () => {
     const creator = await seedUser("Alice");
     const bob = await seedUser("Bob");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    const internal = await addMember(db, project.id, { memberType: "internal", userId: bob });
-    const external = await addMember(db, project.id, { memberType: "external", displayName: "Ext" });
+    const roleId = await memberRoleId(project.id);
+    const internal = await addMember(db, project.id, { roleId, userId: bob });
+    const external = await addMember(db, project.id, { roleId, displayName: "Ext" });
 
     const issue = await createIssue(db, {
       title: "Order",
@@ -436,6 +291,98 @@ describe("project issues", () => {
     const updated = await updateIssue(db, issue.id, { assigneeMemberId: external.id });
     expect(updated?.assigneeMemberId).toBe(external.id);
     expect(updated?.assigneeId).toBeNull();
+
+    const item = await db.select().from(items).where(eq(items.shortId, issue.id)).get();
+    const tuples = await db.select().from(relationTuples).where(and(
+      eq(relationTuples.namespace, "item"),
+      eq(relationTuples.objectId, item!.id),
+      eq(relationTuples.relation, "assignee"),
+    )).all();
+    expect(tuples).toHaveLength(0);
+  });
+
+  test("setting assigneeMemberId=null drops the tuple", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const member = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    const issue = await createIssue(db, { title: "T", creatorId: creator, projectId: project.id, assigneeMemberId: member.id });
+    await updateIssue(db, issue.id, { assigneeMemberId: null });
+    const refreshed = await getIssueByShortId(db, issue.id);
+    expect(refreshed?.assigneeId).toBeNull();
+    expect(refreshed?.assigneeMemberId).toBeNull();
+  });
+});
+
+describe("softDeleteIssue", () => {
+  test("stamps deleted_at and clears every tuple", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const member = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    const issue = await createIssue(db, { title: "T", creatorId: creator, projectId: project.id, assigneeMemberId: member.id });
+    await softDeleteIssue(db, issue.id);
+    expect(await getIssueByShortId(db, issue.id)).toBeUndefined();
+    const item = await db.select().from(items).where(eq(items.shortId, issue.id)).get();
+    const tuples = await db.select().from(relationTuples).where(and(
+      eq(relationTuples.namespace, "item"),
+      eq(relationTuples.objectId, item!.id),
+    )).all();
+    expect(tuples).toEqual([]);
+  });
+});
+
+describe("listByProject", () => {
+  test("returns only that project's work orders, newest-first", async () => {
+    const creator = await seedUser("Alice");
+    const projectA = await createProject(db, { name: "A", creatorId: creator });
+    const projectB = await createProject(db, { name: "B", creatorId: creator });
+    await createIssue(db, { title: "A1", creatorId: creator, projectId: projectA.id });
+    await createIssue(db, { title: "A2", creatorId: creator, projectId: projectA.id });
+    await createIssue(db, { title: "B1", creatorId: creator, projectId: projectB.id });
+
+    const r = await listByProject(db, { projectId: projectA.id });
+    expect(r.total).toBe(2);
+    expect(r.data.map(d => d.title).sort()).toEqual(["A1", "A2"]);
+  });
+
+  test("filters by status / priority / title", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    await createIssue(db, { title: "Fix the bug", creatorId: creator, projectId: project.id, status: "open", priority: "high" });
+    await createIssue(db, { title: "Add feature", creatorId: creator, projectId: project.id, status: "done", priority: "low" });
+
+    expect((await listByProject(db, { projectId: project.id, status: "open" })).data.map(d => d.title)).toEqual(["Fix the bug"]);
+    expect((await listByProject(db, { projectId: project.id, priority: "low" })).data.map(d => d.title)).toEqual(["Add feature"]);
+    expect((await listByProject(db, { projectId: project.id, q: "bug" })).data.map(d => d.title)).toEqual(["Fix the bug"]);
+  });
+});
+
+describe("searchIssues", () => {
+  test("non-admin sees only issues in projects they belong to", async () => {
+    const me = await seedUser("Me");
+    const other = await seedUser("Other");
+    const mine = await createProject(db, { name: "Mine", creatorId: me });
+    const theirs = await createProject(db, { name: "Theirs", creatorId: other });
+    await createIssue(db, { title: "alpha task", creatorId: me, projectId: mine.id });
+    await createIssue(db, { title: "alpha order", creatorId: other, projectId: theirs.id });
+
+    const r = await searchIssues(db, { userId: me, isAdmin: false, q: "alpha" });
+    expect(r.map(i => i.title)).toEqual(["alpha task"]);
+    expect(r[0]!.projectId).toBe(mine.shortId);
+  });
+
+  test("admin sees matching issues across all projects", async () => {
+    const me = await seedUser("Me");
+    const other = await seedUser("Other");
+    const admin = await seedUser("Root", "admin");
+    const mine = await createProject(db, { name: "Mine", creatorId: me });
+    const theirs = await createProject(db, { name: "Theirs", creatorId: other });
+    await createIssue(db, { title: "alpha task", creatorId: me, projectId: mine.id });
+    await createIssue(db, { title: "alpha order", creatorId: other, projectId: theirs.id });
+
+    const r = await searchIssues(db, { userId: admin, isAdmin: true, q: "alpha" });
+    expect(r.map(i => i.title).sort()).toEqual(["alpha order", "alpha task"]);
   });
 });
 
@@ -445,7 +392,7 @@ describe("resolveProjectIssueAccess", () => {
     const bob = await seedUser("Bob");
     const outsider = await seedUser("Eve");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    await addMember(db, project.id, { memberType: "internal", userId: bob, role: "member" });
+    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
     const issue = await createIssue(db, { title: "Order", creatorId: creator, projectId: project.id });
     const item = (await db.select().from(items).where(eq(items.shortId, issue.id)).get())!;
 
@@ -461,7 +408,7 @@ describe("resolveProjectIssueAccess", () => {
     const creator = await seedUser("Alice");
     const bob = await seedUser("Bob");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    const member = await addMember(db, project.id, { memberType: "internal", userId: bob, role: "member" });
+    const member = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
     const issue = await createIssue(db, {
       title: "Order",
       creatorId: creator,

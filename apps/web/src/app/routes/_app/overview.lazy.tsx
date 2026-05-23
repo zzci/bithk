@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { LucideIcon } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
-import { CheckSquare, FileText } from "lucide-react";
+import { FileText, FolderKanban } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { useAuthStore } from "@/shared/stores/auth";
@@ -20,7 +20,7 @@ interface OverviewTile {
 }
 
 const OVERVIEW_TILES: readonly OverviewTile[] = [
-  { key: "myIssues", path: "/issues", icon: CheckSquare },
+  { key: "projects", path: "/projects", icon: FolderKanban },
   { key: "documents", path: "/documents", icon: FileText },
 ];
 

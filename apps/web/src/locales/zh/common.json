@@ -46,7 +46,6 @@
     "overview": "概览",
     "users": "用户",
     "policies": "策略",
-    "myIssues": "我的事项",
     "documents": "文档",
     "projects": "项目",
     "audit": "审计日志",
@@ -61,6 +60,7 @@
   "search": {
     "title": "搜索",
     "placeholder": "搜索文档、事项、项目、文件…",
+    "close": "关闭",
     "quickEntry": "快速入口",
     "noResults": "无匹配结果",
     "documents": "文档",

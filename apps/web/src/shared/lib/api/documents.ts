@@ -36,6 +36,9 @@ export interface DocumentTreeNode {
   readonly parentId: string | null;
   readonly updatedAt: string;
   readonly childCount: number;
+  // Per-user pin state for the current caller. Drives the pinned list on
+  // the documents home and the pin/unpin toggle in the row menu.
+  readonly pinned: boolean;
 }
 
 export interface SimpleUser {
@@ -301,6 +304,26 @@ export function useDeleteDocument(): UseMutationResult<void, Error, string> {
     },
     onSuccess: (_, id) => {
       qc.removeQueries({ queryKey: documentsKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: documentsKeys.tree() });
+    },
+  });
+}
+
+/**
+ * Toggle the current user's pin on a document. `pin` true → PUT, false →
+ * DELETE. Pin state lives on the tree query (`DocumentTreeNode.pinned`),
+ * so success just invalidates the tree to refresh both the sidebar menu
+ * label and the pinned list on the documents home.
+ */
+export function useSetDocumentPin(): UseMutationResult<void, Error, { readonly id: string; readonly pin: boolean }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, pin }) => {
+      await rawJson<ApiEnvelope<{ pinned: boolean }>>(`/documents/${id}/pin`, {
+        method: pin ? "PUT" : "DELETE",
+      });
+    },
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: documentsKeys.tree() });
     },
   });

@@ -1,14 +1,22 @@
 // Folder-style tree sidebar (parent-id backed) for the documents page.
 
+import type { RenameTarget } from "./-documents-rename-dialog";
 import type { DocumentTreeNode } from "@/shared/lib/api/documents";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronRight,
+  FilePlus,
   FileText,
   FolderClosed,
   FolderOpen,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  PinOff,
   Plus,
   Search,
+  Trash2,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -19,9 +27,18 @@ import {
   toggleId,
 } from "@/shared/components/documents/document-tree.utils";
 import { Button } from "@/shared/components/ui/button";
-import { useCreateDocument } from "@/shared/lib/api/documents";
+import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { useCreateDocument, useDeleteDocument, useSetDocumentPin } from "@/shared/lib/api/documents";
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
+import { RenameDialog } from "./-documents-rename-dialog";
 import { SearchDialog } from "./-documents-search";
 
 export function DocumentsSidebar({
@@ -40,10 +57,15 @@ export function DocumentsSidebar({
   readonly onCreate: () => void;
 }) {
   const { t } = useTranslation("documents");
+  const navigate = useNavigate();
   const createMutation = useCreateDocument();
+  const deleteMutation = useDeleteDocument();
+  const pinMutation = useSetDocumentPin();
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ readonly id: string; readonly title: string } | null>(null);
 
   const index = useMemo(() => buildTreeIndex(tree), [tree]);
   const roots = index.childrenOf.get("") ?? [];
@@ -75,6 +97,32 @@ export function DocumentsSidebar({
   const toggle = useCallback((id: string) => {
     setExpanded(prev => toggleId(prev, id));
   }, []);
+
+  // Pin toggle is fire-and-forget: the tree query invalidation refreshes
+  // both the row menu label and the pinned list on the documents home.
+  const handleTogglePin = (node: DocumentTreeNode) => {
+    pinMutation.mutate(
+      { id: node.id, pin: !node.pinned },
+      { onError: err => toast.error(errorMessage(err, t("common.error.operationFailed"))) },
+    );
+  };
+
+  // Deleting the currently-open doc would strand the detail pane on a
+  // now-missing document, so fall back to the index after a successful
+  // delete of the selected row.
+  const confirmDelete = () => {
+    if (!deleteTarget)
+      return;
+    const { id } = deleteTarget;
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        setDeleteTarget(null);
+        if (selectedId === id)
+          void navigate({ to: "/documents" });
+      },
+      onError: err => toast.error(errorMessage(err, t("common.error.deleteFailed"))),
+    });
+  };
 
   // Picking a result in the search dialog auto-expands the chosen doc's
   // ancestor chain so the row stays visible inside the tree.
@@ -164,11 +212,28 @@ export function DocumentsSidebar({
                         onSelect={onSelect}
                         onCreateChild={handleCreateChild}
                         createPending={createMutation.isPending}
+                        onRename={n => setRenameTarget({ id: n.id, title: n.title })}
+                        onTogglePin={handleTogglePin}
+                        onDelete={n => setDeleteTarget({ id: n.id, title: n.title })}
                       />
                     ))}
                   </ul>
                 )}
       </div>
+
+      <RenameDialog
+        target={renameTarget}
+        onOpenChange={open => !open && setRenameTarget(null)}
+      />
+
+      <ConfirmDeleteDialog
+        open={deleteTarget !== null}
+        onOpenChange={open => !open && setDeleteTarget(null)}
+        title={t("deleteTitle")}
+        description={t("deleteConfirm", { title: deleteTarget?.title ?? "" })}
+        onConfirm={confirmDelete}
+        pending={deleteMutation.isPending}
+      />
     </div>
   );
 }
@@ -183,6 +248,9 @@ function TreeRow({
   onSelect,
   onCreateChild,
   createPending,
+  onRename,
+  onTogglePin,
+  onDelete,
 }: {
   readonly node: DocumentTreeNode;
   readonly depth: number;
@@ -193,6 +261,9 @@ function TreeRow({
   readonly onSelect: (id: string) => void;
   readonly onCreateChild: (parentId: string) => void;
   readonly createPending: boolean;
+  readonly onRename: (node: DocumentTreeNode) => void;
+  readonly onTogglePin: (node: DocumentTreeNode) => void;
+  readonly onDelete: (node: DocumentTreeNode) => void;
 }) {
   const { t } = useTranslation("documents");
   const children = index.childrenOf.get(node.id) ?? [];
@@ -265,20 +336,48 @@ function TreeRow({
             : <FileText className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />}
           <span className="flex-1 truncate">{node.title}</span>
         </button>
-        {/* Hover-revealed "new child" affordance. No date / meta — the
-            row stays minimal so the tree itself does the talking. */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onCreateChild(node.id);
-          }}
-          disabled={createPending}
-          title={t("tree.newChild")}
-          className="hidden size-5 shrink-0 items-center justify-center rounded text-muted-foreground/70 hover:bg-foreground/10 hover:text-foreground group-hover:inline-flex disabled:opacity-60"
-        >
-          <Plus className="size-3" strokeWidth={2.25} />
-        </button>
+        {/* Pinned indicator — always visible so the row's pin state reads
+            at a glance, independent of the hover-revealed action menu. */}
+        {node.pinned && (
+          <Pin className="size-3 shrink-0 fill-current text-muted-foreground/70" strokeWidth={1.75} aria-hidden />
+        )}
+        {/* Hover-revealed row actions. The trigger also stays visible while
+            its menu is open so the popup never detaches from a hidden anchor. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={(
+              <button
+                type="button"
+                title={t("tree.menu")}
+                aria-label={t("tree.menu")}
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/70 opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100"
+              />
+            )}
+          >
+            <MoreHorizontal className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-40">
+            <DropdownMenuItem disabled={createPending} onClick={() => onCreateChild(node.id)}>
+              <FilePlus className="mr-2 size-4" />
+              {t("tree.newChild")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRename(node)}>
+              <Pencil className="mr-2 size-4" />
+              {t("tree.rename")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onTogglePin(node)}>
+              {node.pinned
+                ? <PinOff className="mr-2 size-4" />
+                : <Pin className="mr-2 size-4" />}
+              {node.pinned ? t("tree.unpin") : t("tree.pin")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => onDelete(node)}>
+              <Trash2 className="mr-2 size-4" />
+              {t("common.delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {hasChildren && isExpanded && (
@@ -295,6 +394,9 @@ function TreeRow({
               onSelect={onSelect}
               onCreateChild={onCreateChild}
               createPending={createPending}
+              onRename={onRename}
+              onTogglePin={onTogglePin}
+              onDelete={onDelete}
             />
           ))}
         </ul>

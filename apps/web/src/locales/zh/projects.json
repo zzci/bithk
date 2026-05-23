@@ -8,6 +8,8 @@
     "empty": "未找到项目。",
     "loading": "正在加载项目...",
     "total": "{{count}} 个项目",
+    "filterByTag": "按分类筛选",
+    "tagAll": "全部",
     "col": {
       "name": "名称",
       "code": "编号",
@@ -15,18 +17,19 @@
     }
   },
   "status": {
-    "all": "全部状态",
     "active": "进行中",
-    "archived": "已归档",
-    "closed": "已关闭"
+    "archived": "已归档"
   },
   "field": {
     "name": "名称",
     "code": "编号",
     "description": "描述",
     "status": "状态",
-    "startDate": "开始日期",
-    "endDate": "结束日期"
+    "tags": "标签"
+  },
+  "tags": {
+    "placeholder": "输入标签后按回车添加",
+    "remove": "移除标签 {{name}}"
   },
   "create": {
     "title": "创建项目",
@@ -48,25 +51,35 @@
   "detail": {
     "notFound": "项目不存在或您无权访问。",
     "back": "返回项目列表",
-    "loading": "正在加载项目..."
+    "loading": "正在加载项目...",
+    "settings": "设置"
+  },
+  "settings": {
+    "title": "项目设置",
+    "description": "管理本项目的详情、成员、联系人和分类。",
+    "rolesHeading": "角色",
+    "tabs": {
+      "general": "常规",
+      "members": "成员与角色",
+      "contacts": "联系人",
+      "categories": "分类"
+    }
   },
   "tabs": {
     "overview": "概览",
     "issues": "工单",
     "procurement": "采购",
-    "files": "文件",
-    "members": "成员"
+    "files": "文件"
   },
   "overview": {
     "description": "描述",
     "noDescription": "暂无描述。",
     "status": "状态",
-    "dates": "日期",
     "creator": "创建者",
     "members": "成员",
     "memberCount": "{{count}} 名成员",
     "notSet": "未设置",
-    "dateRange": "{{start}} – {{end}}"
+    "noTags": "暂无标签。"
   },
   "issues": {
     "create": "创建工单",
@@ -112,12 +125,14 @@
     "empty": "未找到采购记录。",
     "loading": "正在加载采购...",
     "allStatuses": "全部状态",
+    "allCategories": "全部分类",
     "total": "{{count}} 条记录",
     "none": "无",
     "col": {
       "itemName": "物品",
       "status": "状态",
       "amount": "金额",
+      "category": "分类",
       "supplier": "供应商",
       "assignee": "负责人",
       "actions": "操作"
@@ -125,6 +140,7 @@
     "field": {
       "itemName": "物品名称",
       "title": "标题",
+      "category": "分类",
       "supplier": "供应商",
       "assignee": "负责人",
       "quantity": "数量",
@@ -149,41 +165,125 @@
   "members": {
     "add": "添加成员",
     "empty": "暂无成员。",
+    "virtual": "虚拟",
     "col": {
       "member": "成员",
-      "type": "类型",
+      "title": "职务",
       "role": "角色",
-      "procurement": "采购权限",
       "actions": "操作"
     },
-    "type": {
-      "internal": "内部",
-      "external": "外部"
+    "kind": {
+      "real": "现有用户",
+      "virtual": "虚拟成员"
     },
-    "role": {
-      "pm": "项目经理",
-      "member": "成员"
-    },
-    "yes": "是",
-    "no": "否",
     "addTitle": "添加成员",
-    "addDescription": "为该项目添加一名内部用户或外部参与者。",
+    "addDescription": "为该项目添加一名现有用户或虚拟成员。",
     "editTitle": "编辑成员",
-    "editDescription": "更新成员的角色与权限。",
+    "editDescription": "更新成员的角色与详情。",
     "field": {
-      "memberType": "成员类型",
+      "kind": "成员类型",
       "user": "用户",
       "role": "角色",
-      "displayName": "显示名称",
-      "externalRef": "外部引用",
-      "supplierInfo": "供应商信息",
-      "canViewProcurement": "可查看采购"
+      "title": "职务",
+      "displayName": "显示名称"
     },
-    "promote": "提升为内部用户",
+    "promote": "关联到用户",
     "selectUser": "选择用户",
+    "selectRole": "选择角色",
     "delete": {
       "title": "移除成员",
       "confirm": "确定要将该成员从项目中移除吗？"
+    }
+  },
+  "roles": {
+    "add": "添加角色",
+    "empty": "尚未定义角色。",
+    "system": "系统",
+    "noCapabilities": "无权限",
+    "createTitle": "创建角色",
+    "editTitle": "编辑角色",
+    "dialogDescription": "选择该角色授予的权限。",
+    "field": {
+      "name": "名称",
+      "capabilities": "权限"
+    },
+    "delete": {
+      "title": "删除角色",
+      "confirm": "确定要删除角色“{{name}}”吗？此操作无法撤销。"
+    }
+  },
+  "capability": {
+    "project.manage": "管理项目",
+    "members.manage": "管理成员",
+    "roles.manage": "管理角色",
+    "contacts.manage": "管理联系人",
+    "categories.manage": "管理分类",
+    "procurement.view": "查看采购",
+    "procurement.manage": "管理采购",
+    "issue.manage": "管理工单"
+  },
+  "contacts": {
+    "add": "添加联系人",
+    "empty": "暂无联系人。",
+    "allTypes": "全部类型",
+    "createTitle": "添加联系人",
+    "editTitle": "编辑联系人",
+    "dialogDescription": "为该项目记录一个外部联系人。",
+    "col": {
+      "name": "名称",
+      "type": "类型",
+      "contactPerson": "联系人",
+      "phone": "电话",
+      "status": "状态",
+      "actions": "操作"
+    },
+    "field": {
+      "type": "类型",
+      "status": "状态",
+      "name": "名称",
+      "contactPerson": "联系人",
+      "phone": "电话",
+      "email": "邮箱",
+      "address": "地址",
+      "taxId": "税号",
+      "rating": "评分",
+      "note": "备注"
+    },
+    "type": {
+      "supplier": "供应商",
+      "client": "客户",
+      "subcontractor": "分包商",
+      "other": "其他"
+    },
+    "status": {
+      "active": "启用",
+      "inactive": "停用"
+    },
+    "delete": {
+      "title": "删除联系人",
+      "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"
+    }
+  },
+  "categories": {
+    "add": "添加分类",
+    "empty": "暂无分类。",
+    "createTitle": "添加分类",
+    "editTitle": "编辑分类",
+    "dialogDescription": "将采购记录归入某个分类。",
+    "col": {
+      "name": "名称",
+      "code": "编号",
+      "description": "描述",
+      "actions": "操作"
+    },
+    "field": {
+      "name": "名称",
+      "code": "编号",
+      "description": "描述"
+    },
+    "delete": {
+      "title": "删除分类",
+      "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"
     }
   }
 }

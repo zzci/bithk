@@ -1,49 +1,57 @@
-// Resolves the caller's role within a project from the members list.
+// Resolves the caller's effective capabilities within a project.
 //
-// The backend GET /projects/:id returns no caller-role, so the UI derives it
-// by matching the current user id against the member rows. App admins are NOT
-// auto-members; gating is purely on the membership row.
+// The backend GET /projects/:id response carries the caller's capabilities
+// (the full set for app admins). The UI gates affordances on these instead of
+// on a fixed role name, since roles are user-defined.
 
-import type { ProjectMemberView, ProjectRole } from "@/shared/lib/api/projects";
+import type { ProjectCapability, ProjectView } from "@/shared/lib/api/projects";
 import { useMemo } from "react";
+import { PROJECT_CAPABILITIES } from "@/shared/lib/api/projects";
 import { useAuthStore } from "@/shared/stores/auth";
 
-export interface ProjectRoleInfo {
-  /** The caller's membership row, or null when not a member. */
-  readonly member: ProjectMemberView | null;
-  /** The caller's project role, or null when not a member. */
-  readonly role: ProjectRole | null;
-  readonly isPm: boolean;
-  /** pm OR explicit canViewProcurement grant. */
+export interface ProjectCapabilityInfo {
+  readonly has: (cap: ProjectCapability) => boolean;
+  readonly canManageProject: boolean;
+  readonly canManageMembers: boolean;
+  readonly canManageRoles: boolean;
+  readonly canManageContacts: boolean;
+  readonly canManageCategories: boolean;
   readonly canViewProcurement: boolean;
+  readonly canManageProcurement: boolean;
+  /** Any management capability → the project settings dialog is reachable. */
+  readonly canOpenSettings: boolean;
 }
 
 /**
- * Pure derivation of the caller's project role from the members list. Extracted
- * from the hook so it can be unit-tested without a render harness.
- *
- * App admins are treated as pm-equivalent even without a membership row: they
- * can view and manage every project (mirrors the backend admin bypass), which
- * prevents a project from being locked out when its last pm member is removed.
+ * Pure derivation of capability flags. Extracted from the hook so it can be
+ * unit-tested without a render harness. App admins implicitly hold every
+ * capability (mirrors the backend admin bypass) even if the payload lagged.
  */
-export function computeProjectRole(
-  members: readonly ProjectMemberView[] | undefined,
-  userId: string | null,
+export function computeCapabilities(
+  caps: readonly ProjectCapability[] | undefined,
   isAppAdmin: boolean,
-): ProjectRoleInfo {
-  const member = members?.find(m => m.userId !== null && m.userId === userId) ?? null;
-  const role = member?.role ?? null;
-  const isPm = role === "pm" || isAppAdmin;
+): ProjectCapabilityInfo {
+  const set = new Set<ProjectCapability>(isAppAdmin ? PROJECT_CAPABILITIES : (caps ?? []));
+  const has = (c: ProjectCapability): boolean => set.has(c);
+  const canManageProject = has("project.manage");
+  const canManageMembers = has("members.manage");
+  const canManageRoles = has("roles.manage");
+  const canManageContacts = has("contacts.manage");
+  const canManageCategories = has("categories.manage");
   return {
-    member,
-    role,
-    isPm,
-    canViewProcurement: isPm || (member?.canViewProcurement ?? false),
+    has,
+    canManageProject,
+    canManageMembers,
+    canManageRoles,
+    canManageContacts,
+    canManageCategories,
+    canViewProcurement: has("procurement.view"),
+    canManageProcurement: has("procurement.manage"),
+    canOpenSettings: canManageProject || canManageMembers || canManageRoles || canManageContacts || canManageCategories,
   };
 }
 
-export function useProjectRole(members: readonly ProjectMemberView[] | undefined): ProjectRoleInfo {
-  const userId = useAuthStore(s => s.user?.id ?? null);
+export function useProjectCapabilities(project: Pick<ProjectView, "capabilities"> | undefined): ProjectCapabilityInfo {
   const isAppAdmin = useAuthStore(s => s.user?.role === "admin");
-  return useMemo(() => computeProjectRole(members, userId, isAppAdmin), [members, userId, isAppAdmin]);
+  return useMemo(() => computeCapabilities(project?.capabilities, isAppAdmin), [project?.capabilities, isAppAdmin]);
 }

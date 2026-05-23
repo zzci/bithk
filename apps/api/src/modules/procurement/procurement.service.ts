@@ -5,6 +5,8 @@ import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { audit } from "@/modules/audit/audit.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
+import { resolveCategory } from "@/modules/project/project.categories";
+import { resolveContact } from "@/modules/project/project.contacts";
 import { resolveAssignableMember } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
 import { ValidationError } from "@/shared/lib/errors";
@@ -36,7 +38,8 @@ export interface ProcurementRow {
   readonly title: string;
   readonly itemName: string;
   readonly status: ProcurementStatus;
-  readonly supplierMemberId: string | null;
+  readonly supplierId: string | null;
+  readonly categoryId: string | null;
   readonly assigneeMemberId: string | null;
   readonly quantity: number | null;
   readonly amount: number | null;
@@ -58,7 +61,8 @@ function composeProcurement(
     title: item.title,
     itemName: details.itemName,
     status: item.status as ProcurementStatus,
-    supplierMemberId: details.supplierMemberId,
+    supplierId: details.supplierId,
+    categoryId: details.categoryId,
     assigneeMemberId: details.assigneeMemberId,
     quantity: details.quantity,
     amount: details.amount,
@@ -98,7 +102,8 @@ export interface CreateProcurementInput {
   readonly itemName: string;
   readonly title?: string | undefined;
   readonly status?: ProcurementStatus | undefined;
-  readonly supplierMemberId?: string | null | undefined;
+  readonly supplierId?: string | null | undefined;
+  readonly categoryId?: string | null | undefined;
   readonly assigneeMemberId?: string | null | undefined;
   readonly quantity?: number | null | undefined;
   readonly amount?: number | null | undefined;
@@ -114,10 +119,15 @@ export interface CreateProcurementInput {
  * semantics only hold when the callback stays sync.
  */
 export async function createProcurement(db: AppDatabase, input: CreateProcurementInput): Promise<ProcurementRow> {
-  if (input.supplierMemberId) {
-    const member = await resolveAssignableMember(db, input.projectId, input.supplierMemberId);
-    if (!member)
-      throw new ValidationError("Supplier is not a member of this project", { supplierMemberId: "Unknown project member" });
+  if (input.supplierId) {
+    const supplier = await resolveContact(db, input.projectId, input.supplierId, "supplier");
+    if (!supplier)
+      throw new ValidationError("Supplier is not a contact of this project", { supplierId: "Unknown supplier" });
+  }
+  if (input.categoryId) {
+    const category = await resolveCategory(db, input.projectId, input.categoryId);
+    if (!category)
+      throw new ValidationError("Category does not belong to this project", { categoryId: "Unknown category" });
   }
   if (input.assigneeMemberId) {
     const member = await resolveAssignableMember(db, input.projectId, input.assigneeMemberId);
@@ -145,7 +155,8 @@ export async function createProcurement(db: AppDatabase, input: CreateProcuremen
     tx.insert(procurementDetails).values({
       itemId: id,
       projectId: input.projectId,
-      supplierMemberId: input.supplierMemberId ?? null,
+      supplierId: input.supplierId ?? null,
+      categoryId: input.categoryId ?? null,
       assigneeMemberId: input.assigneeMemberId ?? null,
       itemName: input.itemName,
       quantity: input.quantity ?? null,
@@ -187,7 +198,8 @@ export async function resolveProcurementItem(db: AppDatabase, shortId: string) {
 export interface UpdateProcurementInput {
   readonly title?: string | undefined;
   readonly itemName?: string | undefined;
-  readonly supplierMemberId?: string | null | undefined;
+  readonly supplierId?: string | null | undefined;
+  readonly categoryId?: string | null | undefined;
   readonly assigneeMemberId?: string | null | undefined;
   readonly quantity?: number | null | undefined;
   readonly amount?: number | null | undefined;
@@ -204,10 +216,15 @@ export async function updateProcurement(
     return undefined;
   const { item, details } = loaded;
 
-  if (input.supplierMemberId) {
-    const member = await resolveAssignableMember(db, details.projectId, input.supplierMemberId);
-    if (!member)
-      throw new ValidationError("Supplier is not a member of this project", { supplierMemberId: "Unknown project member" });
+  if (input.supplierId) {
+    const supplier = await resolveContact(db, details.projectId, input.supplierId, "supplier");
+    if (!supplier)
+      throw new ValidationError("Supplier is not a contact of this project", { supplierId: "Unknown supplier" });
+  }
+  if (input.categoryId) {
+    const category = await resolveCategory(db, details.projectId, input.categoryId);
+    if (!category)
+      throw new ValidationError("Category does not belong to this project", { categoryId: "Unknown category" });
   }
   if (input.assigneeMemberId) {
     const member = await resolveAssignableMember(db, details.projectId, input.assigneeMemberId);
@@ -226,8 +243,10 @@ export async function updateProcurement(
     const detailsPatch: Record<string, unknown> = {};
     if (input.itemName !== undefined)
       detailsPatch.itemName = input.itemName;
-    if (input.supplierMemberId !== undefined)
-      detailsPatch.supplierMemberId = input.supplierMemberId;
+    if (input.supplierId !== undefined)
+      detailsPatch.supplierId = input.supplierId;
+    if (input.categoryId !== undefined)
+      detailsPatch.categoryId = input.categoryId;
     if (input.assigneeMemberId !== undefined)
       detailsPatch.assigneeMemberId = input.assigneeMemberId;
     if (input.quantity !== undefined)
@@ -324,6 +343,7 @@ export async function changeStatus(
 
 export interface ListProcurementParams {
   readonly status?: string | undefined;
+  readonly categoryId?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -349,6 +369,8 @@ export async function listByProject(
   ];
   if (params.status && isProcurementStatus(params.status))
     conditions.push(eq(items.status, params.status));
+  if (params.categoryId)
+    conditions.push(eq(procurementDetails.categoryId, params.categoryId));
   const where = and(...conditions);
 
   const totalRow = await db.select({ value: count() })

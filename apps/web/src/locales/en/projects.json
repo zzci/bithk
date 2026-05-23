@@ -8,6 +8,8 @@
     "empty": "No projects found.",
     "loading": "Loading projects...",
     "total": "{{count}} projects",
+    "filterByTag": "Filter by tag",
+    "tagAll": "All",
     "col": {
       "name": "Name",
       "code": "Code",
@@ -15,18 +17,19 @@
     }
   },
   "status": {
-    "all": "All statuses",
     "active": "Active",
-    "archived": "Archived",
-    "closed": "Closed"
+    "archived": "Archived"
   },
   "field": {
     "name": "Name",
     "code": "Code",
     "description": "Description",
     "status": "Status",
-    "startDate": "Start date",
-    "endDate": "End date"
+    "tags": "Tags"
+  },
+  "tags": {
+    "placeholder": "Add a tag and press Enter",
+    "remove": "Remove tag {{name}}"
   },
   "create": {
     "title": "Create project",
@@ -48,25 +51,35 @@
   "detail": {
     "notFound": "Project not found or you do not have access.",
     "back": "Back to projects",
-    "loading": "Loading project..."
+    "loading": "Loading project...",
+    "settings": "Settings"
+  },
+  "settings": {
+    "title": "Project settings",
+    "description": "Manage this project's details, members, contacts, and categories.",
+    "rolesHeading": "Roles",
+    "tabs": {
+      "general": "General",
+      "members": "Members & roles",
+      "contacts": "Contacts",
+      "categories": "Categories"
+    }
   },
   "tabs": {
     "overview": "Overview",
     "issues": "Work Orders",
     "procurement": "Procurement",
-    "files": "Files",
-    "members": "Members"
+    "files": "Files"
   },
   "overview": {
     "description": "Description",
     "noDescription": "No description provided.",
     "status": "Status",
-    "dates": "Dates",
     "creator": "Creator",
     "members": "Members",
     "memberCount": "{{count}} members",
     "notSet": "Not set",
-    "dateRange": "{{start}} – {{end}}"
+    "noTags": "No tags."
   },
   "issues": {
     "create": "Create work order",
@@ -112,12 +125,14 @@
     "empty": "No procurement records found.",
     "loading": "Loading procurement...",
     "allStatuses": "All statuses",
+    "allCategories": "All categories",
     "total": "{{count}} records",
     "none": "None",
     "col": {
       "itemName": "Item",
       "status": "Status",
       "amount": "Amount",
+      "category": "Category",
       "supplier": "Supplier",
       "assignee": "Assignee",
       "actions": "Actions"
@@ -125,6 +140,7 @@
     "field": {
       "itemName": "Item name",
       "title": "Title",
+      "category": "Category",
       "supplier": "Supplier",
       "assignee": "Assignee",
       "quantity": "Quantity",
@@ -149,41 +165,125 @@
   "members": {
     "add": "Add member",
     "empty": "No members yet.",
+    "virtual": "Virtual",
     "col": {
       "member": "Member",
-      "type": "Type",
+      "title": "Title",
       "role": "Role",
-      "procurement": "Procurement access",
       "actions": "Actions"
     },
-    "type": {
-      "internal": "Internal",
-      "external": "External"
+    "kind": {
+      "real": "Existing user",
+      "virtual": "Virtual member"
     },
-    "role": {
-      "pm": "Project manager",
-      "member": "Member"
-    },
-    "yes": "Yes",
-    "no": "No",
     "addTitle": "Add member",
-    "addDescription": "Add an internal user or an external participant to this project.",
+    "addDescription": "Add an existing user or a virtual member to this project.",
     "editTitle": "Edit member",
-    "editDescription": "Update the member's role and access.",
+    "editDescription": "Update the member's role and details.",
     "field": {
-      "memberType": "Member type",
+      "kind": "Member type",
       "user": "User",
       "role": "Role",
-      "displayName": "Display name",
-      "externalRef": "External reference",
-      "supplierInfo": "Supplier info",
-      "canViewProcurement": "Can view procurement"
+      "title": "Title",
+      "displayName": "Display name"
     },
-    "promote": "Promote to internal user",
+    "promote": "Link to a user",
     "selectUser": "Select a user",
+    "selectRole": "Select a role",
     "delete": {
       "title": "Remove member",
       "confirm": "Are you sure you want to remove this member from the project?"
+    }
+  },
+  "roles": {
+    "add": "Add role",
+    "empty": "No roles defined.",
+    "system": "System",
+    "noCapabilities": "No capabilities",
+    "createTitle": "Create role",
+    "editTitle": "Edit role",
+    "dialogDescription": "Choose the capabilities this role grants.",
+    "field": {
+      "name": "Name",
+      "capabilities": "Capabilities"
+    },
+    "delete": {
+      "title": "Delete role",
+      "confirm": "Are you sure you want to delete the role \"{{name}}\"? This action cannot be undone."
+    }
+  },
+  "capability": {
+    "project.manage": "Manage project",
+    "members.manage": "Manage members",
+    "roles.manage": "Manage roles",
+    "contacts.manage": "Manage contacts",
+    "categories.manage": "Manage categories",
+    "procurement.view": "View procurement",
+    "procurement.manage": "Manage procurement",
+    "issue.manage": "Manage work orders"
+  },
+  "contacts": {
+    "add": "Add contact",
+    "empty": "No contacts yet.",
+    "allTypes": "All types",
+    "createTitle": "Add contact",
+    "editTitle": "Edit contact",
+    "dialogDescription": "Record an external contact for this project.",
+    "col": {
+      "name": "Name",
+      "type": "Type",
+      "contactPerson": "Contact person",
+      "phone": "Phone",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "field": {
+      "type": "Type",
+      "status": "Status",
+      "name": "Name",
+      "contactPerson": "Contact person",
+      "phone": "Phone",
+      "email": "Email",
+      "address": "Address",
+      "taxId": "Tax ID",
+      "rating": "Rating",
+      "note": "Note"
+    },
+    "type": {
+      "supplier": "Supplier",
+      "client": "Client",
+      "subcontractor": "Subcontractor",
+      "other": "Other"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "delete": {
+      "title": "Delete contact",
+      "confirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+    }
+  },
+  "categories": {
+    "add": "Add category",
+    "empty": "No categories yet.",
+    "createTitle": "Add category",
+    "editTitle": "Edit category",
+    "dialogDescription": "Group procurement records under a category.",
+    "col": {
+      "name": "Name",
+      "code": "Code",
+      "description": "Description",
+      "actions": "Actions"
+    },
+    "field": {
+      "name": "Name",
+      "code": "Code",
+      "description": "Description"
+    },
+    "delete": {
+      "title": "Delete category",
+      "confirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
     }
   }
 }

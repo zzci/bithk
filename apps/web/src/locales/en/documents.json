@@ -72,7 +72,17 @@
   "tree": {
     "newChild": "New child",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "menu": "More actions",
+    "rename": "Rename",
+    "pin": "Pin",
+    "unpin": "Unpin"
+  },
+  "rename": {
+    "title": "Rename Document"
+  },
+  "pinned": {
+    "title": "Pinned"
   },
   "conflict": {
     "title": "Document changed elsewhere",

@@ -1,108 +1,188 @@
 import type { Context } from "hono";
+import type { ProjectCapability } from "./schema";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
+import {
+  composeCategory,
+  createCategory,
+  deleteCategory,
+  listCategories,
+  updateCategory,
+} from "./project.categories";
+import {
+  composeContact,
+  createContact,
+  deleteContact,
+  listContacts,
+  updateContact,
+} from "./project.contacts";
+import {
+  composeRole,
+  createRole,
+  deleteRole,
+  listRoles,
+  resolveRole,
+  updateRole,
+} from "./project.roles";
 import {
   addMember,
   composeMember,
-  composeProject,
+  composeProjectWithTags,
   createProject,
+  getMemberCapabilities,
   getProjectByShortId,
-  getRole,
   listMembers,
   listProjects,
+  listTags,
   removeMember,
   resolveProjectId,
   softDeleteProject,
   updateMember,
   updateProject,
 } from "./project.service";
+import { CONTACT_STATUSES, CONTACT_TYPES, PROJECT_CAPABILITIES, PROJECT_STATUSES } from "./schema";
+
+const tagsShape = { tags: z.array(z.string().min(1).max(50)).max(50).optional() };
 
 const createProjectSchema = z.object({
   code: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(255),
-  status: z.enum(["active", "archived", "closed"]).optional(),
+  status: z.enum(PROJECT_STATUSES).optional(),
   description: z.string().max(2000).nullable().optional(),
-  startDate: z.string().nullable().optional(),
-  endDate: z.string().nullable().optional(),
+  ...tagsShape,
 });
 
 const updateProjectSchema = z.object({
   code: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(255).optional(),
-  status: z.enum(["active", "archived", "closed"]).optional(),
+  status: z.enum(PROJECT_STATUSES).optional(),
   description: z.string().max(2000).nullable().optional(),
-  startDate: z.string().nullable().optional(),
-  endDate: z.string().nullable().optional(),
+  ...tagsShape,
 }).refine(
   v => Object.values(v).some(value => value !== undefined),
   { message: "At least one field must be provided" },
 );
 
 const listSchema = z.object({
-  status: z.enum(["active", "archived", "closed"]).optional(),
+  status: z.enum(PROJECT_STATUSES).optional(),
+  tagId: z.string().min(1).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 const addMemberSchema = z.object({
-  memberType: z.enum(["internal", "external"]),
-  role: z.enum(["pm", "member"]).optional(),
+  roleId: z.string().min(1),
   userId: z.string().min(1).nullable().optional(),
   displayName: z.string().max(255).nullable().optional(),
-  externalRef: z.string().max(255).nullable().optional(),
-  supplierInfo: z.string().nullable().optional(),
-  canViewProcurement: z.boolean().optional(),
-});
+  title: z.string().max(100).nullable().optional(),
+}).refine(
+  v => (v.userId != null && v.userId !== "") || (v.displayName != null && v.displayName.trim() !== ""),
+  { message: "A member needs a userId (real) or a displayName (virtual)" },
+);
 
 const updateMemberSchema = z.object({
-  role: z.enum(["pm", "member"]).optional(),
-  canViewProcurement: z.boolean().optional(),
+  roleId: z.string().min(1).optional(),
   displayName: z.string().max(255).nullable().optional(),
-  externalRef: z.string().max(255).nullable().optional(),
-  supplierInfo: z.string().nullable().optional(),
+  title: z.string().max(100).nullable().optional(),
   userId: z.string().min(1).nullable().optional(),
 }).refine(
   v => Object.values(v).some(value => value !== undefined),
   { message: "At least one field must be provided" },
 );
 
+const capabilitiesSchema = z.array(z.enum(PROJECT_CAPABILITIES)).max(PROJECT_CAPABILITIES.length);
+
+const createRoleSchema = z.object({
+  name: z.string().min(1).max(100),
+  capabilities: capabilitiesSchema.optional(),
+});
+
+const updateRoleSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  capabilities: capabilitiesSchema.optional(),
+}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
+
+const contactShape = {
+  contactPerson: z.string().max(255).nullable().optional(),
+  phone: z.string().max(50).nullable().optional(),
+  email: z.string().max(255).nullable().optional(),
+  address: z.string().max(500).nullable().optional(),
+  taxId: z.string().max(100).nullable().optional(),
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+  status: z.enum(CONTACT_STATUSES).optional(),
+  note: z.string().max(2000).nullable().optional(),
+};
+
+const createContactSchema = z.object({
+  type: z.enum(CONTACT_TYPES),
+  name: z.string().min(1).max(255),
+  ...contactShape,
+});
+
+const updateContactSchema = z.object({
+  type: z.enum(CONTACT_TYPES).optional(),
+  name: z.string().min(1).max(255).optional(),
+  ...contactShape,
+}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
+
+const createCategorySchema = z.object({
+  name: z.string().min(1).max(255),
+  code: z.string().max(100).nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
+});
+
+const updateCategorySchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  code: z.string().max(100).nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
+}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
+
 function actorId(c: Context<AppEnv>): string {
   return c.get("user")!.id;
 }
 
+interface ProjectAccess {
+  readonly projectId: string;
+  readonly capabilities: ReadonlySet<ProjectCapability>;
+}
+
 /**
- * Resolve the project id from the `:id` short id and assert the actor is at
- * least a member (or a pm when `pm` is required). Fail-closed: a missing
- * project or a non-member both surface as 404 so membership is not leaked.
+ * Resolve the project id from the `:id` short id and assert the actor is a
+ * member (and, when `capability` is given, that their role grants it). App
+ * admins bypass membership with the full capability set. Fail-closed: a
+ * missing project or non-member both surface as 404 so membership is not leaked.
  */
-async function requireProjectAccess(
+async function requireProject(
   c: Context<AppEnv>,
   shortId: string,
-  needPm: boolean,
-): Promise<string> {
+  capability?: ProjectCapability,
+): Promise<ProjectAccess> {
   const db = c.get("db");
   const projectId = await resolveProjectId(db, shortId);
   if (!projectId)
     throw new NotFoundError("Project", shortId);
-  // App admins bypass project membership entirely: they can always view and
-  // manage every project. This prevents a project from being locked out when
-  // its last pm member is removed (the admin can always re-add a pm).
   if (c.get("user")!.role === "admin")
-    return projectId;
-  const role = await getRole(db, projectId, actorId(c));
-  if (role === null)
+    return { projectId, capabilities: new Set(PROJECT_CAPABILITIES) };
+  const caps = await getMemberCapabilities(db, projectId, actorId(c));
+  if (caps === null)
     throw new NotFoundError("Project", shortId);
-  if (needPm && role !== "pm")
-    throw new ForbiddenError("Project manager access required");
-  return projectId;
+  if (capability && !caps.has(capability))
+    throw new ForbiddenError(`Capability '${capability}' required`);
+  return { projectId, capabilities: caps };
 }
 
 export function projectRoutes() {
   const router = new Hono<AppEnv>();
   router.use("*", authRequired);
+
+  // GET /tags — global tag vocabulary (for the list filter).
+  router.get("/tags", async (c) => {
+    const db = c.get("db");
+    return c.json({ success: true, data: await listTags(db) });
+  });
 
   // GET /projects — list. Admins see all; others see only projects they belong to.
   router.get("/projects", async (c) => {
@@ -110,16 +190,20 @@ export function projectRoutes() {
     const user = c.get("user")!;
     const query = listSchema.parse({
       status: c.req.query("status"),
+      tagId: c.req.query("tagId"),
       page: c.req.query("page"),
       limit: c.req.query("limit"),
     });
     const result = await listProjects(db, {
       ...query,
+      // Archived projects are hidden unless explicitly requested via the
+      // `status=archived` filter (the "Archived" chip on the list).
+      excludeArchived: query.status === undefined,
       memberUserId: user.role === "admin" ? undefined : user.id,
     });
     return c.json({
       success: true,
-      data: result.data.map(composeProject),
+      data: result.data,
       meta: { total: result.total, page: query.page ?? 1, limit: query.limit ?? 20 },
     });
   });
@@ -129,78 +213,186 @@ export function projectRoutes() {
     const db = c.get("db");
     const body = createProjectSchema.parse(await c.req.json());
     const project = await createProject(db, { ...body, creatorId: actorId(c) });
-    return c.json({ success: true, data: composeProject(project) }, 201);
+    return c.json({ success: true, data: await composeProjectWithTags(db, project) }, 201);
   });
 
-  // GET /projects/:id — detail (any member)
+  // GET /projects/:id — detail (any member); response carries caller capabilities
   router.get("/projects/:id", async (c) => {
     const shortId = c.req.param("id");
-    await requireProjectAccess(c, shortId, false);
+    const { capabilities } = await requireProject(c, shortId);
     const db = c.get("db");
     const project = await getProjectByShortId(db, shortId);
     if (!project)
       throw new NotFoundError("Project", shortId);
-    return c.json({ success: true, data: composeProject(project) });
+    const view = await composeProjectWithTags(db, project);
+    return c.json({ success: true, data: { ...view, capabilities: [...capabilities] } });
   });
 
-  // PATCH /projects/:id — update (pm only)
+  // PATCH /projects/:id — update (project.manage)
   router.patch("/projects/:id", async (c) => {
     const shortId = c.req.param("id");
-    await requireProjectAccess(c, shortId, true);
+    await requireProject(c, shortId, "project.manage");
     const db = c.get("db");
     const body = updateProjectSchema.parse(await c.req.json());
     const updated = await updateProject(db, shortId, body);
     if (!updated)
       throw new NotFoundError("Project", shortId);
-    return c.json({ success: true, data: composeProject(updated) });
+    return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
   });
 
-  // DELETE /projects/:id — soft delete (pm only)
+  // DELETE /projects/:id — soft delete (project.manage)
   router.delete("/projects/:id", async (c) => {
     const shortId = c.req.param("id");
-    await requireProjectAccess(c, shortId, true);
+    await requireProject(c, shortId, "project.manage");
     const db = c.get("db");
     await softDeleteProject(db, shortId);
     return c.json({ success: true, data: null });
   });
 
-  // GET /projects/:id/members — list members (any member)
+  // ─── Members ───────────────────────────────────────────────────────
   router.get("/projects/:id/members", async (c) => {
-    const projectId = await requireProjectAccess(c, c.req.param("id"), false);
+    const { projectId } = await requireProject(c, c.req.param("id"));
     const db = c.get("db");
     const members = await listMembers(db, projectId);
     return c.json({ success: true, data: members.map(composeMember) });
   });
 
-  // POST /projects/:id/members — add member (pm only)
   router.post("/projects/:id/members", async (c) => {
-    const projectId = await requireProjectAccess(c, c.req.param("id"), true);
+    const { projectId } = await requireProject(c, c.req.param("id"), "members.manage");
     const db = c.get("db");
     const body = addMemberSchema.parse(await c.req.json());
+    if (!await resolveRole(db, projectId, body.roleId))
+      throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
     const member = await addMember(db, projectId, body);
     return c.json({ success: true, data: composeMember(member) }, 201);
   });
 
-  // PATCH /projects/:id/members/:memberId — update member (pm only)
   router.patch("/projects/:id/members/:memberId", async (c) => {
-    const projectId = await requireProjectAccess(c, c.req.param("id"), true);
+    const { projectId } = await requireProject(c, c.req.param("id"), "members.manage");
     const db = c.get("db");
-    const memberId = c.req.param("memberId");
     const body = updateMemberSchema.parse(await c.req.json());
-    const member = await updateMember(db, projectId, memberId, body);
+    if (body.roleId !== undefined && !await resolveRole(db, projectId, body.roleId))
+      throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
+    const member = await updateMember(db, projectId, c.req.param("memberId"), body);
     if (!member)
-      throw new NotFoundError("Project member", memberId);
+      throw new NotFoundError("Project member", c.req.param("memberId"));
     return c.json({ success: true, data: composeMember(member) });
   });
 
-  // DELETE /projects/:id/members/:memberId — remove member (pm only)
   router.delete("/projects/:id/members/:memberId", async (c) => {
-    const projectId = await requireProjectAccess(c, c.req.param("id"), true);
+    const { projectId } = await requireProject(c, c.req.param("id"), "members.manage");
     const db = c.get("db");
-    const memberId = c.req.param("memberId");
-    const removed = await removeMember(db, projectId, memberId);
+    const removed = await removeMember(db, projectId, c.req.param("memberId"));
     if (!removed)
-      throw new NotFoundError("Project member", memberId);
+      throw new NotFoundError("Project member", c.req.param("memberId"));
+    return c.json({ success: true, data: null });
+  });
+
+  // ─── Roles ─────────────────────────────────────────────────────────
+  router.get("/projects/:id/roles", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"));
+    const db = c.get("db");
+    return c.json({ success: true, data: (await listRoles(db, projectId)).map(composeRole) });
+  });
+
+  router.post("/projects/:id/roles", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "roles.manage");
+    const db = c.get("db");
+    const body = createRoleSchema.parse(await c.req.json());
+    const role = await createRole(db, projectId, body);
+    return c.json({ success: true, data: composeRole(role) }, 201);
+  });
+
+  router.patch("/projects/:id/roles/:roleId", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "roles.manage");
+    const db = c.get("db");
+    const body = updateRoleSchema.parse(await c.req.json());
+    const role = await updateRole(db, projectId, c.req.param("roleId"), body);
+    if (!role)
+      throw new NotFoundError("Project role", c.req.param("roleId"));
+    return c.json({ success: true, data: composeRole(role) });
+  });
+
+  router.delete("/projects/:id/roles/:roleId", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "roles.manage");
+    const db = c.get("db");
+    const result = await deleteRole(db, projectId, c.req.param("roleId"));
+    if (result === "not_found")
+      throw new NotFoundError("Project role", c.req.param("roleId"));
+    if (result === "system")
+      throw new ForbiddenError("System roles cannot be deleted");
+    if (result === "in_use")
+      throw new ValidationError("Role is still assigned to members", { roleId: "Role in use" });
+    return c.json({ success: true, data: null });
+  });
+
+  // ─── Contacts ──────────────────────────────────────────────────────
+  router.get("/projects/:id/contacts", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"));
+    const db = c.get("db");
+    const type = c.req.query("type");
+    const validType = (CONTACT_TYPES as readonly string[]).includes(type ?? "") ? (type as typeof CONTACT_TYPES[number]) : undefined;
+    return c.json({ success: true, data: (await listContacts(db, projectId, validType)).map(composeContact) });
+  });
+
+  router.post("/projects/:id/contacts", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "contacts.manage");
+    const db = c.get("db");
+    const body = createContactSchema.parse(await c.req.json());
+    const contact = await createContact(db, projectId, body);
+    return c.json({ success: true, data: composeContact(contact) }, 201);
+  });
+
+  router.patch("/projects/:id/contacts/:contactId", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "contacts.manage");
+    const db = c.get("db");
+    const body = updateContactSchema.parse(await c.req.json());
+    const contact = await updateContact(db, projectId, c.req.param("contactId"), body);
+    if (!contact)
+      throw new NotFoundError("Project contact", c.req.param("contactId"));
+    return c.json({ success: true, data: composeContact(contact) });
+  });
+
+  router.delete("/projects/:id/contacts/:contactId", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "contacts.manage");
+    const db = c.get("db");
+    const removed = await deleteContact(db, projectId, c.req.param("contactId"));
+    if (!removed)
+      throw new NotFoundError("Project contact", c.req.param("contactId"));
+    return c.json({ success: true, data: null });
+  });
+
+  // ─── Procurement categories ────────────────────────────────────────
+  router.get("/projects/:id/procurement-categories", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"));
+    const db = c.get("db");
+    return c.json({ success: true, data: (await listCategories(db, projectId)).map(composeCategory) });
+  });
+
+  router.post("/projects/:id/procurement-categories", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "categories.manage");
+    const db = c.get("db");
+    const body = createCategorySchema.parse(await c.req.json());
+    const category = await createCategory(db, projectId, body);
+    return c.json({ success: true, data: composeCategory(category) }, 201);
+  });
+
+  router.patch("/projects/:id/procurement-categories/:categoryId", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "categories.manage");
+    const db = c.get("db");
+    const body = updateCategorySchema.parse(await c.req.json());
+    const category = await updateCategory(db, projectId, c.req.param("categoryId"), body);
+    if (!category)
+      throw new NotFoundError("Procurement category", c.req.param("categoryId"));
+    return c.json({ success: true, data: composeCategory(category) });
+  });
+
+  router.delete("/projects/:id/procurement-categories/:categoryId", async (c) => {
+    const { projectId } = await requireProject(c, c.req.param("id"), "categories.manage");
+    const db = c.get("db");
+    const removed = await deleteCategory(db, projectId, c.req.param("categoryId"));
+    if (!removed)
+      throw new NotFoundError("Procurement category", c.req.param("categoryId"));
     return c.json({ success: true, data: null });
   });
 

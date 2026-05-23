@@ -11,7 +11,7 @@ import {
 } from "./document-tree.utils";
 
 function n(id: string, parentId: string | null, title = id, childCount = 0): DocumentTreeNode {
-  return { id, parentId, title, childCount, updatedAt: "2026-01-01T00:00:00Z" };
+  return { id, parentId, title, childCount, updatedAt: "2026-01-01T00:00:00Z", pinned: false };
 }
 
 // A small fixture:

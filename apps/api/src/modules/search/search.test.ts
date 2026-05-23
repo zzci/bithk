@@ -80,8 +80,8 @@ describe("globalSearch", () => {
   test("returns the caller's own document, issue, project and drive file", async () => {
     const owner = await seedUser("Owner");
     await createDocument(db, { title: "Quarterly Report", creatorId: owner });
-    await createIssue(db, { title: "Quarterly Bug", creatorId: owner });
     const project = await createProject(db, { name: "Quarterly Project", creatorId: owner });
+    await createIssue(db, { title: "Quarterly Bug", creatorId: owner, projectId: project.id });
     await seedDriveFile(owner, "Quarterly Notes.txt");
 
     const result = await globalSearch(db, { userId: owner, ...ARGS });
@@ -96,8 +96,8 @@ describe("globalSearch", () => {
     const owner = await seedUser("Owner");
     const stranger = await seedUser("Stranger");
     await createDocument(db, { title: "Quarterly Report", creatorId: owner });
-    await createIssue(db, { title: "Quarterly Bug", creatorId: owner });
-    await createProject(db, { name: "Quarterly Project", creatorId: owner });
+    const project = await createProject(db, { name: "Quarterly Project", creatorId: owner });
+    await createIssue(db, { title: "Quarterly Bug", creatorId: owner, projectId: project.id });
     await seedDriveFile(owner, "Quarterly Notes.txt");
 
     const result = await globalSearch(db, { userId: stranger, ...ARGS });

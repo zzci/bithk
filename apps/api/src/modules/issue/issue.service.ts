@@ -1,12 +1,10 @@
 import type { AppDatabase } from "@/db";
-import { and, count, desc, eq, inArray, isNull, like, notInArray, or, sql } from "drizzle-orm";
-import { users } from "@/modules/account/users/schema";
+import { and, count, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
 import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
-import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
-import { getRole, resolveAssignableMember } from "@/modules/project/project.service";
-import { projects } from "@/modules/project/schema";
+import { getMemberCapabilities, resolveAssignableMember } from "@/modules/project/project.service";
+import { projectMembers, projects } from "@/modules/project/schema";
 import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 
@@ -27,12 +25,13 @@ export interface IssueRow {
   readonly status: IssueStatus;
   readonly priority: IssuePriority;
   readonly creatorId: string;
+  // The user-tuple assignee, derived from the policy engine. Set only for
+  // INTERNAL member assignees; NULL for external members or no assignee.
   readonly assigneeId: string | null;
   readonly dueDate: string | null;
-  // NULL → personal issue; set → project issue. Exposed as the project short_id
-  // so the frontend can link without a second lookup.
-  readonly projectId: string | null;
-  // `project_members.id` for project issues; NULL for personal issues.
+  // The owning project's short_id. Always set — every issue is a work order.
+  readonly projectId: string;
+  // `project_members.id` of the assignee, or NULL when unassigned.
   readonly assigneeMemberId: string | null;
   readonly createdAt: string; // decoded from items.id (ULID timestamp prefix)
   readonly updatedAt: string;
@@ -66,12 +65,10 @@ async function getAssigneeId(db: AppDatabase, itemId: string): Promise<string | 
   return row?.subjectId ?? null;
 }
 
-/** Resolve a project's short_id from its internal ULID, or null when unset/missing. */
-async function projectShortId(db: AppDatabase, projectId: string | null): Promise<string | null> {
-  if (!projectId)
-    return null;
+/** Resolve a project's short_id from its internal ULID. */
+async function projectShortId(db: AppDatabase, projectId: string): Promise<string> {
   const row = await db.select({ shortId: projects.shortId }).from(projects).where(eq(projects.id, projectId)).get();
-  return row?.shortId ?? null;
+  return row?.shortId ?? projectId;
 }
 
 async function composeIssue(
@@ -90,7 +87,7 @@ async function composeIssue(
     creatorId: item.creatorId,
     assigneeId,
     dueDate: d?.dueDate ?? null,
-    projectId: await projectShortId(db, d?.projectId ?? null),
+    projectId: await projectShortId(db, d!.projectId),
     assigneeMemberId: d?.assigneeMemberId ?? null,
     createdAt: ulidTimestamp(item.id),
     updatedAt: item.updatedAt,
@@ -106,11 +103,11 @@ export interface CreateIssueInput {
   readonly status?: IssueStatus | undefined;
   readonly priority?: IssuePriority | undefined;
   readonly creatorId: string;
-  readonly assigneeId?: string | undefined;
   readonly dueDate?: string | undefined;
-  // Internal project ULID. When set this is a project issue and `assigneeId`
-  // is ignored in favor of `assigneeMemberId` (a `project_members.id`).
-  readonly projectId?: string | undefined;
+  // The owning project's internal ULID. Required — every issue is a work order.
+  readonly projectId: string;
+  // Assignment target: a `project_members.id`. An internal member also gets
+  // the `item#assignee@user` tuple so assignee-based lookups keep working.
   readonly assigneeMemberId?: string | undefined;
 }
 
@@ -119,21 +116,18 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
   const shortId = nanoid();
   const now = new Date().toISOString();
 
-  // Project issues assign to a `project_members.id`. Validate the member up
-  // front (async, outside the sync transaction) and resolve its user id so an
-  // internal member also gets the legacy `item#assignee@user` tuple.
+  // Validate the assignee member up front (async, outside the sync
+  // transaction) and resolve its user id so an internal member also gets the
+  // `item#assignee@user` tuple.
   let assigneeMemberId: string | null = null;
   let memberUserTuple: string | null = null;
-  if (input.projectId && input.assigneeMemberId) {
+  if (input.assigneeMemberId) {
     const member = await resolveAssignableMember(db, input.projectId, input.assigneeMemberId);
     if (!member)
       throw new NotFoundError("Project member", input.assigneeMemberId);
     assigneeMemberId = member.id;
     memberUserTuple = member.userId; // null for external members
   }
-
-  // Personal issues keep the user-tuple assignment path unchanged.
-  const personalAssignee = input.projectId ? null : (input.assigneeId ?? null);
 
   // bun:sqlite transactions are synchronous — drop async to keep COMMIT/ROLLBACK semantics.
   db.transaction((tx) => {
@@ -154,7 +148,7 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
       description: input.description ?? null,
       priority: input.priority ?? "medium",
       dueDate: input.dueDate ?? null,
-      projectId: input.projectId ?? null,
+      projectId: input.projectId,
       assigneeMemberId,
     }).run();
 
@@ -171,17 +165,16 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
       createdAt: now,
     }).run();
 
-    // Personal user-tuple assignee, or — for a project issue with an internal
-    // member — the same tuple so "my issues" / item-assignee semantics hold.
-    const tupleSubject = personalAssignee ?? memberUserTuple;
-    if (tupleSubject) {
+    // For an internal member assignee, mirror the assignment as an
+    // `item#assignee@user` tuple so assignee-based access checks hold.
+    if (memberUserTuple) {
       tx.insert(relationTuples).values({
         id: nanoid(),
         namespace: "item",
         objectId: id,
         relation: "assignee",
         subjectNamespace: "user",
-        subjectId: tupleSubject,
+        subjectId: memberUserTuple,
         subjectRelation: null,
         createdBy: input.creatorId,
         createdAt: now,
@@ -207,10 +200,8 @@ export interface UpdateIssueInput {
   readonly description?: string | null | undefined;
   readonly status?: IssueStatus | undefined;
   readonly priority?: IssuePriority | undefined;
-  readonly assigneeId?: string | null | undefined;
   readonly dueDate?: string | null | undefined;
-  // Project-issue reassignment target (`project_members.id`); null clears it.
-  // Ignored on personal issues.
+  // Reassignment target (`project_members.id`); null clears the assignment.
   readonly assigneeMemberId?: string | null | undefined;
 }
 
@@ -224,22 +215,20 @@ export async function updateIssue(db: AppDatabase, shortId: string, input: Updat
   const now = new Date().toISOString();
 
   const details = await db.select().from(issueDetails).where(eq(issueDetails.itemId, item.id)).get();
-  const projectId = details?.projectId ?? null;
+  const projectId = details!.projectId;
 
-  // Project-issue reassignment: validate the member up front (async) and
-  // resolve its user id so the legacy user tuple stays in sync.
+  // Reassignment: validate the member up front (async) and resolve its user id
+  // so the `item#assignee@user` tuple stays in sync.
   let nextMemberId: string | null = null;
   let nextMemberUser: string | null = null;
-  if (projectId && input.assigneeMemberId !== undefined && input.assigneeMemberId !== null) {
+  if (input.assigneeMemberId !== undefined && input.assigneeMemberId !== null) {
     const member = await resolveAssignableMember(db, projectId, input.assigneeMemberId);
     if (!member)
       throw new NotFoundError("Project member", input.assigneeMemberId);
     nextMemberId = member.id;
     nextMemberUser = member.userId; // null for external members
   }
-  // A project issue resyncs its user tuple whenever the member changes; a
-  // personal issue keeps using `assigneeId`.
-  const syncMemberTuple = projectId !== null && input.assigneeMemberId !== undefined;
+  const syncMemberTuple = input.assigneeMemberId !== undefined;
 
   db.transaction((tx) => {
     const itemPatch: Record<string, unknown> = { updatedAt: now, version: sql`${items.version} + 1` };
@@ -262,11 +251,9 @@ export async function updateIssue(db: AppDatabase, shortId: string, input: Updat
       tx.update(issueDetails).set(detailsPatch).where(eq(issueDetails.itemId, item.id)).run();
     }
 
-    // Resolve the next user-tuple subject. Personal issues use `assigneeId`;
-    // project issues derive it from the (internal) member's user id.
-    const wantsTupleChange = input.assigneeId !== undefined || syncMemberTuple;
-    const tupleSubject = syncMemberTuple ? nextMemberUser : (input.assigneeId ?? null);
-    if (wantsTupleChange) {
+    // Resync the `item#assignee@user` tuple from the (internal) member's user
+    // id whenever the member changes.
+    if (syncMemberTuple) {
       // Replace any existing assignee tuple. Even when the subject is null we
       // drop the prior tuple — the canonical "no assignee" state is "no tuple".
       tx.delete(relationTuples).where(and(
@@ -274,14 +261,14 @@ export async function updateIssue(db: AppDatabase, shortId: string, input: Updat
         eq(relationTuples.objectId, item.id),
         eq(relationTuples.relation, "assignee"),
       )).run();
-      if (tupleSubject !== null) {
+      if (nextMemberUser !== null) {
         tx.insert(relationTuples).values({
           id: nanoid(),
           namespace: "item",
           objectId: item.id,
           relation: "assignee",
           subjectNamespace: "user",
-          subjectId: tupleSubject,
+          subjectId: nextMemberUser,
           subjectRelation: null,
           createdBy: item.creatorId,
           createdAt: now,
@@ -316,137 +303,6 @@ export async function softDeleteIssue(db: AppDatabase, shortId: string): Promise
 }
 
 // ─── List ─────────────────────────────────────────────────────────────
-
-export interface ListIssueParams {
-  readonly q?: string | undefined;
-  readonly status?: string | undefined;
-  readonly priority?: string | undefined;
-  readonly assigneeId?: string | undefined;
-  readonly creatorId?: string | undefined;
-  readonly page?: number | undefined;
-  readonly limit?: number | undefined;
-}
-
-async function buildIssueConditions(params: ListIssueParams) {
-  const conditions = [eq(items.type, "issue"), isNull(items.deletedAt)];
-  if (params.status && params.status !== "__all__")
-    conditions.push(eq(items.status, params.status));
-  if (params.creatorId)
-    conditions.push(eq(items.creatorId, params.creatorId));
-  if (params.q)
-    conditions.push(like(items.title, `%${escapeLike(params.q)}%`));
-  return conditions;
-}
-
-/** Item ids that belong to a project (i.e. are work orders, not personal). */
-async function projectIssueItemIds(db: AppDatabase): Promise<readonly string[]> {
-  const rows = await db.select({ itemId: issueDetails.itemId })
-    .from(issueDetails)
-    .where(sql`${issueDetails.projectId} IS NOT NULL`)
-    .all();
-  return rows.map(r => r.itemId);
-}
-
-async function paginateIssues(
-  db: AppDatabase,
-  baseConditions: readonly ReturnType<typeof eq>[],
-  params: ListIssueParams,
-) {
-  const page = Math.max(1, params.page ?? 1);
-  const limit = Math.min(100, Math.max(1, params.limit ?? 20));
-
-  // priority + assignee filters need joins / tuple lookups. We build the
-  // candidate id set in stages so the final SELECT is a simple in-list.
-  let where = and(...baseConditions);
-
-  // The personal `/issues` list never surfaces project work orders.
-  const projectIds = await projectIssueItemIds(db);
-  if (projectIds.length > 0)
-    where = and(where, notInArray(items.id, [...projectIds]));
-
-  if (params.priority && params.priority !== "__all__") {
-    const ids = await db.select({ itemId: issueDetails.itemId })
-      .from(issueDetails)
-      .where(eq(issueDetails.priority, params.priority as IssuePriority))
-      .all();
-    if (ids.length === 0)
-      return { data: [] as IssueRow[], total: 0 };
-    where = and(where, inArray(items.id, ids.map(r => r.itemId)));
-  }
-
-  if (params.assigneeId) {
-    const ids = await db.select({ objectId: relationTuples.objectId })
-      .from(relationTuples)
-      .where(and(
-        eq(relationTuples.namespace, "item"),
-        eq(relationTuples.relation, "assignee"),
-        eq(relationTuples.subjectNamespace, "user"),
-        eq(relationTuples.subjectId, params.assigneeId),
-      ))
-      .all();
-    if (ids.length === 0)
-      return { data: [] as IssueRow[], total: 0 };
-    where = and(where, inArray(items.id, ids.map(r => r.objectId)));
-  }
-
-  const totalRow = await db.select({ value: count() }).from(items).where(where).get();
-  const total = totalRow?.value ?? 0;
-
-  const rows = await db.select().from(items).where(where).orderBy(desc(items.id)).limit(limit).offset((page - 1) * limit).all();
-
-  const data: IssueRow[] = [];
-  for (const r of rows)
-    data.push(await composeIssue(db, r));
-  return { data, total };
-}
-
-export async function listIssues(db: AppDatabase, params: ListIssueParams = {}) {
-  const conditions = await buildIssueConditions(params);
-  return await paginateIssues(db, conditions, params);
-}
-
-export async function listMyIssues(db: AppDatabase, params: ListIssueParams & { userId: string }) {
-  // "Mine" = creator OR assignee. Resolve the user-side tuple set first,
-  // then OR with creator_id in the items query.
-  const assigneeIds = await listUserResources(db, params.userId, "item", "assignee");
-  const creatorClause = eq(items.creatorId, params.userId);
-
-  const conditions = await buildIssueConditions(params);
-  const baseAnd = and(...conditions);
-  const where = assigneeIds.length > 0
-    ? and(baseAnd, or(creatorClause, inArray(items.id, [...assigneeIds])))
-    : and(baseAnd, creatorClause);
-
-  // Reuse paginate with an explicit override of "where" via baseConditions.
-  // Cheaper: inline the count + select here.
-  const finalWhere = where;
-  const page = Math.max(1, params.page ?? 1);
-  const limit = Math.min(100, Math.max(1, params.limit ?? 20));
-
-  let working = finalWhere;
-  // "My issues" is the personal inbox — project work orders are excluded.
-  const projectIds = await projectIssueItemIds(db);
-  if (projectIds.length > 0)
-    working = and(working, notInArray(items.id, [...projectIds]));
-
-  if (params.priority && params.priority !== "__all__") {
-    const ids = await db.select({ itemId: issueDetails.itemId })
-      .from(issueDetails)
-      .where(eq(issueDetails.priority, params.priority as IssuePriority))
-      .all();
-    if (ids.length === 0)
-      return { data: [] as IssueRow[], total: 0 };
-    working = and(working, inArray(items.id, ids.map(r => r.itemId)));
-  }
-
-  const totalRow = await db.select({ value: count() }).from(items).where(working).get();
-  const total = totalRow?.value ?? 0;
-  const rows = await db.select().from(items).where(working).orderBy(desc(items.id)).limit(limit).offset((page - 1) * limit).all();
-  const data: IssueRow[] = [];
-  for (const r of rows)
-    data.push(await composeIssue(db, r));
-  return { data, total };
-}
 
 export interface ListByProjectParams {
   readonly projectId: string; // internal ULID
@@ -499,13 +355,55 @@ export async function listByProject(
   return { data, total };
 }
 
-// ─── Access helper ────────────────────────────────────────────────────
+export interface SearchIssuesParams {
+  readonly userId: string;
+  readonly isAdmin: boolean;
+  readonly q: string;
+  readonly limit?: number | undefined;
+}
 
 /**
- * Resolve the actor's relations against the issue's item. Returns the
- * set of role flags the route handlers use to decide visibility / edit
- * rights. Admin bypass is owned by the caller (route layer).
+ * Title search across the issues a user may see: every issue for an app admin,
+ * otherwise issues in the projects the user is a member of. Backs global
+ * search; access scope mirrors the project-membership gate on the routes.
  */
+export async function searchIssues(db: AppDatabase, params: SearchIssuesParams): Promise<IssueRow[]> {
+  const limit = Math.min(100, Math.max(1, params.limit ?? 20));
+  const term = params.q.trim();
+  if (term.length === 0)
+    return [];
+
+  const conditions = [
+    eq(items.type, "issue"),
+    isNull(items.deletedAt),
+    like(items.title, `%${escapeLike(term)}%`),
+  ];
+
+  if (!params.isAdmin) {
+    const memberProjects = await db.selectDistinct({ projectId: projectMembers.projectId })
+      .from(projectMembers)
+      .where(eq(projectMembers.userId, params.userId))
+      .all();
+    if (memberProjects.length === 0)
+      return [];
+    const scoped = await db.select({ itemId: issueDetails.itemId })
+      .from(issueDetails)
+      .where(inArray(issueDetails.projectId, memberProjects.map(r => r.projectId)))
+      .all();
+    if (scoped.length === 0)
+      return [];
+    conditions.push(inArray(items.id, scoped.map(r => r.itemId)));
+  }
+
+  const rows = await db.select().from(items).where(and(...conditions)).orderBy(desc(items.id)).limit(limit).all();
+  const data: IssueRow[] = [];
+  for (const r of rows)
+    data.push(await composeIssue(db, r));
+  return data;
+}
+
+// ─── Access helper ────────────────────────────────────────────────────
+
 export interface IssueAccess {
   readonly isCreator: boolean;
   readonly isAssignee: boolean;
@@ -513,38 +411,12 @@ export interface IssueAccess {
   readonly canEdit: boolean;
 }
 
-export async function resolveAccess(
-  db: AppDatabase,
-  item: typeof items.$inferSelect,
-  userId: string,
-): Promise<IssueAccess> {
-  const isCreator = item.creatorId === userId;
-  // The policy engine walks the assignee → owner implication automatically,
-  // but the route layer needs an explicit "you are the assignee" signal for
-  // the existing "assignees can only update status" rule.
-  const assignedTuple = await db.select({ id: relationTuples.id })
-    .from(relationTuples)
-    .where(and(
-      eq(relationTuples.namespace, "item"),
-      eq(relationTuples.objectId, item.id),
-      eq(relationTuples.relation, "assignee"),
-      eq(relationTuples.subjectNamespace, "user"),
-      eq(relationTuples.subjectId, userId),
-    ))
-    .get();
-  const isAssignee = !!assignedTuple;
-  const view = await check(db, "item", item.id, "viewer", "user", userId);
-  const edit = await check(db, "item", item.id, "editor", "user", userId);
-  return { isCreator, isAssignee, canRead: view.allowed, canEdit: edit.allowed };
-}
-
 /**
- * Project-issue access. Distinct from `resolveAccess` (personal issues) so the
- * legacy creator/assignee rules stay untouched.
+ * Project-issue access.
  *
  * - any project member can read
- * - the assignee can change status only (mirrors the personal "assignees can
- *   only update status" rule)
+ * - the assignee can change status only (the route layer enforces the
+ *   field-level rule)
  * - a pm, or the issue creator, can edit every field
  *
  * Fail-closed: a non-member resolves to all-false so project issues never leak.
@@ -555,8 +427,8 @@ export async function resolveProjectIssueAccess(
   projectId: string, // internal ULID
   userId: string,
 ): Promise<IssueAccess> {
-  const role = await getRole(db, projectId, userId);
-  const isMember = role !== null;
+  const caps = await getMemberCapabilities(db, projectId, userId);
+  const isMember = caps !== null;
   const isCreator = item.creatorId === userId;
   const assignedTuple = await db.select({ id: relationTuples.id })
     .from(relationTuples)
@@ -569,12 +441,8 @@ export async function resolveProjectIssueAccess(
     ))
     .get();
   const isAssignee = !!assignedTuple;
-  const canEdit = isMember && (role === "pm" || isCreator);
+  const canEdit = isMember && (isCreator || caps.has("issue.manage"));
   return { isCreator, isAssignee, canRead: isMember, canEdit };
-}
-
-export async function getUserById(db: AppDatabase, id: string) {
-  return await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, id)).get();
 }
 
 /**
@@ -585,4 +453,15 @@ export async function resolveIssueItem(db: AppDatabase, shortId: string) {
   return await db.select().from(items).where(
     and(eq(items.shortId, shortId), eq(items.type, "issue"), isNull(items.deletedAt)),
   ).get();
+}
+
+/** Resolve the owning project's internal ULID for an issue short_id. */
+export async function resolveIssueProjectId(db: AppDatabase, shortId: string): Promise<string | null> {
+  const item = await db.select({ id: items.id }).from(items).where(
+    and(eq(items.shortId, shortId), eq(items.type, "issue"), isNull(items.deletedAt)),
+  ).get();
+  if (!item)
+    return null;
+  const d = await db.select({ projectId: issueDetails.projectId }).from(issueDetails).where(eq(issueDetails.itemId, item.id)).get();
+  return d?.projectId ?? null;
 }
