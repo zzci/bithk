@@ -218,6 +218,22 @@ describe("listProjects", () => {
     expect(byTag.data[0]!.name).toBe("Tagged");
   });
 
+  test("a literal % or _ in the query is matched literally, not as a wildcard", async () => {
+    const creator = await seedUser("Alice");
+    await createProject(db, { name: "a%b", creatorId: creator });
+    await createProject(db, { name: "axb", creatorId: creator });
+    await createProject(db, { name: "a_b", creatorId: creator });
+    await createProject(db, { name: "acb", creatorId: creator });
+
+    // `%` must not act as a wildcard: only the literal "a%b" matches.
+    const pct = await listProjects(db, { q: "a%b" });
+    expect(pct.data.map(p => p.name)).toEqual(["a%b"]);
+
+    // `_` must not match a single arbitrary char: only the literal "a_b".
+    const underscore = await listProjects(db, { q: "a_b" });
+    expect(underscore.data.map(p => p.name)).toEqual(["a_b"]);
+  });
+
   test("memberUserId scopes the list to the caller's projects", async () => {
     const owner = await seedUser("Owner");
     const outsider = await seedUser("Outsider");

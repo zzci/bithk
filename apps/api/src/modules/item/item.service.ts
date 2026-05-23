@@ -1,5 +1,5 @@
 import type { AppDatabase, RunResult } from "@/db";
-import { and, count, desc, eq, inArray, isNotNull, isNull, like, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
@@ -7,7 +7,9 @@ import { nanoid, ulid } from "@/shared/lib/id";
 
 export type ItemRow = typeof items.$inferSelect;
 
-const LIKE_SPECIAL_RE = /[%_]/g;
+// Backslash is the ESCAPE char, so it must be escaped first; every LIKE built
+// from this MUST carry `ESCAPE '\'` or the backslashes match literally.
+const LIKE_SPECIAL_RE = /[\\%_]/g;
 
 function escapeLike(v: string): string {
   return v.replace(LIKE_SPECIAL_RE, "\\$&");
@@ -261,7 +263,7 @@ export async function listItemsByIds(
     // TODO(fts): swap LIKE for items_fts MATCH once the FTS5 virtual-table
     // gap is closed (see plan §G "FTS gap"). LIKE on title is fine for the
     // current row count.
-    conditions.push(like(items.title, `%${escapeLike(search)}%`));
+    conditions.push(sql`${items.title} LIKE ${`%${escapeLike(search)}%`} ESCAPE '\\'`);
   }
 
   const where = and(...conditions);
@@ -298,7 +300,7 @@ export async function listItemsByType(
   if (status)
     conditions.push(eq(items.status, status));
   if (search && search.length > 0) {
-    conditions.push(like(items.title, `%${escapeLike(search)}%`));
+    conditions.push(sql`${items.title} LIKE ${`%${escapeLike(search)}%`} ESCAPE '\\'`);
   }
 
   const where = and(...conditions);

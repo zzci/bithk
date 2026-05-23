@@ -356,6 +356,18 @@ describe("listByProject", () => {
     expect((await listByProject(db, { projectId: project.id, priority: "low" })).data.map(d => d.title)).toEqual(["Add feature"]);
     expect((await listByProject(db, { projectId: project.id, q: "bug" })).data.map(d => d.title)).toEqual(["Fix the bug"]);
   });
+
+  test("a literal % or _ in the title filter is matched literally", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    await createIssue(db, { title: "100% done", creatorId: creator, projectId: project.id });
+    await createIssue(db, { title: "100x done", creatorId: creator, projectId: project.id });
+    await createIssue(db, { title: "a_b", creatorId: creator, projectId: project.id });
+    await createIssue(db, { title: "axb", creatorId: creator, projectId: project.id });
+
+    expect((await listByProject(db, { projectId: project.id, q: "100%" })).data.map(d => d.title)).toEqual(["100% done"]);
+    expect((await listByProject(db, { projectId: project.id, q: "a_b" })).data.map(d => d.title)).toEqual(["a_b"]);
+  });
 });
 
 describe("searchIssues", () => {
@@ -383,6 +395,16 @@ describe("searchIssues", () => {
 
     const r = await searchIssues(db, { userId: admin, isAdmin: true, q: "alpha" });
     expect(r.map(i => i.title).sort()).toEqual(["alpha order", "alpha task"]);
+  });
+
+  test("a literal % or _ in the search term does not over-match as a wildcard", async () => {
+    const admin = await seedUser("Root", "admin");
+    const project = await createProject(db, { name: "P", creatorId: admin });
+    await createIssue(db, { title: "50% off", creatorId: admin, projectId: project.id });
+    await createIssue(db, { title: "50x off", creatorId: admin, projectId: project.id });
+
+    const r = await searchIssues(db, { userId: admin, isAdmin: true, q: "50%" });
+    expect(r.map(i => i.title)).toEqual(["50% off"]);
   });
 });
 

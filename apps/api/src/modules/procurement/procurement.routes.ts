@@ -25,8 +25,9 @@ const createSchema = z.object({
   supplierId: z.string().min(1).nullable().optional(),
   categoryId: z.string().min(1).nullable().optional(),
   assigneeMemberId: z.string().min(1).nullable().optional(),
-  quantity: z.number().int().nullable().optional(),
-  amount: z.number().int().nullable().optional(),
+  // Order quantity and cost are physical/monetary amounts: never negative.
+  quantity: z.number().int().min(0).nullable().optional(),
+  amount: z.number().int().min(0).nullable().optional(),
   currency: z.string().max(10).nullable().optional(),
 });
 
@@ -36,8 +37,8 @@ const updateSchema = z.object({
   supplierId: z.string().min(1).nullable().optional(),
   categoryId: z.string().min(1).nullable().optional(),
   assigneeMemberId: z.string().min(1).nullable().optional(),
-  quantity: z.number().int().nullable().optional(),
-  amount: z.number().int().nullable().optional(),
+  quantity: z.number().int().min(0).nullable().optional(),
+  amount: z.number().int().min(0).nullable().optional(),
   currency: z.string().max(10).nullable().optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), {
   message: "At least one field must be provided",
