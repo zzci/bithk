@@ -57,5 +57,15 @@
     "home": "首页",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "折叠侧边栏"
+  },
+  "search": {
+    "title": "搜索",
+    "placeholder": "搜索文档、事项、项目、文件…",
+    "quickEntry": "快速入口",
+    "noResults": "无匹配结果",
+    "documents": "文档",
+    "issues": "事项",
+    "projects": "项目",
+    "drive": "文件"
   }
 }

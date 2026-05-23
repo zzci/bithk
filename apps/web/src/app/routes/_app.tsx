@@ -11,6 +11,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/shared/components/ui/sidebar";
+import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
 import { useAuthStore } from "@/shared/stores/auth";
 import { useSystemStore } from "@/shared/stores/system";
 
@@ -101,18 +102,19 @@ function AppLayout() {
       </a>
       <AppSidebar />
       <SidebarInset className="h-svh">
-        {/* Mobile-only header — logo on the left, sidebar trigger on
-            the right so the brand reads first and the menu sits where
-            a thumb naturally lands. */}
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-border/60 px-3 md:hidden">
+        {/* Mobile-only header — sidebar trigger on the left where a thumb
+            naturally lands, logo on the right; the app name is absolutely
+            centered in the bar. */}
+        <header className="relative flex h-12 shrink-0 items-center justify-between border-b border-border/60 px-3 md:hidden">
+          <SidebarTrigger />
           <Link
             to="/overview"
-            className="flex items-center hover:opacity-90 transition-opacity"
+            className="absolute left-1/2 flex -translate-x-1/2 items-center transition-opacity hover:opacity-90"
             aria-label={t("nav.home")}
           >
-            <Logo className="size-7" />
+            <span className="text-sm font-semibold">{APP_DISPLAY_NAME}</span>
           </Link>
-          <SidebarTrigger />
+          <Logo className="size-7" />
         </header>
 
         <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-auto px-4 py-3 md:px-6 md:py-4">

@@ -1,7 +1,7 @@
 import type { DriveOwnerType } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
-import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, ne, or } from "drizzle-orm";
 import {
   buildDownloadResponse,
   getFileById,
@@ -181,6 +181,50 @@ export async function listFavoriteDriveEntries(db: AppDatabase, userId: string):
       eq(driveEntries.status, "normal"),
     ))
     .orderBy(desc(driveEntries.updatedAt), desc(driveEntries.id))
+    .all();
+  return rows.map(composeDriveEntryView);
+}
+
+/**
+ * Name search across an explicit set of drive owners (normal-status files
+ * only). The caller resolves which owners are visible to the user (personal
+ * drive + accessible team directories + member projects) and passes them in,
+ * so this query carries no permission logic of its own.
+ */
+export async function searchDriveEntriesByOwners(
+  db: AppDatabase,
+  owners: readonly DriveOwner[],
+  q: string,
+  limit: number,
+): Promise<readonly DriveEntryView[]> {
+  const term = q.trim();
+  if (owners.length === 0 || term.length === 0)
+    return [];
+
+  const ownerClause = or(
+    ...owners.map(o => and(eq(driveEntries.ownerType, o.ownerType), eq(driveEntries.ownerId, o.ownerId))),
+  );
+  const pattern = `%${term.replace(/[%_]/g, "\\$&")}%`;
+
+  const rows = await db
+    .select({
+      entry: driveEntries,
+      fileId: fileReferences.fileId,
+      filename: fileReferences.filename,
+      mimetype: files.mimetype,
+      size: files.size,
+    })
+    .from(driveEntries)
+    .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
+    .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .where(and(
+      ownerClause,
+      eq(driveEntries.entryType, "file"),
+      eq(driveEntries.status, "normal"),
+      like(driveEntries.name, pattern),
+    ))
+    .orderBy(desc(driveEntries.updatedAt), desc(driveEntries.id))
+    .limit(limit)
     .all();
   return rows.map(composeDriveEntryView);
 }

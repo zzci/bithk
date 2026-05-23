@@ -1,8 +1,12 @@
 import type { MemberRole, MemberType, ProjectStatus } from "./schema";
 import type { AppDatabase } from "@/db";
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { projectMembers, projects } from "./schema";
+
+function escapeLike(v: string): string {
+  return v.replace(/[%_]/g, "\\$&");
+}
 
 export type ProjectRow = typeof projects.$inferSelect;
 export type ProjectMemberRow = typeof projectMembers.$inferSelect;
@@ -143,6 +147,8 @@ export async function resolveProjectId(db: AppDatabase, shortId: string): Promis
 
 export interface ListProjectParams {
   readonly status?: ProjectStatus | undefined;
+  // Title search: matches project name or code (LIKE, escaped).
+  readonly q?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
   // When set (non-admin callers), restrict the list to projects this user is a
@@ -163,6 +169,10 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
   const conditions = [isNull(projects.deletedAt)];
   if (params.status)
     conditions.push(eq(projects.status, params.status));
+  if (params.q) {
+    const pattern = `%${escapeLike(params.q)}%`;
+    conditions.push(or(like(projects.name, pattern), like(projects.code, pattern))!);
+  }
   if (params.memberUserId !== undefined) {
     const memberProjectIds = await db
       .select({ projectId: projectMembers.projectId })

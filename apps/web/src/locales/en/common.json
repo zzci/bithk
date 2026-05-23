@@ -57,5 +57,15 @@
     "home": "Home",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar"
+  },
+  "search": {
+    "title": "Search",
+    "placeholder": "Search documents, issues, projects, files…",
+    "quickEntry": "Quick entry",
+    "noResults": "No results",
+    "documents": "Documents",
+    "issues": "Issues",
+    "projects": "Projects",
+    "drive": "Files"
   }
 }

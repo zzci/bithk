@@ -1,7 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronUp, Languages, LogOut, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, Settings, Sun } from "lucide-react";
-import { useState } from "react";
+import { ChevronsUpDown, Languages, LogOut, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, Search, Settings, Sun } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CommandPalette } from "@/shared/components/command-palette";
 import { Logo } from "@/shared/components/logo";
 import { SettingsDialog } from "@/shared/components/settings-dialog";
 import { getNavItems } from "@/shared/components/sidebar/registry";
@@ -149,14 +150,29 @@ export function AppSidebar() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const overviewNav = getNavItems("overview");
   const adminNav = getNavItems("admin");
+
+  // Global ⌘/Ctrl+K opens the command palette. ⌘B (sidebar toggle) is owned
+  // by the Sidebar component and untouched.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <TooltipProvider delay={120}>
       <Sidebar collapsible="icon">
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+        <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
 
         {/* Header — locked to exactly 44px so the +1px SidebarSeparator
             below totals 45px. Documents-sidebar's `h-[45px] border-b`
@@ -197,20 +213,36 @@ export function AppSidebar() {
 
         {/* Nav */}
         <SidebarContent>
-          {/* Overview nav */}
+          {/* Overview nav. Search sits right below the overview entry as a
+              normal menu item — same styling, with a ⌘K hint on the right —
+              and opens the command palette (also bound to ⌘/Ctrl+K). */}
           <SidebarGroup>
             <SidebarMenu>
               {overviewNav.map(item => (
-                <SidebarMenuItem key={item.key}>
-                  <SidebarMenuButton
-                    isActive={isNavActive(item, currentPath)}
-                    render={<Link to={item.path} />}
-                    tooltip={t(item.labelKey ?? `common:nav.${item.key}`)}
-                  >
-                    <item.icon />
-                    <span>{t(item.labelKey ?? `common:nav.${item.key}`)}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <Fragment key={item.key}>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={isNavActive(item, currentPath)}
+                      render={<Link to={item.path} />}
+                      tooltip={t(item.labelKey ?? `common:nav.${item.key}`)}
+                    >
+                      <item.icon />
+                      <span>{t(item.labelKey ?? `common:nav.${item.key}`)}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {item.key === "overview" && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        onClick={() => setSearchOpen(true)}
+                        tooltip={t("common:search.title")}
+                      >
+                        <Search />
+                        <span>{t("common:search.title")}</span>
+                        <kbd className="ml-auto hidden text-[10px] text-muted-foreground/70 group-data-[collapsible=icon]:hidden md:inline">⌘K</kbd>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                </Fragment>
               ))}
             </SidebarMenu>
           </SidebarGroup>
@@ -253,13 +285,12 @@ export function AppSidebar() {
                         {getInitials(user.name)}
                       </AvatarFallback>
                     </Avatar>
-                    {/* Name + email stack. Hidden in icon mode along
-                        with the chevron — only the avatar remains. */}
+                    {/* Name only. Hidden in icon mode along with the
+                        chevron — only the avatar remains. */}
                     <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
                       <span className="truncate text-sm font-medium">{user.name}</span>
-                      <span className="truncate text-xs text-muted-foreground">{user.email}</span>
                     </div>
-                    <ChevronUp className="ml-auto size-4 text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden" />
+                    <ChevronsUpDown className="ml-auto size-4 text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-[var(--anchor-width)] min-w-48">
                     <div className="flex items-center gap-2 px-2 py-1.5">
