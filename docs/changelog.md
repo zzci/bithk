@@ -13,6 +13,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Markdown editor source view: a toolbar toggle (`FileCode2`) switches the
+  Milkdown surface in place to an editable raw-markdown view backed by a
+  CodeMirror 6 instance (markdown highlighting, line wrapping). Edits stream
+  back into Milkdown on toggle-back; the CodeMirror chunk is lazy-loaded so
+  WYSIWYG-only use never pays for it. Shown in full (non-compact) editors
+  only. EN/ZH i18n. See FEAT-003 / PLAN-003.
 - Drive web UI: a three-tab page (My files / Team directories / Shared
   with me) assembling the file browser, share dialog + lists, team-directory
   list + member management, and file preview into one route, with full

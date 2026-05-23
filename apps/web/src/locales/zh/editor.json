@@ -16,5 +16,7 @@
   "quote": "引用",
   "codeBlock": "代码块",
   "table": "表格",
-  "horizontalRule": "分隔线"
+  "horizontalRule": "分隔线",
+  "viewSource": "查看源码",
+  "backToEditor": "返回编辑器"
 }

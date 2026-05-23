@@ -16,5 +16,7 @@
   "quote": "Quote",
   "codeBlock": "Code block",
   "table": "Table",
-  "horizontalRule": "Horizontal rule"
+  "horizontalRule": "Horizontal rule",
+  "viewSource": "View source",
+  "backToEditor": "Back to editor"
 }

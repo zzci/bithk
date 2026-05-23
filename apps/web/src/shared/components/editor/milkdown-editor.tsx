@@ -49,6 +49,7 @@ import {
   Code,
   Code2,
   Columns3,
+  FileCode2,
   Heading1,
   Heading2,
   Heading3,
@@ -65,7 +66,7 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
@@ -81,6 +82,10 @@ import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 
 import "./milkdown-editor.css";
+
+// CodeMirror is only pulled in when the source view actually opens, so the
+// WYSIWYG-only path never pays for it.
+const LazyMarkdownSourceView = lazy(() => import("./markdown-source-view"));
 
 interface MilkdownMarkdownEditorProps {
   readonly value?: string | undefined;
@@ -276,9 +281,14 @@ function createTaskListItemNodeView(
 function Toolbar({
   compact,
   floating,
+  sourceMode,
+  onToggleSource,
 }: {
   readonly compact?: boolean | undefined;
   readonly floating?: boolean | undefined;
+  readonly sourceMode?: boolean | undefined;
+  // Undefined hides the source toggle entirely (compact surfaces don't get it).
+  readonly onToggleSource?: (() => void) | undefined;
 }) {
   const { t } = useTranslation("editor");
   const [loading, getInstance] = useInstance();
@@ -326,108 +336,125 @@ function Toolbar({
             : "border-b",
         )}
       >
-        <ToolbarButton
-          icon={<Undo2 className={iconCls} />}
-          title={t("undo", "Undo")}
-          onClick={() => run(callCommand(undoCommand.key))}
-        />
-        <ToolbarButton
-          icon={<Redo2 className={iconCls} />}
-          title={t("redo", "Redo")}
-          onClick={() => run(callCommand(redoCommand.key))}
-        />
-        {!compact && (
+        {/* Source mode keeps the toolbar layout fixed and just disables the
+            formatting controls (they target the now-hidden WYSIWYG surface).
+            A `display: contents` fieldset disables every nested button at
+            once without adding a layout box; the source toggle stays outside
+            it so it remains usable. */}
+        <fieldset disabled={sourceMode} className="contents">
+          <ToolbarButton
+            icon={<Undo2 className={iconCls} />}
+            title={t("undo", "Undo")}
+            onClick={() => run(callCommand(undoCommand.key))}
+          />
+          <ToolbarButton
+            icon={<Redo2 className={iconCls} />}
+            title={t("redo", "Redo")}
+            onClick={() => run(callCommand(redoCommand.key))}
+          />
+          {!compact && (
+            <>
+              <Divider />
+              <ToolbarButton icon={<Heading1 className={iconCls} />} title={t("heading1", "Heading 1")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 1))} />
+              <ToolbarButton icon={<Heading2 className={iconCls} />} title={t("heading2", "Heading 2")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 2))} />
+              <ToolbarButton icon={<Heading3 className={iconCls} />} title={t("heading3", "Heading 3")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 3))} />
+            </>
+          )}
+          <Divider />
+          <ToolbarButton
+            icon={<Bold className={iconCls} />}
+            title={t("bold")}
+            onClick={() => run(callCommand(toggleStrongCommand.key))}
+          />
+          <ToolbarButton
+            icon={<Italic className={iconCls} />}
+            title={t("italic")}
+            onClick={() => run(callCommand(toggleEmphasisCommand.key))}
+          />
+          {!compact && (
+            <ToolbarButton
+              icon={<Strikethrough className={iconCls} />}
+              title={t("strikethrough")}
+              onClick={() => run(callCommand(toggleStrikethroughCommand.key))}
+            />
+          )}
+          <ToolbarButton
+            icon={<Code className={iconCls} />}
+            title={t("inlineCode")}
+            onClick={() => run(callCommand(toggleInlineCodeCommand.key))}
+          />
+          <ToolbarButton
+            icon={<LinkIcon className={iconCls} />}
+            title={t("link")}
+            onClick={openLinkDialog}
+          />
+          <Divider />
+          <ToolbarButton
+            icon={<List className={iconCls} />}
+            title={t("bulletList")}
+            onClick={() => run(callCommand(wrapInBulletListCommand.key))}
+          />
+          <ToolbarButton
+            icon={<ListOrdered className={iconCls} />}
+            title={t("orderedList")}
+            onClick={() => run(callCommand(wrapInOrderedListCommand.key))}
+          />
+          {!compact && (
+            <ToolbarButton
+              icon={<CheckSquare className={iconCls} />}
+              title={t("taskList")}
+              onClick={() => run(toggleTaskList)}
+            />
+          )}
+          {!compact && (
+            <>
+              <Divider />
+              <ToolbarButton
+                icon={<Quote className={iconCls} />}
+                title={t("quote")}
+                onClick={() => run(toggleBlockquote)}
+              />
+              <ToolbarButton
+                icon={<Code2 className={iconCls} />}
+                title={t("codeBlock")}
+                onClick={() => run(callCommand(createCodeBlockCommand.key))}
+              />
+              <Divider />
+              <ToolbarButton
+                icon={<TableIcon className={iconCls} />}
+                title={t("table")}
+                onClick={() => run(callCommand(insertTableCommand.key))}
+              />
+              <ToolbarButton
+                icon={<Rows3 className={iconCls} />}
+                title={t("tableAddRow", "Add row")}
+                onClick={() => run(callCommand(addRowAfterCommand.key))}
+              />
+              <ToolbarButton
+                icon={<Columns3 className={iconCls} />}
+                title={t("tableAddColumn", "Add column")}
+                onClick={() => run(callCommand(addColAfterCommand.key))}
+              />
+              <ToolbarButton
+                icon={<Trash2 className={iconCls} />}
+                title={t("tableDelete", "Delete row/column")}
+                onClick={() => run(callCommand(deleteSelectedCellsCommand.key))}
+              />
+              <ToolbarButton
+                icon={<Minus className={iconCls} />}
+                title={t("horizontalRule")}
+                onClick={() => run(callCommand(insertHrCommand.key))}
+              />
+            </>
+          )}
+        </fieldset>
+        {onToggleSource && (
           <>
             <Divider />
-            <ToolbarButton icon={<Heading1 className={iconCls} />} title={t("heading1", "Heading 1")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 1))} />
-            <ToolbarButton icon={<Heading2 className={iconCls} />} title={t("heading2", "Heading 2")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 2))} />
-            <ToolbarButton icon={<Heading3 className={iconCls} />} title={t("heading3", "Heading 3")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 3))} />
-          </>
-        )}
-        <Divider />
-        <ToolbarButton
-          icon={<Bold className={iconCls} />}
-          title={t("bold")}
-          onClick={() => run(callCommand(toggleStrongCommand.key))}
-        />
-        <ToolbarButton
-          icon={<Italic className={iconCls} />}
-          title={t("italic")}
-          onClick={() => run(callCommand(toggleEmphasisCommand.key))}
-        />
-        {!compact && (
-          <ToolbarButton
-            icon={<Strikethrough className={iconCls} />}
-            title={t("strikethrough")}
-            onClick={() => run(callCommand(toggleStrikethroughCommand.key))}
-          />
-        )}
-        <ToolbarButton
-          icon={<Code className={iconCls} />}
-          title={t("inlineCode")}
-          onClick={() => run(callCommand(toggleInlineCodeCommand.key))}
-        />
-        <ToolbarButton
-          icon={<LinkIcon className={iconCls} />}
-          title={t("link")}
-          onClick={openLinkDialog}
-        />
-        <Divider />
-        <ToolbarButton
-          icon={<List className={iconCls} />}
-          title={t("bulletList")}
-          onClick={() => run(callCommand(wrapInBulletListCommand.key))}
-        />
-        <ToolbarButton
-          icon={<ListOrdered className={iconCls} />}
-          title={t("orderedList")}
-          onClick={() => run(callCommand(wrapInOrderedListCommand.key))}
-        />
-        {!compact && (
-          <ToolbarButton
-            icon={<CheckSquare className={iconCls} />}
-            title={t("taskList")}
-            onClick={() => run(toggleTaskList)}
-          />
-        )}
-        {!compact && (
-          <>
-            <Divider />
             <ToolbarButton
-              icon={<Quote className={iconCls} />}
-              title={t("quote")}
-              onClick={() => run(toggleBlockquote)}
-            />
-            <ToolbarButton
-              icon={<Code2 className={iconCls} />}
-              title={t("codeBlock")}
-              onClick={() => run(callCommand(createCodeBlockCommand.key))}
-            />
-            <Divider />
-            <ToolbarButton
-              icon={<TableIcon className={iconCls} />}
-              title={t("table")}
-              onClick={() => run(callCommand(insertTableCommand.key))}
-            />
-            <ToolbarButton
-              icon={<Rows3 className={iconCls} />}
-              title={t("tableAddRow", "Add row")}
-              onClick={() => run(callCommand(addRowAfterCommand.key))}
-            />
-            <ToolbarButton
-              icon={<Columns3 className={iconCls} />}
-              title={t("tableAddColumn", "Add column")}
-              onClick={() => run(callCommand(addColAfterCommand.key))}
-            />
-            <ToolbarButton
-              icon={<Trash2 className={iconCls} />}
-              title={t("tableDelete", "Delete row/column")}
-              onClick={() => run(callCommand(deleteSelectedCellsCommand.key))}
-            />
-            <ToolbarButton
-              icon={<Minus className={iconCls} />}
-              title={t("horizontalRule")}
-              onClick={() => run(callCommand(insertHrCommand.key))}
+              icon={<FileCode2 className={iconCls} />}
+              title={sourceMode ? t("backToEditor", "Back to editor") : t("viewSource", "View source")}
+              onClick={() => onToggleSource()}
             />
           </>
         )}
@@ -544,11 +571,37 @@ function EditorBody({
 }: EditorBodyProps) {
   const { t } = useTranslation("editor");
   const [isEmpty, setIsEmpty] = useState(initialValue.trim() === "");
+  const [sourceMode, setSourceMode] = useState(false);
+  const [loading, getInstance] = useInstance();
 
   // Pin onChange in a ref so the editor factory (which runs once) always
   // sees the latest callback without re-creating the editor on every render.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  // Source-view edits stream straight into the shared markdown ref + onChange,
+  // exactly like the WYSIWYG listener — so the parent never knows which mode
+  // produced the change.
+  const handleSourceChange = (md: string) => {
+    if (md === lastEmittedRef.current)
+      return;
+    lastEmittedRef.current = md;
+    onChangeRef.current?.(md);
+  };
+
+  // Toggle WYSIWYG <-> source in place. Leaving source view pushes the edited
+  // markdown back into Milkdown via replaceAll (its doc is stale while the
+  // source view owns editing).
+  const toggleSource = () => {
+    if (sourceMode) {
+      if (!loading)
+        getInstance()?.action(replaceAll(lastEmittedRef.current));
+      setSourceMode(false);
+    }
+    else {
+      setSourceMode(true);
+    }
+  };
 
   useEditor(root =>
     Editor.make()
@@ -589,13 +642,25 @@ function EditorBody({
 
   return (
     <>
-      <Toolbar compact={compact} floating={floatingToolbar} />
+      <Toolbar
+        compact={compact}
+        floating={floatingToolbar}
+        sourceMode={sourceMode}
+        onToggleSource={compact ? undefined : toggleSource}
+      />
       <div className="md-editor-shell" style={{ minHeight: effectiveMinHeight }}>
-        <Milkdown />
-        {isEmpty && <div className="md-editor-placeholder">{placeholderText}</div>}
+        <div className={cn(sourceMode && "hidden")}>
+          <Milkdown />
+          {isEmpty && !sourceMode && <div className="md-editor-placeholder">{placeholderText}</div>}
+        </div>
+        {sourceMode && (
+          <Suspense fallback={null}>
+            <LazyMarkdownSourceView initialValue={lastEmittedRef.current} onChange={handleSourceChange} />
+          </Suspense>
+        )}
       </div>
       <EmptyTracker initial={initialValue} setIsEmpty={setIsEmpty} />
-      {controlledValue !== undefined && <ExternalValueSync value={controlledValue} lastEmittedRef={lastEmittedRef} />}
+      {controlledValue !== undefined && !sourceMode && <ExternalValueSync value={controlledValue} lastEmittedRef={lastEmittedRef} />}
     </>
   );
 }

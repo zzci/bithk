@@ -120,6 +120,42 @@
   user-select: none;
 }
 
+/* ── Source view (CodeMirror) ──
+   The raw-markdown surface. CodeMirror grows with its content (no fixed
+   height) so the shell stays the single scroll container, matching the
+   WYSIWYG surface. Transparent chrome + monospace content keeps it visually
+   part of the editor card. */
+.md-source-view .cm-editor {
+  background: transparent;
+  font-size: 0.875rem;
+}
+.md-source-view .cm-editor.cm-focused {
+  outline: none;
+}
+.md-source-view .cm-scroller {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+  line-height: 1.6;
+}
+.md-source-view .cm-content {
+  padding: 0.75rem 0;
+}
+.md-source-view .cm-gutters {
+  background: transparent;
+  border: none;
+  color: var(--color-muted-foreground);
+}
+.md-source-view .cm-activeLine,
+.md-source-view .cm-activeLineGutter {
+  background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+}
+.md-source-view .cm-cursor {
+  border-left-color: var(--color-foreground);
+}
+.md-source-view .cm-selectionBackground,
+.md-source-view .cm-focused .cm-selectionBackground {
+  background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
 /* ── Block elements ── */
 :is(.md-editor, .md-preview) .ProseMirror p {
   margin: 0 0 0.5rem 0;
