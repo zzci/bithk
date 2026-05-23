@@ -13,6 +13,20 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Engineering project management: a new `project` aggregate module
+  (`projects` + a single `project_members` table for internal users and
+  external supplier/webhook actors, promotable in place), a `procurement`
+  `item` sub-type (5-state lifecycle, comment-based event log, grant-gated
+  fail-closed visibility), a project dimension on `issue` (nullable
+  `project_id` + `assignee_member_id`; personal issues unchanged), and a
+  `project` drive `ownerType` (capabilities resolved against
+  `project_members`, addressed by project shortId). Assignment targets are
+  `project_members.id` so external members can be assigned without a
+  `users` row. Admin-only project creation; project read is member-scoped.
+  Portal frontend: project list + detail (Overview / Issues / Procurement /
+  Files / Members tabs), member management, reused drive FileBrowser, EN/ZH
+  i18n. Inbound/outbound events are designed only (see
+  [project module doc](modules/project.md)). See FEAT-004 / PLAN-004.
 - Markdown editor source view: a toolbar toggle (`FileCode2`) switches the
   Milkdown surface in place to an editable raw-markdown view backed by a
   CodeMirror 6 instance (markdown highlighting, line wrapping). Edits stream

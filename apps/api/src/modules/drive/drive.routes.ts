@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
 import { policyContext } from "@/modules/policy";
+import { isMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
@@ -46,14 +47,14 @@ const entryIdSchema = z.string().min(1);
 const listSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   status: z.enum(["normal", "trash"]).optional(),
-  ownerType: z.enum(["user", "team_directory"]).optional(),
+  ownerType: z.enum(["user", "team_directory", "project"]).optional(),
   ownerId: z.string().optional(),
 });
 
 const createFolderSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   name: z.string().min(1).max(255),
-  ownerType: z.enum(["user", "team_directory"]).optional(),
+  ownerType: z.enum(["user", "team_directory", "project"]).optional(),
   ownerId: z.string().optional(),
 });
 
@@ -69,7 +70,7 @@ const createTextFileSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   name: z.string().min(1).max(255),
   content: z.string(),
-  ownerType: z.enum(["user", "team_directory"]).optional(),
+  ownerType: z.enum(["user", "team_directory", "project"]).optional(),
   ownerId: z.string().optional(),
 });
 
@@ -108,6 +109,18 @@ function personalOwner(userId: string): DriveOwner {
 function actorOf(c: Context<AppEnv>): DriveAccessActor {
   const user = c.get("user")!;
   return { id: user.id, role: user.role };
+}
+
+/**
+ * Translate an inbound project shortId (the sole external project identifier)
+ * to the internal project ULID stored in `drive_entries.owner_id`. Fail-closed:
+ * a missing / soft-deleted project surfaces as 404.
+ */
+async function resolveProjectOwnerId(c: Context<AppEnv>, shortId: string): Promise<string> {
+  const projectId = await resolveProjectId(c.get("db"), shortId);
+  if (!projectId)
+    throw new AppError("Project not found", 404, "NOT_FOUND");
+  return projectId;
 }
 
 export function driveRoutes() {
@@ -550,7 +563,7 @@ export function driveRoutes() {
  */
 async function resolveListOwner(
   c: Context<AppEnv>,
-  ownerType: "user" | "team_directory" | undefined,
+  ownerType: "user" | "team_directory" | "project" | undefined,
   ownerId: string | undefined,
 ): Promise<DriveOwner> {
   const user = c.get("user")!;
@@ -559,6 +572,15 @@ async function resolveListOwner(
     if (ownerId && ownerId !== user.id)
       throw new ForbiddenError("Cannot list another user's drive");
     return personalOwner(user.id);
+  }
+
+  if (ownerType === "project") {
+    if (!ownerId)
+      throw new AppError("ownerId is required for project listing", 400, "VALIDATION_ERROR");
+    const projectId = await resolveProjectOwnerId(c, ownerId);
+    if (!(await isMember(c.get("db"), projectId, user.id)))
+      throw new ForbiddenError("You do not have access to this project");
+    return { ownerType: "project", ownerId: projectId };
   }
 
   if (!ownerId)
@@ -577,7 +599,7 @@ async function resolveListOwner(
  */
 async function resolveCreateOwner(
   c: Context<AppEnv>,
-  ownerType: "user" | "team_directory" | undefined,
+  ownerType: "user" | "team_directory" | "project" | undefined,
   ownerId: string | undefined,
 ): Promise<DriveOwner> {
   const user = c.get("user")!;
@@ -586,6 +608,16 @@ async function resolveCreateOwner(
     if (ownerId && ownerId !== user.id)
       throw new ForbiddenError("Cannot create in another user's drive");
     return personalOwner(user.id);
+  }
+
+  if (ownerType === "project") {
+    if (!ownerId)
+      throw new AppError("ownerId is required for project creation", 400, "VALIDATION_ERROR");
+    // pm and member both hold full management capabilities.
+    const projectId = await resolveProjectOwnerId(c, ownerId);
+    if (!(await isMember(c.get("db"), projectId, user.id)))
+      throw new ForbiddenError("Project membership required to create in this project");
+    return { ownerType: "project", ownerId: projectId };
   }
 
   if (!ownerId)
@@ -619,6 +651,16 @@ async function resolveUploadOwner(c: Context<AppEnv>, form: FormData): Promise<D
     if (role !== "admin" && role !== "editor")
       throw new ForbiddenError("Editor access required to upload to this team directory");
     return { ownerType: "team_directory", ownerId: ownerIdRaw };
+  }
+
+  if (ownerTypeRaw === "project") {
+    if (typeof ownerIdRaw !== "string" || !ownerIdRaw)
+      throw new AppError("ownerId is required for project uploads", 400, "VALIDATION_ERROR");
+    // pm and member both hold full management capabilities.
+    const projectId = await resolveProjectOwnerId(c, ownerIdRaw);
+    if (!(await isMember(c.get("db"), projectId, user.id)))
+      throw new ForbiddenError("Project membership required to upload to this project");
+    return { ownerType: "project", ownerId: projectId };
   }
 
   throw new AppError("Invalid ownerType", 400, "VALIDATION_ERROR");

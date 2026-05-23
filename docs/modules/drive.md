@@ -49,7 +49,7 @@ Five tables, all owned by this module (see
 
 | Table                    | Purpose                                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------------------- |
-| `drive_entries`          | Folder / file nodes. `owner_type` ∈ `{user, team_directory}`; `file_reference_id` is the current version pointer; soft delete via `status='trash'`. Unique `(owner_type, owner_id, parent_entry_id, name, status)`. |
+| `drive_entries`          | Folder / file nodes. `owner_type` ∈ `{user, team_directory, project}`; `file_reference_id` is the current version pointer; soft delete via `status='trash'`. Unique `(owner_type, owner_id, parent_entry_id, name, status)`. For `project` owners `owner_id` is the project ULID (addressed by the project `short_id` at the API boundary); capabilities resolve against `project_members` (`pm` ≈ admin, internal `member` ≈ editor). See [project.md](project.md). |
 | `team_directories`       | Shared drive roots. The creator is an implicit admin.                                     |
 | `team_directory_members` | Explicit `{admin, editor, viewer}` membership rows (creator has none).                    |
 | `drive_file_versions`    | Append-only per-entry version history (`version_no` unique per entry).                    |
@@ -289,8 +289,6 @@ item-attachment proxy is the intended first caller).
 
 ## Out of scope
 
-- **`project` ownerType** — only `user` and `team_directory` owners are
-  modelled today; a project-owned drive is deferred.
 - **Blob-data migration from backup** — the drive backup carries table
   rows only; blob bytes restore via the `files` contribution.
 - **S3 / remote storage driver** — drive uses whatever driver the `file`

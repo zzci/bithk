@@ -4,9 +4,10 @@ import { issueDetails } from "@/modules/issue/schema";
 export const issueBackupContribution: BackupContribution = {
   name: "issues",
   tables: [issueDetails],
-  // issue_details FK → items.id; items / item_comments / item_attachments
-  // and the policy tuples that carry assignee + share state come from the
-  // base `items` and `policies` contributions. Listing them as deps keeps
-  // the topological insert order correct on restore.
-  deps: ["items", "policies"],
+  // issue_details FK → items.id and (for project work orders) → projects.id /
+  // project_members.id. items / item_comments / item_attachments and the policy
+  // tuples that carry assignee + share state come from the base `items` and
+  // `policies` contributions. Listing all of them as deps keeps the topological
+  // insert order correct on restore.
+  deps: ["items", "policies", "projects"],
 };

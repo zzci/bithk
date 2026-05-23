@@ -9,7 +9,7 @@ export type DriveEntryType = typeof DRIVE_ENTRY_TYPES[number];
 export const DRIVE_ENTRY_STATUSES = ["normal", "trash"] as const;
 export type DriveEntryStatus = typeof DRIVE_ENTRY_STATUSES[number];
 
-export const DRIVE_OWNER_TYPES = ["user", "team_directory"] as const;
+export const DRIVE_OWNER_TYPES = ["user", "team_directory", "project"] as const;
 export type DriveOwnerType = typeof DRIVE_OWNER_TYPES[number];
 
 export const TEAM_DIRECTORY_ROLES = ["admin", "editor", "viewer"] as const;

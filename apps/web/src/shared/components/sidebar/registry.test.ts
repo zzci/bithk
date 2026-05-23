@@ -10,7 +10,7 @@ describe("getNavItems", () => {
 
   it("returns portal entries sorted by order", () => {
     const items = getNavItems("portal");
-    expect(items.map(i => i.key)).toEqual(["portal", "myIssues", "documents", "drive"]);
+    expect(items.map(i => i.key)).toEqual(["portal", "myIssues", "documents", "drive", "projects"]);
     expect(items.every(i => i.area === "portal")).toBe(true);
   });
 });

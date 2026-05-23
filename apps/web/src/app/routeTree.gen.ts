@@ -26,9 +26,11 @@ import { Route as AppAdminSettingsRouteImport } from './routes/_app/admin/settin
 import { Route as AppAdminPoliciesRouteImport } from './routes/_app/admin/policies'
 import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
+import { Route as AppPortalProjectsIndexRouteImport } from './routes/_app/portal/projects/index'
 import { Route as AppPortalIssuesIndexRouteImport } from './routes/_app/portal/issues/index'
 import { Route as AppPortalDocumentsIndexRouteImport } from './routes/_app/portal/documents/index'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/users/index'
+import { Route as AppPortalProjectsProjectIdRouteImport } from './routes/_app/portal/projects/$projectId'
 import { Route as AppPortalIssuesIssueIdRouteImport } from './routes/_app/portal/issues/$issueId'
 import { Route as AppPortalDocumentsNewRouteImport } from './routes/_app/portal/documents/new'
 import { Route as AppPortalDocumentsDocIdRouteImport } from './routes/_app/portal/documents/$docId'
@@ -132,6 +134,13 @@ const AppAdminAuditRoute = AppAdminAuditRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/admin/audit.lazy').then((d) => d.Route),
 )
+const AppPortalProjectsIndexRoute = AppPortalProjectsIndexRouteImport.update({
+  id: '/portal/projects/',
+  path: '/portal/projects/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/portal/projects/index.lazy').then((d) => d.Route),
+)
 const AppPortalIssuesIndexRoute = AppPortalIssuesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -153,6 +162,16 @@ const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/admin/users/index.lazy').then((d) => d.Route),
 )
+const AppPortalProjectsProjectIdRoute =
+  AppPortalProjectsProjectIdRouteImport.update({
+    id: '/portal/projects/$projectId',
+    path: '/portal/projects/$projectId',
+    getParentRoute: () => AppRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/portal/projects/$projectId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AppPortalIssuesIssueIdRoute = AppPortalIssuesIssueIdRouteImport.update({
   id: '/$issueId',
   path: '/$issueId',
@@ -203,9 +222,11 @@ export interface FileRoutesByFullPath {
   '/portal/documents/$docId': typeof AppPortalDocumentsDocIdRoute
   '/portal/documents/new': typeof AppPortalDocumentsNewRoute
   '/portal/issues/$issueId': typeof AppPortalIssuesIssueIdRoute
+  '/portal/projects/$projectId': typeof AppPortalProjectsProjectIdRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
   '/portal/documents/': typeof AppPortalDocumentsIndexRoute
   '/portal/issues/': typeof AppPortalIssuesIndexRoute
+  '/portal/projects/': typeof AppPortalProjectsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -225,9 +246,11 @@ export interface FileRoutesByTo {
   '/portal/documents/$docId': typeof AppPortalDocumentsDocIdRoute
   '/portal/documents/new': typeof AppPortalDocumentsNewRoute
   '/portal/issues/$issueId': typeof AppPortalIssuesIssueIdRoute
+  '/portal/projects/$projectId': typeof AppPortalProjectsProjectIdRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
   '/portal/documents': typeof AppPortalDocumentsIndexRoute
   '/portal/issues': typeof AppPortalIssuesIndexRoute
+  '/portal/projects': typeof AppPortalProjectsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -252,9 +275,11 @@ export interface FileRoutesById {
   '/_app/portal/documents/$docId': typeof AppPortalDocumentsDocIdRoute
   '/_app/portal/documents/new': typeof AppPortalDocumentsNewRoute
   '/_app/portal/issues/$issueId': typeof AppPortalIssuesIssueIdRoute
+  '/_app/portal/projects/$projectId': typeof AppPortalProjectsProjectIdRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/portal/documents/': typeof AppPortalDocumentsIndexRoute
   '/_app/portal/issues/': typeof AppPortalIssuesIndexRoute
+  '/_app/portal/projects/': typeof AppPortalProjectsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -279,9 +304,11 @@ export interface FileRouteTypes {
     | '/portal/documents/$docId'
     | '/portal/documents/new'
     | '/portal/issues/$issueId'
+    | '/portal/projects/$projectId'
     | '/admin/users/'
     | '/portal/documents/'
     | '/portal/issues/'
+    | '/portal/projects/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -301,9 +328,11 @@ export interface FileRouteTypes {
     | '/portal/documents/$docId'
     | '/portal/documents/new'
     | '/portal/issues/$issueId'
+    | '/portal/projects/$projectId'
     | '/admin/users'
     | '/portal/documents'
     | '/portal/issues'
+    | '/portal/projects'
   id:
     | '__root__'
     | '/'
@@ -327,9 +356,11 @@ export interface FileRouteTypes {
     | '/_app/portal/documents/$docId'
     | '/_app/portal/documents/new'
     | '/_app/portal/issues/$issueId'
+    | '/_app/portal/projects/$projectId'
     | '/_app/admin/users/'
     | '/_app/portal/documents/'
     | '/_app/portal/issues/'
+    | '/_app/portal/projects/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -463,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAuditRouteImport
       parentRoute: typeof AppAdminRoute
     }
+    '/_app/portal/projects/': {
+      id: '/_app/portal/projects/'
+      path: '/portal/projects'
+      fullPath: '/portal/projects/'
+      preLoaderRoute: typeof AppPortalProjectsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/portal/issues/': {
       id: '/_app/portal/issues/'
       path: '/'
@@ -483,6 +521,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users/'
       preLoaderRoute: typeof AppAdminUsersIndexRouteImport
       parentRoute: typeof AppAdminUsersRoute
+    }
+    '/_app/portal/projects/$projectId': {
+      id: '/_app/portal/projects/$projectId'
+      path: '/portal/projects/$projectId'
+      fullPath: '/portal/projects/$projectId'
+      preLoaderRoute: typeof AppPortalProjectsProjectIdRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/portal/issues/$issueId': {
       id: '/_app/portal/issues/$issueId'
@@ -584,6 +629,8 @@ interface AppRouteChildren {
   AppPortalDriveRoute: typeof AppPortalDriveRoute
   AppPortalIssuesRoute: typeof AppPortalIssuesRouteWithChildren
   AppPortalIndexRoute: typeof AppPortalIndexRoute
+  AppPortalProjectsProjectIdRoute: typeof AppPortalProjectsProjectIdRoute
+  AppPortalProjectsIndexRoute: typeof AppPortalProjectsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -592,6 +639,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppPortalDriveRoute: AppPortalDriveRoute,
   AppPortalIssuesRoute: AppPortalIssuesRouteWithChildren,
   AppPortalIndexRoute: AppPortalIndexRoute,
+  AppPortalProjectsProjectIdRoute: AppPortalProjectsProjectIdRoute,
+  AppPortalProjectsIndexRoute: AppPortalProjectsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

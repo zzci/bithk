@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 150 routes total.
+> 152 routes total.
 
 | Method | Path |
 |---|---|
@@ -140,6 +140,8 @@
 | PATCH | `/api/policy/tuples/:id` |
 | POST | `/api/policy/tuples/batch` |
 | GET | `/api/policy/users/:id/access` |
+| GET | `/api/projects/:projectId/issues` |
+| POST | `/api/projects/:projectId/issues` |
 | GET | `/api/settings` |
 | DELETE | `/api/settings/:key` |
 | GET | `/api/settings/:key` |

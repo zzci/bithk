@@ -1,0 +1,189 @@
+{
+  "page": {
+    "title": "项目",
+    "description": "查看您参与的项目并管理相关工作。"
+  },
+  "list": {
+    "create": "创建项目",
+    "empty": "未找到项目。",
+    "loading": "正在加载项目...",
+    "total": "{{count}} 个项目",
+    "col": {
+      "name": "名称",
+      "code": "编号",
+      "status": "状态"
+    }
+  },
+  "status": {
+    "all": "全部状态",
+    "active": "进行中",
+    "archived": "已归档",
+    "closed": "已关闭"
+  },
+  "field": {
+    "name": "名称",
+    "code": "编号",
+    "description": "描述",
+    "status": "状态",
+    "startDate": "开始日期",
+    "endDate": "结束日期"
+  },
+  "create": {
+    "title": "创建项目",
+    "description": "创建一个新项目，仅名称为必填项。",
+    "submit": "创建",
+    "namePlaceholder": "项目名称",
+    "codePlaceholder": "可选编号",
+    "descriptionPlaceholder": "可选描述"
+  },
+  "edit": {
+    "title": "编辑项目",
+    "description": "更新项目详情。",
+    "submit": "保存"
+  },
+  "delete": {
+    "title": "删除项目",
+    "confirm": "确定要删除项目“{{name}}”吗？此操作无法撤销。"
+  },
+  "detail": {
+    "notFound": "项目不存在或您无权访问。",
+    "back": "返回项目列表",
+    "loading": "正在加载项目..."
+  },
+  "tabs": {
+    "overview": "概览",
+    "issues": "工单",
+    "procurement": "采购",
+    "files": "文件",
+    "members": "成员"
+  },
+  "overview": {
+    "description": "描述",
+    "noDescription": "暂无描述。",
+    "status": "状态",
+    "dates": "日期",
+    "creator": "创建者",
+    "members": "成员",
+    "memberCount": "{{count}} 名成员",
+    "notSet": "未设置",
+    "dateRange": "{{start}} – {{end}}"
+  },
+  "issues": {
+    "create": "创建工单",
+    "empty": "未找到工单。",
+    "loading": "正在加载工单...",
+    "searchPlaceholder": "搜索工单...",
+    "allStatuses": "全部状态",
+    "allPriorities": "全部优先级",
+    "unassigned": "未分配",
+    "total": "{{count}} 个工单",
+    "col": {
+      "title": "标题",
+      "status": "状态",
+      "priority": "优先级",
+      "assignee": "负责人",
+      "dueDate": "截止日期"
+    },
+    "field": {
+      "title": "标题",
+      "description": "描述",
+      "descriptionPlaceholder": "添加描述...",
+      "priority": "优先级",
+      "assignee": "负责人",
+      "dueDate": "截止日期"
+    },
+    "createTitle": "创建工单",
+    "createDescription": "为该项目添加一个新工单。",
+    "status": {
+      "open": "待处理",
+      "in_progress": "进行中",
+      "done": "已完成",
+      "cancelled": "已取消"
+    },
+    "priority": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "urgent": "紧急"
+    }
+  },
+  "procurement": {
+    "create": "创建采购",
+    "empty": "未找到采购记录。",
+    "loading": "正在加载采购...",
+    "allStatuses": "全部状态",
+    "total": "{{count}} 条记录",
+    "none": "无",
+    "col": {
+      "itemName": "物品",
+      "status": "状态",
+      "amount": "金额",
+      "supplier": "供应商",
+      "assignee": "负责人",
+      "actions": "操作"
+    },
+    "field": {
+      "itemName": "物品名称",
+      "title": "标题",
+      "supplier": "供应商",
+      "assignee": "负责人",
+      "quantity": "数量",
+      "amount": "金额",
+      "currency": "货币"
+    },
+    "createTitle": "创建采购",
+    "createDescription": "为该项目添加一条新的采购记录。",
+    "changeStatus": "变更状态",
+    "delete": {
+      "title": "删除采购",
+      "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"
+    },
+    "status": {
+      "draft": "草稿",
+      "requested": "已申请",
+      "ordered": "已下单",
+      "received": "已收货",
+      "closed": "已关闭"
+    }
+  },
+  "members": {
+    "add": "添加成员",
+    "empty": "暂无成员。",
+    "col": {
+      "member": "成员",
+      "type": "类型",
+      "role": "角色",
+      "procurement": "采购权限",
+      "actions": "操作"
+    },
+    "type": {
+      "internal": "内部",
+      "external": "外部"
+    },
+    "role": {
+      "pm": "项目经理",
+      "member": "成员"
+    },
+    "yes": "是",
+    "no": "否",
+    "addTitle": "添加成员",
+    "addDescription": "为该项目添加一名内部用户或外部参与者。",
+    "editTitle": "编辑成员",
+    "editDescription": "更新成员的角色与权限。",
+    "field": {
+      "memberType": "成员类型",
+      "user": "用户",
+      "role": "角色",
+      "displayName": "显示名称",
+      "externalRef": "外部引用",
+      "supplierInfo": "供应商信息",
+      "canViewProcurement": "可查看采购"
+    },
+    "promote": "提升为内部用户",
+    "selectUser": "选择用户",
+    "delete": {
+      "title": "移除成员",
+      "confirm": "确定要将该成员从项目中移除吗？"
+    }
+  }
+}

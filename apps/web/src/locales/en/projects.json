@@ -1,0 +1,189 @@
+{
+  "page": {
+    "title": "Projects",
+    "description": "Browse projects you belong to and manage their work."
+  },
+  "list": {
+    "create": "Create project",
+    "empty": "No projects found.",
+    "loading": "Loading projects...",
+    "total": "{{count}} projects",
+    "col": {
+      "name": "Name",
+      "code": "Code",
+      "status": "Status"
+    }
+  },
+  "status": {
+    "all": "All statuses",
+    "active": "Active",
+    "archived": "Archived",
+    "closed": "Closed"
+  },
+  "field": {
+    "name": "Name",
+    "code": "Code",
+    "description": "Description",
+    "status": "Status",
+    "startDate": "Start date",
+    "endDate": "End date"
+  },
+  "create": {
+    "title": "Create project",
+    "description": "Create a new project. Only the name is required.",
+    "submit": "Create",
+    "namePlaceholder": "Project name",
+    "codePlaceholder": "Optional code",
+    "descriptionPlaceholder": "Optional description"
+  },
+  "edit": {
+    "title": "Edit project",
+    "description": "Update project details.",
+    "submit": "Save"
+  },
+  "delete": {
+    "title": "Delete project",
+    "confirm": "Are you sure you want to delete the project \"{{name}}\"? This action cannot be undone."
+  },
+  "detail": {
+    "notFound": "Project not found or you do not have access.",
+    "back": "Back to projects",
+    "loading": "Loading project..."
+  },
+  "tabs": {
+    "overview": "Overview",
+    "issues": "Work Orders",
+    "procurement": "Procurement",
+    "files": "Files",
+    "members": "Members"
+  },
+  "overview": {
+    "description": "Description",
+    "noDescription": "No description provided.",
+    "status": "Status",
+    "dates": "Dates",
+    "creator": "Creator",
+    "members": "Members",
+    "memberCount": "{{count}} members",
+    "notSet": "Not set",
+    "dateRange": "{{start}} – {{end}}"
+  },
+  "issues": {
+    "create": "Create work order",
+    "empty": "No work orders found.",
+    "loading": "Loading work orders...",
+    "searchPlaceholder": "Search work orders...",
+    "allStatuses": "All statuses",
+    "allPriorities": "All priorities",
+    "unassigned": "Unassigned",
+    "total": "{{count}} work orders",
+    "col": {
+      "title": "Title",
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "dueDate": "Due date"
+    },
+    "field": {
+      "title": "Title",
+      "description": "Description",
+      "descriptionPlaceholder": "Add a description...",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "dueDate": "Due date"
+    },
+    "createTitle": "Create work order",
+    "createDescription": "Add a new work order to this project.",
+    "status": {
+      "open": "Open",
+      "in_progress": "In Progress",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    }
+  },
+  "procurement": {
+    "create": "Create procurement",
+    "empty": "No procurement records found.",
+    "loading": "Loading procurement...",
+    "allStatuses": "All statuses",
+    "total": "{{count}} records",
+    "none": "None",
+    "col": {
+      "itemName": "Item",
+      "status": "Status",
+      "amount": "Amount",
+      "supplier": "Supplier",
+      "assignee": "Assignee",
+      "actions": "Actions"
+    },
+    "field": {
+      "itemName": "Item name",
+      "title": "Title",
+      "supplier": "Supplier",
+      "assignee": "Assignee",
+      "quantity": "Quantity",
+      "amount": "Amount",
+      "currency": "Currency"
+    },
+    "createTitle": "Create procurement",
+    "createDescription": "Add a new procurement record to this project.",
+    "changeStatus": "Change status",
+    "delete": {
+      "title": "Delete procurement",
+      "confirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+    },
+    "status": {
+      "draft": "Draft",
+      "requested": "Requested",
+      "ordered": "Ordered",
+      "received": "Received",
+      "closed": "Closed"
+    }
+  },
+  "members": {
+    "add": "Add member",
+    "empty": "No members yet.",
+    "col": {
+      "member": "Member",
+      "type": "Type",
+      "role": "Role",
+      "procurement": "Procurement access",
+      "actions": "Actions"
+    },
+    "type": {
+      "internal": "Internal",
+      "external": "External"
+    },
+    "role": {
+      "pm": "Project manager",
+      "member": "Member"
+    },
+    "yes": "Yes",
+    "no": "No",
+    "addTitle": "Add member",
+    "addDescription": "Add an internal user or an external participant to this project.",
+    "editTitle": "Edit member",
+    "editDescription": "Update the member's role and access.",
+    "field": {
+      "memberType": "Member type",
+      "user": "User",
+      "role": "Role",
+      "displayName": "Display name",
+      "externalRef": "External reference",
+      "supplierInfo": "Supplier info",
+      "canViewProcurement": "Can view procurement"
+    },
+    "promote": "Promote to internal user",
+    "selectUser": "Select a user",
+    "delete": {
+      "title": "Remove member",
+      "confirm": "Are you sure you want to remove this member from the project?"
+    }
+  }
+}

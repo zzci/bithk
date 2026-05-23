@@ -13,6 +13,7 @@ import {
   uploadAndReference,
 } from "@/modules/file";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
+import { getRole, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
@@ -20,6 +21,7 @@ import {
   createIssue,
   getIssueByShortId,
   getUserById,
+  listByProject,
   listIssues,
   listMyIssues,
   resolveAccess,
@@ -47,11 +49,39 @@ const updateSchema = z.object({
   message: "At least one field must be provided",
 });
 
+// Project work order: the assignment target is a `project_members.id`, not a
+// user id. The project comes from the `:projectId` path param.
+const createProjectIssueSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().max(2000).optional(),
+  status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  assigneeMemberId: z.string().min(1).optional(),
+  dueDate: z.string().max(30).optional(),
+});
+
 function auditMeta(c: Context) {
   return {
     ip: getClientIp(c),
     userAgent: c.req.header("user-agent") ?? "unknown",
   };
+}
+
+/**
+ * Resolve a project's internal id from its short id and assert the actor is a
+ * member. Fail-closed: a missing project and a non-member both surface as 404
+ * so project membership and project-issue existence are never leaked.
+ */
+async function requireProjectMember(c: Context<AppEnv>, shortId: string): Promise<string> {
+  const db = c.get("db");
+  const userId = c.get("user")!.id;
+  const projectId = await resolveProjectId(db, shortId);
+  if (!projectId)
+    throw new NotFoundError("Project", shortId);
+  const role = await getRole(db, projectId, userId);
+  if (role === null)
+    throw new NotFoundError("Project", shortId);
+  return projectId;
 }
 
 export function issueRoutes() {
@@ -121,6 +151,55 @@ export function issueRoutes() {
         result: "success",
       });
     }
+
+    return c.json({ success: true, data: issue }, 201);
+  });
+
+  // ─── Project work orders ───────────────────────────────────────────
+  // List a project's issues. Member-gated; non-members get a fail-closed 404.
+  router.get("/projects/:projectId/issues", async (c) => {
+    const projectId = await requireProjectMember(c, c.req.param("projectId"));
+    const db = c.get("db");
+    const q = c.req.query("q");
+    const status = c.req.query("status");
+    const priority = c.req.query("priority");
+    const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
+    const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
+
+    const result = await listByProject(db, { projectId, q, status, priority, page, limit });
+    return c.json({
+      success: true,
+      data: result.data,
+      meta: { total: result.total, page, limit },
+    });
+  });
+
+  // Create a project issue. Member-gated; the assignee (if any) must be a
+  // member of this project — `createIssue` validates it via the project module.
+  router.post("/projects/:projectId/issues", async (c) => {
+    const shortId = c.req.param("projectId");
+    const projectId = await requireProjectMember(c, shortId);
+    const db = c.get("db");
+    const actor = c.get("user")!;
+    const body = createProjectIssueSchema.parse(await c.req.json());
+
+    const issue = await createIssue(db, {
+      ...body,
+      projectId,
+      creatorId: actor.id,
+    });
+
+    await audit(db, c.get("logger"), {
+      actorId: actor.id,
+      actorName: actor.name,
+      action: "issue.created",
+      resourceType: "issue",
+      resourceId: issue.id,
+      resourceName: issue.title,
+      detail: { projectId: shortId, ...(body.assigneeMemberId ? { assigneeMemberId: body.assigneeMemberId } : {}) },
+      ...auditMeta(c),
+      result: "success",
+    });
 
     return c.json({ success: true, data: issue }, 201);
   });

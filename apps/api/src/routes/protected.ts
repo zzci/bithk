@@ -9,6 +9,8 @@ import { driveRoutes } from "@/modules/drive";
 import { fileRoutes } from "@/modules/file";
 import { issueRoutes } from "@/modules/issue";
 import { policyRoutes } from "@/modules/policy";
+import { procurementRoutes } from "@/modules/procurement";
+import { projectRoutes } from "@/modules/project";
 import { settingsRoutes } from "@/modules/settings";
 import { shareRoutes } from "@/modules/share";
 // Side-effect import: the `item` module ships no HTTP routes; it registers
@@ -22,6 +24,8 @@ export function protectedRoutes() {
   app.route("/", accountRoutes());
   app.route("/", issueRoutes());
   app.route("/", policyRoutes());
+  app.route("/", projectRoutes());
+  app.route("/", procurementRoutes());
   app.route("/", documentRoutes());
   app.route("/", driveRoutes());
   app.route("/", shareRoutes());

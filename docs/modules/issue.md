@@ -22,7 +22,19 @@ apps/api/src/modules/issue/
 
 | Table           | Purpose                                                                                                                              |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `issue_details` | Per-issue business fields keyed off `item_id` (1:1 with `items` rows where `type='issue'`). Columns: `description`, `priority`, `due_date`. |
+| `issue_details` | Per-issue business fields keyed off `item_id` (1:1 with `items` rows where `type='issue'`). Columns: `description`, `priority`, `due_date`, and the nullable project dimension `project_id` (FK → `projects`) + `assignee_member_id` (FK → `project_members`). |
+
+### Personal vs project issues
+
+`project_id` is nullable. `NULL` = a **personal issue** — the original
+behavior, unchanged: user-tuple assignment, creator/assignee route checks,
+and exclusion from project listings. A non-null `project_id` makes it a
+**project work order**: assignment targets a `project_members.id`
+(`assignee_member_id`); when the member is internal the existing
+`item:X#assignee@user:Y` tuple is also written, so "my work" lookups keep
+working, while external members get only the column. Project work orders are
+authorized by project membership (see [project.md](project.md)) and are kept
+out of the personal `/api/issues` + "my issues" lists.
 
 What does **not** live in this module:
 
@@ -50,6 +62,8 @@ Mounted under `protectedRoutes`; every route requires `authRequired`.
 | GET    | `/api/issues/:id/attachments/:aid`            | Download. `:aid` is `file_references.id`. `inline=true` opts into inline rendering for safe MIME types.       |
 | DELETE | `/api/issues/:id/attachments/:aid`            | Release the reference — async GC reclaims the blob.                                                          |
 | GET    | `/api/issues/:id/comments`, `POST`, `DELETE /:cid`, and `/:cid/attachments[/:aid]` (CRUD) | Mounted by [`mountItemCommentRoutes`](./item.md#shared-comment--attachment-routes). Internal comments are returned only to admin / creator / assignee. Comment-attachment upload is author-only. |
+| GET    | `/api/projects/:projectId/issues` | List a project's work orders (members only; non-member ⇒ 404). Filters: `q`, `status`, `priority`, `page`, `limit`. |
+| POST   | `/api/projects/:projectId/issues` | Create a project work order (members only). Body adds `assigneeMemberId` (a `project_members.id`) in place of `assigneeId`. |
 
 ## Permissions
 

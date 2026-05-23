@@ -11,5 +11,7 @@ export * from "@/modules/file/schema";
 export * from "@/modules/issue/schema";
 export * from "@/modules/item/schema";
 export * from "@/modules/policy/schema";
+export * from "@/modules/procurement/schema";
+export * from "@/modules/project/schema";
 export * from "@/modules/settings/schema";
 export * from "@/modules/share/schema";

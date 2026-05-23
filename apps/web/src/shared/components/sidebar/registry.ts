@@ -8,12 +8,14 @@ import { documentsNav } from "@/app/routes/_app/portal/-documents.nav";
 import { driveNav } from "@/app/routes/_app/portal/-drive.nav";
 import { issuesNav } from "@/app/routes/_app/portal/-issues.nav";
 import { portalNav } from "@/app/routes/_app/portal/-portal.nav";
+import { projectsNav } from "@/app/routes/_app/portal/-projects.nav";
 
 const NAV_ITEMS: readonly NavItem[] = [
   portalNav,
   issuesNav,
   documentsNav,
   driveNav,
+  projectsNav,
   usersNav,
   policiesNav,
   auditNav,

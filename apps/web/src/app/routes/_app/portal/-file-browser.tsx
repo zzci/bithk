@@ -173,7 +173,7 @@ export function FileBrowser({
 
   const toolbar: FolderToolbarConfig = {
     kind: "folder",
-    ownerType: ownerType === "team_directory" ? "team" : "user",
+    ownerType: ownerType === "team_directory" ? "team" : ownerType,
     folderPath: [
       { id: null, name: rootLabel ?? t("browser.breadcrumbRoot") },
       ...folderStack.map(crumb => ({ id: crumb.id, name: crumb.name })),

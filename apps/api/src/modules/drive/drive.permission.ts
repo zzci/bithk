@@ -4,6 +4,7 @@ import type { AppDatabase } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { and, eq } from "drizzle-orm";
 import { defineResource } from "@/modules/policy";
+import { getRole as getProjectRole } from "@/modules/project/project.service";
 import { shares } from "@/modules/share/schema";
 import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { getDirectoryRole } from "./drive.team-directory.service";
@@ -49,6 +50,9 @@ interface EntryOwnerInfo {
  * - Global `admin` actors and the personal owner get the full set.
  * - Team-directory `admin` / `editor` get full management (create / update /
  *   delete / share); `viewer` gets read + download only.
+ * - Project `pm` (admin-equivalent) and internal `member` (editor-equivalent)
+ *   get full management; non-members get nothing (fail-closed). The project
+ *   file root is protected at the route layer, not here.
  * - An active direct share to the actor is **additive**: any grant confers
  *   read + download (a recipient can always view and download what was shared
  *   with them); `edit` additionally confers update. Direct shares never confer
@@ -77,6 +81,12 @@ export async function resolveEntryCapabilities(
       caps.add("read");
       caps.add("download");
     }
+  }
+  else if (entry.ownerType === "project") {
+    const role = await getProjectRole(db, entry.ownerId, actor.id);
+    // pm ≈ team admin, member ≈ team editor: both get full management.
+    if (role === "pm" || role === "member")
+      addAll(caps);
   }
 
   const share = await db
