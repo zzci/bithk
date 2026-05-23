@@ -17,6 +17,10 @@ export default mergeConfig(
       },
     },
     test: {
+      // Component and hook tests need a DOM; pure-logic suites run fine here
+      // too. jsdom keeps the environment deterministic across CI machines.
+      environment: "jsdom",
+      setupFiles: ["./src/test/setup.ts"],
       coverage: {
         provider: "v8",
         reporter: ["text", "lcov"],
@@ -29,14 +33,19 @@ export default mergeConfig(
           "src/**/*.d.ts",
           "src/app/routeTree.gen.ts",
           "src/main.tsx",
+          // Test-only harness (render helpers, synchronous i18n) — measuring it
+          // would inflate the gate without reflecting product coverage.
+          "src/test/**",
         ],
-        // Thresholds are percentages (0-100). Conservative floors that
-        // track the current suite — raise as coverage improves.
+        // Thresholds are percentages (0-100). Floors track the current
+        // suite with a small headroom so routine churn doesn't trip the
+        // gate — raise as coverage improves. Current actuals (2026-05):
+        // lines ~16.2, statements ~16.0, functions ~14.6, branches ~12.1.
         thresholds: {
-          lines: 5,
-          functions: 2,
-          statements: 5,
-          branches: 4,
+          lines: 14,
+          functions: 12,
+          statements: 14,
+          branches: 10,
         },
       },
     },
