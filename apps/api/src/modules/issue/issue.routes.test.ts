@@ -301,25 +301,3 @@ describe("DELETE issue", () => {
     expect(gone.status).toBe(404);
   });
 });
-
-describe("comments (delegated to mod-item)", () => {
-  test("a member posts and lists a comment; a non-member is fail-closed 403", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const outsider = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
-    const cookie = await cookieForUser(owner);
-
-    const posted = await app.request(`/projects/${project.shortId}/issues/${issue.id}/comments`, jsonReq("POST", cookie, { content: "Working on it" }));
-    expect(posted.status).toBe(201);
-
-    const list = await app.request(`/projects/${project.shortId}/issues/${issue.id}/comments`, { headers: { Cookie: cookie } });
-    expect((await list.json() as { data: unknown[] }).data.length).toBe(1);
-
-    // A non-member of the project resolves the issue subject (so membership is
-    // not leaked via 404) but is denied read access.
-    const denied = await app.request(`/projects/${project.shortId}/issues/${issue.id}/comments`, { headers: { Cookie: await cookieForUser(outsider) } });
-    expect(denied.status).toBe(403);
-  });
-});

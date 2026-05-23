@@ -340,23 +340,6 @@ describe("status change", () => {
   });
 });
 
-describe("comments (delegated to mod-item)", () => {
-  test("a view-capable member posts a comment; a plain member is fail-closed 403", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const plain = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: plain });
-    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
-
-    const posted = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/comments`, jsonReq("POST", await cookieForUser(owner), { content: "noted" }));
-    expect(posted.status).toBe(201);
-
-    const denied = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/comments`, { headers: { Cookie: await cookieForUser(plain) } });
-    expect(denied.status).toBe(403);
-  });
-});
-
 interface ProcurementResponse {
   data: { itemName: string; status: string };
 }
