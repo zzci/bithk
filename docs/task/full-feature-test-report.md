@@ -75,6 +75,30 @@ Raised, not waived: the `apps/web` branch-coverage floor moved from 10% to
 24% (and lines/statements/functions to 29%), matching the post-F1/F2/F3
 actuals. No `docs/decisions/` floor-drop entry was needed.
 
+## Cross-lane defects found & fixed during the campaign
+
+Defects surfaced and fixed by lanes A–H while hardening each module. All were
+fixed in code with regression tests; no gate was weakened.
+
+| Defect | Module / lane | Fix |
+|---|---|---|
+| **LIKE wildcard injection** — search terms with `%` / `_` / `\` matched unintended rows | user search (A), document (B), drive/file (C), project/issue/item (D) | Escape `%`/`_`/`\` in terms and emit an explicit `ESCAPE` clause on every `LIKE` predicate (commits `15ca35b`, `5eb657c`, `f688d10`, `3b4fecf`) |
+| **client-ip CIDR mask** — trusted-proxy ranges mis-parsed, so the wrong source IP was trusted/logged | middleware (A) | Correct CIDR mask computation in `getClientIp` trusted-proxy resolution (`616d9b2`) |
+| **drive quota cache** — stale per-owner usage cache let uploads bypass the quota | drive/file (C) | Fix the quota cache invalidation so usage reflects committed writes (`3b4fecf`) |
+| **document soft-delete cascade** — deleting a parent left orphaned children/relations readable | document (B) / drive (C) | Cascade soft-delete across the subtree and drop authz tuples (`966e71a`, `3b4fecf`) |
+| **share `expiresAt` validation** — a free-form expiry string parsed to `NaN`, making an "expiring" link never expire | share (B/C) | Reject non-ISO-8601 expiry at the boundary with `z.iso.datetime()`; `isExpired` is now reliable (`a572ae8`) |
+| **procurement amount `min(0)`** — negative procurement amounts were accepted | procurement (D) | Add a non-negative amount guard + free-transition contract test (`68f0b5b`, decision 002) |
+| **comment route existence disclosure** — shared comment routes returned 403 for non-relationship callers, leaking existence | shared comment routes (A) | Fail-closed 404 for no-relationship comment reads (`15ca35b`) |
+| **document/drive read existence disclosure** — no-access reads returned 403, leaking that the resource exists | document + drive read authz (H) | Fail-closed 404 for no-relationship reads; 403 reserved for capability-denial on visible resources (`539a782`, decision 003) |
+| **documents page a11y + error-state** — missing roles/labels and unhandled query-error UI on the documents/drive pages | web (F) | Add accessible roles/labels + explicit error states; harden test setup (`7b15d22`) |
+| **duplicate / revoked share leakage** — duplicate shares per entry allowed; revoked shares still listed | drive share (C) | Forbid duplicate shares per entry; drop revoked shares from per-entry / sent / links lists (`b796b8c`, `9e61f49`, `27789a5`) |
+
+### Decision records produced
+
+- **001 — drive preview stack** (`docs/decisions/001-drive-preview-stack.md`): the markdown/code preview + editor stack reused across drive viewer, file creation and public share pages.
+- **002 — procurement free transitions** (`docs/decisions/002-procurement-free-transitions.md`): the 5-state procurement lifecycle permits free status transitions, locked by contract tests.
+- **003 — fail-closed 404 existence policy** (`docs/decisions/003-fail-closed-404-existence-policy.md`): no-relationship reads return 404 (existence never disclosed); capability-denial on a visible resource returns 403.
+
 ## Integration defects found & fixed (lane G)
 
 All breakage was **stale e2e tests pointed at API surfaces that A–H replaced**.
