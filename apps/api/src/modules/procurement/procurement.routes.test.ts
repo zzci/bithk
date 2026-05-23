@@ -301,6 +301,24 @@ describe("status change", () => {
     expect(events[0]!.resourceId).toBe(proc.id);
   });
 
+  test("free transitions: the pm moves backward and out of 'closed', version bumping each time", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    let lastVersion = proc.version;
+    for (const next of ["closed", "draft", "received"]) {
+      const res = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: next }));
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: { status: string; version: number } };
+      expect(body.data.status).toBe(next);
+      expect(body.data.version).toBeGreaterThan(lastVersion);
+      lastVersion = body.data.version;
+    }
+  });
+
   test("an unknown status value is rejected with 422", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
