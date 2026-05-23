@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-/* eslint-disable no-console */
+
 // Unified e2e orchestrator. Boots dex and the live API, then exercises every
 // module against the running stack.
 //
@@ -98,6 +98,12 @@ function spawnApi(dataDir: string): Subprocess {
     "OIDC_LOGOUT_URL",
     "APP_URL",
     "DEFAULT_ADMIN",
+    // Strip single-user mode too: the orchestrator drives the OIDC flow against
+    // its fixture dex, so a developer `.env` that enables single-user mode must
+    // not leak in (it would disable OIDC and 302 /login to single_user_mode_active).
+    "SINGLE_USER_MODE",
+    "SINGLE_USER_USERNAME",
+    "SINGLE_USER_PASSWORD_HASH",
   ]);
   const cleanEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
@@ -195,7 +201,7 @@ function printSummary(summaries: readonly PhaseSummary[]): void {
       `  ${s.phase.padEnd(36)} ${fmt(s.tests, 6)} ${fmt(pass, 6)} ${fmt(s.failures, 6)} ${fmt(s.skipped, 6)} ${`${s.time.toFixed(2)}s`.padStart(8)}`,
     );
   }
-  console.log("  " + "─".repeat(58));
+  console.log(`  ${"─".repeat(58)}`);
   const totalPass = total.tests - total.failures - total.skipped;
   console.log(
     `  ${"TOTAL".padEnd(36)} ${fmt(total.tests, 6)} ${fmt(totalPass, 6)} ${fmt(total.failures, 6)} ${fmt(total.skipped, 6)} ${`${total.time.toFixed(2)}s`.padStart(8)}`,

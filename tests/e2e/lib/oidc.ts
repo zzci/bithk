@@ -45,10 +45,14 @@ export async function loginAs(email: string, password: string): Promise<ApiClien
   const dexCookies = new CookieJar();
 
   // 1. Hit /login on the API; follow the redirect chain into dex.
+  const loginUrl = `${client.base}/api/account/auth/login`;
   let res = await client.raw("/api/account/auth/login");
   let location = res.headers.get("location");
   if (!location)
     throw new Error(`expected /login to 302, got ${res.status}`);
+  // A Location header may be relative; resolve it against the request URL
+  // (HTTP semantics) before the first fetch, mirroring the in-loop handling.
+  location = location.startsWith("http") ? location : new URL(location, loginUrl).toString();
 
   // 2. Follow up to ~10 redirects across dex and API to reach a form (POST)
   //    or the final callback. Dex uses internal /auth → /auth/local hops.
