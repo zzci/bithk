@@ -188,11 +188,40 @@ describe("createShare — public_link password hashing", () => {
 
   test("tokens are unique and unguessable across shares", async () => {
     const owner = await seedUser("Owner");
-    const entry = await fileEntryRow(owner);
-    const a = await createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "view" });
-    const b = await createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "view" });
+    const a = await createShare(db, { entry: await fileEntryRow(owner), createdBy: owner, shareType: "public_link", permission: "view" });
+    const b = await createShare(db, { entry: await fileEntryRow(owner), createdBy: owner, shareType: "public_link", permission: "view" });
     expect(a.token).not.toBe(b.token);
     expect(a.token).toMatch(/^[0-9a-z]{10}$/);
+  });
+});
+
+describe("createShare — no duplicate shares", () => {
+  test("rejects a second active public link for the same entry", async () => {
+    const owner = await seedUser("Owner");
+    const entry = await fileEntryRow(owner);
+    await createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "download" });
+    await expect(createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "download" }))
+      .rejects
+      .toMatchObject({ statusCode: 409 });
+  });
+
+  test("rejects a second active direct share to the same recipient", async () => {
+    const owner = await seedUser("Owner");
+    const recipient = await seedUser("Recipient");
+    const entry = await fileEntryRow(owner);
+    await createShare(db, { entry, createdBy: owner, shareType: "direct", permission: "view", sharedWithUserId: recipient });
+    await expect(createShare(db, { entry, createdBy: owner, shareType: "direct", permission: "view", sharedWithUserId: recipient }))
+      .rejects
+      .toMatchObject({ statusCode: 409 });
+  });
+
+  test("a fresh link can be created once the previous one is revoked", async () => {
+    const owner = await seedUser("Owner");
+    const entry = await fileEntryRow(owner);
+    const first = await createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "download" });
+    await revokeShare(db, first.id, owner);
+    const second = await createShare(db, { entry, createdBy: owner, shareType: "public_link", permission: "download" });
+    expect(second.id).not.toBe(first.id);
   });
 });
 

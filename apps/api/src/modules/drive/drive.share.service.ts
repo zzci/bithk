@@ -76,6 +76,26 @@ function generateShareToken(): string {
   return nanoid(10);
 }
 
+/** Whether an active share of the given kind already exists for an entry. */
+async function hasActiveShare(
+  db: AppDatabase,
+  entryId: string,
+  shareType: DriveShareType,
+  sharedWithUserId?: string,
+): Promise<boolean> {
+  const row = await db
+    .select({ id: driveFileShares.id })
+    .from(driveFileShares)
+    .where(and(
+      eq(driveFileShares.driveEntryId, entryId),
+      eq(driveFileShares.shareType, shareType),
+      eq(driveFileShares.isActive, 1),
+      ...(sharedWithUserId ? [eq(driveFileShares.sharedWithUserId, sharedWithUserId)] : []),
+    )!)
+    .get();
+  return row !== undefined;
+}
+
 function assertShareableEntry(entry: DriveEntryRow): void {
   if (entry.entryType === "file" && entry.fileReferenceId)
     return;
@@ -111,10 +131,15 @@ export async function createShare(db: AppDatabase, input: CreateShareInput): Pro
       throw new NotFoundError("Recipient", input.sharedWithUserId);
     if (input.sharedWithUserId === input.createdBy)
       throw new AppError("Cannot share an entry with yourself", 400, "VALIDATION_ERROR");
+    // One active direct share per (entry, recipient) — no duplicate grants.
+    if (await hasActiveShare(db, input.entry.id, "direct", input.sharedWithUserId))
+      throw new AppError("This entry is already shared with that user", 409, "SHARE_EXISTS");
     sharedWithUserId = input.sharedWithUserId;
   }
   else {
-    // public_link
+    // public_link — at most one active link per entry, never multiple.
+    if (await hasActiveShare(db, input.entry.id, "public_link"))
+      throw new AppError("A public link already exists for this entry", 409, "SHARE_EXISTS");
     if (input.password)
       password = await Bun.password.hash(input.password);
     expiresAt = input.expiresAt ?? null;
