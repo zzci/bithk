@@ -20,6 +20,10 @@ import {
 
 const resourceTypeSchema = z.enum(SHARE_RESOURCE_TYPES);
 const permissionSchema = z.enum(SHARE_PERMISSIONS);
+// Expiry must be a real ISO-8601 datetime. A free-form string would slip past
+// validation and then parse to `NaN`, making `isExpired` silently return
+// false — an "expiring" link that never expires. Reject it at the boundary.
+const expiresAtSchema = z.iso.datetime();
 
 const createShareSchema = z.discriminatedUnion("shareType", [
   z.object({
@@ -31,7 +35,7 @@ const createShareSchema = z.discriminatedUnion("shareType", [
     shareType: z.literal("public_link"),
     permission: permissionSchema.default("view"),
     password: z.string().min(1).max(128).optional(),
-    expiresAt: z.string().min(1).nullable().optional(),
+    expiresAt: expiresAtSchema.nullable().optional(),
     maxDownloads: z.number().int().positive().optional(),
   }),
 ]);
@@ -39,7 +43,7 @@ const createShareSchema = z.discriminatedUnion("shareType", [
 const updateShareSchema = z.object({
   permission: permissionSchema.optional(),
   password: z.string().min(1).max(128).nullable().optional(),
-  expiresAt: z.string().min(1).nullable().optional(),
+  expiresAt: expiresAtSchema.nullable().optional(),
   maxDownloads: z.number().int().positive().nullable().optional(),
   isActive: z.boolean().optional(),
 }).refine(

@@ -11,9 +11,11 @@ import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
+import { groups } from "@/modules/account/groups/schema";
 import { users } from "@/modules/account/users/schema";
 import { items } from "@/modules/item/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
+import { createShare, listSharesForResource } from "@/modules/share/share.service";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { documentAccess } from "./document.permission";
 import { documentRoutes } from "./document.routes";
@@ -22,10 +24,17 @@ import {
   createDocument,
   getDocumentById,
   getDocumentPermission,
+  getDocumentShareById,
   getDocumentTreeForUser,
+  invalidateTagCache,
   isVersionConflict,
+  listAllGroups,
+  listAllTags,
+  listDescendantIds,
   listDocumentSharesWithInheritance,
   listMyDocuments,
+  listSoftDeletedDescendants,
+  moveDocument,
   pinDocument,
   removeDocumentShare,
   softDeleteDocument,
@@ -33,6 +42,8 @@ import {
   updateDocument,
 } from "./document.service";
 import "@/modules/account";
+// Register the document share adapter so `createShare` can resolve documents.
+import "./document.share-adapter";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -597,5 +608,173 @@ describe("admin de-privilege over HTTP (owner-scoped, no bypass)", () => {
       headers: { cookie: await sessionCookieFor(adminViewer) },
     });
     expect(sharedRes.status).toBe(200);
+  });
+});
+
+describe("moveDocument", () => {
+  test("re-parents to a sibling and detaches to root (null)", async () => {
+    const userId = await seedUser("Alice");
+    const a = await createDocument(db, { title: "A", creatorId: userId });
+    const b = await createDocument(db, { title: "B", creatorId: userId });
+    const child = await createDocument(db, { title: "C", creatorId: userId, parentId: a.id });
+
+    const moved = await moveDocument(db, child.id, b.id);
+    if (isVersionConflict(moved))
+      expect.unreachable("no conflict expected");
+    else
+      expect(moved?.parentId).toBe(b.id);
+
+    const detached = await moveDocument(db, child.id, null);
+    if (isVersionConflict(detached))
+      expect.unreachable("no conflict expected");
+    else
+      expect(detached?.parentId).toBeNull();
+  });
+
+  test("returns undefined for an unknown document", async () => {
+    expect(await moveDocument(db, "missing01", null)).toBeUndefined();
+  });
+
+  test("surfaces a version conflict when expectedVersion is stale", async () => {
+    const userId = await seedUser("Alice");
+    const a = await createDocument(db, { title: "A", creatorId: userId });
+    const child = await createDocument(db, { title: "C", creatorId: userId });
+    await updateDocument(db, child.id, { content: "bump" });
+    const result = await moveDocument(db, child.id, a.id, 1);
+    expect(isVersionConflict(result)).toBe(true);
+  });
+});
+
+describe("listDescendantIds + listSoftDeletedDescendants", () => {
+  test("listDescendantIds returns every descendant short_id, depth-first", async () => {
+    const userId = await seedUser("Alice");
+    const root = await createDocument(db, { title: "Root", creatorId: userId });
+    const child = await createDocument(db, { title: "Child", creatorId: userId, parentId: root.id });
+    const grand = await createDocument(db, { title: "Grand", creatorId: userId, parentId: child.id });
+
+    const ids = await listDescendantIds(db, root.id);
+    expect([...ids].sort()).toEqual([child.id, grand.id].sort());
+    expect(await listDescendantIds(db, "missing01")).toEqual([]);
+  });
+
+  test("listSoftDeletedDescendants surfaces the deleted subtree for admin UI", async () => {
+    const userId = await seedUser("Alice");
+    const root = await createDocument(db, { title: "Root", creatorId: userId });
+    const child = await createDocument(db, { title: "Child", creatorId: userId, parentId: root.id });
+    await softDeleteDocument(db, root.id);
+
+    const descendants = await listSoftDeletedDescendants(db, root.id);
+    expect(descendants.map(d => d.id)).toEqual([child.id]);
+    expect(await listSoftDeletedDescendants(db, "missing01")).toEqual([]);
+  });
+});
+
+describe("listMyDocuments filtering", () => {
+  test("q filters by title; tag filters by assigned tag", async () => {
+    const me = await seedUser("Me");
+    const alpha = await createDocument(db, { title: "Quarterly Report", creatorId: me, tags: ["finance"] });
+    await createDocument(db, { title: "Random Notes", creatorId: me, tags: ["misc"] });
+
+    const byQuery = await listMyDocuments(db, { userId: me, q: "quarterly" });
+    expect(byQuery.data.map(d => d.id)).toEqual([alpha.id]);
+
+    const byTag = await listMyDocuments(db, { userId: me, tag: "finance" });
+    expect(byTag.data.map(d => d.id)).toEqual([alpha.id]);
+
+    const byMissingTag = await listMyDocuments(db, { userId: me, tag: "nope" });
+    expect(byMissingTag.total).toBe(0);
+  });
+
+  test("paginates with a bounded limit", async () => {
+    const me = await seedUser("Me");
+    for (let i = 0; i < 3; i++)
+      await createDocument(db, { title: `Doc ${i}`, creatorId: me });
+    const page1 = await listMyDocuments(db, { userId: me, page: 1, limit: 2 });
+    expect(page1.total).toBe(3);
+    expect(page1.data).toHaveLength(2);
+    const page2 = await listMyDocuments(db, { userId: me, page: 2, limit: 2 });
+    expect(page2.data).toHaveLength(1);
+  });
+
+  test("q treats % and _ as literals, not LIKE wildcards (ESCAPE clause)", async () => {
+    const me = await seedUser("Me");
+    const pct = await createDocument(db, { title: "50% off sale", creatorId: me });
+    await createDocument(db, { title: "50 off sale", creatorId: me });
+    const under = await createDocument(db, { title: "a_b config", creatorId: me });
+    await createDocument(db, { title: "axb config", creatorId: me });
+
+    // A literal "%" must match only the title that actually contains it.
+    // Without the ESCAPE clause the escaped term ("50\% off") matches
+    // nothing (the backslash is taken literally), so this would be empty.
+    const byPercent = await listMyDocuments(db, { userId: me, q: "50% off" });
+    expect(byPercent.data.map(d => d.id)).toEqual([pct.id]);
+
+    // A literal "_" must not behave as the single-char wildcard: "a_b"
+    // matches, "axb" does not.
+    const byUnderscore = await listMyDocuments(db, { userId: me, q: "a_b" });
+    expect(byUnderscore.data.map(d => d.id)).toEqual([under.id]);
+  });
+});
+
+describe("listAllTags + tag cache", () => {
+  test("returns the distinct sorted tag set and refreshes after invalidation", async () => {
+    const me = await seedUser("Me");
+    await createDocument(db, { title: "A", creatorId: me, tags: ["zeta", "alpha"] });
+    expect(await listAllTags(db)).toEqual(["alpha", "zeta"]);
+
+    // Cached read returns the same set; a new tag only appears after invalidation.
+    await createDocument(db, { title: "B", creatorId: me, tags: ["beta"] });
+    invalidateTagCache();
+    expect(await listAllTags(db)).toEqual(["alpha", "beta", "zeta"]);
+  });
+});
+
+describe("listAllGroups", () => {
+  test("returns groups ordered by name", async () => {
+    const now = new Date().toISOString();
+    await db.insert(groups).values([
+      { id: nanoid(), name: "Zebra", createdAt: now, updatedAt: now },
+      { id: nanoid(), name: "Apple", createdAt: now, updatedAt: now },
+    ]).run();
+    const list = await listAllGroups(db);
+    expect(list.map(g => g.name)).toEqual(["Apple", "Zebra"]);
+  });
+});
+
+describe("getDocumentShareById", () => {
+  test("resolves a share tuple to its document short_id; undefined for unknown ids", async () => {
+    const alice = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const doc = await createDocument(db, { title: "D", creatorId: alice });
+    const share = await addDocumentShare(policyCtx(alice), {
+      documentId: doc.id,
+      targetType: "user",
+      targetId: bob,
+      permission: "viewer",
+    });
+
+    const resolved = await getDocumentShareById(db, share.id);
+    expect(resolved?.documentId).toBe(doc.id);
+    expect(resolved?.targetId).toBe(bob);
+    expect(await getDocumentShareById(db, "missing-tuple")).toBeUndefined();
+  });
+});
+
+describe("softDeleteDocument cascades public-link cleanup", () => {
+  test("deletes the public link of the root and of every descendant", async () => {
+    const owner = await seedUser("Owner");
+    const root = await createDocument(db, { title: "Root", creatorId: owner });
+    const child = await createDocument(db, { title: "Child", creatorId: owner, parentId: root.id });
+
+    await createShare(db, { resourceType: "document", resourceId: root.id, createdBy: owner, shareType: "public_link", permission: "view" });
+    await createShare(db, { resourceType: "document", resourceId: child.id, createdBy: owner, shareType: "public_link", permission: "view" });
+    expect((await listSharesForResource(db, "document", root.id)).length).toBe(1);
+    expect((await listSharesForResource(db, "document", child.id)).length).toBe(1);
+
+    await softDeleteDocument(db, root.id);
+
+    // Both the directly-shared root and the cascaded child lose their links.
+    expect((await listSharesForResource(db, "document", root.id)).length).toBe(0);
+    expect((await listSharesForResource(db, "document", child.id)).length).toBe(0);
   });
 });
