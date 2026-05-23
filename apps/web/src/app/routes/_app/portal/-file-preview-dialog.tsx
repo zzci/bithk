@@ -996,8 +996,13 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
           {kind === "markdown" && !loading && (
             markdownEditing
               ? (
-                  <div className="h-full overflow-auto bg-background">
-                    <MarkdownEditor value={content} onChange={setContent} minHeight={320} className="px-6 py-4" />
+                  <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-background">
+                    <MarkdownEditor
+                      value={content}
+                      onChange={setContent}
+                      floatingToolbar
+                      className="mx-auto min-h-0 w-full max-w-[1100px] flex-1 rounded-none border-0 px-6 pt-2 pb-5"
+                    />
                   </div>
                 )
               : (
