@@ -104,13 +104,17 @@ export function mountItemCommentRoutes<TResource>(
     if (!subject)
       throw new NotFoundError(resourceType, c.req.param("id")!);
     const perms = await opts.permissions(db, user, subject);
+    // Fail closed: an actor who cannot read the subject must not be able to
+    // tell "exists but forbidden" apart from "does not exist". Mirror the
+    // parent routes' 404 instead of leaking existence with a 403. Action-
+    // level denials for readers (locked posting, non-author delete) stay 403.
+    if (!perms.canRead)
+      throw new NotFoundError(resourceType, subject.externalId);
     return { db, user, subject, perms };
   }
 
   router.get(`${prefix}/:id/comments`, async (c) => {
     const { db, subject, perms } = await load(c);
-    if (!perms.canRead)
-      throw new ForbiddenError();
     const data = await listComments(db, subject.item.id, { includeInternal: perms.includeInternal });
     return c.json({ success: true, data });
   });
@@ -166,9 +170,7 @@ export function mountItemCommentRoutes<TResource>(
   // ── Comment attachments (owner_type='item_comment_attachment') ──
 
   router.get(`${prefix}/:id/comments/:cid/attachments`, async (c) => {
-    const { db, subject, perms } = await load(c);
-    if (!perms.canRead)
-      throw new ForbiddenError();
+    const { db, subject } = await load(c);
     const cid = c.req.param("cid");
     const comment = await getCommentById(db, subject.item.id, cid);
     if (!comment)
@@ -221,9 +223,7 @@ export function mountItemCommentRoutes<TResource>(
   });
 
   router.get(`${prefix}/:id/comments/:cid/attachments/:aid`, async (c) => {
-    const { db, subject, perms } = await load(c);
-    if (!perms.canRead)
-      throw new ForbiddenError();
+    const { db, subject } = await load(c);
     const cid = c.req.param("cid");
     const aid = c.req.param("aid");
     const comment = await getCommentById(db, subject.item.id, cid);

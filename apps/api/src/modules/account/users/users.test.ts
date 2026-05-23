@@ -74,6 +74,38 @@ describe("listUsers", () => {
     expect(byEmail.data.length).toBe(1);
   });
 
+  test("treats a literal underscore in the query as a literal, not a wildcard", async () => {
+    // Without LIKE escaping, `_` is a single-char wildcard and `a_c` would
+    // also match `axc` — an over-match that leaks the caller's wildcards.
+    await seedUser({ name: "a_c", email: "lit-underscore@test.com", username: "lit-underscore" });
+    await seedUser({ name: "axc", email: "wild-underscore@test.com", username: "wild-underscore" });
+
+    const result = await listUsers(db, { q: "a_c", page: 1, limit: 20 });
+    expect(result.total).toBe(1);
+    expect(result.data[0]!.name).toBe("a_c");
+  });
+
+  test("treats a literal percent in the query as a literal, not a wildcard", async () => {
+    // Without escaping, `%` matches any substring, so `50%off` would match
+    // both rows below.
+    await seedUser({ name: "50%off", email: "lit-percent@test.com", username: "lit-percent" });
+    await seedUser({ name: "50 great big off", email: "wild-percent@test.com", username: "wild-percent" });
+
+    const result = await listUsers(db, { q: "50%off", page: 1, limit: 20 });
+    expect(result.total).toBe(1);
+    expect(result.data[0]!.name).toBe("50%off");
+  });
+
+  test("a bare wildcard query no longer matches every row", async () => {
+    await seedUser({ name: "Zoe", email: "zoe@test.com", username: "zoe" });
+    await seedUser({ name: "Yan", email: "yan@test.com", username: "yan" });
+
+    // `%` alone would match all rows pre-fix; escaped it matches only a
+    // literal percent, of which there are none.
+    const result = await listUsers(db, { q: "%", page: 1, limit: 20 });
+    expect(result.total).toBe(0);
+  });
+
   test("filters by role", async () => {
     await seedUser({ role: "admin" });
     await seedUser({ role: "user" });
