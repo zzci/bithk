@@ -7,7 +7,7 @@ import { buildContentDisposition } from "@/shared/lib/content-disposition";
 import { AppError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { mimeMatchesContent } from "@/shared/lib/mime-sniff";
-import { assertWithinTotalQuota, isWithinFileSize, maxAttachmentsPerResource } from "@/shared/lib/upload-limits";
+import { assertWithinTotalQuota, decrementUploadsUsed, incrementUploadsUsed, isWithinFileSize, maxAttachmentsPerResource } from "@/shared/lib/upload-limits";
 import { deriveStorageKey } from "./storage/key";
 import { getActiveDriver } from "./storage/registry";
 
@@ -168,10 +168,11 @@ export async function uploadAndReference(
   // Phase 3 — insert the files row + reference in a sync tx. A concurrent
   // uploader may have raced ahead via the dedupe path; re-check and bump
   // refcount instead of inserting in that case.
-  return db.transaction((tx) => {
+  const result = db.transaction((tx) => {
     let row = tx.select().from(files).where(
       and(eq(files.sha256, sha256), eq(files.storageDriver, driver.name)),
     ).get();
+    let insertedNewBlob = false;
 
     if (row) {
       // Lost the race — bump refcount and let the orphan blob be reclaimed.
@@ -193,6 +194,7 @@ export async function uploadAndReference(
         uploadedBy,
       }).run();
       row = tx.select().from(files).where(eq(files.id, newId)).get()!;
+      insertedNewBlob = true;
     }
 
     const refId = nanoid();
@@ -214,8 +216,15 @@ export async function uploadAndReference(
       throw err;
     }
     const ref = tx.select().from(fileReferences).where(eq(fileReferences.id, refId)).get()!;
-    return { file: row, reference: ref, deduped: false };
+    return { file: row, reference: ref, deduped: false, insertedNewBlob };
   });
+
+  // A genuinely new blob adds `file.size` to the tracked total. Keep the
+  // cached quota usage in step so `assertWithinTotalQuota` stays accurate
+  // between the periodic SQL recomputes (dedupe / lost-race add no bytes).
+  if (result.insertedNewBlob)
+    incrementUploadsUsed(file.size);
+  return { file: result.file, reference: result.reference, deduped: result.deduped };
 }
 
 export interface AddReferenceInput {
@@ -294,7 +303,7 @@ export async function releaseReference(
       .set({ refCount: sql`MAX(${files.refCount} - 1, 0)` })
       .where(eq(files.id, ref.fileId))
       .run();
-    const after = tx.select({ refCount: files.refCount, storageDriver: files.storageDriver, storageKey: files.storageKey })
+    const after = tx.select({ refCount: files.refCount, storageDriver: files.storageDriver, storageKey: files.storageKey, size: files.size })
       .from(files)
       .where(eq(files.id, ref.fileId))
       .get();
@@ -329,7 +338,7 @@ export async function releaseAllByOwner(
 
 async function syncDeleteBlob(
   db: AppDatabase,
-  drained: { id: string; storageDriver: string; storageKey: string },
+  drained: { id: string; storageDriver: string; storageKey: string; size: number },
 ): Promise<void> {
   const driver = getActiveDriver();
   if (driver.name !== drained.storageDriver) {
@@ -346,6 +355,8 @@ async function syncDeleteBlob(
     return;
   }
   await db.delete(files).where(eq(files.id, drained.id)).run();
+  // Blob bytes are gone — release them from the tracked quota usage.
+  decrementUploadsUsed(drained.size);
 }
 
 // ─── Read-side helpers ──────────────────────────────────────────────────
@@ -515,6 +526,8 @@ export async function deleteUnreferencedFile(db: AppDatabase, file: FileRow): Pr
     return false;
   }
   await db.delete(files).where(and(eq(files.id, file.id), eq(files.refCount, 0))).run();
+  // Reclaimed bytes leave the tracked quota usage.
+  decrementUploadsUsed(file.size);
   return true;
 }
 

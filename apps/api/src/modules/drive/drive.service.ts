@@ -1,7 +1,7 @@
 import type { DriveOwnerType } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
-import { and, asc, desc, eq, inArray, like, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import {
   buildDownloadResponse,
   getFileById,
@@ -204,7 +204,14 @@ export async function searchDriveEntriesByOwners(
   const ownerClause = or(
     ...owners.map(o => and(eq(driveEntries.ownerType, o.ownerType), eq(driveEntries.ownerId, o.ownerId))),
   );
-  const pattern = `%${term.replace(/[%_]/g, "\\$&")}%`;
+  // Escape the LIKE wildcards in the user term and pair the pattern with an
+  // explicit `ESCAPE '\'` clause. SQLite's LIKE has no escape character by
+  // default, so the backslashes would otherwise be matched literally — a
+  // term containing `%` or `_` would either find nothing or leak the
+  // wildcard. The clause is emitted via `sql` because Drizzle's `like()`
+  // helper cannot carry an ESCAPE.
+  const pattern = `%${term.replace(/[\\%_]/g, "\\$&")}%`;
+  const nameMatch = sql`${driveEntries.name} LIKE ${pattern} ESCAPE '\\'`;
 
   const rows = await db
     .select({
@@ -221,7 +228,7 @@ export async function searchDriveEntriesByOwners(
       ownerClause,
       eq(driveEntries.entryType, "file"),
       eq(driveEntries.status, "normal"),
-      like(driveEntries.name, pattern),
+      nameMatch,
     ))
     .orderBy(desc(driveEntries.updatedAt), desc(driveEntries.id))
     .limit(limit)

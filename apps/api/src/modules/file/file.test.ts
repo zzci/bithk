@@ -10,6 +10,7 @@ import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { fileReferences, files } from "@/modules/file/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
+import { __resetUploadsCacheForTests } from "@/shared/lib/upload-limits";
 import {
   addReference,
   buildDownloadResponse,
@@ -582,5 +583,149 @@ describe("schema cross-checks", () => {
     }).run();
     const row = await db.select().from(fileReferences).where(and(eq(fileReferences.id, ok))).get();
     expect(row?.id).toBe(ok);
+  });
+});
+
+describe("uploadAndReference — adversarial validation", () => {
+  test("rejects a declared type that does not match the content (MIME spoof)", async () => {
+    const userId = await seedUser();
+    // PNG mimetype, but the bytes are plain text → magic-byte mismatch.
+    const spoof = new File(["this is not a png"], "evil.png", { type: "image/png" });
+    await expect(uploadAndReference(db, testConfig, {
+      file: spoof,
+      ownerType: "item_attachment",
+      ownerId: "item-spoof",
+      uploadedBy: userId,
+    })).rejects.toMatchObject({ code: "MIME_MISMATCH" });
+  });
+
+  test("allowAnyType bypasses the type checks but still enforces the size ceiling", async () => {
+    const userId = await seedUser();
+    const ok = await uploadAndReference(db, testConfig, {
+      file: new File(["MZ\0binary"], "tool.exe", { type: "application/x-msdownload" }),
+      ownerType: "drive_entry",
+      ownerId: "entry-any",
+      uploadedBy: userId,
+      allowAnyType: true,
+    });
+    expect(ok.deduped).toBe(false);
+
+    const tooBig = new File(["x".repeat(11 * 1024 * 1024)], "big.bin", { type: "application/x-msdownload" });
+    await expect(uploadAndReference(db, testConfig, {
+      file: tooBig,
+      ownerType: "drive_entry",
+      ownerId: "entry-any-2",
+      uploadedBy: userId,
+      allowAnyType: true,
+    })).rejects.toMatchObject({ code: "FILE_TOO_LARGE" });
+  });
+
+  test("enforces the per-resource attachment ceiling", async () => {
+    const userId = await seedUser();
+    const cappedConfig = { ...testConfig, MAX_ATTACHMENTS_PER_RESOURCE: 2 };
+    for (let i = 0; i < 2; i++) {
+      await uploadAndReference(db, cappedConfig, {
+        file: pngFile(`f${i}.txt`, `body-${i}`),
+        ownerType: "item_attachment",
+        ownerId: "item-capped",
+        uploadedBy: userId,
+      });
+    }
+    await expect(uploadAndReference(db, cappedConfig, {
+      file: pngFile("third.txt", "body-3"),
+      ownerType: "item_attachment",
+      ownerId: "item-capped",
+      uploadedBy: userId,
+    })).rejects.toMatchObject({ code: "LIMIT_EXCEEDED" });
+  });
+});
+
+describe("total upload quota (UPLOADS_TOTAL_BYTES)", () => {
+  test("rejects an upload that would push cumulative usage past the limit", async () => {
+    __resetUploadsCacheForTests();
+    const userId = await seedUser();
+    // Limit fits two ~10-byte blobs but not a third.
+    const quotaConfig = { ...testConfig, UPLOADS_TOTAL_BYTES: 25 };
+
+    await uploadAndReference(db, quotaConfig, {
+      file: pngFile("a.txt", "0123456789"), // 10 bytes
+      ownerType: "item_attachment",
+      ownerId: "q-1",
+      uploadedBy: userId,
+    });
+    await uploadAndReference(db, quotaConfig, {
+      file: pngFile("b.txt", "abcdefghij"), // 10 bytes, distinct content
+      ownerType: "item_attachment",
+      ownerId: "q-2",
+      uploadedBy: userId,
+    });
+
+    // The cached running total is now 20 with NO manual reset between
+    // uploads — proving the increment wiring keeps the quota accurate.
+    await expect(uploadAndReference(db, quotaConfig, {
+      file: pngFile("c.txt", "klmnopqrst"), // +10 → 30 > 25
+      ownerType: "item_attachment",
+      ownerId: "q-3",
+      uploadedBy: userId,
+    })).rejects.toMatchObject({ code: "QUOTA_EXCEEDED", statusCode: 413 });
+  });
+
+  test("releasing a blob frees quota so a later upload fits again", async () => {
+    __resetUploadsCacheForTests();
+    const userId = await seedUser();
+    const quotaConfig = { ...testConfig, UPLOADS_TOTAL_BYTES: 15 };
+
+    const first = await uploadAndReference(db, quotaConfig, {
+      file: pngFile("a.txt", "0123456789"), // 10 bytes
+      ownerType: "item_attachment",
+      ownerId: "r-1",
+      uploadedBy: userId,
+    });
+    // A second 10-byte blob would exceed 15.
+    await expect(uploadAndReference(db, quotaConfig, {
+      file: pngFile("b.txt", "abcdefghij"),
+      ownerType: "item_attachment",
+      ownerId: "r-2",
+      uploadedBy: userId,
+    })).rejects.toMatchObject({ code: "QUOTA_EXCEEDED" });
+
+    // Free the first blob (sync GC deletes it + decrements the counter).
+    await releaseReference(db, syncConfig, { referenceId: first.reference.id });
+
+    // Now the same upload fits.
+    const ok = await uploadAndReference(db, quotaConfig, {
+      file: pngFile("b.txt", "abcdefghij"),
+      ownerType: "item_attachment",
+      ownerId: "r-2",
+      uploadedBy: userId,
+    });
+    expect(ok.deduped).toBe(false);
+  });
+});
+
+describe("addReference / buildDownloadResponse error paths", () => {
+  test("addReference throws NOT_FOUND for an unknown file id", async () => {
+    const userId = await seedUser();
+    await expect(addReference(db, {
+      fileId: "does-not-exist",
+      ownerType: "item_attachment",
+      ownerId: "x",
+      createdBy: userId,
+    })).rejects.toMatchObject({ code: "NOT_FOUND", statusCode: 404 });
+  });
+
+  test("download surfaces 404 when the blob's driver is not the active one", async () => {
+    const userId = await seedUser();
+    const up = await uploadAndReference(db, testConfig, {
+      file: pngFile("a.txt", "mismatch"),
+      ownerType: "item_attachment",
+      ownerId: "x",
+      uploadedBy: userId,
+    });
+    // Pretend the blob lives on a driver this process no longer runs.
+    const foreign = { ...up.file, storageDriver: "s3-archive" };
+    await expect(buildDownloadResponse(syncConfig, foreign, up.reference, { inline: false }))
+      .rejects
+      .toMatchObject({ code: "FILE_BACKEND_MISMATCH", statusCode: 404 });
   });
 });
