@@ -8,6 +8,7 @@ import { items } from "@/modules/item/schema";
 import { NOOP_POLICY_LOGGER } from "@/modules/policy";
 import { relationTuples } from "@/modules/policy/schema";
 import { listUserResources } from "@/modules/policy/zanzibar.engine";
+import { deleteSharesForResource } from "@/modules/share";
 import { nanoid, ulid } from "@/shared/lib/id";
 
 const LIKE_SPECIAL_RE = /[%_]/g;
@@ -305,7 +306,7 @@ export async function softDeleteDocument(db: AppDatabase, shortId: string): Prom
   if (!item)
     return;
   const now = new Date().toISOString();
-  db.transaction((tx) => {
+  const deletedShortIds = db.transaction((tx): readonly string[] => {
     // Walk descendants via document_details.parent_id.
     const desc = tx.all<{ id: string }>(sql`
       WITH RECURSIVE descendants(id) AS (
@@ -325,7 +326,20 @@ export async function softDeleteDocument(db: AppDatabase, shortId: string): Prom
       eq(relationTuples.namespace, "item"),
       inArray(relationTuples.objectId, idsToDelete),
     )).run();
+    return tx.select({ shortId: items.shortId })
+      .from(items)
+      .where(inArray(items.id, idsToDelete))
+      .all()
+      .map(r => r.shortId);
   });
+
+  // Anonymous public links live in the polymorphic `shares` table (no FK to
+  // items), so the soft-delete above does not cascade to them. Remove every
+  // public link attached to the deleted subtree explicitly — mirroring the
+  // drive module's delete path and honouring the share schema's contract
+  // that cascade cleanup is the owning module's responsibility.
+  for (const sid of deletedShortIds)
+    await deleteSharesForResource(db, "document", sid);
 }
 
 /** Returned to admin UI alongside the soft-deleted root. */
