@@ -1,21 +1,25 @@
-// Issue comment-attachment lifecycle: upload, list, download, delete,
-// + author-only upload rule.
+// Issue comment-attachment lifecycle: upload, list, download, delete — under
+// the project-scoped issue comment routes.
 import { describe, expect, it } from "bun:test";
+import { createTestProject } from "../../lib/project";
 import { getClient } from "../../lib/oidc";
 
 interface Issue { id: string; title: string }
 interface Comment { id: string; content: string; authorId: string }
 interface Attachment { id: string; filename: string; mimetype: string; size: number }
 
-describe("/api/issues/:id/comments/:cid/attachments", () => {
+describe("/api/projects/:projectId/issues/:id/comments/:cid/attachments", () => {
   it("upload → list → download → delete cycle", async () => {
-    const user = await getClient("user@example.com");
-    const issue = await user.json<{ data: Issue }>("/api/issues", {
+    const admin = await getClient("admin@example.com", "admin");
+    const projectId = await createTestProject(admin);
+    const base = `/api/projects/${projectId}/issues`;
+
+    const issue = await admin.json<{ data: Issue }>(base, {
       method: "POST",
       body: { title: `comment-attachments ${Date.now()}` },
     });
     const issueId = issue.data.id;
-    const comment = await user.json<{ data: Comment }>(`/api/issues/${issueId}/comments`, {
+    const comment = await admin.json<{ data: Comment }>(`${base}/${issueId}/comments`, {
       method: "POST",
       body: { content: "see file" },
     });
@@ -24,7 +28,7 @@ describe("/api/issues/:id/comments/:cid/attachments", () => {
     const fd = new FormData();
     const payload = "issue comment attachment body";
     fd.append("file", new File([payload], "ref.txt", { type: "text/plain" }));
-    const upload = await user.raw(`/api/issues/${issueId}/comments/${commentId}/attachments`, {
+    const upload = await admin.raw(`${base}/${issueId}/comments/${commentId}/attachments`, {
       method: "POST",
       formData: fd,
     });
@@ -34,18 +38,18 @@ describe("/api/issues/:id/comments/:cid/attachments", () => {
     expect(uploadBody.data.size).toBe(payload.length);
     const attId = uploadBody.data.id;
 
-    const list = await user.json<{ data: Attachment[] }>(`/api/issues/${issueId}/comments/${commentId}/attachments`);
+    const list = await admin.json<{ data: Attachment[] }>(`${base}/${issueId}/comments/${commentId}/attachments`);
     expect(list.data.find(a => a.id === attId)).toBeDefined();
 
-    const download = await user.raw(`/api/issues/${issueId}/comments/${commentId}/attachments/${attId}`);
+    const download = await admin.raw(`${base}/${issueId}/comments/${commentId}/attachments/${attId}`);
     expect(download.status).toBe(200);
     expect(await download.text()).toBe(payload);
 
-    const del = await user.raw(`/api/issues/${issueId}/comments/${commentId}/attachments/${attId}`, { method: "DELETE" });
+    const del = await admin.raw(`${base}/${issueId}/comments/${commentId}/attachments/${attId}`, { method: "DELETE" });
     expect(del.status).toBe(200);
-    const after = await user.json<{ data: Attachment[] }>(`/api/issues/${issueId}/comments/${commentId}/attachments`);
+    const after = await admin.json<{ data: Attachment[] }>(`${base}/${issueId}/comments/${commentId}/attachments`);
     expect(after.data).toHaveLength(0);
 
-    await user.raw(`/api/issues/${issueId}`, { method: "DELETE" });
+    await admin.raw(`${base}/${issueId}`, { method: "DELETE" });
   });
 });

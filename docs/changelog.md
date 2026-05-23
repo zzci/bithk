@@ -13,6 +13,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Full-feature integration test pass across all modules. Re-pointed the
+  stale live-stack e2e suites at the current API surface: issue CRUD /
+  comments / attachments moved to the project-scoped
+  `/api/projects/:projectId/issues[...]` routes, and drive sharing moved
+  to the unified share module (`/api/shares/:type/:id`,
+  `/api/shares/{received,sent,links}`, `/api/shares/:shareId`,
+  public `/api/shared/:token[/download]`). Updated drive read assertions to
+  the fail-closed 404 existence policy (no-relationship reads → 404). Added
+  a live-stack `search` e2e module (global search + auth gate). Raised the
+  `apps/web` vitest coverage floors from 14/12/14/10 to 29/29/29/24
+  (statements/functions/lines/branches) to lock in the F1–F3 UI-suite gains.
+  `bun run check` and `bun run test:e2e` (75 tests) both green. See
+  [full-feature test report](task/full-feature-test-report.md).
 - Issues are now a project-only sub-module — there is no global / personal
   issue. Every issue belongs to a project (`issue_details.project_id` is now
   `NOT NULL`) and is assigned to a `project_members.id`. All issue endpoints

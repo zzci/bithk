@@ -84,11 +84,11 @@ describe("/api/drive entries CRUD + views", () => {
     // Permanently delete the subtree (cleanup).
     const del = await user.raw(`/api/drive/entries/${folderId}/permanent`, { method: "DELETE" });
     expect(del.status).toBe(200);
-    // The entry is gone. The capability assert runs before the existence
-    // check, so a vanished entry fails closed at the policy layer (403) —
-    // it never reveals whether the id ever existed.
+    // The entry is gone. Under the fail-closed existence policy (decision 003)
+    // a read with no surviving relationship returns 404 — it never reveals
+    // whether the id ever existed.
     const gone = await user.raw(`/api/drive/entries/${folderId}`);
-    expect(gone.status).toBe(403);
+    expect(gone.status).toBe(404);
   });
 
   it("creates a server-side text file then empties the trash", async () => {
@@ -126,7 +126,7 @@ describe("/api/drive entries — auth + cross-user matrix", () => {
     expect(res.status).toBe(401);
   });
 
-  it("a non-owner cannot read another user's private entry (403)", async () => {
+  it("a non-owner cannot read another user's private entry (fail-closed 404)", async () => {
     const admin = await getClient("admin@example.com", "admin");
     const user = await getClient("user@example.com", "admin");
 
@@ -137,9 +137,10 @@ describe("/api/drive entries — auth + cross-user matrix", () => {
     });
     const folderId = folder.data.id;
 
-    // The regular user is neither owner nor share-recipient → forbidden.
+    // The regular user is neither owner nor share-recipient → no relationship,
+    // so the read fails closed at the policy layer with 404 (decision 003).
     const denied = await user.raw(`/api/drive/entries/${folderId}`);
-    expect(denied.status).toBe(403);
+    expect(denied.status).toBe(404);
 
     // Cleanup.
     await admin.raw(`/api/drive/entries/${folderId}/permanent`, { method: "DELETE" });
