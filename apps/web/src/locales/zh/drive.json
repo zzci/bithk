@@ -293,6 +293,7 @@
     "password": "密码",
     "passwordPlaceholder": "请输入链接密码",
     "download": "下载",
+    "preview": "预览",
     "downloadError": "下载失败，请检查密码后重试。",
     "open": "打开"
   }

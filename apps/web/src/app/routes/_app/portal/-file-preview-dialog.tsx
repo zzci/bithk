@@ -271,6 +271,14 @@ interface FilePreviewDialogProps {
   readonly entry: DriveEntry;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
+  // Optional unauthenticated byte source. When set (e.g. the public share
+  // page), the dialog fetches bytes from here instead of the authenticated
+  // content endpoint.
+  readonly fetchContent?: (signal: AbortSignal) => Promise<Blob>;
+  // Optional download override; falls back to the authenticated download.
+  readonly onDownload?: () => void;
+  // Read-only mode hides edit/save (public viewers cannot save versions).
+  readonly readOnly?: boolean;
 }
 
 // ── shiki-backed renderers ──
@@ -561,7 +569,7 @@ function ImagePreview({
 
 // ── dialog ──
 
-export function FilePreviewDialog({ entry, open, onOpenChange }: FilePreviewDialogProps) {
+export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onDownload, readOnly = false }: FilePreviewDialogProps) {
   const { t } = useTranslation("drive");
   const isDark = useIsDark();
   const uploadVersion = useUploadVersion();
@@ -594,7 +602,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange }: FilePreviewDial
   const pdfWheelLockRef = useRef(false);
   const imageTransformRef = useRef<ZoomRef | null>(null);
 
-  const canEdit = file != null && (kind === "text" || kind === "markdown");
+  const canEdit = !readOnly && file != null && (kind === "text" || kind === "markdown");
   const editing = (kind === "text" && textEditing) || (kind === "markdown" && markdownEditing);
   const dirty = editing && content !== initialContent;
   const saving = uploadVersion.isPending;
@@ -632,8 +640,9 @@ export function FilePreviewDialog({ entry, open, onOpenChange }: FilePreviewDial
     clearObjectUrl();
 
     try {
-      const res = await httpRaw(`/drive/entries/${encodeURIComponent(entry.id)}/content?inline=true`, { signal });
-      const blob = await res.blob();
+      const blob = fetchContent
+        ? await fetchContent(signal)
+        : await httpRaw(`/drive/entries/${encodeURIComponent(entry.id)}/content?inline=true`, { signal }).then(res => res.blob());
       if (signal.aborted || token !== loadTokenRef.current)
         return;
 
@@ -663,7 +672,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange }: FilePreviewDial
       if (!signal.aborted && token === loadTokenRef.current)
         setLoading(false);
     }
-  }, [clearObjectUrl, entry.id, file, kind]);
+  }, [clearObjectUrl, entry.id, file, kind, fetchContent]);
 
   useEffect(() => {
     if (!open)
@@ -950,7 +959,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange }: FilePreviewDial
             )}
 
             {file && (
-              <ToolButton label={t("preview.download")} onClick={() => void downloadDriveEntry(entry)}>
+              <ToolButton label={t("preview.download")} onClick={onDownload ?? (() => void downloadDriveEntry(entry))}>
                 <Download className="size-4" />
               </ToolButton>
             )}
@@ -1065,7 +1074,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange }: FilePreviewDial
                 <p className="text-xs text-muted-foreground">{t("preview.unsupportedDescription")}</p>
               </div>
               {file && (
-                <Button type="button" variant="outline" size="sm" onClick={() => void downloadDriveEntry(entry)}>
+                <Button type="button" variant="outline" size="sm" onClick={onDownload ?? (() => void downloadDriveEntry(entry))}>
                   <Download className="size-4" />
                   {t("preview.download")}
                 </Button>

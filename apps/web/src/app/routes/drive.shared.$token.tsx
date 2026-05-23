@@ -7,10 +7,10 @@
 // Mirrors the unauth backend at `/api/drive/shared/:token(/list|/file/:id)`.
 
 import type { FormEvent } from "react";
-import type { PublicShareListing, PublicShareMetadata } from "@/shared/lib/api/drive";
+import type { DriveEntry, PublicShareListing, PublicShareMetadata } from "@/shared/lib/api/drive";
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRight, Download, FileText, Folder, Loader2, Lock, ShieldAlert } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ChevronRight, Download, Eye, FileText, Folder, Loader2, Lock, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Logo } from "@/shared/components/logo";
@@ -20,6 +20,7 @@ import { Input } from "@/shared/components/ui/input";
 import { downloadPublicShareFile, listPublicShareEntries, usePublicShare } from "@/shared/lib/api/drive";
 import { errorMessage } from "@/shared/lib/errors";
 import { httpRaw } from "@/shared/lib/http";
+import { FilePreviewDialog, resolvePreviewKind } from "./_app/portal/-file-preview-dialog";
 
 export const Route = createFileRoute("/drive/shared/$token")({
   component: PublicSharePage,
@@ -97,6 +98,36 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
   const [password, setPassword] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const ready = !meta.requiresPassword || password.length > 0;
+  const canPreview = resolvePreviewKind(meta.mimetype, meta.filename) !== "unsupported";
+
+  // Fetch the shared bytes through the public token endpoint (same call the
+  // download uses), so the preview reuses the in-app viewer without auth.
+  const fetchContent = useCallback(async (signal: AbortSignal): Promise<Blob> => {
+    const res = await httpRaw(`/drive/shared/${encodeURIComponent(token)}`, {
+      method: "POST",
+      body: JSON.stringify(meta.requiresPassword ? { password } : {}),
+      signal,
+    });
+    return res.blob();
+  }, [token, meta.requiresPassword, password]);
+
+  // Minimal entry shape the viewer needs; bytes come from `fetchContent`.
+  const previewEntry = useMemo<DriveEntry>(() => ({
+    id: meta.token,
+    ownerType: "user",
+    ownerId: "",
+    parentEntryId: null,
+    type: "file",
+    name: meta.filename,
+    favorite: false,
+    status: "normal",
+    createdAt: "",
+    updatedAt: "",
+    file: { referenceId: "", fileId: "", filename: meta.filename, mimetype: meta.mimetype, size: meta.size },
+  }), [meta.token, meta.filename, meta.mimetype, meta.size]);
 
   const handleDownload = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -141,12 +172,29 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
         <form className="flex flex-col gap-3" onSubmit={handleDownload}>
           {meta.requiresPassword && <PasswordField value={password} onChange={setPassword} />}
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={downloading || (meta.requiresPassword && !password)}>
+          {canPreview && (
+            <Button type="button" variant="outline" disabled={!ready} onClick={() => setPreviewOpen(true)}>
+              <Eye className="size-4" />
+              {t("public.preview")}
+            </Button>
+          )}
+          <Button type="submit" disabled={downloading || !ready}>
             {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
             {t("public.download")}
           </Button>
         </form>
       </div>
+
+      {previewOpen && (
+        <FilePreviewDialog
+          entry={previewEntry}
+          open
+          readOnly
+          fetchContent={fetchContent}
+          onDownload={() => void handleDownload()}
+          onOpenChange={open => !open && setPreviewOpen(false)}
+        />
+      )}
     </Shell>
   );
 }

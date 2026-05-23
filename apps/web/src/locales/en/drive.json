@@ -293,6 +293,7 @@
     "password": "Password",
     "passwordPlaceholder": "Enter the link password",
     "download": "Download",
+    "preview": "Preview",
     "downloadError": "Could not download. Check the password and try again.",
     "open": "Open"
   }
