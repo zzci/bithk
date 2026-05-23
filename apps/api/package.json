@@ -14,7 +14,7 @@
     ".": "./src/dev.ts"
   },
   "scripts": {
-    "dev": "nsl run --name \"${APP_NAME:-bit}:${BASE_PATH:-}/api\" bun --env-file=../../.env --hot src/index.ts",
+    "dev": "nsl run --name \"${APP_NAME:-bit}:${BASE_PATH:-}/api\" bun --env-file=../../.env src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun --minify",
     "start": "bun dist/index.js",
     "typecheck": "tsc --noEmit",
