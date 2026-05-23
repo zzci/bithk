@@ -257,7 +257,9 @@ export function driveRoutes() {
 
   router.get("/drive/entries/:id", async (c) => {
     const id = entryIdSchema.parse(c.req.param("id"));
-    await driveAccess.assert(policyContext(c)!, "drive:read", id);
+    // No capability ⇒ hide existence (404); a visible-but-capability-denied
+    // caller still gets 403 (assertEntryCapability). See decision 003.
+    await assertEntryCapability(c.get("db"), actorOf(c), id, "read");
     const entry = await getDriveEntryById(c.get("db"), id);
     if (!entry)
       throw new AppError("Drive entry not found", 404, "NOT_FOUND");
@@ -266,7 +268,8 @@ export function driveRoutes() {
 
   router.get("/drive/entries/:id/content", async (c) => {
     const id = entryIdSchema.parse(c.req.param("id"));
-    await driveAccess.assert(policyContext(c)!, "drive:download", id);
+    // No capability ⇒ 404 (hide existence); visible-but-denied ⇒ 403. Decision 003.
+    await assertEntryCapability(c.get("db"), actorOf(c), id, "download");
     const owner = await getEntryOwner(c.get("db"), id);
     return buildDriveEntryDownloadResponse(
       c.get("db"),

@@ -134,6 +134,15 @@ export interface ResourceDefinition<TAction extends string = string> {
   readonly namespace: string;
   readonly description?: string;
   readonly actions: Readonly<Record<TAction, string>>;
+  /**
+   * The action that represents "can the caller see this resource at all"
+   * (typically the `viewer`-level read). When set, the policy gate hides
+   * existence: a caller who fails this read check gets 404 instead of 403
+   * on any by-id route, while a caller who can read but lacks the requested
+   * capability still gets 403. See `docs/decisions/003-fail-closed-404-existence-policy.md`.
+   * Resources that omit it keep the legacy 403-on-any-denial behaviour.
+   */
+  readonly readAction?: NoInfer<TAction>;
   // `NoInfer` keeps TAction flowing from `actions` alone — declaring
   // fewer routes than actions does not narrow the action union.
   readonly routes?: ReadonlyArray<ResourceRouteSpec<NoInfer<TAction>>>;

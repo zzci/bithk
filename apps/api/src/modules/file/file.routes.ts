@@ -1,6 +1,6 @@
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
-import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
 import { buildDownloadResponse, getFileById, getReferenceById } from "./file.service";
 import { getFilePermissionHook } from "./permission";
@@ -79,11 +79,12 @@ export function fileRoutes() {
 
     const allowed = await hook.canRead(db, { id: user.id, role: user.role }, ref);
     if (!allowed) {
-      // Reader is authenticated but barred. 403 here, not 404 — the
-      // caller already has the (file id, ref id) tuple so we're not
-      // leaking existence; surfacing 403 lets the UI render an
-      // accurate "permission denied" state.
-      throw new ForbiddenError();
+      // No read relationship to the owning resource ⇒ hide existence with a
+      // 404, matching the metadata route above and the codebase-wide
+      // fail-closed policy. 403 is reserved for callers who can already see
+      // the resource but lack a specific capability — not the case here,
+      // where `canRead` is the existence gate itself. See decision 003.
+      throw new NotFoundError("File", id);
     }
 
     const file = await getFileById(db, id);

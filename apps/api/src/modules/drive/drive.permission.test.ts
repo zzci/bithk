@@ -226,10 +226,24 @@ describe("assertEntryCapability", () => {
     await expect(assertEntryCapability(db, { id: owner, role: "user" }, "missingid", "read")).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  test("throws Forbidden when the capability is absent", async () => {
+  test("throws NotFound when the actor has no relationship (hides existence)", async () => {
     const owner = await seedUser("Owner");
     const stranger = await seedUser("Stranger");
     const file = await uploadDriveFile(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, file: textFile("a.txt") });
-    await expect(assertEntryCapability(db, { id: stranger, role: "user" }, file.id, "read")).rejects.toMatchObject({ statusCode: 403 });
+    // A stranger holds no capability at all ⇒ 404, not 403, so the entry's
+    // existence is not leaked. Decision 003.
+    await expect(assertEntryCapability(db, { id: stranger, role: "user" }, file.id, "read")).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test("throws Forbidden when the actor can see the entry but lacks the capability", async () => {
+    const owner = await seedUser("Owner");
+    const recipient = await seedUser("Recipient");
+    const file = await uploadDriveFile(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, file: textFile("a.txt") });
+    const row = (await entryRow(file.id))!;
+    // A view-only direct share confers read + download but never delete.
+    await createShare(db, { resourceType: "drive_entry", resourceId: row.id, createdBy: owner, shareType: "direct", permission: "view", sharedWithUserId: recipient });
+    // The recipient can already see the entry (read), so a missing `delete`
+    // capability is a 403, NOT a 404. Decision 003.
+    await expect(assertEntryCapability(db, { id: recipient, role: "user" }, file.id, "delete")).rejects.toMatchObject({ statusCode: 403 });
   });
 });

@@ -12,7 +12,7 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
-import { createDocument, softDeleteDocument } from "@/modules/document/document.service";
+import { addDocumentShare, createDocument, softDeleteDocument } from "@/modules/document/document.service";
 import { createDriveFolder, uploadDriveFile } from "@/modules/drive/drive.service";
 import { uploadAndReference } from "@/modules/file";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
@@ -143,6 +143,11 @@ async function sessionCookieFor(userId: string): Promise<string> {
   return `session_id=${sessionId}`;
 }
 
+/** Build a policy context for service-level grant calls in tests. */
+function policyCtx(actorId: string) {
+  return { db, logger: noopLogger, actor: { id: actorId, type: "user" } };
+}
+
 function textFile(name: string, body = "hello"): File {
   return new File([body], name, { type: "text/plain" });
 }
@@ -214,14 +219,16 @@ describe("share routes — capabilities + auth", () => {
 });
 
 describe("share routes — create / list authorization", () => {
-  test("owner creates a document public link; non-owner is forbidden", async () => {
+  test("owner creates a document public link; no-access caller gets 404", async () => {
     const owner = await seedUser("Owner");
     const outsider = await seedUser("Outsider");
     const doc = await createDocument(db, { title: "Doc", creatorId: owner });
     const app = buildApp();
 
+    // The outsider has no access relationship to the document, so managing its
+    // shares must not reveal its existence — 404, not 403. Decision 003.
     const denied = await jsonPost(app, `/shares/document/${doc.id}`, await sessionCookieFor(outsider), { shareType: "public_link", permission: "view" });
-    expect(denied.status).toBe(403);
+    expect(denied.status).toBe(404);
 
     const created = await jsonPost(app, `/shares/document/${doc.id}`, await sessionCookieFor(owner), { shareType: "public_link", permission: "view" });
     expect(created.status).toBe(201);
@@ -230,20 +237,40 @@ describe("share routes — create / list authorization", () => {
     expect(body.data.resourceName).toBe("Doc");
   });
 
-  test("non-owner cannot list a document's shares", async () => {
+  test("no-access caller cannot list a document's shares (404 hides existence)", async () => {
     const owner = await seedUser("Owner");
     const outsider = await seedUser("Outsider");
     const doc = await createDocument(db, { title: "Doc", creatorId: owner });
     await createShare(db, { resourceType: "document", resourceId: doc.id, createdBy: owner, shareType: "public_link", permission: "view" });
     const app = buildApp();
 
+    // No access relationship ⇒ 404, not 403. Decision 003.
     const denied = await app.request(`/shares/document/${doc.id}`, { headers: { cookie: await sessionCookieFor(outsider) } });
-    expect(denied.status).toBe(403);
+    expect(denied.status).toBe(404);
 
     const ok = await app.request(`/shares/document/${doc.id}`, { headers: { cookie: await sessionCookieFor(owner) } });
     expect(ok.status).toBe(200);
     const body = await ok.json() as { data: unknown[] };
     expect(body.data).toHaveLength(1);
+  });
+
+  test("a document viewer can see it but lacks manage ⇒ 403 listing its shares (capability denial stays 403)", async () => {
+    const owner = await seedUser("Owner");
+    const viewer = await seedUser("Viewer");
+    const doc = await createDocument(db, { title: "Doc", creatorId: owner });
+    // Grant a viewer tuple so the viewer can read the document but not manage it.
+    await addDocumentShare(policyCtx(owner), {
+      documentId: doc.id,
+      targetType: "user",
+      targetId: viewer,
+      permission: "viewer",
+    });
+    const app = buildApp();
+
+    // The viewer already knows the document exists, so the missing `manage`
+    // capability is a 403, NOT a 404. Decision 003.
+    const denied = await app.request(`/shares/document/${doc.id}`, { headers: { cookie: await sessionCookieFor(viewer) } });
+    expect(denied.status).toBe(403);
   });
 
   test("rejects an invalid (non-ISO) expiresAt at the boundary", async () => {

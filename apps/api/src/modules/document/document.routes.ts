@@ -189,7 +189,9 @@ export function documentRoutes() {
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
-    await documentAccess.assert(policyContext(c)!, "document:read", item.id);
+    // No read access ⇒ hide existence (404), not 403. See decision 003.
+    if (!(await documentAccess.can(policyContext(c)!, "document:read", item.id)))
+      throw new NotFoundError("Document", id);
     return c.json({ success: true, data: doc });
   });
 
@@ -343,9 +345,10 @@ export function documentRoutes() {
     if (!item)
       throw new NotFoundError("Document", id);
     // Pin is gated by read access: any user who can see the doc (owner or
-    // shared) may pin it for themselves. Defense in depth — the global
-    // policyMiddleware already enforces this via the route table.
-    await documentAccess.assert(policyContext(c)!, "document:read", item.id);
+    // shared) may pin it for themselves. No read access ⇒ hide existence
+    // (404), matching the global policyMiddleware. Decision 003.
+    if (!(await documentAccess.can(policyContext(c)!, "document:read", item.id)))
+      throw new NotFoundError("Document", id);
     await pinDocument(db, user.id, id);
     return c.json({ success: true, data: { pinned: true } });
   });
@@ -357,7 +360,9 @@ export function documentRoutes() {
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
-    await documentAccess.assert(policyContext(c)!, "document:read", item.id);
+    // No read access ⇒ hide existence (404). Decision 003.
+    if (!(await documentAccess.can(policyContext(c)!, "document:read", item.id)))
+      throw new NotFoundError("Document", id);
     await unpinDocument(db, user.id, id);
     return c.json({ success: true, data: { pinned: false } });
   });
@@ -417,7 +422,9 @@ export function documentRoutes() {
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
-    await documentAccess.assert(policyContext(c)!, "document:read", item.id);
+    // No read access ⇒ hide existence (404), not 403. See decision 003.
+    if (!(await documentAccess.can(policyContext(c)!, "document:read", item.id)))
+      throw new NotFoundError("Document", id);
     const data = await listAttachmentsByOwner(db, "item_attachment", item.id);
     return c.json({ success: true, data });
   });
@@ -429,7 +436,10 @@ export function documentRoutes() {
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
-    await documentAccess.assert(policyContext(c)!, "document:download", item.id);
+    // No read access ⇒ hide existence (404), not 403. Download is viewer-
+    // level for documents, so readability is the existence gate. Decision 003.
+    if (!(await documentAccess.can(policyContext(c)!, "document:read", item.id)))
+      throw new NotFoundError("Document", id);
     const ref = await getReferenceById(db, aid);
     if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
       throw new NotFoundError("Attachment", aid);
@@ -532,7 +542,12 @@ export function documentRoutes() {
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
-    await documentAccess.assert(policyContext(c)!, "document:manage", item.id);
+    const ctx = policyContext(c)!;
+    // No read access ⇒ 404 (hide existence); a reader who is not the owner
+    // lacks `manage` ⇒ 403. Decision 003.
+    if (!(await documentAccess.can(ctx, "document:read", item.id)))
+      throw new NotFoundError("Document", id);
+    await documentAccess.assert(ctx, "document:manage", item.id);
     const data = await listDocumentSharesWithInheritance(db, id);
     return c.json({ success: true, data });
   });

@@ -29,7 +29,13 @@ const adapter: ShareAdapter = {
     const item = await getItemByShortId(c.get("db"), resourceId);
     if (!item || item.type !== "document")
       throw new NotFoundError("Document", resourceId);
-    await documentAccess.assert(policyContext(c)!, "document:manage", item.id);
+    const ctx = policyContext(c)!;
+    // A caller who cannot even read the document must not learn it exists via
+    // a 403 on its share routes — hide it with 404. A reader who lacks
+    // `manage` (not the owner) still gets 403. See decision 003.
+    if (!(await documentAccess.can(ctx, "document:read", item.id)))
+      throw new NotFoundError("Document", resourceId);
+    await documentAccess.assert(ctx, "document:manage", item.id);
   },
 
   resolve: async (db, resourceId): Promise<ShareResolved | null> => {
