@@ -1,5 +1,5 @@
 import type { AppDatabase } from "@/db";
-import { and, count, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
@@ -11,7 +11,9 @@ import { nanoid, ulid } from "@/shared/lib/id";
 export type IssueStatus = "open" | "in_progress" | "done" | "cancelled";
 export type IssuePriority = "low" | "medium" | "high" | "urgent";
 
-const LIKE_SPECIAL_RE = /[%_]/g;
+// Backslash is the ESCAPE char, so it must be escaped first; every LIKE built
+// from this MUST carry `ESCAPE '\'` or the backslashes match literally.
+const LIKE_SPECIAL_RE = /[\\%_]/g;
 
 function escapeLike(v: string): string {
   return v.replace(LIKE_SPECIAL_RE, "\\$&");
@@ -343,7 +345,7 @@ export async function listByProject(
   if (params.status && params.status !== "__all__")
     conditions.push(eq(items.status, params.status));
   if (params.q)
-    conditions.push(like(items.title, `%${escapeLike(params.q)}%`));
+    conditions.push(sql`${items.title} LIKE ${`%${escapeLike(params.q)}%`} ESCAPE '\\'`);
   const where = and(...conditions);
 
   const totalRow = await db.select({ value: count() }).from(items).where(where).get();
@@ -376,7 +378,7 @@ export async function searchIssues(db: AppDatabase, params: SearchIssuesParams):
   const conditions = [
     eq(items.type, "issue"),
     isNull(items.deletedAt),
-    like(items.title, `%${escapeLike(term)}%`),
+    sql`${items.title} LIKE ${`%${escapeLike(term)}%`} ESCAPE '\\'`,
   ];
 
   if (!params.isAdmin) {

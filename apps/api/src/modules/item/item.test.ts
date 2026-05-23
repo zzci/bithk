@@ -262,6 +262,23 @@ describe("listItemsByIds / listItemsByType", () => {
     expect(docs.total).toBe(1);
   });
 
+  test("search matches a literal % or _ instead of treating it as a wildcard", async () => {
+    const userId = await seedUser("Alice");
+    await createItem(db, { type: "issue", title: "90% sure", status: "open", creatorId: userId });
+    await createItem(db, { type: "issue", title: "90x sure", status: "open", creatorId: userId });
+    const und = await createItem(db, { type: "issue", title: "a_b", status: "open", creatorId: userId });
+    const axb = await createItem(db, { type: "issue", title: "axb", status: "open", creatorId: userId });
+
+    // listItemsByType (no permission filter): `%` is matched literally.
+    const byType = await listItemsByType(db, { type: "issue", search: "90%" });
+    expect(byType.data.map(i => i.title)).toEqual(["90% sure"]);
+
+    // listItemsByIds (permission-scoped path): with the bug `_` would match the
+    // single arbitrary char in "axb" too; only the literal "a_b" must match.
+    const byIds = await listItemsByIds(db, [und.id, axb.id], { search: "a_b" });
+    expect(byIds.data.map(i => i.title)).toEqual(["a_b"]);
+  });
+
   test("listItemsByType paginates", async () => {
     const userId = await seedUser("Alice");
     for (let i = 0; i < 5; i++) {

@@ -1,12 +1,15 @@
 import type { ProjectCapability, ProjectStatus } from "./schema";
 import type { AppDatabase, AppTransaction } from "@/db";
-import { and, count, desc, eq, inArray, isNull, like, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { parseCapabilities, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects, projectTags, tags } from "./schema";
 
+// Escape SQLite LIKE wildcards. Backslash is escaped first (it is the ESCAPE
+// char), then `%`/`_`, so the pattern is matched literally. Every LIKE built
+// from this MUST carry `ESCAPE '\'` or the backslashes match as literals.
 function escapeLike(v: string): string {
-  return v.replace(/[%_]/g, "\\$&");
+  return v.replace(/[\\%_]/g, "\\$&");
 }
 
 export type ProjectRow = typeof projects.$inferSelect;
@@ -227,7 +230,10 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
     conditions.push(ne(projects.status, "archived"));
   if (params.q) {
     const pattern = `%${escapeLike(params.q)}%`;
-    conditions.push(or(like(projects.name, pattern), like(projects.code, pattern))!);
+    conditions.push(or(
+      sql`${projects.name} LIKE ${pattern} ESCAPE '\\'`,
+      sql`${projects.code} LIKE ${pattern} ESCAPE '\\'`,
+    )!);
   }
   if (params.tagId) {
     const taggedIds = await db.select({ projectId: projectTags.projectId }).from(projectTags).where(eq(projectTags.tagId, params.tagId)).all();
