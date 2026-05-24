@@ -5,8 +5,9 @@ import { searchDriveEntriesByOwners } from "@/modules/drive/drive.service";
 import { listTeamDirectories } from "@/modules/drive/drive.team-directory.service";
 import { searchIssues } from "@/modules/issue/issue.service";
 import { listProjects } from "@/modules/project/project.service";
+import { listShips } from "@/modules/ship/ship.service";
 
-export type SearchHitType = "document" | "issue" | "project" | "drive";
+export type SearchHitType = "document" | "issue" | "project" | "drive" | "ship";
 
 export interface SearchHit {
   readonly type: SearchHitType;
@@ -32,9 +33,10 @@ export interface GlobalSearchResult {
   readonly issues: readonly SearchHit[];
   readonly projects: readonly SearchHit[];
   readonly drive: readonly SearchHit[];
+  readonly ships: readonly SearchHit[];
 }
 
-const EMPTY: GlobalSearchResult = { documents: [], issues: [], projects: [], drive: [] };
+const EMPTY: GlobalSearchResult = { documents: [], issues: [], projects: [], drive: [], ships: [] };
 
 /**
  * Resolve the drive owners a user may search within: their personal drive,
@@ -65,10 +67,11 @@ export async function globalSearch(db: AppDatabase, params: GlobalSearchParams):
   if (term.length === 0)
     return EMPTY;
 
-  const [docs, issues, projectsResult, driveOwners] = await Promise.all([
+  const [docs, issues, projectsResult, shipsResult, driveOwners] = await Promise.all([
     listMyDocuments(db, { userId, q: term, limit }),
     searchIssues(db, { userId, isAdmin, q: term, limit }),
     listProjects(db, { q: term, limit, memberUserId: isAdmin ? undefined : userId }),
+    listShips(db, { q: term, limit, memberUserId: isAdmin ? undefined : userId }),
     resolveDriveOwners(db, userId),
   ]);
 
@@ -79,5 +82,6 @@ export async function globalSearch(db: AppDatabase, params: GlobalSearchParams):
     issues: issues.map(i => ({ type: "issue", id: i.id, title: i.title, subtitle: i.status, projectId: i.projectId })),
     projects: projectsResult.data.map(p => ({ type: "project", id: p.id, title: p.name, subtitle: p.code })),
     drive: drive.map(e => ({ type: "drive", id: e.id, title: e.name })),
+    ships: shipsResult.data.map(s => ({ type: "ship", id: s.id, title: s.name, subtitle: s.code })),
   };
 }

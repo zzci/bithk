@@ -65,6 +65,7 @@ const SCHEMA_DDL: readonly string[] = [
     name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     description TEXT,
+    ship_id TEXT,
     creator_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     version INTEGER NOT NULL DEFAULT 1,
     deleted_at TEXT,

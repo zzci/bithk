@@ -25,6 +25,7 @@ interface SearchResponse {
     issues: { title: string }[];
     projects: { title: string; id: string }[];
     drive: { title: string }[];
+    ships: { title: string }[];
   };
 }
 
@@ -90,7 +91,7 @@ describe("GET /search", () => {
     const { cookie } = await sessionCookieFor(db, "user");
     const res = await buildApp().request("/search?q=%20%20", { headers: { Cookie: cookie } });
     const body = await res.json() as SearchResponse;
-    expect(body.data).toEqual({ documents: [], issues: [], projects: [], drive: [] });
+    expect(body.data).toEqual({ documents: [], issues: [], projects: [], drive: [], ships: [] });
   });
 
   test("missing q param is treated as a blank query", async () => {

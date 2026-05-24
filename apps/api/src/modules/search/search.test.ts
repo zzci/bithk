@@ -74,7 +74,7 @@ describe("globalSearch", () => {
   test("blank query returns empty groups", async () => {
     const owner = await seedUser("Owner");
     const result = await globalSearch(db, { userId: owner, isAdmin: false, q: "   ", limit: 8 });
-    expect(result).toEqual({ documents: [], issues: [], projects: [], drive: [] });
+    expect(result).toEqual({ documents: [], issues: [], projects: [], drive: [], ships: [] });
   });
 
   test("returns the caller's own document, issue, project and drive file", async () => {

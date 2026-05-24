@@ -133,6 +133,54 @@ export interface CreateProjectInput {
   readonly description?: string | null | undefined;
   readonly tags?: readonly string[] | undefined;
   readonly creatorId: string;
+  // Optional link to a ship. Set by `createShip` so the base project points
+  // back at its ship. Additive — absent for ordinary project creation.
+  readonly shipId?: string | undefined;
+}
+
+/**
+ * Synchronous core of project creation: insert the project row, seed default
+ * roles, add the creator as a "Project Manager" member, and sync tags. Runs
+ * entirely inside the caller's transaction so it can be composed into a larger
+ * atomic unit (e.g. `createShip`). Returns the internal ULID and short id.
+ */
+export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): { id: string; shortId: string } {
+  const id = ulid();
+  const shortId = nanoid();
+  const code = input.code ?? `P-${shortId.toUpperCase()}`;
+  const now = new Date().toISOString();
+
+  tx.insert(projects).values({
+    id,
+    shortId,
+    code,
+    name: input.name,
+    status: input.status ?? "active",
+    description: input.description ?? null,
+    shipId: input.shipId ?? null,
+    creatorId: input.creatorId,
+    version: 1,
+    deletedAt: null,
+    updatedAt: now,
+  }).run();
+
+  const { pmRoleId } = seedDefaultRoles(tx, id, now);
+
+  tx.insert(projectMembers).values({
+    id: nanoid(),
+    projectId: id,
+    userId: input.creatorId,
+    displayName: null,
+    roleId: pmRoleId,
+    title: null,
+    createdAt: now,
+    updatedAt: now,
+  }).run();
+
+  if (input.tags && input.tags.length > 0)
+    syncTagsTx(tx, id, input.tags, now);
+
+  return { id, shortId };
 }
 
 /**
@@ -142,40 +190,9 @@ export interface CreateProjectInput {
  * are synchronous — keep the callback sync so COMMIT/ROLLBACK semantics hold.
  */
 export async function createProject(db: AppDatabase, input: CreateProjectInput): Promise<ProjectRow> {
-  const id = ulid();
-  const shortId = nanoid();
-  const code = input.code ?? `P-${shortId.toUpperCase()}`;
-  const now = new Date().toISOString();
-
+  let id = "";
   db.transaction((tx) => {
-    tx.insert(projects).values({
-      id,
-      shortId,
-      code,
-      name: input.name,
-      status: input.status ?? "active",
-      description: input.description ?? null,
-      creatorId: input.creatorId,
-      version: 1,
-      deletedAt: null,
-      updatedAt: now,
-    }).run();
-
-    const { pmRoleId } = seedDefaultRoles(tx, id, now);
-
-    tx.insert(projectMembers).values({
-      id: nanoid(),
-      projectId: id,
-      userId: input.creatorId,
-      displayName: null,
-      roleId: pmRoleId,
-      title: null,
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    if (input.tags && input.tags.length > 0)
-      syncTagsTx(tx, id, input.tags, now);
+    id = createProjectTx(tx, input).id;
   });
 
   return (await db.select().from(projects).where(eq(projects.id, id)).get())!;

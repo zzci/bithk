@@ -54,15 +54,22 @@ export function getModuleNames(): readonly string[] {
  */
 export function resolveModulesWithDeps(selected: readonly string[]): string[] {
   const resolved = new Set<string>();
+  // Guards against circular module dependencies (e.g. projects ↔ ships, whose
+  // nullable circular FK makes each list the other as a dep). Restore relies on
+  // `PRAGMA defer_foreign_keys` so any order within a cycle is safe; we only
+  // need to break the recursion and include every node once.
+  const visiting = new Set<string>();
 
   function visit(name: string): void {
-    if (resolved.has(name))
+    if (resolved.has(name) || visiting.has(name))
       return;
     const mod = contributions.get(name);
     if (!mod)
       return;
+    visiting.add(name);
     for (const dep of mod.deps)
       visit(dep);
+    visiting.delete(name);
     resolved.add(name);
   }
 
