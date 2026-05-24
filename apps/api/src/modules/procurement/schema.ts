@@ -1,6 +1,7 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { contacts } from "@/modules/contact/schema";
 import { items } from "@/modules/item/schema";
-import { procurementCategories, projectContacts, projectMembers, projects } from "@/modules/project/schema";
+import { procurementCategories, projectMembers, projects } from "@/modules/project/schema";
 
 export const PROCUREMENT_STATUSES = ["draft", "requested", "ordered", "received", "closed"] as const;
 export type ProcurementStatus = typeof PROCUREMENT_STATUSES[number];
@@ -15,15 +16,15 @@ export type ProcurementStatus = typeof PROCUREMENT_STATUSES[number];
 //     deleted_at, updated_at
 //
 // `supplier_id` is metadata — the counterparty on the order — and references
-// the `project_contacts` directory (a contact of type 'supplier'). It is NOT
-// an operator. `assignee_member_id` is the responsible operator and references
+// any global contact. It is NOT project-scoped and carries no contact type
+// requirement. `assignee_member_id` is the responsible operator and references
 // `project_members.id`. `category_id` classifies the line item. All three use
 // ON DELETE SET NULL so a procurement row stays addressable when a referenced
 // row is removed.
 export const procurementDetails = sqliteTable("procurement_details", {
   itemId: text("item_id").primaryKey().references(() => items.id, { onDelete: "cascade" }),
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  supplierId: text("supplier_id").references(() => projectContacts.id, { onDelete: "set null" }),
+  supplierId: text("supplier_id").references(() => contacts.id, { onDelete: "set null" }),
   categoryId: text("category_id").references(() => procurementCategories.id, { onDelete: "set null" }),
   assigneeMemberId: text("assignee_member_id").references(() => projectMembers.id, { onDelete: "set null" }),
   itemName: text("item_name").notNull(),

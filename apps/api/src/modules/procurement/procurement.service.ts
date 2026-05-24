@@ -3,13 +3,13 @@ import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
 import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { audit } from "@/modules/audit/audit.service";
+import { resolve as resolveGlobalContact } from "@/modules/contact/contact.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { resolveCategory } from "@/modules/project/project.categories";
-import { resolveContact } from "@/modules/project/project.contacts";
 import { resolveAssignableMember } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
-import { ValidationError } from "@/shared/lib/errors";
+import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { PROCUREMENT_STATUSES, procurementDetails } from "./schema";
 
@@ -29,6 +29,17 @@ function ulidTimestamp(id: string): string {
 
 function isProcurementStatus(value: string): value is ProcurementStatus {
   return (PROCUREMENT_STATUSES as readonly string[]).includes(value);
+}
+
+async function assertSupplierExists(db: AppDatabase, supplierId: string): Promise<void> {
+  try {
+    await resolveGlobalContact(db, supplierId);
+  }
+  catch (error) {
+    if (error instanceof NotFoundError)
+      throw new ValidationError("Supplier is not a valid contact", { supplierId: "Unknown supplier" });
+    throw error;
+  }
 }
 
 /** Composite view returned by routes and tests. */
@@ -119,11 +130,8 @@ export interface CreateProcurementInput {
  * semantics only hold when the callback stays sync.
  */
 export async function createProcurement(db: AppDatabase, input: CreateProcurementInput): Promise<ProcurementRow> {
-  if (input.supplierId) {
-    const supplier = await resolveContact(db, input.projectId, input.supplierId, "supplier");
-    if (!supplier)
-      throw new ValidationError("Supplier is not a contact of this project", { supplierId: "Unknown supplier" });
-  }
+  if (input.supplierId)
+    await assertSupplierExists(db, input.supplierId);
   if (input.categoryId) {
     const category = await resolveCategory(db, input.projectId, input.categoryId);
     if (!category)
@@ -216,11 +224,8 @@ export async function updateProcurement(
     return undefined;
   const { item, details } = loaded;
 
-  if (input.supplierId) {
-    const supplier = await resolveContact(db, details.projectId, input.supplierId, "supplier");
-    if (!supplier)
-      throw new ValidationError("Supplier is not a contact of this project", { supplierId: "Unknown supplier" });
-  }
+  if (input.supplierId)
+    await assertSupplierExists(db, input.supplierId);
   if (input.categoryId) {
     const category = await resolveCategory(db, details.projectId, input.categoryId);
     if (!category)

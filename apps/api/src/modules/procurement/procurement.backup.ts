@@ -5,11 +5,11 @@ export const procurementBackupContribution: BackupContribution = {
   name: "procurements",
   tables: [procurementDetails],
   // procurement_details FK → items.id (sub-type), projects.id (scope),
-  // project_contacts.id (supplier), procurement_categories.id (category) and
+  // contacts.id (global supplier), procurement_categories.id (category) and
   // project_members.id (assignee). The base `items` rows and the policy tuples
   // carrying owner state come from the `items` / `policies` contributions; the
-  // project-owned tables (projects, contacts, categories, members) all come
-  // from the `projects` contribution. Listing them as deps keeps the
-  // topological insert order correct on restore.
+  // project-owned tables (projects, categories, members) come from the
+  // `projects` contribution. Global contacts are owned by the contact module;
+  // this contribution keeps exporting supplier_id as procurement metadata.
   deps: ["items", "policies", "projects"],
 };

@@ -10,10 +10,10 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { auditEvents } from "@/modules/audit/schema";
+import * as contactService from "@/modules/contact/contact.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { createCategory } from "@/modules/project/project.categories";
-import { createContact } from "@/modules/project/project.contacts";
 import { createRole, listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject, getMemberCapabilities, hasCapability } from "@/modules/project/project.service";
 import {
@@ -46,6 +46,10 @@ async function seedUser(name: string): Promise<string> {
     updatedAt: now,
   }).run();
   return id;
+}
+
+async function seedGlobalContact(ownerId: string, name = "Supplier Co") {
+  return await contactService.create(db, { id: ownerId, role: "user" }, { name });
 }
 
 async function memberRoleId(projectId: string): Promise<string> {
@@ -115,11 +119,12 @@ describe("createProcurement", () => {
     expect(row.itemName).toBe("Cables");
   });
 
-  test("accepts a supplier contact, a category, and a member assignee from the project", async () => {
+  test("accepts any global contact, a category, and a member assignee", async () => {
     const creator = await seedUser("Alice");
     const bob = await seedUser("Bob");
+    const contactOwner = await seedUser("Carol");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    const supplier = await createContact(db, project.id, { type: "supplier", name: "Supplier Co" });
+    const supplier = await seedGlobalContact(contactOwner);
     const category = await createCategory(db, project.id, { name: "Materials" });
     const assignee = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
 
@@ -136,16 +141,15 @@ describe("createProcurement", () => {
     expect(row.assigneeMemberId).toBe(assignee.id);
   });
 
-  test("rejects a non-supplier contact as supplier", async () => {
+  test("rejects an unknown supplier contact", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    const client = await createContact(db, project.id, { type: "client", name: "Owner Inc" });
     await expect(createProcurement(db, {
       projectId: project.id,
       itemName: "X",
-      supplierId: client.id,
+      supplierId: "missing-supplier",
       creatorId: creator,
-    })).rejects.toThrow();
+    })).rejects.toThrow("Supplier is not a valid contact");
   });
 
   test("rejects an assignment target from another project", async () => {
@@ -248,18 +252,22 @@ describe("updateProcurement", () => {
   test("patches fields, bumps version, and validates assignment targets", async () => {
     const creator = await seedUser("Alice");
     const bob = await seedUser("Bob");
+    const contactOwner = await seedUser("Carol");
     const project = await createProject(db, { name: "P", creatorId: creator });
+    const supplier = await seedGlobalContact(contactOwner, "Global Supplier");
     const assignee = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
     const row = await createProcurement(db, { projectId: project.id, itemName: "Pipes", creatorId: creator });
 
     const updated = await updateProcurement(db, row.id, {
       title: "Updated order",
       itemName: "Steel pipes",
+      supplierId: supplier.id,
       assigneeMemberId: assignee.id,
       quantity: 42,
     });
     expect(updated?.title).toBe("Updated order");
     expect(updated?.itemName).toBe("Steel pipes");
+    expect(updated?.supplierId).toBe(supplier.id);
     expect(updated?.assigneeMemberId).toBe(assignee.id);
     expect(updated?.quantity).toBe(42);
     expect(updated!.version).toBeGreaterThan(1);
@@ -267,6 +275,7 @@ describe("updateProcurement", () => {
     const other = await createProject(db, { name: "Other", creatorId: creator });
     const foreign = await addMember(db, other.id, { roleId: await memberRoleId(other.id), userId: bob });
     await expect(updateProcurement(db, row.id, { assigneeMemberId: foreign.id })).rejects.toThrow();
+    await expect(updateProcurement(db, row.id, { supplierId: "missing-supplier" })).rejects.toThrow("Supplier is not a valid contact");
   });
 
   test("returns undefined for an unknown procurement", async () => {
