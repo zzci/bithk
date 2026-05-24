@@ -13,8 +13,8 @@ import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
 import { auditEvents } from "@/modules/audit/schema";
+import * as contactService from "@/modules/contact/contact.service";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
-import { createContact } from "@/modules/project/project.contacts";
 import { createRole, listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
 import { errorHandler } from "@/shared/middleware/error-handler";
@@ -117,6 +117,10 @@ async function seedUser(role: "admin" | "user" = "user"): Promise<string> {
     updatedAt: now,
   }).run();
   return id;
+}
+
+async function seedGlobalContact(ownerId: string, name = "Supplier Co") {
+  return await contactService.create(db, { id: ownerId, role: "user" }, { name });
 }
 
 async function cookieForUser(userId: string): Promise<string> {
@@ -226,12 +230,22 @@ describe("POST procurement (procurement.manage)", () => {
     expect(negAmt.status).toBe(422);
   });
 
-  test("a supplier that is not a supplier-type contact is rejected (422)", async () => {
+  test("an existing global contact is accepted as supplier", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const contactOwner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const supplier = await seedGlobalContact(contactOwner);
+    const res = await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", await cookieForUser(owner), { itemName: "X", supplierId: supplier.id }));
+    expect(res.status).toBe(201);
+    expect((await res2json(res)).data.supplierId).toBe(supplier.id);
+  });
+
+  test("an unknown supplier contact is rejected (422)", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    const client = await createContact(db, project.id, { type: "client", name: "Owner Inc" });
-    const res = await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", await cookieForUser(owner), { itemName: "X", supplierId: client.id }));
+    const res = await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", await cookieForUser(owner), { itemName: "X", supplierId: "missing-supplier" }));
     expect(res.status).toBe(422);
   });
 });
@@ -341,7 +355,7 @@ describe("status change", () => {
 });
 
 interface ProcurementResponse {
-  data: { itemName: string; status: string };
+  data: { itemName: string; status: string; supplierId?: string | null };
 }
 
 async function res2json(res: Response): Promise<ProcurementResponse> {
