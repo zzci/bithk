@@ -5,10 +5,19 @@ import {
   shipKeys,
   useBindShipProject,
   useCreateShip,
+  useCreateShipEquipment,
+  useCreateShipMaintenanceTemplate,
+  useDeleteShipEquipment,
+  useGlobalMaintenanceTemplates,
+  useIssueReferences,
   useShip,
+  useShipEquipment,
+  useShipMaintenanceOrders,
+  useShipMaintenanceTemplates,
   useShipProjects,
   useShips,
   useUnbindShipProject,
+  useUpdateShipEquipment,
 } from "./ships";
 
 function jsonResponse(body: unknown) {
@@ -34,6 +43,9 @@ describe("shipKeys", () => {
     expect(shipKeys.list("active", "design", 2)).toEqual(["ships", "list", "active", "design", 2]);
     expect(shipKeys.detail("s1")).toEqual(["ships", "detail", "s1"]);
     expect(shipKeys.projects("s1")).toEqual(["ships", "s1", "projects"]);
+    expect(shipKeys.equipment("s1")).toEqual(["ships", "s1", "equipment"]);
+    expect(shipKeys.maintenanceTemplates("s1")).toEqual(["ships", "s1", "maintenance-templates"]);
+    expect(shipKeys.maintenanceOrders("s1")).toEqual(["ships", "s1", "maintenance-orders"]);
   });
 });
 
@@ -51,6 +63,72 @@ describe("useShips", () => {
     expect(url).toContain("/api/ships?");
     expect(url).toContain("lifecycleStage=design");
     expect(url).toContain("page=1");
+  });
+});
+
+describe("ship equipment hooks", () => {
+  it("lists, creates, updates, and deletes equipment on scoped routes", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [{ id: "eq1", name: "Generator" }] }));
+    const list = renderHook(() => useShipEquipment("s1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/ships/s1/equipment");
+
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "eq2", name: "Pump" } }));
+    const create = renderHook(() => useCreateShipEquipment(), { wrapper: makeWrapper() });
+    create.result.current.mutate({ shipId: "s1", name: "Pump" });
+    await waitFor(() => expect(create.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[1]![0])).toBe("/api/ships/s1/equipment");
+    expect(fetchMock.mock.calls[1]![1]?.method).toBe("POST");
+
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "eq2", name: "Pump 2" } }));
+    const update = renderHook(() => useUpdateShipEquipment(), { wrapper: makeWrapper() });
+    update.result.current.mutate({ shipId: "s1", equipmentId: "eq2", name: "Pump 2" });
+    await waitFor(() => expect(update.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[2]![0])).toBe("/api/ships/s1/equipment/eq2");
+    expect(fetchMock.mock.calls[2]![1]?.method).toBe("PATCH");
+
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: null }));
+    const remove = renderHook(() => useDeleteShipEquipment(), { wrapper: makeWrapper() });
+    remove.result.current.mutate({ shipId: "s1", equipmentId: "eq2" });
+    await waitFor(() => expect(remove.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[3]![0])).toBe("/api/ships/s1/equipment/eq2");
+    expect(fetchMock.mock.calls[3]![1]?.method).toBe("DELETE");
+  });
+});
+
+describe("ship maintenance hooks", () => {
+  it("lists ship templates, global templates, maintenance orders, and issue references", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "tpl1", name: "Quarterly" }] }));
+    const templates = renderHook(() => useShipMaintenanceTemplates("s1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(templates.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/ships/s1/maintenance-templates");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "gt1", name: "Global" }] }));
+    const globals = renderHook(() => useGlobalMaintenanceTemplates(true), { wrapper: makeWrapper() });
+    await waitFor(() => expect(globals.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[1]![0])).toBe("/api/maintenance-templates");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "wo1", title: "Check", templateRefId: "tpl1" }] }));
+    const orders = renderHook(() => useShipMaintenanceOrders("s1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(orders.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[2]![0])).toBe("/api/ships/s1/maintenance-orders");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "ref1", refType: "maintenance_template", refId: "tpl1", template: null }] }));
+    const refs = renderHook(() => useIssueReferences("wo1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(refs.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[3]![0])).toBe("/api/issues/wo1/references");
+  });
+
+  it("creates ship templates from scratch and from a global source", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "tpl1", name: "Quarterly" } }));
+    const create = renderHook(() => useCreateShipMaintenanceTemplate(), { wrapper: makeWrapper() });
+    create.result.current.mutate({ shipId: "s1", name: "Quarterly" });
+    await waitFor(() => expect(create.result.current.isSuccess).toBe(true));
+    expect(JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)).toEqual({ name: "Quarterly" });
+
+    create.result.current.mutate({ shipId: "s1", fromGlobalId: "gt1" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1]![1]!.body as string)).toEqual({ fromGlobalId: "gt1" });
   });
 });
 

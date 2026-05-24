@@ -11,6 +11,15 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- Ship detail Equipment and Maintenance tabs with equipment CRUD, ship-level
+  maintenance-template management, admin-only global template copy, maintenance
+  work-order creation from templates, and inline maintenance-template reference
+  rendering.
+- Frontend API clients, EN/ZH i18n keys, and Vitest coverage for the T5b ship
+  feature UI.
+
 ### Fixed
 
 - Drive code/text preview now fills its container (FIX-001): the CodeMirror

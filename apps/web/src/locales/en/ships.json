@@ -25,6 +25,8 @@
   },
   "tabs": {
     "overview": "Overview",
+    "equipment": "Equipment",
+    "maintenance": "Maintenance",
     "projects": "Projects",
     "files": "Files"
   },
@@ -70,6 +72,84 @@
   "overview": {
     "noDescription": "No description provided.",
     "notSet": "Not set"
+  },
+  "equipment": {
+    "title": "Equipment inventory",
+    "create": "Add equipment",
+    "edit": "Edit equipment",
+    "delete": "Delete equipment",
+    "actions": "Actions",
+    "loading": "Loading equipment…",
+    "empty": "No equipment registered.",
+    "createTitle": "Add equipment",
+    "editTitle": "Edit equipment",
+    "dialogDescription": "Track the equipment installed on this ship.",
+    "deleteTitle": "Delete equipment",
+    "deleteConfirm": "Delete \"{{name}}\" from this ship?",
+    "field": {
+      "name": "Name",
+      "category": "Category",
+      "manufacturer": "Manufacturer",
+      "model": "Model",
+      "serialNumber": "Serial number",
+      "location": "Location",
+      "status": "Status",
+      "note": "Note"
+    },
+    "status": {
+      "active": "Active",
+      "retired": "Retired"
+    }
+  },
+  "maintenance": {
+    "template": {
+      "title": "Ship maintenance templates",
+      "create": "Create template",
+      "edit": "Edit template",
+      "delete": "Delete template",
+      "loading": "Loading maintenance templates…",
+      "empty": "No maintenance templates yet.",
+      "createTitle": "Create maintenance template",
+      "editTitle": "Edit maintenance template",
+      "dialogDescription": "Define the checklist and precautions used by this ship's maintenance work orders.",
+      "deleteTitle": "Delete maintenance template",
+      "deleteConfirm": "Delete \"{{name}}\"? Existing work orders will keep a soft reference.",
+      "copyFromGlobal": "Copy from global knowledge base",
+      "copyPlaceholder": "Select a global template",
+      "copy": "Copy template",
+      "noChecklist": "No checklist provided.",
+      "field": {
+        "name": "Name",
+        "category": "Category",
+        "checklist": "Checklist",
+        "precautions": "Precautions"
+      }
+    },
+    "workOrder": {
+      "title": "Maintenance work orders",
+      "create": "Open work order from template",
+      "createTitle": "Open work order",
+      "createDescription": "Creates a project issue in the ship's base project and links it to the selected ship template.",
+      "loading": "Loading maintenance work orders…",
+      "empty": "No maintenance work orders yet.",
+      "noBaseProject": "This ship has no base project, so work orders cannot be created.",
+      "view": "View",
+      "selectTemplate": "Select a template",
+      "defaultTitle": "{{name}} work order",
+      "field": {
+        "title": "Title",
+        "description": "Description",
+        "template": "Template",
+        "status": "Status",
+        "priority": "Priority",
+        "detail": "Detail"
+      }
+    },
+    "reference": {
+      "empty": "No content provided.",
+      "missing": "The referenced maintenance template is no longer available.",
+      "missingShort": "Template unavailable"
+    }
   },
   "projects": {
     "bindTitle": "Bind a project",

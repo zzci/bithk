@@ -25,6 +25,8 @@
   },
   "tabs": {
     "overview": "概览",
+    "equipment": "设备",
+    "maintenance": "维护",
     "projects": "项目",
     "files": "文件"
   },
@@ -70,6 +72,84 @@
   "overview": {
     "noDescription": "暂无描述。",
     "notSet": "未设置"
+  },
+  "equipment": {
+    "title": "设备清单",
+    "create": "添加设备",
+    "edit": "编辑设备",
+    "delete": "删除设备",
+    "actions": "操作",
+    "loading": "正在加载设备…",
+    "empty": "暂无设备。",
+    "createTitle": "添加设备",
+    "editTitle": "编辑设备",
+    "dialogDescription": "记录该船舶已安装的设备。",
+    "deleteTitle": "删除设备",
+    "deleteConfirm": "确定从该船舶删除“{{name}}”？",
+    "field": {
+      "name": "名称",
+      "category": "分类",
+      "manufacturer": "制造商",
+      "model": "型号",
+      "serialNumber": "序列号",
+      "location": "位置",
+      "status": "状态",
+      "note": "备注"
+    },
+    "status": {
+      "active": "在用",
+      "retired": "退役"
+    }
+  },
+  "maintenance": {
+    "template": {
+      "title": "船舶维护模板",
+      "create": "新建模板",
+      "edit": "编辑模板",
+      "delete": "删除模板",
+      "loading": "正在加载维护模板…",
+      "empty": "暂无维护模板。",
+      "createTitle": "新建维护模板",
+      "editTitle": "编辑维护模板",
+      "dialogDescription": "定义该船舶维护工单使用的检查清单与注意事项。",
+      "deleteTitle": "删除维护模板",
+      "deleteConfirm": "确定删除“{{name}}”？现有工单会保留软引用。",
+      "copyFromGlobal": "从全局知识库复制",
+      "copyPlaceholder": "选择全局模板",
+      "copy": "复制模板",
+      "noChecklist": "暂无检查清单。",
+      "field": {
+        "name": "名称",
+        "category": "分类",
+        "checklist": "检查清单",
+        "precautions": "注意事项"
+      }
+    },
+    "workOrder": {
+      "title": "维护工单",
+      "create": "从模板开工单",
+      "createTitle": "开维护工单",
+      "createDescription": "在船舶基础项目中创建项目事项，并关联所选船舶模板。",
+      "loading": "正在加载维护工单…",
+      "empty": "暂无维护工单。",
+      "noBaseProject": "该船舶没有基础项目，无法创建工单。",
+      "view": "查看",
+      "selectTemplate": "选择模板",
+      "defaultTitle": "{{name}} 工单",
+      "field": {
+        "title": "标题",
+        "description": "描述",
+        "template": "模板",
+        "status": "状态",
+        "priority": "优先级",
+        "detail": "详情"
+      }
+    },
+    "reference": {
+      "empty": "暂无内容。",
+      "missing": "关联的维护模板已不可用。",
+      "missingShort": "模板不可用"
+    }
   },
   "projects": {
     "bindTitle": "绑定项目",

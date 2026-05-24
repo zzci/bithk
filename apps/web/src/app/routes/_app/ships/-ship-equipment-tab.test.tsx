@@ -1,0 +1,106 @@
+import type { ShipView } from "@/shared/lib/api/ships";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "@/test/utils";
+import { ShipEquipmentTab } from "./-ship-equipment-tab";
+
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+}
+
+const fetchMock = vi.fn<typeof fetch>();
+const ship = { id: "s1", name: "Serenity" } as ShipView;
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  globalThis.fetch = fetchMock;
+});
+
+afterEach(() => {
+  fetchMock.mockReset();
+});
+
+function equipmentList() {
+  return [{
+    id: "eq1",
+    name: "Generator",
+    category: "Power",
+    manufacturer: "Volt",
+    model: "G1",
+    serialNumber: "SN-1",
+    location: "Engine room",
+    status: "active",
+    note: null,
+    installedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  }];
+}
+
+function routeFetch() {
+  fetchMock.mockImplementation(async (input, init) => {
+    const path = String(input).replace("/api", "");
+    const method = init?.method ?? "GET";
+    if (method === "GET" && path === "/ships/s1/equipment")
+      return jsonResponse({ success: true, data: equipmentList() });
+    if (method === "POST" && path === "/ships/s1/equipment")
+      return jsonResponse({ success: true, data: { ...equipmentList()[0], id: "eq2", name: "Pump" } });
+    if (method === "PATCH" && path === "/ships/s1/equipment/eq1")
+      return jsonResponse({ success: true, data: { ...equipmentList()[0], name: "Generator 2" } });
+    if (method === "DELETE" && path === "/ships/s1/equipment/eq1")
+      return jsonResponse({ success: true, data: null });
+    return new Response("not found", { status: 404 });
+  });
+}
+
+describe("shipEquipmentTab", () => {
+  it("renders equipment and hides write actions when the caller cannot manage", async () => {
+    routeFetch();
+    renderWithProviders(<ShipEquipmentTab ship={ship} canManage={false} />);
+
+    await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
+    expect(screen.getByText("Engine room")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add equipment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit equipment" })).not.toBeInTheDocument();
+  });
+
+  it("creates, edits, and deletes equipment through the scoped API", async () => {
+    routeFetch();
+    renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);
+    await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Pump");
+    await userEvent.type(screen.getByLabelText("Manufacturer"), "Flow");
+    await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
+      expect(post).toBeDefined();
+      expect(JSON.parse(post![1]!.body as string)).toMatchObject({ name: "Pump", manufacturer: "Flow" });
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit equipment" }));
+    const dialog = screen.getByRole("dialog");
+    const nameInput = within(dialog).getByLabelText("Name");
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, "Generator 2");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(call => call[1]?.method === "PATCH");
+      expect(patch).toBeDefined();
+      expect(String(patch![0])).toBe("/api/ships/s1/equipment/eq1");
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete equipment" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Delete equipment" }).at(-1)!);
+
+    await waitFor(() => {
+      const del = fetchMock.mock.calls.find(call => call[1]?.method === "DELETE");
+      expect(del).toBeDefined();
+      expect(String(del![0])).toBe("/api/ships/s1/equipment/eq1");
+    });
+  });
+});
