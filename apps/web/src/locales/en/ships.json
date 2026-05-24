@@ -1,0 +1,88 @@
+{
+  "page": {
+    "title": "Ships",
+    "description": "Manage vessels across their build and service lifecycle."
+  },
+  "list": {
+    "create": "Create ship",
+    "filterByStage": "Lifecycle stage",
+    "stageAll": "All",
+    "loading": "Loading ships…",
+    "empty": "No ships yet.",
+    "total": "{{count}} total"
+  },
+  "status": {
+    "active": "Active",
+    "archived": "Archived"
+  },
+  "lifecycle": {
+    "design": "Design",
+    "building": "Building",
+    "sea_trial": "Sea trial",
+    "in_service": "In service",
+    "maintenance": "Maintenance",
+    "decommissioned": "Decommissioned"
+  },
+  "tabs": {
+    "overview": "Overview",
+    "projects": "Projects",
+    "files": "Files"
+  },
+  "detail": {
+    "back": "Back to ships",
+    "loading": "Loading ship…",
+    "notFound": "Ship not found."
+  },
+  "delete": {
+    "title": "Delete ship",
+    "confirm": "Delete \"{{name}}\"? Its base project and files are preserved."
+  },
+  "field": {
+    "name": "Name",
+    "code": "Hull number",
+    "status": "Status",
+    "lifecycleStage": "Lifecycle stage",
+    "description": "Description",
+    "builder": "Builder",
+    "model": "Model",
+    "buildYear": "Build year",
+    "lengthOverall": "Length overall (m)",
+    "beam": "Beam (m)",
+    "draft": "Draft (m)",
+    "grossTonnage": "Gross tonnage",
+    "imoNumber": "IMO number",
+    "mmsi": "MMSI",
+    "callSign": "Call sign",
+    "flagState": "Flag state",
+    "registryPort": "Port of registry",
+    "ownerName": "Owner"
+  },
+  "form": {
+    "createTitle": "Create ship",
+    "editTitle": "Edit ship",
+    "createDescription": "Register a new vessel. A base project is created automatically as its permission and file anchor.",
+    "editDescription": "Update the vessel's information.",
+    "namePlaceholder": "e.g. Serenity",
+    "codePlaceholder": "Auto-generated when left blank",
+    "submitCreate": "Create",
+    "submitSave": "Save"
+  },
+  "overview": {
+    "noDescription": "No description provided.",
+    "notSet": "Not set"
+  },
+  "projects": {
+    "bindTitle": "Bind a project",
+    "bindPlaceholder": "Project ID",
+    "bind": "Bind",
+    "empty": "No additional projects bound.",
+    "baseBadge": "Base",
+    "open": "Open",
+    "unbind": "Unbind",
+    "unbindTitle": "Unbind project",
+    "unbindConfirm": "Unbind \"{{name}}\" from this ship? Its files and data are preserved."
+  },
+  "files": {
+    "noBaseProject": "This ship has no base project, so there are no files yet."
+  }
+}

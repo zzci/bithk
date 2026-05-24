@@ -48,6 +48,7 @@
     "policies": "Policies",
     "documents": "Documents",
     "projects": "Projects",
+    "ships": "Ships",
     "audit": "Audit Log",
     "cron": "Cron",
     "settings": "Settings",
@@ -66,6 +67,7 @@
     "documents": "Documents",
     "issues": "Issues",
     "projects": "Projects",
+    "ships": "Ships",
     "drive": "Files"
   }
 }

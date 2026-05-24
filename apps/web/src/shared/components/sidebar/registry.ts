@@ -8,12 +8,14 @@ import { cronNav } from "@/app/routes/_app/admin/-cron.nav";
 import { policiesNav } from "@/app/routes/_app/admin/-policies.nav";
 import { settingsNav } from "@/app/routes/_app/admin/-settings.nav";
 import { usersNav } from "@/app/routes/_app/admin/-users.nav";
+import { shipsNav } from "@/app/routes/_app/ships/-ships.nav";
 
 const NAV_ITEMS: readonly NavItem[] = [
   overviewNav,
   documentsNav,
   driveNav,
   projectsNav,
+  shipsNav,
   usersNav,
   policiesNav,
   auditNav,

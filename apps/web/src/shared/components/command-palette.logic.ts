@@ -7,6 +7,7 @@ export type HitTarget
   = | { readonly to: "/documents/$docId"; readonly params: { readonly docId: string } }
     | { readonly to: "/projects/$projectId/issues/$issueId"; readonly params: { readonly projectId: string; readonly issueId: string } }
     | { readonly to: "/projects/$projectId"; readonly params: { readonly projectId: string } }
+    | { readonly to: "/ships/$shipId"; readonly params: { readonly shipId: string } }
     | { readonly to: "/drive" };
 
 /** Map a search hit to its router navigation target. */
@@ -19,6 +20,8 @@ export function hitTarget(hit: SearchHit): HitTarget {
       return { to: "/projects/$projectId/issues/$issueId", params: { projectId: hit.projectId ?? "", issueId: hit.id } };
     case "project":
       return { to: "/projects/$projectId", params: { projectId: hit.id } };
+    case "ship":
+      return { to: "/ships/$shipId", params: { shipId: hit.id } };
     case "drive":
       return { to: "/drive" };
   }

@@ -20,8 +20,10 @@ import { Route as AppOverviewRouteImport } from './routes/_app/overview'
 import { Route as AppDriveRouteImport } from './routes/_app/drive'
 import { Route as AppDocumentsRouteImport } from './routes/_app/documents'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
+import { Route as AppShipsIndexRouteImport } from './routes/_app/ships/index'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppDocumentsIndexRouteImport } from './routes/_app/documents/index'
+import { Route as AppShipsShipIdRouteImport } from './routes/_app/ships/$shipId'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
 import { Route as AppDocumentsNewRouteImport } from './routes/_app/documents/new'
 import { Route as AppDocumentsDocIdRouteImport } from './routes/_app/documents/$docId'
@@ -91,6 +93,13 @@ const AppAdminRoute = AppAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AppRoute,
 } as any)
+const AppShipsIndexRoute = AppShipsIndexRouteImport.update({
+  id: '/ships/',
+  path: '/ships/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/ships/index.lazy').then((d) => d.Route),
+)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -104,6 +113,13 @@ const AppDocumentsIndexRoute = AppDocumentsIndexRouteImport.update({
   getParentRoute: () => AppDocumentsRoute,
 } as any).lazy(() =>
   import('./routes/_app/documents/index.lazy').then((d) => d.Route),
+)
+const AppShipsShipIdRoute = AppShipsShipIdRouteImport.update({
+  id: '/ships/$shipId',
+  path: '/ships/$shipId',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/ships/$shipId.lazy').then((d) => d.Route),
 )
 const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
   id: '/projects/$projectId',
@@ -213,8 +229,10 @@ export interface FileRoutesByFullPath {
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
+  '/ships/$shipId': typeof AppShipsShipIdRoute
   '/documents/': typeof AppDocumentsIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
+  '/ships/': typeof AppShipsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
@@ -237,8 +255,10 @@ export interface FileRoutesByTo {
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
+  '/ships/$shipId': typeof AppShipsShipIdRoute
   '/documents': typeof AppDocumentsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/ships': typeof AppShipsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
@@ -265,8 +285,10 @@ export interface FileRoutesById {
   '/_app/documents/$docId': typeof AppDocumentsDocIdRoute
   '/_app/documents/new': typeof AppDocumentsNewRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
+  '/_app/ships/$shipId': typeof AppShipsShipIdRoute
   '/_app/documents/': typeof AppDocumentsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
+  '/_app/ships/': typeof AppShipsIndexRoute
   '/_app/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
@@ -293,8 +315,10 @@ export interface FileRouteTypes {
     | '/documents/$docId'
     | '/documents/new'
     | '/projects/$projectId'
+    | '/ships/$shipId'
     | '/documents/'
     | '/projects/'
+    | '/ships/'
     | '/admin/users/groups'
     | '/admin/users/'
     | '/projects/$projectId/issues/$issueId'
@@ -317,8 +341,10 @@ export interface FileRouteTypes {
     | '/documents/$docId'
     | '/documents/new'
     | '/projects/$projectId'
+    | '/ships/$shipId'
     | '/documents'
     | '/projects'
+    | '/ships'
     | '/admin/users/groups'
     | '/admin/users'
     | '/projects/$projectId/issues/$issueId'
@@ -344,8 +370,10 @@ export interface FileRouteTypes {
     | '/_app/documents/$docId'
     | '/_app/documents/new'
     | '/_app/projects/$projectId'
+    | '/_app/ships/$shipId'
     | '/_app/documents/'
     | '/_app/projects/'
+    | '/_app/ships/'
     | '/_app/admin/users/groups'
     | '/_app/admin/users/'
     | '/_app/projects/$projectId/issues/$issueId'
@@ -441,6 +469,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ships/': {
+      id: '/_app/ships/'
+      path: '/ships'
+      fullPath: '/ships/'
+      preLoaderRoute: typeof AppShipsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projects/': {
       id: '/_app/projects/'
       path: '/projects'
@@ -454,6 +489,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/documents/'
       preLoaderRoute: typeof AppDocumentsIndexRouteImport
       parentRoute: typeof AppDocumentsRoute
+    }
+    '/_app/ships/$shipId': {
+      id: '/_app/ships/$shipId'
+      path: '/ships/$shipId'
+      fullPath: '/ships/$shipId'
+      preLoaderRoute: typeof AppShipsShipIdRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/projects/$projectId': {
       id: '/_app/projects/$projectId'
@@ -610,7 +652,9 @@ interface AppRouteChildren {
   AppDriveRoute: typeof AppDriveRoute
   AppOverviewRoute: typeof AppOverviewRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRouteWithChildren
+  AppShipsShipIdRoute: typeof AppShipsShipIdRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
+  AppShipsIndexRoute: typeof AppShipsIndexRoute
   AppProjectsProjectIdIssuesIssueIdFullRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRoute
 }
 
@@ -620,7 +664,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppDriveRoute: AppDriveRoute,
   AppOverviewRoute: AppOverviewRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRouteWithChildren,
+  AppShipsShipIdRoute: AppShipsShipIdRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
+  AppShipsIndexRoute: AppShipsIndexRoute,
   AppProjectsProjectIdIssuesIssueIdFullRoute:
     AppProjectsProjectIdIssuesIssueIdFullRoute,
 }
