@@ -15,6 +15,15 @@ import {
   updateEquipment,
 } from "./ship.equipment.service";
 import {
+  createShipTemplate,
+  createShipTemplateSchema,
+  deleteShipTemplate,
+  getShipTemplate,
+  listShipTemplates,
+  updateShipTemplate,
+  updateTemplateSchema,
+} from "./ship.maintenance-template.service";
+import {
   bindProject,
   composeShipWithBase,
   createShip,
@@ -269,6 +278,55 @@ export function shipRoutes() {
       throw new NotFoundError("Equipment", equipmentId);
     return c.json({ success: true, data: null });
   });
+  // ─── T3: ship-level maintenance templates ───────────────────────────────
+  // Read = base-project member (404 fail-closed); write = project.manage (403).
+  // These return ONLY this ship's templates (never global knowledge-base rows).
+  router.get("/ships/:shortId/maintenance-templates", async (c) => {
+    const { ship } = await requireShipRead(c, c.req.param("shortId"));
+    const db = c.get("db");
+    return c.json({ success: true, data: await listShipTemplates(db, ship.id) });
+  });
+
+  router.post("/ships/:shortId/maintenance-templates", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const body = createShipTemplateSchema.parse(await c.req.json());
+    const result = await createShipTemplate(db, ship.id, body);
+    if (result.status === "global_not_found")
+      throw new NotFoundError("Maintenance template", body.fromGlobalId);
+    return c.json({ success: true, data: result.template }, 201);
+  });
+
+  router.get("/ships/:shortId/maintenance-templates/:id", async (c) => {
+    const { ship } = await requireShipRead(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const id = c.req.param("id");
+    const tpl = await getShipTemplate(db, ship.id, id);
+    if (!tpl)
+      throw new NotFoundError("Maintenance template", id);
+    return c.json({ success: true, data: tpl });
+  });
+
+  router.patch("/ships/:shortId/maintenance-templates/:id", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const id = c.req.param("id");
+    const body = updateTemplateSchema.parse(await c.req.json());
+    const updated = await updateShipTemplate(db, ship.id, id, body);
+    if (!updated)
+      throw new NotFoundError("Maintenance template", id);
+    return c.json({ success: true, data: updated });
+  });
+
+  router.delete("/ships/:shortId/maintenance-templates/:id", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const id = c.req.param("id");
+    if (!await deleteShipTemplate(db, ship.id, id))
+      throw new NotFoundError("Maintenance template", id);
+    return c.json({ success: true, data: null });
+  });
+  // ─── end T3 ──────────────────────────────────────────────────────────────
 
   return router;
 }
