@@ -36,6 +36,7 @@ describe("commandPalette", () => {
     expect(await screen.findByText("Quick entry")).toBeInTheDocument();
     expect(screen.getByText("Overview")).toBeInTheDocument();
     expect(screen.getByText("Documents")).toBeInTheDocument();
+    expect(screen.getByText("Contacts")).toBeInTheDocument();
   });
 
   it("navigates and closes when a quick entry is clicked", async () => {
@@ -44,6 +45,15 @@ describe("commandPalette", () => {
     renderWithProviders(<CommandPalette open onOpenChange={onOpenChange} />);
     await user.click(await screen.findByText("Overview"));
     expect(navigateMock).toHaveBeenCalledWith({ to: expect.any(String) });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("navigates to Contacts from a quick entry", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    renderWithProviders(<CommandPalette open onOpenChange={onOpenChange} />);
+    await user.click(await screen.findByRole("button", { name: "Contacts" }));
+    expect(navigateMock).toHaveBeenCalledWith({ to: "/contacts" });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
