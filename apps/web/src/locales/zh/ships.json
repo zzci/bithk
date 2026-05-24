@@ -1,0 +1,88 @@
+{
+  "page": {
+    "title": "船舶",
+    "description": "管理游艇从建造到运营全生命周期。"
+  },
+  "list": {
+    "create": "新建船舶",
+    "filterByStage": "生命周期阶段",
+    "stageAll": "全部",
+    "loading": "正在加载船舶…",
+    "empty": "暂无船舶。",
+    "total": "共 {{count}} 条"
+  },
+  "status": {
+    "active": "在用",
+    "archived": "已归档"
+  },
+  "lifecycle": {
+    "design": "设计",
+    "building": "建造",
+    "sea_trial": "海试",
+    "in_service": "服役",
+    "maintenance": "维护",
+    "decommissioned": "退役"
+  },
+  "tabs": {
+    "overview": "概览",
+    "projects": "项目",
+    "files": "文件"
+  },
+  "detail": {
+    "back": "返回船舶列表",
+    "loading": "正在加载船舶…",
+    "notFound": "未找到该船舶。"
+  },
+  "delete": {
+    "title": "删除船舶",
+    "confirm": "确定删除“{{name}}”？其基础项目与文件将保留。"
+  },
+  "field": {
+    "name": "名称",
+    "code": "船体编号",
+    "status": "状态",
+    "lifecycleStage": "生命周期阶段",
+    "description": "描述",
+    "builder": "建造方",
+    "model": "型号",
+    "buildYear": "建造年份",
+    "lengthOverall": "总长（米）",
+    "beam": "船宽（米）",
+    "draft": "吃水（米）",
+    "grossTonnage": "总吨位",
+    "imoNumber": "IMO 编号",
+    "mmsi": "MMSI",
+    "callSign": "呼号",
+    "flagState": "船旗国",
+    "registryPort": "船籍港",
+    "ownerName": "船东"
+  },
+  "form": {
+    "createTitle": "新建船舶",
+    "editTitle": "编辑船舶",
+    "createDescription": "登记一艘新船舶。系统会自动创建一个基础项目作为其权限与文件载体。",
+    "editDescription": "更新船舶信息。",
+    "namePlaceholder": "例如：Serenity",
+    "codePlaceholder": "留空时自动生成",
+    "submitCreate": "创建",
+    "submitSave": "保存"
+  },
+  "overview": {
+    "noDescription": "暂无描述。",
+    "notSet": "未设置"
+  },
+  "projects": {
+    "bindTitle": "绑定项目",
+    "bindPlaceholder": "项目 ID",
+    "bind": "绑定",
+    "empty": "尚未绑定其它项目。",
+    "baseBadge": "基础",
+    "open": "打开",
+    "unbind": "解绑",
+    "unbindTitle": "解绑项目",
+    "unbindConfirm": "确定将“{{name}}”从该船舶解绑？其文件与数据将保留。"
+  },
+  "files": {
+    "noBaseProject": "该船舶没有基础项目，暂无文件。"
+  }
+}

@@ -5,7 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { http } from "../http";
 
-export type SearchHitType = "document" | "issue" | "project" | "drive";
+export type SearchHitType = "document" | "issue" | "project" | "drive" | "ship";
 
 export interface SearchHit {
   readonly type: SearchHitType;
@@ -22,6 +22,7 @@ export interface GlobalSearchResult {
   readonly issues: readonly SearchHit[];
   readonly projects: readonly SearchHit[];
   readonly drive: readonly SearchHit[];
+  readonly ships: readonly SearchHit[];
 }
 
 interface SearchEnvelope {

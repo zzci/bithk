@@ -51,7 +51,7 @@ describe("commandPalette", () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
-      data: { documents: [], issues: [], projects: [], drive: [] },
+      data: { documents: [], issues: [], projects: [], ships: [], drive: [] },
     }));
     renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
     await user.type(screen.getByRole("textbox"), "Documents");
@@ -67,6 +67,7 @@ describe("commandPalette", () => {
         documents: [{ type: "document", id: "d1", title: "Leak report" }],
         issues: [],
         projects: [],
+        ships: [],
         drive: [],
       },
     }));
@@ -81,7 +82,7 @@ describe("commandPalette", () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
-      data: { documents: [], issues: [], projects: [], drive: [] },
+      data: { documents: [], issues: [], projects: [], ships: [], drive: [] },
     }));
     renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
     await user.type(screen.getByRole("textbox"), "zzz-no-match");

@@ -6,7 +6,7 @@
 import type { LucideIcon } from "lucide-react";
 import type { SearchHit } from "@/shared/lib/api/search";
 import { useNavigate } from "@tanstack/react-router";
-import { Briefcase, CheckSquare, FileText, HardDrive, Search, X } from "lucide-react";
+import { Briefcase, CheckSquare, FileText, HardDrive, Search, Ship, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hitTarget, matchesQuery } from "@/shared/components/command-palette.logic";
@@ -29,6 +29,7 @@ const HIT_ICON: Record<SearchHit["type"], LucideIcon> = {
   issue: CheckSquare,
   project: Briefcase,
   drive: HardDrive,
+  ship: Ship,
 };
 
 interface PaletteAction {
@@ -117,6 +118,7 @@ export function CommandPalette({
         ["documents", data.documents],
         ["issues", data.issues],
         ["projects", data.projects],
+        ["ships", data.ships],
         ["drive", data.drive],
       ];
       for (const [key, hits] of sections) {
