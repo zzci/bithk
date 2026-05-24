@@ -5,7 +5,15 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
-import { SHIP_LIFECYCLE_STAGES, SHIP_STATUSES } from "./schema";
+import { EQUIPMENT_STATUSES, SHIP_LIFECYCLE_STAGES, SHIP_STATUSES } from "./schema";
+import {
+  composeEquipment,
+  createEquipment,
+  deleteEquipment,
+  getEquipment,
+  listEquipment,
+  updateEquipment,
+} from "./ship.equipment.service";
 import {
   bindProject,
   composeShipWithBase,
@@ -64,6 +72,30 @@ const listSchema = z.object({
 });
 
 const bindProjectSchema = z.object({ projectShortId: z.string().min(1) });
+
+const equipmentCoreShape = {
+  category: z.string().max(255).nullable().optional(),
+  manufacturer: z.string().max(255).nullable().optional(),
+  model: z.string().max(255).nullable().optional(),
+  serialNumber: z.string().max(255).nullable().optional(),
+  location: z.string().max(255).nullable().optional(),
+  installedAt: z.string().max(50).nullable().optional(),
+  status: z.enum(EQUIPMENT_STATUSES).optional(),
+  note: z.string().max(2000).nullable().optional(),
+};
+
+const createEquipmentSchema = z.object({
+  name: z.string().min(1).max(255),
+  ...equipmentCoreShape,
+});
+
+const updateEquipmentSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  ...equipmentCoreShape,
+}).refine(
+  v => Object.values(v).some(value => value !== undefined),
+  { message: "At least one field must be provided" },
+);
 
 function actorId(c: Context<AppEnv>): string {
   return c.get("user")!.id;
@@ -186,6 +218,55 @@ export function shipRoutes() {
       throw new NotFoundError("Bound project", c.req.param("projectShortId"));
     if (result === "is_base")
       throw new ForbiddenError("The base project cannot be unbound");
+    return c.json({ success: true, data: null });
+  });
+
+  // ─── Ship equipment CRUD ─────────────────────────────────────────────
+  // Sub-paths of /ships/:shortId. Read = base-project member (fail-closed
+  // 404 via requireShipRead); write = project.manage (403 via
+  // requireShipManage). Equipment is scoped to its parent ship's internal id,
+  // so an equipment id from another ship resolves to 404.
+  router.get("/ships/:shortId/equipment", async (c) => {
+    const { ship } = await requireShipRead(c, c.req.param("shortId"));
+    const db = c.get("db");
+    return c.json({ success: true, data: await listEquipment(db, ship.id) });
+  });
+
+  router.post("/ships/:shortId/equipment", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const body = createEquipmentSchema.parse(await c.req.json());
+    const created = await createEquipment(db, ship.id, body);
+    return c.json({ success: true, data: composeEquipment(created) }, 201);
+  });
+
+  router.get("/ships/:shortId/equipment/:equipmentId", async (c) => {
+    const { ship } = await requireShipRead(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const equipmentId = c.req.param("equipmentId");
+    const row = await getEquipment(db, ship.id, equipmentId);
+    if (!row)
+      throw new NotFoundError("Equipment", equipmentId);
+    return c.json({ success: true, data: composeEquipment(row) });
+  });
+
+  router.patch("/ships/:shortId/equipment/:equipmentId", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const equipmentId = c.req.param("equipmentId");
+    const body = updateEquipmentSchema.parse(await c.req.json());
+    const updated = await updateEquipment(db, ship.id, equipmentId, body);
+    if (!updated)
+      throw new NotFoundError("Equipment", equipmentId);
+    return c.json({ success: true, data: composeEquipment(updated) });
+  });
+
+  router.delete("/ships/:shortId/equipment/:equipmentId", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const equipmentId = c.req.param("equipmentId");
+    if (!await deleteEquipment(db, ship.id, equipmentId))
+      throw new NotFoundError("Equipment", equipmentId);
     return c.json({ success: true, data: null });
   });
 
