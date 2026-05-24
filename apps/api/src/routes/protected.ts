@@ -14,6 +14,7 @@ import { projectRoutes } from "@/modules/project";
 import { searchRoutes } from "@/modules/search";
 import { settingsRoutes } from "@/modules/settings";
 import { shareRoutes } from "@/modules/share";
+import { shipRoutes } from "@/modules/ship";
 // Side-effect import: the `item` module ships no HTTP routes; it registers
 // its backup contribution and the `item_attachment` file permission hook at
 // load time.
@@ -31,6 +32,7 @@ export function protectedRoutes() {
   app.route("/", driveRoutes());
   app.route("/", searchRoutes());
   app.route("/", shareRoutes());
+  app.route("/", shipRoutes());
   app.route("/", settingsRoutes());
   app.route("/", auditRoutes());
   app.route("/", backupRoutes());

@@ -1,5 +1,7 @@
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
+import { ships } from "@/modules/ship/schema";
 
 export const PROJECT_STATUSES = ["active", "archived"] as const;
 export type ProjectStatus = typeof PROJECT_STATUSES[number];
@@ -31,6 +33,10 @@ export const projects = sqliteTable("projects", {
   name: text("name").notNull(),
   status: text("status", { enum: PROJECT_STATUSES }).notNull().default("active"),
   description: text("description"),
+  // Optional link back to a ship. The base project of a ship points at it; an
+  // additionally bound project also sets this. Nullable circular FK — see
+  // `ships.baseProjectId`.
+  shipId: text("ship_id").references((): AnySQLiteColumn => ships.id, { onDelete: "set null" }),
   creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   version: integer("version").notNull().default(1),
   deletedAt: text("deleted_at"),
@@ -39,6 +45,7 @@ export const projects = sqliteTable("projects", {
   uniqueIndex("projects_short_id_idx").on(t.shortId),
   uniqueIndex("projects_code_idx").on(t.code),
   index("projects_status_idx").on(t.status, t.deletedAt),
+  index("projects_ship_idx").on(t.shipId),
 ]);
 
 // User-defined roles, per project. Capabilities are a JSON string[] validated

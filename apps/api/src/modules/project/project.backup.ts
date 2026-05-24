@@ -8,5 +8,6 @@ export const projectBackupContribution: BackupContribution = {
   // tags before project_tags (FK tag_id). project_members.role_id → project_roles,
   // so roles precede members.
   tables: [projects, projectRoles, projectMembers, projectContacts, procurementCategories, tags, projectTags],
-  deps: ["users"],
+  // `projects.ship_id` → ships, so ships must be inserted before projects.
+  deps: ["users", "ships"],
 };

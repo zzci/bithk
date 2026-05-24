@@ -76,6 +76,17 @@ describe("resolveModulesWithDeps", () => {
     registerBackupContribution({ name: "c", tables: [fakeTable("c")], deps: ["b"] });
     expect(resolveModulesWithDeps(["c"])).toEqual(["a", "b", "c"]);
   });
+
+  test("tolerates a circular dependency (projects ↔ ships) and includes each once", () => {
+    registerBackupContribution({ name: "users", tables: [fakeTable("users")], deps: [] });
+    registerBackupContribution({ name: "projects", tables: [fakeTable("projects")], deps: ["users", "ships"] });
+    registerBackupContribution({ name: "ships", tables: [fakeTable("ships")], deps: ["users", "projects"] });
+
+    const r = resolveModulesWithDeps(["projects"]);
+    expect([...r].sort()).toEqual(["projects", "ships", "users"]);
+    // No duplicates despite the cycle.
+    expect(r).toHaveLength(new Set(r).size);
+  });
 });
 
 describe("getTablesForModules", () => {
