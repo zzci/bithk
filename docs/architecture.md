@@ -2,7 +2,7 @@
 
 > Examples assume `BASE_PATH=/app`. The app is mounted at root (`/`) by default; set `BASE_PATH` to serve under a URL prefix.
 
-This is a Bun monorepo template that provides an OAuth-backed internal workspace: account management, Zanzibar-style policy tuples, documents, issues, settings, audit logs, and JSON backup.
+This is a Bun monorepo template that provides an OAuth-backed internal workspace: account management, Zanzibar-style policy tuples, documents, issues, contacts, settings, audit logs, and JSON backup.
 
 This document describes the implemented architecture in the current codebase. Planned integrations should live in separate roadmap or planning documents, not in current-state architecture docs.
 
@@ -82,6 +82,7 @@ apps/api/src/modules/
     groups/
   audit/
   backup/
+  contact/         # global shared contact directory
   cron/
   document/        # sub-type of item
   drive/           # personal + team file drive (folders, versions, shares)
@@ -99,6 +100,7 @@ apps/api/src/modules/
 | `account` | OAuth login, sessions, current user, users, groups, TOTP. | [account.md](modules/account.md) |
 | `audit` | Persisted audit events + retention sweep. | [audit.md](modules/audit.md) |
 | `backup` | JSON backup export and import (admin + service-token surfaces). | [backup.md](modules/backup.md) |
+| `contact` | Global shared contact directory with owner/viewer authorization, public/private visibility, and confidential field masking. | [contact.md](modules/contact.md) |
 | `cron` | In-process job scheduler: cron-driven actions with run history. | [cron.md](modules/cron.md) |
 | `document` | Documents, attachments, comments, shares; sub-type of `item`. | [document.md](modules/document.md) |
 | `drive` | Personal + team file drive: folders, file versions, direct / public-link shares. Owns its own tables (not a sub-type of `item`). | [drive.md](modules/drive.md) |
@@ -182,6 +184,14 @@ Tuple example:
 document:abc123#viewer@group:dev-team#member
 group:dev-team#member@user:user123
 ```
+
+The `contact` namespace protects the global contact directory. Each contact has
+an `owner` relation for full management and a `viewer` relation for explicit
+per-user or per-group read grants. Public contacts are readable by any
+authenticated user through the contact permission hook; private contacts require
+owner/admin access or an explicit viewer grant. Confidential public contacts
+mask contact fields for implicit public viewers and keep only the name and tags
+visible; owners, admins, and explicit viewers see the full row.
 
 ## Data Storage
 

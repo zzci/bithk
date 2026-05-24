@@ -21,7 +21,7 @@ apps/api/src/modules/procurement/
 
 | Table | Purpose |
 | ----- | ------- |
-| `procurement_details` | Per-record fields keyed off `item_id` (1:1 with `items` where `type='procurement'`). Columns: `project_id` (FK → `projects`, cascade), `supplier_id` (FK → `project_contacts`, set null — the counterparty, **not** an operator), `category_id` (FK → `procurement_categories`, set null), `assignee_member_id` (FK → `project_members`, set null — the responsible operator), `item_name`, `quantity`, `amount` (minor currency unit), `currency`. Index on `project_id`. |
+| `procurement_details` | Per-record fields keyed off `item_id` (1:1 with `items` where `type='procurement'`). Columns: `project_id` (FK → `projects`, cascade), `supplier_id` (FK → `contacts`, set null — the counterparty, **not** an operator), `category_id` (FK → `procurement_categories`, set null), `assignee_member_id` (FK → `project_members`, set null — the responsible operator), `item_name`, `quantity`, `amount` (minor currency unit), `currency`. Index on `project_id`. |
 
 The procurement lifecycle status lives on `items.status`:
 `draft → requested → ordered → received → closed`. The allowed set is validated
@@ -43,7 +43,7 @@ responses is the project `short_id` (never the internal ULID).
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | GET    | `/api/projects/:projectId/procurements` | List. Filters: `status`, `categoryId`, `page`, `limit`. |
-| POST   | `/api/projects/:projectId/procurements` | Create. Body: `{ itemName, title?, status?, supplierId?, categoryId?, assigneeMemberId?, quantity?, amount?, currency? }`. The `supplierId` / `categoryId` / `assigneeMemberId` references are validated against the project before insert. |
+| POST   | `/api/projects/:projectId/procurements` | Create. Body: `{ itemName, title?, status?, supplierId?, categoryId?, assigneeMemberId?, quantity?, amount?, currency? }`. The `supplierId` reference is validated against the global contact directory; `categoryId` and `assigneeMemberId` are validated against the project before insert. |
 | GET    | `/api/projects/:projectId/procurements/:id` | Detail. |
 | PATCH  | `/api/projects/:projectId/procurements/:id` | Update. Bumps `version`. |
 | DELETE | `/api/projects/:projectId/procurements/:id` | Soft delete — sets `items.deleted_at`, clears item tuples. |
@@ -63,14 +63,16 @@ from the [`project`](./project.md) module.
 
 ## References
 
-- `supplier_id` → `project_contacts`: the order counterparty (a contact of
-  type `supplier`), metadata only — not an operator.
+- `supplier_id` → `contacts`: the order counterparty, metadata only — not an
+  operator. It may reference any existing global contact; there is no project
+  scoping or contact type enum.
 - `assignee_member_id` → `project_members`: the responsible operator (internal
   or external member).
 - `category_id` → `procurement_categories`: classifies the line item.
 
-All three are validated against the project before insert/update; an id from
-another project is rejected.
+The category and assignee references are project-scoped and reject ids from
+another project. The supplier reference is global and only requires that the
+contact exists.
 
 ## Audit
 
