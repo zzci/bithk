@@ -13,13 +13,6 @@ import {
   updateCategory,
 } from "./project.categories";
 import {
-  composeContact,
-  createContact,
-  deleteContact,
-  listContacts,
-  updateContact,
-} from "./project.contacts";
-import {
   composeRole,
   createRole,
   deleteRole,
@@ -43,7 +36,7 @@ import {
   updateMember,
   updateProject,
 } from "./project.service";
-import { CONTACT_STATUSES, CONTACT_TYPES, PROJECT_CAPABILITIES, PROJECT_STATUSES } from "./schema";
+import { PROJECT_CAPABILITIES, PROJECT_STATUSES } from "./schema";
 
 const tagsShape = { tags: z.array(z.string().min(1).max(50)).max(50).optional() };
 
@@ -103,29 +96,6 @@ const createRoleSchema = z.object({
 const updateRoleSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   capabilities: capabilitiesSchema.optional(),
-}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
-
-const contactShape = {
-  contactPerson: z.string().max(255).nullable().optional(),
-  phone: z.string().max(50).nullable().optional(),
-  email: z.string().max(255).nullable().optional(),
-  address: z.string().max(500).nullable().optional(),
-  taxId: z.string().max(100).nullable().optional(),
-  rating: z.number().int().min(1).max(5).nullable().optional(),
-  status: z.enum(CONTACT_STATUSES).optional(),
-  note: z.string().max(2000).nullable().optional(),
-};
-
-const createContactSchema = z.object({
-  type: z.enum(CONTACT_TYPES),
-  name: z.string().min(1).max(255),
-  ...contactShape,
-});
-
-const updateContactSchema = z.object({
-  type: z.enum(CONTACT_TYPES).optional(),
-  name: z.string().min(1).max(255).optional(),
-  ...contactShape,
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
 const createCategorySchema = z.object({
@@ -323,42 +293,6 @@ export function projectRoutes() {
       throw new ForbiddenError("System roles cannot be deleted");
     if (result === "in_use")
       throw new ValidationError("Role is still assigned to members", { roleId: "Role in use" });
-    return c.json({ success: true, data: null });
-  });
-
-  // ─── Contacts ──────────────────────────────────────────────────────
-  router.get("/projects/:id/contacts", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"));
-    const db = c.get("db");
-    const type = c.req.query("type");
-    const validType = (CONTACT_TYPES as readonly string[]).includes(type ?? "") ? (type as typeof CONTACT_TYPES[number]) : undefined;
-    return c.json({ success: true, data: (await listContacts(db, projectId, validType)).map(composeContact) });
-  });
-
-  router.post("/projects/:id/contacts", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "contacts.manage");
-    const db = c.get("db");
-    const body = createContactSchema.parse(await c.req.json());
-    const contact = await createContact(db, projectId, body);
-    return c.json({ success: true, data: composeContact(contact) }, 201);
-  });
-
-  router.patch("/projects/:id/contacts/:contactId", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "contacts.manage");
-    const db = c.get("db");
-    const body = updateContactSchema.parse(await c.req.json());
-    const contact = await updateContact(db, projectId, c.req.param("contactId"), body);
-    if (!contact)
-      throw new NotFoundError("Project contact", c.req.param("contactId"));
-    return c.json({ success: true, data: composeContact(contact) });
-  });
-
-  router.delete("/projects/:id/contacts/:contactId", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "contacts.manage");
-    const db = c.get("db");
-    const removed = await deleteContact(db, projectId, c.req.param("contactId"));
-    if (!removed)
-      throw new NotFoundError("Project contact", c.req.param("contactId"));
     return c.json({ success: true, data: null });
   });
 
