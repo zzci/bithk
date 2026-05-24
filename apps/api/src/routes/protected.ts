@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { accountRoutes } from "@/modules/account";
 import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
+import { contactRoutes } from "@/modules/contact";
 import { cronRoutes } from "@/modules/cron";
 import { documentRoutes } from "@/modules/document";
 import { driveRoutes } from "@/modules/drive";
@@ -28,6 +29,7 @@ export function protectedRoutes() {
   app.route("/", issueRoutes());
   app.route("/", policyRoutes());
   app.route("/", projectRoutes());
+  app.route("/", contactRoutes());
   app.route("/", procurementRoutes());
   app.route("/", documentRoutes());
   app.route("/", driveRoutes());

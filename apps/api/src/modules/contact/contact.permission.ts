@@ -110,9 +110,8 @@ export const contactAccess = defineResource<ContactAction>({
     { method: "GET", path: "/contacts/:id", action: "contact:read" },
     { method: "PATCH", path: "/contacts/:id", action: "contact:update" },
     { method: "DELETE", path: "/contacts/:id", action: "contact:delete" },
-    { method: "GET", path: "/contacts/:id/shares", action: "contact:share" },
-    { method: "POST", path: "/contacts/:id/shares", action: "contact:share" },
-    { method: "DELETE", path: "/contacts/:id/shares/:shareId", action: "contact:share" },
+    { method: "POST", path: "/contacts/:id/grant", action: "contact:share" },
+    { method: "POST", path: "/contacts/:id/revoke", action: "contact:share" },
   ],
   hooks: {
     // Only cheap column-derived grants bypass the engine. Explicit viewer and
