@@ -15,6 +15,7 @@ import { searchRoutes } from "@/modules/search";
 import { settingsRoutes } from "@/modules/settings";
 import { shareRoutes } from "@/modules/share";
 import { shipRoutes } from "@/modules/ship";
+import { maintenanceTemplateRoutes } from "@/modules/ship/ship.maintenance-template.service";
 // Side-effect import: the `item` module ships no HTTP routes; it registers
 // its backup contribution and the `item_attachment` file permission hook at
 // load time.
@@ -33,6 +34,7 @@ export function protectedRoutes() {
   app.route("/", searchRoutes());
   app.route("/", shareRoutes());
   app.route("/", shipRoutes());
+  app.route("/", maintenanceTemplateRoutes()); // T3: global maintenance-template KB (admin only)
   app.route("/", settingsRoutes());
   app.route("/", auditRoutes());
   app.route("/", backupRoutes());
