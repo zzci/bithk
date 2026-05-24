@@ -15,3 +15,5 @@
 | [FEAT-009](FEAT-009.md) | 船舶（游艇）管理模块 | [PLAN-011](../plan/PLAN-011.md) | In progress | 2026-05-24 |
 | [DOCS-001](DOCS-001.md) | 模块文档与代码对齐 | [PLAN-012](../plan/PLAN-012.md) | Done | 2026-05-24 |
 | [FIX-001](FIX-001.md) | Drive code/text preview fills container + unified CodeMirror editing | - | Done | 2026-05-24 |
+| [FIX-002](FIX-002.md) | Frontend quality: a11y focus rings, effect warnings, oversized files | - | Done | 2026-05-24 |
+| [FIX-003](FIX-003.md) | Drive trash/delete confirmation dialogs | - | Done | 2026-05-24 |

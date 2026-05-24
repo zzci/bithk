@@ -19,6 +19,7 @@ import { FolderInput, Upload } from "lucide-react";
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 
 import {
@@ -61,6 +62,7 @@ type DialogState
     | { readonly type: "text"; readonly markdown: boolean }
     | { readonly type: "rename"; readonly entry: DriveEntry }
     | { readonly type: "move"; readonly entry: DriveEntry }
+    | { readonly type: "trash"; readonly ids: readonly string[]; readonly name?: string | undefined }
     | null;
 
 export function FileBrowser({
@@ -212,10 +214,10 @@ export function FileBrowser({
       if (entry)
         onShareEntry?.(entry);
     },
-    onDelete: entryId => trashEntry.mutate(entryId),
+    onDelete: entryId => setDialog({ type: "trash", ids: [entryId], name: entryById.get(entryId)?.name }),
     onBatchDelete: (entryIds) => {
-      for (const id of entryIds)
-        trashEntry.mutate(id);
+      const ids = [...entryIds];
+      setDialog({ type: "trash", ids, name: ids.length === 1 ? entryById.get(ids[0]!)?.name : undefined });
     },
     onPreview: (item) => {
       const entry = entryById.get(item.id);
@@ -307,6 +309,25 @@ export function FileBrowser({
         onMove={(targetParentId) => {
           if (dialog?.type === "move")
             updateEntry.mutate({ id: dialog.entry.id, parentEntryId: targetParentId }, { onSuccess: closeDialog });
+        }}
+      />
+      <ConfirmDeleteDialog
+        open={dialog?.type === "trash"}
+        onOpenChange={open => !open && closeDialog()}
+        title={t("browser.dialog.trashTitle")}
+        description={dialog?.type === "trash"
+          ? dialog.ids.length === 1 && dialog.name
+            ? t("browser.dialog.trashOne", { name: dialog.name })
+            : t("browser.dialog.trashMany", { count: dialog.ids.length })
+          : ""}
+        confirmLabel={t("browser.action.trash")}
+        pending={trashEntry.isPending}
+        onConfirm={() => {
+          if (dialog?.type !== "trash")
+            return;
+          for (const id of dialog.ids)
+            trashEntry.mutate(id);
+          closeDialog();
         }}
       />
     </div>

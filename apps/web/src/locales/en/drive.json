@@ -117,7 +117,13 @@
       "moveDescription": "Move \"{{name}}\" to another folder.",
       "moveUp": "Up one level",
       "moveNoFolders": "No subfolders here",
-      "moveHere": "Move here"
+      "moveHere": "Move here",
+      "trashTitle": "Move to trash",
+      "trashOne": "Move \"{{name}}\" to the trash?",
+      "trashMany": "Move {{count}} selected items to the trash?",
+      "deleteForeverTitle": "Delete forever",
+      "deleteForeverOne": "Permanently delete \"{{name}}\"? This cannot be undone.",
+      "deleteForeverMany": "Permanently delete {{count}} selected items? This cannot be undone."
     }
   },
   "team": {

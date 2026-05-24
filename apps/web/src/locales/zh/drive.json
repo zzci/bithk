@@ -117,7 +117,13 @@
       "moveDescription": "将 \"{{name}}\" 移动到其他文件夹。",
       "moveUp": "上一级",
       "moveNoFolders": "此处没有子文件夹",
-      "moveHere": "移动到此处"
+      "moveHere": "移动到此处",
+      "trashTitle": "移到回收站",
+      "trashOne": "将 \"{{name}}\" 移到回收站？",
+      "trashMany": "将选中的 {{count}} 个项目移到回收站？",
+      "deleteForeverTitle": "永久删除",
+      "deleteForeverOne": "永久删除 \"{{name}}\"？此操作无法撤销。",
+      "deleteForeverMany": "永久删除选中的 {{count}} 个项目？此操作无法撤销。"
     }
   },
   "team": {

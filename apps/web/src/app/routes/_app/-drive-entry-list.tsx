@@ -21,6 +21,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useShare } from "@/shared/components/share";
+import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
   downloadDriveEntry,
@@ -155,6 +156,7 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
   // scoped to this collection (the page only forwards a preview callback).
   const { openShare } = useShare();
   const [renameEntry, setRenameEntry] = useState<DriveEntry | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ readonly ids: readonly string[]; readonly name?: string | undefined } | null>(null);
 
   // Opening a folder browses it in place: the flat collection is replaced by
   // the folder's children, with a breadcrumb rooted at the collection title.
@@ -210,11 +212,11 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
     },
     // Permanent deletion is wired for trash only; recent/favorites disable the
     // delete capabilities, so these stay no-ops there to guard live entries.
-    onDelete: isTrash ? id => permanentDelete.mutate(id) : () => {},
+    onDelete: isTrash ? id => setConfirmDelete({ ids: [id], name: entryById.get(id)?.name }) : () => {},
     onBatchDelete: isTrash
       ? (ids) => {
-          for (const id of ids)
-            permanentDelete.mutate(id);
+          const list = [...ids];
+          setConfirmDelete({ ids: list, name: list.length === 1 ? entryById.get(list[0]!)?.name : undefined });
         }
       : () => {},
     ...(isTrash
@@ -230,7 +232,7 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
               label: t("browser.action.deleteForever"),
               icon: <Trash2 className="mr-2 size-4" />,
               variant: "destructive",
-              onSelect: target => permanentDelete.mutate(target.id),
+              onSelect: target => setConfirmDelete({ ids: [target.id], name: target.name }),
             },
           ],
         }
@@ -246,7 +248,7 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
         setRenameEntry(entry);
     },
     onFavoriteChange: (item, favorite) => updateEntry.mutate({ id: item.id, favorite }),
-  }), [activeQuery, entryById, entryByFileId, isTrash, onPreviewEntry, openShare, permanentDelete, restoreEntry, t, updateEntry]);
+  }), [activeQuery, entryById, entryByFileId, isTrash, onPreviewEntry, openShare, restoreEntry, t, updateEntry]);
 
   const error = activeQuery.error ?? updateEntry.error ?? restoreEntry.error ?? permanentDelete.error;
 
@@ -270,6 +272,26 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
         onRename={(name) => {
           if (renameEntry)
             updateEntry.mutate({ id: renameEntry.id, name }, { onSuccess: () => setRenameEntry(null) });
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={confirmDelete !== null}
+        onOpenChange={open => !open && setConfirmDelete(null)}
+        title={t("browser.dialog.deleteForeverTitle")}
+        description={confirmDelete
+          ? confirmDelete.ids.length === 1 && confirmDelete.name
+            ? t("browser.dialog.deleteForeverOne", { name: confirmDelete.name })
+            : t("browser.dialog.deleteForeverMany", { count: confirmDelete.ids.length })
+          : ""}
+        confirmLabel={t("browser.action.deleteForever")}
+        pending={permanentDelete.isPending}
+        onConfirm={() => {
+          if (!confirmDelete)
+            return;
+          for (const id of confirmDelete.ids)
+            permanentDelete.mutate(id);
+          setConfirmDelete(null);
         }}
       />
     </>
