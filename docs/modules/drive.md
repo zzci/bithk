@@ -1,29 +1,30 @@
 # Drive Module
 
 Personal and team file storage: a per-user file tree plus shared **team
-directories**, with file **versioning** and two flavours of **sharing**
-(user-to-user "direct" shares and tokenised "public links"). Unlike
-`issue` / `document`, the drive is **not** a sub-type of `item` — it owns
-its own five tables. File bytes live in the `file` module
-(`files` / `file_references`); the drive only holds references, so dedupe,
-GC and download streaming all flow through the shared file service.
+directories**, with file **versioning**. **Sharing** (user-to-user "direct"
+shares and tokenised "public links") is delegated to the unified
+[`share`](./share.md) module via a drive share adapter — the drive no longer
+owns a shares table or public routes. Unlike `issue` / `document`, the drive is
+**not** a sub-type of `item` — it owns its own four tables. File bytes live in
+the `file` module (`files` / `file_references`); the drive only holds
+references, so dedupe, GC and download streaming all flow through the shared
+file service.
 
 ## File layout
 
 ```text
 apps/api/src/modules/drive/
-  schema.ts                        # 5 tables (entries, team dirs + members, versions, shares)
+  schema.ts                        # 4 tables (entries, team dirs + members, versions)
   drive.service.ts                 # entry CRUD, listing views, trash/restore, permanent delete
-  drive.share.service.ts           # direct + public-link shares, public access flow
+  drive.share-adapter.ts           # registers drive with the unified share module (resolve / list / openFile)
   drive.team-directory.service.ts  # team directory CRUD + membership + role resolution
   drive.version.service.ts         # version list / upload / switch-current
   drive.upload-validation.ts       # empty + size gate (any file type allowed)
   drive.permission.ts              # capability resolution + policy resource (`driveAccess`)
   drive.file-permission.ts         # file-module read/delete hook for `drive_entry` references
   drive.routes.ts                  # /api/drive/... (authenticated)
-  drive.public.routes.ts           # /api/drive/shared/:token (no session)
-  drive.backup.ts                  # backup contribution (all 5 tables)
-  index.ts                         # route exports + backup registration + file-permission import
+  drive.backup.ts                  # backup contribution (all 4 tables)
+  index.ts                         # route exports + backup registration + file-permission + share-adapter imports
   *.test.ts                        # co-located unit tests
 ```
 
@@ -37,6 +38,9 @@ No scheduler or middleware initialisation. Two import-time side effects in
 - `import "./drive.file-permission"` — registers a `file` permission hook
   for `drive_entry`-owned references so blob reads / deletes honour drive
   ownership.
+- `import "./drive.share-adapter"` — registers the drive adapter
+  (`resource_type='drive_entry'`) with the unified [`share`](./share.md)
+  module so drive entries can be shared.
 
 The policy resource (`driveAccess`, exported from `drive.permission.ts`)
 registers its route bindings as a side effect of mounting
@@ -44,8 +48,10 @@ registers its route bindings as a side effect of mounting
 
 ## Database
 
-Five tables, all owned by this module (see
-[database.md](../reference/database.md#drive) for full column lists):
+Four tables, all owned by this module (see
+[database.md](../reference/database.md#drive) for full column lists). Shares
+are **not** here — they live in the unified [`share`](./share.md) module's
+`shares` table (`resource_type='drive_entry'`):
 
 | Table                    | Purpose                                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------------------- |
@@ -53,12 +59,10 @@ Five tables, all owned by this module (see
 | `team_directories`       | Shared drive roots. The creator is an implicit admin.                                     |
 | `team_directory_members` | Explicit `{admin, editor, viewer}` membership rows (creator has none).                    |
 | `drive_file_versions`    | Append-only per-entry version history (`version_no` unique per entry).                    |
-| `drive_file_shares`      | Direct + public-link shares: unique `token`, optional `password` hash / `expires_at` / `max_downloads`, `is_active` for revocation. |
 
 ## Routes
 
-Mounted under `protectedRoutes` (every route wraps `authRequired`) except
-the two public-link routes, which are mounted under `publicRoutes`. Full
+Mounted under `protectedRoutes` (every route wraps `authRequired`). Full
 table in [api.md](../reference/api.md#drive). Summary:
 
 **Listing / creation (personal):** `GET /drive/entries`,
@@ -74,23 +78,18 @@ table in [api.md](../reference/api.md#drive). Summary:
 **Versions:** `GET|POST /drive/entries/:id/versions`,
 `POST /drive/entries/:id/versions/:versionId/current`.
 
-**Shares:** `GET|POST /drive/entries/:id/shares`,
-`GET /drive/shares/{received,sent,links}`,
-`PUT|DELETE /drive/shares/:id`.
-
 **Team directories:** `GET|POST /drive/team-directories`,
 `GET|PUT|DELETE /drive/team-directories/:id`,
 `GET|POST /drive/team-directories/:id/members`,
 `PUT|DELETE /drive/team-directories/:id/members/:memberId`.
 
-**Public (no session):** `GET /drive/shared/:token` (metadata only, includes
-`isFolder`), `POST /drive/shared/:token` (verify password + quota, then
-download or view-only metadata). For **folder** public links:
-`POST /drive/shared/:token/list` (browse a subtree-scoped listing with a
-breadcrumb) and `POST /drive/shared/:token/file/:entryId` (download one file,
-validated as a descendant of the shared folder). Both files and folders can be
-shared; a folder link opens a read-only public browser at the `/drive/shared/
-:token` page.
+**Sharing (in the [`share`](./share.md) module, not here):** drive entries are
+managed via `GET|POST /shares/drive_entry/:id` and the inboxes
+`/shares/{received,sent,links}`, updated/revoked via `PATCH|DELETE /shares/:shareId`,
+and served publicly at `/shared/:token` (metadata, password-gated download,
+folder listing, child download). Both files and folders can be shared; a folder
+link opens a read-only public browser. The drive contributes the
+`resolve` / `listChildren` / `openFile` behaviour through its share adapter.
 
 ## Permissions
 
@@ -142,25 +141,26 @@ so an uploaded SVG/HTML/script cannot execute inline.
 
 ## Auditing
 
-Write routes call `audit(...)` with `resourceType` `drive_entry`,
-`drive_share` or `team_directory`. Action codes:
+Write routes call `audit(...)` with `resourceType` `drive_entry` or
+`team_directory`. Action codes:
 
 `drive.folder.created`, `drive.file.created`, `drive.file.uploaded`,
 `drive.file.version_uploaded`, `drive.file.version_switched`,
 `drive.entry.updated`, `drive.entry.restored`, `drive.entry.trashed`,
-`drive.entry.deleted`, `drive.trash.emptied`, `drive.share.created`,
-`drive.share.updated`, `drive.share.revoked`, `drive.share.accessed`
-(public link; actor `client:public`), `drive.directory.created`,
+`drive.entry.deleted`, `drive.trash.emptied`, `drive.directory.created`,
 `drive.directory.updated`, `drive.directory.deleted`,
 `drive.directory.member_added`, `drive.directory.member_updated`,
 `drive.directory.member_removed`.
 
+Share lifecycle audit (`share.created` / `share.updated` / `share.revoked` /
+`share.accessed`) is emitted by the [`share`](./share.md) module, not here.
+
 ## Backup
 
-`driveBackupContribution` (name `drive`) registers all five tables in
+`driveBackupContribution` (name `drive`) registers all four tables in
 FK-safe order — `team_directories` → `team_directory_members` →
-`drive_entries` → `drive_file_versions` → `drive_file_shares` — and
-declares `deps: ["users", "files"]`. Blob bytes are **not** part of the
+`drive_entries` → `drive_file_versions` — and declares
+`deps: ["users", "files"]`. Drive shares back up with the `share` module. Blob bytes are **not** part of the
 drive contribution; they restore via the `files` contribution. Restoring a
 drive backup without its `files` rows leaves dangling references.
 
@@ -203,8 +203,7 @@ the real file storage driver — no DB or service mocking).
 
 ## Frontend integration
 
-The drive web UI is a three-tab page (`apps/web/src/app/routes/_app/portal/
-drive.lazy.tsx`): **My files** (`FileBrowser` over the caller's personal
+The drive web UI is a three-tab page (`apps/web/src/app/routes/_app/drive.lazy.tsx`): **My files** (`FileBrowser` over the caller's personal
 drive), **Team directories** (a directory list that opens each directory's
 `FileBrowser`, role-gated, with a member-management panel for admins), and
 **Shared with me** (received / sent / public-link share lists). A
@@ -253,8 +252,8 @@ fallback) picks the renderer:
 | --- | --- |
 | image | **react-zoom-pan-pinch** — zoom / pan / rotate / reset |
 | `application/pdf` | **react-pdf** paged `<Document>`/`<Page>` — zoom, thumbnail rail, ctrl/meta-wheel page nav |
-| markdown | sanitized `MarkdownPreview` (rehype-sanitize); editable via a shiki-backed source editor |
-| text / code | **shiki** (`shiki/bundle/web`) syntax highlight, theme-synced to the app theme; plain `<pre>` fallback; editable |
+| markdown | sanitized `MarkdownPreview` (rehype-sanitize); editable via a CodeMirror source editor |
+| text / code | **CodeMirror 6** read-only highlight (`CodePreview`, Lezer grammars via `@codemirror/language-data`, `oneDark` in dark mode); un-highlighted plain text fallback; editable |
 | everything else | a download fallback card |
 
 Markdown and code/text are **editable inline**: the dialog saves edits by
@@ -263,23 +262,26 @@ entry's current pointer), so edits flow through the same versioning path as
 any other upload.
 
 **Lazy loading.** The heavy renderers (`react-pdf` + `pdfjs-dist`,
-`react-zoom-pan-pinch`, `shiki`) are loaded only on demand via dynamic
-`import()`, so they stay out of the route shell and the shared vendor
-chunks; only the chunk matching the opened file kind is fetched. shiki
-further splits per-language grammar and per-theme chunks. The pdf.js worker
-is wired as a Vite asset URL import
-(`pdfjs-dist/build/pdf.worker.min.mjs?url`) and ships as its own `.mjs`
-asset. `pdfjs-dist` is pinned to the exact version `react-pdf` bundles.
+`react-zoom-pan-pinch`, the CodeMirror `CodePreview`) are loaded only on demand
+via dynamic `import()`, so they stay out of the route shell and the shared
+vendor chunks; only the chunk matching the opened file kind is fetched.
+CodeMirror is already bundled (the markdown source view and Milkdown's
+code-block component reuse it), and its Lezer grammars load on demand via
+`@codemirror/language-data` matched by file extension. The pdf.js worker is
+wired as a Vite asset URL import (`pdfjs-dist/build/pdf.worker.min.mjs?url`) and
+ships as its own `.mjs` asset. `pdfjs-dist` is pinned to the exact version
+`react-pdf` bundles.
 
 **Security.** Untrusted file bytes are never injected as raw HTML: markdown
-goes only through `MarkdownPreview` (rehype-sanitize), shiki emits HTML it
-generates from escaped text, and plain text renders as text nodes.
+goes only through `MarkdownPreview` (rehype-sanitize), the CodeMirror preview
+renders into a read-only editor from escaped text, and plain text renders as
+text nodes.
 
 A `DriveFilePicker` component lets other modules browse the drive and pick
 a file to attach. Import it as:
 
 ```ts
-import { DriveFilePicker } from "@/app/routes/_app/portal/-drive-file-picker";
+import { DriveFilePicker } from "@/app/routes/_app/-drive-file-picker";
 ```
 
 It accepts `{ open, onOpenChange, onPick, ownerType?, ownerId? }` and

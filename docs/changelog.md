@@ -13,6 +13,15 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Aligned `docs/modules/` with the current code (DOCS-001): added the missing
+  `search` and `share` module pages (and the README index rows), rewrote
+  `issue.md` for the project-only model, corrected `procurement.md`
+  (`supplier_id`→`project_contacts`, `category_id`, `procurement.view/manage`
+  capabilities), documented document pinning + `document_pins`, repointed
+  document/drive sharing to the unified share module, dropped drive's removed
+  `drive_file_shares` table / public routes, and fixed `cron` (`lastStatus` /
+  `taskType` filters), `item` (synchronous comment-attachment release), and
+  `account` (DEFAULT_ADMIN promotion gated on "no admin", not "no users").
 - Drive file preview now highlights code/text with CodeMirror 6 (reusing the
   stack already bundled for the Milkdown source view) instead of shiki.
   Grammars load on demand via `@codemirror/language-data`, dropping shiki's

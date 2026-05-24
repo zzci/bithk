@@ -21,7 +21,7 @@ apps/api/src/modules/procurement/
 
 | Table | Purpose |
 | ----- | ------- |
-| `procurement_details` | Per-record fields keyed off `item_id` (1:1 with `items` where `type='procurement'`). Columns: `project_id` (FK → `projects`, cascade), `supplier_member_id` / `assignee_member_id` (FK → `project_members`, set null), `item_name`, `quantity`, `amount` (minor currency unit), `currency`. Index on `project_id`. |
+| `procurement_details` | Per-record fields keyed off `item_id` (1:1 with `items` where `type='procurement'`). Columns: `project_id` (FK → `projects`, cascade), `supplier_id` (FK → `project_contacts`, set null — the counterparty, **not** an operator), `category_id` (FK → `procurement_categories`, set null), `assignee_member_id` (FK → `project_members`, set null — the responsible operator), `item_name`, `quantity`, `amount` (minor currency unit), `currency`. Index on `project_id`. |
 
 The procurement lifecycle status lives on `items.status`:
 `draft → requested → ordered → received → closed`. The allowed set is validated
@@ -42,8 +42,8 @@ responses is the project `short_id` (never the internal ULID).
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| GET    | `/api/projects/:projectId/procurements` | List. Filters: `status`, `page`, `limit`. |
-| POST   | `/api/projects/:projectId/procurements` | Create. Body: `{ itemName, title?, status?, supplierMemberId?, assigneeMemberId?, quantity?, amount?, currency? }`. Assignment targets are validated via `resolveAssignableMember`. |
+| GET    | `/api/projects/:projectId/procurements` | List. Filters: `status`, `categoryId`, `page`, `limit`. |
+| POST   | `/api/projects/:projectId/procurements` | Create. Body: `{ itemName, title?, status?, supplierId?, categoryId?, assigneeMemberId?, quantity?, amount?, currency? }`. The `supplierId` / `categoryId` / `assigneeMemberId` references are validated against the project before insert. |
 | GET    | `/api/projects/:projectId/procurements/:id` | Detail. |
 | PATCH  | `/api/projects/:projectId/procurements/:id` | Update. Bumps `version`. |
 | DELETE | `/api/projects/:projectId/procurements/:id` | Soft delete — sets `items.deleted_at`, clears item tuples. |
@@ -52,17 +52,25 @@ responses is the project `short_id` (never the internal ULID).
 
 ## Permissions (fail-closed)
 
-Every route requires the actor be a **project member AND** (`role = pm` OR the
-member's `can_view_procurement` grant). A member lacking the grant is fully
-denied — list, detail, and procurement comments all 404/403, not merely hidden
-in the UI. Resolution uses `resolveProjectId` + `canViewProcurement` from the
-[`project`](./project.md) module.
+Every route requires the actor be a **project member AND** hold the
+`procurement.view` capability; mutations (create / update / delete / status)
+additionally require `procurement.manage`. A member lacking the capability is
+fully denied — list, detail, and procurement comments all surface as 404 (not
+merely hidden in the UI), so neither the project's existence nor its
+procurement leaks. App admins bypass membership and capabilities. Resolution
+uses `resolveProjectId` + `hasCapability(db, projectId, actorId, "procurement.view"|"procurement.manage")`
+from the [`project`](./project.md) module.
 
-## Assignment
+## References
 
-`supplier_member_id` and `assignee_member_id` are `project_members.id` values
-(covering both internal and external members). They are validated against the
-project before insert/update; an id from another project is rejected (422).
+- `supplier_id` → `project_contacts`: the order counterparty (a contact of
+  type `supplier`), metadata only — not an operator.
+- `assignee_member_id` → `project_members`: the responsible operator (internal
+  or external member).
+- `category_id` → `procurement_categories`: classifies the line item.
+
+All three are validated against the project before insert/update; an id from
+another project is rejected.
 
 ## Audit
 

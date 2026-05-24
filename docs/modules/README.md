@@ -21,7 +21,9 @@ application".
 | `file` (storage drivers + ref-counted GC) | [file.md](file.md) |
 | `item` (base composition row + comments + attachments) | [item.md](item.md) |
 | `policy` (Zanzibar tuples + access rules) | [policy.md](policy.md) |
+| `search` (cross-module global search) | [search.md](search.md) |
 | `settings` (per-key DB-backed settings + admin UI) | [settings.md](settings.md) |
+| `share` (unified token-based sharing + public links) | [share.md](share.md) |
 | `system` (health, version, build info) | [system.md](system.md) |
 
 ## Reference business modules (start here when adapting)

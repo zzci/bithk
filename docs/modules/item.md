@@ -181,7 +181,7 @@ layer.
 | `listComments(itemId, { includeInternal })`                     | Lists comments for an item, ordered `createdAt ASC, id ASC`. Caller passes `true` only for non-viewer actors. |
 | `getCommentById(itemId, commentId)`                             | Fetches one row, scoped to the item.                                                                         |
 | `createComment({ itemId, authorId, content, replyToId?, isInternal? })` | Validates the reply target (exists + same item); coerces `isInternal` from the parent.              |
-| `deleteComment(commentId)`                                      | Hard delete. FK `ON DELETE SET NULL` keeps replies readable. **Does not cascade-release the comment's attachments** — callers should `DELETE /comments/:cid/attachments/:aid` first; remaining references become orphans handled by the file module's GC. |
+| `deleteComment(commentId)`                                      | Hard delete. FK `ON DELETE SET NULL` keeps replies readable. **Releases the comment's attachments synchronously** before deleting the row — `releaseAllByOwner('item_comment_attachment', commentId)` on the async-GC contract (only `file_references` rows + `files.ref_count` change here; blob reclamation stays with the file GC). Idempotent with the orphan sweep. |
 
 ### Comment attachments
 

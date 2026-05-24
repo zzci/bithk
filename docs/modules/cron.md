@@ -91,7 +91,7 @@ Two invariants the singleton enforces:
 
 | Table | Purpose |
 |---|---|
-| `cron_jobs` | Job definitions. `id` = 8-char nanoid, unique `name`, `task_config` is JSON text, soft-delete via `is_deleted` so logs remain joinable, `enabled` toggles ticking. |
+| `cron_jobs` | Job definitions. `id` = 8-char nanoid, unique `name`, `task_config` is JSON text (carries `{ action }`), `task_type` is a denormalized copy of the action's `category` for the `?taskType=` filter, soft-delete via `is_deleted` so logs remain joinable, `enabled` toggles ticking. |
 | `cron_job_logs` | One row per run. `id` is a ULID so monotonic order = run order; `(job_id, started_at)` index serves "latest run per job" without a sort step; cascade-deletes when the parent job is hard-deleted. |
 
 Indexes:
@@ -196,7 +196,7 @@ All routes are admin-only, mounted under `protectedRoutes`. See
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/cron/actions` | Catalog: registered actions + supported cron formats. |
-| GET | `/api/cron/jobs` | Cursor-paginated job list. `?deleted=true|false|only` toggles soft-deleted visibility. |
+| GET | `/api/cron/jobs` | Cursor-paginated job list. `?deleted=true|false|only` toggles soft-deleted visibility; `?taskType=` filters by action category; `?lastStatus=running|success|failed` keeps only jobs whose newest run matches (jobs with no runs are excluded); `?cursor=` / `?limit=` paginate. |
 | POST | `/api/cron/jobs` | Create. Body: `{ name, cron, action, config? }`. |
 | DELETE | `/api/cron/jobs/:id` | Soft-delete. `:id` accepts either the nanoid or the `name`. |
 | GET | `/api/cron/jobs/:id/logs` | Cursor-paginated run history. `?status=running|success|failed` filters. |

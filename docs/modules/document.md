@@ -25,6 +25,7 @@ apps/api/src/modules/document/
 | Table              | Purpose                                                                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `document_details` | Per-document business fields keyed off `item_id` (1:1 with `items` rows where `type='document'`). Columns: `content`, `tags` (JSON array string), `parent_id` (self-FK through `items.id`), `comments_locked`. |
+| `document_pins` | Per-user pin (a personal UI affordance, **not** authorization). Composite PK `(user_id, item_id)` (both FK, cascade). A document shared with several users can be pinned independently by each; `listMyDocuments` reports a per-caller `pinned` flag. |
 
 The **business hierarchy** lives in `document_details.parent_id` — what
 the sidebar tree renders against. The **permission hierarchy** lives in
@@ -66,6 +67,16 @@ Mounted under `protectedRoutes`. All require `authRequired`.
 | GET    | `/api/documents/:id/shares`                   | List shares + inherited grants. Each row carries `inheritedFrom` (`null` for self, `{ id, title }` for inherited).                                       |
 | POST   | `/api/documents/:id/shares`                   | Add share. Writes a `(item, X, viewer\|editor, user\|group, target)` policy tuple. Re-sharing the same target updates the role.                            |
 | DELETE | `/api/documents/:id/shares/:shareId`          | Delete the share — `shareId` is the policy tuple id.                                                                                                     |
+| PUT    | `/api/documents/:id/pin`                      | Pin the document for the current user (requires read access). Returns `{ pinned: true }`.                                                                |
+| DELETE | `/api/documents/:id/pin`                      | Unpin for the current user. Returns `{ pinned: false }`.                                                                                                 |
+
+> **Collaborator shares vs public links.** The `/documents/:id/shares` routes
+> above manage **collaborator** grants as `viewer` / `editor` policy tuples
+> (with parent-chain inheritance). Anonymous **public links** are a separate,
+> view-only mechanism owned by the unified [`share`](./share.md) module:
+> document registers a share adapter (`document.share-adapter.ts`, `public_link`
+> + `view` only) and links are managed via `/shares/document/:id` and served at
+> `/shared/:token`.
 
 ## Permissions
 
