@@ -1,8 +1,9 @@
 # PLAN-011 — 船舶（游艇）管理模块
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-05-24
 - **approvedAt**: 2026-05-24
+- **completedAt**: 2026-05-24
 - **relatedTask**: FEAT-009
 
 ## Context（背景与现状）

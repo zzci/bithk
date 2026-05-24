@@ -1,6 +1,6 @@
 # FEAT-009 船舶（游艇）管理模块
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **owner**: BKD L2 campaign
 - **createdAt**: 2026-05-24
