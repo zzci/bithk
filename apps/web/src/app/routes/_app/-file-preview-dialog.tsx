@@ -131,65 +131,6 @@ const TEXT_EXTENSIONS = new Set([
 
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdx", "mdown", "mkd"]);
 
-// Allow-list of code extensions that should get syntax highlighting. A mapped
-// entry routes the file through the CodeMirror highlighter (which resolves the
-// actual grammar from the filename); unmapped extensions render as a plain
-// <pre>. The values are retained as human-readable language labels.
-const LANGUAGE_BY_EXTENSION: Record<string, string> = {
-  js: "javascript",
-  jsx: "jsx",
-  mjs: "javascript",
-  cjs: "javascript",
-  ts: "typescript",
-  tsx: "tsx",
-  mts: "typescript",
-  cts: "typescript",
-  json: "json",
-  json5: "json5",
-  jsonc: "jsonc",
-  yaml: "yaml",
-  yml: "yaml",
-  toml: "toml",
-  css: "css",
-  scss: "scss",
-  sass: "sass",
-  less: "less",
-  html: "html",
-  htm: "html",
-  xml: "xml",
-  svg: "xml",
-  vue: "vue",
-  svelte: "svelte",
-  py: "python",
-  rb: "ruby",
-  go: "go",
-  rs: "rust",
-  java: "java",
-  kt: "kotlin",
-  kts: "kotlin",
-  c: "c",
-  h: "c",
-  cpp: "cpp",
-  cc: "cpp",
-  hpp: "cpp",
-  cs: "csharp",
-  php: "php",
-  swift: "swift",
-  sh: "bash",
-  bash: "bash",
-  zsh: "bash",
-  fish: "fish",
-  ps1: "powershell",
-  bat: "bat",
-  sql: "sql",
-  graphql: "graphql",
-  gql: "graphql",
-  ini: "ini",
-  conf: "ini",
-  dockerfile: "docker",
-  makefile: "make",
-};
-
 function extensionOf(filename: string): string {
   const dot = filename.lastIndexOf(".");
   if (dot <= 0 || dot === filename.length - 1)
@@ -282,10 +223,11 @@ interface FilePreviewDialogProps {
   readonly initialEditing?: boolean;
 }
 
-// Read-only code/text highlighter (CodeMirror 6). Lazy so its grammars stay
-// out of the route shell — same code-split boundary the former shiki renderer
-// had via its dynamic import.
+// Code/text surfaces (CodeMirror 6) — read-only highlight and editable editor.
+// Lazy so their grammars stay out of the route shell — same code-split
+// boundary the former shiki renderer had via its dynamic import.
 const CodePreview = lazy(() => import("@/shared/components/editor/code-preview"));
+const CodeEditor = lazy(() => import("@/shared/components/editor/code-editor"));
 
 // ── toolbar helpers ──
 
@@ -473,7 +415,6 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
 
   const file = entry.file;
   const kind = file ? resolvePreviewKind(file.mimetype, file.filename) : "unsupported";
-  const language = file ? (LANGUAGE_BY_EXTENSION[extensionOf(file.filename)] ?? null) : null;
 
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [content, setContent] = useState("");
@@ -501,6 +442,10 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
 
   const canEdit = !readOnly && file != null && (kind === "text" || kind === "markdown");
   const editing = (kind === "text" && textEditing) || (kind === "markdown" && markdownEditing);
+  // CodeMirror code surfaces and the markdown editor fill edge-to-edge, so the
+  // dialog body drops its padding for them (markdown only while editing; its
+  // read-only prose preview keeps the comfortable inset).
+  const flushBody = kind === "text" || (kind === "markdown" && markdownEditing);
   const dirty = editing && content !== initialContent;
   const saving = uploadVersion.isPending;
   const previewToolLabel = (key: string) => t(`preview.tools.${key}`);
@@ -894,7 +839,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
           </div>
         </div>
 
-        <div className="relative min-h-0 flex-1 overflow-hidden p-4">
+        <div className={cn("relative min-h-0 flex-1 overflow-hidden", flushBody ? "" : "p-4")}>
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-background/70 text-sm text-muted-foreground">
               <Loader2 className="size-6 animate-spin" />
@@ -954,12 +899,11 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
           {kind === "markdown" && !loading && (
             markdownEditing
               ? (
-                  <div className="-mx-2.5 -mt-4 flex h-full min-h-0 flex-col overflow-y-auto bg-background">
+                  <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-background">
                     <MarkdownEditor
                       value={content}
                       onChange={setContent}
-                      floatingToolbar
-                      className="mx-auto min-h-0 w-full max-w-[1100px] flex-1 rounded-none border-0 px-1"
+                      className="mx-auto min-h-0 w-full max-w-[1100px] flex-1 rounded-none border-0"
                     />
                   </div>
                 )
@@ -970,35 +914,18 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                 )
           )}
 
-          {kind === "text" && !loading && (
-            textEditing
-              ? (
-                  <textarea
-                    className="h-full w-full resize-none bg-background font-mono text-sm leading-relaxed text-foreground outline-none"
-                    value={content}
-                    onChange={event => setContent(event.target.value)}
-                    spellCheck={false}
-                  />
-                )
-              : language && file
-                ? (
-                    <div className="h-full overflow-auto">
-                      <Suspense
-                        fallback={(
-                          <pre className="h-full overflow-auto rounded-md bg-background font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground">
-                            {content}
-                          </pre>
-                        )}
-                      >
-                        <CodePreview code={content} filename={file.filename} isDark={isDark} />
-                      </Suspense>
-                    </div>
-                  )
-                : (
-                    <pre className="h-full overflow-auto rounded-md bg-background font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground">
-                      {content}
-                    </pre>
-                  )
+          {kind === "text" && file && !loading && (
+            <Suspense
+              fallback={(
+                <pre className="h-full overflow-auto bg-background p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground">
+                  {content}
+                </pre>
+              )}
+            >
+              {textEditing
+                ? <CodeEditor value={content} filename={file.filename} isDark={isDark} onChange={setContent} />
+                : <CodePreview code={content} filename={file.filename} isDark={isDark} />}
+            </Suspense>
           )}
 
           {kind === "unsupported" && !loading && (

@@ -11,7 +11,27 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Fixed
+
+- Drive code/text preview now fills its container (FIX-001): the CodeMirror
+  host spans 100% width/height and the dialog body drops its padding for the
+  `text` kind, so the editor is flush instead of inset with empty margins.
+  Markdown editing gets the same flush treatment — the body drops its padding
+  while editing and the old asymmetric negative-margin hack is removed (the
+  read-only prose preview keeps its comfortable inset). The dialog also swaps
+  the floating (centered, bordered-box) toolbar for a docked full-width bar so
+  it sits flush under the header, and the markdown source view (CodeMirror)
+  drops its content top padding so the first line meets the toolbar without a
+  gap.
+
 ### Changed
+
+- Unified the drive `text` surface on CodeMirror 6 (FIX-001): both preview and
+  editing now use CodeMirror (grammar resolved from the filename via the shared
+  `loadLanguageExtension` helper; unmatched files render as plain text),
+  replacing the plain `<textarea>` editor and the `<pre>` fallback. Only
+  `markdown` keeps its dedicated Milkdown surface. Dropped the now-unused
+  `LANGUAGE_BY_EXTENSION` routing map.
 
 - Aligned `docs/modules/` with the current code (DOCS-001): added the missing
   `search` and `share` module pages (and the README index rows), rewrote

@@ -1,0 +1,12 @@
+/* ── Code surface (CodeMirror 6) ──
+   Shared by the read-only code preview and the editable code editor in the
+   drive file-preview dialog. The host fills its container so the editor spans
+   100% width/height (the dialog body drops its padding for this kind), and the
+   single scroll lives inside CodeMirror's own scroller. */
+.cm-code-surface,
+.cm-code-surface .cm-editor {
+  height: 100%;
+}
+.cm-code-surface .cm-editor.cm-focused {
+  outline: none;
+}

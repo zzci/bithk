@@ -4,15 +4,18 @@
 // CodeMirror 6 is already bundled (the markdown source view + Milkdown's
 // code-block component both use it), so we reuse its Lezer grammars here
 // instead of shipping shiki's TextMate grammars plus the oniguruma wasm.
-// Grammars load on demand via `@codemirror/language-data`, matched by the
-// file's extension; an unmatched file renders as un-highlighted plain text.
+// Grammars resolve from the filename via the shared `loadLanguageExtension`
+// helper; an unmatched file renders as un-highlighted plain text.
 
-import { defaultHighlightStyle, LanguageDescription, syntaxHighlighting } from "@codemirror/language";
-import { languages } from "@codemirror/language-data";
+import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, lineNumbers } from "@codemirror/view";
 import { useEffect, useRef } from "react";
+
+import { loadLanguageExtension } from "./cm-language";
+
+import "./code-mirror.css";
 
 interface CodePreviewProps {
   readonly code: string;
@@ -39,15 +42,9 @@ export function CodePreview({ code, filename, isDark }: CodePreviewProps) {
         EditorState.readOnly.of(true),
         isDark ? oneDark : syntaxHighlighting(defaultHighlightStyle),
       ];
-      const desc = LanguageDescription.matchFilename(languages, filename);
-      if (desc) {
-        try {
-          extensions.push((await desc.load()).extension);
-        }
-        catch {
-          // Unsupported / failed grammar: fall back to plain text.
-        }
-      }
+      const lang = await loadLanguageExtension(filename);
+      if (lang)
+        extensions.push(lang);
       if (cancelled)
         return;
       view = new EditorView({
@@ -62,7 +59,7 @@ export function CodePreview({ code, filename, isDark }: CodePreviewProps) {
     };
   }, [code, filename, isDark]);
 
-  return <div ref={hostRef} className="cm-code-preview text-sm" />;
+  return <div ref={hostRef} className="cm-code-surface text-sm" />;
 }
 
 export default CodePreview;
