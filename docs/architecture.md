@@ -89,6 +89,7 @@ apps/api/src/modules/
   issue/           # sub-type of item
   item/            # base for content sub-types
   policy/
+  ship/            # thin aggregate over project, issue, and drive
   settings/
   system/
 ```
@@ -105,8 +106,31 @@ apps/api/src/modules/
 | `issue` | Issues, attachments, comments; sub-type of `item`. | [issue.md](modules/issue.md) |
 | `item` | Base primitive for content sub-types (common metadata + comments + permission edges). | [item.md](modules/item.md) |
 | `policy` | Zanzibar-style relation tuples, check, expand, resource groups. | [policy.md](modules/policy.md) |
+| `ship` | Ship aggregate: core ship records, equipment, maintenance templates, project-backed work orders, and base-project files. | - |
 | `settings` | Runtime key/value settings store. | [settings.md](modules/settings.md) |
 | `system` | Health probes, build version, Prometheus metrics, upload limits. | [system.md](modules/system.md) |
+
+## Ship Module
+
+The ship module is a thin aggregate over existing project, issue, and drive
+building blocks. Creating a ship also creates a base project and links the two
+with `ships.base_project_id` and `projects.ship_id`; the creator is seeded as
+that project's Project Manager.
+
+Ship authorization is anchored on the base project. Reading a ship requires
+base-project membership (app admins bypass); writes require `project.manage` on
+the base project. A caller with no base-project relationship receives the
+standard fail-closed `404`.
+
+Maintenance work orders are ordinary project issues in the ship's bound
+projects. A work order is identified by an `issue_references` soft reference
+with `refType="maintenance_template"` pointing at a ship-level maintenance
+template. Missing template targets degrade to `template: null` so historical
+issues remain readable.
+
+Ship files reuse drive's existing `project` owner type with
+`ownerType=project&ownerId=<baseProjectId>`. The ship module does not add a
+ship-specific file store or change drive behavior.
 
 ## Request Flow
 
@@ -168,4 +192,3 @@ Runtime data is stored below `ROOT_DIR`:
 | `data/db/app.db` | SQLite database. |
 | `data/db/app.pid` | PID lock file. |
 | `data/logs/app.log` | Structured JSON logs. |
-

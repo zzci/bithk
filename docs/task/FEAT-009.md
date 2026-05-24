@@ -1,35 +1,36 @@
 # FEAT-009 — Ship management module
 
 - **status**: completed
-- **owner**: frontend
+- **owner**: e2e-docs
 - **plan**: [PLAN-011](../plan/PLAN-011.md)
 - **updated**: 2026-05-24
 
 ## Scope
 
-Ship management across backend and frontend. This detail file was missing while
-the task index already referenced it; this file records the active T5b frontend
-slice without changing the broader campaign scope.
+Ship management across backend and frontend.
 
-## T5b Frontend Slice
-
-- Add Equipment and Maintenance tabs to the existing ship detail registry.
-- Consume the merged backend equipment, maintenance-template, global-template,
-  maintenance-order, and issue-reference APIs.
-- Gate writes on the existing `canManage` context; show global copy only for
-  app admins.
-- Cover equipment CRUD, ship template create/copy, maintenance work-order
-  creation, resolved reference rendering, and dangling-reference fallback.
+- Admin-created ships with an auto-created base project.
+- Base-project membership for read access and `project.manage` for writes.
+- Equipment CRUD scoped to each ship.
+- Global maintenance-template knowledge base plus independent ship-level
+  template copies.
+- Maintenance work orders backed by project issues and `issue_references`.
+- Ship files through the base project's existing drive FileBrowser.
 
 ## Acceptance
 
 - `bun run check` passes.
-- T5b scope is committed before reporting completion.
+- `bun run test:e2e` passes.
+- The ship main-flow e2e proves ship creation, base project creation, fail-
+  closed read authz, base-project member read, `project.manage` write,
+  equipment, global-template copy, ship-only template listing, work-order
+  references with checklist/precautions and dangling-ref fallback, and project
+  drive file access.
 
 ## Result
 
-- Added ship Equipment and Maintenance tabs.
-- Added frontend clients, i18n, and Vitest coverage for equipment CRUD,
-  maintenance-template management, global-template copy, maintenance work-order
-  creation, and maintenance-template reference rendering.
+- Added backend, frontend, focused tests, and live e2e coverage for the ship
+  module.
+- Added final architecture, changelog, and decision documentation.
 - `bun run check` passed on 2026-05-24.
+- `bun run test:e2e` passed on 2026-05-24.
