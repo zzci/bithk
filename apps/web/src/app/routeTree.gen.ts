@@ -23,6 +23,7 @@ import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as AppShipsIndexRouteImport } from './routes/_app/ships/index'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppDocumentsIndexRouteImport } from './routes/_app/documents/index'
+import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts/index'
 import { Route as AppShipsShipIdRouteImport } from './routes/_app/ships/$shipId'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
 import { Route as AppDocumentsNewRouteImport } from './routes/_app/documents/new'
@@ -113,6 +114,13 @@ const AppDocumentsIndexRoute = AppDocumentsIndexRouteImport.update({
   getParentRoute: () => AppDocumentsRoute,
 } as any).lazy(() =>
   import('./routes/_app/documents/index.lazy').then((d) => d.Route),
+)
+const AppContactsIndexRoute = AppContactsIndexRouteImport.update({
+  id: '/contacts/',
+  path: '/contacts/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/contacts/index.lazy').then((d) => d.Route),
 )
 const AppShipsShipIdRoute = AppShipsShipIdRouteImport.update({
   id: '/ships/$shipId',
@@ -230,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/documents/new': typeof AppDocumentsNewRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
   '/ships/$shipId': typeof AppShipsShipIdRoute
+  '/contacts/': typeof AppContactsIndexRoute
   '/documents/': typeof AppDocumentsIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
   '/ships/': typeof AppShipsIndexRoute
@@ -256,6 +265,7 @@ export interface FileRoutesByTo {
   '/documents/new': typeof AppDocumentsNewRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
   '/ships/$shipId': typeof AppShipsShipIdRoute
+  '/contacts': typeof AppContactsIndexRoute
   '/documents': typeof AppDocumentsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/ships': typeof AppShipsIndexRoute
@@ -286,6 +296,7 @@ export interface FileRoutesById {
   '/_app/documents/new': typeof AppDocumentsNewRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
   '/_app/ships/$shipId': typeof AppShipsShipIdRoute
+  '/_app/contacts/': typeof AppContactsIndexRoute
   '/_app/documents/': typeof AppDocumentsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/ships/': typeof AppShipsIndexRoute
@@ -316,6 +327,7 @@ export interface FileRouteTypes {
     | '/documents/new'
     | '/projects/$projectId'
     | '/ships/$shipId'
+    | '/contacts/'
     | '/documents/'
     | '/projects/'
     | '/ships/'
@@ -342,6 +354,7 @@ export interface FileRouteTypes {
     | '/documents/new'
     | '/projects/$projectId'
     | '/ships/$shipId'
+    | '/contacts'
     | '/documents'
     | '/projects'
     | '/ships'
@@ -371,6 +384,7 @@ export interface FileRouteTypes {
     | '/_app/documents/new'
     | '/_app/projects/$projectId'
     | '/_app/ships/$shipId'
+    | '/_app/contacts/'
     | '/_app/documents/'
     | '/_app/projects/'
     | '/_app/ships/'
@@ -489,6 +503,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/documents/'
       preLoaderRoute: typeof AppDocumentsIndexRouteImport
       parentRoute: typeof AppDocumentsRoute
+    }
+    '/_app/contacts/': {
+      id: '/_app/contacts/'
+      path: '/contacts'
+      fullPath: '/contacts/'
+      preLoaderRoute: typeof AppContactsIndexRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/ships/$shipId': {
       id: '/_app/ships/$shipId'
@@ -653,6 +674,7 @@ interface AppRouteChildren {
   AppOverviewRoute: typeof AppOverviewRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRouteWithChildren
   AppShipsShipIdRoute: typeof AppShipsShipIdRoute
+  AppContactsIndexRoute: typeof AppContactsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppShipsIndexRoute: typeof AppShipsIndexRoute
   AppProjectsProjectIdIssuesIssueIdFullRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRoute
@@ -665,6 +687,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppOverviewRoute: AppOverviewRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRouteWithChildren,
   AppShipsShipIdRoute: AppShipsShipIdRoute,
+  AppContactsIndexRoute: AppContactsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppShipsIndexRoute: AppShipsIndexRoute,
   AppProjectsProjectIdIssuesIssueIdFullRoute:
