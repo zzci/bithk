@@ -1,23 +1,20 @@
 # Project Module
 
 Engineering-project aggregate. A **project** is a container of members, work
-orders (issues), procurement records, external contacts, and project files — it
-is **not** an [`item`](./item.md) sub-type. Projects own their own tables (like
+orders (issues), procurement records, procurement categories, tags, and project
+files — it is **not** an [`item`](./item.md) sub-type. Projects own their own tables (like
 [`drive`](./drive.md)) and are authorized at the route layer against
 `project_members` (capability-based); there are no Zanzibar tuples for projects.
 
-## Members are operators; contacts are metadata
+## Members are operators
 
-Two distinct concepts:
+**Members** (`project_members`) are **operators** — they can be assigned issues
+and procurement. A member is either a **real** user (`user_id` set) or a
+**virtual** user (own staff with no login account: `user_id` NULL +
+`display_name`). The canonical assignment target is `project_members.id`.
 
-- **Members** (`project_members`) are **operators** — they can be assigned
-  issues and procurement. A member is either a **real** user (`user_id` set) or
-  a **virtual** user (own staff with no login account: `user_id` NULL +
-  `display_name`). The canonical assignment target is `project_members.id`.
-- **Contacts** (`project_contacts`) are **reference metadata** — external
-  parties (suppliers, clients, subcontractors). A procurement's supplier
-  references a contact of `type='supplier'`. Contacts are never operators and
-  are never an assignment target.
+External parties live in the global [`contact`](./contact.md) module. A
+procurement supplier points at a global contact row.
 
 Project-scoped visibility is decided in the route handlers against
 `project_members` and the caller's role capabilities, not by `parent_item`
@@ -27,10 +24,9 @@ inheritance.
 
 ```text
 apps/api/src/modules/project/
-  schema.ts               # projects, project_roles, project_members, project_contacts, procurement_categories, tags, project_tags
+  schema.ts               # projects, project_roles, project_members, procurement_categories, tags, project_tags
   project.service.ts      # project + member CRUD, tags, the capability helper contract
   project.roles.ts        # role CRUD + default-role seeding + capability parsing
-  project.contacts.ts     # external-contact CRUD
   project.categories.ts   # procurement-category CRUD
   project.routes.ts       # /api/projects/... and /api/tags
   project.backup.ts       # backup contribution
@@ -45,7 +41,6 @@ apps/api/src/modules/project/
 | `projects`               | Project aggregate (basic fields only). `id` (ULID, internal), `short_id` (nanoid, the **sole external identifier**), `code` (unique), `name`, `status` (`active`/`archived`), `description`, `creator_id`, `version`, `deleted_at`, `updated_at`. |
 | `project_roles`          | User-defined roles, per project. `id`, `project_id`, `name`, `capabilities` (JSON `string[]` over `PROJECT_CAPABILITIES`), `is_system` (the seeded "Project Manager" role: undeletable, full capabilities), timestamps. |
 | `project_members`        | Operators. `id` (nanoid — **the assignment target**), `project_id`, `user_id` (NULL ⇒ virtual member), `display_name` (virtual), `role_id` → `project_roles`, `title` (job title / trade, display only), timestamps. Unique on `(project_id, user_id)` (multiple NULL `user_id` allowed ⇒ many virtual members). |
-| `project_contacts`       | External parties (metadata). `id`, `project_id`, `type` (`supplier`/`client`/`subcontractor`/`other`), `name`, `contact_person`, `phone`, `email`, `address`, `tax_id`, `rating`, `status` (`active`/`inactive`), `note`, timestamps. |
 | `procurement_categories` | Procurement classification, per project (flat). `id`, `project_id`, `name`, `code`, `description`, timestamps. |
 | `tags`                   | Global, user-defined tag vocabulary. `id`, `name` (unique), timestamps. |
 | `project_tags`           | Project ↔ tag many-to-many. PK `(project_id, tag_id)`. |
@@ -53,8 +48,8 @@ apps/api/src/modules/project/
 ### Roles and capabilities
 
 `PROJECT_CAPABILITIES`: `project.manage`, `members.manage`, `roles.manage`,
-`contacts.manage`, `categories.manage`, `procurement.view`,
-`procurement.manage`, `issue.manage`. Each project seeds two roles on creation:
+`categories.manage`, `procurement.view`, `procurement.manage`, `issue.manage`.
+Each project seeds two roles on creation:
 **Project Manager** (`is_system=1`, all capabilities — the creator gets it) and
 **Member** (no capabilities). Route gates check capabilities, not role names.
 
@@ -76,7 +71,7 @@ internal ULID `id` is never returned — responses map through `composeProject` 
 
 Mounted under `protectedRoutes`; every route requires `authRequired`. `:id` is
 the project `short_id`. See [api-routes.md](../reference/api-routes.md) for the
-full generated list (projects, members, roles, contacts, procurement-categories,
+full generated list (projects, members, roles, procurement-categories,
 `/api/tags`).
 
 Highlights:
@@ -90,7 +85,6 @@ Highlights:
   (`project.manage`).
 - `/api/projects/:id/members` — `members.manage`.
 - `/api/projects/:id/roles` — `roles.manage`.
-- `/api/projects/:id/contacts` — `contacts.manage` (read: any member).
 - `/api/projects/:id/procurement-categories` — `categories.manage` (read: any
   member).
 - `GET /api/tags` — global tag vocabulary (any authenticated user).
@@ -100,11 +94,10 @@ Highlights:
 | Surface | Rule |
 | ------- | ---- |
 | Create project | `adminRequired`. |
-| Read project / list members / list roles / list contacts / list categories | Project member; non-member ⇒ 404 (membership not leaked). |
+| Read project / list members / list roles / list categories | Project member; non-member ⇒ 404 (membership not leaked). |
 | Project edit / delete | `project.manage`. |
 | Member management | `members.manage`. |
 | Role management | `roles.manage`. |
-| Contact management | `contacts.manage`. |
 | Category management | `categories.manage`. |
 | Procurement read / write | `procurement.view` / `procurement.manage` — see [`procurement`](./procurement.md). |
 | Project files | Any project member (editor-equivalent) via the drive capability branch. |
@@ -162,7 +155,7 @@ Project and member mutations emit per-action audit events with
 ## Backup
 
 `projectBackupContribution` — tables `projects`, `project_roles`,
-`project_members`, `project_contacts`, `procurement_categories`, `tags`,
+`project_members`, `procurement_categories`, `tags`,
 `project_tags` (parents before children); deps `["users"]`.
 
 ## Out of scope

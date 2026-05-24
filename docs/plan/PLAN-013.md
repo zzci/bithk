@@ -1,6 +1,6 @@
 # PLAN-013 — 联系人独立为全局通用模块
 
-- **状态：** Implementing
+- **状态：** Done
 - **任务：** [REFACTOR-003](../task/REFACTOR-003.md)
 - **更新时间：** 2026-05-24
 - **执行：** BKD L1 campaign（L1=q4ueexed，L3 引擎=codex）

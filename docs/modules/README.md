@@ -17,6 +17,7 @@ application".
 | `account` (users, auth, groups, TOTP, single-user mode) | [account.md](account.md) |
 | `audit` (event log + retention sweep) | [audit.md](audit.md) |
 | `backup` (export / restore) | [backup.md](backup.md) |
+| `contact` (global contact directory with visibility and field masking) | [contact.md](contact.md) |
 | `cron` (scheduler + action registry) | [cron.md](cron.md) |
 | `file` (storage drivers + ref-counted GC) | [file.md](file.md) |
 | `item` (base composition row + comments + attachments) | [item.md](item.md) |

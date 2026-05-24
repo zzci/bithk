@@ -13,6 +13,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Global contact module (REFACTOR-003 / PLAN-013): owner/viewer authorization,
+  private/public visibility, confidential field masking, tag classification
+  through the global tag vocabulary, explicit per-user/group viewer grants, the
+  `/api/contacts` API, and the `/contacts` web page.
 - Ship management module (FEAT-009 / PLAN-011): admin ship creation with an
   auto-created base project, base-project-anchored permissions, ship list/detail
   UI, project binding, Equipment and Maintenance tabs, equipment CRUD,
@@ -37,6 +41,9 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Procurement suppliers now reference the global contacts directory. A
+  procurement `supplier_id` may point at any existing contact and is no longer
+  project-scoped or constrained by a supplier type enum.
 - Unified the drive `text` surface on CodeMirror 6 (FIX-001): both preview and
   editing now use CodeMirror (grammar resolved from the filename via the shared
   `loadLanguageExtension` helper; unmatched files render as plain text),
@@ -46,13 +53,13 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 - Aligned `docs/modules/` with the current code (DOCS-001): added the missing
   `search` and `share` module pages (and the README index rows), rewrote
-  `issue.md` for the project-only model, corrected `procurement.md`
-  (`supplier_id`→`project_contacts`, `category_id`, `procurement.view/manage`
-  capabilities), documented document pinning + `document_pins`, repointed
-  document/drive sharing to the unified share module, dropped drive's removed
-  `drive_file_shares` table / public routes, and fixed `cron` (`lastStatus` /
-  `taskType` filters), `item` (synchronous comment-attachment release), and
-  `account` (DEFAULT_ADMIN promotion gated on "no admin", not "no users").
+  `issue.md` for the project-only model, corrected procurement category and
+  capability documentation, documented document pinning + `document_pins`,
+  repointed document/drive sharing to the unified share module, dropped drive's
+  removed `drive_file_shares` table / public routes, and fixed `cron`
+  (`lastStatus` / `taskType` filters), `item` (synchronous
+  comment-attachment release), and `account` (DEFAULT_ADMIN promotion gated on
+  "no admin", not "no users").
 - Drive file preview now highlights code/text with CodeMirror 6 (reusing the
   stack already bundled for the Milkdown source view) instead of shiki.
   Grammars load on demand via `@codemirror/language-data`, dropping shiki's
@@ -93,16 +100,21 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   user belongs to (admins: all). Removed the global Issues sidebar entry.
   Breaking schema change (dev-stage, no data). See REFACTOR-002 / PLAN-009.
 
+### Removed
+
+- Removed the `project_contacts` table, project-scoped contacts UI/API, and
+  `contacts.manage` project capability. Contact ownership and sharing now live
+  in the global contact module.
+
 ### Added
 
 - Project module overhaul (settings hub): configurable per-project **roles**
   (`project_roles` + a capability set; route gates check capabilities, not role
   names; a seeded undeletable "Project Manager" role guards against lock-out),
-  an **external contacts** directory (`project_contacts`, typed
-  supplier/client/subcontractor/other — procurement now references a
-  `type='supplier'` contact via `supplier_id`), **procurement categories**
-  (`procurement_categories` + `category_id` on procurement, with category
-  filtering), and user-defined **tags** (`tags` + `project_tags`, many-to-many).
+  a per-project external contact directory that was later replaced by the
+  global contact module, **procurement categories** (`procurement_categories` +
+  `category_id` on procurement, with category filtering), and user-defined
+  **tags** (`tags` + `project_tags`, many-to-many).
   The project itself keeps only basic fields — name, code, description, status
   (`active` / `archived`), and tags. `project_members` is operator-only — real
   users or **virtual** users (own staff without a login account), carrying a

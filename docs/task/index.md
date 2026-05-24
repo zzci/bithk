@@ -17,4 +17,4 @@
 | [FIX-001](FIX-001.md) | Drive code/text preview fills container + unified CodeMirror editing | - | Done | 2026-05-24 |
 | [FIX-002](FIX-002.md) | Frontend quality: a11y focus rings, effect warnings, oversized files | - | Done | 2026-05-24 |
 | [FIX-003](FIX-003.md) | Drive trash/delete confirmation dialogs | - | Done | 2026-05-24 |
-| [REFACTOR-003](REFACTOR-003.md) | 联系人模块独立为全局通用模块 | [PLAN-013](../plan/PLAN-013.md) | In progress | 2026-05-24 |
+| [REFACTOR-003](REFACTOR-003.md) | 联系人模块独立为全局通用模块 | [PLAN-013](../plan/PLAN-013.md) | Done | 2026-05-24 |

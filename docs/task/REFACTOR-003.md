@@ -1,6 +1,6 @@
 # REFACTOR-003 — 联系人模块独立为全局通用模块
 
-- **状态：** In progress
+- **状态：** Done
 - **计划：** [PLAN-013](../plan/PLAN-013.md)
 - **创建时间：** 2026-05-24
 - **负责人：** L1 q4ueexed (BKD campaign)

@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 191 routes total.
+> 194 routes total.
 
 | Method | Path |
 |---|---|
@@ -44,6 +44,13 @@
 | POST | `/api/backup/export-via-token` |
 | POST | `/api/backup/import` |
 | GET | `/api/backup/modules` |
+| GET | `/api/contacts` |
+| POST | `/api/contacts` |
+| DELETE | `/api/contacts/:id` |
+| GET | `/api/contacts/:id` |
+| PATCH | `/api/contacts/:id` |
+| POST | `/api/contacts/:id/grant` |
+| POST | `/api/contacts/:id/revoke` |
 | GET | `/api/cron/actions` |
 | GET | `/api/cron/jobs` |
 | POST | `/api/cron/jobs` |
@@ -134,10 +141,6 @@
 | DELETE | `/api/projects/:id` |
 | GET | `/api/projects/:id` |
 | PATCH | `/api/projects/:id` |
-| GET | `/api/projects/:id/contacts` |
-| POST | `/api/projects/:id/contacts` |
-| DELETE | `/api/projects/:id/contacts/:contactId` |
-| PATCH | `/api/projects/:id/contacts/:contactId` |
 | GET | `/api/projects/:id/members` |
 | POST | `/api/projects/:id/members` |
 | DELETE | `/api/projects/:id/members/:memberId` |
