@@ -1,5 +1,8 @@
 import type { AppDatabase } from "@/db";
+import type { AddReferenceInput } from "@/modules/issue/references.service";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { issueReferences } from "@/modules/issue/references.schema";
+import { buildReferenceRows } from "@/modules/issue/references.service";
 import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
@@ -111,6 +114,9 @@ export interface CreateIssueInput {
   // Assignment target: a `project_members.id`. An internal member also gets
   // the `item#assignee@user` tuple so assignee-based lookups keep working.
   readonly assigneeMemberId?: string | undefined;
+  // Optional generic references inserted in the same transaction. Additive —
+  // omitting it leaves the create path's behavior unchanged.
+  readonly references?: readonly AddReferenceInput[] | undefined;
 }
 
 export async function createIssue(db: AppDatabase, input: CreateIssueInput): Promise<IssueRow> {
@@ -181,6 +187,13 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
         createdBy: input.creatorId,
         createdAt: now,
       }).run();
+    }
+
+    // Optional generic references (e.g. a maintenance_template that turns this
+    // issue into a work order). Soft references — no target validation here.
+    if (input.references && input.references.length > 0) {
+      for (const row of buildReferenceRows(id, input.references, now))
+        tx.insert(issueReferences).values(row).run();
     }
   });
 

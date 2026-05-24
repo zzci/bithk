@@ -27,6 +27,7 @@ import {
   softDeleteIssue,
   updateIssue,
 } from "./issue.service";
+import { mountIssueReferenceRoutes, referenceInputSchema } from "./references.routes";
 
 // Project work order: the assignment target is a `project_members.id`. The
 // project comes from the `:projectId` path param.
@@ -37,6 +38,8 @@ const createSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   assigneeMemberId: z.string().min(1).optional(),
   dueDate: z.string().max(30).optional(),
+  // Optional generic references inserted alongside the issue (additive).
+  references: z.array(referenceInputSchema).max(50).optional(),
 });
 
 const updateSchema = z.object({
@@ -372,6 +375,9 @@ export function issueRoutes() {
       };
     },
   });
+
+  // ─── Generic references + maintenance work orders (additive) ───────
+  mountIssueReferenceRoutes(router);
 
   return router;
 }
