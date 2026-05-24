@@ -13,12 +13,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
-- Ship detail Equipment and Maintenance tabs with equipment CRUD, ship-level
-  maintenance-template management, admin-only global template copy, maintenance
-  work-order creation from templates, and inline maintenance-template reference
-  rendering.
-- Frontend API clients, EN/ZH i18n keys, and Vitest coverage for the T5b ship
-  feature UI.
+- Ship management module (FEAT-009 / PLAN-011): admin ship creation with an
+  auto-created base project, base-project-anchored permissions, ship list/detail
+  UI, project binding, Equipment and Maintenance tabs, equipment CRUD,
+  ship-level maintenance-template management, admin global-template knowledge
+  base with copy-to-ship, maintenance work orders backed by project issues plus
+  `issue_references`, inline checklist/precautions rendering with dangling-ref
+  fallback, and ship files via the base project's drive FileBrowser. Added
+  EN/ZH i18n, focused frontend/API tests, and a live e2e main-flow suite.
 
 ### Fixed
 

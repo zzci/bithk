@@ -41,6 +41,7 @@ const MODULE_DIRS = [
   "policy",
   "document",
   "issue",
+  "ship",
   "search",
   "settings",
   "audit",
