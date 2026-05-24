@@ -13,6 +13,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Drive file preview now highlights code/text with CodeMirror 6 (reusing the
+  stack already bundled for the Milkdown source view) instead of shiki.
+  Grammars load on demand via `@codemirror/language-data`, dropping shiki's
+  per-language TextMate chunks (e.g. `cpp` ~626 kB) and its ~622 kB oniguruma
+  wasm from the build entirely.
+- Fixed an ineffective dynamic import in the file preview dialog that
+  statically pulled the markdown preview into the dialog chunk; the read-only
+  path now reuses the lazy `MarkdownEditor`, shrinking the main entry chunk
+  from ~472 kB to ~143 kB. The build no longer emits any `>500 kB` chunk or
+  ineffective-dynamic-import warnings.
 - Full-feature integration test pass across all modules. Re-pointed the
   stale live-stack e2e suites at the current API surface: issue CRUD /
   comments / attachments moved to the project-scoped
@@ -162,6 +172,8 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Removed
 
+- `shiki` dependency — drive file preview highlighting now uses the existing
+  CodeMirror 6 stack (see Changed).
 - Dead `-use-drive-selection.ts` hook (selection state now lives inside the
   shared surface).
 - `document_public_links` and `drive_file_shares` tables and their

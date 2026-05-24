@@ -6,19 +6,21 @@
 //   image            -> react-zoom-pan-pinch (zoom / pan / rotate / reset)
 //   application/pdf  -> react-pdf paged <Document>/<Page> (zoom, thumbnails,
 //                       ctrl/meta-wheel page nav)
-//   markdown         -> sanitized MarkdownPreview; editable via a shiki-backed
+//   markdown         -> sanitized MarkdownPreview; editable via a CodeMirror
 //                       source editor
-//   text/code        -> shiki syntax highlight (plain <pre> fallback); editable
+//   text/code        -> CodeMirror read-only syntax highlight (plain <pre>
+//                       fallback); editable
 //   everything else  -> a download fallback card
 //
-// Heavy renderers (react-pdf, pdfjs, react-zoom-pan-pinch, shiki) are loaded
-// only on demand via dynamic import() so they never enter the route shell and
-// only their own async chunks are fetched when the matching kind is opened.
+// Heavy renderers (react-pdf, pdfjs, react-zoom-pan-pinch, the CodeMirror
+// code highlighter) are loaded only on demand via dynamic import() so they
+// never enter the route shell and only their own async chunks are fetched
+// when the matching kind is opened.
 //
 // Security: untrusted file bytes are never injected as raw HTML. Markdown goes
-// exclusively through MarkdownPreview (rehype-sanitize); shiki output is HTML
-// that shiki itself generates from escaped text — never the raw file. Plain
-// text is rendered as text nodes.
+// exclusively through MarkdownPreview (rehype-sanitize); code/text render
+// through CodeMirror, which sets the file bytes as the editor document (text,
+// never HTML). Plain text is rendered as text nodes.
 
 import type { WheelEvent as ReactWheelEvent } from "react";
 import type * as ReactPdf from "react-pdf";
@@ -44,11 +46,10 @@ import {
   ZoomOut,
 } from "lucide-react";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/shared/components/editor";
-import { MarkdownPreview } from "@/shared/components/editor/markdown-preview";
 import { useTheme } from "@/shared/components/theme-provider";
 import { Button } from "@/shared/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
@@ -130,9 +131,10 @@ const TEXT_EXTENSIONS = new Set([
 
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdx", "mdown", "mkd"]);
 
-// Extension -> shiki language. Unmapped extensions render as a plain <pre>;
-// a mapped language not present in shiki's web bundle falls back the same way
-// (codeToHtml throws and the highlighter renders plain text).
+// Allow-list of code extensions that should get syntax highlighting. A mapped
+// entry routes the file through the CodeMirror highlighter (which resolves the
+// actual grammar from the filename); unmapped extensions render as a plain
+// <pre>. The values are retained as human-readable language labels.
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   js: "javascript",
   jsx: "jsx",
@@ -264,10 +266,6 @@ function useIsDark(): boolean {
   return theme === "dark" || (theme === "system" && systemDark);
 }
 
-function shikiTheme(isDark: boolean): string {
-  return isDark ? "github-dark-dimmed" : "github-light";
-}
-
 interface FilePreviewDialogProps {
   readonly entry: DriveEntry;
   readonly open: boolean;
@@ -284,50 +282,10 @@ interface FilePreviewDialogProps {
   readonly initialEditing?: boolean;
 }
 
-// ── shiki-backed renderers ──
-
-function CodePreview({ code, language, isDark }: { readonly code: string; readonly language: string; readonly isDark: boolean }) {
-  const [html, setHtml] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const { codeToHtml } = await import("shiki/bundle/web");
-        const next = await codeToHtml(code, { lang: language, theme: shikiTheme(isDark) });
-        if (!cancelled)
-          setHtml(next);
-      }
-      catch {
-        if (!cancelled)
-          setHtml("");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [code, language, isDark]);
-
-  if (html) {
-    // shiki emits HTML it generated from the (escaped) source text — not the
-    // raw file bytes — so injecting it does not cross a trust boundary.
-    return (
-      <div
-        className="shiki-preview text-sm leading-relaxed [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:p-4"
-        // eslint-disable-next-line react/dom-no-dangerously-set-innerhtml
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    );
-  }
-
-  return (
-    <pre className="overflow-auto rounded-md bg-muted p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap break-words">
-      <code>{code}</code>
-    </pre>
-  );
-}
+// Read-only code/text highlighter (CodeMirror 6). Lazy so its grammars stay
+// out of the route shell — same code-split boundary the former shiki renderer
+// had via its dynamic import.
+const CodePreview = lazy(() => import("@/shared/components/editor/code-preview"));
 
 // ── toolbar helpers ──
 
@@ -1007,7 +965,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                 )
               : (
                   <div className="h-full overflow-auto bg-background">
-                    <MarkdownPreview value={content} />
+                    <MarkdownEditor readOnly value={content} />
                   </div>
                 )
           )}
@@ -1022,10 +980,18 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                     spellCheck={false}
                   />
                 )
-              : language
+              : language && file
                 ? (
                     <div className="h-full overflow-auto">
-                      <CodePreview code={content} language={language} isDark={isDark} />
+                      <Suspense
+                        fallback={(
+                          <pre className="h-full overflow-auto rounded-md bg-background font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground">
+                            {content}
+                          </pre>
+                        )}
+                      >
+                        <CodePreview code={content} filename={file.filename} isDark={isDark} />
+                      </Suspense>
                     </div>
                   )
                 : (
