@@ -1,0 +1,375 @@
+import type { Config } from "@/config";
+import type { AppDatabase } from "@/db";
+import type { Logger } from "@/shared/lib/logger";
+import type { AppEnv } from "@/shared/lib/types";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { and, eq } from "drizzle-orm";
+import { Hono } from "hono";
+import { customAlphabet } from "nanoid";
+import { createDb } from "@/db";
+import { users } from "@/modules/account/users/schema";
+import { policyMiddleware } from "@/modules/policy";
+import { createTuple } from "@/modules/policy/policy.service";
+import { relationTuples } from "@/modules/policy/schema";
+import { protectedRoutes } from "@/routes/protected";
+import { errorHandler } from "@/shared/middleware/error-handler";
+import { contactRoutes } from "./contact.routes";
+import "@/modules/account";
+
+const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
+
+const stubLogger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  fatal: () => {},
+  flush: () => {},
+} as unknown as Logger;
+
+function baseConfig(): Config {
+  return {
+    NODE_ENV: "test",
+    PORT: 3000,
+    HOST: "127.0.0.1",
+    DB_PATH: "data/db/app.db",
+    APP_NAME: "app",
+    APP_DISPLAY_NAME: "App",
+    BASE_PATH: "",
+    LOG_LEVEL: "info",
+    LOG_FILE: "data/logs/app.log",
+    LOG_TO_STDOUT: false,
+    CORS_ORIGIN: undefined,
+    TRUST_PROXY: false,
+    TRUSTED_PROXY_IPS: "",
+    CRON_ENABLED: false,
+    CRON_ACTIONS_ENABLED: [],
+    HTTP_ACTION_ALLOW_PRIVATE: false,
+    HTTP_ACTION_TIMEOUT_SECONDS: 30,
+    SHELL_ACTION_TIMEOUT_SECONDS: 300,
+    OAUTH_CLIENT_ID: undefined,
+    OAUTH_CLIENT_SECRET: undefined,
+    OAUTH_ISSUER: undefined,
+    OAUTH_AUTHORIZE_URL: undefined,
+    OAUTH_TOKEN_URL: undefined,
+    OAUTH_USERINFO_URL: undefined,
+    OAUTH_PKCE: true,
+    SESSION_MAX_AGE: 86400,
+    AUDIT_RETENTION_DAYS: 0,
+    MAX_UPLOAD_BYTES: 10 * 1024 * 1024,
+    MAX_ATTACHMENTS_PER_RESOURCE: 20,
+    UPLOADS_TOTAL_BYTES: 0,
+    FILE_STORAGE_DRIVER: "local",
+    FILE_STORAGE_LOCAL_ROOT: "data/uploads/files",
+    FILE_GC_MODE: "async",
+    FILE_GC_INTERVAL_SECONDS: 3600,
+    FILE_PRESIGN_ENABLED: true,
+    FILE_PRESIGN_TTL_SECONDS: 300,
+    DEFAULT_ADMIN: "",
+    SINGLE_USER_MODE: false,
+    SINGLE_USER_USERNAME: undefined,
+    SINGLE_USER_PASSWORD_HASH: undefined,
+    SINGLE_USER_PASSWORD_HASH_FILE: undefined,
+    SINGLE_USER_NAME: undefined,
+    SINGLE_USER_EMAIL: undefined,
+    APP_URL: undefined,
+    OIDC_LOGOUT_URL: undefined,
+    SERVICE_TOKEN_METRICS: undefined,
+    SERVICE_TOKEN_BACKUP: undefined,
+    BACKUP_EXPORT_MIN_INTERVAL_SECONDS: 0,
+  } as unknown as Config;
+}
+
+let db: AppDatabase;
+let dbPath: string;
+
+beforeEach(async () => {
+  const dir = resolve(tmpdir(), `test-contact-routes-${Date.now()}-${nanoid()}`);
+  mkdirSync(dir, { recursive: true });
+  dbPath = resolve(dir, "test.db");
+  db = await createDb(dbPath);
+});
+
+afterEach(() => {
+  db.close();
+  const dir = resolve(dbPath, "..");
+  if (existsSync(dir))
+    rmSync(dir, { recursive: true, force: true });
+});
+
+describe("contact routes", () => {
+  test("GET /contacts returns only visible rows and masks confidential public contacts", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    const viewer = await seedUser("viewer-a");
+    await createContact(app, owner, { name: "Private Co", email: "private@example.test" });
+    await createContact(app, owner, {
+      name: "Public Secret",
+      email: "secret@example.test",
+      phone: "123",
+      visibility: "public",
+      confidential: true,
+      tags: ["supplier"],
+    });
+
+    const res = await app.request("/contacts", { headers: { "x-uid": viewer } });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: ContactView[] };
+    expect(body.data.map(c => c.name)).toEqual(["Public Secret"]);
+    expect(body.data[0]!.email).toBeNull();
+    expect(body.data[0]!.phone).toBeNull();
+    expect(body.data[0]!.status).toBeNull();
+    expect(body.data[0]!.tags.map(t => t.name)).toEqual(["supplier"]);
+  });
+
+  test("POST /contacts creates an owner-managed contact", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+
+    const res = await createContact(app, owner, { name: "Owner Co", tags: ["supplier", "priority"] });
+
+    expect(res.status).toBe(201);
+    const body = await res.json() as { data: ContactView };
+    expect(body.data.ownerId).toBe(owner);
+    expect(body.data.canManage).toBe(true);
+    expect(body.data.tags.map(t => t.name).sort()).toEqual(["priority", "supplier"]);
+    const tuple = await db.select().from(relationTuples).where(and(
+      eq(relationTuples.namespace, "contact"),
+      eq(relationTuples.objectId, body.data.id),
+      eq(relationTuples.relation, "owner"),
+      eq(relationTuples.subjectId, owner),
+    )).get();
+    expect(tuple).toBeDefined();
+  });
+
+  test("private contacts hide read, update, and delete from strangers", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    const stranger = await seedUser("stranger-a");
+    const created = await createdContact(app, owner, { name: "Private Co" });
+
+    const get = await app.request(`/contacts/${created.id}`, { headers: { "x-uid": stranger } });
+    expect(get.status).toBe(404);
+
+    const patch = await app.request(`/contacts/${created.id}`, jsonReq(stranger, "PATCH", { name: "Nope" }));
+    expect(patch.status).toBe(404);
+
+    const del = await app.request(`/contacts/${created.id}`, { method: "DELETE", headers: { "x-uid": stranger } });
+    expect(del.status).toBe(404);
+
+    const ownerPatch = await app.request(`/contacts/${created.id}`, jsonReq(owner, "PATCH", { name: "Renamed" }));
+    expect(ownerPatch.status).toBe(200);
+    expect(((await ownerPatch.json()) as { data: ContactView }).data.name).toBe("Renamed");
+
+    const ownerDelete = await app.request(`/contacts/${created.id}`, { method: "DELETE", headers: { "x-uid": owner } });
+    expect(ownerDelete.status).toBe(200);
+  });
+
+  test("public contacts are readable by any authenticated user", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    const viewer = await seedUser("viewer-a");
+    const created = await createdContact(app, owner, {
+      name: "Public Co",
+      email: "public@example.test",
+      visibility: "public",
+    });
+
+    const res = await app.request(`/contacts/${created.id}`, { headers: { "x-uid": viewer } });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: ContactView };
+    expect(body.data.name).toBe("Public Co");
+    expect(body.data.email).toBe("public@example.test");
+    expect(body.data.canManage).toBe(false);
+  });
+
+  test("confidential public contact masks API fields for implicit readers", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    const viewer = await seedUser("viewer-a");
+    const created = await createdContact(app, owner, {
+      name: "Secret Co",
+      contactPerson: "Alice",
+      phone: "123",
+      email: "secret@example.test",
+      address: "Hidden",
+      taxId: "TAX-9",
+      note: "Sensitive",
+      status: "inactive",
+      visibility: "public",
+      confidential: true,
+      tags: ["supplier"],
+    });
+
+    const res = await app.request(`/contacts/${created.id}`, { headers: { "x-uid": viewer } });
+
+    expect(res.status).toBe(200);
+    const data = ((await res.json()) as { data: ContactView }).data;
+    expect(data.name).toBe("Secret Co");
+    expect(data.tags.map(t => t.name)).toEqual(["supplier"]);
+    expect(data.contactPerson).toBeNull();
+    expect(data.phone).toBeNull();
+    expect(data.email).toBeNull();
+    expect(data.address).toBeNull();
+    expect(data.taxId).toBeNull();
+    expect(data.note).toBeNull();
+    expect(data.status).toBeNull();
+  });
+
+  test("granting and revoking a user controls private contact read access", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    const viewer = await seedUser("viewer-a");
+    const created = await createdContact(app, owner, { name: "Shared Co", email: "shared@example.test" });
+
+    const grant = await app.request(`/contacts/${created.id}/grant`, jsonReq(owner, "POST", { userId: viewer }));
+    expect(grant.status).toBe(200);
+
+    const allowed = await app.request(`/contacts/${created.id}`, { headers: { "x-uid": viewer } });
+    expect(allowed.status).toBe(200);
+    expect(((await allowed.json()) as { data: ContactView }).data.email).toBe("shared@example.test");
+
+    const revoke = await app.request(`/contacts/${created.id}/revoke`, jsonReq(owner, "POST", { userId: viewer }));
+    expect(revoke.status).toBe(200);
+    expect(((await revoke.json()) as { data: { revoked: boolean } }).data.revoked).toBe(true);
+
+    const denied = await app.request(`/contacts/${created.id}`, { headers: { "x-uid": viewer } });
+    expect(denied.status).toBe(404);
+  });
+
+  test("granting a group lets group members read private contacts", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    const member = await seedUser("member-a");
+    const created = await createdContact(app, owner, { name: "Group Co", phone: "456" });
+    await createTuple(db, {
+      namespace: "group",
+      objectId: "group-a",
+      relation: "member",
+      subjectNamespace: "user",
+      subjectId: member,
+    }, owner);
+
+    const grant = await app.request(`/contacts/${created.id}/grant`, jsonReq(owner, "POST", { groupId: "group-a" }));
+    expect(grant.status).toBe(200);
+
+    const res = await app.request(`/contacts/${created.id}`, { headers: { "x-uid": member } });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: ContactView }).data.phone).toBe("456");
+  });
+
+  test("GET /contacts supports tag filtering", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    await createdContact(app, owner, { name: "Supplier Co", tags: ["supplier", "priority"] });
+    await createdContact(app, owner, { name: "Client Co", tags: ["client"] });
+
+    const suppliers = await app.request("/contacts?tag=supplier", { headers: { "x-uid": owner } });
+    expect(suppliers.status).toBe(200);
+    expect(((await suppliers.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Supplier Co"]);
+
+    const clients = await app.request("/contacts?tag=client", { headers: { "x-uid": owner } });
+    expect(clients.status).toBe(200);
+    expect(((await clients.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Client Co"]);
+  });
+
+  test("protected route registration exposes contact routes", async () => {
+    const app = buildProtectedApp();
+    const user = await seedUser("user-a");
+
+    const res = await app.request("/contacts", { headers: { "x-uid": user } });
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: unknown[] }).data).toEqual([]);
+  });
+});
+
+function buildContactApp(): Hono<AppEnv> {
+  const app = buildBaseApp();
+  app.use("*", policyMiddleware({ basePath: "" }));
+  app.route("/", contactRoutes());
+  app.onError(errorHandler);
+  return app;
+}
+
+function buildProtectedApp(): Hono<AppEnv> {
+  const app = buildBaseApp();
+  app.use("*", policyMiddleware({ basePath: "" }));
+  app.route("/", protectedRoutes());
+  app.onError(errorHandler);
+  return app;
+}
+
+function buildBaseApp(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
+  app.use("*", async (c, next) => {
+    c.set("db", db);
+    c.set("config", baseConfig());
+    c.set("logger", stubLogger);
+    c.set("requestId", "test");
+    const uid = c.req.header("x-uid");
+    if (uid) {
+      const user = await db.select().from(users).where(eq(users.id, uid)).get();
+      if (user)
+        c.set("user", user);
+    }
+    await next();
+  });
+  return app;
+}
+
+async function seedUser(id: string, role: "admin" | "user" = "user"): Promise<string> {
+  const now = new Date().toISOString();
+  await db.insert(users).values({
+    id,
+    oauthSub: `sub-${id}`,
+    username: id,
+    name: id,
+    email: `${id}@test.local`,
+    role,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  }).run();
+  return id;
+}
+
+function jsonReq(userId: string, method: string, body: unknown) {
+  return {
+    method,
+    headers: { "content-type": "application/json", "x-uid": userId },
+    body: JSON.stringify(body),
+  };
+}
+
+function createContact(app: Hono<AppEnv>, userId: string, body: Record<string, unknown>) {
+  return app.request("/contacts", jsonReq(userId, "POST", body));
+}
+
+async function createdContact(app: Hono<AppEnv>, userId: string, body: Record<string, unknown>): Promise<ContactView> {
+  const res = await createContact(app, userId, body);
+  expect(res.status).toBe(201);
+  return ((await res.json()) as { data: ContactView }).data;
+}
+
+interface ContactView {
+  readonly id: string;
+  readonly ownerId: string;
+  readonly name: string;
+  readonly contactPerson: string | null;
+  readonly phone: string | null;
+  readonly email: string | null;
+  readonly address: string | null;
+  readonly taxId: string | null;
+  readonly note: string | null;
+  readonly status: string | null;
+  readonly visibility: string;
+  readonly confidential: boolean;
+  readonly tags: readonly { readonly id: string; readonly name: string }[];
+  readonly canManage: boolean;
+}
