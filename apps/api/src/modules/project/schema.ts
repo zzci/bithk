@@ -12,19 +12,12 @@ export const PROJECT_CAPABILITIES = [
   "project.manage", // edit metadata, archive, delete the project
   "members.manage", // add / edit / remove members, assign roles
   "roles.manage", // create / edit / delete roles
-  "contacts.manage", // maintain external contacts (suppliers, …)
   "categories.manage", // maintain procurement categories
   "procurement.view", // read procurement
   "procurement.manage", // create / edit / delete / transition procurement
   "issue.manage", // edit any issue in the project (beyond own)
 ] as const;
 export type ProjectCapability = typeof PROJECT_CAPABILITIES[number];
-
-export const CONTACT_TYPES = ["supplier", "client", "subcontractor", "other"] as const;
-export type ContactType = typeof CONTACT_TYPES[number];
-
-export const CONTACT_STATUSES = ["active", "inactive"] as const;
-export type ContactStatus = typeof CONTACT_STATUSES[number];
 
 export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(), // ulid
@@ -64,7 +57,7 @@ export const projectRoles = sqliteTable("project_roles", {
 // Members are OPERATORS — they can be assigned issues / procurement. A member
 // is either a real user (`userId` set) or a virtual user (own staff without a
 // login account: `userId` null, `displayName` set). `id` is the canonical
-// assignment target. Suppliers are NOT members — they live in `project_contacts`.
+// assignment target.
 export const projectMembers = sqliteTable("project_members", {
   id: text("id").primaryKey(), // nanoid — assignment target for issues/procurement
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
@@ -81,25 +74,6 @@ export const projectMembers = sqliteTable("project_members", {
   // SQLite treats as mutually distinct, so multiple virtual members coexist.
   uniqueIndex("project_members_project_user_idx").on(t.projectId, t.userId),
 ]);
-
-// External contacts (suppliers / client / subcontractor / …). Reference data
-// (metadata) on a project — NOT operators, never an assignment target.
-export const projectContacts = sqliteTable("project_contacts", {
-  id: text("id").primaryKey(), // nanoid — procurement.supplierId references this
-  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  type: text("type", { enum: CONTACT_TYPES }).notNull(),
-  name: text("name").notNull(),
-  contactPerson: text("contact_person"),
-  phone: text("phone"),
-  email: text("email"),
-  address: text("address"),
-  taxId: text("tax_id"),
-  rating: integer("rating"), // 1–5, optional
-  status: text("status", { enum: CONTACT_STATUSES }).notNull().default("active"),
-  note: text("note"),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-}, t => [index("project_contacts_project_type_idx").on(t.projectId, t.type)]);
 
 // Procurement categories, per project (flat).
 export const procurementCategories = sqliteTable("procurement_categories", {

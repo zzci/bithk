@@ -447,56 +447,6 @@ describe("roles (roles.manage gate)", () => {
   });
 });
 
-describe("contacts (contacts.manage gate)", () => {
-  test("pm CRUDs a contact; a plain member cannot create; unknown contact 404s", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const bob = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
-    const cookie = await cookieForUser(owner);
-
-    const denied = await app.request(`/projects/${project.shortId}/contacts`, jsonReq("POST", await cookieForUser(bob), { type: "supplier", name: "X" }));
-    expect(denied.status).toBe(403);
-
-    const created = await app.request(`/projects/${project.shortId}/contacts`, jsonReq("POST", cookie, { type: "supplier", name: "Supplier Co", rating: 4 }));
-    expect(created.status).toBe(201);
-    const contact = (await created.json() as { data: { id: string } }).data;
-
-    const patched = await app.request(`/projects/${project.shortId}/contacts/${contact.id}`, jsonReq("PATCH", cookie, { rating: 5 }));
-    expect((await patched.json() as { data: { rating: number } }).data.rating).toBe(5);
-
-    const removed = await app.request(`/projects/${project.shortId}/contacts/${contact.id}`, jsonReq("DELETE", cookie));
-    expect(removed.status).toBe(200);
-
-    const missing = await app.request(`/projects/${project.shortId}/contacts/${contact.id}`, jsonReq("PATCH", cookie, { rating: 1 }));
-    expect(missing.status).toBe(404);
-  });
-
-  test("the contact list filters by type", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    const cookie = await cookieForUser(owner);
-    await app.request(`/projects/${project.shortId}/contacts`, jsonReq("POST", cookie, { type: "supplier", name: "Sup" }));
-    await app.request(`/projects/${project.shortId}/contacts`, jsonReq("POST", cookie, { type: "client", name: "Cli" }));
-
-    const suppliers = await app.request(`/projects/${project.shortId}/contacts?type=supplier`, { headers: { Cookie: cookie } });
-    expect((await suppliers.json() as { data: { name: string }[] }).data.map(c => c.name)).toEqual(["Sup"]);
-
-    const all = await app.request(`/projects/${project.shortId}/contacts`, { headers: { Cookie: cookie } });
-    expect((await all.json() as { data: unknown[] }).data.length).toBe(2);
-  });
-
-  test("an out-of-range rating is rejected with 422", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    const res = await app.request(`/projects/${project.shortId}/contacts`, jsonReq("POST", await cookieForUser(owner), { type: "supplier", name: "X", rating: 9 }));
-    expect(res.status).toBe(422);
-  });
-});
-
 describe("procurement categories (categories.manage gate)", () => {
   test("pm CRUDs a category; a plain member cannot create", async () => {
     const app = buildApp(db);
