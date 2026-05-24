@@ -1,9 +1,10 @@
 import type { BackupContribution } from "@/modules/backup/registry";
+import { issueReferences } from "@/modules/issue/references.schema";
 import { issueDetails } from "@/modules/issue/schema";
 
 export const issueBackupContribution: BackupContribution = {
   name: "issues",
-  tables: [issueDetails],
+  tables: [issueDetails, issueReferences],
   // issue_details FK → items.id and (for project work orders) → projects.id /
   // project_members.id. items / item_comments / item_attachments and the policy
   // tuples that carry assignee + share state come from the base `items` and

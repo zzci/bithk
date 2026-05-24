@@ -2,6 +2,10 @@ import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { items } from "@/modules/item/schema";
 import { projectMembers, projects } from "@/modules/project/schema";
 
+// Generic issue references (additive, separate table). Re-exported here so the
+// aggregated `db/schema.ts` picks it up via its single `export *` per module.
+export * from "./references.schema";
+
 // `issue` is a Tier-C sub-type of the `item` base. The base owns the
 // universal columns (title / status / creator / version / soft-delete /
 // timestamps) and the comments / attachments machinery; this table holds
