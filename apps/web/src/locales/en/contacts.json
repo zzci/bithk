@@ -1,0 +1,75 @@
+{
+  "page": {
+    "title": "Contacts",
+    "description": "Manage the global contact directory and share selected contacts with viewers."
+  },
+  "list": {
+    "create": "Create contact",
+    "filterByTag": "Tag filter",
+    "tagPlaceholder": "Filter by tag name",
+    "applyFilter": "Apply",
+    "clearFilter": "Clear",
+    "activeTag": "Filtering by {{tag}}",
+    "loading": "Loading contacts…",
+    "empty": "No contacts yet."
+  },
+  "field": {
+    "name": "Name",
+    "contactPerson": "Contact person",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "taxId": "Tax ID",
+    "note": "Note",
+    "status": "Status",
+    "visibility": "Visibility",
+    "confidential": "Confidential",
+    "tags": "Tags"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "visibility": {
+    "private": "Private",
+    "public": "Public"
+  },
+  "form": {
+    "createTitle": "Create contact",
+    "editTitle": "Edit contact",
+    "createDescription": "Add a global contact. Private contacts are visible only to you and explicitly granted viewers.",
+    "editDescription": "Update the contact details, tags and visibility.",
+    "namePlaceholder": "e.g. Acme Marine",
+    "confidentialHelp": "Public viewers see only the name and tags when this is enabled.",
+    "submitCreate": "Create",
+    "submitSave": "Save"
+  },
+  "tags": {
+    "placeholder": "Add a tag and press Enter",
+    "remove": "Remove tag {{name}}"
+  },
+  "actions": {
+    "edit": "Edit {{name}}",
+    "delete": "Delete {{name}}",
+    "share": "Share {{name}}"
+  },
+  "delete": {
+    "title": "Delete contact",
+    "confirm": "Delete \"{{name}}\" from the global contact directory?"
+  },
+  "share": {
+    "title": "Share contact",
+    "description": "Grant or revoke viewer access for {{name}}.",
+    "targetType": "Target",
+    "targetId": "ID",
+    "user": "User",
+    "group": "Group",
+    "userPlaceholder": "User ID",
+    "groupPlaceholder": "Group ID",
+    "grant": "Grant viewer",
+    "revoke": "Revoke viewer"
+  },
+  "masked": {
+    "locked": "Masked field"
+  }
+}

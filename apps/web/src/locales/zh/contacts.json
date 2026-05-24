@@ -1,0 +1,75 @@
+{
+  "page": {
+    "title": "联系人",
+    "description": "管理全局联系人目录，并将指定联系人分享给可查看者。"
+  },
+  "list": {
+    "create": "新建联系人",
+    "filterByTag": "标签筛选",
+    "tagPlaceholder": "按标签名称筛选",
+    "applyFilter": "应用",
+    "clearFilter": "清除",
+    "activeTag": "正在筛选 {{tag}}",
+    "loading": "正在加载联系人…",
+    "empty": "暂无联系人。"
+  },
+  "field": {
+    "name": "名称",
+    "contactPerson": "联系人",
+    "phone": "电话",
+    "email": "邮箱",
+    "address": "地址",
+    "taxId": "税号",
+    "note": "备注",
+    "status": "状态",
+    "visibility": "可见范围",
+    "confidential": "保密",
+    "tags": "标签"
+  },
+  "status": {
+    "active": "启用",
+    "inactive": "停用"
+  },
+  "visibility": {
+    "private": "私有",
+    "public": "公开"
+  },
+  "form": {
+    "createTitle": "新建联系人",
+    "editTitle": "编辑联系人",
+    "createDescription": "添加全局联系人。私有联系人仅自己和显式授权的查看者可见。",
+    "editDescription": "更新联系人详情、标签和可见范围。",
+    "namePlaceholder": "例如：Acme Marine",
+    "confidentialHelp": "启用后，公开查看者只能看到名称和标签。",
+    "submitCreate": "创建",
+    "submitSave": "保存"
+  },
+  "tags": {
+    "placeholder": "输入标签后按 Enter",
+    "remove": "移除标签 {{name}}"
+  },
+  "actions": {
+    "edit": "编辑 {{name}}",
+    "delete": "删除 {{name}}",
+    "share": "分享 {{name}}"
+  },
+  "delete": {
+    "title": "删除联系人",
+    "confirm": "确定从全局联系人目录删除“{{name}}”？"
+  },
+  "share": {
+    "title": "分享联系人",
+    "description": "为 {{name}} 授予或撤销查看权限。",
+    "targetType": "目标",
+    "targetId": "ID",
+    "user": "用户",
+    "group": "用户组",
+    "userPlaceholder": "用户 ID",
+    "groupPlaceholder": "用户组 ID",
+    "grant": "授予查看",
+    "revoke": "撤销查看"
+  },
+  "masked": {
+    "locked": "已脱敏字段"
+  }
+}
