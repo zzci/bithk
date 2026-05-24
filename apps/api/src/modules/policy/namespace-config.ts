@@ -95,6 +95,24 @@ const defaultNamespaces: readonly NamespaceConfig[] = [
       parent_item: { union: [{ this: {} }] },
     },
   },
+  // `contact` is the permission namespace for the global contact directory
+  // (`apps/api/src/modules/contact/`). Contact rows carry `owner_id`,
+  // `visibility`, and `confidential` columns for fast service-side filtering
+  // and field masking; explicit per-user/group grants are stored as policy
+  // tuples here.
+  //
+  // Relations:
+  // - owner  : creator / manager; full control.
+  // - viewer : can read; implied by owner. Explicit viewer tuples are additive
+  //            to the public-visibility read path implemented by
+  //            `contact.permission.ts`.
+  {
+    name: "contact",
+    relations: {
+      owner: { union: [{ this: {} }] },
+      viewer: { union: [{ this: {} }, { computed_userset: { relation: "owner" } }] },
+    },
+  },
 ];
 
 export function loadNamespaces(configs?: readonly NamespaceConfig[]): void {
