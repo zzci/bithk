@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hitTarget, matchesQuery } from "@/shared/components/command-palette.logic";
 import { getNavItems } from "@/shared/components/sidebar/registry";
+import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -185,14 +186,15 @@ export function CommandPalette({
             placeholder={t("common:search.placeholder")}
             className="h-13 flex-1 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0 md:h-11 md:text-sm"
           />
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => onOpenChange(false)}
             aria-label={t("common:search.close")}
-            className="-mr-1 shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="-mr-1 text-muted-foreground"
           >
             <X className="size-4" />
-          </button>
+          </Button>
         </div>
         <div className="flex-1 overflow-y-auto py-1 md:max-h-[60vh] md:flex-none">
           {empty
@@ -212,7 +214,7 @@ export function CommandPalette({
                             type="button"
                             data-active={isActive}
                             onClick={action.run}
-                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[15px] transition-colors hover:bg-accent hover:text-accent-foreground data-[active=true]:bg-accent data-[active=true]:text-accent-foreground md:py-2 md:text-sm"
+                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[15px] transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground md:py-2 md:text-sm"
                           >
                             <action.icon className="size-4 shrink-0 text-muted-foreground md:size-3.5" strokeWidth={1.75} />
                             <span className="flex-1 truncate">{action.label}</span>

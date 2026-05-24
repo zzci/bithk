@@ -287,7 +287,7 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
               <button
                 type="button"
                 onClick={() => setParentId(i === 0 ? undefined : crumb.id)}
-                className={i === arr.length - 1 ? "font-medium" : "text-muted-foreground hover:text-foreground"}
+                className={`rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${i === arr.length - 1 ? "font-medium" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {crumb.name}
               </button>
@@ -297,14 +297,15 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
-          className="flex w-fit items-center gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+          className="w-fit text-muted-foreground hover:text-foreground"
         >
           {t("public.columnName")}
           {sortDir === "asc" ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
-        </button>
+        </Button>
 
         {loading
           ? (
@@ -330,7 +331,7 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
                           else if (previewable(entry))
                             setPreviewItem(entry);
                         }}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         {FILE_ICONS[entryFileType(entry)]("size-5 shrink-0")}
                         <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>

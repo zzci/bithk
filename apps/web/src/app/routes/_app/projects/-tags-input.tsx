@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { addTag, removeTag } from "./-project-form-logic";
 
@@ -38,14 +39,15 @@ export function TagsInput({ value, onChange }: TagsInputProps) {
           {value.map(tag => (
             <Badge key={tag} variant="secondary" className="gap-1 text-xs">
               {tag}
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 aria-label={t("tags.remove", { name: tag })}
                 onClick={() => remove(tag)}
                 className="ml-0.5 rounded-sm hover:text-destructive"
               >
                 <X className="size-3" />
-              </button>
+              </Button>
             </Badge>
           ))}
         </div>

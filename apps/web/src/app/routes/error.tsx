@@ -4,6 +4,7 @@ import { AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@/shared/components/logo";
 import { ModeToggle } from "@/shared/components/mode-toggle";
+import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 
 // Codes the backend may emit. Anything outside this list falls back to
@@ -89,13 +90,14 @@ function ErrorPage() {
                 {t("home")}
               </Link>
               {canGoBack && (
-                <button
-                  type="button"
+                <Button
+                  variant="default"
+                  size="lg"
                   onClick={() => window.history.back()}
-                  className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  className="px-4 font-medium"
                 >
                   {t("retry")}
-                </button>
+                </Button>
               )}
             </div>
           </CardContent>

@@ -6,6 +6,7 @@
 import { Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 
 export function TagsRow({
@@ -65,14 +66,15 @@ export function TagsRow({
     if (editing)
       return <ul className="flex flex-wrap items-center gap-1.5"><li>{inlineInput}</li></ul>;
     return (
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="xs"
         onClick={() => setEditing(true)}
-        className="inline-flex h-6 items-center gap-1 rounded-full border border-dashed border-border px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+        className="gap-1 rounded-full border border-dashed border-border px-2.5 text-[11px] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
       >
         <Plus className="size-3" strokeWidth={2.25} />
         {t("tagsPlaceholder")}
-      </button>
+      </Button>
     );
   }
 
@@ -83,14 +85,15 @@ export function TagsRow({
           <span className="inline-flex h-6 items-center gap-0.5 rounded-full border border-border bg-muted/40 px-2.5 text-[11px] font-medium text-muted-foreground">
             <span className="text-foreground/35">#</span>
             <span>{tag}</span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => onChange(tags.filter(t2 => t2 !== tag))}
-              className="ml-0.5 inline-flex size-3 items-center justify-center rounded-full text-muted-foreground/70 hover:bg-foreground/10 hover:text-foreground"
+              className="ml-0.5 size-3 rounded-full text-muted-foreground/70 hover:bg-foreground/10 hover:text-foreground"
               aria-label="Remove tag"
             >
               <X className="size-2" />
-            </button>
+            </Button>
           </span>
         </li>
       ))}
@@ -98,14 +101,15 @@ export function TagsRow({
         {editing
           ? inlineInput
           : (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => setEditing(true)}
-                className="inline-flex size-6 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+                className="rounded-full border border-dashed border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
                 aria-label={t("tagsPlaceholder")}
               >
                 <Plus className="size-3" strokeWidth={2.25} />
-              </button>
+              </Button>
             )}
       </li>
     </ul>

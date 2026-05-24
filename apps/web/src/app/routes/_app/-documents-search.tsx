@@ -84,7 +84,7 @@ export function SearchDialog({
                         <button
                           type="button"
                           onClick={() => onSelect(node.id)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <FileText className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
                           <span className="flex-1 truncate">{node.title || t("untitledPlaceholder")}</span>

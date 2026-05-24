@@ -183,14 +183,15 @@ export function ResourceCommentSection({
                       {displayName(userMap, replyTarget.authorId)}
                     </span>
                   </span>
-                  <button
-                    type="button"
-                    className="ml-2 inline-flex size-5 items-center justify-center rounded hover:bg-accent"
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="ml-2"
                     onClick={() => setReplyTarget(null)}
                     title={t("common.cancel")}
                   >
                     <X className="size-3" />
-                  </button>
+                  </Button>
                 </div>
               )}
               <MarkdownEditor
@@ -228,14 +229,15 @@ export function ResourceCommentSection({
                 <>
                   {hiddenCount > 0 && (
                     <div className="flex justify-center">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="text-[11px] text-muted-foreground hover:text-foreground"
                         onClick={() => setVisibleCount(c => c + COMMENTS_INITIAL_RENDER)}
                       >
                         <ChevronUp className="size-3" />
                         {t("comments.showOlder", { count: hiddenCount })}
-                      </button>
+                      </Button>
                     </div>
                   )}
                   {visibleComments.map((comment) => {
@@ -265,31 +267,34 @@ export function ResourceCommentSection({
                           </div>
                           <div className="inline-flex items-center gap-1">
                             {enableReply && canCompose && (
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-colors"
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                className="text-[11px] text-muted-foreground/70 hover:text-foreground"
                                 onClick={() => startReply(comment)}
                               >
                                 <CornerUpLeft className="size-3" />
                                 {t("comments.reply")}
-                              </button>
+                              </Button>
                             )}
                             {canDelete(comment) && (
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                className="text-[11px] text-muted-foreground/70 hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => setDeleteTarget(comment)}
                               >
                                 <X className="size-3" />
                                 {t("common.delete")}
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </div>
                         {enableReply && comment.replyToId && (
-                          <button
-                            type="button"
-                            className="mb-1 inline-flex max-w-full items-center gap-1 rounded bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            className="mb-1 max-w-full bg-muted/30 text-[11px] text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                             onClick={() => jumpToComment(comment.replyToId!)}
                             title={parent ? parent.content : undefined}
                           >
@@ -303,7 +308,7 @@ export function ResourceCommentSection({
                                   </span>
                                 )
                               : <span>{t("comments.replyMissing")}</span>}
-                          </button>
+                          </Button>
                         )}
                         <div className="rounded-md bg-muted/40 px-3 py-2">
                           <MarkdownEditor

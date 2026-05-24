@@ -312,22 +312,23 @@ function TreeRow({
       >
         {hasChildren
           ? (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => onToggle(node.id)}
-                className="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
+                className="size-4 text-muted-foreground hover:text-foreground"
                 aria-label={isExpanded ? t("tree.collapse") : t("tree.expand")}
               >
                 {isExpanded
                   ? <ChevronDown className="size-3.5" />
                   : <ChevronRight className="size-3.5" />}
-              </button>
+              </Button>
             )
           : <span className="size-4 shrink-0" />}
         <button
           type="button"
           onClick={() => onSelect(node.id)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 truncate py-1.5 text-left"
+          className="flex min-w-0 flex-1 items-center gap-1.5 truncate py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isFolder
             ? (isExpanded
@@ -346,11 +347,12 @@ function TreeRow({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={(
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 title={t("tree.menu")}
                 aria-label={t("tree.menu")}
-                className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/70 opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100"
+                className="size-5 text-muted-foreground/70 opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100"
               />
             )}
           >

@@ -431,9 +431,10 @@ export function ProjectIssuePanel({
             {permissions.canEditAll
               ? (
                   <span className="relative inline-flex items-center">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary"
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="gap-1 text-foreground hover:text-primary"
                       onClick={() => dueDateInputRef.current?.showPicker()}
                     >
                       {issue.dueDate ?? (
@@ -442,7 +443,7 @@ export function ProjectIssuePanel({
                           <Pencil className="size-2.5" />
                         </span>
                       )}
-                    </button>
+                    </Button>
                     <input
                       ref={dueDateInputRef}
                       type="date"
@@ -458,25 +459,27 @@ export function ProjectIssuePanel({
 
           <div className="ml-auto inline-flex items-center gap-0.5">
             {canUploadAttachment && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              <Button
+                variant="ghost"
+                size="xs"
+                className="gap-1 text-muted-foreground"
                 onClick={() => fileInputRef.current?.click()}
                 title={t("attachments.upload")}
               >
                 <Paperclip className="size-3" />
                 {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
-              </button>
+              </Button>
             )}
             {permissions.canEditAll && !editingDesc && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              <Button
+                variant="ghost"
+                size="xs"
+                className="gap-1 text-muted-foreground"
                 onClick={startEditDesc}
               >
                 <Pencil className="size-3" />
                 {t("common.edit")}
-              </button>
+              </Button>
             )}
           </div>
           <input
@@ -520,7 +523,7 @@ export function ProjectIssuePanel({
                     <button
                       type="button"
                       onClick={startEditDesc}
-                      className="w-full rounded-md border border-dashed bg-muted/30 px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
+                      className="w-full rounded-md border border-dashed bg-muted/30 px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {t("field.noDescription")}
                     </button>

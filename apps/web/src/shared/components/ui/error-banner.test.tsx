@@ -18,9 +18,10 @@ describe("errorBanner", () => {
     expect(screen.getByText("Something broke")).toBeInTheDocument();
   });
 
-  it("merges a custom className with the base styles", () => {
+  it("merges a custom className with the destructive alert styles", () => {
     render(<ErrorBanner message="oops" className="mt-4" />);
-    const banner = screen.getByText("oops");
+    expect(screen.getByText("oops")).toBeInTheDocument();
+    const banner = screen.getByRole("alert");
     expect(banner.className).toContain("mt-4");
     expect(banner.className).toContain("text-destructive");
   });

@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 import { useDriveUploadStore } from "./-drive-upload";
 import { formatSize } from "./-file-browser-types";
@@ -37,23 +38,25 @@ export function DriveUploadPanel() {
             : t("browser.uploadComplete")}
         </span>
         <div className="flex items-center gap-1">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => setOpen(value => !value)}
-            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
             aria-label={open ? t("browser.collapse") : t("browser.expand")}
           >
             {open ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-          </button>
+          </Button>
           {!uploading && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={clearFinished}
-              className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground"
               aria-label={t("browser.uploadDismiss")}
             >
               <X className="size-4" />
-            </button>
+            </Button>
           )}
         </div>
       </div>

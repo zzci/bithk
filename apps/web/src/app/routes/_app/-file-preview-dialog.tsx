@@ -23,9 +23,7 @@
 // never HTML). Plain text is rendered as text nodes.
 
 import type { WheelEvent as ReactWheelEvent } from "react";
-import type * as ReactPdf from "react-pdf";
-import type * as ReactZoomPanPinch from "react-zoom-pan-pinch";
-import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
+import type { PdfModule, ZoomModule, ZoomRef } from "./-file-preview-types";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 
 import {
@@ -50,162 +48,22 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/shared/components/editor";
-import { useTheme } from "@/shared/components/theme-provider";
 import { Button } from "@/shared/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { downloadDriveEntry, useUploadVersion } from "@/shared/lib/api/drive";
 import { httpRaw } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 
+import { useIsDark } from "./-file-preview-hooks";
+import { ImagePreview } from "./-file-preview-image";
+import { PdfPreview } from "./-file-preview-pdf";
+import { ToolButton } from "./-file-preview-toolbar";
+import { errorMessage, formatSize, mimeTypeForSave, resolvePreviewKind } from "./-file-preview-types";
+
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-type PdfModule = typeof ReactPdf;
-type ZoomModule = typeof ReactZoomPanPinch;
-type ZoomRef = ReactZoomPanPinchRef;
-
-export type PreviewKind = "image" | "pdf" | "markdown" | "text" | "unsupported";
-
-// Extensions routed to the plain-text/code <pre> renderer. Markdown is handled
-// separately so it can be rendered (not shown as raw source).
-const TEXT_EXTENSIONS = new Set([
-  "txt",
-  "log",
-  "csv",
-  "tsv",
-  "ini",
-  "conf",
-  "env",
-  "json",
-  "json5",
-  "jsonc",
-  "yaml",
-  "yml",
-  "toml",
-  "xml",
-  "js",
-  "jsx",
-  "mjs",
-  "cjs",
-  "ts",
-  "tsx",
-  "mts",
-  "cts",
-  "css",
-  "scss",
-  "sass",
-  "less",
-  "html",
-  "htm",
-  "svg",
-  "vue",
-  "svelte",
-  "py",
-  "rb",
-  "go",
-  "rs",
-  "java",
-  "kt",
-  "kts",
-  "c",
-  "h",
-  "cpp",
-  "cc",
-  "hpp",
-  "cs",
-  "php",
-  "swift",
-  "sh",
-  "bash",
-  "zsh",
-  "fish",
-  "ps1",
-  "bat",
-  "sql",
-  "graphql",
-  "gql",
-  "dockerfile",
-  "makefile",
-  "gitignore",
-]);
-
-const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdx", "mdown", "mkd"]);
-
-function extensionOf(filename: string): string {
-  const dot = filename.lastIndexOf(".");
-  if (dot <= 0 || dot === filename.length - 1)
-    return "";
-  return filename.slice(dot + 1).toLowerCase();
-}
-
-/**
- * Decide how to render a file. Mimetype is authoritative; the extension is a
- * fallback for the many `application/octet-stream` / empty-mimetype uploads.
- */
-export function resolvePreviewKind(mimetype: string, filename: string): PreviewKind {
-  const mime = mimetype.toLowerCase();
-  const ext = extensionOf(filename);
-
-  if (mime.startsWith("image/"))
-    return "image";
-  if (mime === "application/pdf" || ext === "pdf")
-    return "pdf";
-  if (mime === "text/markdown" || mime === "text/x-markdown" || MARKDOWN_EXTENSIONS.has(ext))
-    return "markdown";
-  if (mime.startsWith("text/") || TEXT_EXTENSIONS.has(ext))
-    return "text";
-  // Common structured/text payloads served under application/*.
-  if (mime === "application/json" || mime === "application/xml" || mime.endsWith("+json") || mime.endsWith("+xml"))
-    return "text";
-  return "unsupported";
-}
-
-function formatSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0)
-    return "";
-  if (bytes < 1024)
-    return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(value >= 100 || Number.isInteger(value) ? 0 : 1)} ${units[unit]}`;
-}
-
-function mimeTypeForSave(kind: PreviewKind, filename: string, mimetype: string): string {
-  if (mimetype)
-    return mimetype;
-  if (kind === "markdown")
-    return "text/markdown";
-  if (extensionOf(filename) === "csv")
-    return "text/csv";
-  return "text/plain";
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/** Resolve the effective dark/light mode the way the app applies it. */
-function useIsDark(): boolean {
-  const { theme } = useTheme();
-  const [systemDark, setSystemDark] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-
-  useEffect(() => {
-    if (theme !== "system" || typeof window === "undefined")
-      return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => setSystemDark(mq.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [theme]);
-
-  return theme === "dark" || (theme === "system" && systemDark);
-}
+export type { PreviewKind } from "./-file-preview-types";
+export { resolvePreviewKind } from "./-file-preview-types";
 
 interface FilePreviewDialogProps {
   readonly entry: DriveEntry;
@@ -229,183 +87,6 @@ interface FilePreviewDialogProps {
 const CodePreview = lazy(() => import("@/shared/components/editor/code-preview"));
 const CodeEditor = lazy(() => import("@/shared/components/editor/code-editor"));
 
-// ── toolbar helpers ──
-
-function ToolButton({
-  label,
-  onClick,
-  disabled,
-  pressed,
-  children,
-}: {
-  readonly label: string;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-  readonly pressed?: boolean;
-  readonly children: React.ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={(
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={disabled}
-            aria-pressed={pressed}
-            aria-label={label}
-            title={label}
-            onClick={onClick}
-          />
-        )}
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={6}>
-        {label}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-// ── kind renderers (mounted only when their bytes are ready) ──
-
-function PdfPreview({
-  module: pdf,
-  fileUrl,
-  width,
-  zoom,
-  sidebarOpen,
-  scrollRef,
-  pageRefs,
-  onWheel,
-  onLoadSuccess,
-  errorLabel,
-}: {
-  readonly module: PdfModule;
-  readonly fileUrl: string;
-  readonly width: number;
-  readonly zoom: number;
-  readonly sidebarOpen: boolean;
-  readonly scrollRef: React.RefObject<HTMLDivElement | null>;
-  readonly pageRefs: React.RefObject<Array<HTMLDivElement | null>>;
-  readonly onWheel: (event: ReactWheelEvent<HTMLDivElement>) => void;
-  readonly onLoadSuccess: (numPages: number) => void;
-  readonly errorLabel: string;
-}) {
-  const { Document, Page } = pdf;
-  const [numPages, setNumPages] = useState<number | null>(null);
-  const pageNumbers = useMemo(
-    () => Array.from({ length: numPages ?? 0 }, (_, index) => index + 1),
-    [numPages],
-  );
-
-  const scrollToPage = useCallback((page: number) => {
-    pageRefs.current[page - 1]?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [pageRefs]);
-
-  return (
-    <Document
-      file={fileUrl}
-      loading={null}
-      error={<p className="p-4 text-sm text-destructive">{errorLabel}</p>}
-      onLoadSuccess={({ numPages: n }) => {
-        setNumPages(n);
-        onLoadSuccess(n);
-      }}
-      className="h-full min-h-0"
-    >
-      <div className="flex h-full min-h-0 overflow-hidden rounded-md bg-muted/30">
-        {sidebarOpen && (
-          <aside className="w-36 shrink-0 overflow-auto bg-background p-2">
-            <div className="space-y-2">
-              {pageNumbers.map(page => (
-                <button
-                  key={page}
-                  type="button"
-                  className="flex w-full flex-col items-center gap-1 rounded-md bg-muted/30 p-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  onClick={() => scrollToPage(page)}
-                >
-                  <Page
-                    pageNumber={page}
-                    width={96}
-                    renderAnnotationLayer={false}
-                    renderTextLayer={false}
-                  />
-                  <span>{page}</span>
-                </button>
-              ))}
-            </div>
-          </aside>
-        )}
-
-        <div ref={scrollRef} className="flex-1 overflow-auto" onWheel={onWheel}>
-          <div className="flex min-h-full w-full flex-col items-center gap-4 px-6 py-4 pb-10">
-            {pageNumbers.map(page => (
-              <div
-                key={page}
-                ref={(node) => {
-                  pageRefs.current[page - 1] = node;
-                }}
-                className="scroll-mt-4"
-              >
-                <Page pageNumber={page} width={Math.round(width * zoom)} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </Document>
-  );
-}
-
-function ImagePreview({
-  module: zoom,
-  url,
-  alt,
-  rotation,
-  transformRef,
-}: {
-  readonly module: ZoomModule;
-  readonly url: string;
-  readonly alt: string;
-  readonly rotation: number;
-  readonly transformRef: React.RefObject<ZoomRef | null>;
-}) {
-  const { TransformWrapper, TransformComponent } = zoom;
-  return (
-    <TransformWrapper
-      ref={transformRef}
-      initialScale={1}
-      minScale={0.5}
-      maxScale={6}
-      centerOnInit
-      limitToBounds={false}
-      wheel={{ disabled: true }}
-      pinch={{ disabled: true }}
-      panning={{ disabled: false, velocityDisabled: true, excluded: ["button"] }}
-    >
-      <div className="h-full overflow-hidden rounded-md bg-muted/30">
-        <TransformComponent
-          wrapperStyle={{ width: "100%", height: "100%" }}
-          contentStyle={{ width: "100%", height: "100%" }}
-        >
-          <div className="flex h-full w-full touch-none items-center justify-center p-4">
-            <img
-              src={url}
-              alt={alt}
-              draggable={false}
-              className="max-h-full max-w-full cursor-grab object-contain select-none active:cursor-grabbing"
-              style={{ transform: `rotate(${rotation}deg)` }}
-            />
-          </div>
-        </TransformComponent>
-      </div>
-    </TransformWrapper>
-  );
-}
-
 // ── dialog ──
 
 export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onDownload, readOnly = false, initialEditing = false }: FilePreviewDialogProps) {
@@ -422,7 +103,8 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [pdfWidth, setPdfWidth] = useState(900);
+  const [windowWidth, setWindowWidth] = useState(() =>
+    typeof window === "undefined" ? 1280 : window.innerWidth);
   const [pdfZoom, setPdfZoom] = useState(1);
   const [pdfSidebarOpen, setPdfSidebarOpen] = useState(true);
   const [imageRotation, setImageRotation] = useState(0);
@@ -439,6 +121,12 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
   const pdfScrollRef = useRef<HTMLDivElement | null>(null);
   const pdfWheelLockRef = useRef(false);
   const imageTransformRef = useRef<ZoomRef | null>(null);
+
+  const pdfWidth = useMemo(() => {
+    const horizontalPadding = fullscreen ? 64 : 192;
+    const maxWidth = fullscreen ? 1120 : 860;
+    return Math.min(maxWidth, Math.max(320, windowWidth - horizontalPadding));
+  }, [fullscreen, windowWidth]);
 
   const canEdit = !readOnly && file != null && (kind === "text" || kind === "markdown");
   const editing = (kind === "text" && textEditing) || (kind === "markdown" && markdownEditing);
@@ -462,6 +150,10 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
   // previous entry resolving after a newer load started, and the abort signal
   // cancels the in-flight request on close / entry change / unmount.
   const loadTokenRef = useRef(0);
+  // Enter edit mode once after the first load when asked (e.g. a freshly
+  // created blank file). The ref ensures it fires only on the initial open,
+  // not after a save-triggered reload.
+  const autoEditDoneRef = useRef(false);
 
   const loadFile = useCallback(async (signal: AbortSignal) => {
     if (!file || kind === "unsupported")
@@ -504,6 +196,13 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
         return;
       setContent(text);
       setInitialContent(text);
+      if (initialEditing && !readOnly && !autoEditDoneRef.current) {
+        if (kind === "markdown")
+          setMarkdownEditing(true);
+        else
+          setTextEditing(true);
+        autoEditDoneRef.current = true;
+      }
     }
     catch (err) {
       if (signal.aborted || token !== loadTokenRef.current)
@@ -514,7 +213,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
       if (!signal.aborted && token === loadTokenRef.current)
         setLoading(false);
     }
-  }, [clearObjectUrl, entry.id, file, kind, fetchContent]);
+  }, [clearObjectUrl, entry.id, file, kind, fetchContent, initialEditing, readOnly]);
 
   useEffect(() => {
     if (!open)
@@ -527,26 +226,13 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
     };
   }, [open, loadFile, clearObjectUrl, reloadNonce]);
 
-  // Enter edit mode once after the first load when asked (e.g. a freshly
-  // created blank file). A ref ensures it fires only on the initial open, not
-  // after a save-triggered reload.
-  const autoEditDoneRef = useRef(false);
+  // Re-arm the auto-edit guard when the dialog closes. The edit-on-load itself
+  // happens inside `loadFile` (after content arrives); this effect only resets
+  // a ref, so it triggers no synchronous re-render.
   useEffect(() => {
-    if (!open) {
+    if (!open)
       autoEditDoneRef.current = false;
-      return;
-    }
-    if (!initialEditing || autoEditDoneRef.current || loading || readOnly)
-      return;
-    if (kind === "markdown") {
-      setMarkdownEditing(true);
-      autoEditDoneRef.current = true;
-    }
-    else if (kind === "text") {
-      setTextEditing(true);
-      autoEditDoneRef.current = true;
-    }
-  }, [open, initialEditing, loading, readOnly, kind]);
+  }, [open]);
 
   // Lazy-load react-pdf (+ worker) and react-zoom-pan-pinch only when the
   // matching kind is being previewed.
@@ -579,19 +265,15 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
     };
   }, [open, kind, zoomModule]);
 
-  // Track the available render width for PDF pages.
+  // Track the viewport width while open so the PDF page width can derive from
+  // it without a synchronous setState-in-effect.
   useEffect(() => {
     if (!open)
       return;
-    const updateWidth = () => {
-      const horizontalPadding = fullscreen ? 64 : 192;
-      const maxWidth = fullscreen ? 1120 : 860;
-      setPdfWidth(Math.min(maxWidth, Math.max(320, window.innerWidth - horizontalPadding)));
-    };
-    updateWidth();
-    window.addEventListener("resize", updateWidth);
-    return () => window.removeEventListener("resize", updateWidth);
-  }, [fullscreen, open]);
+    const onResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [open]);
 
   // Esc closes the dialog; lock body scroll while open.
   useEffect(() => {

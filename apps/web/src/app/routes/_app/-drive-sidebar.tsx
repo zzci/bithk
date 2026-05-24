@@ -222,6 +222,7 @@ export function DriveSidebar({
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
                         NAV_ITEM_CLASS,
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/40",
                       )}
                     >
@@ -241,16 +242,17 @@ export function DriveSidebar({
             <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
               {t("sidebar.section.team")}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setEdit({ type: "create" })}
               disabled={!user}
               aria-label={t("team.list.create")}
               title={t("team.list.create")}
-              className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+              className="text-muted-foreground hover:text-foreground"
             >
               <Plus className="size-3.5" />
-            </button>
+            </Button>
           </div>
           <ul>
             {directories.length === 0 && (
@@ -266,7 +268,7 @@ export function DriveSidebar({
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
                       NAV_ITEM_CLASS,
-                      "pr-8",
+                      "pr-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/40",
                     )}
                   >

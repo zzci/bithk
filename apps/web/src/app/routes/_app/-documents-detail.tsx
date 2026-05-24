@@ -394,9 +394,10 @@ export function DocumentDetail({
                   commentsLocked={doc.commentsLocked}
                   commentsEnableReply
                   commentsHeaderAction={(isAdmin || isCreator) && (
-                    <button
-                      type="button"
-                      className="rounded px-1.5 py-0.5 text-[11px] text-primary/80 hover:bg-primary/10 hover:text-primary transition-colors"
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="px-1.5 text-[11px] text-primary/80 hover:bg-primary/10 hover:text-primary"
                       onClick={() => {
                         updateMutation.mutate(
                           { id: doc.id, version: doc.version, commentsLocked: !doc.commentsLocked },
@@ -411,7 +412,7 @@ export function DocumentDetail({
                       {doc.commentsLocked
                         ? t("comments.unlock", { defaultValue: "Unlock comments" })
                         : t("comments.lock", { defaultValue: "Lock comments" })}
-                    </button>
+                    </Button>
                   )}
                   canDeleteAttachment={att => isAdmin || isCreator || att.uploadedBy === user?.id}
                   canDeleteComment={c => isAdmin || c.authorId === user?.id}

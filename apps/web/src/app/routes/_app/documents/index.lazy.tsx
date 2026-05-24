@@ -40,7 +40,7 @@ function DocumentsIndex() {
             <button
               type="button"
               onClick={() => void navigate({ to: "/documents/$docId", params: { docId: node.id } })}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent/50"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <FileText className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
               <span className="min-w-0 flex-1 truncate">{node.title}</span>

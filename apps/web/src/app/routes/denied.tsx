@@ -120,16 +120,17 @@ function DeniedPage() {
               : logoutFetchFailed
                 ? (
                     <form method="post" action={`${BASE_PATH}/api/account/auth/logout`}>
-                      <button
+                      <Button
                         type="submit"
-                        className="inline-flex h-8 items-center justify-center rounded-lg px-3 text-sm font-medium hover:bg-muted"
+                        variant="ghost"
+                        className="rounded-lg px-3 font-medium"
                       >
                         {showSignOut
                           ? t("denied:signOut")
                           : showSignInDifferent
                             ? t("denied:signInDifferent")
                             : t("denied:switchAccount")}
-                      </button>
+                      </Button>
                     </form>
                   )
                 : null

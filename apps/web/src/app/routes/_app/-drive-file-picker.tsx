@@ -14,7 +14,7 @@ import type { DriveFileListCapabilities, DriveFileListSurfaceActions, FolderTool
 import type { DisplayItem } from "./-file-browser-types";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
@@ -65,12 +65,14 @@ export function DriveFilePicker({ open, onOpenChange, onPick, ownerType, ownerId
   const { t } = useTranslation(["drive", "common"]);
   const [folderStack, setFolderStack] = useState<FolderCrumb[]>([]);
 
-  // Reset navigation each time the picker is reopened so it always starts at
-  // the owner's root.
-  useEffect(() => {
-    if (!open)
+  // Reset navigation whenever the picker closes so the next open starts at the
+  // owner's root. Done in the close handler rather than an effect to avoid a
+  // synchronous setState-in-effect re-render.
+  const handleOpenChange = (next: boolean) => {
+    if (!next)
       setFolderStack([]);
-  }, [open]);
+    onOpenChange(next);
+  };
 
   const owner = ownerType && ownerId ? { ownerType, ownerId } : undefined;
   const currentFolderId = folderStack.at(-1)?.id ?? null;
@@ -101,7 +103,7 @@ export function DriveFilePicker({ open, onOpenChange, onPick, ownerType, ownerId
     const entry = entries.find(candidate => candidate.id === item.id);
     if (entry) {
       onPick(entry);
-      onOpenChange(false);
+      handleOpenChange(false);
     }
   };
 
@@ -120,7 +122,7 @@ export function DriveFilePicker({ open, onOpenChange, onPick, ownerType, ownerId
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>{t("picker.title")}</DialogTitle>
@@ -139,7 +141,7 @@ export function DriveFilePicker({ open, onOpenChange, onPick, ownerType, ownerId
         </div>
 
         <DialogFooter className="px-6 py-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             {t("common:common.cancel")}
           </Button>
         </DialogFooter>

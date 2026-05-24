@@ -401,7 +401,7 @@ function GroupsTab() {
                             <button
                               key={u.id}
                               type="button"
-                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               onClick={() => void addMember(u.id)}
                             >
                               <div>

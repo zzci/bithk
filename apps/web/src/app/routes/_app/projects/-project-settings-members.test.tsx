@@ -155,7 +155,7 @@ describe("projectSettingsMembers", () => {
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("alertdialog");
     const confirm = within(dialog).getAllByRole("button").find(b => /delete/i.test(b.textContent ?? ""));
     await user.click(confirm!);
 

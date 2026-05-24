@@ -371,13 +371,14 @@ function TotpVerifyStep({
         <img src={setup.qrCode} alt={t("totp:qrAlt")} className="size-48 rounded-lg" />
       </div>
 
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="xs"
         onClick={() => setShowSecret(!showSecret)}
-        className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+        className="w-full text-xs font-normal text-muted-foreground hover:text-foreground"
       >
         {t("totp:cantScan")}
-      </button>
+      </Button>
 
       {showSecret && (
         <div className="rounded-lg border bg-muted/50 p-3 space-y-2">

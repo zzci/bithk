@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Button } from "./button";
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./dialog";
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./alert-dialog";
+import { Button } from "./button";
 
 export function ConfirmDeleteDialog({
   open,
@@ -33,19 +33,22 @@ export function ConfirmDeleteDialog({
 }) {
   const { t } = useTranslation();
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <DialogClose render={<Button type="button" variant="outline">{cancelLabel ?? t("common.cancel")}</Button>} />
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogClose render={<Button type="button" variant="outline">{cancelLabel ?? t("common.cancel")}</Button>} />
+          {/* Confirm is a plain action, not a Close: the parent keeps the
+              dialog open until its mutation resolves, then closes via
+              onOpenChange — closing here would dismiss before the result. */}
           <Button variant="destructive" disabled={pending} onClick={onConfirm}>
             {confirmLabel ?? t("common.delete")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

@@ -271,7 +271,7 @@ function TreeRow({
         onClick={() => onSelect(node)}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-accent/40 disabled:opacity-50",
+          "flex w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
           node.id === activeId && "bg-accent/60 font-medium",
         )}
       >
@@ -350,7 +350,7 @@ function AttachmentList({
               type="button"
               disabled={busyId === att.id}
               onClick={() => void open(att)}
-              className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/40 disabled:opacity-50"
+              className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 <FileText className="size-4" />

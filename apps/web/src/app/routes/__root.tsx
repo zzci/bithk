@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { FullPageLoader } from "@/shared/components/full-page-loader";
 import { NotFoundPage } from "@/shared/components/not-found";
+import { Button } from "@/shared/components/ui/button";
 import { useDocumentTitle } from "@/shared/hooks/use-page-title";
 import { BASE_PATH, onHttpEvent } from "@/shared/lib/http";
 import { useSystemStore } from "@/shared/stores/system";
@@ -66,13 +67,13 @@ function RootLayout() {
               <pre className="mt-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground whitespace-pre-wrap break-words">{dbError}</pre>
             </details>
           )}
-          <button
-            type="button"
-            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+          <Button
+            variant="default"
+            className="px-4 py-2"
             onClick={() => void fetchStatus()}
           >
             {t("common.retry")}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -83,13 +84,13 @@ function RootLayout() {
       <div className="flex min-h-svh items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <p className="text-destructive">{t("common.error.systemUnavailable")}</p>
-          <button
-            type="button"
-            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+          <Button
+            variant="default"
+            className="px-4 py-2"
             onClick={() => void fetchStatus()}
           >
             {t("common.retry")}
-          </button>
+          </Button>
         </div>
       </div>
     );
