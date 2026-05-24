@@ -14,7 +14,6 @@ export interface ProjectCapabilityInfo {
   readonly canManageProject: boolean;
   readonly canManageMembers: boolean;
   readonly canManageRoles: boolean;
-  readonly canManageContacts: boolean;
   readonly canManageCategories: boolean;
   readonly canViewProcurement: boolean;
   readonly canManageProcurement: boolean;
@@ -36,18 +35,16 @@ export function computeCapabilities(
   const canManageProject = has("project.manage");
   const canManageMembers = has("members.manage");
   const canManageRoles = has("roles.manage");
-  const canManageContacts = has("contacts.manage");
   const canManageCategories = has("categories.manage");
   return {
     has,
     canManageProject,
     canManageMembers,
     canManageRoles,
-    canManageContacts,
     canManageCategories,
     canViewProcurement: has("procurement.view"),
     canManageProcurement: has("procurement.manage"),
-    canOpenSettings: canManageProject || canManageMembers || canManageRoles || canManageContacts || canManageCategories,
+    canOpenSettings: canManageProject || canManageMembers || canManageRoles || canManageCategories,
   };
 }
 

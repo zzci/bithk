@@ -56,12 +56,11 @@
   },
   "settings": {
     "title": "Project settings",
-    "description": "Manage this project's details, members, contacts, and categories.",
+    "description": "Manage this project's details, members, and categories.",
     "rolesHeading": "Roles",
     "tabs": {
       "general": "General",
       "members": "Members & roles",
-      "contacts": "Contacts",
       "categories": "Categories"
     }
   },
@@ -216,53 +215,10 @@
     "project.manage": "Manage project",
     "members.manage": "Manage members",
     "roles.manage": "Manage roles",
-    "contacts.manage": "Manage contacts",
     "categories.manage": "Manage categories",
     "procurement.view": "View procurement",
     "procurement.manage": "Manage procurement",
     "issue.manage": "Manage work orders"
-  },
-  "contacts": {
-    "add": "Add contact",
-    "empty": "No contacts yet.",
-    "allTypes": "All types",
-    "createTitle": "Add contact",
-    "editTitle": "Edit contact",
-    "dialogDescription": "Record an external contact for this project.",
-    "col": {
-      "name": "Name",
-      "type": "Type",
-      "contactPerson": "Contact person",
-      "phone": "Phone",
-      "status": "Status",
-      "actions": "Actions"
-    },
-    "field": {
-      "type": "Type",
-      "status": "Status",
-      "name": "Name",
-      "contactPerson": "Contact person",
-      "phone": "Phone",
-      "email": "Email",
-      "address": "Address",
-      "taxId": "Tax ID",
-      "rating": "Rating",
-      "note": "Note"
-    },
-    "type": {
-      "supplier": "Supplier",
-      "client": "Client",
-      "subcontractor": "Subcontractor",
-      "other": "Other"
-    },
-    "status": {
-      "active": "Active",
-      "inactive": "Inactive"
-    },
-    "delete": {
-      "title": "Delete contact",
-      "confirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
-    }
   },
   "categories": {
     "add": "Add category",
