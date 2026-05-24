@@ -56,12 +56,11 @@
   },
   "settings": {
     "title": "项目设置",
-    "description": "管理本项目的详情、成员、联系人和分类。",
+    "description": "管理本项目的详情、成员和分类。",
     "rolesHeading": "角色",
     "tabs": {
       "general": "常规",
       "members": "成员与角色",
-      "contacts": "联系人",
       "categories": "分类"
     }
   },
@@ -216,53 +215,10 @@
     "project.manage": "管理项目",
     "members.manage": "管理成员",
     "roles.manage": "管理角色",
-    "contacts.manage": "管理联系人",
     "categories.manage": "管理分类",
     "procurement.view": "查看采购",
     "procurement.manage": "管理采购",
     "issue.manage": "管理工单"
-  },
-  "contacts": {
-    "add": "添加联系人",
-    "empty": "暂无联系人。",
-    "allTypes": "全部类型",
-    "createTitle": "添加联系人",
-    "editTitle": "编辑联系人",
-    "dialogDescription": "为该项目记录一个外部联系人。",
-    "col": {
-      "name": "名称",
-      "type": "类型",
-      "contactPerson": "联系人",
-      "phone": "电话",
-      "status": "状态",
-      "actions": "操作"
-    },
-    "field": {
-      "type": "类型",
-      "status": "状态",
-      "name": "名称",
-      "contactPerson": "联系人",
-      "phone": "电话",
-      "email": "邮箱",
-      "address": "地址",
-      "taxId": "税号",
-      "rating": "评分",
-      "note": "备注"
-    },
-    "type": {
-      "supplier": "供应商",
-      "client": "客户",
-      "subcontractor": "分包商",
-      "other": "其他"
-    },
-    "status": {
-      "active": "启用",
-      "inactive": "停用"
-    },
-    "delete": {
-      "title": "删除联系人",
-      "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"
-    }
   },
   "categories": {
     "add": "添加分类",

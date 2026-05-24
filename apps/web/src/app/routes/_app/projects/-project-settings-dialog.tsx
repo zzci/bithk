@@ -1,6 +1,6 @@
 // Project settings dialog: a tabbed surface that groups General, Members &
-// Roles, Contacts, and Procurement Categories. Each tab is gated by the
-// matching capability so a member only sees what they may manage.
+// Roles, and Procurement Categories. Each tab is gated by the matching
+// capability so a member only sees what they may manage.
 
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
@@ -20,7 +20,6 @@ import {
   TabsTrigger,
 } from "@/shared/components/ui/tabs";
 import { ProjectSettingsCategories } from "./-project-settings-categories";
-import { ProjectSettingsContacts } from "./-project-settings-contacts";
 import { ProjectSettingsGeneral } from "./-project-settings-general";
 import { ProjectSettingsMembers } from "./-project-settings-members";
 import { ProjectSettingsRoles } from "./-project-settings-roles";
@@ -48,7 +47,6 @@ export function ProjectSettingsDialog({
     const list: readonly string[] = [
       caps.canManageProject ? "general" : null,
       caps.canManageMembers || caps.canManageRoles ? "members" : null,
-      caps.canManageContacts ? "contacts" : null,
       caps.canManageCategories ? "categories" : null,
     ].filter((value): value is string => value !== null);
     return list;
@@ -68,7 +66,6 @@ export function ProjectSettingsDialog({
           <TabsList variant="line">
             {tabs.includes("general") && <TabsTrigger value="general">{t("settings.tabs.general")}</TabsTrigger>}
             {tabs.includes("members") && <TabsTrigger value="members">{t("settings.tabs.members")}</TabsTrigger>}
-            {tabs.includes("contacts") && <TabsTrigger value="contacts">{t("settings.tabs.contacts")}</TabsTrigger>}
             {tabs.includes("categories") && <TabsTrigger value="categories">{t("settings.tabs.categories")}</TabsTrigger>}
           </TabsList>
 
@@ -97,12 +94,6 @@ export function ProjectSettingsDialog({
                   <ProjectSettingsRoles projectId={project.id} canManage={caps.canManageRoles} />
                 </section>
               )}
-            </TabsContent>
-          )}
-
-          {tabs.includes("contacts") && (
-            <TabsContent value="contacts" className="pt-4">
-              <ProjectSettingsContacts projectId={project.id} canManage={caps.canManageContacts} />
             </TabsContent>
           )}
 

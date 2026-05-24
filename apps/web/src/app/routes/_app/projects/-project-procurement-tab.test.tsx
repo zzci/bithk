@@ -77,6 +77,9 @@ describe("projectProcurementTab", () => {
     expect(await screen.findByText("Acme Supply")).toBeInTheDocument();
     expect(await screen.findByText("Materials")).toBeInTheDocument();
     expect(screen.getByText("500 USD")).toBeInTheDocument();
+    const urls = fetchMock.mock.calls.map(c => String(c[0]));
+    expect(urls).toContain("/api/contacts");
+    expect(urls).not.toContain("/api/projects/p1/contacts?type=supplier");
   });
 
   it("hides the create button when the viewer cannot manage", async () => {

@@ -6,12 +6,10 @@ import {
   useAddProjectMember,
   useCreateProcurementCategory,
   useCreateProject,
-  useCreateProjectContact,
   useCreateProjectIssue,
   useCreateProjectRole,
   useDeleteProject,
   useProject,
-  useProjectContacts,
   useProjectIssues,
   useProjectMembers,
   useProjectRoles,
@@ -127,22 +125,6 @@ describe("useProjectIssues", () => {
   });
 });
 
-describe("useProjectContacts", () => {
-  it("requests all contacts when no type is given", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
-    const { result } = renderHook(() => useProjectContacts("p1"), { wrapper: makeWrapper() });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(calledUrl()).toBe("/api/projects/p1/contacts");
-  });
-
-  it("appends a type filter to the path", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
-    const { result } = renderHook(() => useProjectContacts("p1", "supplier"), { wrapper: makeWrapper() });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(calledUrl()).toBe("/api/projects/p1/contacts?type=supplier");
-  });
-});
-
 describe("project role + member queries", () => {
   it("fetches roles for a project", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
@@ -185,15 +167,13 @@ describe("project mutations", () => {
     expect(init?.method).toBe("DELETE");
   });
 
-  it("adds a member, creates a role, a contact, a category and an issue", async () => {
+  it("adds a member, creates a role, a category and an issue", async () => {
     // Fresh Response per call — a Response body can only be read once.
     fetchMock.mockImplementation(async () => jsonResponse({ success: true, data: { id: "x" } }));
     const member = renderHook(() => useAddProjectMember(), { wrapper: makeWrapper() });
     await member.result.current.mutateAsync({ projectId: "p1", roleId: "r1" });
     const role = renderHook(() => useCreateProjectRole(), { wrapper: makeWrapper() });
     await role.result.current.mutateAsync({ projectId: "p1", name: "Lead" });
-    const contact = renderHook(() => useCreateProjectContact(), { wrapper: makeWrapper() });
-    await contact.result.current.mutateAsync({ projectId: "p1", type: "supplier", name: "Acme" });
     const category = renderHook(() => useCreateProcurementCategory(), { wrapper: makeWrapper() });
     await category.result.current.mutateAsync({ projectId: "p1", name: "Tools" });
     const issue = renderHook(() => useCreateProjectIssue(), { wrapper: makeWrapper() });
@@ -201,7 +181,6 @@ describe("project mutations", () => {
     expect(fetchMock.mock.calls.map(c => String(c[0]))).toEqual([
       "/api/projects/p1/members",
       "/api/projects/p1/roles",
-      "/api/projects/p1/contacts",
       "/api/projects/p1/procurement-categories",
       "/api/projects/p1/issues",
     ]);

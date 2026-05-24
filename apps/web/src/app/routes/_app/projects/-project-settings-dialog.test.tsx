@@ -45,19 +45,19 @@ describe("projectSettingsDialog", () => {
     );
     expect(screen.getByRole("tab", { name: "General" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Members & roles" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Contacts" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Categories" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Contacts" })).not.toBeInTheDocument();
   });
 
-  it("shows only the contacts tab to a contacts-only member", () => {
-    const caps = computeCapabilities(["contacts.manage"], false);
+  it("shows only the categories tab to a categories-only member", () => {
+    const caps = computeCapabilities(["categories.manage"], false);
     renderWithProviders(
       <ProjectSettingsDialog open onOpenChange={vi.fn()} project={project} members={[]} userNames={new Map()} caps={caps} />,
     );
-    expect(screen.getByRole("tab", { name: "Contacts" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Categories" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "General" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Members & roles" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Categories" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Contacts" })).not.toBeInTheDocument();
   });
 
   it("merges the members tab when either members or roles can be managed", () => {

@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { useContacts } from "@/shared/lib/api/contacts";
 import {
   PROCUREMENT_STATUSES,
   useChangeProcurementStatus,
@@ -47,10 +48,7 @@ import {
   useDeleteProcurement,
   useProcurements,
 } from "@/shared/lib/api/procurement";
-import {
-  useProcurementCategories,
-  useProjectContacts,
-} from "@/shared/lib/api/projects";
+import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { buildMemberLabelMap } from "./-member-helpers";
 
@@ -75,13 +73,16 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     categoryId: categoryFilter === "__all__" ? undefined : categoryFilter,
     page,
   });
-  const suppliersQuery = useProjectContacts(projectId, "supplier");
+  const suppliersQuery = useContacts();
   const categoriesQuery = useProcurementCategories(projectId);
   const changeStatus = useChangeProcurementStatus();
   const deleteProcurement = useDeleteProcurement();
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
-  const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
+  const suppliers = useMemo(
+    () => (suppliersQuery.data ?? []).map(contact => ({ id: contact.id, name: contact.name })),
+    [suppliersQuery.data],
+  );
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
   const supplierNames = useMemo(() => new Map(suppliers.map(s => [s.id, s.name])), [suppliers]);
   const categoryNames = useMemo(() => new Map(categories.map(c => [c.id, c.name])), [categories]);

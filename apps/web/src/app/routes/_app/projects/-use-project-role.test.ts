@@ -11,7 +11,6 @@ describe("computeCapabilities", () => {
     expect(caps.canManageProject).toBe(true);
     expect(caps.canManageMembers).toBe(true);
     expect(caps.canManageRoles).toBe(true);
-    expect(caps.canManageContacts).toBe(true);
     expect(caps.canManageCategories).toBe(true);
     expect(caps.canViewProcurement).toBe(true);
     expect(caps.canManageProcurement).toBe(true);
@@ -19,14 +18,13 @@ describe("computeCapabilities", () => {
   });
 
   it("derives flags from the payload for a non-admin member", () => {
-    const granted: readonly ProjectCapability[] = ["contacts.manage", "procurement.view"];
+    const granted: readonly ProjectCapability[] = ["categories.manage", "procurement.view"];
     const caps = computeCapabilities(granted, false);
-    expect(caps.canManageContacts).toBe(true);
+    expect(caps.canManageCategories).toBe(true);
     expect(caps.canViewProcurement).toBe(true);
     expect(caps.canManageProject).toBe(false);
     expect(caps.canManageMembers).toBe(false);
     expect(caps.canManageRoles).toBe(false);
-    expect(caps.canManageCategories).toBe(false);
     expect(caps.canManageProcurement).toBe(false);
   });
 

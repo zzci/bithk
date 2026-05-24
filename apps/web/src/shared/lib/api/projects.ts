@@ -33,17 +33,12 @@ export const PROJECT_CAPABILITIES = [
   "project.manage",
   "members.manage",
   "roles.manage",
-  "contacts.manage",
   "categories.manage",
   "procurement.view",
   "procurement.manage",
   "issue.manage",
 ] as const;
 export type ProjectCapability = typeof PROJECT_CAPABILITIES[number];
-
-export type ContactType = "supplier" | "client" | "subcontractor" | "other";
-export const CONTACT_TYPES: readonly ContactType[] = ["supplier", "client", "subcontractor", "other"];
-export type ContactStatus = "active" | "inactive";
 
 export interface ProjectTag {
   readonly id: string;
@@ -79,22 +74,6 @@ export interface ProjectRoleView {
   readonly name: string;
   readonly capabilities: readonly ProjectCapability[];
   readonly isSystem: boolean;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface ProjectContactView {
-  readonly id: string;
-  readonly type: ContactType;
-  readonly name: string;
-  readonly contactPerson: string | null;
-  readonly phone: string | null;
-  readonly email: string | null;
-  readonly address: string | null;
-  readonly taxId: string | null;
-  readonly rating: number | null;
-  readonly status: ContactStatus;
-  readonly note: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -142,7 +121,6 @@ export const projectKeys = {
   detail: (id: string) => ["projects", "detail", id] as const,
   members: (id: string) => ["projects", id, "members"] as const,
   roles: (id: string) => ["projects", id, "roles"] as const,
-  contacts: (id: string, type: string) => ["projects", id, "contacts", type] as const,
   categories: (id: string) => ["projects", id, "categories"] as const,
   issues: (id: string, query: string) => ["projects", id, "issues", query] as const,
 };
@@ -375,72 +353,6 @@ export function useDeleteProjectRole(): UseMutationResult<null, Error, { project
     ).then(r => r.data),
     onSuccess: (_data, { projectId }) => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.roles(projectId) });
-    },
-  });
-}
-
-// ── Contacts ──
-
-export function useProjectContacts(projectId: string | undefined, type?: ContactType) {
-  return useQuery({
-    queryKey: projectKeys.contacts(projectId ?? "", type ?? "all"),
-    queryFn: () => {
-      const qs = type ? `?type=${encodeURIComponent(type)}` : "";
-      return http<ApiEnvelope<readonly ProjectContactView[]>>(`/projects/${encodeURIComponent(projectId!)}/contacts${qs}`).then(r => r.data);
-    },
-    enabled: !!projectId,
-    staleTime: 5_000,
-  });
-}
-
-export interface ContactInput {
-  readonly type?: ContactType;
-  readonly name?: string;
-  readonly contactPerson?: string | null;
-  readonly phone?: string | null;
-  readonly email?: string | null;
-  readonly address?: string | null;
-  readonly taxId?: string | null;
-  readonly rating?: number | null;
-  readonly status?: ContactStatus;
-  readonly note?: string | null;
-}
-
-export function useCreateProjectContact(): UseMutationResult<ProjectContactView, Error, { projectId: string; type: ContactType; name: string } & ContactInput> {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ projectId, ...body }) => http<ApiEnvelope<ProjectContactView>>(`/projects/${encodeURIComponent(projectId)}/contacts`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }).then(r => r.data),
-    onSuccess: (_data, { projectId }) => {
-      void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "contacts"] });
-    },
-  });
-}
-
-export function useUpdateProjectContact(): UseMutationResult<ProjectContactView, Error, { projectId: string; contactId: string } & ContactInput> {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ projectId, contactId, ...body }) => http<ApiEnvelope<ProjectContactView>>(
-      `/projects/${encodeURIComponent(projectId)}/contacts/${encodeURIComponent(contactId)}`,
-      { method: "PATCH", body: JSON.stringify(body) },
-    ).then(r => r.data),
-    onSuccess: (_data, { projectId }) => {
-      void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "contacts"] });
-    },
-  });
-}
-
-export function useDeleteProjectContact(): UseMutationResult<null, Error, { projectId: string; contactId: string }> {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ projectId, contactId }) => http<ApiEnvelope<null>>(
-      `/projects/${encodeURIComponent(projectId)}/contacts/${encodeURIComponent(contactId)}`,
-      { method: "DELETE" },
-    ).then(r => r.data),
-    onSuccess: (_data, { projectId }) => {
-      void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "contacts"] });
     },
   });
 }
