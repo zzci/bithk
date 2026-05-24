@@ -549,6 +549,13 @@ export interface CreateProjectIssueInput {
   readonly priority?: IssuePriority;
   readonly assigneeMemberId?: string;
   readonly dueDate?: string;
+  readonly references?: readonly IssueReferenceInput[];
+}
+
+export interface IssueReferenceInput {
+  readonly refType: "maintenance_template" | "url" | "document";
+  readonly refId: string;
+  readonly label?: string | null;
 }
 
 export function useCreateProjectIssue(): UseMutationResult<ProjectIssueRow, Error, { projectId: string } & CreateProjectIssueInput> {

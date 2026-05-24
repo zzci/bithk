@@ -12,7 +12,7 @@
 // T5b.
 
 import type { UseMutationResult } from "@tanstack/react-query";
-import type { ProjectView } from "./projects";
+import type { IssueStatus, ProjectView } from "./projects";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
@@ -31,6 +31,9 @@ interface ApiListEnvelope<T> {
 
 export type ShipStatus = "active" | "archived";
 export const SHIP_STATUSES: readonly ShipStatus[] = ["active", "archived"];
+
+export type EquipmentStatus = "active" | "retired";
+export const EQUIPMENT_STATUSES: readonly EquipmentStatus[] = ["active", "retired"];
 
 export type ShipLifecycleStage
   = | "design"
@@ -80,6 +83,57 @@ export interface ShipProjectView extends ProjectView {
   readonly isBase: boolean;
 }
 
+export interface ShipEquipmentView {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string | null;
+  readonly manufacturer: string | null;
+  readonly model: string | null;
+  readonly serialNumber: string | null;
+  readonly location: string | null;
+  readonly installedAt: string | null;
+  readonly status: EquipmentStatus;
+  readonly note: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface MaintenanceTemplateView {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string | null;
+  readonly checklist: string | null;
+  readonly precautions: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ResolvedMaintenanceTemplate {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string | null;
+  readonly checklist: string | null;
+  readonly precautions: string | null;
+}
+
+export interface IssueReferenceView {
+  readonly id: string;
+  readonly refType: string;
+  readonly refId: string;
+  readonly label: string | null;
+  readonly createdAt: string;
+  readonly template?: ResolvedMaintenanceTemplate | null;
+}
+
+export interface ShipMaintenanceOrderView {
+  readonly id: string;
+  readonly title: string;
+  readonly status: IssueStatus;
+  readonly projectId: string;
+  readonly templateRefId: string;
+  readonly referenceId: string;
+}
+
 export interface ListMeta {
   readonly total: number;
   readonly page: number;
@@ -94,6 +148,11 @@ export const shipKeys = {
   list: (status: string, stage: string, page: number) => ["ships", "list", status, stage, page] as const,
   detail: (id: string) => ["ships", "detail", id] as const,
   projects: (id: string) => ["ships", id, "projects"] as const,
+  equipment: (id: string) => ["ships", id, "equipment"] as const,
+  maintenanceTemplates: (id: string) => ["ships", id, "maintenance-templates"] as const,
+  globalMaintenanceTemplates: () => ["maintenance-templates", "global"] as const,
+  maintenanceOrders: (id: string) => ["ships", id, "maintenance-orders"] as const,
+  issueReferences: (issueId: string) => ["issues", issueId, "references"] as const,
 };
 
 // ── Ships: queries ──
@@ -243,5 +302,153 @@ export function useUnbindShipProject(): UseMutationResult<null, Error, { shipId:
     onSuccess: (_data, { shipId }) => {
       void queryClient.invalidateQueries({ queryKey: shipKeys.projects(shipId) });
     },
+  });
+}
+
+// ── Ship equipment ──
+
+export interface EquipmentInput {
+  readonly name?: string;
+  readonly category?: string | null;
+  readonly manufacturer?: string | null;
+  readonly model?: string | null;
+  readonly serialNumber?: string | null;
+  readonly location?: string | null;
+  readonly installedAt?: string | null;
+  readonly status?: EquipmentStatus;
+  readonly note?: string | null;
+}
+
+export function useShipEquipment(shipId: string | undefined) {
+  return useQuery({
+    queryKey: shipKeys.equipment(shipId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly ShipEquipmentView[]>>(`/ships/${encodeURIComponent(shipId!)}/equipment`).then(r => r.data),
+    enabled: !!shipId,
+    staleTime: 5_000,
+  });
+}
+
+export function useCreateShipEquipment(): UseMutationResult<ShipEquipmentView, Error, { shipId: string; name: string } & EquipmentInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shipId, ...body }) => http<ApiEnvelope<ShipEquipmentView>>(`/ships/${encodeURIComponent(shipId)}/equipment`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(r => r.data),
+    onSuccess: (_data, { shipId }) => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.equipment(shipId) });
+    },
+  });
+}
+
+export function useUpdateShipEquipment(): UseMutationResult<ShipEquipmentView, Error, { shipId: string; equipmentId: string } & EquipmentInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shipId, equipmentId, ...body }) => http<ApiEnvelope<ShipEquipmentView>>(
+      `/ships/${encodeURIComponent(shipId)}/equipment/${encodeURIComponent(equipmentId)}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ).then(r => r.data),
+    onSuccess: (_data, { shipId }) => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.equipment(shipId) });
+    },
+  });
+}
+
+export function useDeleteShipEquipment(): UseMutationResult<null, Error, { shipId: string; equipmentId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shipId, equipmentId }) => http<ApiEnvelope<null>>(
+      `/ships/${encodeURIComponent(shipId)}/equipment/${encodeURIComponent(equipmentId)}`,
+      { method: "DELETE" },
+    ).then(r => r.data),
+    onSuccess: (_data, { shipId }) => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.equipment(shipId) });
+    },
+  });
+}
+
+// ── Maintenance templates + work orders ──
+
+export interface MaintenanceTemplateInput {
+  readonly name?: string;
+  readonly category?: string | null;
+  readonly checklist?: string | null;
+  readonly precautions?: string | null;
+}
+
+export function useShipMaintenanceTemplates(shipId: string | undefined) {
+  return useQuery({
+    queryKey: shipKeys.maintenanceTemplates(shipId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly MaintenanceTemplateView[]>>(`/ships/${encodeURIComponent(shipId!)}/maintenance-templates`).then(r => r.data),
+    enabled: !!shipId,
+    staleTime: 5_000,
+  });
+}
+
+export function useGlobalMaintenanceTemplates(enabled: boolean) {
+  return useQuery({
+    queryKey: shipKeys.globalMaintenanceTemplates(),
+    queryFn: () => http<ApiEnvelope<readonly MaintenanceTemplateView[]>>("/maintenance-templates").then(r => r.data),
+    enabled,
+    staleTime: 5_000,
+  });
+}
+
+export function useCreateShipMaintenanceTemplate(): UseMutationResult<MaintenanceTemplateView, Error, { shipId: string; fromGlobalId?: string } & MaintenanceTemplateInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shipId, ...body }) => http<ApiEnvelope<MaintenanceTemplateView>>(`/ships/${encodeURIComponent(shipId)}/maintenance-templates`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(r => r.data),
+    onSuccess: (_data, { shipId }) => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceTemplates(shipId) });
+    },
+  });
+}
+
+export function useUpdateShipMaintenanceTemplate(): UseMutationResult<MaintenanceTemplateView, Error, { shipId: string; templateId: string } & MaintenanceTemplateInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shipId, templateId, ...body }) => http<ApiEnvelope<MaintenanceTemplateView>>(
+      `/ships/${encodeURIComponent(shipId)}/maintenance-templates/${encodeURIComponent(templateId)}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ).then(r => r.data),
+    onSuccess: (_data, { shipId }) => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceTemplates(shipId) });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceOrders(shipId) });
+    },
+  });
+}
+
+export function useDeleteShipMaintenanceTemplate(): UseMutationResult<null, Error, { shipId: string; templateId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shipId, templateId }) => http<ApiEnvelope<null>>(
+      `/ships/${encodeURIComponent(shipId)}/maintenance-templates/${encodeURIComponent(templateId)}`,
+      { method: "DELETE" },
+    ).then(r => r.data),
+    onSuccess: (_data, { shipId }) => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceTemplates(shipId) });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceOrders(shipId) });
+    },
+  });
+}
+
+export function useShipMaintenanceOrders(shipId: string | undefined) {
+  return useQuery({
+    queryKey: shipKeys.maintenanceOrders(shipId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly ShipMaintenanceOrderView[]>>(`/ships/${encodeURIComponent(shipId!)}/maintenance-orders`).then(r => r.data),
+    enabled: !!shipId,
+    staleTime: 5_000,
+  });
+}
+
+export function useIssueReferences(issueId: string | undefined) {
+  return useQuery({
+    queryKey: shipKeys.issueReferences(issueId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly IssueReferenceView[]>>(`/issues/${encodeURIComponent(issueId!)}/references`).then(r => r.data),
+    enabled: !!issueId,
+    staleTime: 5_000,
   });
 }

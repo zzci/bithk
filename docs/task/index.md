@@ -12,7 +12,7 @@
 | [FEAT-007](FEAT-007.md) | Document row actions menu + per-user pin + pinned home | [PLAN-008](../plan/PLAN-008.md) | Done | 2026-05-23 |
 | [REFACTOR-002](REFACTOR-002.md) | Migrate issues into the project module (no global issues) | [PLAN-009](../plan/PLAN-009.md) | Done | 2026-05-23 |
 | [FEAT-008](FEAT-008.md) | Project settings hub: metadata + supplier directory + procurement categories | [PLAN-010](../plan/PLAN-010.md) | Done | 2026-05-23 |
-| [FEAT-009](FEAT-009.md) | 船舶（游艇）管理模块 | [PLAN-011](../plan/PLAN-011.md) | In progress | 2026-05-24 |
+| [FEAT-009](FEAT-009.md) | 船舶（游艇）管理模块 | [PLAN-011](../plan/PLAN-011.md) | Done | 2026-05-24 |
 | [DOCS-001](DOCS-001.md) | 模块文档与代码对齐 | [PLAN-012](../plan/PLAN-012.md) | Done | 2026-05-24 |
 | [FIX-001](FIX-001.md) | Drive code/text preview fills container + unified CodeMirror editing | - | Done | 2026-05-24 |
 | [FIX-002](FIX-002.md) | Frontend quality: a11y focus rings, effect warnings, oversized files | - | Done | 2026-05-24 |

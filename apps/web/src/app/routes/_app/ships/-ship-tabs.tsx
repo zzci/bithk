@@ -27,7 +27,9 @@
 
 import type { ReactNode } from "react";
 import type { ShipView } from "@/shared/lib/api/ships";
+import { ShipEquipmentTab } from "./-ship-equipment-tab";
 import { ShipFilesTab } from "./-ship-files-tab";
+import { ShipMaintenanceTab } from "./-ship-maintenance-tab";
 import { ShipOverviewTab } from "./-ship-overview-tab";
 import { ShipProjectsTab } from "./-ship-projects-tab";
 
@@ -52,7 +54,18 @@ export const SHIP_TABS: readonly ShipTabDefinition[] = [
     order: 10,
     render: ctx => <ShipOverviewTab ship={ctx.ship} canManage={ctx.canManage} />,
   },
-  // ── T5b inserts Equipment (20) and Maintenance (30) here ──
+  {
+    value: "equipment",
+    labelKey: "tabs.equipment",
+    order: 20,
+    render: ctx => <ShipEquipmentTab ship={ctx.ship} canManage={ctx.canManage} />,
+  },
+  {
+    value: "maintenance",
+    labelKey: "tabs.maintenance",
+    order: 30,
+    render: ctx => <ShipMaintenanceTab ship={ctx.ship} canManage={ctx.canManage} />,
+  },
   {
     value: "projects",
     labelKey: "tabs.projects",

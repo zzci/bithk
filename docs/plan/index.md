@@ -12,5 +12,5 @@
 | [PLAN-008](PLAN-008.md) | Document row actions menu + per-user pin + pinned home | Done | 2026-05-23 |
 | [PLAN-009](PLAN-009.md) | Migrate issues into the project module | Done | 2026-05-23 |
 | [PLAN-010](PLAN-010.md) | Project settings hub, supplier directory, procurement categories, metadata | Done | 2026-05-23 |
-| [PLAN-011](PLAN-011.md) | 船舶（游艇）管理模块 | Implementing | 2026-05-24 |
+| [PLAN-011](PLAN-011.md) | 船舶（游艇）管理模块 | Done | 2026-05-24 |
 | [PLAN-012](PLAN-012.md) | 模块文档与代码对齐 | Done | 2026-05-24 |
