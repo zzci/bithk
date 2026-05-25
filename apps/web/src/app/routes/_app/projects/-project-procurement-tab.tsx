@@ -73,6 +73,11 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     categoryId: categoryFilter === "__all__" ? undefined : categoryFilter,
     page,
   });
+  const draftSummaryQuery = useProcurements(projectId, { status: "draft", limit: 1000 });
+  const requestedSummaryQuery = useProcurements(projectId, { status: "requested", limit: 1000 });
+  const orderedSummaryQuery = useProcurements(projectId, { status: "ordered", limit: 1000 });
+  const receivedSummaryQuery = useProcurements(projectId, { status: "received", limit: 1000 });
+  const closedSummaryQuery = useProcurements(projectId, { status: "closed", limit: 1000 });
   const suppliersQuery = useContacts();
   const categoriesQuery = useProcurementCategories(projectId);
   const changeStatus = useChangeProcurementStatus();
@@ -89,6 +94,13 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   const rows = procurementsQuery.data?.data ?? [];
   const meta = procurementsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
+  const stageSummaries: Record<ProcurementStatus, { readonly count: number | undefined; readonly rows: readonly ProcurementRow[] }> = {
+    draft: { count: draftSummaryQuery.data?.meta.total, rows: draftSummaryQuery.data?.data ?? [] },
+    requested: { count: requestedSummaryQuery.data?.meta.total, rows: requestedSummaryQuery.data?.data ?? [] },
+    ordered: { count: orderedSummaryQuery.data?.meta.total, rows: orderedSummaryQuery.data?.data ?? [] },
+    received: { count: receivedSummaryQuery.data?.meta.total, rows: receivedSummaryQuery.data?.data ?? [] },
+    closed: { count: closedSummaryQuery.data?.meta.total, rows: closedSummaryQuery.data?.data ?? [] },
+  };
 
   const supplierName = (id: string | null) =>
     id ? supplierNames.get(id) ?? id : <span className="text-muted-foreground">{t("procurement.none")}</span>;
@@ -103,28 +115,51 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     return row.currency ? `${row.amount} ${row.currency}` : String(row.amount);
   };
 
+  const formatSummaryAmount = (summaryRows: readonly ProcurementRow[]) => {
+    const amountRows = summaryRows.filter(row => row.amount !== null);
+    if (amountRows.length === 0)
+      return "—";
+    const currencies = new Set(amountRows.map(row => row.currency ?? ""));
+    if (currencies.size > 1)
+      return t("procurement.mixedCurrencies");
+    const currency = amountRows[0]?.currency;
+    const total = amountRows.reduce((sum, row) => sum + (row.amount ?? 0), 0);
+    return currency ? `${total} ${currency}` : String(total);
+  };
+
   return (
     <div className="space-y-4">
-      {/* Pipeline — the ordered procurement stages double as status filters. */}
-      <div className="space-y-2">
-        <span className="text-xs font-medium text-muted-foreground">{t("procurement.pipeline.title")}</span>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {PROCUREMENT_STATUSES.map((s, i) => (
-            <div key={s} className="flex items-center gap-1.5">
-              {i > 0 && <span className="text-muted-foreground/40" aria-hidden="true">→</span>}
-              <Button
-                size="sm"
-                variant={statusFilter === s ? "default" : "outline"}
-                className="h-8 rounded-full"
-                aria-pressed={statusFilter === s}
-                onClick={() => {
-                  setStatusFilter(statusFilter === s ? "__all__" : s);
-                  setPage(1);
-                }}
-              >
-                {t(`procurement.status.${s}` as const)}
-              </Button>
-            </div>
+      <div className="rounded-lg border bg-card p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-medium">{t("procurement.pipeline.title")}</h3>
+            <p className="text-xs text-muted-foreground">{t("procurement.pipeline.description")}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {PROCUREMENT_STATUSES.map(status => (
+            <button
+              key={status}
+              type="button"
+              className="rounded-md border bg-muted/20 p-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:border-primary data-[active=true]:bg-primary/5"
+              data-active={statusFilter === status}
+              aria-pressed={statusFilter === status}
+              onClick={() => {
+                setStatusFilter(statusFilter === status ? "__all__" : status);
+                setPage(1);
+              }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">{t(`procurement.status.${status}` as const)}</span>
+                <Badge variant="secondary" className="text-xs">
+                  {stageSummaries[status].count ?? "—"}
+                </Badge>
+              </div>
+              <div className="mt-2 text-lg font-semibold tabular-nums">
+                {formatSummaryAmount(stageSummaries[status].rows)}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">{t("procurement.pipeline.amount")}</div>
+            </button>
           ))}
         </div>
       </div>

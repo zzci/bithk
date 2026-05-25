@@ -60,8 +60,8 @@ export interface ProcurementListMeta {
 
 export const procurementKeys = {
   all: ["procurements"] as const,
-  list: (projectId: string, status: string, category: string, page: number) =>
-    ["procurements", projectId, "list", status, category, page] as const,
+  list: (projectId: string, query: string) =>
+    ["procurements", projectId, "list", query] as const,
   byProject: (projectId: string) => ["procurements", projectId] as const,
 };
 
@@ -88,18 +88,19 @@ export function useProcurements(
   const categoryId = query.categoryId;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
+  const params = new URLSearchParams();
+  if (status)
+    params.set("status", status);
+  if (categoryId)
+    params.set("categoryId", categoryId);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+  const queryString = params.toString();
   return useQuery<ProcurementsResult>({
-    queryKey: procurementKeys.list(projectId ?? "", status ?? "all", categoryId ?? "all", page),
+    queryKey: procurementKeys.list(projectId ?? "", queryString),
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (status)
-        params.set("status", status);
-      if (categoryId)
-        params.set("categoryId", categoryId);
-      params.set("page", String(page));
-      params.set("limit", String(limit));
       const res = await http<ApiListEnvelope<ProcurementRow>>(
-        `/projects/${encodeURIComponent(projectId!)}/procurements?${params.toString()}`,
+        `/projects/${encodeURIComponent(projectId!)}/procurements?${queryString}`,
       );
       return { data: res.data, meta: res.meta };
     },

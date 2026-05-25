@@ -48,8 +48,18 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
 function routeFetch(rows: ProcurementRow[]) {
   fetchMock.mockImplementation(async (url) => {
     const path = String(url);
-    if (path.includes("/procurements"))
-      return jsonResponse({ success: true, data: rows, meta: { total: rows.length, page: 1, limit: 20 } });
+    if (path.includes("/procurements")) {
+      const parsed = new URL(path, "http://test.local");
+      const status = parsed.searchParams.get("status");
+      const page = Number(parsed.searchParams.get("page") ?? 1);
+      const limit = Number(parsed.searchParams.get("limit") ?? 20);
+      const filtered = status ? rows.filter(item => item.status === status) : rows;
+      return jsonResponse({
+        success: true,
+        data: filtered.slice((page - 1) * limit, page * limit),
+        meta: { total: filtered.length, page, limit },
+      });
+    }
     if (path.includes("/contacts"))
       return jsonResponse({ success: true, data: [{ id: "s1", name: "Acme Supply" }] });
     if (path.includes("/procurement-categories"))
@@ -77,7 +87,7 @@ describe("projectProcurementTab", () => {
     expect(await screen.findByText("Cement")).toBeInTheDocument();
     expect(await screen.findByText("Acme Supply")).toBeInTheDocument();
     expect(await screen.findByText("Materials")).toBeInTheDocument();
-    expect(screen.getByText("500 USD")).toBeInTheDocument();
+    expect(screen.getAllByText("500 USD").length).toBeGreaterThan(0);
     const urls = fetchMock.mock.calls.map(c => String(c[0]));
     expect(urls).toContain("/api/contacts");
     expect(urls).not.toContain("/api/projects/p1/contacts?type=supplier");
@@ -108,6 +118,24 @@ describe("projectProcurementTab", () => {
     await screen.findByText("Cement");
     for (const stage of ["Draft", "Requested", "Ordered", "Received", "Closed"])
       expect(screen.getByRole("button", { name: new RegExp(stage) })).toBeInTheDocument();
+  });
+
+  it("renders pipeline stage counts and amount totals without colliding with the paginated list", async () => {
+    routeFetch([
+      row({ id: "draft-1", status: "draft", amount: 500, currency: "USD" }),
+      row({ id: "ordered-1", status: "ordered", amount: 1200, currency: "USD" }),
+      row({ id: "ordered-2", status: "ordered", amount: 300, currency: "USD" }),
+    ]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
+    );
+    expect((await screen.findAllByText("Cement")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Draft1 500 USD Amount/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ordered2 1500 USD Amount/ })).toBeInTheDocument();
+
+    const urls = fetchMock.mock.calls.map(c => String(c[0]));
+    expect(urls.some(url => url.includes("status=ordered") && url.includes("limit=1000"))).toBe(true);
+    expect(urls.some(url => url.includes("page=1") && url.includes("limit=20"))).toBe(true);
   });
 
   it("toggles the status filter when a pipeline stage is clicked", async () => {

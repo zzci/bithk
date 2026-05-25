@@ -11,11 +11,19 @@
     "filterByTag": "按分类筛选",
     "tagAll": "全部",
     "searchPlaceholder": "搜索项目",
+    "viewMode": "项目视图模式",
+    "viewGrid": "网格视图",
+    "viewList": "列表视图",
+    "moreTags": "+{{count}}",
     "kpi": {
       "total": "项目总数",
       "active": "进行中项目",
       "archived": "已归档",
       "tags": "标签"
+    },
+    "card": {
+      "status": "状态",
+      "updated": "更新"
     },
     "col": {
       "name": "名称",
@@ -58,6 +66,7 @@
   "detail": {
     "notFound": "项目不存在或您无权访问。",
     "back": "返回项目列表",
+    "breadcrumb": "项目面包屑",
     "loading": "正在加载项目...",
     "settings": "设置",
     "metrics": {
@@ -80,6 +89,7 @@
     "overview": "概览",
     "issues": "工单",
     "procurement": "采购",
+    "members": "成员",
     "files": "文件"
   },
   "overview": {
@@ -94,6 +104,7 @@
     "keyInfo": "关键信息",
     "memberPreview": "成员",
     "categoryPreview": "采购分类",
+    "categoriesLoading": "正在加载分类...",
     "updatedAt": "最近更新",
     "noMembers": "暂无成员。"
   },
@@ -104,6 +115,10 @@
     "searchPlaceholder": "搜索工单...",
     "allStatuses": "全部状态",
     "allPriorities": "全部优先级",
+    "viewMode": "工单视图模式",
+    "viewList": "列表视图",
+    "viewKanban": "看板视图",
+    "emptyColumn": "暂无工单",
     "unassigned": "未分配",
     "total": "{{count}} 个工单",
     "col": {
@@ -150,6 +165,7 @@
     "allCategories": "全部分类",
     "total": "{{count}} 条记录",
     "none": "无",
+    "mixedCurrencies": "多币种",
     "col": {
       "itemName": "物品",
       "status": "状态",
@@ -173,7 +189,9 @@
     "createDescription": "为该项目添加一条新的采购记录。",
     "changeStatus": "变更状态",
     "pipeline": {
-      "title": "采购流程"
+      "title": "采购流程",
+      "description": "阶段汇总使用当前采购列表 API。",
+      "amount": "金额"
     },
     "delete": {
       "title": "删除采购",
@@ -190,6 +208,10 @@
   "members": {
     "add": "添加成员",
     "empty": "暂无成员。",
+    "loading": "正在加载成员...",
+    "tabDescription": "此处仅展示项目成员。成员与角色管理仍在项目设置中完成。",
+    "noRole": "无角色",
+    "joinedAt": "加入时间",
     "virtual": "虚拟",
     "col": {
       "member": "成员",

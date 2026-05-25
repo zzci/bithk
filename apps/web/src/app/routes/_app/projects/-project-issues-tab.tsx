@@ -8,7 +8,7 @@ import type {
   ProjectMemberView,
 } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { LayoutGrid, List, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -61,6 +61,9 @@ const PRIORITY_VARIANTS: Record<IssuePriority, "default" | "outline" | "secondar
 };
 
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
+const STATUSES: readonly IssueStatus[] = ["open", "in_progress", "done", "cancelled"];
+
+type IssueViewMode = "list" | "kanban";
 
 interface ProjectIssuesTabProps {
   readonly projectId: string;
@@ -77,6 +80,7 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
   const [priorityFilter, setPriorityFilter] = useState("__all__");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<IssueViewMode>("list");
   const debouncedSearch = useDebounce(search, 300);
 
   const issuesQuery = useProjectIssues(projectId, {
@@ -92,12 +96,19 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
   const openCountQuery = useProjectIssues(projectId, { status: "open", limit: 1 });
   const inProgressCountQuery = useProjectIssues(projectId, { status: "in_progress", limit: 1 });
   const doneCountQuery = useProjectIssues(projectId, { status: "done", limit: 1 });
+  const cancelledCountQuery = useProjectIssues(projectId, { status: "cancelled", limit: 1 });
   const statCount = (n: number | undefined) => (n === undefined ? "—" : n);
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
   const issues = issuesQuery.data?.data ?? [];
   const meta = issuesQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
+  const statusCounts: Record<IssueStatus, number | undefined> = {
+    open: openCountQuery.data?.meta.total,
+    in_progress: inProgressCountQuery.data?.meta.total,
+    done: doneCountQuery.data?.meta.total,
+    cancelled: cancelledCountQuery.data?.meta.total,
+  };
 
   const setStatus = (next: string) => {
     setStatusFilter(next);
@@ -110,7 +121,6 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
 
   return (
     <div className="space-y-4">
-      {/* Summary strip — each tile toggles the status filter (Total clears it). */}
       <StatStrip>
         <StatCard
           label={t("issues.stats.total")}
@@ -137,6 +147,36 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
           onClick={() => setStatus(statusFilter === "done" ? "__all__" : "done")}
         />
       </StatStrip>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant={statusFilter === "__all__" ? "default" : "outline"}
+          className="h-8 rounded-full"
+          aria-pressed={statusFilter === "__all__"}
+          onClick={() => setStatus("__all__")}
+        >
+          {t("issues.allStatuses")}
+          <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+            {statCount(totalCountQuery.data?.meta.total)}
+          </Badge>
+        </Button>
+        {STATUSES.map(status => (
+          <Button
+            key={status}
+            size="sm"
+            variant={statusFilter === status ? "default" : "outline"}
+            className="h-8 rounded-full"
+            aria-pressed={statusFilter === status}
+            onClick={() => setStatus(statusFilter === status ? "__all__" : status)}
+          >
+            {t(`issues.status.${status}` as const)}
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+              {statCount(statusCounts[status])}
+            </Badge>
+          </Button>
+        ))}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
@@ -169,79 +209,144 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 size-4" />
-          {t("issues.create")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border p-1" aria-label={t("issues.viewMode")}>
+            <Button
+              type="button"
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 px-2"
+              aria-pressed={viewMode === "list"}
+              aria-label={t("issues.viewList")}
+              onClick={() => setViewMode("list")}
+            >
+              <List aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant={viewMode === "kanban" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 px-2"
+              aria-pressed={viewMode === "kanban"}
+              aria-label={t("issues.viewKanban")}
+              onClick={() => setViewMode("kanban")}
+            >
+              <LayoutGrid aria-hidden="true" />
+            </Button>
+          </div>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus aria-hidden="true" />
+            {t("issues.create")}
+          </Button>
+        </div>
       </div>
 
       {issuesQuery.error && <ErrorBanner message={errorMessage(issuesQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="overflow-x-auto rounded-xl bg-card shadow-sm">
-        <Table>
-          <TableHeader className="[&_tr]:border-0">
-            <TableRow className="border-0">
-              <TableHead>{t("issues.col.title")}</TableHead>
-              <TableHead>{t("issues.col.status")}</TableHead>
-              <TableHead>{t("issues.col.priority")}</TableHead>
-              <TableHead>{t("issues.col.assignee")}</TableHead>
-              <TableHead>{t("issues.col.dueDate")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody className="[&_tr]:border-0">
-            {issuesQuery.isLoading
-              ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">{t("issues.loading")}</TableCell></TableRow>
-              : issues.length === 0
-                ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">{t("issues.empty")}</TableCell></TableRow>
-                : issues.map(issue => (
-                    <TableRow
-                      key={issue.id}
-                      className="cursor-pointer border-0"
-                      onClick={() => openIssue(issue.id)}
-                    >
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="link"
-                          className="h-auto justify-start p-0 text-left font-medium text-foreground"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openIssue(issue.id);
-                          }}
-                        >
-                          {issue.title}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_VARIANTS[issue.status]} className="text-xs">
-                          {t(`issues.status.${issue.status}` as const)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={PRIORITY_VARIANTS[issue.priority]} className="text-xs">
-                          {t(`issues.priority.${issue.priority}` as const)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {issue.assigneeMemberId
-                          ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId
-                          : <span className="text-muted-foreground">{t("issues.unassigned")}</span>}
-                      </TableCell>
-                      <TableCell className="text-sm">{issue.dueDate ?? "—"}</TableCell>
-                    </TableRow>
-                  ))}
-          </TableBody>
-        </Table>
-        {totalPages > 1 && meta && (
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs text-muted-foreground">{t("issues.total", { count: meta.total })}</span>
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-              <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
+      {viewMode === "kanban" && !issuesQuery.isLoading
+        ? (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+              {STATUSES.map(status => (
+                <div key={status} className="min-h-40 rounded-md border bg-muted/20">
+                  <div className="flex items-center justify-between border-b px-3 py-2">
+                    <span className="text-sm font-medium">{t(`issues.status.${status}` as const)}</span>
+                    <Badge variant="secondary" className="text-xs">{issues.filter(issue => issue.status === status).length}</Badge>
+                  </div>
+                  <div className="flex flex-col gap-2 p-2">
+                    {issues.filter(issue => issue.status === status).length === 0
+                      ? <p className="px-1 py-4 text-center text-xs text-muted-foreground">{t("issues.emptyColumn")}</p>
+                      : issues.filter(issue => issue.status === status).map(issue => (
+                          <button
+                            key={issue.id}
+                            type="button"
+                            className="rounded-md border bg-card p-3 text-left shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => openIssue(issue.id)}
+                          >
+                            <div className="line-clamp-2 text-sm font-medium">{issue.title}</div>
+                            <div className="mt-2 flex flex-wrap items-center gap-1">
+                              <Badge variant={PRIORITY_VARIANTS[issue.priority]} className="text-xs">
+                                {t(`issues.priority.${issue.priority}` as const)}
+                              </Badge>
+                              {issue.assigneeMemberId && (
+                                <Badge variant="outline" className="max-w-full truncate text-xs">
+                                  {memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId}
+                                </Badge>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        )}
-      </div>
+          )
+        : (
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("issues.col.title")}</TableHead>
+                    <TableHead>{t("issues.col.status")}</TableHead>
+                    <TableHead>{t("issues.col.priority")}</TableHead>
+                    <TableHead>{t("issues.col.assignee")}</TableHead>
+                    <TableHead>{t("issues.col.dueDate")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {issuesQuery.isLoading
+                    ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">{t("issues.loading")}</TableCell></TableRow>
+                    : issues.length === 0
+                      ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">{t("issues.empty")}</TableCell></TableRow>
+                      : issues.map(issue => (
+                          <TableRow
+                            key={issue.id}
+                            className="cursor-pointer"
+                            onClick={() => openIssue(issue.id)}
+                          >
+                            <TableCell>
+                              <Button
+                                type="button"
+                                variant="link"
+                                className="h-auto justify-start p-0 text-left font-medium text-foreground"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openIssue(issue.id);
+                                }}
+                              >
+                                {issue.title}
+                              </Button>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={STATUS_VARIANTS[issue.status]} className="text-xs">
+                                {t(`issues.status.${issue.status}` as const)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={PRIORITY_VARIANTS[issue.priority]} className="text-xs">
+                                {t(`issues.priority.${issue.priority}` as const)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {issue.assigneeMemberId
+                                ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId
+                                : <span className="text-muted-foreground">{t("issues.unassigned")}</span>}
+                            </TableCell>
+                            <TableCell className="text-sm">{issue.dueDate ?? "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                </TableBody>
+              </Table>
+              {totalPages > 1 && meta && (
+                <div className="flex items-center justify-between border-t px-3 py-2">
+                  <span className="text-xs text-muted-foreground">{t("issues.total", { count: meta.total })}</span>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
+                    <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
       <CreateIssueDialog
         projectId={projectId}

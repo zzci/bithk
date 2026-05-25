@@ -11,11 +11,19 @@
     "filterByTag": "Filter by tag",
     "tagAll": "All",
     "searchPlaceholder": "Search projects",
+    "viewMode": "Project view mode",
+    "viewGrid": "Grid view",
+    "viewList": "List view",
+    "moreTags": "+{{count}}",
     "kpi": {
       "total": "Total projects",
       "active": "Active projects",
       "archived": "Archived",
       "tags": "Tags"
+    },
+    "card": {
+      "status": "Status",
+      "updated": "Updated"
     },
     "col": {
       "name": "Name",
@@ -58,6 +66,7 @@
   "detail": {
     "notFound": "Project not found or you do not have access.",
     "back": "Back to projects",
+    "breadcrumb": "Project breadcrumb",
     "loading": "Loading project...",
     "settings": "Settings",
     "metrics": {
@@ -80,6 +89,7 @@
     "overview": "Overview",
     "issues": "Work Orders",
     "procurement": "Procurement",
+    "members": "Members",
     "files": "Files"
   },
   "overview": {
@@ -94,6 +104,7 @@
     "keyInfo": "Key information",
     "memberPreview": "Members",
     "categoryPreview": "Procurement categories",
+    "categoriesLoading": "Loading categories...",
     "updatedAt": "Last updated",
     "noMembers": "No members yet."
   },
@@ -104,6 +115,10 @@
     "searchPlaceholder": "Search work orders...",
     "allStatuses": "All statuses",
     "allPriorities": "All priorities",
+    "viewMode": "Work order view mode",
+    "viewList": "List view",
+    "viewKanban": "Kanban view",
+    "emptyColumn": "No work orders",
     "unassigned": "Unassigned",
     "total": "{{count}} work orders",
     "col": {
@@ -150,6 +165,7 @@
     "allCategories": "All categories",
     "total": "{{count}} records",
     "none": "None",
+    "mixedCurrencies": "Mixed",
     "col": {
       "itemName": "Item",
       "status": "Status",
@@ -173,7 +189,9 @@
     "createDescription": "Add a new procurement record to this project.",
     "changeStatus": "Change status",
     "pipeline": {
-      "title": "Procurement pipeline"
+      "title": "Procurement pipeline",
+      "description": "Stage totals use the current procurement list API.",
+      "amount": "Amount"
     },
     "delete": {
       "title": "Delete procurement",
@@ -190,6 +208,10 @@
   "members": {
     "add": "Add member",
     "empty": "No members yet.",
+    "loading": "Loading members...",
+    "tabDescription": "Project membership is read-only here. Manage members and roles from project settings.",
+    "noRole": "No role",
+    "joinedAt": "Joined",
     "virtual": "Virtual",
     "col": {
       "member": "Member",
