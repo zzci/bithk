@@ -2,7 +2,10 @@
 import { createLazyFileRoute, Outlet, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  ChevronRight,
   ClipboardList,
+  FolderKanban,
+  Package,
   Settings,
   Trash2,
   Users,
@@ -20,6 +23,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/shared/components/ui/tabs";
+import { useProcurements } from "@/shared/lib/api/procurement";
 import {
   useDeleteProject,
   useProject,
@@ -29,6 +33,7 @@ import {
 import { formatDate } from "@/shared/lib/format";
 import { FileBrowser } from "../-file-browser";
 import { ProjectIssuesTab } from "./-project-issues-tab";
+import { ProjectMembersTab } from "./-project-members-tab";
 import { ProjectOverviewTab } from "./-project-overview-tab";
 import { ProjectProcurementTab } from "./-project-procurement-tab";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
@@ -54,13 +59,10 @@ function ProjectDetailPage() {
   const project = projectQuery.data;
   const caps = useProjectCapabilities(project);
 
-  // Work-order count for the hero metric + tab label. `limit: 1` keeps the
-  // payload tiny; only `meta.total` is read. The issues query key includes the
-  // limit, so this never collides with the issues tab's own list query.
-  // (Procurement is intentionally not counted here: its shared query key omits
-  // the limit, so a count query would clobber the procurement tab's list cache.)
   const issuesCountQuery = useProjectIssues(projectId, { limit: 1 });
+  const procurementCountQuery = useProcurements(projectId, { limit: 1 }, caps.canViewProcurement);
   const issuesCount = issuesCountQuery.data?.meta.total;
+  const procurementCount = procurementCountQuery.data?.meta.total;
 
   const userNames = useMemo(
     () => new Map((usersQuery.data ?? []).map(u => [u.id, u.name])),
@@ -77,9 +79,9 @@ function ProjectDetailPage() {
 
   if (projectQuery.error || !project) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/projects" })}>
-          <ArrowLeft className="mr-1 size-4" />
+          <ArrowLeft aria-hidden="true" />
           {t("detail.back")}
         </Button>
         <ErrorBanner message={t("detail.notFound")} />
@@ -96,45 +98,68 @@ function ProjectDetailPage() {
     });
   };
 
-  const count = (n: number | undefined) => (n === undefined ? "—" : n);
-  const tabCount = (n: number | undefined) => (n === undefined ? "" : ` (${n})`);
+  const count = (n: number | undefined) => (n === undefined ? "-" : n);
+  const tabCount = (n: number | undefined) => (n === undefined ? "" : ` ${n}`);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/projects" })}>
-          <ArrowLeft className="mr-1 size-4" />
-          {t("detail.back")}
+    <div className="flex flex-col gap-4">
+      <nav className="flex items-center gap-1 text-sm text-muted-foreground" aria-label={t("detail.breadcrumb")}>
+        <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => void navigate({ to: "/projects" })}>
+          {t("page.title")}
         </Button>
-      </div>
+        <ChevronRight aria-hidden="true" />
+        <span className="truncate font-medium text-foreground">{project.name}</span>
+      </nav>
 
-      {/* Detail hero: summary + actions on top, metrics strip below. */}
-      <section className="space-y-4 rounded-xl border bg-muted/30 p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold">{project.name}</h1>
-              <Badge variant="outline" className="text-xs">{t(`status.${project.status}` as const)}</Badge>
+      <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_1fr]">
+          <div className="flex min-h-40 items-center justify-center rounded-lg border bg-muted/40">
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <FolderKanban className="size-12" aria-hidden="true" />
+              <span className="max-w-44 truncate text-xs font-mono">{project.code || project.id}</span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              {project.code && (
-                <>
-                  <span className="font-mono">{project.code}</span>
-                  <span className="text-muted-foreground/40">·</span>
-                </>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="text-xs">{t(`status.${project.status}` as const)}</Badge>
+                  {project.code && <span className="font-mono text-xs text-muted-foreground">{project.code}</span>}
+                </div>
+                <h1 className="truncate text-3xl font-semibold">{project.name}</h1>
+                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    {t("overview.creator")}
+                    {": "}
+                    {userNames.get(project.creatorId) ?? project.creatorId}
+                  </span>
+                  <span className="text-muted-foreground/40">/</span>
+                  <span>
+                    {t("overview.updatedAt")}
+                    {": "}
+                    {formatDate(project.updatedAt)}
+                  </span>
+                </div>
+              </div>
+              {(caps.canOpenSettings || caps.canManageProject) && (
+                <div className="flex gap-2">
+                  {caps.canOpenSettings && (
+                    <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+                      <Settings aria-hidden="true" />
+                      {t("detail.settings")}
+                    </Button>
+                  )}
+                  {caps.canManageProject && (
+                    <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+                      <Trash2 className="text-destructive" aria-hidden="true" />
+                      {t("common:common.delete")}
+                    </Button>
+                  )}
+                </div>
               )}
-              <span>
-                {t("overview.creator")}
-                {": "}
-                {userNames.get(project.creatorId) ?? project.creatorId}
-              </span>
-              <span className="text-muted-foreground/40">·</span>
-              <span>
-                {t("overview.updatedAt")}
-                {": "}
-                {formatDate(project.updatedAt)}
-              </span>
             </div>
+
             {project.tags.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {project.tags.map(tag => (
@@ -142,29 +167,16 @@ function ProjectDetailPage() {
                 ))}
               </div>
             )}
-          </div>
-          {(caps.canOpenSettings || caps.canManageProject) && (
-            <div className="flex gap-2">
-              {caps.canOpenSettings && (
-                <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-                  <Settings className="mr-1 size-4" />
-                  {t("detail.settings")}
-                </Button>
-              )}
-              {caps.canManageProject && (
-                <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="mr-1 size-4 text-destructive" />
-                  {t("common:common.delete")}
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
 
-        <StatStrip className="lg:grid-cols-2">
-          <StatCard label={t("detail.metrics.members")} value={members.length} icon={Users} />
-          <StatCard label={t("detail.metrics.issues")} value={count(issuesCount)} icon={ClipboardList} />
-        </StatStrip>
+            <StatStrip className={caps.canViewProcurement ? "lg:grid-cols-3" : "lg:grid-cols-2"}>
+              <StatCard label={t("detail.metrics.members")} value={members.length} icon={Users} />
+              <StatCard label={t("detail.metrics.issues")} value={count(issuesCount)} icon={ClipboardList} />
+              {caps.canViewProcurement && (
+                <StatCard label={t("detail.metrics.procurement")} value={count(procurementCount)} icon={Package} />
+              )}
+            </StatStrip>
+          </div>
+        </div>
       </section>
 
       <Tabs value={tab} onValueChange={v => v !== null && setTab(v)}>
@@ -175,8 +187,15 @@ function ProjectDetailPage() {
             {tabCount(issuesCount)}
           </TabsTrigger>
           {caps.canViewProcurement && (
-            <TabsTrigger value="procurement">{t("tabs.procurement")}</TabsTrigger>
+            <TabsTrigger value="procurement">
+              {t("tabs.procurement")}
+              {tabCount(procurementCount)}
+            </TabsTrigger>
           )}
+          <TabsTrigger value="members">
+            {t("tabs.members")}
+            {tabCount(members.length)}
+          </TabsTrigger>
           <TabsTrigger value="files">{t("tabs.files")}</TabsTrigger>
         </TabsList>
 
@@ -198,6 +217,10 @@ function ProjectDetailPage() {
             />
           </TabsContent>
         )}
+
+        <TabsContent value="members" className="pt-4">
+          <ProjectMembersTab projectId={project.id} userNames={userNames} />
+        </TabsContent>
 
         <TabsContent value="files" className="pt-4">
           <div className="h-[calc(100svh-18rem)] min-h-[24rem]">
@@ -233,8 +256,6 @@ function ProjectDetailPage() {
         onConfirm={handleDelete}
       />
 
-      {/* Nested issue drawer route (`/projects/$projectId/issues/$issueId`)
-          overlays this page while it stays mounted underneath. */}
       <Outlet />
     </div>
   );

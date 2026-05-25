@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/shared/components/ui/card";
+import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { formatDate } from "@/shared/lib/format";
 import { memberLabel } from "./-member-helpers";
 
@@ -20,6 +21,8 @@ interface ProjectOverviewTabProps {
 
 export function ProjectOverviewTab({ project, members, userNames }: ProjectOverviewTabProps) {
   const { t } = useTranslation("projects");
+  const categoriesQuery = useProcurementCategories(project.id);
+  const categories = categoriesQuery.data ?? [];
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -50,6 +53,37 @@ export function ProjectOverviewTab({ project, members, userNames }: ProjectOverv
                     ))}
                   </div>
                 )}
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">{t("overview.categoryPreview")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {categoriesQuery.isLoading
+              ? <p className="text-sm text-muted-foreground">{t("overview.categoriesLoading")}</p>
+              : categories.length === 0
+                ? <p className="text-sm text-muted-foreground">{t("categories.empty")}</p>
+                : (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {categories.slice(0, 6).map(category => (
+                        <div key={category.id} className="rounded-md border bg-muted/30 px-3 py-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium">{category.name}</div>
+                              <p className="line-clamp-1 text-xs text-muted-foreground">
+                                {category.description || t("overview.noDescription")}
+                              </p>
+                            </div>
+                            {category.code && (
+                              <Badge variant="outline" className="shrink-0 text-xs">{category.code}</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
           </CardContent>
         </Card>
       </div>

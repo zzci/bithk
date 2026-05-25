@@ -52,15 +52,19 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
 
 describe("procurementKeys", () => {
   it("namespaces list and project keys deterministically", () => {
-    expect(procurementKeys.list("p", "ordered", "c1", 2)).toEqual([
+    expect(procurementKeys.list("p", "status=ordered&categoryId=c1&page=2&limit=1")).toEqual([
       "procurements",
       "p",
       "list",
-      "ordered",
-      "c1",
-      2,
+      "status=ordered&categoryId=c1&page=2&limit=1",
     ]);
     expect(procurementKeys.byProject("p")).toEqual(["procurements", "p"]);
+  });
+
+  it("separates count-only queries from paginated list queries", () => {
+    expect(procurementKeys.list("p", "page=1&limit=1")).not.toEqual(
+      procurementKeys.list("p", "page=1&limit=20"),
+    );
   });
 });
 

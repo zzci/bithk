@@ -64,7 +64,7 @@ describe("projectIssuesTab", () => {
     routeFetch([issue()]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     expect(await screen.findByText("Fix leak")).toBeInTheDocument();
-    expect(screen.getByText("Open")).toBeInTheDocument();
+    expect(screen.getAllByText("Open").length).toBeGreaterThan(0);
     expect(screen.getByText("High")).toBeInTheDocument();
     expect(screen.getByText("Unassigned")).toBeInTheDocument();
   });
@@ -107,7 +107,7 @@ describe("projectIssuesTab", () => {
     expect(screen.getByRole("button", { name: /Total work orders/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Pending/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /In progress/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Done/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Done/ }).length).toBeGreaterThan(0);
   });
 
   it("toggles the status filter when a summary tile is clicked", async () => {
@@ -129,5 +129,19 @@ describe("projectIssuesTab", () => {
         return u.includes("status=open") && u.includes("limit=20");
       })).toBe(true);
     });
+  });
+
+  it("switches to a status-based kanban view using existing issue statuses", async () => {
+    const user = userEvent.setup();
+    routeFetch([
+      issue({ id: "i1", title: "Fix leak", status: "open" }),
+      issue({ id: "i2", title: "Align shaft", status: "in_progress" }),
+      issue({ id: "i3", title: "Close report", status: "done" }),
+    ]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await user.click(await screen.findByRole("button", { name: "Kanban view" }));
+    expect(screen.getByText("Align shaft")).toBeInTheDocument();
+    expect(screen.getAllByText("In Progress").length).toBeGreaterThan(0);
+    expect(screen.getByText("No work orders")).toBeInTheDocument();
   });
 });

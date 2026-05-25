@@ -1,8 +1,26 @@
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
 import { ProjectOverviewTab } from "./-project-overview-tab";
+
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+const fetchMock = vi.fn<typeof fetch>();
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
+  globalThis.fetch = fetchMock;
+});
+
+afterEach(() => {
+  fetchMock.mockReset();
+});
 
 function project(overrides: Partial<ProjectView> = {}): ProjectView {
   return {
@@ -79,5 +97,20 @@ describe("projectOverviewTab", () => {
       <ProjectOverviewTab project={project()} members={[]} userNames={new Map()} />,
     );
     expect(screen.getByText("No members yet.")).toBeInTheDocument();
+  });
+
+  it("renders procurement category preview from the current API", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      success: true,
+      data: [
+        { id: "c1", name: "Main engine", code: "ME", description: "Engine spares", createdAt: "", updatedAt: "" },
+      ],
+    }));
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} members={[]} userNames={new Map()} />,
+    );
+    expect(await screen.findByText("Main engine")).toBeInTheDocument();
+    expect(screen.getByText("ME")).toBeInTheDocument();
+    expect(screen.getByText("Engine spares")).toBeInTheDocument();
   });
 });
