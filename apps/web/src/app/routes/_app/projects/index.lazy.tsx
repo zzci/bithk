@@ -88,6 +88,10 @@ function ProjectsListPage() {
     });
   };
 
+  const openProject = (projectId: string) => {
+    void navigate({ to: "/projects/$projectId", params: { projectId } });
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -135,6 +139,7 @@ function ProjectsListPage() {
               size="sm"
               variant={filter === opt.key ? "default" : "outline"}
               className="h-8 rounded-full"
+              aria-pressed={filter === opt.key}
               onClick={() => {
                 setFilter(opt.key);
                 setPage(1);
@@ -156,8 +161,16 @@ function ProjectsListPage() {
                   <Card
                     key={project.id}
                     size="sm"
-                    className="cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20"
-                    onClick={() => void navigate({ to: "/projects/$projectId", params: { projectId: project.id } })}
+                    role="button"
+                    tabIndex={0}
+                    className="cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => openProject(project.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openProject(project.id);
+                      }
+                    }}
                   >
                     <CardHeader>
                       <div className="flex items-start justify-between gap-2">

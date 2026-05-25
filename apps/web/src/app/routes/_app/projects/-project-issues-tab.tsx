@@ -104,6 +104,10 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
     setPage(1);
   };
 
+  const openIssue = (issueId: string) => {
+    void navigate({ to: "/projects/$projectId/issues/$issueId", params: { projectId, issueId } });
+  };
+
   return (
     <div className="space-y-4">
       {/* Summary strip — each tile toggles the status filter (Total clears it). */}
@@ -141,6 +145,7 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="max-w-xs"
+            aria-label={t("issues.searchPlaceholder")}
           />
           <Select
             value={priorityFilter}
@@ -172,7 +177,7 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
 
       {issuesQuery.error && <ErrorBanner message={errorMessage(issuesQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -192,9 +197,21 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
                     <TableRow
                       key={issue.id}
                       className="cursor-pointer"
-                      onClick={() => void navigate({ to: "/projects/$projectId/issues/$issueId", params: { projectId, issueId: issue.id } })}
+                      onClick={() => openIssue(issue.id)}
                     >
-                      <TableCell className="font-medium">{issue.title}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto justify-start p-0 text-left font-medium text-foreground"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openIssue(issue.id);
+                          }}
+                        >
+                          {issue.title}
+                        </Button>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={STATUS_VARIANTS[issue.status]} className="text-xs">
                           {t(`issues.status.${issue.status}` as const)}

@@ -180,6 +180,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                 size="sm"
                 variant={category === opt.key ? "default" : "outline"}
                 className="h-7 rounded-full"
+                aria-pressed={category === opt.key}
                 onClick={() => setCategory(opt.key)}
               >
                 {opt.label}
@@ -187,7 +188,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
             ))}
           </div>
           <div className="relative w-full sm:w-60">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -204,7 +205,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
       {updateEquipment.error && <ErrorBanner message={errorMessage(updateEquipment.error, t("common:common.error.saveFailed"))} />}
       {deleteEquipment.error && <ErrorBanner message={errorMessage(deleteEquipment.error, t("common:common.error.deleteFailed"))} />}
 
-      <div className="rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

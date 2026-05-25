@@ -12,12 +12,10 @@
     "noMatches": "No ships match your search.",
     "total": "{{count}} total",
     "searchPlaceholder": "Search name, hull number, or IMO",
-    "typeAll": "All ship types",
     "kpi": {
       "total": "Total ships",
       "maintenance": "In maintenance",
       "buildingTrial": "Build / sea trial",
-      "equipment": "Equipment",
       "inService": "In service"
     }
   },
@@ -49,8 +47,7 @@
       "projects": "Projects",
       "equipment": "Equipment",
       "templates": "Templates",
-      "workOrders": "Work orders",
-      "overduePm": "Overdue PM"
+      "workOrders": "Work orders"
     }
   },
   "delete": {

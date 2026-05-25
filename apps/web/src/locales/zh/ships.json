@@ -12,12 +12,10 @@
     "noMatches": "没有符合搜索条件的船舶。",
     "total": "共 {{count}} 条",
     "searchPlaceholder": "搜索船名、船体号或 IMO",
-    "typeAll": "所有船型",
     "kpi": {
       "total": "船舶总数",
       "maintenance": "维护中",
       "buildingTrial": "建造 / 海试",
-      "equipment": "设备",
       "inService": "服役中"
     }
   },
@@ -49,8 +47,7 @@
       "projects": "项目",
       "equipment": "设备",
       "templates": "模板",
-      "workOrders": "工单",
-      "overduePm": "逾期保养"
+      "workOrders": "工单"
     }
   },
   "delete": {

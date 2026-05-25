@@ -15,8 +15,6 @@
       "total": "Total projects",
       "active": "Active projects",
       "archived": "Archived",
-      "members": "Members",
-      "ships": "Covered ships",
       "tags": "Tags"
     },
     "col": {
@@ -65,8 +63,7 @@
     "metrics": {
       "issues": "Work orders",
       "procurement": "Procurement",
-      "members": "Members",
-      "files": "Files"
+      "members": "Members"
     }
   },
   "settings": {
@@ -176,8 +173,7 @@
     "createDescription": "Add a new procurement record to this project.",
     "changeStatus": "Change status",
     "pipeline": {
-      "title": "Procurement pipeline",
-      "summary": "Summary"
+      "title": "Procurement pipeline"
     },
     "delete": {
       "title": "Delete procurement",

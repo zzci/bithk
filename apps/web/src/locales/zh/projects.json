@@ -15,8 +15,6 @@
       "total": "项目总数",
       "active": "进行中项目",
       "archived": "已归档",
-      "members": "成员",
-      "ships": "覆盖船舶",
       "tags": "标签"
     },
     "col": {
@@ -65,8 +63,7 @@
     "metrics": {
       "issues": "工单",
       "procurement": "采购",
-      "members": "成员",
-      "files": "文件"
+      "members": "成员"
     }
   },
   "settings": {
@@ -176,8 +173,7 @@
     "createDescription": "为该项目添加一条新的采购记录。",
     "changeStatus": "变更状态",
     "pipeline": {
-      "title": "采购流程",
-      "summary": "汇总"
+      "title": "采购流程"
     },
     "delete": {
       "title": "删除采购",

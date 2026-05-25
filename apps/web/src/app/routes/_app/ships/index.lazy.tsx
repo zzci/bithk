@@ -116,6 +116,7 @@ export function ShipsListPage() {
               size="sm"
               variant={stage === opt.key ? "default" : "outline"}
               className="h-8 rounded-full"
+              aria-pressed={stage === opt.key}
               onClick={() => {
                 setStage(opt.key);
                 setPage(1);
@@ -126,7 +127,7 @@ export function ShipsListPage() {
           ))}
         </div>
         <div className="relative w-full sm:w-64">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}

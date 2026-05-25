@@ -267,7 +267,7 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
         {ordersQuery.error && <ErrorBanner message={errorMessage(ordersQuery.error, t("common:common.error.loadFailed"))} />}
         {createIssue.error && <ErrorBanner message={errorMessage(createIssue.error, t("common:common.error.operationFailed"))} />}
 
-        <div className="rounded-md border">
+        <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
