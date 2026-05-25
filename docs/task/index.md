@@ -23,4 +23,4 @@
 | [UI-001](UI-001.md) | Redesign ships, projects, and contacts content pages | [PLAN-016](../plan/PLAN-016.md) | Done | 2026-05-25 |
 | [UI-002](UI-002.md) | Decouple module content pages from the sidebar visually | [PLAN-017](../plan/PLAN-017.md) | Done | 2026-05-25 |
 | [UI-003](UI-003.md) | Redesign the issue detail panel toward a zen-mode layout | [PLAN-018](../plan/PLAN-018.md) | Proposed | 2026-05-25 |
-| [UI-004](UI-004.md) | Prototype parity remediation for ships, projects, and contacts | [PLAN-019](../plan/PLAN-019.md) | In Progress | 2026-05-25 |
+| [UI-004](UI-004.md) | Prototype parity remediation for ships, projects, and contacts | [PLAN-019](../plan/PLAN-019.md) | Done | 2026-05-25 |

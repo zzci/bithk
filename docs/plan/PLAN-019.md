@@ -1,6 +1,6 @@
 # PLAN-019 Prototype parity remediation for UI-001
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-05-25 17:10
 - **approvedAt**: 2026-05-25 17:10
 - **relatedTask**: UI-004
@@ -87,3 +87,8 @@ Out of scope unless L2 escalates and human approves:
   should become a separate effort after UI-004. Approved the small shared
   procurement query-key fix because it directly enables real frontend-backed
   procurement counts and is low risk.
+- 2026-05-25 18:30 - Remediation completed. Merged stages:
+  A `f4c61b2`, B `9068bb6`, E `b9903bc`, C `db91f84`, D `49ca53f`, and
+  F `0f2c359`. Final `bun run check` and `bun run smoke` passed; closeout and
+  screenshot comparison are in `docs/plan/PLAN-019-parity-closeout.md` and
+  `docs/plan/parity-shots/PLAN-019-F/`.
