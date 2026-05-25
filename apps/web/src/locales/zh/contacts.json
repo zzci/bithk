@@ -11,7 +11,21 @@
     "clearFilter": "清除",
     "activeTag": "正在筛选 {{tag}}",
     "loading": "正在加载联系人…",
-    "empty": "暂无联系人。"
+    "empty": "暂无联系人。",
+    "searchPlaceholder": "搜索公司、联系人或备注",
+    "statusAll": "全部状态",
+    "visibilityAll": "全部可见范围",
+    "kpi": {
+      "total": "联系人总数",
+      "active": "启用",
+      "public": "公开",
+      "confidential": "保密"
+    }
+  },
+  "drawer": {
+    "contactMethods": "联系方式",
+    "tagsAndNotes": "标签与备注",
+    "sharing": "分享"
   },
   "field": {
     "name": "名称",
@@ -70,6 +84,7 @@
     "revoke": "撤销查看"
   },
   "masked": {
-    "locked": "已脱敏字段"
+    "locked": "已脱敏字段",
+    "hiddenValue": "已隐藏"
   }
 }

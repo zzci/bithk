@@ -11,7 +11,21 @@
     "clearFilter": "Clear",
     "activeTag": "Filtering by {{tag}}",
     "loading": "Loading contacts…",
-    "empty": "No contacts yet."
+    "empty": "No contacts yet.",
+    "searchPlaceholder": "Search company, person, or note",
+    "statusAll": "All statuses",
+    "visibilityAll": "All visibility",
+    "kpi": {
+      "total": "Total contacts",
+      "active": "Active",
+      "public": "Public",
+      "confidential": "Confidential"
+    }
+  },
+  "drawer": {
+    "contactMethods": "Contact methods",
+    "tagsAndNotes": "Tags and notes",
+    "sharing": "Sharing"
   },
   "field": {
     "name": "Name",
@@ -70,6 +84,7 @@
     "revoke": "Revoke viewer"
   },
   "masked": {
-    "locked": "Masked field"
+    "locked": "Masked field",
+    "hiddenValue": "Hidden"
   }
 }
