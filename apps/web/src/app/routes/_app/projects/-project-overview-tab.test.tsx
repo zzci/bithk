@@ -56,4 +56,28 @@ describe("projectOverviewTab", () => {
     );
     expect(screen.getByText("u-unknown")).toBeInTheDocument();
   });
+
+  it("lists member labels in the member preview", () => {
+    const members = [
+      { id: "m1", userId: "u2", displayName: null, title: "Lead" },
+      { id: "m2", userId: null, displayName: "Guest", title: null },
+    ] as ProjectMemberView[];
+    renderWithProviders(
+      <ProjectOverviewTab
+        project={project()}
+        members={members}
+        userNames={new Map([["u1", "Alice"], ["u2", "Bob"]])}
+      />,
+    );
+    expect(screen.getByText("Bob")).toBeInTheDocument();
+    expect(screen.getByText("Lead")).toBeInTheDocument();
+    expect(screen.getByText("Guest")).toBeInTheDocument();
+  });
+
+  it("shows the empty member placeholder when there are no members", () => {
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} members={[]} userNames={new Map()} />,
+    );
+    expect(screen.getByText("No members yet.")).toBeInTheDocument();
+  });
 });

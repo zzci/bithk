@@ -1,8 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { CreateProjectInput, ProjectStatus } from "@/shared/lib/api/projects";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
-import { useState } from "react";
+import {
+  FolderKanban,
+  Plus,
+  Search,
+  Tag as TagIcon,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -13,11 +18,14 @@ import {
   CardTitle,
 } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
+import { Input } from "@/shared/components/ui/input";
 import { useCreateProject, useProjects, useTags } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { formatDate } from "@/shared/lib/format";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ProjectFormDialog } from "./-project-form-dialog";
 import { projectsFilterToQuery } from "./-project-form-logic";
+import { StatCard, StatStrip } from "./-project-stats";
 
 export const Route = createLazyFileRoute("/_app/projects/")({
   component: ProjectsListPage,
@@ -36,17 +44,40 @@ function ProjectsListPage() {
   // A single, mutually-exclusive filter: "__all__", "__archived__" (a
   // status filter surfaced as just another chip), or a tag id.
   const [filter, setFilter] = useState<string>("__all__");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
 
   const projectsQuery = useProjects({ ...projectsFilterToQuery(filter), page });
+  // Lightweight, filter-independent counts that back the KPI strip. They reuse
+  // the same list endpoint (no new API) and only read `meta.total`.
+  const activeCountQuery = useProjects({ status: "active" });
+  const archivedCountQuery = useProjects({ status: "archived" });
   const tagsQuery = useTags();
   const createProject = useCreateProject();
 
-  const projects = projectsQuery.data?.data ?? [];
   const tags = tagsQuery.data ?? [];
   const meta = projectsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
+
+  const activeCount = activeCountQuery.data?.meta.total;
+  const archivedCount = archivedCountQuery.data?.meta.total;
+  const totalCount = activeCount !== undefined && archivedCount !== undefined
+    ? activeCount + archivedCount
+    : undefined;
+  const dash = (n: number | undefined) => (n === undefined ? "—" : n);
+
+  // Client-side filter over the loaded page: a quick name/code narrowing on top
+  // of the server-side tag/status filter and pagination.
+  const visibleProjects = useMemo(() => {
+    const all = projectsQuery.data?.data ?? [];
+    const q = search.trim().toLowerCase();
+    if (!q)
+      return all;
+    return all.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.code?.toLowerCase().includes(q) ?? false),
+    );
+  }, [projectsQuery.data, search]);
 
   const handleCreate = (values: CreateProjectInput) => {
     createProject.mutate(values, {
@@ -58,7 +89,7 @@ function ProjectsListPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
@@ -72,41 +103,60 @@ function ProjectsListPage() {
         )}
       </div>
 
+      <StatStrip>
+        <StatCard label={t("list.kpi.total")} value={dash(totalCount)} icon={FolderKanban} />
+        <StatCard label={t("list.kpi.active")} value={dash(activeCount)} />
+        <StatCard label={t("list.kpi.archived")} value={dash(archivedCount)} tone="muted" />
+        <StatCard label={t("list.kpi.tags")} value={tags.length} icon={TagIcon} />
+      </StatStrip>
+
       {projectsQuery.error && <ErrorBanner message={errorMessage(projectsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">{t("list.filterByTag")}</span>
-        {[
-          { key: "__all__", label: t("list.tagAll") },
-          { key: "__archived__", label: t("status.archived") },
-          ...tags.map(tag => ({ key: tag.id, label: tag.name })),
-        ].map(opt => (
-          <Button
-            key={opt.key}
-            size="sm"
-            variant={filter === opt.key ? "default" : "outline"}
-            className="h-8 rounded-full"
-            onClick={() => {
-              setFilter(opt.key);
-              setPage(1);
-            }}
-          >
-            {opt.label}
-          </Button>
-        ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full max-w-xs">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t("list.searchPlaceholder")}
+            className="pl-8"
+            aria-label={t("list.searchPlaceholder")}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">{t("list.filterByTag")}</span>
+          {[
+            { key: "__all__", label: t("list.tagAll") },
+            { key: "__archived__", label: t("status.archived") },
+            ...tags.map(tag => ({ key: tag.id, label: tag.name })),
+          ].map(opt => (
+            <Button
+              key={opt.key}
+              size="sm"
+              variant={filter === opt.key ? "default" : "outline"}
+              className="h-8 rounded-full"
+              onClick={() => {
+                setFilter(opt.key);
+                setPage(1);
+              }}
+            >
+              {opt.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {projectsQuery.isLoading
         ? <p className="text-sm text-muted-foreground">{t("list.loading")}</p>
-        : projects.length === 0
+        : visibleProjects.length === 0
           ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
           : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {projects.map(project => (
+                {visibleProjects.map(project => (
                   <Card
                     key={project.id}
                     size="sm"
-                    className="cursor-pointer transition-colors hover:ring-foreground/20"
+                    className="cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20"
                     onClick={() => void navigate({ to: "/projects/$projectId", params: { projectId: project.id } })}
                   >
                     <CardHeader>
@@ -116,7 +166,11 @@ function ProjectsListPage() {
                           {t(`status.${project.status}` as const)}
                         </Badge>
                       </div>
-                      {project.code && <p className="text-xs text-muted-foreground">{project.code}</p>}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {project.code && <span className="font-mono">{project.code}</span>}
+                        {project.code && <span className="text-muted-foreground/40">·</span>}
+                        <span>{formatDate(project.updatedAt)}</span>
+                      </div>
                     </CardHeader>
                     {project.tags.length > 0 && (
                       <CardContent>

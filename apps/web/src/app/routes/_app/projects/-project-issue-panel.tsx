@@ -341,7 +341,7 @@ export function ProjectIssuePanel({
         <ErrorBanner message={error} />
 
         {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs">
           {/* Status */}
           {permissions.canEditStatus
             ? (
