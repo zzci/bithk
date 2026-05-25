@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { LogIn } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
 import { BASE_PATH, http, HttpError } from "@/shared/lib/http";
+import { useAuthStore } from "@/shared/stores/auth";
 
 interface LoginSearchParams {
   redirect: string | undefined;
@@ -18,6 +19,11 @@ interface AuthMode {
   mode: "single-user" | "oauth";
   oauthConfigured: boolean;
 }
+
+type LoginSessionState
+  = | { readonly status: "checking" }
+    | { readonly status: "anonymous" }
+    | { readonly status: "authenticated"; readonly redirect: string };
 
 export const Route = createFileRoute("/login")({
   staticData: { titleKey: "login:title" },
@@ -35,18 +41,52 @@ function isSafeRedirect(url: string | undefined): string {
   return url;
 }
 
-function LoginPage() {
+export function toRouterPath(url: string): string {
+  if (!BASE_PATH)
+    return url;
+  if (url === BASE_PATH)
+    return "/";
+  if (url.startsWith(`${BASE_PATH}/`))
+    return url.slice(BASE_PATH.length);
+  return url;
+}
+
+export function LoginPage() {
   const { t } = useTranslation(["common", "login"]);
   const { redirect } = Route.useSearch();
   const target = isSafeRedirect(redirect);
+  const fetchUser = useAuthStore(s => s.fetchUser);
 
   const [mode, setMode] = useState<AuthMode | null>(null);
+  const [sessionState, setSessionState] = useState<LoginSessionState>({ status: "checking" });
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchUser().then((result) => {
+      if (cancelled)
+        return;
+      if (result.kind === "ok") {
+        setSessionState({ status: "authenticated", redirect: toRouterPath(target) });
+        return;
+      }
+      setSessionState({ status: "anonymous" });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchUser, target]);
+
+  useEffect(() => {
+    if (sessionState.status !== "anonymous")
+      return;
     void http<{ success: boolean; data: AuthMode }>("/account/auth/mode")
       .then(res => setMode(res.data))
       .catch(() => setMode({ mode: "oauth", oauthConfigured: false }));
-  }, []);
+  }, [sessionState.status]);
+
+  if (sessionState.status === "authenticated") {
+    return <Navigate to={sessionState.redirect as never} replace />;
+  }
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-background p-4">

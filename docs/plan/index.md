@@ -16,3 +16,4 @@
 | [PLAN-012](PLAN-012.md) | 模块文档与代码对齐 | Done | 2026-05-24 |
 | [PLAN-013](PLAN-013.md) | 联系人独立为全局通用模块 | Done | 2026-05-24 |
 | [PLAN-014](PLAN-014.md) | Complete missing drive file manager features | Done | 2026-05-25 |
+| [PLAN-015](PLAN-015.md) | Preserve login across new tabs | Done | 2026-05-25 |

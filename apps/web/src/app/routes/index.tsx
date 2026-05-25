@@ -5,6 +5,6 @@ export const Route = createFileRoute("/")({
   component: IndexRedirect,
 });
 
-function IndexRedirect() {
-  return <Navigate to="/login" search={{ redirect: undefined }} />;
+export function IndexRedirect() {
+  return <Navigate to="/overview" />;
 }

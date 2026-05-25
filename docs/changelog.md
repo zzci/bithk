@@ -34,6 +34,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Fixed
 
+- Single-user sessions are now reused when opening a new tab (FIX-004 /
+  PLAN-015): the root route enters the authenticated app guard instead of
+  forcing `/login`, and the login page checks the existing `/account/me`
+  session before rendering the password form.
 - Drive code/text preview now fills its container (FIX-001): the CodeMirror
   host spans 100% width/height and the dialog body drops its padding for the
   `text` kind, so the editor is flush instead of inset with empty margins.
