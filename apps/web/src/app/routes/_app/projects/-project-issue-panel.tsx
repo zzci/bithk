@@ -259,7 +259,7 @@ export function ProjectIssuePanel({
       tabIndex={-1}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2 shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 shrink-0">
         {variant === "fullscreen" && (
           <Button
             variant="ghost"
@@ -341,7 +341,7 @@ export function ProjectIssuePanel({
         <ErrorBanner message={error} />
 
         {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-muted/30 px-2.5 py-1.5 text-xs">
           {/* Status */}
           {permissions.canEditStatus
             ? (
@@ -523,13 +523,13 @@ export function ProjectIssuePanel({
                     <button
                       type="button"
                       onClick={startEditDesc}
-                      className="w-full rounded-md border border-dashed bg-muted/30 px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full rounded-md bg-muted/30 px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {t("field.noDescription")}
                     </button>
                   )
                 : (
-                    <div className="rounded-md border border-dashed bg-muted/30 px-2 py-1 text-sm italic text-muted-foreground leading-snug">
+                    <div className="rounded-md bg-muted/30 px-2 py-1 text-sm italic text-muted-foreground leading-snug">
                       {t("field.noDescription")}
                     </div>
                   )}

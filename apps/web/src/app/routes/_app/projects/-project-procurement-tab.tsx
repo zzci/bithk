@@ -163,10 +163,10 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
 
       {procurementsQuery.error && <ErrorBanner message={errorMessage(procurementsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-xl bg-card shadow-sm">
         <Table>
-          <TableHeader>
-            <TableRow>
+          <TableHeader className="[&_tr]:border-0">
+            <TableRow className="border-0">
               <TableHead>{t("procurement.col.itemName")}</TableHead>
               <TableHead>{t("procurement.col.status")}</TableHead>
               <TableHead>{t("procurement.col.amount")}</TableHead>
@@ -176,13 +176,13 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
               {canManage && <TableHead>{t("procurement.col.actions")}</TableHead>}
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="[&_tr]:border-0">
             {procurementsQuery.isLoading
               ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.loading")}</TableCell></TableRow>
               : rows.length === 0
                 ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.empty")}</TableCell></TableRow>
                 : rows.map(row => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} className="border-0">
                       <TableCell className="font-medium">{row.itemName}</TableCell>
                       <TableCell>
                         {canManage
@@ -227,7 +227,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           </TableBody>
         </Table>
         {totalPages > 1 && meta && (
-          <div className="flex items-center justify-between border-t px-3 py-2">
+          <div className="flex items-center justify-between px-3 py-2">
             <span className="text-xs text-muted-foreground">{t("procurement.total", { count: meta.total })}</span>
             <div className="flex gap-1">
               <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>

@@ -177,10 +177,10 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
 
       {issuesQuery.error && <ErrorBanner message={errorMessage(issuesQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-xl bg-card shadow-sm">
         <Table>
-          <TableHeader>
-            <TableRow>
+          <TableHeader className="[&_tr]:border-0">
+            <TableRow className="border-0">
               <TableHead>{t("issues.col.title")}</TableHead>
               <TableHead>{t("issues.col.status")}</TableHead>
               <TableHead>{t("issues.col.priority")}</TableHead>
@@ -188,7 +188,7 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
               <TableHead>{t("issues.col.dueDate")}</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="[&_tr]:border-0">
             {issuesQuery.isLoading
               ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">{t("issues.loading")}</TableCell></TableRow>
               : issues.length === 0
@@ -196,7 +196,7 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
                 : issues.map(issue => (
                     <TableRow
                       key={issue.id}
-                      className="cursor-pointer"
+                      className="cursor-pointer border-0"
                       onClick={() => openIssue(issue.id)}
                     >
                       <TableCell>
@@ -233,7 +233,7 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
           </TableBody>
         </Table>
         {totalPages > 1 && meta && (
-          <div className="flex items-center justify-between border-t px-3 py-2">
+          <div className="flex items-center justify-between px-3 py-2">
             <span className="text-xs text-muted-foreground">{t("issues.total", { count: meta.total })}</span>
             <div className="flex gap-1">
               <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>

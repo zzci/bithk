@@ -36,9 +36,9 @@ export function StatCard({ label, value, icon: Icon, tone = "default", onClick, 
         onClick={onClick}
         aria-pressed={active}
         className={cn(
-          "rounded-lg border bg-card px-3 py-2.5 text-left ring-1 ring-foreground/5 transition-colors",
-          "hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          active && "border-primary bg-primary/5 ring-primary/20",
+          "rounded-lg bg-card px-3 py-2.5 text-left ring-1 ring-foreground/5 transition-colors",
+          "hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          active && "bg-primary/5 ring-primary/20",
         )}
       >
         {body}
@@ -47,7 +47,7 @@ export function StatCard({ label, value, icon: Icon, tone = "default", onClick, 
   }
 
   return (
-    <div className="rounded-lg border bg-card px-3 py-2.5 ring-1 ring-foreground/5">
+    <div className="rounded-lg bg-card px-3 py-2.5 ring-1 ring-foreground/5">
       {body}
     </div>
   );

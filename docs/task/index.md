@@ -20,3 +20,7 @@
 | [REFACTOR-003](REFACTOR-003.md) | 联系人模块独立为全局通用模块 | [PLAN-013](../plan/PLAN-013.md) | Done | 2026-05-24 |
 | [FEAT-010](FEAT-010.md) | Complete missing drive file manager features | [PLAN-014](../plan/PLAN-014.md) | Done | 2026-05-25 |
 | [FIX-004](FIX-004.md) | Preserve login across new tabs | [PLAN-015](../plan/PLAN-015.md) | Done | 2026-05-25 |
+| [UI-001](UI-001.md) | Redesign ships, projects, and contacts content pages | [PLAN-016](../plan/PLAN-016.md) | Done | 2026-05-25 |
+| [UI-002](UI-002.md) | Decouple module content pages from the sidebar visually | [PLAN-017](../plan/PLAN-017.md) | Done | 2026-05-25 |
+| [UI-003](UI-003.md) | Redesign the issue detail panel toward a zen-mode layout | [PLAN-018](../plan/PLAN-018.md) | Proposed | 2026-05-25 |
+| [UI-004](UI-004.md) | Prototype parity remediation for ships, projects, and contacts | [PLAN-019](../plan/PLAN-019.md) | In Progress | 2026-05-25 |

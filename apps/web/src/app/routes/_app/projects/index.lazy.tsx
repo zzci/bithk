@@ -93,7 +93,7 @@ function ProjectsListPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 rounded-2xl bg-background p-1 md:p-3">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
@@ -200,7 +200,7 @@ function ProjectsListPage() {
             )}
 
       {totalPages > 1 && meta && (
-        <div className="flex items-center justify-between border-t pt-3">
+        <div className="flex items-center justify-between pt-2">
           <span className="text-xs text-muted-foreground">{t("list.total", { count: meta.total })}</span>
           <div className="flex gap-1">
             <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>

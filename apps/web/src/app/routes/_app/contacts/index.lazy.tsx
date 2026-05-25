@@ -145,7 +145,7 @@ export function ContactsListPage() {
   const hiddenLabel = t("masked.hiddenValue");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 rounded-2xl bg-background p-1 md:p-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
@@ -166,7 +166,7 @@ export function ContactsListPage() {
         <KpiCard label={t("list.kpi.confidential")} value={kpis.confidential} />
       </div>
 
-      <div className="space-y-3 rounded-lg border border-border p-3">
+      <div className="space-y-3 rounded-xl bg-muted/30 p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full lg:max-w-xs">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -194,7 +194,7 @@ export function ContactsListPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-dashed border-border/60 pt-3 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-end">
           <div className="flex-1 space-y-1.5">
             <label htmlFor="contacts-tag-filter" className="text-sm font-medium">{t("list.filterByTag")}</label>
             <Input
@@ -231,10 +231,10 @@ export function ContactsListPage() {
         : filtered.length === 0
           ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
           : (
-              <div className="overflow-x-auto rounded-lg border border-border">
+              <div className="overflow-x-auto rounded-xl bg-card shadow-sm">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHeader className="[&_tr]:border-0">
+                    <TableRow className="border-0 bg-muted/30 hover:bg-muted/30">
                       <TableHead>{t("field.name")}</TableHead>
                       <TableHead>{t("field.contactPerson")}</TableHead>
                       <TableHead>{t("field.phone")}</TableHead>
@@ -244,12 +244,12 @@ export function ContactsListPage() {
                       <TableHead className="text-right" />
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody className="[&_tr]:border-0">
                     {filtered.map((contact) => {
                       const locked = isMasked(contact);
                       const status = contact.status ? t(`status.${contact.status}` as const) : null;
                       return (
-                        <TableRow key={contact.id}>
+                        <TableRow key={contact.id} className="border-0">
                           <TableCell className="max-w-[16rem]">
                             <div className="flex items-center gap-3">
                               <span
@@ -402,7 +402,7 @@ export function ContactsListPage() {
 
 function KpiCard({ label, value }: { readonly label: string; readonly value: number }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3">
+    <div className="rounded-lg bg-muted/30 p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
     </div>

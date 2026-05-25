@@ -81,7 +81,7 @@ export function ShipsListPage() {
   const kpi = (value: number | undefined) => (value === undefined ? "—" : value);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rounded-2xl bg-background p-1 md:p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
@@ -157,7 +157,7 @@ export function ShipsListPage() {
               )}
 
       {totalPages > 1 && meta && (
-        <div className="flex items-center justify-between border-t pt-3">
+        <div className="flex items-center justify-between pt-2">
           <span className="text-xs text-muted-foreground">{t("list.total", { count: meta.total })}</span>
           <div className="flex gap-1">
             <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
@@ -192,7 +192,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
     <button
       type="button"
       onClick={onOpen}
-      className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-left ring-1 ring-foreground/5 transition-all hover:border-border hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="flex flex-col gap-3 rounded-xl bg-card p-4 text-left ring-1 ring-foreground/5 transition-all hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-1">
@@ -204,7 +204,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
         </Badge>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-dashed pt-3">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1">
         {specs.map(spec => (
           <div key={spec.label} className="min-w-0">
             <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{spec.label}</dt>
@@ -215,7 +215,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
         ))}
       </dl>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-dashed pt-3">
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         {ship.registryPort && (
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
             <Anchor className="size-3" />

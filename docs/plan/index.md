@@ -17,3 +17,7 @@
 | [PLAN-013](PLAN-013.md) | 联系人独立为全局通用模块 | Done | 2026-05-24 |
 | [PLAN-014](PLAN-014.md) | Complete missing drive file manager features | Done | 2026-05-25 |
 | [PLAN-015](PLAN-015.md) | Preserve login across new tabs | Done | 2026-05-25 |
+| [PLAN-016](PLAN-016.md) | Ships, projects, and contacts content page redesign | Done | 2026-05-25 |
+| [PLAN-017](PLAN-017.md) | Independent module surfaces for ships, projects, and contacts | Done | 2026-05-25 |
+| [PLAN-018](PLAN-018.md) | Zen-mode issue detail panel redesign | Draft | 2026-05-25 |
+| [PLAN-019](PLAN-019.md) | Prototype parity remediation for UI-001 | Implementing | 2026-05-25 |

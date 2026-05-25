@@ -17,7 +17,7 @@ export function ShipFilesTab({ ship }: ShipFilesTabProps) {
     return <p className="text-sm text-muted-foreground">{t("files.noBaseProject")}</p>;
 
   return (
-    <div className="h-[calc(100svh-22rem)] min-h-[24rem] overflow-hidden rounded-xl border bg-card">
+    <div className="h-[calc(100svh-22rem)] min-h-[24rem] overflow-hidden rounded-xl bg-card shadow-sm">
       <FileBrowser
         ownerType="project"
         ownerId={ship.baseProjectId}

@@ -35,7 +35,7 @@ const ACTIVE_ORDER_STATUSES = new Set(["open", "in_progress"]);
 
 function Card({ title, action, children }: { readonly title: string; readonly action?: ReactNode; readonly children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-xl border bg-card p-4">
+    <section className="space-y-3 rounded-xl bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium">{title}</h2>
         {action}
@@ -225,7 +225,7 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
 
 function ArchiveSection({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return (
-    <div className="space-y-2 border-t border-dashed pt-3">
+    <div className="space-y-2 pt-1">
       <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">{children}</dl>
     </div>

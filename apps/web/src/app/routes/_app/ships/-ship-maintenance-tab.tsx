@@ -225,7 +225,7 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
             : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {templates.map(template => (
-                    <div key={template.id} className="flex flex-col gap-2 rounded-lg border bg-card p-3">
+                    <div key={template.id} className="flex flex-col gap-2 rounded-lg bg-card p-3 shadow-sm">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <span className="font-medium">{template.name}</span>
@@ -267,23 +267,23 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
         {ordersQuery.error && <ErrorBanner message={errorMessage(ordersQuery.error, t("common:common.error.loadFailed"))} />}
         {createIssue.error && <ErrorBanner message={errorMessage(createIssue.error, t("common:common.error.operationFailed"))} />}
 
-        <div className="overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto rounded-xl bg-card shadow-sm">
           <Table>
-            <TableHeader>
-              <TableRow>
+            <TableHeader className="[&_tr]:border-0">
+              <TableRow className="border-0">
                 <TableHead>{t("maintenance.workOrder.field.title")}</TableHead>
                 <TableHead>{t("maintenance.workOrder.field.template")}</TableHead>
                 <TableHead>{t("maintenance.workOrder.field.status")}</TableHead>
                 <TableHead className="w-24">{t("maintenance.workOrder.field.detail")}</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="[&_tr]:border-0">
               {ordersQuery.isLoading
                 ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("maintenance.workOrder.loading")}</TableCell></TableRow>
                 : orders.length === 0
                   ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("maintenance.workOrder.empty")}</TableCell></TableRow>
                   : orders.map(order => (
-                      <TableRow key={`${order.id}-${order.referenceId}`}>
+                      <TableRow key={`${order.id}-${order.referenceId}`} className="border-0">
                         <TableCell className="font-medium">{order.title}</TableCell>
                         <TableCell>{templatesById.get(order.templateRefId)?.name ?? t("maintenance.reference.missingShort")}</TableCell>
                         <TableCell>

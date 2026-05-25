@@ -55,7 +55,7 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+      <div className="flex items-start gap-2 rounded-lg bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" />
         <p>{t("projects.callout")}</p>
       </div>
@@ -90,7 +90,7 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
           : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {projects.map(project => (
-                  <div key={project.id} className="flex flex-col gap-3 rounded-lg border bg-card p-3">
+                  <div key={project.id} className="flex flex-col gap-3 rounded-lg bg-card p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -103,7 +103,7 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
                         <Badge variant="outline" className="shrink-0 text-xs">{t(`projects:status.${project.status}` as const)}</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 border-t border-dashed pt-2">
+                    <div className="flex items-center gap-1 pt-1">
                       <Button
                         variant="ghost"
                         size="sm"

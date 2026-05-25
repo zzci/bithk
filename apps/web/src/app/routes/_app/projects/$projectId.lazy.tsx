@@ -100,7 +100,7 @@ function ProjectDetailPage() {
   const tabCount = (n: number | undefined) => (n === undefined ? "" : ` (${n})`);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 rounded-2xl bg-background p-1 md:p-3">
       <div>
         <Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/projects" })}>
           <ArrowLeft className="mr-1 size-4" />
@@ -109,7 +109,7 @@ function ProjectDetailPage() {
       </div>
 
       {/* Detail hero: summary + actions on top, metrics strip below. */}
-      <section className="space-y-4 rounded-xl border bg-muted/30 p-4 sm:p-5">
+      <section className="space-y-4 rounded-xl bg-muted/30 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
