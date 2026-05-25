@@ -66,7 +66,7 @@ describe("contactsListPage", () => {
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
   });
 
-  it("renders the KPI strip from the loaded contacts", async () => {
+  it("renders the status and visibility filter chips with counts", async () => {
     fetchMock.mockResolvedValue(ok([
       contact(),
       contact({ id: "c2", name: "Beta Yard", status: "inactive", visibility: "public", confidential: true }),
@@ -75,8 +75,6 @@ describe("contactsListPage", () => {
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
-    // "Total contacts" is unique to the KPI strip; its sibling holds the count.
-    expect(screen.getByText("Total contacts").nextSibling).toHaveTextContent("2");
     expect(screen.getByRole("button", { name: "Active 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Public 1" })).toBeInTheDocument();
   });

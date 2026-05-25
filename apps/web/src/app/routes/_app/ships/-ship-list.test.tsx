@@ -88,13 +88,10 @@ describe("shipsListPage", () => {
     expect(screen.getByRole("button", { name: "Create ship" })).toBeInTheDocument();
   });
 
-  it("renders the fleet KPI strip", async () => {
+  it("renders the stage filter chips with fleet counts", async () => {
     fetchMock.mockResolvedValue(jsonResponse(listPayload()));
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    expect(screen.getByText("Total ships")).toBeInTheDocument();
-    expect(screen.getByText("In maintenance")).toBeInTheDocument();
-    expect(screen.getByText("Build / sea trial")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /All 1/ })).toBeInTheDocument();
   });
 

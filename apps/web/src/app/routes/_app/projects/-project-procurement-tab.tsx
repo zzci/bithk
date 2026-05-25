@@ -198,7 +198,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
 
       {procurementsQuery.error && <ErrorBanner message={errorMessage(procurementsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="overflow-x-auto rounded-xl bg-card shadow-sm">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader className="[&_tr]:border-0">
             <TableRow className="border-0">

@@ -4,6 +4,7 @@
 
 import type { ShipView } from "@/shared/lib/api/ships";
 import { useTranslation } from "react-i18next";
+import { Card } from "@/shared/components/ui/card";
 import { FileBrowser } from "../-file-browser";
 
 interface ShipFilesTabProps {
@@ -17,7 +18,7 @@ export function ShipFilesTab({ ship }: ShipFilesTabProps) {
     return <p className="text-sm text-muted-foreground">{t("files.noBaseProject")}</p>;
 
   return (
-    <div className="h-[calc(100svh-22rem)] min-h-[24rem] overflow-hidden rounded-xl bg-card shadow-sm">
+    <Card className="h-[calc(100svh-22rem)] min-h-[24rem] gap-0 py-0">
       <FileBrowser
         ownerType="project"
         ownerId={ship.baseProjectId}
@@ -26,6 +27,6 @@ export function ShipFilesTab({ ship }: ShipFilesTabProps) {
         showTitle={false}
         showSearch={false}
       />
-    </div>
+    </Card>
   );
 }

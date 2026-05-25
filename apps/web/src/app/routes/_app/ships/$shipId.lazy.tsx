@@ -1,10 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { Anchor, ArrowLeft, ChevronRight, Gauge, MapPin, Ship as ShipIcon, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, MapPin, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent } from "@/shared/components/ui/card";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
@@ -30,8 +31,6 @@ import { visibleShipTabs } from "./-ship-tabs";
 export const Route = createLazyFileRoute("/_app/ships/$shipId")({
   component: ShipDetailPage,
 });
-
-const DETAIL_PORTHOLES = ["a", "b", "c", "d", "e", "f", "g"] as const;
 
 function ShipDetailPage() {
   const { t } = useTranslation(["ships", "common"]);
@@ -100,7 +99,7 @@ function ShipDetailPage() {
   const metric = (value: number | undefined) => (value === undefined ? "—" : value);
 
   return (
-    <div className="space-y-6 rounded-2xl bg-background p-1 md:p-3">
+    <div className="space-y-6">
       <nav className="flex items-center gap-1 text-sm text-muted-foreground" aria-label={t("detail.back")}>
         <button
           type="button"
@@ -114,17 +113,8 @@ function ShipDetailPage() {
         <span className="font-medium text-foreground">{ship.name}</span>
       </nav>
 
-      <section className="grid gap-5 overflow-hidden rounded-xl border bg-card p-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <div className="relative min-h-44 overflow-hidden rounded-lg border bg-muted/30">
-          <DetailShipIllustration />
-          <div className="absolute right-3 bottom-3 left-3 flex items-center gap-2 rounded-md bg-background/85 px-3 py-2 text-xs shadow-sm backdrop-blur">
-            <ShipIcon className="size-4 text-primary" />
-            <span className="truncate font-mono font-medium">{ship.code}</span>
-            {ship.imoNumber && <span className="truncate text-muted-foreground">{ship.imoNumber}</span>}
-          </div>
-        </div>
-
-        <div className="min-w-0 space-y-5">
+      <Card>
+        <CardContent className="space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -189,8 +179,8 @@ function ShipDetailPage() {
               hint={activeOrderCount === undefined ? undefined : t("detail.metricHints.workOrders", { count: activeOrderCount })}
             />
           </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
       <Tabs value={tab} onValueChange={v => v !== null && setTab(v)}>
         <TabsList variant="line">
@@ -221,23 +211,6 @@ function ShipDetailPage() {
         pending={deleteShip.isPending}
         onConfirm={handleDelete}
       />
-    </div>
-  );
-}
-
-function DetailShipIllustration() {
-  return (
-    <div className="absolute inset-0">
-      <div className="absolute inset-x-0 bottom-0 h-16 bg-primary/10" />
-      <div className="absolute right-8 bottom-14 left-8 h-14 rounded-b-full bg-foreground/85" />
-      <div className="absolute bottom-[6.25rem] left-1/2 h-11 w-24 -translate-x-1/2 rounded-t-md bg-foreground/75" />
-      <div className="absolute bottom-[9rem] left-1/2 h-12 w-1 -translate-x-1/2 bg-foreground/70" />
-      <div className="absolute right-7 bottom-8 left-7 flex justify-between text-primary/25">
-        {DETAIL_PORTHOLES.map(key => (
-          <Gauge key={key} className="size-4" aria-hidden="true" />
-        ))}
-      </div>
-      <Anchor className="absolute top-4 right-4 size-5 text-primary/40" aria-hidden="true" />
     </div>
   );
 }

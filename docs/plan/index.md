@@ -21,4 +21,5 @@
 | [PLAN-017](PLAN-017.md) | Independent module surfaces for ships, projects, and contacts | Done | 2026-05-25 |
 | [PLAN-018](PLAN-018.md) | Zen-mode issue detail panel redesign | Completed | 2026-05-25 |
 | [PLAN-019](PLAN-019.md) | Prototype parity remediation for UI-001 | Done | 2026-05-25 |
-| [PLAN-020](PLAN-020.md) | Repeatable database seed script | Implementing | 2026-05-25 |
+| [PLAN-020](PLAN-020.md) | Repeatable database seed script | Done | 2026-05-25 |
+| [PLAN-021](PLAN-021.md) | Ships/projects/contacts shadcn baseline normalization | Done | 2026-05-25 |

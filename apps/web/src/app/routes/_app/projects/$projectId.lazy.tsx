@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent } from "@/shared/components/ui/card";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
@@ -102,7 +103,7 @@ function ProjectDetailPage() {
   const tabCount = (n: number | undefined) => (n === undefined ? "" : ` ${n}`);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="space-y-6">
       <nav className="flex items-center gap-1 text-sm text-muted-foreground" aria-label={t("detail.breadcrumb")}>
         <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => void navigate({ to: "/projects" })}>
           {t("page.title")}
@@ -111,8 +112,8 @@ function ProjectDetailPage() {
         <span className="truncate font-medium text-foreground">{project.name}</span>
       </nav>
 
-      <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_1fr]">
+      <Card>
+        <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_1fr]">
           <div className="flex min-h-40 items-center justify-center rounded-lg border bg-muted/40">
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <FolderKanban className="size-12" aria-hidden="true" />
@@ -176,8 +177,8 @@ function ProjectDetailPage() {
               )}
             </StatStrip>
           </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
       <Tabs value={tab} onValueChange={v => v !== null && setTab(v)}>
         <TabsList variant="line">

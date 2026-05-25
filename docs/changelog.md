@@ -13,6 +13,11 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Database seed script for local testing (CHORE-001 / PLAN-020):
+  `bun run seed` populates a coherent demo dataset (4 accounts, contacts,
+  2 ships with equipment, a project with members/categories/ship binding,
+  issues, procurement, and a document tree) through the existing service-layer
+  creators. Idempotent on re-run; `--fresh` wipes the seeded rows and reseeds.
 - Drive file manager completion pass (FEAT-010 / PLAN-014): recursive folder
   upload from the browser, direct drag-and-drop moves, explicit current-folder
   versus drive-wide search, image thumbnails in grid view, and a version
@@ -51,6 +56,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Ships, projects, and contacts modules normalized to the shared shadcn
+  (base-nova) baseline (UI-008 / PLAN-021) so they match the rest of the app:
+  removed the redundant `rounded-2xl bg-background` page wrapper and the
+  decorative ship illustrations, rebuilt the ships list card on the same `Card`
+  pattern as the projects list, and replaced hand-rolled `bg-card` surfaces
+  (with `ring-foreground/5` / `shadow-sm` / bespoke radii) with the canonical
+  `Card` component and `rounded-lg border` table wrappers. Behavior, data,
+  routing, and i18n are unchanged.
 - Issue (work order) detail panel redesigned toward a calm, zen-mode reading
   layout (UI-003 / PLAN-018): a thin action bar, status/priority chips above a
   large title, a quiet four-field meta grid (assignee / due date / creator /

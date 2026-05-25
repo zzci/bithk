@@ -205,7 +205,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
       {updateEquipment.error && <ErrorBanner message={errorMessage(updateEquipment.error, t("common:common.error.saveFailed"))} />}
       {deleteEquipment.error && <ErrorBanner message={errorMessage(deleteEquipment.error, t("common:common.error.deleteFailed"))} />}
 
-      <div className="overflow-x-auto rounded-xl bg-card shadow-sm">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader className="[&_tr]:border-0">
             <TableRow className="border-0">

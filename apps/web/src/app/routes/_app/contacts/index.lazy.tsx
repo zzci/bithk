@@ -147,7 +147,7 @@ export function ContactsListPage() {
   const hiddenLabel = t("masked.hiddenValue");
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
@@ -161,7 +161,7 @@ export function ContactsListPage() {
 
       {contactsQuery.error && <ErrorBanner message={errorMessage(contactsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full lg:max-w-xs">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -228,7 +228,7 @@ export function ContactsListPage() {
         : filtered.length === 0
           ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
           : (
-              <div className="overflow-x-auto rounded-lg border border-border bg-card">
+              <div className="overflow-x-auto rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">

@@ -253,7 +253,7 @@ export function ProjectIssuePanel({
   const assigneeLabel = issue.assigneeMemberId ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId : null;
 
   // Quiet meta tile styling, shared by the four fields in the zen meta grid.
-  const tileClass = "min-w-0 rounded-lg bg-card px-3 py-2.5 ring-1 ring-foreground/5";
+  const tileClass = "min-w-0 rounded-lg border bg-card px-3 py-2.5";
   const tileLabelClass = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 
   return (

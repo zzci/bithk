@@ -27,4 +27,5 @@
 | [UI-005](UI-005.md) | Align project list toolbar with ships page | - | Done | 2026-05-25 |
 | [UI-006](UI-006.md) | Remove top stats from projects and ships lists | - | Done | 2026-05-25 |
 | [UI-007](UI-007.md) | Remove top stats from contacts list | - | Done | 2026-05-25 |
-| [CHORE-001](CHORE-001.md) | Repeatable database seed script for testing | [PLAN-020](../plan/PLAN-020.md) | Pending | 2026-05-25 |
+| [CHORE-001](CHORE-001.md) | Repeatable database seed script for testing | [PLAN-020](../plan/PLAN-020.md) | Done | 2026-05-25 |
+| [UI-008](UI-008.md) | Normalize ships, projects, and contacts to the shared shadcn baseline | [PLAN-021](../plan/PLAN-021.md) | Done | 2026-05-25 |

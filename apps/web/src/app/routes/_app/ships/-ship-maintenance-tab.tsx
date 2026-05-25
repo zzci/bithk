@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent } from "@/shared/components/ui/card";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
   Dialog,
@@ -234,26 +235,28 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
       {section === "templates" && (
         <section className="space-y-4">
           {canManage && isAdmin && (
-            <div className="flex flex-wrap items-end gap-2 rounded-xl border bg-card p-3">
-              <div className="min-w-56 flex-1 space-y-1.5">
-                <Label>{t("maintenance.template.copyFromGlobal")}</Label>
-                <Select value={copyGlobalId} onValueChange={v => v !== null && setCopyGlobalId(v)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue>
-                      {(v: string) => globalTemplatesQuery.data?.find(template => template.id === v)?.name ?? t("maintenance.template.copyPlaceholder")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(globalTemplatesQuery.data ?? []).map(template => (
-                      <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button variant="outline" onClick={copyFromGlobal} disabled={!copyGlobalId || createTemplate.isPending || globalTemplatesQuery.isLoading}>
-                {t("maintenance.template.copy")}
-              </Button>
-            </div>
+            <Card>
+              <CardContent className="flex flex-wrap items-end gap-2">
+                <div className="min-w-56 flex-1 space-y-1.5">
+                  <Label>{t("maintenance.template.copyFromGlobal")}</Label>
+                  <Select value={copyGlobalId} onValueChange={v => v !== null && setCopyGlobalId(v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(v: string) => globalTemplatesQuery.data?.find(template => template.id === v)?.name ?? t("maintenance.template.copyPlaceholder")}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(globalTemplatesQuery.data ?? []).map(template => (
+                        <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button variant="outline" onClick={copyFromGlobal} disabled={!copyGlobalId || createTemplate.isPending || globalTemplatesQuery.isLoading}>
+                  {t("maintenance.template.copy")}
+                </Button>
+              </CardContent>
+            </Card>
           )}
 
           {templatesQuery.isLoading
@@ -263,34 +266,36 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
               : (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {templates.map(template => (
-                      <div key={template.id} className="flex flex-col gap-3 rounded-lg border bg-card p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <span className="font-medium">{template.name}</span>
-                            {template.category && <Badge variant="outline" className="text-xs">{template.category}</Badge>}
-                          </div>
-                          {canManage && (
-                            <div className="flex shrink-0 gap-1">
-                              <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.edit")} onClick={() => openEditTemplate(template)}>
-                                <Pencil className="size-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.delete")} onClick={() => setDeleteTemplateTarget(template)}>
-                                <Trash2 className="size-4 text-destructive" />
-                              </Button>
+                      <Card key={template.id}>
+                        <CardContent className="flex flex-col gap-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                              <span className="font-medium">{template.name}</span>
+                              {template.category && <Badge variant="outline" className="text-xs">{template.category}</Badge>}
                             </div>
-                          )}
-                        </div>
-                        <div className="grid gap-2 border-t border-dashed pt-3 text-xs sm:grid-cols-2">
-                          <div>
-                            <p className="font-medium text-muted-foreground">{t("maintenance.template.field.checklist")}</p>
-                            <p className="mt-1 line-clamp-2 text-sm">{preview(template.checklist) || t("maintenance.template.noChecklist")}</p>
+                            {canManage && (
+                              <div className="flex shrink-0 gap-1">
+                                <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.edit")} onClick={() => openEditTemplate(template)}>
+                                  <Pencil className="size-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.delete")} onClick={() => setDeleteTemplateTarget(template)}>
+                                  <Trash2 className="size-4 text-destructive" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
-                          <div>
-                            <p className="font-medium text-muted-foreground">{t("maintenance.template.field.precautions")}</p>
-                            <p className="mt-1 line-clamp-2 text-sm">{preview(template.precautions) || t("overview.notSet")}</p>
+                          <div className="grid gap-2 border-t border-dashed pt-3 text-xs sm:grid-cols-2">
+                            <div>
+                              <p className="font-medium text-muted-foreground">{t("maintenance.template.field.checklist")}</p>
+                              <p className="mt-1 line-clamp-2 text-sm">{preview(template.checklist) || t("maintenance.template.noChecklist")}</p>
+                            </div>
+                            <div>
+                              <p className="font-medium text-muted-foreground">{t("maintenance.template.field.precautions")}</p>
+                              <p className="mt-1 line-clamp-2 text-sm">{preview(template.precautions) || t("overview.notSet")}</p>
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 )}

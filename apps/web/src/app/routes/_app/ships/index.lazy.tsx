@@ -2,11 +2,12 @@
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipLifecycleStage, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Anchor, Calendar, Gauge, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
+import { Calendar, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { SHIP_LIFECYCLE_STAGES, useCreateShip, useShips } from "@/shared/lib/api/ships";
@@ -21,7 +22,6 @@ export const Route = createLazyFileRoute("/_app/ships/")({
 
 const STAGE_ALL = "__all__";
 const CURRENT_YEAR = new Date().getUTCFullYear();
-const SHIP_CARD_PORTHOLES = ["a", "b", "c", "d", "e", "f"] as const;
 
 /** Fleet-wide count for a lifecycle stage, read from the list endpoint's meta. */
 function useStageCount(stage?: ShipLifecycleStage): number | undefined {
@@ -87,7 +87,7 @@ export function ShipsListPage() {
   };
 
   return (
-    <div className="space-y-6 rounded-2xl bg-background p-1 md:p-3">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
@@ -195,30 +195,35 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
   ];
 
   return (
-    <button
-      type="button"
+    <Card
+      size="sm"
+      role="button"
+      tabIndex={0}
+      className="cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={onOpen}
-      className="group overflow-hidden rounded-xl border bg-card text-left ring-1 ring-foreground/5 transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
     >
-      <div className="relative border-b bg-muted/30 p-3">
-        <ShipIllustration name={ship.name} />
-        <Badge variant="secondary" className="absolute top-3 left-3 text-xs shadow-sm">
-          {t(`lifecycle.${ship.lifecycleStage}` as const)}
-        </Badge>
-      </div>
-
-      <div className="flex flex-col gap-3 p-4">
+      <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">
-            <p className="truncate text-base leading-snug font-medium">{ship.name}</p>
+            <CardTitle className="truncate">{ship.name}</CardTitle>
             <p className="font-mono text-xs text-muted-foreground">{ship.code}</p>
           </div>
-          {ship.status === "archived" && (
-            <Badge variant="outline" className="shrink-0 text-xs">{t("status.archived")}</Badge>
-          )}
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <Badge variant="secondary" className="text-xs">{t(`lifecycle.${ship.lifecycleStage}` as const)}</Badge>
+            {ship.status === "archived" && (
+              <Badge variant="outline" className="text-xs">{t("status.archived")}</Badge>
+            )}
+          </div>
         </div>
-
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-dashed pt-3">
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-y py-2">
           {specs.map(spec => (
             <div key={spec.label} className="min-w-0">
               <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{spec.label}</dt>
@@ -229,7 +234,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
           ))}
         </dl>
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-dashed pt-3">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
             <ShipIcon className="size-3" />
             {ship.flagState ?? t("overview.notSet")}
@@ -247,25 +252,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
             </span>
           )}
         </div>
-      </div>
-    </button>
-  );
-}
-
-function ShipIllustration({ name }: { readonly name: string }) {
-  return (
-    <div className="relative h-36 overflow-hidden rounded-lg border bg-background">
-      <div className="absolute inset-x-0 bottom-0 h-12 bg-primary/10" />
-      <div className="absolute inset-x-6 bottom-8 h-10 rounded-b-full bg-primary/15" />
-      <div className="absolute bottom-8 left-1/2 h-9 w-2/3 -translate-x-1/2 rounded-b-full bg-foreground/85 transition-transform group-hover:scale-[1.02]" />
-      <div className="absolute bottom-[4.25rem] left-1/2 h-8 w-20 -translate-x-1/2 rounded-t-md bg-foreground/75" />
-      <div className="absolute bottom-[6.25rem] left-1/2 h-9 w-1 -translate-x-1/2 bg-foreground/70" />
-      <div className="absolute right-5 bottom-5 left-5 flex justify-between text-primary/25">
-        {SHIP_CARD_PORTHOLES.map(key => (
-          <Gauge key={`${name}-${key}`} className="size-4" aria-hidden="true" />
-        ))}
-      </div>
-      <Anchor className="absolute right-3 bottom-3 size-4 text-primary/50" aria-hidden="true" />
-    </div>
+      </CardContent>
+    </Card>
   );
 }

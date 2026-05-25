@@ -13,6 +13,13 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Card as UICard,
+} from "@/shared/components/ui/card";
+import {
   SHIP_LIFECYCLE_STAGES,
   useShipEquipment,
   useShipMaintenanceOrders,
@@ -35,13 +42,15 @@ const ACTIVE_ORDER_STATUSES = new Set(["open", "in_progress"]);
 
 function Card({ title, action, children }: { readonly title: string; readonly action?: ReactNode; readonly children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-xl bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">{title}</h2>
-        {action}
-      </div>
-      {children}
-    </section>
+    <UICard>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {action && <CardAction>{action}</CardAction>}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {children}
+      </CardContent>
+    </UICard>
   );
 }
 
