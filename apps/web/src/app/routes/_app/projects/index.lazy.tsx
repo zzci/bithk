@@ -2,13 +2,8 @@
 import type { CreateProjectInput, ProjectStatus, ProjectView } from "@/shared/lib/api/projects";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import {
-  CalendarClock,
-  FolderKanban,
-  LayoutGrid,
-  List,
   Plus,
   Search,
-  Tag as TagIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,21 +17,12 @@ import {
 } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/shared/components/ui/table";
 import { useCreateProject, useProjects, useTags } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDate } from "@/shared/lib/format";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ProjectFormDialog } from "./-project-form-dialog";
 import { projectsFilterToQuery } from "./-project-form-logic";
-import { StatCard, StatStrip } from "./-project-stats";
 
 export const Route = createLazyFileRoute("/_app/projects/")({
   component: ProjectsListPage,
@@ -47,8 +33,6 @@ const STATUS_VARIANTS: Record<ProjectStatus, "default" | "outline" | "secondary"
   archived: "secondary",
 };
 
-type ViewMode = "grid" | "list";
-
 function ProjectsListPage() {
   const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
@@ -58,7 +42,6 @@ function ProjectsListPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const projectsQuery = useProjects({ ...projectsFilterToQuery(filter), page });
   const activeCountQuery = useProjects({ status: "active" });
@@ -75,7 +58,6 @@ function ProjectsListPage() {
   const totalCount = activeCount !== undefined && archivedCount !== undefined
     ? activeCount + archivedCount
     : undefined;
-  const dash = (n: number | undefined) => (n === undefined ? "-" : n);
 
   const visibleProjects = useMemo(() => {
     const all = projectsQuery.data?.data ?? [];
@@ -117,17 +99,35 @@ function ProjectsListPage() {
         )}
       </div>
 
-      <StatStrip>
-        <StatCard label={t("list.kpi.total")} value={dash(totalCount)} icon={FolderKanban} />
-        <StatCard label={t("list.kpi.active")} value={dash(activeCount)} />
-        <StatCard label={t("list.kpi.archived")} value={dash(archivedCount)} tone="muted" />
-        <StatCard label={t("list.kpi.tags")} value={tags.length} icon={TagIcon} />
-      </StatStrip>
-
       {projectsQuery.error && <ErrorBanner message={errorMessage(projectsQuery.error, t("common:common.error.loadFailed"))} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full max-w-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">{t("list.filterByTag")}</span>
+          {[
+            { key: "__all__", label: t("list.tagAll"), count: totalCount },
+            { key: "__archived__", label: t("status.archived"), count: archivedCount },
+            ...tags.map(tag => ({ key: tag.id, label: tag.name, count: undefined })),
+          ].map(opt => (
+            <Button
+              key={opt.key}
+              size="sm"
+              variant={filter === opt.key ? "default" : "outline"}
+              className="h-8 rounded-full"
+              aria-pressed={filter === opt.key}
+              onClick={() => {
+                setFilter(opt.key);
+                setPage(1);
+              }}
+            >
+              {opt.label}
+              {opt.count !== undefined && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">{opt.count}</Badge>
+              )}
+            </Button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             value={search}
@@ -137,64 +137,13 @@ function ProjectsListPage() {
             aria-label={t("list.searchPlaceholder")}
           />
         </div>
-        <div className="flex items-center gap-1 rounded-md border p-1" aria-label={t("list.viewMode")}>
-          <Button
-            type="button"
-            variant={viewMode === "grid" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 px-2"
-            aria-pressed={viewMode === "grid"}
-            aria-label={t("list.viewGrid")}
-            onClick={() => setViewMode("grid")}
-          >
-            <LayoutGrid aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 px-2"
-            aria-pressed={viewMode === "list"}
-            aria-label={t("list.viewList")}
-            onClick={() => setViewMode("list")}
-          >
-            <List aria-hidden="true" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {[
-          { key: "__all__", label: t("list.tagAll"), count: totalCount },
-          { key: "__archived__", label: t("status.archived"), count: archivedCount },
-          ...tags.map(tag => ({ key: tag.id, label: tag.name, count: undefined })),
-        ].map(opt => (
-          <Button
-            key={opt.key}
-            size="sm"
-            variant={filter === opt.key ? "default" : "outline"}
-            className="h-8 rounded-full"
-            aria-pressed={filter === opt.key}
-            onClick={() => {
-              setFilter(opt.key);
-              setPage(1);
-            }}
-          >
-            {opt.label}
-            {opt.count !== undefined && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">{opt.count}</Badge>
-            )}
-          </Button>
-        ))}
       </div>
 
       {projectsQuery.isLoading
         ? <p className="text-sm text-muted-foreground">{t("list.loading")}</p>
         : visibleProjects.length === 0
           ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
-          : viewMode === "grid"
-            ? <ProjectsGrid projects={visibleProjects} openProject={openProject} />
-            : <ProjectsTable projects={visibleProjects} openProject={openProject} />}
+          : <ProjectsGrid projects={visibleProjects} openProject={openProject} />}
 
       {totalPages > 1 && meta && (
         <div className="flex items-center justify-between pt-2">
@@ -287,71 +236,6 @@ function ProjectsGrid({
           </CardContent>
         </Card>
       ))}
-    </div>
-  );
-}
-
-function ProjectsTable({
-  projects,
-  openProject,
-}: {
-  readonly projects: readonly ProjectView[];
-  readonly openProject: (projectId: string) => void;
-}) {
-  const { t } = useTranslation("projects");
-
-  return (
-    <div className="overflow-x-auto rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t("list.col.name")}</TableHead>
-            <TableHead>{t("list.col.code")}</TableHead>
-            <TableHead>{t("list.col.status")}</TableHead>
-            <TableHead>{t("field.tags")}</TableHead>
-            <TableHead>{t("list.card.updated")}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {projects.map(project => (
-            <TableRow
-              key={project.id}
-              className="cursor-pointer"
-              onClick={() => openProject(project.id)}
-            >
-              <TableCell>
-                <div className="max-w-md">
-                  <div className="font-medium">{project.name}</div>
-                  <div className="line-clamp-1 text-xs text-muted-foreground">
-                    {project.description || t("overview.noDescription")}
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell className="font-mono text-xs">{project.code || "-"}</TableCell>
-              <TableCell>
-                <Badge variant={STATUS_VARIANTS[project.status]} className="text-xs">
-                  {t(`status.${project.status}` as const)}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className="flex max-w-xs flex-wrap gap-1">
-                  {project.tags.length === 0
-                    ? <span className="text-xs text-muted-foreground">{t("overview.noTags")}</span>
-                    : project.tags.slice(0, 3).map(tag => (
-                        <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-                      ))}
-                </div>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <CalendarClock aria-hidden="true" />
-                  {formatDate(project.updatedAt)}
-                </span>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
     </div>
   );
 }

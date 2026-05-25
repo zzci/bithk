@@ -14,7 +14,6 @@ import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToCreate } from "./-ship-form-logic";
-import { StatTile } from "./-ship-stats";
 
 export const Route = createLazyFileRoute("/_app/ships/")({
   component: ShipsListPage,
@@ -54,11 +53,6 @@ export function ShipsListPage() {
   const inServiceCount = useStageCount("in_service");
   const maintenanceCount = useStageCount("maintenance");
   const decommissionedCount = useStageCount("decommissioned");
-  const buildTrialCount
-    = buildingCount === undefined && seaTrialCount === undefined
-      ? undefined
-      : (buildingCount ?? 0) + (seaTrialCount ?? 0);
-
   const ships = useMemo(() => shipsQuery.data?.data ?? [], [shipsQuery.data]);
   const meta = shipsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
@@ -82,7 +76,6 @@ export function ShipsListPage() {
     });
   };
 
-  const kpi = (value: number | undefined) => (value === undefined ? "—" : value);
   const stageCounts: Record<string, number | undefined> = {
     [STAGE_ALL]: totalCount,
     design: designCount,
@@ -106,13 +99,6 @@ export function ShipsListPage() {
             {t("list.create")}
           </Button>
         )}
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label={t("list.kpi.total")} value={kpi(totalCount)} />
-        <StatTile label={t("list.kpi.inService")} value={kpi(inServiceCount)} />
-        <StatTile label={t("list.kpi.maintenance")} value={kpi(maintenanceCount)} />
-        <StatTile label={t("list.kpi.buildingTrial")} value={kpi(buildTrialCount)} />
       </div>
 
       {shipsQuery.error && <ErrorBanner message={errorMessage(shipsQuery.error, t("common:common.error.loadFailed"))} />}

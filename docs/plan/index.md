@@ -19,5 +19,6 @@
 | [PLAN-015](PLAN-015.md) | Preserve login across new tabs | Done | 2026-05-25 |
 | [PLAN-016](PLAN-016.md) | Ships, projects, and contacts content page redesign | Done | 2026-05-25 |
 | [PLAN-017](PLAN-017.md) | Independent module surfaces for ships, projects, and contacts | Done | 2026-05-25 |
-| [PLAN-018](PLAN-018.md) | Zen-mode issue detail panel redesign | Draft | 2026-05-25 |
+| [PLAN-018](PLAN-018.md) | Zen-mode issue detail panel redesign | Completed | 2026-05-25 |
 | [PLAN-019](PLAN-019.md) | Prototype parity remediation for UI-001 | Done | 2026-05-25 |
+| [PLAN-020](PLAN-020.md) | Repeatable database seed script | Implementing | 2026-05-25 |

@@ -39,7 +39,7 @@ function ProjectIssueDrawer() {
 
   return (
     <Sheet open onOpenChange={open => !open && close()}>
-      <SheetContent side="right" showCloseButton={false} className="flex w-[90vw] max-w-xl flex-col gap-0 bg-background p-0">
+      <SheetContent side="right" showCloseButton={false} className="flex w-[90vw] max-w-2xl flex-col gap-0 bg-background p-0">
         <SheetTitle className="sr-only">{t("page.title")}</SheetTitle>
         <SheetDescription className="sr-only">{t("page.description")}</SheetDescription>
         <ProjectIssuePanel

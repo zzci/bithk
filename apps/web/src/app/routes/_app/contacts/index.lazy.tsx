@@ -161,13 +161,6 @@ export function ContactsListPage() {
 
       {contactsQuery.error && <ErrorBanner message={errorMessage(contactsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/20 p-2">
-        <SummaryChip label={t("list.kpi.total")} value={kpis.total} />
-        <SummaryChip label={t("list.kpi.active")} value={kpis.active} />
-        <SummaryChip label={t("list.kpi.public")} value={kpis.public} />
-        <SummaryChip label={t("list.kpi.confidential")} value={kpis.confidential} />
-      </div>
-
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full lg:max-w-xs">
@@ -400,15 +393,6 @@ export function ContactsListPage() {
         open={!!shareTarget}
         onOpenChange={open => !open && setShareTarget(null)}
       />
-    </div>
-  );
-}
-
-function SummaryChip({ label, value }: { readonly label: string; readonly value: number }) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-sm font-semibold tabular-nums">{value}</span>
     </div>
   );
 }

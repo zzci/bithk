@@ -51,6 +51,23 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Issue (work order) detail panel redesigned toward a calm, zen-mode reading
+  layout (UI-003 / PLAN-018): a thin action bar, status/priority chips above a
+  large title, a quiet four-field meta grid (assignee / due date / creator /
+  created) with an aligned "updated" line, and a spacious description block over
+  the existing comments + attachments footer. The single shared
+  `ProjectIssuePanel` still backs both the drawer and the fullscreen route, so
+  the new look applies everywhere an issue opens with no duplicated changes; the
+  fullscreen variant centers content in a constrained column and the drawer was
+  widened to `max-w-2xl`. Behavior, permissions, inline editing, and routes are
+  unchanged.
+- Project list toolbar now matches the ships list pattern (UI-005): tag/status
+  filters stay on the left, project search sits on the right, and the
+  grid/list view-mode switch was removed so the page renders card-grid only.
+- Removed the top KPI/meta stat blocks from the projects and ships list pages
+  (UI-006), while keeping filters, search, pagination, and create actions.
+- Removed the top KPI/meta summary chips from the contacts list page (UI-007),
+  while keeping search, filters, tag filtering, creation, and table behavior.
 - Procurement suppliers now reference the global contacts directory. A
   procurement `supplier_id` may point at any existing contact and is no longer
   project-scoped or constrained by a supplier type enum.

@@ -22,5 +22,9 @@
 | [FIX-004](FIX-004.md) | Preserve login across new tabs | [PLAN-015](../plan/PLAN-015.md) | Done | 2026-05-25 |
 | [UI-001](UI-001.md) | Redesign ships, projects, and contacts content pages | [PLAN-016](../plan/PLAN-016.md) | Done | 2026-05-25 |
 | [UI-002](UI-002.md) | Decouple module content pages from the sidebar visually | [PLAN-017](../plan/PLAN-017.md) | Done | 2026-05-25 |
-| [UI-003](UI-003.md) | Redesign the issue detail panel toward a zen-mode layout | [PLAN-018](../plan/PLAN-018.md) | Proposed | 2026-05-25 |
+| [UI-003](UI-003.md) | Redesign the issue detail panel toward a zen-mode layout | [PLAN-018](../plan/PLAN-018.md) | Done | 2026-05-25 |
 | [UI-004](UI-004.md) | Prototype parity remediation for ships, projects, and contacts | [PLAN-019](../plan/PLAN-019.md) | Done | 2026-05-25 |
+| [UI-005](UI-005.md) | Align project list toolbar with ships page | - | Done | 2026-05-25 |
+| [UI-006](UI-006.md) | Remove top stats from projects and ships lists | - | Done | 2026-05-25 |
+| [UI-007](UI-007.md) | Remove top stats from contacts list | - | Done | 2026-05-25 |
+| [CHORE-001](CHORE-001.md) | Repeatable database seed script for testing | [PLAN-020](../plan/PLAN-020.md) | Pending | 2026-05-25 |
