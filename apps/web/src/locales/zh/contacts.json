@@ -38,7 +38,8 @@
     "status": "状态",
     "visibility": "可见范围",
     "confidential": "保密",
-    "tags": "标签"
+    "tags": "标签",
+    "companyUnit": "公司 / 单位"
   },
   "status": {
     "active": "启用",
@@ -56,7 +57,15 @@
     "namePlaceholder": "例如：Acme Marine",
     "confidentialHelp": "启用后，公开查看者只能看到名称和标签。",
     "submitCreate": "创建",
-    "submitSave": "保存"
+    "submitSave": "保存",
+    "sections": {
+      "company": "公司",
+      "companyDescription": "使用当前联系人 API 支持的目录身份信息。",
+      "methods": "联系方式",
+      "methodsDescription": "电话、邮箱、地址、税号和备注。",
+      "access": "权限与标签",
+      "accessDescription": "状态、可见范围、保密标记和标签筛选。"
+    }
   },
   "tags": {
     "placeholder": "输入标签后按 Enter",
