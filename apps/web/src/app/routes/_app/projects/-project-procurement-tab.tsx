@@ -105,29 +105,32 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
 
   return (
     <div className="space-y-4">
+      {/* Pipeline — the ordered procurement stages double as status filters. */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground">{t("procurement.pipeline.title")}</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {PROCUREMENT_STATUSES.map((s, i) => (
+            <div key={s} className="flex items-center gap-1.5">
+              {i > 0 && <span className="text-muted-foreground/40" aria-hidden="true">→</span>}
+              <Button
+                size="sm"
+                variant={statusFilter === s ? "default" : "outline"}
+                className="h-8 rounded-full"
+                aria-pressed={statusFilter === s}
+                onClick={() => {
+                  setStatusFilter(statusFilter === s ? "__all__" : s);
+                  setPage(1);
+                }}
+              >
+                {t(`procurement.status.${s}` as const)}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => {
-              if (v === null)
-                return;
-              setStatusFilter(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue>
-                {(v: string) => (v === "__all__" ? t("procurement.allStatuses") : t(`procurement.status.${v}` as const))}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{t("procurement.allStatuses")}</SelectItem>
-              {PROCUREMENT_STATUSES.map(s => (
-                <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select
             value={categoryFilter}
             onValueChange={(v) => {

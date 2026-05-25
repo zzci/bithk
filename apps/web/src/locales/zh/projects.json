@@ -10,6 +10,15 @@
     "total": "{{count}} 个项目",
     "filterByTag": "按分类筛选",
     "tagAll": "全部",
+    "searchPlaceholder": "搜索项目",
+    "kpi": {
+      "total": "项目总数",
+      "active": "进行中项目",
+      "archived": "已归档",
+      "members": "成员",
+      "ships": "覆盖船舶",
+      "tags": "标签"
+    },
     "col": {
       "name": "名称",
       "code": "编号",
@@ -52,7 +61,13 @@
     "notFound": "项目不存在或您无权访问。",
     "back": "返回项目列表",
     "loading": "正在加载项目...",
-    "settings": "设置"
+    "settings": "设置",
+    "metrics": {
+      "issues": "工单",
+      "procurement": "采购",
+      "members": "成员",
+      "files": "文件"
+    }
   },
   "settings": {
     "title": "项目设置",
@@ -78,7 +93,12 @@
     "members": "成员",
     "memberCount": "{{count}} 名成员",
     "notSet": "未设置",
-    "noTags": "暂无标签。"
+    "noTags": "暂无标签。",
+    "keyInfo": "关键信息",
+    "memberPreview": "成员",
+    "categoryPreview": "采购分类",
+    "updatedAt": "最近更新",
+    "noMembers": "暂无成员。"
   },
   "issues": {
     "create": "创建工单",
@@ -106,6 +126,12 @@
     },
     "createTitle": "创建工单",
     "createDescription": "为该项目添加一个新工单。",
+    "stats": {
+      "total": "工单总数",
+      "inProgress": "进行中",
+      "pending": "待处理",
+      "done": "已完成"
+    },
     "status": {
       "open": "待处理",
       "in_progress": "进行中",
@@ -149,6 +175,10 @@
     "createTitle": "创建采购",
     "createDescription": "为该项目添加一条新的采购记录。",
     "changeStatus": "变更状态",
+    "pipeline": {
+      "title": "采购流程",
+      "summary": "汇总"
+    },
     "delete": {
       "title": "删除采购",
       "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"

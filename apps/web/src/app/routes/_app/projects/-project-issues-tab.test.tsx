@@ -99,4 +99,35 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     await waitFor(() => expect(screen.getByText("Failed to load data")).toBeInTheDocument());
   });
+
+  it("renders the summary strip with the four status tiles", async () => {
+    routeFetch([issue()]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("Fix leak");
+    expect(screen.getByRole("button", { name: /Total work orders/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pending/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /In progress/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Done/ })).toBeInTheDocument();
+  });
+
+  it("toggles the status filter when a summary tile is clicked", async () => {
+    const user = userEvent.setup();
+    routeFetch([issue()]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    const total = await screen.findByRole("button", { name: /Total work orders/ });
+    const pending = screen.getByRole("button", { name: /Pending/ });
+    expect(total).toHaveAttribute("aria-pressed", "true");
+    expect(pending).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(pending);
+    expect(pending).toHaveAttribute("aria-pressed", "true");
+    expect(total).toHaveAttribute("aria-pressed", "false");
+    // The list re-queries scoped to the chosen status (limit 20 = main list).
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => {
+        const u = String(c[0]);
+        return u.includes("status=open") && u.includes("limit=20");
+      })).toBe(true);
+    });
+  });
 });

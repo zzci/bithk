@@ -44,6 +44,7 @@ import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useCreateProjectIssue, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { buildMemberLabelMap } from "./-member-helpers";
+import { StatCard, StatStrip } from "./-project-stats";
 
 const STATUS_VARIANTS: Record<IssueStatus, "default" | "outline" | "secondary"> = {
   open: "outline",
@@ -85,13 +86,54 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
     page,
   });
 
+  // Filter-independent counts that back the summary strip (also serving as the
+  // status filter chips). `limit: 1` keeps the payload tiny.
+  const totalCountQuery = useProjectIssues(projectId, { limit: 1 });
+  const openCountQuery = useProjectIssues(projectId, { status: "open", limit: 1 });
+  const inProgressCountQuery = useProjectIssues(projectId, { status: "in_progress", limit: 1 });
+  const doneCountQuery = useProjectIssues(projectId, { status: "done", limit: 1 });
+  const statCount = (n: number | undefined) => (n === undefined ? "—" : n);
+
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
   const issues = issuesQuery.data?.data ?? [];
   const meta = issuesQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
 
+  const setStatus = (next: string) => {
+    setStatusFilter(next);
+    setPage(1);
+  };
+
   return (
     <div className="space-y-4">
+      {/* Summary strip — each tile toggles the status filter (Total clears it). */}
+      <StatStrip>
+        <StatCard
+          label={t("issues.stats.total")}
+          value={statCount(totalCountQuery.data?.meta.total)}
+          active={statusFilter === "__all__"}
+          onClick={() => setStatus("__all__")}
+        />
+        <StatCard
+          label={t("issues.stats.pending")}
+          value={statCount(openCountQuery.data?.meta.total)}
+          active={statusFilter === "open"}
+          onClick={() => setStatus(statusFilter === "open" ? "__all__" : "open")}
+        />
+        <StatCard
+          label={t("issues.stats.inProgress")}
+          value={statCount(inProgressCountQuery.data?.meta.total)}
+          active={statusFilter === "in_progress"}
+          onClick={() => setStatus(statusFilter === "in_progress" ? "__all__" : "in_progress")}
+        />
+        <StatCard
+          label={t("issues.stats.done")}
+          value={statCount(doneCountQuery.data?.meta.total)}
+          active={statusFilter === "done"}
+          onClick={() => setStatus(statusFilter === "done" ? "__all__" : "done")}
+        />
+      </StatStrip>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           <Input
@@ -100,28 +142,6 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
             onChange={e => setSearch(e.target.value)}
             className="max-w-xs"
           />
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => {
-              if (v === null)
-                return;
-              setStatusFilter(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-36">
-              <SelectValue>
-                {(v: string) => (v === "__all__" ? t("issues.allStatuses") : t(`issues.status.${v}` as const))}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{t("issues.allStatuses")}</SelectItem>
-              <SelectItem value="open">{t("issues.status.open")}</SelectItem>
-              <SelectItem value="in_progress">{t("issues.status.in_progress")}</SelectItem>
-              <SelectItem value="done">{t("issues.status.done")}</SelectItem>
-              <SelectItem value="cancelled">{t("issues.status.cancelled")}</SelectItem>
-            </SelectContent>
-          </Select>
           <Select
             value={priorityFilter}
             onValueChange={(v) => {

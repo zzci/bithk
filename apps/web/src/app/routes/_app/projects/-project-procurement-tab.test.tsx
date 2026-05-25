@@ -1,5 +1,6 @@
 import type { ProcurementRow } from "@/shared/lib/api/procurement";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
 import { ProjectProcurementTab } from "./-project-procurement-tab";
@@ -97,6 +98,34 @@ describe("projectProcurementTab", () => {
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
     );
     expect(await screen.findByRole("button", { name: /Create procurement/ })).toBeInTheDocument();
+  });
+
+  it("renders the pipeline summary with all five stages", async () => {
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
+    );
+    await screen.findByText("Cement");
+    for (const stage of ["Draft", "Requested", "Ordered", "Received", "Closed"])
+      expect(screen.getByRole("button", { name: new RegExp(stage) })).toBeInTheDocument();
+  });
+
+  it("toggles the status filter when a pipeline stage is clicked", async () => {
+    const user = userEvent.setup();
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
+    );
+    const ordered = await screen.findByRole("button", { name: /Ordered/ });
+    expect(ordered).toHaveAttribute("aria-pressed", "false");
+    await user.click(ordered);
+    expect(ordered).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => {
+        const u = String(c[0]);
+        return u.includes("status=ordered") && u.includes("limit=20");
+      })).toBe(true);
+    });
   });
 
   it("surfaces a load error from the procurements query", async () => {

@@ -1,8 +1,16 @@
-// Overview tab: description, status, creator, member count, and the project tags.
+// Overview tab: description and key information cards plus a member preview.
 
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
+import { formatDate } from "@/shared/lib/format";
+import { memberLabel } from "./-member-helpers";
 
 interface ProjectOverviewTabProps {
   readonly project: ProjectView;
@@ -14,47 +22,92 @@ export function ProjectOverviewTab({ project, members, userNames }: ProjectOverv
   const { t } = useTranslation("projects");
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-1.5">
-        <h2 className="text-sm font-medium text-muted-foreground">{t("overview.description")}</h2>
-        <p className="text-sm whitespace-pre-wrap">
-          {project.description || <span className="text-muted-foreground">{t("overview.noDescription")}</span>}
-        </p>
-      </section>
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* Description + tags span the wider column. */}
+      <div className="space-y-4 lg:col-span-2">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">{t("overview.description")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm whitespace-pre-wrap">
+              {project.description || <span className="text-muted-foreground">{t("overview.noDescription")}</span>}
+            </p>
+          </CardContent>
+        </Card>
 
-      <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-1">
-          <dt className="text-sm text-muted-foreground">{t("overview.status")}</dt>
-          <dd>
-            <Badge variant="outline" className="text-xs">{t(`status.${project.status}` as const)}</Badge>
-          </dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-sm text-muted-foreground">{t("field.code")}</dt>
-          <dd className="text-sm">{project.code || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-sm text-muted-foreground">{t("overview.members")}</dt>
-          <dd className="text-sm">{t("overview.memberCount", { count: members.length })}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-sm text-muted-foreground">{t("overview.creator")}</dt>
-          <dd className="text-sm">{userNames.get(project.creatorId) ?? project.creatorId}</dd>
-        </div>
-      </dl>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">{t("field.tags")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {project.tags.length === 0
+              ? <p className="text-sm text-muted-foreground">{t("overview.noTags")}</p>
+              : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {project.tags.map(tag => (
+                      <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+                    ))}
+                  </div>
+                )}
+          </CardContent>
+        </Card>
+      </div>
 
-      <section className="space-y-1.5">
-        <h2 className="text-sm font-medium text-muted-foreground">{t("field.tags")}</h2>
-        {project.tags.length === 0
-          ? <p className="text-sm text-muted-foreground">{t("overview.noTags")}</p>
-          : (
-              <div className="flex flex-wrap gap-1.5">
-                {project.tags.map(tag => (
-                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-                ))}
+      {/* Key info + member preview in the narrow column. */}
+      <div className="space-y-4">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">{t("overview.keyInfo")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-1 gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-sm text-muted-foreground">{t("overview.status")}</dt>
+                <dd>
+                  <Badge variant="outline" className="text-xs">{t(`status.${project.status}` as const)}</Badge>
+                </dd>
               </div>
-            )}
-      </section>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-sm text-muted-foreground">{t("field.code")}</dt>
+                <dd className="text-sm">{project.code || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-sm text-muted-foreground">{t("overview.members")}</dt>
+                <dd className="text-sm">{t("overview.memberCount", { count: members.length })}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-sm text-muted-foreground">{t("overview.creator")}</dt>
+                <dd className="text-sm">{userNames.get(project.creatorId) ?? project.creatorId}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-sm text-muted-foreground">{t("overview.updatedAt")}</dt>
+                <dd className="text-sm">{formatDate(project.updatedAt)}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">{t("overview.memberPreview")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {members.length === 0
+              ? <p className="text-sm text-muted-foreground">{t("overview.noMembers")}</p>
+              : (
+                  <ul className="space-y-1.5">
+                    {members.slice(0, 6).map(m => (
+                      <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="truncate">{memberLabel(m, userNames)}</span>
+                        {m.title && <span className="shrink-0 text-xs text-muted-foreground">{m.title}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
