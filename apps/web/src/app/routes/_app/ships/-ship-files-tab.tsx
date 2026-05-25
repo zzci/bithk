@@ -23,6 +23,8 @@ export function ShipFilesTab({ ship }: ShipFilesTabProps) {
         ownerId={ship.baseProjectId}
         canManage
         rootLabel={ship.name}
+        showTitle={false}
+        showSearch={false}
       />
     </div>
   );

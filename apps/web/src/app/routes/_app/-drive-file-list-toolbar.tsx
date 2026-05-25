@@ -4,6 +4,7 @@ import {
   Download,
   FolderInput,
   FolderPlus,
+  FolderUp,
   LayoutGrid,
   List,
   Plus,
@@ -121,13 +122,17 @@ export function FileToolbar({
   viewMode,
   selectionMode,
   selectedCount,
+  showTitle,
+  showSearch,
   searchQuery,
+  searchScope,
   filterBar,
   capabilities,
   hasRestore,
   onNavigateToBreadcrumb,
   onRefresh,
   onSearchQueryChange,
+  onSearchScopeChange,
   onViewModeChange,
   onCancelSelection,
   onBatchDownload,
@@ -136,6 +141,7 @@ export function FileToolbar({
   showCreateActions = true,
   onCreateFolder,
   onUploadClick,
+  onUploadFolderClick,
   onImportFromDrive,
 }: FileToolbarProps) {
   const { t } = useTranslation("drive");
@@ -143,51 +149,79 @@ export function FileToolbar({
 
   return (
     <div className="flex shrink-0 flex-col bg-background">
-      <div className="flex h-14 items-center justify-between gap-4 px-4">
-        <div className="flex min-w-0 items-center gap-2 text-lg">
-          {folderPath.map((crumb, i) => (
-            <div key={crumb.id ?? "root"} className="flex min-w-0 items-center gap-2">
-              {i > 0 && <span className="text-muted-foreground/60">/</span>}
-              <button
-                type="button"
-                onClick={() => onNavigateToBreadcrumb(i)}
-                className={cn(
-                  "min-w-0 truncate transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  i === folderPath.length - 1
-                    ? "font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {crumb.name}
-              </button>
-            </div>
-          ))}
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onRefresh}
-            className="text-muted-foreground hover:text-foreground"
-            aria-label={t("browser.refresh")}
-          >
-            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-          </Button>
-        </div>
+      {(showTitle || showSearch) && (
+        <div className="flex h-14 items-center justify-between gap-4 px-4">
+          {showTitle
+            ? (
+                <div className="flex min-w-0 items-center gap-2 text-lg">
+                  {folderPath.map((crumb, i) => (
+                    <div key={crumb.id ?? "root"} className="flex min-w-0 items-center gap-2">
+                      {i > 0 && <span className="text-muted-foreground/60">/</span>}
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToBreadcrumb(i)}
+                        className={cn(
+                          "min-w-0 truncate transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          i === folderPath.length - 1
+                            ? "font-medium text-foreground"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {crumb.name}
+                      </button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={onRefresh}
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label={t("browser.refresh")}
+                  >
+                    <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+                  </Button>
+                </div>
+              )
+            : <div />}
 
-        <div className="relative w-[360px] max-w-[42vw] shrink-0">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={e => onSearchQueryChange(e.target.value)}
-            placeholder={t("browser.searchPlaceholder")}
-            className="h-9 pl-9 text-sm"
-          />
+          {showSearch && (
+            <div className="relative w-[360px] max-w-[42vw] shrink-0">
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={e => onSearchQueryChange(e.target.value)}
+                placeholder={t("browser.searchPlaceholder")}
+                className="h-9 pl-9 text-sm"
+              />
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       <div className="scrollbar-hide overflow-x-auto px-4 pb-1">
         <div className="flex min-h-10 w-max min-w-full items-center gap-3">
           <div className="flex shrink-0 items-center gap-2">
             {variant === "full" && filterBar}
+            {showSearch && variant === "full" && onSearchScopeChange && (
+              <div className="flex items-center rounded-md border bg-background p-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn("h-8 px-3 text-xs", (searchScope ?? "current") === "current" && "bg-accent")}
+                  onClick={() => onSearchScopeChange("current")}
+                >
+                  {t("browser.search.current")}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn("h-8 px-3 text-xs", searchScope === "drive" && "bg-accent")}
+                  onClick={() => onSearchScopeChange("drive")}
+                >
+                  {t("browser.search.drive")}
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="ml-auto flex min-h-9 shrink-0 items-center justify-end gap-1">
@@ -228,6 +262,12 @@ export function FileToolbar({
                             <DropdownMenuItem onClick={onUploadClick}>
                               <Upload className="mr-2 size-4" />
                               {t("browser.upload")}
+                            </DropdownMenuItem>
+                          )}
+                          {onUploadFolderClick && (
+                            <DropdownMenuItem onClick={onUploadFolderClick}>
+                              <FolderUp className="mr-2 size-4" />
+                              {t("browser.uploadFolder")}
                             </DropdownMenuItem>
                           )}
                           {ownerType === "project" && onImportFromDrive && (

@@ -27,6 +27,7 @@
   },
   "browser": {
     "upload": "Upload",
+    "uploadFolder": "Upload folder",
     "newFolder": "New folder",
     "newTextFile": "New text file",
     "newMarkdownFile": "New Markdown file",
@@ -39,6 +40,10 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "searchPlaceholder": "Search files",
+    "search": {
+      "current": "Current folder",
+      "drive": "All drive"
+    },
     "breadcrumbRoot": "Root",
     "dropHere": "Drop files to upload",
     "selectAll": "Select all",
@@ -94,6 +99,7 @@
       "copyLink": "Copy link",
       "rename": "Rename",
       "move": "Move",
+      "versions": "Version history",
       "favorite": "Favorite",
       "unfavorite": "Remove favorite",
       "trash": "Move to trash",
@@ -195,6 +201,13 @@
       "hideThumbnails": "Hide thumbnails",
       "close": "Close"
     }
+  },
+  "versions": {
+    "title": "Version history",
+    "description": "Versions for {{name}}.",
+    "empty": "No versions yet",
+    "current": "Current",
+    "switch": "Make current"
   },
   "picker": {
     "title": "Select a file",

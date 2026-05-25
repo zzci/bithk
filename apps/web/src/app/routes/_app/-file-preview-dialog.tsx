@@ -30,6 +30,7 @@ import {
   Download,
   FileText,
   Focus,
+  History,
   Loader2,
   Maximize2,
   Minimize2,
@@ -53,6 +54,7 @@ import { downloadDriveEntry, useUploadVersion } from "@/shared/lib/api/drive";
 import { httpRaw } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 
+import { DriveVersionHistoryDialog } from "./-drive-version-history-dialog";
 import { useIsDark } from "./-file-preview-hooks";
 import { ImagePreview } from "./-file-preview-image";
 import { PdfPreview } from "./-file-preview-pdf";
@@ -109,6 +111,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
   const [pdfSidebarOpen, setPdfSidebarOpen] = useState(true);
   const [imageRotation, setImageRotation] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const [markdownEditing, setMarkdownEditing] = useState(false);
   const [textEditing, setTextEditing] = useState(false);
   const [pdfModule, setPdfModule] = useState<PdfModule | null>(null);
@@ -504,6 +507,11 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
             )}
 
             {file && (
+              <ToolButton label={t("versions.title")} onClick={() => setVersionsOpen(true)}>
+                <History className="size-4" />
+              </ToolButton>
+            )}
+            {file && (
               <ToolButton label={t("preview.download")} onClick={onDownload ?? (() => void downloadDriveEntry(entry))}>
                 <Download className="size-4" />
               </ToolButton>
@@ -627,6 +635,13 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
           )}
         </div>
       </div>
+      <DriveVersionHistoryDialog
+        entry={entry}
+        open={versionsOpen}
+        onOpenChange={setVersionsOpen}
+        readOnly={readOnly}
+        onSwitched={() => setReloadNonce(n => n + 1)}
+      />
     </div>
   );
 }

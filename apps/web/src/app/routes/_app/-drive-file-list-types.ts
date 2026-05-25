@@ -69,6 +69,7 @@ export interface DriveFileListSurfaceActions {
   readonly onShare: (entryId: string, name: string) => void;
   readonly onDelete: (entryId: string) => void;
   readonly onBatchDelete: (entryIds: Set<string>) => void;
+  readonly onMoveEntries?: (entryIds: Set<string>, parentEntryId: string | null) => void;
   readonly onRestore?: (entryId: string) => void;
   readonly onBatchRestore?: (entryIds: Set<string>) => void;
   readonly onPreview: (item: DisplayItem) => void;
@@ -76,6 +77,7 @@ export interface DriveFileListSurfaceActions {
   readonly onFavoriteChange: (item: DisplayItem, favorite: boolean) => void;
   readonly onCreateFolder?: () => void;
   readonly onUploadClick?: () => void;
+  readonly onUploadFolderClick?: () => void;
   readonly onCreateTextFile?: (kind: "markdown" | "text") => void;
   readonly getCustomActions?: (item: DisplayItem) => FileListAction[];
 }
@@ -102,6 +104,12 @@ export interface DriveFileListSurfaceProps {
   readonly viewModeStorageKey?: string;
   readonly banner?: ReactNode;
   readonly extraFilters?: readonly SurfaceExtraFilter[] | undefined;
+  readonly showTitle?: boolean | undefined;
+  readonly showSearch?: boolean | undefined;
+  readonly searchQuery?: string | undefined;
+  readonly onSearchQueryChange?: ((query: string) => void) | undefined;
+  readonly searchScope?: "current" | "drive" | undefined;
+  readonly onSearchScopeChange?: ((scope: "current" | "drive") => void) | undefined;
   /**
    * Namespace for the collection toolbar's `titleKey` / `emptyTitleKey` /
    * `emptyDescKey` only. Defaults to `"drive"`; the share lists pass
@@ -158,21 +166,27 @@ export interface FileToolbarProps {
   readonly viewMode: "grid" | "list";
   readonly selectionMode: boolean;
   readonly selectedCount: number;
+  readonly showTitle: boolean;
+  readonly showSearch: boolean;
   readonly searchQuery: string;
+  readonly searchScope?: "current" | "drive" | undefined;
   readonly filterBar: ReactNode;
   readonly capabilities: Required<DriveFileListCapabilities>;
   readonly hasRestore: boolean;
   readonly onNavigateToBreadcrumb: (index: number) => void;
   readonly onRefresh: () => void;
   readonly onSearchQueryChange: (query: string) => void;
+  readonly onSearchScopeChange?: ((scope: "current" | "drive") => void) | undefined;
   readonly onViewModeChange: (mode: "grid" | "list") => void;
   readonly onCancelSelection: () => void;
   readonly onBatchDownload: () => void;
   readonly onBatchRestore: () => void;
   readonly onBatchDelete: () => void;
+  readonly onMoveEntries?: ((entryIds: Set<string>, parentEntryId: string | null) => void) | undefined;
   readonly showCreateActions?: boolean | undefined;
   readonly onCreateFolder?: (() => void) | undefined;
   readonly onUploadClick?: (() => void) | undefined;
+  readonly onUploadFolderClick?: (() => void) | undefined;
   readonly onImportFromDrive?: (() => void) | undefined;
 }
 
@@ -222,6 +236,7 @@ export interface FileListProps {
   readonly onRestore?: ((entryId: string) => void) | undefined;
   readonly onBatchRestore?: (() => void) | undefined;
   readonly onBatchDelete: () => void;
+  readonly onMoveEntries?: ((entryIds: Set<string>, parentEntryId: string | null) => void) | undefined;
   readonly onPreview: (item: DisplayItem) => void;
   readonly onRename: (item: DisplayItem) => void;
   readonly onFavoriteChange: (item: DisplayItem, favorite: boolean) => void;

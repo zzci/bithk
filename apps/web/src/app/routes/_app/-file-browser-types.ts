@@ -14,6 +14,7 @@ import {
   Folder,
 } from "lucide-react";
 import { createElement } from "react";
+import { BASE_PATH } from "@/shared/lib/http";
 
 // ── Types ──
 
@@ -116,6 +117,14 @@ export function entryToDisplayItem(entry: DriveEntry): DisplayItem {
     isFolder: false,
     fileId: entry.file?.fileId ?? null,
     isFavorite: entry.favorite,
-    ...(entry.file ? { size: entry.file.size, mimeType: entry.file.mimetype } : {}),
+    ...(entry.file
+      ? {
+          size: entry.file.size,
+          mimeType: entry.file.mimetype,
+          ...(entry.file.mimetype.startsWith("image/")
+            ? { thumbnailUrl: `${BASE_PATH}/api/drive/entries/${encodeURIComponent(entry.id)}/content?inline=true` }
+            : {}),
+        }
+      : {}),
   };
 }

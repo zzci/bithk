@@ -27,6 +27,7 @@
   },
   "browser": {
     "upload": "上传",
+    "uploadFolder": "Upload folder",
     "newFolder": "新建文件夹",
     "newTextFile": "新建文本文件",
     "newMarkdownFile": "新建 Markdown 文件",
@@ -39,6 +40,10 @@
     "collapse": "收起",
     "expand": "展开",
     "searchPlaceholder": "搜索文件",
+    "search": {
+      "current": "Current folder",
+      "drive": "All drive"
+    },
     "breadcrumbRoot": "根目录",
     "dropHere": "拖放文件以上传",
     "selectAll": "全选",
@@ -94,6 +99,7 @@
       "copyLink": "复制链接",
       "rename": "重命名",
       "move": "移动",
+      "versions": "Version history",
       "favorite": "收藏",
       "unfavorite": "取消收藏",
       "trash": "移到回收站",
@@ -195,6 +201,13 @@
       "hideThumbnails": "隐藏缩略图",
       "close": "关闭"
     }
+  },
+  "versions": {
+    "title": "Version history",
+    "description": "Versions for {{name}}.",
+    "empty": "No versions yet",
+    "current": "Current",
+    "switch": "Make current"
   },
   "picker": {
     "title": "选择文件",

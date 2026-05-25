@@ -148,6 +148,8 @@ function ProjectDetailPage() {
               ownerId={project.id}
               canManage
               rootLabel={project.name}
+              showTitle={false}
+              showSearch={false}
             />
           </div>
         </TabsContent>

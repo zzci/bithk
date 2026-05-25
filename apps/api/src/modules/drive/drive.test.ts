@@ -310,6 +310,22 @@ describe("drive routes owner scope", () => {
     expect(foreign.status).toBe(403);
   });
 
+  test("searches the selected owner without leaking another drive", async () => {
+    const callerId = await seedUser("Caller");
+    const otherId = await seedUser("Other");
+
+    await uploadDriveFile(db, config, { ...personal(callerId), createdBy: callerId, file: textFile("report.txt") });
+    await uploadDriveFile(db, config, { ...personal(otherId), createdBy: otherId, file: textFile("report-secret.txt") });
+
+    const app = buildApp();
+    const own = await app.request("/drive/entries/search?q=report", { headers: { "x-uid": callerId } });
+    expect(own.status).toBe(200);
+    expect((await own.json()).data.map((e: { name: string }) => e.name)).toEqual(["report.txt"]);
+
+    const foreign = await app.request(`/drive/entries/search?q=report&ownerType=user&ownerId=${otherId}`, { headers: { "x-uid": callerId } });
+    expect(foreign.status).toBe(403);
+  });
+
   test("editor creates a folder in a team directory; viewer and non-member are denied", async () => {
     const ownerId = await seedUser("Owner");
     const editorId = await seedUser("Editor");

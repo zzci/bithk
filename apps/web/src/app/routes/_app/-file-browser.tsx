@@ -15,7 +15,7 @@ import type {
 } from "./-drive-file-list-surface";
 import type { DisplayItem } from "./-file-browser-types";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
-import { FolderInput, Upload } from "lucide-react";
+import { FolderInput, History, Upload } from "lucide-react";
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,12 +27,14 @@ import {
   useCreateDriveFolder,
   useCreateTextFile,
   useDriveEntries,
+  useDriveSearchEntries,
   useTrashDriveEntry,
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
 import { cn } from "@/shared/lib/utils";
 import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { useDriveUploader } from "./-drive-upload";
+import { DriveVersionHistoryDialog } from "./-drive-version-history-dialog";
 import {
   CreateFolderDialog,
   CreateTextFileDialog,
@@ -50,6 +52,8 @@ export interface FileBrowserProps {
   readonly canManage?: boolean;
   /** Label for the root breadcrumb (defaults to the generic "Root"). */
   readonly rootLabel?: string;
+  readonly showTitle?: boolean;
+  readonly showSearch?: boolean;
 }
 
 interface FolderCrumb {
@@ -62,6 +66,7 @@ type DialogState
     | { readonly type: "text"; readonly markdown: boolean }
     | { readonly type: "rename"; readonly entry: DriveEntry }
     | { readonly type: "move"; readonly entry: DriveEntry }
+    | { readonly type: "versions"; readonly entry: DriveEntry }
     | { readonly type: "trash"; readonly ids: readonly string[]; readonly name?: string | undefined }
     | null;
 
@@ -72,19 +77,27 @@ export function FileBrowser({
   onPreviewEntry,
   canManage = true,
   rootLabel,
+  showTitle = true,
+  showSearch = true,
 }: FileBrowserProps) {
   const { t } = useTranslation("drive");
 
   const [folderStack, setFolderStack] = useState<readonly FolderCrumb[]>([]);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [dragDepth, setDragDepth] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchScope, setSearchScope] = useState<"current" | "drive">("current");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
 
   const owner = useMemo(() => ({ ownerType, ownerId }), [ownerType, ownerId]);
   const parentEntryId = folderStack.at(-1)?.id ?? null;
 
   const entriesQuery = useDriveEntries(parentEntryId, "normal", owner);
-  const entries = useMemo(() => entriesQuery.data ?? [], [entriesQuery.data]);
+  const searchEntriesQuery = useDriveSearchEntries(searchQuery, owner);
+  const useDriveSearch = searchScope === "drive" && searchQuery.trim().length > 0;
+  const activeQuery = useDriveSearch ? searchEntriesQuery : entriesQuery;
+  const entries = useMemo(() => activeQuery.data ?? [], [activeQuery.data]);
 
   const createFolder = useCreateDriveFolder();
   const createTextFile = useCreateTextFile();
@@ -92,7 +105,7 @@ export function FileBrowser({
   const updateEntry = useUpdateDriveEntry();
   const trashEntry = useTrashDriveEntry();
 
-  const error = entriesQuery.error
+  const error = activeQuery.error
     ?? createFolder.error
     ?? createTextFile.error
     ?? updateEntry.error
@@ -192,12 +205,22 @@ export function FileBrowser({
     const entry = entryById.get(item.id);
     if (!entry)
       return [];
-    return [{
+    const actions: FileListAction[] = [];
+    if (entry.file) {
+      actions.push({
+        key: "versions",
+        label: t("browser.action.versions"),
+        icon: <History className="mr-2 size-4" />,
+        onSelect: () => setDialog({ type: "versions", entry }),
+      });
+    }
+    actions.push({
       key: "move",
       label: t("browser.action.move"),
       icon: <FolderInput className="mr-2 size-4" />,
       onSelect: () => setDialog({ type: "move", entry }),
-    }];
+    });
+    return actions;
   }, [canManage, entryById, t]);
 
   const actions: DriveFileListSurfaceActions = {
@@ -219,6 +242,15 @@ export function FileBrowser({
       const ids = [...entryIds];
       setDialog({ type: "trash", ids, name: ids.length === 1 ? entryById.get(ids[0]!)?.name : undefined });
     },
+    onMoveEntries: (entryIds, targetParentEntryId) => {
+      const nextParentEntryId = targetParentEntryId ?? parentEntryId;
+      for (const id of entryIds) {
+        const entry = entryById.get(id);
+        if (!entry || entry.parentEntryId === nextParentEntryId)
+          continue;
+        updateEntry.mutate({ id, parentEntryId: nextParentEntryId });
+      }
+    },
     onPreview: (item) => {
       const entry = entryById.get(item.id);
       if (entry)
@@ -232,6 +264,7 @@ export function FileBrowser({
     onFavoriteChange: (item, favorite) => updateEntry.mutate({ id: item.id, favorite }),
     onCreateFolder: () => setDialog({ type: "folder" }),
     onUploadClick: () => fileInputRef.current?.click(),
+    onUploadFolderClick: () => folderInputRef.current?.click(),
     onCreateTextFile: kind => setDialog({ type: "text", markdown: kind === "markdown" }),
     getCustomActions,
   };
@@ -261,13 +294,30 @@ export function FileBrowser({
         className="hidden"
         onChange={onUploadInputChange}
       />
+      <input
+        ref={(node) => {
+          folderInputRef.current = node;
+          node?.setAttribute("webkitdirectory", "");
+          node?.setAttribute("directory", "");
+        }}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={onUploadInputChange}
+      />
 
       <DriveFileListSurface
         items={items}
-        loading={entriesQuery.isLoading}
+        loading={activeQuery.isLoading}
         toolbar={toolbar}
         capabilities={capabilities}
         actions={actions}
+        showTitle={showTitle}
+        showSearch={showSearch}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        searchScope={searchScope}
+        onSearchScopeChange={setSearchScope}
         banner={error ? <ErrorBanner message={error.message} className="mx-4 mb-2" /> : undefined}
       />
 
@@ -310,6 +360,11 @@ export function FileBrowser({
           if (dialog?.type === "move")
             updateEntry.mutate({ id: dialog.entry.id, parentEntryId: targetParentId }, { onSuccess: closeDialog });
         }}
+      />
+      <DriveVersionHistoryDialog
+        open={dialog?.type === "versions"}
+        onOpenChange={open => !open && closeDialog()}
+        entry={dialog?.type === "versions" ? dialog.entry : null}
       />
       <ConfirmDeleteDialog
         open={dialog?.type === "trash"}

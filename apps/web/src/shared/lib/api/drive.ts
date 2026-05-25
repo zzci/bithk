@@ -101,6 +101,14 @@ export const driveKeys = {
     query.parentEntryId ?? "root",
     query.status ?? "normal",
   ] as const,
+  search: (query: DriveEntriesQuery & { readonly q: string }) => [
+    "drive",
+    "entries",
+    "search",
+    query.ownerType ?? "user",
+    query.ownerId ?? "self",
+    query.q,
+  ] as const,
   recent: () => ["drive", "entries", "recent"] as const,
   favorites: () => ["drive", "entries", "favorites"] as const,
   versions: (entryId: string) => ["drive", "entries", entryId, "versions"] as const,
@@ -168,6 +176,28 @@ export function useDriveEntries(
   return useQuery({
     queryKey: driveKeys.entries(query),
     queryFn: () => rawJson<ApiEnvelope<readonly DriveEntry[]>>(entriesPath(query)).then(r => r.data),
+    staleTime: 5_000,
+  });
+}
+
+export function useDriveSearchEntries(
+  q: string,
+  owner?: { readonly ownerType: DriveOwnerType; readonly ownerId: string },
+) {
+  const query = { ...(owner ?? {}), q: q.trim() };
+  return useQuery({
+    queryKey: driveKeys.search(query),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set("q", query.q);
+      params.set("limit", "50");
+      if (owner?.ownerType)
+        params.set("ownerType", owner.ownerType);
+      if (owner?.ownerId)
+        params.set("ownerId", owner.ownerId);
+      return rawJson<ApiEnvelope<readonly DriveEntry[]>>(`/drive/entries/search?${params.toString()}`).then(r => r.data);
+    },
+    enabled: query.q.length > 0,
     staleTime: 5_000,
   });
 }

@@ -23,6 +23,7 @@ import {
   listFavoriteDriveEntries,
   listRecentDriveEntries,
   restoreDriveEntry,
+  searchDriveEntries,
   trashDriveEntry,
   updateDriveEntry,
   uploadDriveFile,
@@ -47,6 +48,13 @@ const entryIdSchema = z.string().min(1);
 const listSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   status: z.enum(["normal", "trash"]).optional(),
+  ownerType: z.enum(["user", "team_directory", "project"]).optional(),
+  ownerId: z.string().optional(),
+});
+
+const searchEntriesSchema = z.object({
+  q: z.string().trim().min(1),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
   ownerType: z.enum(["user", "team_directory", "project"]).optional(),
   ownerId: z.string().optional(),
 });
@@ -154,6 +162,18 @@ export function driveRoutes() {
   router.get("/drive/entries/favorites", async (c) => {
     const user = c.get("user")!;
     const data = await listFavoriteDriveEntries(c.get("db"), user.id);
+    return c.json({ success: true, data });
+  });
+
+  router.get("/drive/entries/search", async (c) => {
+    const query = searchEntriesSchema.parse({
+      q: c.req.query("q") ?? "",
+      limit: c.req.query("limit") ?? undefined,
+      ownerType: c.req.query("ownerType") ?? undefined,
+      ownerId: c.req.query("ownerId") ?? undefined,
+    });
+    const owner = await resolveListOwner(c, query.ownerType, query.ownerId);
+    const data = await searchDriveEntries(c.get("db"), owner, query.q, query.limit ?? 50);
     return c.json({ success: true, data });
   });
 

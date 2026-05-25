@@ -18,3 +18,4 @@
 | [FIX-002](FIX-002.md) | Frontend quality: a11y focus rings, effect warnings, oversized files | - | Done | 2026-05-24 |
 | [FIX-003](FIX-003.md) | Drive trash/delete confirmation dialogs | - | Done | 2026-05-24 |
 | [REFACTOR-003](REFACTOR-003.md) | 联系人模块独立为全局通用模块 | [PLAN-013](../plan/PLAN-013.md) | Done | 2026-05-24 |
+| [FEAT-010](FEAT-010.md) | Complete missing drive file manager features | [PLAN-014](../plan/PLAN-014.md) | Done | 2026-05-25 |

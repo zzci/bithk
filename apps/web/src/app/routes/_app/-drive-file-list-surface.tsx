@@ -55,6 +55,12 @@ export function DriveFileListSurface({
   viewModeStorageKey,
   banner,
   extraFilters,
+  showTitle = true,
+  showSearch = true,
+  searchQuery: controlledSearchQuery,
+  onSearchQueryChange,
+  searchScope,
+  onSearchScopeChange,
   i18nNs = "drive",
 }: DriveFileListSurfaceProps) {
   const { t } = useTranslation(["drive", i18nNs]);
@@ -64,13 +70,15 @@ export function DriveFileListSurface({
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => getInitialViewMode(viewModeStorageKey, initialViewMode));
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DriveSortBy>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [typeFilter, setTypeFilter] = useState<DriveTypeFilter>("all");
   const [ownerFilter, setOwnerFilter] = useState<DriveOwnerFilter>("all");
   const [modifiedFilter, setModifiedFilter] = useState<DriveModifiedFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<DriveSourceFilter>("all");
+  const searchQuery = showSearch ? (controlledSearchQuery ?? internalSearchQuery) : "";
+  const setSearchQuery = onSearchQueryChange ?? setInternalSearchQuery;
 
   const itemIdsKey = useMemo(() => items.map(item => item.id).join("\0"), [items]);
   const visibleSelectedIds = useMemo(() => {
@@ -170,33 +178,41 @@ export function DriveFileListSurface({
 
   const renderCollectionToolbar = (config: CollectionToolbarConfig) => (
     <div className="flex shrink-0 flex-col bg-background">
-      <div className="flex h-14 shrink-0 items-center justify-between gap-4 px-4">
-        <div className="flex min-w-0 items-center gap-2 text-lg">
-          <span className="min-w-0 truncate font-medium text-foreground">{t(config.titleKey, { ns: i18nNs })}</span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={actions.onRefresh}
-            className="text-muted-foreground hover:text-foreground"
-            aria-label={t("browser.refresh")}
-          >
-            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-          </Button>
-        </div>
+      {(showTitle || showSearch || config.headerAction) && (
+        <div className="flex h-14 shrink-0 items-center justify-between gap-4 px-4">
+          {showTitle
+            ? (
+                <div className="flex min-w-0 items-center gap-2 text-lg">
+                  <span className="min-w-0 truncate font-medium text-foreground">{t(config.titleKey, { ns: i18nNs })}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={actions.onRefresh}
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label={t("browser.refresh")}
+                  >
+                    <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+                  </Button>
+                </div>
+              )
+            : <div />}
 
-        <div className="flex shrink-0 items-center gap-2">
-          {config.headerAction}
-          <div className="relative w-[360px] max-w-[42vw] shrink-0">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={event => setSearchQuery(event.target.value)}
-              placeholder={t("browser.searchPlaceholder")}
-              className="h-9 pl-9 text-sm"
-            />
+          <div className="flex shrink-0 items-center gap-2">
+            {config.headerAction}
+            {showSearch && (
+              <div className="relative w-[360px] max-w-[42vw] shrink-0">
+                <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={event => setSearchQuery(event.target.value)}
+                  placeholder={t("browser.searchPlaceholder")}
+                  className="h-9 pl-9 text-sm"
+                />
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       <div className="scrollbar-hide overflow-x-auto px-4 pb-1">
         <div className="flex min-h-10 w-max min-w-full items-center gap-3">
@@ -250,13 +266,17 @@ export function DriveFileListSurface({
               viewMode={viewMode}
               selectionMode={effectiveSelectionMode}
               selectedCount={visibleSelectedIds.size}
+              showTitle={showTitle}
+              showSearch={showSearch}
               searchQuery={searchQuery}
+              searchScope={searchScope}
               filterBar={filterBar}
               capabilities={resolvedCapabilities}
               hasRestore={Boolean(actions.onBatchRestore)}
               onNavigateToBreadcrumb={toolbar.onNavigateToBreadcrumb}
               onRefresh={actions.onRefresh}
               onSearchQueryChange={setSearchQuery}
+              onSearchScopeChange={onSearchScopeChange}
               onViewModeChange={setViewMode}
               onCancelSelection={() => handleSelectionModeChange(false)}
               onBatchDownload={handleBatchDownload}
@@ -265,6 +285,7 @@ export function DriveFileListSurface({
               showCreateActions={toolbar.showCreateActions}
               onCreateFolder={actions.onCreateFolder}
               onUploadClick={actions.onUploadClick}
+              onUploadFolderClick={actions.onUploadFolderClick}
               onImportFromDrive={toolbar.onImportFromDrive}
             />
           )
@@ -299,6 +320,7 @@ export function DriveFileListSurface({
                 onShare={actions.onShare}
                 onDelete={actions.onDelete}
                 onBatchDelete={handleBatchDelete}
+                onMoveEntries={actions.onMoveEntries}
                 onRestore={actions.onRestore}
                 onBatchRestore={handleBatchRestore}
                 onPreview={actions.onPreview}

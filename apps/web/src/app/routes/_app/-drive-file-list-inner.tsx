@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from "react";
 import type { ItemActionsContext } from "./-drive-file-list-item-actions";
 import type { DragSelectionState, FileListProps, SelectionBox } from "./-drive-file-list-types";
 // Inner list / grid renderer for the drive file-list surface.
@@ -63,6 +63,7 @@ export function FileList({
   onRestore,
   onBatchRestore,
   onBatchDelete,
+  onMoveEntries,
   onPreview,
   onRename,
   onFavoriteChange,
@@ -79,6 +80,8 @@ export function FileList({
   const removeDragListenersRef = useRef<(() => void) | null>(null);
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [dragSelection, setDragSelection] = useState<DragSelectionState | null>(null);
+  const [dragTargetId, setDragTargetId] = useState<string | null>(null);
+  const [draggingEntryIds, setDraggingEntryIds] = useState<Set<string> | null>(null);
 
   const blankContextMenu = onCreateTextFile || onCreateFolder || onUploadClick
     ? (
@@ -132,7 +135,22 @@ export function FileList({
 
   const thumbnailPreview = (item: DisplayItem) => (
     <div className="flex size-full items-center justify-center bg-background">
-      {itemIcon(item, "size-14")}
+      {item.thumbnailUrl
+        ? (
+            <>
+              {itemIcon(item, "size-14")}
+              <img
+                src={item.thumbnailUrl}
+                alt=""
+                loading="lazy"
+                className="absolute inset-0 size-full object-cover"
+                onError={(event) => {
+                  event.currentTarget.hidden = true;
+                }}
+              />
+            </>
+          )
+        : itemIcon(item, "size-14")}
     </div>
   );
 
@@ -195,6 +213,76 @@ export function FileList({
     ) {
       event.preventDefault();
     }
+  };
+
+  const getDragIds = (item: DisplayItem) =>
+    selectionMode && selectedIds.has(item.id) ? new Set(selectedIds) : new Set([item.id]);
+
+  const handleEntryDragStart = (event: ReactDragEvent<HTMLDivElement>, item: DisplayItem) => {
+    if (!onMoveEntries)
+      return;
+    const ids = [...getDragIds(item)];
+    setDraggingEntryIds(new Set(ids));
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-drive-entry-ids", JSON.stringify(ids));
+  };
+
+  const readEntryDragIds = (event: ReactDragEvent) => {
+    if (draggingEntryIds)
+      return draggingEntryIds;
+    const raw = event.dataTransfer.getData("application/x-drive-entry-ids");
+    if (!raw)
+      return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.every(value => typeof value === "string")
+        ? new Set<string>(parsed)
+        : null;
+    }
+    catch {
+      return null;
+    }
+  };
+
+  const handleMoveDrop = (event: ReactDragEvent, parentEntryId: string | null) => {
+    if (!onMoveEntries)
+      return;
+    const ids = readEntryDragIds(event);
+    if (!ids || ids.size === 0)
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDragTargetId(null);
+    setDraggingEntryIds(null);
+    onMoveEntries(ids, parentEntryId);
+  };
+
+  const finishEntryDrag = () => {
+    setDragTargetId(null);
+    setDraggingEntryIds(null);
+  };
+
+  const handleFolderDragOver = (event: ReactDragEvent, item: DisplayItem) => {
+    if (!onMoveEntries || !item.isFolder)
+      return;
+    const ids = readEntryDragIds(event);
+    if (!ids || ids.has(item.id))
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setDragTargetId(item.id);
+  };
+
+  const handleRootDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!onMoveEntries || event.dataTransfer.types.includes("Files"))
+      return;
+    const ids = readEntryDragIds(event);
+    if (!ids)
+      return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragTargetId("root");
   };
 
   const handleItemContextMenu = (event: ReactMouseEvent, item: DisplayItem) => {
@@ -497,14 +585,21 @@ export function FileList({
           <div
             ref={node => setItemRef(item.id, node)}
             data-drive-item
+            draggable={Boolean(onMoveEntries)}
             className={cn(
               "group relative flex h-16 cursor-pointer items-center gap-3 rounded-2xl bg-muted/50 px-4 transition-colors select-none hover:bg-muted",
               selectionMode && selectedIds.has(item.id) && "bg-sky-100/80 ring-1 ring-sky-300 dark:bg-sky-950/40 dark:ring-sky-800",
+              dragTargetId === item.id && "ring-2 ring-primary",
             )}
             onMouseDown={handleItemMouseDown}
             onClick={event => handleItemClick(event, item)}
             onDoubleClick={event => handleItemDoubleClick(event, item)}
             onContextMenu={event => handleItemContextMenu(event, item)}
+            onDragStart={event => handleEntryDragStart(event, item)}
+            onDragEnd={finishEntryDrag}
+            onDragOver={event => handleFolderDragOver(event, item)}
+            onDragLeave={() => setDragTargetId(current => (current === item.id ? null : current))}
+            onDrop={event => handleMoveDrop(event, item.id)}
           />
         )}
       >
@@ -525,6 +620,7 @@ export function FileList({
           <div
             ref={node => setItemRef(item.id, node)}
             data-drive-item
+            draggable={Boolean(onMoveEntries)}
             className={cn(
               "group relative cursor-pointer rounded-2xl bg-muted/50 p-3 transition-colors select-none hover:bg-muted",
               selectionMode && selectedIds.has(item.id) && "bg-sky-100/80 ring-1 ring-sky-300 dark:bg-sky-950/40 dark:ring-sky-800",
@@ -533,6 +629,8 @@ export function FileList({
             onClick={event => handleItemClick(event, item)}
             onDoubleClick={event => handleItemDoubleClick(event, item)}
             onContextMenu={event => handleItemContextMenu(event, item)}
+            onDragStart={event => handleEntryDragStart(event, item)}
+            onDragEnd={finishEntryDrag}
           />
         )}
       >
@@ -543,7 +641,7 @@ export function FileList({
           {itemIcon(item, "size-5 shrink-0")}
           <span className="min-w-0 flex-1 truncate text-sm font-medium select-none">{item.name}</span>
         </div>
-        <div className="mt-3 aspect-[4/3] overflow-hidden rounded-lg bg-background">
+        <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-lg bg-background">
           {thumbnailPreview(item)}
         </div>
         {item.size != null && <span className="sr-only">{formatSize(item.size)}</span>}
@@ -581,6 +679,9 @@ export function FileList({
             onClick={clearSelection}
             onMouseDownCapture={handleBlankMouseDownCapture}
             onMouseDown={handleSelectionMouseDown}
+            onDragOver={handleRootDragOver}
+            onDragLeave={() => setDragTargetId(current => (current === "root" ? null : current))}
+            onDrop={event => handleMoveDrop(event, null)}
           />
         )}
       >
@@ -628,15 +729,22 @@ export function FileList({
                         <div
                           ref={node => setItemRef(item.id, node)}
                           data-drive-item
+                          draggable={Boolean(onMoveEntries)}
                           className={cn(
                             "group grid min-h-10 cursor-pointer items-center border-b px-3 py-1 transition-colors select-none hover:bg-accent/45",
                             LIST_COLUMNS_CLASS,
                             selectionMode && selectedIds.has(item.id) && "bg-sky-100/80 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/50",
+                            dragTargetId === item.id && "ring-2 ring-primary",
                           )}
                           onMouseDown={handleItemMouseDown}
                           onClick={event => handleItemClick(event, item)}
                           onDoubleClick={event => handleItemDoubleClick(event, item)}
                           onContextMenu={event => handleItemContextMenu(event, item)}
+                          onDragStart={event => handleEntryDragStart(event, item)}
+                          onDragEnd={finishEntryDrag}
+                          onDragOver={event => handleFolderDragOver(event, item)}
+                          onDragLeave={() => setDragTargetId(current => (current === item.id ? null : current))}
+                          onDrop={event => item.isFolder && handleMoveDrop(event, item.id)}
                         />
                       )}
                     >

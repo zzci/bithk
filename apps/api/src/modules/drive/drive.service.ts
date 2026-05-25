@@ -236,6 +236,44 @@ export async function searchDriveEntriesByOwners(
   return rows.map(composeDriveEntryView);
 }
 
+/** Name search within one drive owner, used by the drive browser's "all drive" search. */
+export async function searchDriveEntries(
+  db: AppDatabase,
+  owner: DriveOwner,
+  q: string,
+  limit: number,
+): Promise<readonly DriveEntryView[]> {
+  const term = q.trim();
+  if (term.length === 0)
+    return [];
+
+  const pattern = `%${term.replace(/[\\%_]/g, "\\$&")}%`;
+  const nameMatch = sql`${driveEntries.name} LIKE ${pattern} ESCAPE '\\'`;
+
+  const rows = await db
+    .select({
+      entry: driveEntries,
+      fileId: fileReferences.fileId,
+      filename: fileReferences.filename,
+      mimetype: files.mimetype,
+      size: files.size,
+    })
+    .from(driveEntries)
+    .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
+    .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .where(and(
+      eq(driveEntries.ownerType, owner.ownerType),
+      eq(driveEntries.ownerId, owner.ownerId),
+      eq(driveEntries.status, "normal"),
+      nameMatch,
+    ))
+    .orderBy(asc(driveEntries.entryType), asc(driveEntries.name), asc(driveEntries.id))
+    .limit(limit)
+    .all();
+
+  return rows.map(composeDriveEntryView);
+}
+
 export interface CreateDriveFolderInput extends DriveOwner {
   readonly createdBy: string;
   readonly parentEntryId?: string | null | undefined;

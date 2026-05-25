@@ -13,6 +13,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Drive file manager completion pass (FEAT-010 / PLAN-014): recursive folder
+  upload from the browser, direct drag-and-drop moves, explicit current-folder
+  versus drive-wide search, image thumbnails in grid view, and a version
+  history dialog reachable from item actions and preview with switch-current
+  support. Embedded project and ship file tabs can now hide the shared file
+  browser title and search controls.
 - Global contact module (REFACTOR-003 / PLAN-013): owner/viewer authorization,
   private/public visibility, confidential field masking, tag classification
   through the global tag vocabulary, explicit per-user/group viewer grants, the
