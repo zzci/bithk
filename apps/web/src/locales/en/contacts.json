@@ -38,7 +38,8 @@
     "status": "Status",
     "visibility": "Visibility",
     "confidential": "Confidential",
-    "tags": "Tags"
+    "tags": "Tags",
+    "companyUnit": "Company / unit"
   },
   "status": {
     "active": "Active",
@@ -56,7 +57,15 @@
     "namePlaceholder": "e.g. Acme Marine",
     "confidentialHelp": "Public viewers see only the name and tags when this is enabled.",
     "submitCreate": "Create",
-    "submitSave": "Save"
+    "submitSave": "Save",
+    "sections": {
+      "company": "Company",
+      "companyDescription": "Directory identity backed by the current contact API.",
+      "methods": "Contact methods",
+      "methodsDescription": "Phone, email, address, tax ID and notes.",
+      "access": "Access and tags",
+      "accessDescription": "Status, visibility, confidentiality and tag filters."
+    }
   },
   "tags": {
     "placeholder": "Add a tag and press Enter",

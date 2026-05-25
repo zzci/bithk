@@ -98,6 +98,8 @@ export function ContactsListPage() {
   const kpis = useMemo(() => ({
     total: contacts.length,
     active: contacts.filter(c => c.status === "active").length,
+    inactive: contacts.filter(c => c.status === "inactive").length,
+    private: contacts.filter(c => c.visibility === "private").length,
     public: contacts.filter(c => c.visibility === "public").length,
     confidential: contacts.filter(c => c.confidential).length,
   }), [contacts]);
@@ -145,28 +147,28 @@ export function ContactsListPage() {
   const hiddenLabel = t("masked.hiddenValue");
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
           <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 size-4" />
+          <Plus data-icon="inline-start" />
           {t("list.create")}
         </Button>
       </div>
 
       {contactsQuery.error && <ErrorBanner message={errorMessage(contactsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label={t("list.kpi.total")} value={kpis.total} />
-        <KpiCard label={t("list.kpi.active")} value={kpis.active} />
-        <KpiCard label={t("list.kpi.public")} value={kpis.public} />
-        <KpiCard label={t("list.kpi.confidential")} value={kpis.confidential} />
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/20 p-2">
+        <SummaryChip label={t("list.kpi.total")} value={kpis.total} />
+        <SummaryChip label={t("list.kpi.active")} value={kpis.active} />
+        <SummaryChip label={t("list.kpi.public")} value={kpis.public} />
+        <SummaryChip label={t("list.kpi.confidential")} value={kpis.confidential} />
       </div>
 
-      <div className="space-y-3 rounded-lg border border-border p-3">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full lg:max-w-xs">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -184,18 +186,20 @@ export function ContactsListPage() {
               options={STATUS_FILTERS}
               onChange={setStatusFilter}
               label={key => (key === "all" ? t("list.statusAll") : t(`status.${key}` as const))}
+              count={key => (key === "all" ? contacts.length : kpis[key])}
             />
             <FilterChips
               value={visibilityFilter}
               options={VISIBILITY_FILTERS}
               onChange={setVisibilityFilter}
               label={key => (key === "all" ? t("list.visibilityAll") : t(`visibility.${key}` as const))}
+              count={key => (key === "all" ? contacts.length : kpis[key])}
             />
           </div>
         </div>
 
         <div className="flex flex-col gap-2 border-t border-dashed border-border/60 pt-3 sm:flex-row sm:items-end">
-          <div className="flex-1 space-y-1.5">
+          <div className="flex flex-1 flex-col gap-1.5">
             <label htmlFor="contacts-tag-filter" className="text-sm font-medium">{t("list.filterByTag")}</label>
             <Input
               id="contacts-tag-filter"
@@ -231,11 +235,11 @@ export function ContactsListPage() {
         : filtered.length === 0
           ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
           : (
-              <div className="overflow-x-auto rounded-lg border border-border">
+              <div className="overflow-x-auto rounded-lg border border-border bg-card">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead>{t("field.name")}</TableHead>
+                      <TableHead className="h-9">{t("field.companyUnit")}</TableHead>
                       <TableHead>{t("field.contactPerson")}</TableHead>
                       <TableHead>{t("field.phone")}</TableHead>
                       <TableHead>{t("field.email")}</TableHead>
@@ -249,16 +253,16 @@ export function ContactsListPage() {
                       const locked = isMasked(contact);
                       const status = contact.status ? t(`status.${contact.status}` as const) : null;
                       return (
-                        <TableRow key={contact.id}>
-                          <TableCell className="max-w-[16rem]">
-                            <div className="flex items-center gap-3">
+                        <TableRow key={contact.id} className="text-sm">
+                          <TableCell className="max-w-[18rem] py-2">
+                            <div className="flex items-center gap-2">
                               <span
                                 aria-hidden="true"
-                                className="grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-xs font-semibold text-primary"
+                                className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-xs font-semibold text-primary"
                               >
                                 {contact.name.slice(0, 1).toUpperCase()}
                               </span>
-                              <div className="min-w-0 space-y-1">
+                              <div className="flex min-w-0 flex-col gap-1">
                                 <Button
                                   variant="link"
                                   className="h-auto justify-start truncate p-0 text-sm font-medium text-foreground"
@@ -275,16 +279,16 @@ export function ContactsListPage() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-2">
                             <ContactFieldValue value={contact.contactPerson} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-2">
                             <ContactFieldValue value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-2">
                             <ContactFieldValue value={contact.email} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-2">
                             {contact.tags.length > 0
                               ? (
                                   <div className="flex flex-wrap gap-1">
@@ -298,10 +302,10 @@ export function ContactsListPage() {
                                 )
                               : <span className="text-muted-foreground">—</span>}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-2">
                             <ContactFieldValue value={status} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="py-2 text-right">
                             {contact.canManage && (
                               <div className="flex justify-end gap-1">
                                 <Button
@@ -310,7 +314,7 @@ export function ContactsListPage() {
                                   aria-label={t("actions.share", { name: contact.name })}
                                   onClick={() => setShareTarget(contact)}
                                 >
-                                  <Share2 className="size-4" />
+                                  <Share2 data-icon="inline" />
                                 </Button>
                                 <Button
                                   size="icon-sm"
@@ -318,7 +322,7 @@ export function ContactsListPage() {
                                   aria-label={t("actions.edit", { name: contact.name })}
                                   onClick={() => setEditTarget(contact)}
                                 >
-                                  <Edit3 className="size-4" />
+                                  <Edit3 data-icon="inline" />
                                 </Button>
                                 <Button
                                   size="icon-sm"
@@ -327,7 +331,7 @@ export function ContactsListPage() {
                                   onClick={() => setDeleteTarget(contact)}
                                   className="text-destructive hover:text-destructive"
                                 >
-                                  <Trash2 className="size-4" />
+                                  <Trash2 data-icon="inline" />
                                 </Button>
                               </div>
                             )}
@@ -400,11 +404,11 @@ export function ContactsListPage() {
   );
 }
 
-function KpiCard({ label, value }: { readonly label: string; readonly value: number }) {
+function SummaryChip({ label, value }: { readonly label: string; readonly value: number }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+    <div className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
     </div>
   );
 }
@@ -414,11 +418,13 @@ function FilterChips<T extends string>({
   options,
   onChange,
   label,
+  count,
 }: {
   readonly value: T;
   readonly options: readonly T[];
   readonly onChange: (value: T) => void;
   readonly label: (key: T) => string;
+  readonly count: (key: T) => number;
 }) {
   return (
     <div className="flex flex-wrap gap-1">
@@ -429,10 +435,12 @@ function FilterChips<T extends string>({
           size="sm"
           variant={value === option ? "default" : "outline"}
           className="rounded-full"
+          aria-label={`${label(option)} ${count(option)}`}
           aria-pressed={value === option}
           onClick={() => onChange(option)}
         >
-          {label(option)}
+          <span>{label(option)}</span>
+          <span className="tabular-nums text-current/70">{count(option)}</span>
         </Button>
       ))}
     </div>
@@ -532,11 +540,11 @@ function ContactDetailDrawer({
                 <h3 className="sr-only">{t("drawer.sharing")}</h3>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => onShare(contact)}>
-                    <Share2 className="mr-1 size-4" />
+                    <Share2 data-icon="inline-start" />
                     {t("share.title")}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => onEdit(contact)}>
-                    <Edit3 className="mr-1 size-4" />
+                    <Edit3 data-icon="inline-start" />
                     {t("form.editTitle")}
                   </Button>
                   <Button
@@ -545,7 +553,7 @@ function ContactDetailDrawer({
                     className="text-destructive hover:text-destructive"
                     onClick={() => onDelete(contact)}
                   >
-                    <Trash2 className="mr-1 size-4" />
+                    <Trash2 data-icon="inline-start" />
                     {t("delete.title")}
                   </Button>
                 </div>

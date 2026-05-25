@@ -86,7 +86,7 @@ export function ContactFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{mode === "create" ? t("form.createTitle") : t("form.editTitle")}</DialogTitle>
             <DialogDescription>
@@ -96,123 +96,141 @@ export function ContactFormDialog({
 
           {errorMessage && <ErrorBanner message={errorMessage} />}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="contact-name">{t("field.name")}</Label>
-            <Input
-              id="contact-name"
-              autoFocus
-              required
-              value={form.name}
-              onChange={e => set("name", e.target.value)}
-              placeholder={t("form.namePlaceholder")}
-            />
-          </div>
+          <section className="flex flex-col gap-3 rounded-lg border border-border p-3">
+            <div>
+              <h3 className="text-sm font-medium">{t("form.sections.company")}</h3>
+              <p className="text-xs text-muted-foreground">{t("form.sections.companyDescription")}</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="contact-name">{t("field.name")}</Label>
+              <Input
+                id="contact-name"
+                autoFocus
+                required
+                value={form.name}
+                onChange={e => set("name", e.target.value)}
+                placeholder={t("form.namePlaceholder")}
+              />
+            </div>
+          </section>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {TEXT_FIELDS.map(key => (
-              <div key={key} className="space-y-1.5">
-                <Label htmlFor={`contact-${key}`}>{t(`field.${key}` as const)}</Label>
-                <Input
-                  id={`contact-${key}`}
-                  value={form[key]}
-                  onChange={e => set(key, e.target.value)}
-                />
+          <section className="flex flex-col gap-3 rounded-lg border border-border p-3">
+            <div>
+              <h3 className="text-sm font-medium">{t("form.sections.methods")}</h3>
+              <p className="text-xs text-muted-foreground">{t("form.sections.methodsDescription")}</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {TEXT_FIELDS.map(key => (
+                <div key={key} className="flex flex-col gap-1.5">
+                  <Label htmlFor={`contact-${key}`}>{t(`field.${key}` as const)}</Label>
+                  <Input
+                    id={`contact-${key}`}
+                    value={form[key]}
+                    onChange={e => set(key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="contact-note">{t("field.note")}</Label>
+              <Textarea
+                id="contact-note"
+                value={form.note}
+                onChange={e => set("note", e.target.value)}
+                rows={3}
+              />
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-3 rounded-lg border border-border p-3">
+            <div>
+              <h3 className="text-sm font-medium">{t("form.sections.access")}</h3>
+              <p className="text-xs text-muted-foreground">{t("form.sections.accessDescription")}</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label>{t("field.status")}</Label>
+                <Select value={form.status} onValueChange={v => v !== null && set("status", v as ContactStatus)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(v: string) => t(`status.${v}` as const)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONTACT_STATUSES.map(status => (
+                      <SelectItem key={status} value={status}>{t(`status.${status}` as const)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            ))}
-          </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="contact-note">{t("field.note")}</Label>
-            <Textarea
-              id="contact-note"
-              value={form.note}
-              onChange={e => set("note", e.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>{t("field.status")}</Label>
-              <Select value={form.status} onValueChange={v => v !== null && set("status", v as ContactStatus)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>{(v: string) => t(`status.${v}` as const)}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {CONTACT_STATUSES.map(status => (
-                    <SelectItem key={status} value={status}>{t(`status.${status}` as const)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>{t("field.visibility")}</Label>
-              <Select value={form.visibility} onValueChange={v => v !== null && set("visibility", v as ContactVisibility)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>{(v: string) => t(`visibility.${v}` as const)}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {CONTACT_VISIBILITIES.map(visibility => (
-                    <SelectItem key={visibility} value={visibility}>{t(`visibility.${visibility}` as const)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>{t("field.tags")}</Label>
-            {form.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {form.tags.map(tag => (
-                  <Badge key={tag} variant="secondary" className="gap-1 text-xs">
-                    {tag}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={t("tags.remove", { name: tag })}
-                      onClick={() => set("tags", removeTag(form.tags, tag))}
-                      className="ml-0.5 rounded-sm hover:text-destructive"
-                    >
-                      <X className="size-3" />
-                    </Button>
-                  </Badge>
-                ))}
+              <div className="flex flex-col gap-1.5">
+                <Label>{t("field.visibility")}</Label>
+                <Select value={form.visibility} onValueChange={v => v !== null && set("visibility", v as ContactVisibility)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(v: string) => t(`visibility.${v}` as const)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONTACT_VISIBILITIES.map(visibility => (
+                      <SelectItem key={visibility} value={visibility}>{t(`visibility.${visibility}` as const)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-            <Input
-              value={tagDraft}
-              onChange={e => setTagDraft(e.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === ",") {
-                  event.preventDefault();
-                  commitTag(tagDraft);
-                }
-                else if (event.key === "Backspace" && tagDraft === "" && form.tags.length > 0) {
-                  set("tags", removeTag(form.tags, form.tags[form.tags.length - 1]!));
-                }
-              }}
-              onBlur={() => {
-                if (tagDraft.trim())
-                  commitTag(tagDraft);
-              }}
-              placeholder={t("tags.placeholder")}
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-border p-3">
-            <div className="space-y-0.5">
-              <Label htmlFor="contact-confidential">{t("field.confidential")}</Label>
-              <p className="text-xs text-muted-foreground">{t("form.confidentialHelp")}</p>
             </div>
-            <Switch
-              id="contact-confidential"
-              checked={form.confidential}
-              onCheckedChange={value => set("confidential", value)}
-            />
-          </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>{t("field.tags")}</Label>
+              {form.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {form.tags.map(tag => (
+                    <Badge key={tag} variant="secondary" className="gap-1 text-xs">
+                      {tag}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={t("tags.remove", { name: tag })}
+                        onClick={() => set("tags", removeTag(form.tags, tag))}
+                        className="ml-0.5 rounded-sm hover:text-destructive"
+                      >
+                        <X data-icon="inline" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <Input
+                value={tagDraft}
+                onChange={e => setTagDraft(e.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault();
+                    commitTag(tagDraft);
+                  }
+                  else if (event.key === "Backspace" && tagDraft === "" && form.tags.length > 0) {
+                    set("tags", removeTag(form.tags, form.tags[form.tags.length - 1]!));
+                  }
+                }}
+                onBlur={() => {
+                  if (tagDraft.trim())
+                    commitTag(tagDraft);
+                }}
+                placeholder={t("tags.placeholder")}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="contact-confidential">{t("field.confidential")}</Label>
+                <p className="text-xs text-muted-foreground">{t("form.confidentialHelp")}</p>
+              </div>
+              <Switch
+                id="contact-confidential"
+                checked={form.confidential}
+                onCheckedChange={value => set("confidential", value)}
+              />
+            </div>
+          </section>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

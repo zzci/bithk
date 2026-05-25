@@ -58,6 +58,7 @@ describe("contactsListPage", () => {
 
     expect(screen.getByRole("heading", { name: "Contacts" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    expect(screen.getByRole("columnheader", { name: "Company / unit" })).toBeInTheDocument();
     expect(screen.getByText("Jane")).toBeInTheDocument();
     expect(screen.getByText("supplier")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Acme Marine" })).toBeInTheDocument();
@@ -76,6 +77,8 @@ describe("contactsListPage", () => {
     await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
     // "Total contacts" is unique to the KPI strip; its sibling holds the count.
     expect(screen.getByText("Total contacts").nextSibling).toHaveTextContent("2");
+    expect(screen.getByRole("button", { name: "Active 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Public 1" })).toBeInTheDocument();
   });
 
   it("hides manage actions when canManage is false", async () => {
@@ -163,7 +166,7 @@ describe("contactsListPage", () => {
 
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Inactive" }));
+    await user.click(screen.getByRole("button", { name: "Inactive 1" }));
 
     expect(screen.queryByText("Acme Marine")).not.toBeInTheDocument();
     expect(screen.getByText("Beta Yard")).toBeInTheDocument();
@@ -197,6 +200,20 @@ describe("contactsListPage", () => {
       const filtered = fetchMock.mock.calls.find(c => String(c[0]).includes("tag=ship+supplier"));
       expect(filtered).toBeDefined();
     });
+  });
+
+  it("opens the current-schema form as sections without type controls", async () => {
+    fetchMock.mockResolvedValue(ok([]));
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await user.click(screen.getByRole("button", { name: "Create contact" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Company" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Contact methods" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Access and tags" })).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Type")).not.toBeInTheDocument();
   });
 
   it("deletes after confirmation", async () => {
