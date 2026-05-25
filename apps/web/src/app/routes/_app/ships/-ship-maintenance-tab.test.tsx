@@ -70,6 +70,8 @@ describe("shipMaintenanceTab", () => {
 
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
     expect(screen.getByText("Copy from global knowledge base")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Templates 1/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Work orders 1/ }));
     expect(screen.getByText("Quarterly check work order")).toBeInTheDocument();
     expect(screen.getByText("Open")).toBeInTheDocument();
   });
@@ -105,8 +107,10 @@ describe("shipMaintenanceTab", () => {
   it("creates a work order with a maintenance_template reference and renders resolved detail", async () => {
     routeFetch();
     renderWithProviders(<ShipMaintenanceTab ship={ship} canManage />);
-    await waitFor(() => expect(screen.getByText("Quarterly check work order")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
+    await userEvent.click(screen.getByRole("button", { name: /Work orders 1/ }));
+    await waitFor(() => expect(screen.getByText("Quarterly check work order")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Open work order from template" }));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Open work order from template" }));
@@ -125,8 +129,10 @@ describe("shipMaintenanceTab", () => {
   it("renders a graceful notice for dangling maintenance template references", async () => {
     routeFetch(null);
     renderWithProviders(<ShipMaintenanceTab ship={ship} canManage />);
-    await waitFor(() => expect(screen.getByText("Quarterly check work order")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
+    await userEvent.click(screen.getByRole("button", { name: /Work orders 1/ }));
+    await waitFor(() => expect(screen.getByText("Quarterly check work order")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "View" }));
 
     await waitFor(() => {

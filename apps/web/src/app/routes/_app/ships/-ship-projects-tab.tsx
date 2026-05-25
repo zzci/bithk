@@ -90,7 +90,7 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
           : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {projects.map(project => (
-                  <div key={project.id} className="flex flex-col gap-3 rounded-lg border bg-card p-3">
+                  <div key={project.id} className="flex flex-col gap-2 rounded-lg border bg-card p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -103,6 +103,12 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
                         <Badge variant="outline" className="shrink-0 text-xs">{t(`projects:status.${project.status}` as const)}</Badge>
                       )}
                     </div>
+                    {project.description && <p className="line-clamp-2 text-xs text-muted-foreground">{project.description}</p>}
+                    {(project.tags?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {project.tags.slice(0, 4).map(tag => <Badge key={tag.id} variant="outline" className="text-xs">{tag.name}</Badge>)}
+                      </div>
+                    )}
                     <div className="flex items-center gap-1 border-t border-dashed pt-2">
                       <Button
                         variant="ghost"
