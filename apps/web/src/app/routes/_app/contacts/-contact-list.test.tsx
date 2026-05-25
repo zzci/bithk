@@ -65,6 +65,19 @@ describe("contactsListPage", () => {
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
   });
 
+  it("renders the KPI strip from the loaded contacts", async () => {
+    fetchMock.mockResolvedValue(ok([
+      contact(),
+      contact({ id: "c2", name: "Beta Yard", status: "inactive", visibility: "public", confidential: true }),
+    ]));
+
+    renderWithProviders(<ContactsListPage />);
+
+    await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
+    // "Total contacts" is unique to the KPI strip; its sibling holds the count.
+    expect(screen.getByText("Total contacts").nextSibling).toHaveTextContent("2");
+  });
+
   it("hides manage actions when canManage is false", async () => {
     fetchMock.mockResolvedValue(ok([contact({ canManage: false })]));
 
@@ -76,7 +89,7 @@ describe("contactsListPage", () => {
     expect(screen.queryByRole("button", { name: "Share Acme Marine" })).not.toBeInTheDocument();
   });
 
-  it("renders locked placeholders for masked confidential public reads", async () => {
+  it("renders locked placeholders for masked confidential public reads in the table", async () => {
     fetchMock.mockResolvedValue(ok([
       contact({
         contactPerson: null,
@@ -95,8 +108,80 @@ describe("contactsListPage", () => {
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    expect(screen.getAllByLabelText("Masked field")).toHaveLength(7);
+    // The dense table surfaces four sensitive columns; all must be locked.
+    expect(screen.getAllByLabelText("Masked field")).toHaveLength(4);
     expect(screen.queryByText("Jane")).not.toBeInTheDocument();
+    expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
+  });
+
+  it("keeps every sensitive field locked inside the detail drawer for masked reads", async () => {
+    fetchMock.mockResolvedValue(ok([
+      contact({
+        contactPerson: null,
+        phone: null,
+        email: null,
+        address: null,
+        taxId: null,
+        note: null,
+        status: null,
+        visibility: "public",
+        confidential: true,
+        canManage: false,
+      }),
+    ]));
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Acme Marine" }));
+
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getAllByLabelText("Masked field")).toHaveLength(7);
+    expect(within(drawer).queryByText("Dock 1")).not.toBeInTheDocument();
+  });
+
+  it("opens a detail drawer that reuses the loaded contact data", async () => {
+    fetchMock.mockResolvedValue(ok([contact()]));
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Acme Marine" }));
+
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByText("Dock 1")).toBeInTheDocument();
+    expect(within(drawer).getByText("Preferred")).toBeInTheDocument();
+    expect(within(drawer).getByText("Contact methods")).toBeInTheDocument();
+  });
+
+  it("filters client-side by status", async () => {
+    fetchMock.mockResolvedValue(ok([
+      contact(),
+      contact({ id: "c2", name: "Beta Yard", status: "inactive" }),
+    ]));
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Inactive" }));
+
+    expect(screen.queryByText("Acme Marine")).not.toBeInTheDocument();
+    expect(screen.getByText("Beta Yard")).toBeInTheDocument();
+  });
+
+  it("filters client-side by search query", async () => {
+    fetchMock.mockResolvedValue(ok([
+      contact(),
+      contact({ id: "c2", name: "Beta Yard", contactPerson: "Bob" }),
+    ]));
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
+    await user.type(screen.getByLabelText("Search company, person, or note"), "Beta");
+
+    await waitFor(() => expect(screen.queryByText("Acme Marine")).not.toBeInTheDocument());
+    expect(screen.getByText("Beta Yard")).toBeInTheDocument();
   });
 
   it("refetches with a tag filter", async () => {
