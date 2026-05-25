@@ -223,32 +223,32 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
           : templates.length === 0
             ? <p className="text-sm text-muted-foreground">{t("maintenance.template.empty")}</p>
             : (
-                <ul className="divide-y rounded-md border">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {templates.map(template => (
-                    <li key={template.id} className="flex items-start justify-between gap-3 px-3 py-3">
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div key={template.id} className="flex flex-col gap-2 rounded-lg border bg-card p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <span className="font-medium">{template.name}</span>
                           {template.category && <Badge variant="outline" className="text-xs">{template.category}</Badge>}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {preview(template.checklist) || t("maintenance.template.noChecklist")}
-                        </p>
-                        {template.precautions && <p className="text-xs text-muted-foreground">{preview(template.precautions)}</p>}
+                        {canManage && (
+                          <div className="flex shrink-0 gap-1">
+                            <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.edit")} onClick={() => openEditTemplate(template)}>
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.delete")} onClick={() => setDeleteTemplateTarget(template)}>
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      {canManage && (
-                        <div className="flex shrink-0 gap-1">
-                          <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.edit")} onClick={() => openEditTemplate(template)}>
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.delete")} onClick={() => setDeleteTemplateTarget(template)}>
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
-                        </div>
-                      )}
-                    </li>
+                      <p className="text-sm text-muted-foreground">
+                        {preview(template.checklist) || t("maintenance.template.noChecklist")}
+                      </p>
+                      {template.precautions && <p className="text-xs text-muted-foreground">{preview(template.precautions)}</p>}
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
       </section>
 

@@ -1,6 +1,6 @@
 import type { EquipmentInput, EquipmentStatus, ShipEquipmentView, ShipView } from "@/shared/lib/api/ships";
-import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -99,6 +99,8 @@ function toPayload(form: EquipmentFormState): { name: string } & EquipmentInput 
   };
 }
 
+const CATEGORY_ALL = "__all__";
+
 export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
   const { t } = useTranslation(["ships", "common"]);
   const equipmentQuery = useShipEquipment(ship.id);
@@ -109,7 +111,32 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [editTarget, setEditTarget] = useState<ShipEquipmentView | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ShipEquipmentView | null>(null);
-  const equipment = equipmentQuery.data ?? [];
+  const [category, setCategory] = useState<string>(CATEGORY_ALL);
+  const [search, setSearch] = useState("");
+  const equipment = useMemo(() => equipmentQuery.data ?? [], [equipmentQuery.data]);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of equipment) {
+      if (row.category?.trim())
+        set.add(row.category.trim());
+    }
+    return [...set].sort();
+  }, [equipment]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return equipment.filter((row) => {
+      if (category !== CATEGORY_ALL && (row.category?.trim() ?? "") !== category)
+        return false;
+      if (!q)
+        return true;
+      return [row.name, row.serialNumber, row.location, row.manufacturer, row.model]
+        .some(v => v?.toLowerCase().includes(q));
+    });
+  }, [equipment, category, search]);
+
+  const colCount = canManage ? 8 : 7;
 
   const openCreate = () => {
     setEditTarget(null);
@@ -144,6 +171,34 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
         )}
       </div>
 
+      {equipment.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {[{ key: CATEGORY_ALL, label: t("equipment.filterAll") }, ...categories.map(c => ({ key: c, label: c }))].map(opt => (
+              <Button
+                key={opt.key}
+                size="sm"
+                variant={category === opt.key ? "default" : "outline"}
+                className="h-7 rounded-full"
+                onClick={() => setCategory(opt.key)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+          <div className="relative w-full sm:w-60">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t("equipment.searchPlaceholder")}
+              aria-label={t("equipment.searchPlaceholder")}
+              className="pl-8"
+            />
+          </div>
+        </div>
+      )}
+
       {equipmentQuery.error && <ErrorBanner message={errorMessage(equipmentQuery.error, t("common:common.error.loadFailed"))} />}
       {createEquipment.error && <ErrorBanner message={errorMessage(createEquipment.error, t("common:common.error.operationFailed"))} />}
       {updateEquipment.error && <ErrorBanner message={errorMessage(updateEquipment.error, t("common:common.error.saveFailed"))} />}
@@ -165,36 +220,45 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
           </TableHeader>
           <TableBody>
             {equipmentQuery.isLoading
-              ? <TableRow><TableCell colSpan={canManage ? 8 : 7} className="h-24 text-center text-muted-foreground">{t("equipment.loading")}</TableCell></TableRow>
+              ? <TableRow><TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">{t("equipment.loading")}</TableCell></TableRow>
               : equipment.length === 0
-                ? <TableRow><TableCell colSpan={canManage ? 8 : 7} className="h-24 text-center text-muted-foreground">{t("equipment.empty")}</TableCell></TableRow>
-                : equipment.map(row => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.name}</TableCell>
-                      <TableCell>{row.category || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
-                      <TableCell>{row.manufacturer || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
-                      <TableCell>{row.model || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
-                      <TableCell>{row.serialNumber || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
-                      <TableCell>{row.location || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
-                      <TableCell>
-                        <Badge variant={row.status === "active" ? "default" : "secondary"} className="text-xs">
-                          {t(`equipment.status.${row.status}` as const)}
-                        </Badge>
+                ? (
+                    <TableRow>
+                      <TableCell colSpan={colCount} className="h-24 text-center">
+                        <p className="text-muted-foreground">{t("equipment.empty")}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("equipment.emptyHint")}</p>
                       </TableCell>
-                      {canManage && (
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon-sm" aria-label={t("equipment.edit")} onClick={() => openEdit(row)}>
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon-sm" aria-label={t("equipment.delete")} onClick={() => setDeleteTarget(row)}>
-                              <Trash2 className="size-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
                     </TableRow>
-                  ))}
+                  )
+                : filtered.length === 0
+                  ? <TableRow><TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">{t("equipment.noMatches")}</TableCell></TableRow>
+                  : filtered.map(row => (
+                      <TableRow key={row.id}>
+                        <TableCell className="font-medium">{row.name}</TableCell>
+                        <TableCell>{row.category || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
+                        <TableCell>{row.manufacturer || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
+                        <TableCell>{row.model || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
+                        <TableCell>{row.serialNumber || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
+                        <TableCell>{row.location || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
+                        <TableCell>
+                          <Badge variant={row.status === "active" ? "default" : "secondary"} className="text-xs">
+                            {t(`equipment.status.${row.status}` as const)}
+                          </Badge>
+                        </TableCell>
+                        {canManage && (
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="icon-sm" aria-label={t("equipment.edit")} onClick={() => openEdit(row)}>
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon-sm" aria-label={t("equipment.delete")} onClick={() => setDeleteTarget(row)}>
+                                <Trash2 className="size-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
           </TableBody>
         </Table>
       </div>

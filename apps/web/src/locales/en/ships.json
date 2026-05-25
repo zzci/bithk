@@ -9,7 +9,17 @@
     "stageAll": "All",
     "loading": "Loading ships…",
     "empty": "No ships yet.",
-    "total": "{{count}} total"
+    "noMatches": "No ships match your search.",
+    "total": "{{count}} total",
+    "searchPlaceholder": "Search name, hull number, or IMO",
+    "typeAll": "All ship types",
+    "kpi": {
+      "total": "Total ships",
+      "maintenance": "In maintenance",
+      "buildingTrial": "Build / sea trial",
+      "equipment": "Equipment",
+      "inService": "In service"
+    }
   },
   "status": {
     "active": "Active",
@@ -33,7 +43,15 @@
   "detail": {
     "back": "Back to ships",
     "loading": "Loading ship…",
-    "notFound": "Ship not found."
+    "notFound": "Ship not found.",
+    "baseProject": "Base project",
+    "metrics": {
+      "projects": "Projects",
+      "equipment": "Equipment",
+      "templates": "Templates",
+      "workOrders": "Work orders",
+      "overduePm": "Overdue PM"
+    }
   },
   "delete": {
     "title": "Delete ship",
@@ -71,7 +89,24 @@
   },
   "overview": {
     "noDescription": "No description provided.",
-    "notSet": "Not set"
+    "notSet": "Not set",
+    "archive": "Ship archive",
+    "lifecycle": "Lifecycle",
+    "currentStage": "Current stage",
+    "upcomingMaintenance": "Upcoming maintenance",
+    "upcomingEmpty": "No active maintenance work orders.",
+    "quickStats": "Quick stats",
+    "boundProjects": "Bound projects",
+    "boundProjectsEmpty": "No projects bound yet.",
+    "equipmentCategories": "Equipment categories",
+    "equipmentCategoriesEmpty": "No equipment registered.",
+    "uncategorized": "Uncategorized",
+    "viewAll": "View all",
+    "section": {
+      "identity": "Identity",
+      "classification": "Class & lifecycle",
+      "dimensions": "Principal dimensions"
+    }
   },
   "equipment": {
     "title": "Equipment inventory",
@@ -81,6 +116,11 @@
     "actions": "Actions",
     "loading": "Loading equipment…",
     "empty": "No equipment registered.",
+    "emptyHint": "Add the equipment installed on this ship to start tracking it.",
+    "noMatches": "No equipment matches the filters.",
+    "searchPlaceholder": "Search name, serial, or location",
+    "filterAll": "All",
+    "uncategorized": "Uncategorized",
     "createTitle": "Add equipment",
     "editTitle": "Edit equipment",
     "dialogDescription": "Track the equipment installed on this ship.",
@@ -152,6 +192,7 @@
     }
   },
   "projects": {
+    "callout": "Files, permissions, and maintenance work orders are all anchored on this ship's base project. The base project cannot be unbound.",
     "bindTitle": "Bind a project",
     "bindPlaceholder": "Project ID",
     "bind": "Bind",

@@ -65,6 +65,20 @@ describe("shipEquipmentTab", () => {
     expect(screen.queryByRole("button", { name: "Edit equipment" })).not.toBeInTheDocument();
   });
 
+  it("filters equipment by category chip and search box", async () => {
+    routeFetch();
+    renderWithProviders(<ShipEquipmentTab ship={ship} canManage={false} />);
+    await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
+
+    // The category chip is derived from the loaded rows.
+    await userEvent.click(screen.getByRole("button", { name: "Power" }));
+    expect(screen.getByText("Generator")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText("Search name, serial, or location"), "zzz");
+    expect(screen.queryByText("Generator")).not.toBeInTheDocument();
+    expect(screen.getByText("No equipment matches the filters.")).toBeInTheDocument();
+  });
+
   it("creates, edits, and deletes equipment through the scoped API", async () => {
     routeFetch();
     renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);

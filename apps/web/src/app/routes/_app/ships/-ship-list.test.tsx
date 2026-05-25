@@ -62,6 +62,30 @@ describe("shipsListPage", () => {
     expect(screen.getByRole("button", { name: "Create ship" })).toBeInTheDocument();
   });
 
+  it("renders the fleet KPI strip", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(listPayload()));
+    renderWithProviders(<ShipsListPage />);
+    await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
+    expect(screen.getByText("Total ships")).toBeInTheDocument();
+    expect(screen.getByText("In maintenance")).toBeInTheDocument();
+    expect(screen.getByText("Build / sea trial")).toBeInTheDocument();
+  });
+
+  it("filters the loaded ships by the search box", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(listPayload()));
+    renderWithProviders(<ShipsListPage />);
+    await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
+
+    const searchBox = screen.getByPlaceholderText("Search name, hull number, or IMO");
+    await userEvent.type(searchBox, "zzz");
+    expect(screen.queryByText("Serenity")).not.toBeInTheDocument();
+    expect(screen.getByText("No ships match your search.")).toBeInTheDocument();
+
+    await userEvent.clear(searchBox);
+    await userEvent.type(searchBox, "seren");
+    expect(screen.getByText("Serenity")).toBeInTheDocument();
+  });
+
   it("refetches with a lifecycleStage filter when a stage chip is selected", async () => {
     fetchMock.mockResolvedValue(jsonResponse(listPayload()));
     renderWithProviders(<ShipsListPage />);

@@ -4,7 +4,7 @@
 
 import type { ShipProjectView, ShipView } from "@/shared/lib/api/ships";
 import { useNavigate } from "@tanstack/react-router";
-import { ExternalLink, Link2Off } from "lucide-react";
+import { ExternalLink, Info, Link2Off } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -25,7 +25,7 @@ interface ShipProjectsTabProps {
 }
 
 export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
-  const { t } = useTranslation(["ships", "common"]);
+  const { t } = useTranslation(["ships", "projects", "common"]);
   const navigate = useNavigate();
 
   const projectsQuery = useShipProjects(ship.id);
@@ -55,6 +55,11 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-start gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+        <Info className="mt-0.5 size-4 shrink-0 text-primary" />
+        <p>{t("projects.callout")}</p>
+      </div>
+
       {canManage && (
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex-1 space-y-1.5">
@@ -83,17 +88,22 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
         : projects.length === 0
           ? <p className="text-sm text-muted-foreground">{t("projects.empty")}</p>
           : (
-              <ul className="divide-y rounded-md border">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {projects.map(project => (
-                  <li key={project.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                    <div className="min-w-0 space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{project.name}</span>
-                        {project.isBase && <Badge variant="secondary" className="text-xs">{t("projects.baseBadge")}</Badge>}
+                  <div key={project.id} className="flex flex-col gap-3 rounded-lg border bg-card p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-sm font-medium">{project.name}</span>
+                          {project.isBase && <Badge variant="secondary" className="text-xs">{t("projects.baseBadge")}</Badge>}
+                        </div>
+                        {project.code && <p className="truncate font-mono text-xs text-muted-foreground">{project.code}</p>}
                       </div>
-                      {project.code && <p className="truncate text-xs text-muted-foreground">{project.code}</p>}
+                      {project.status && (
+                        <Badge variant="outline" className="shrink-0 text-xs">{t(`projects:status.${project.status}` as const)}</Badge>
+                      )}
                     </div>
-                    <div className="flex shrink-0 gap-1">
+                    <div className="flex items-center gap-1 border-t border-dashed pt-2">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -109,9 +119,9 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
                         </Button>
                       )}
                     </div>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
 
       <ConfirmDeleteDialog
