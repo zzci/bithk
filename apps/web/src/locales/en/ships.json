@@ -17,6 +17,9 @@
       "maintenance": "In maintenance",
       "buildingTrial": "Build / sea trial",
       "inService": "In service"
+    },
+    "card": {
+      "ageValue": "{{count}} yr"
     }
   },
   "status": {
@@ -33,6 +36,7 @@
   },
   "tabs": {
     "overview": "Overview",
+    "profile": "Profile",
     "equipment": "Equipment",
     "maintenance": "Maintenance",
     "projects": "Projects",
@@ -48,6 +52,12 @@
       "equipment": "Equipment",
       "templates": "Templates",
       "workOrders": "Work orders"
+    },
+    "metricHints": {
+      "projects": "{{base}} base + {{linked}} linked",
+      "equipment": "{{count}} retired",
+      "templates": "{{count}} categories",
+      "workOrders": "{{count}} active"
     }
   },
   "delete": {
@@ -105,6 +115,11 @@
       "dimensions": "Principal dimensions"
     }
   },
+  "profile": {
+    "archive": "Vessel profile",
+    "archiveDescription": "Read-only registry and principal specification fields from the ship record.",
+    "age": "Age"
+  },
   "equipment": {
     "title": "Equipment inventory",
     "create": "Add equipment",
@@ -127,6 +142,7 @@
       "name": "Name",
       "category": "Category",
       "manufacturer": "Manufacturer",
+      "manufacturerModel": "Manufacturer / model",
       "model": "Model",
       "serialNumber": "Serial number",
       "location": "Location",
@@ -141,6 +157,7 @@
   "maintenance": {
     "template": {
       "title": "Ship maintenance templates",
+      "shortTitle": "Templates",
       "create": "Create template",
       "edit": "Edit template",
       "delete": "Delete template",
@@ -164,6 +181,7 @@
     },
     "workOrder": {
       "title": "Maintenance work orders",
+      "shortTitle": "Work orders",
       "create": "Open work order from template",
       "createTitle": "Open work order",
       "createDescription": "Creates a project issue in the ship's base project and links it to the selected ship template.",

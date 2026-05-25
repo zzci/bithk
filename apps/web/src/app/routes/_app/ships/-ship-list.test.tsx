@@ -33,7 +33,31 @@ afterEach(() => {
 function listPayload(stage = "design") {
   return {
     success: true,
-    data: [{ id: "s1", name: "Serenity", code: "HULL-1", status: "active", lifecycleStage: stage }],
+    data: [{
+      id: "s1",
+      name: "Serenity",
+      code: "HULL-1",
+      status: "active",
+      lifecycleStage: stage,
+      baseProjectId: "p1",
+      model: "Container 300",
+      builder: "North Dock",
+      buildYear: 2014,
+      lengthOverall: 299,
+      beam: 40,
+      draft: 14.5,
+      grossTonnage: 95500,
+      imoNumber: "9876543",
+      mmsi: "413258900",
+      callSign: "BHQO5",
+      flagState: "Panama",
+      registryPort: "Shanghai",
+      ownerName: "Atlas Marine",
+      description: null,
+      creatorId: "u1",
+      version: 1,
+      updatedAt: "2026-05-25T00:00:00.000Z",
+    }],
     meta: { total: 1, page: 1, limit: 20 },
   };
 }
@@ -45,6 +69,8 @@ describe("shipsListPage", () => {
     expect(screen.getByRole("heading", { name: "Ships" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     expect(screen.getByText("HULL-1")).toBeInTheDocument();
+    expect(screen.getByText("9876543")).toBeInTheDocument();
+    expect(screen.getByText("Shanghai")).toBeInTheDocument();
   });
 
   it("hides the create entry for non-admins", async () => {
@@ -69,6 +95,7 @@ describe("shipsListPage", () => {
     expect(screen.getByText("Total ships")).toBeInTheDocument();
     expect(screen.getByText("In maintenance")).toBeInTheDocument();
     expect(screen.getByText("Build / sea trial")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /All 1/ })).toBeInTheDocument();
   });
 
   it("filters the loaded ships by the search box", async () => {
@@ -91,7 +118,7 @@ describe("shipsListPage", () => {
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: "In service" }));
+    await userEvent.click(screen.getByRole("button", { name: /In service/ }));
     await waitFor(() => {
       const filtered = fetchMock.mock.calls.find(c => String(c[0]).includes("lifecycleStage=in_service"));
       expect(filtered).toBeDefined();

@@ -7,12 +7,13 @@
 //
 // Reserved order slots (leave gaps so new tabs slot in cleanly):
 //   10  Overview     — this file
-//   20  Equipment    — T5b: add { value: "equipment", labelKey: "tabs.equipment", order: 20, render: … }
+//   20  Profile      — full read-only registry/spec fields
+//   30  Equipment    — T5b: add { value: "equipment", labelKey: "tabs.equipment", order: 30, render: … }
 //                      backed by a new `-ship-equipment-tab.tsx`
-//   30  Maintenance  — T5b: add { value: "maintenance", labelKey: "tabs.maintenance", order: 30, render: … }
+//   40  Maintenance  — T5b: add { value: "maintenance", labelKey: "tabs.maintenance", order: 40, render: … }
 //                      backed by a new `-ship-maintenance-tab.tsx`
-//   40  Projects     — this file
-//   50  Files        — this file
+//   50  Projects     — this file
+//   60  Files        — this file
 //
 // Contract for new tabs:
 //   - `value`     stable id used for the Tabs value + React key (also the
@@ -31,6 +32,7 @@ import { ShipEquipmentTab } from "./-ship-equipment-tab";
 import { ShipFilesTab } from "./-ship-files-tab";
 import { ShipMaintenanceTab } from "./-ship-maintenance-tab";
 import { ShipOverviewTab } from "./-ship-overview-tab";
+import { ShipProfileTab } from "./-ship-profile-tab";
 import { ShipProjectsTab } from "./-ship-projects-tab";
 
 export interface ShipTabContext {
@@ -55,27 +57,33 @@ export const SHIP_TABS: readonly ShipTabDefinition[] = [
     render: ctx => <ShipOverviewTab ship={ctx.ship} canManage={ctx.canManage} />,
   },
   {
+    value: "profile",
+    labelKey: "tabs.profile",
+    order: 20,
+    render: ctx => <ShipProfileTab ship={ctx.ship} />,
+  },
+  {
     value: "equipment",
     labelKey: "tabs.equipment",
-    order: 20,
+    order: 30,
     render: ctx => <ShipEquipmentTab ship={ctx.ship} canManage={ctx.canManage} />,
   },
   {
     value: "maintenance",
     labelKey: "tabs.maintenance",
-    order: 30,
+    order: 40,
     render: ctx => <ShipMaintenanceTab ship={ctx.ship} canManage={ctx.canManage} />,
   },
   {
     value: "projects",
     labelKey: "tabs.projects",
-    order: 40,
+    order: 50,
     render: ctx => <ShipProjectsTab ship={ctx.ship} canManage={ctx.canManage} />,
   },
   {
     value: "files",
     labelKey: "tabs.files",
-    order: 50,
+    order: 60,
     render: ctx => <ShipFilesTab ship={ctx.ship} />,
   },
 ];

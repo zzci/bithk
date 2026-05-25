@@ -31,7 +31,7 @@ function equipmentList() {
     serialNumber: "SN-1",
     location: "Engine room",
     status: "active",
-    note: null,
+    note: "Cylinder liner overhaul in progress.",
     installedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -61,6 +61,7 @@ describe("shipEquipmentTab", () => {
 
     await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
     expect(screen.getByText("Engine room")).toBeInTheDocument();
+    expect(screen.getByText("Cylinder liner overhaul in progress.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add equipment" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit equipment" })).not.toBeInTheDocument();
   });

@@ -17,6 +17,9 @@
       "maintenance": "维护中",
       "buildingTrial": "建造 / 海试",
       "inService": "服役中"
+    },
+    "card": {
+      "ageValue": "{{count}} 年"
     }
   },
   "status": {
@@ -33,6 +36,7 @@
   },
   "tabs": {
     "overview": "概览",
+    "profile": "船体详情",
     "equipment": "设备",
     "maintenance": "维护",
     "projects": "项目",
@@ -48,6 +52,12 @@
       "equipment": "设备",
       "templates": "模板",
       "workOrders": "工单"
+    },
+    "metricHints": {
+      "projects": "{{base}} 个基础 + {{linked}} 个关联",
+      "equipment": "{{count}} 项退役",
+      "templates": "{{count}} 个分类",
+      "workOrders": "{{count}} 个进行中"
     }
   },
   "delete": {
@@ -105,6 +115,11 @@
       "dimensions": "主尺度"
     }
   },
+  "profile": {
+    "archive": "船体详情",
+    "archiveDescription": "来自船舶记录的只读登记信息与主尺度字段。",
+    "age": "船龄"
+  },
   "equipment": {
     "title": "设备清单",
     "create": "添加设备",
@@ -127,6 +142,7 @@
       "name": "名称",
       "category": "分类",
       "manufacturer": "制造商",
+      "manufacturerModel": "制造商 / 型号",
       "model": "型号",
       "serialNumber": "序列号",
       "location": "位置",
@@ -141,6 +157,7 @@
   "maintenance": {
     "template": {
       "title": "船舶维护模板",
+      "shortTitle": "模板",
       "create": "新建模板",
       "edit": "编辑模板",
       "delete": "删除模板",
@@ -164,6 +181,7 @@
     },
     "workOrder": {
       "title": "维护工单",
+      "shortTitle": "工单",
       "create": "从模板开工单",
       "createTitle": "开维护工单",
       "createDescription": "在船舶基础项目中创建项目事项，并关联所选船舶模板。",

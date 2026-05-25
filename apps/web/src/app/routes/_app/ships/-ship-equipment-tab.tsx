@@ -1,5 +1,5 @@
 import type { EquipmentInput, EquipmentStatus, ShipEquipmentView, ShipView } from "@/shared/lib/api/ships";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Package, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -211,11 +211,11 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
             <TableRow className="border-0">
               <TableHead>{t("equipment.field.name")}</TableHead>
               <TableHead>{t("equipment.field.category")}</TableHead>
-              <TableHead>{t("equipment.field.manufacturer")}</TableHead>
-              <TableHead>{t("equipment.field.model")}</TableHead>
+              <TableHead>{t("equipment.field.manufacturerModel")}</TableHead>
               <TableHead>{t("equipment.field.serialNumber")}</TableHead>
               <TableHead>{t("equipment.field.location")}</TableHead>
               <TableHead>{t("equipment.field.status")}</TableHead>
+              <TableHead>{t("equipment.field.note")}</TableHead>
               {canManage && <TableHead className="w-28">{t("equipment.actions")}</TableHead>}
             </TableRow>
           </TableHeader>
@@ -226,8 +226,17 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                 ? (
                     <TableRow>
                       <TableCell colSpan={colCount} className="h-24 text-center">
-                        <p className="text-muted-foreground">{t("equipment.empty")}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{t("equipment.emptyHint")}</p>
+                        <div className="flex flex-col items-center justify-center gap-2 py-8">
+                          <Package className="size-8 text-muted-foreground" aria-hidden="true" />
+                          <p className="font-medium">{t("equipment.empty")}</p>
+                          <p className="max-w-sm text-xs text-muted-foreground">{t("equipment.emptyHint")}</p>
+                          {canManage && (
+                            <Button size="sm" onClick={openCreate}>
+                              <Plus className="mr-1 size-4" />
+                              {t("equipment.create")}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -237,14 +246,23 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                       <TableRow key={row.id} className="border-0">
                         <TableCell className="font-medium">{row.name}</TableCell>
                         <TableCell>{row.category || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
-                        <TableCell>{row.manufacturer || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
-                        <TableCell>{row.model || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
+                        <TableCell>
+                          <div className="min-w-32">
+                            <p>{row.manufacturer || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</p>
+                            {row.model && <p className="font-mono text-xs text-muted-foreground">{row.model}</p>}
+                          </div>
+                        </TableCell>
                         <TableCell>{row.serialNumber || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
                         <TableCell>{row.location || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
                         <TableCell>
                           <Badge variant={row.status === "active" ? "default" : "secondary"} className="text-xs">
                             {t(`equipment.status.${row.status}` as const)}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-48">
+                          <span className="line-clamp-2 text-xs text-muted-foreground">
+                            {row.note || t("overview.notSet")}
+                          </span>
                         </TableCell>
                         {canManage && (
                           <TableCell>

@@ -2,7 +2,7 @@
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipLifecycleStage, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Anchor, Plus, Search } from "lucide-react";
+import { Anchor, Calendar, Gauge, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -21,6 +21,8 @@ export const Route = createLazyFileRoute("/_app/ships/")({
 });
 
 const STAGE_ALL = "__all__";
+const CURRENT_YEAR = new Date().getUTCFullYear();
+const SHIP_CARD_PORTHOLES = ["a", "b", "c", "d", "e", "f"] as const;
 
 /** Fleet-wide count for a lifecycle stage, read from the list endpoint's meta. */
 function useStageCount(stage?: ShipLifecycleStage): number | undefined {
@@ -46,10 +48,12 @@ export function ShipsListPage() {
   // Fleet KPIs: each is the `meta.total` of a stage-scoped list query, so the
   // numbers are accurate across pages rather than just the visible slice.
   const totalCount = useStageCount();
-  const maintenanceCount = useStageCount("maintenance");
+  const designCount = useStageCount("design");
   const buildingCount = useStageCount("building");
   const seaTrialCount = useStageCount("sea_trial");
   const inServiceCount = useStageCount("in_service");
+  const maintenanceCount = useStageCount("maintenance");
+  const decommissionedCount = useStageCount("decommissioned");
   const buildTrialCount
     = buildingCount === undefined && seaTrialCount === undefined
       ? undefined
@@ -79,6 +83,15 @@ export function ShipsListPage() {
   };
 
   const kpi = (value: number | undefined) => (value === undefined ? "—" : value);
+  const stageCounts: Record<string, number | undefined> = {
+    [STAGE_ALL]: totalCount,
+    design: designCount,
+    building: buildingCount,
+    sea_trial: seaTrialCount,
+    in_service: inServiceCount,
+    maintenance: maintenanceCount,
+    decommissioned: decommissionedCount,
+  };
 
   return (
     <div className="space-y-6 rounded-2xl bg-background p-1 md:p-3">
@@ -110,21 +123,28 @@ export function ShipsListPage() {
           {[
             { key: STAGE_ALL, label: t("list.stageAll") },
             ...SHIP_LIFECYCLE_STAGES.map(s => ({ key: s, label: t(`lifecycle.${s}` as const) })),
-          ].map(opt => (
-            <Button
-              key={opt.key}
-              size="sm"
-              variant={stage === opt.key ? "default" : "outline"}
-              className="h-8 rounded-full"
-              aria-pressed={stage === opt.key}
-              onClick={() => {
-                setStage(opt.key);
-                setPage(1);
-              }}
-            >
-              {opt.label}
-            </Button>
-          ))}
+          ].map((opt) => {
+            const count = stageCounts[opt.key];
+            return (
+              <Button
+                key={opt.key}
+                size="sm"
+                variant={stage === opt.key ? "default" : "outline"}
+                className="h-8 rounded-full"
+                aria-pressed={stage === opt.key}
+                aria-label={count === undefined ? opt.label : `${opt.label} ${count}`}
+                onClick={() => {
+                  setStage(opt.key);
+                  setPage(1);
+                }}
+              >
+                {opt.label}
+                {count !== undefined && (
+                  <span className="ml-1 rounded-full bg-background/60 px-1.5 text-[11px] tabular-nums">{count}</span>
+                )}
+              </Button>
+            );
+          })}
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -192,40 +212,74 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
     <button
       type="button"
       onClick={onOpen}
-      className="flex flex-col gap-3 rounded-xl bg-card p-4 text-left ring-1 ring-foreground/5 transition-all hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="group overflow-hidden rounded-xl border bg-card text-left ring-1 ring-foreground/5 transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 space-y-1">
-          <p className="truncate text-base leading-snug font-medium">{ship.name}</p>
-          <p className="font-mono text-xs text-muted-foreground">{ship.code}</p>
-        </div>
-        <Badge variant="outline" className="shrink-0 text-xs">
+      <div className="relative border-b bg-muted/30 p-3">
+        <ShipIllustration name={ship.name} />
+        <Badge variant="secondary" className="absolute top-3 left-3 text-xs shadow-sm">
           {t(`lifecycle.${ship.lifecycleStage}` as const)}
         </Badge>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1">
-        {specs.map(spec => (
-          <div key={spec.label} className="min-w-0">
-            <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{spec.label}</dt>
-            <dd className="truncate font-mono text-xs">
-              {spec.value ?? <span className="text-muted-foreground">{t("overview.notSet")}</span>}
-            </dd>
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 space-y-1">
+            <p className="truncate text-base leading-snug font-medium">{ship.name}</p>
+            <p className="font-mono text-xs text-muted-foreground">{ship.code}</p>
           </div>
-        ))}
-      </dl>
+          {ship.status === "archived" && (
+            <Badge variant="outline" className="shrink-0 text-xs">{t("status.archived")}</Badge>
+          )}
+        </div>
 
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        {ship.registryPort && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-dashed pt-3">
+          {specs.map(spec => (
+            <div key={spec.label} className="min-w-0">
+              <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{spec.label}</dt>
+              <dd className="truncate font-mono text-xs">
+                {spec.value ?? <span className="text-muted-foreground">{t("overview.notSet")}</span>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-dashed pt-3">
           <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-            <Anchor className="size-3" />
-            {ship.registryPort}
+            <ShipIcon className="size-3" />
+            {ship.flagState ?? t("overview.notSet")}
           </span>
-        )}
-        {ship.status === "archived" && (
-          <Badge variant="secondary" className="text-xs">{t("status.archived")}</Badge>
-        )}
+          {ship.registryPort && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+              <MapPin className="size-3" />
+              {ship.registryPort}
+            </span>
+          )}
+          {ship.buildYear && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+              <Calendar className="size-3" />
+              {t("list.card.ageValue", { count: Math.max(0, CURRENT_YEAR - ship.buildYear) })}
+            </span>
+          )}
+        </div>
       </div>
     </button>
+  );
+}
+
+function ShipIllustration({ name }: { readonly name: string }) {
+  return (
+    <div className="relative h-36 overflow-hidden rounded-lg border bg-background">
+      <div className="absolute inset-x-0 bottom-0 h-12 bg-primary/10" />
+      <div className="absolute inset-x-6 bottom-8 h-10 rounded-b-full bg-primary/15" />
+      <div className="absolute bottom-8 left-1/2 h-9 w-2/3 -translate-x-1/2 rounded-b-full bg-foreground/85 transition-transform group-hover:scale-[1.02]" />
+      <div className="absolute bottom-[4.25rem] left-1/2 h-8 w-20 -translate-x-1/2 rounded-t-md bg-foreground/75" />
+      <div className="absolute bottom-[6.25rem] left-1/2 h-9 w-1 -translate-x-1/2 bg-foreground/70" />
+      <div className="absolute right-5 bottom-5 left-5 flex justify-between text-primary/25">
+        {SHIP_CARD_PORTHOLES.map(key => (
+          <Gauge key={`${name}-${key}`} className="size-4" aria-hidden="true" />
+        ))}
+      </div>
+      <Anchor className="absolute right-3 bottom-3 size-4 text-primary/50" aria-hidden="true" />
+    </div>
   );
 }

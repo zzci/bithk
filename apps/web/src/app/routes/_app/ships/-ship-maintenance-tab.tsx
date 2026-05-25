@@ -46,6 +46,7 @@ import {
   useUpdateShipMaintenanceTemplate,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
+import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { MaintenanceTemplateReference } from "./-maintenance-template-reference";
 
@@ -69,6 +70,8 @@ const EMPTY_TEMPLATE_FORM: TemplateFormState = {
 };
 
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
+const MAINTENANCE_SECTIONS = ["templates", "workOrders"] as const;
+type MaintenanceSection = typeof MAINTENANCE_SECTIONS[number];
 
 function formFromTemplate(template: MaintenanceTemplateView | null): TemplateFormState {
   if (!template)
@@ -131,6 +134,7 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
   const [copyGlobalId, setCopyGlobalId] = useState("");
   const [workOrderOpen, setWorkOrderOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ShipMaintenanceOrderView | null>(null);
+  const [section, setSection] = useState<MaintenanceSection>("templates");
 
   const templates = useMemo(() => templatesQuery.data ?? [], [templatesQuery.data]);
   const orders = ordersQuery.data ?? [];
@@ -177,144 +181,174 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
   };
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-medium text-muted-foreground">{t("maintenance.template.title")}</h2>
-          {canManage && (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-lg border bg-muted/30 p-1">
+          {MAINTENANCE_SECTIONS.map((item) => {
+            const active = section === item;
+            const count = item === "templates" ? templates.length : orders.length;
+            const label = item === "templates" ? t("maintenance.template.shortTitle") : t("maintenance.workOrder.shortTitle");
+            return (
+              <button
+                key={item}
+                type="button"
+                className={cn(
+                  "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm text-muted-foreground transition-colors",
+                  active && "bg-background text-foreground shadow-sm",
+                )}
+                aria-pressed={active}
+                aria-label={`${label} ${count}`}
+                onClick={() => setSection(item)}
+              >
+                {label}
+                <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {section === "templates" && canManage && (
             <Button size="sm" onClick={openCreateTemplate}>
               <Plus className="mr-1 size-4" />
               {t("maintenance.template.create")}
             </Button>
           )}
-        </div>
-
-        {canManage && isAdmin && (
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-56 flex-1 space-y-1.5">
-              <Label>{t("maintenance.template.copyFromGlobal")}</Label>
-              <Select value={copyGlobalId} onValueChange={v => v !== null && setCopyGlobalId(v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: string) => globalTemplatesQuery.data?.find(template => template.id === v)?.name ?? t("maintenance.template.copyPlaceholder")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {(globalTemplatesQuery.data ?? []).map(template => (
-                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button variant="outline" onClick={copyFromGlobal} disabled={!copyGlobalId || createTemplate.isPending || globalTemplatesQuery.isLoading}>
-              {t("maintenance.template.copy")}
-            </Button>
-          </div>
-        )}
-
-        {templatesQuery.error && <ErrorBanner message={errorMessage(templatesQuery.error, t("common:common.error.loadFailed"))} />}
-        {globalTemplatesQuery.error && <ErrorBanner message={errorMessage(globalTemplatesQuery.error, t("common:common.error.loadFailed"))} />}
-        {createTemplate.error && <ErrorBanner message={errorMessage(createTemplate.error, t("common:common.error.operationFailed"))} />}
-        {updateTemplate.error && <ErrorBanner message={errorMessage(updateTemplate.error, t("common:common.error.saveFailed"))} />}
-        {deleteTemplate.error && <ErrorBanner message={errorMessage(deleteTemplate.error, t("common:common.error.deleteFailed"))} />}
-
-        {templatesQuery.isLoading
-          ? <p className="text-sm text-muted-foreground">{t("maintenance.template.loading")}</p>
-          : templates.length === 0
-            ? <p className="text-sm text-muted-foreground">{t("maintenance.template.empty")}</p>
-            : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {templates.map(template => (
-                    <div key={template.id} className="flex flex-col gap-2 rounded-lg bg-card p-3 shadow-sm">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <span className="font-medium">{template.name}</span>
-                          {template.category && <Badge variant="outline" className="text-xs">{template.category}</Badge>}
-                        </div>
-                        {canManage && (
-                          <div className="flex shrink-0 gap-1">
-                            <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.edit")} onClick={() => openEditTemplate(template)}>
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.delete")} onClick={() => setDeleteTemplateTarget(template)}>
-                              <Trash2 className="size-4 text-destructive" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {preview(template.checklist) || t("maintenance.template.noChecklist")}
-                      </p>
-                      {template.precautions && <p className="text-xs text-muted-foreground">{preview(template.precautions)}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-medium text-muted-foreground">{t("maintenance.workOrder.title")}</h2>
-          {canManage && (
+          {section === "workOrders" && canManage && (
             <Button size="sm" onClick={() => setWorkOrderOpen(true)} disabled={!ship.baseProjectId || templates.length === 0}>
               <FileText className="mr-1 size-4" />
               {t("maintenance.workOrder.create")}
             </Button>
           )}
         </div>
+      </div>
 
-        {!ship.baseProjectId && <p className="text-sm text-muted-foreground">{t("maintenance.workOrder.noBaseProject")}</p>}
-        {ordersQuery.error && <ErrorBanner message={errorMessage(ordersQuery.error, t("common:common.error.loadFailed"))} />}
-        {createIssue.error && <ErrorBanner message={errorMessage(createIssue.error, t("common:common.error.operationFailed"))} />}
+      {templatesQuery.error && <ErrorBanner message={errorMessage(templatesQuery.error, t("common:common.error.loadFailed"))} />}
+      {globalTemplatesQuery.error && <ErrorBanner message={errorMessage(globalTemplatesQuery.error, t("common:common.error.loadFailed"))} />}
+      {createTemplate.error && <ErrorBanner message={errorMessage(createTemplate.error, t("common:common.error.operationFailed"))} />}
+      {updateTemplate.error && <ErrorBanner message={errorMessage(updateTemplate.error, t("common:common.error.saveFailed"))} />}
+      {deleteTemplate.error && <ErrorBanner message={errorMessage(deleteTemplate.error, t("common:common.error.deleteFailed"))} />}
+      {ordersQuery.error && <ErrorBanner message={errorMessage(ordersQuery.error, t("common:common.error.loadFailed"))} />}
+      {createIssue.error && <ErrorBanner message={errorMessage(createIssue.error, t("common:common.error.operationFailed"))} />}
 
-        <div className="overflow-x-auto rounded-xl bg-card shadow-sm">
-          <Table>
-            <TableHeader className="[&_tr]:border-0">
-              <TableRow className="border-0">
-                <TableHead>{t("maintenance.workOrder.field.title")}</TableHead>
-                <TableHead>{t("maintenance.workOrder.field.template")}</TableHead>
-                <TableHead>{t("maintenance.workOrder.field.status")}</TableHead>
-                <TableHead className="w-24">{t("maintenance.workOrder.field.detail")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="[&_tr]:border-0">
-              {ordersQuery.isLoading
-                ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("maintenance.workOrder.loading")}</TableCell></TableRow>
-                : orders.length === 0
-                  ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("maintenance.workOrder.empty")}</TableCell></TableRow>
-                  : orders.map(order => (
-                      <TableRow key={`${order.id}-${order.referenceId}`} className="border-0">
-                        <TableCell className="font-medium">{order.title}</TableCell>
-                        <TableCell>{templatesById.get(order.templateRefId)?.name ?? t("maintenance.reference.missingShort")}</TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_VARIANTS[order.status] ?? "outline"} className="text-xs">
-                            {t(`projects:issues.status.${order.status}` as const)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(order)}>
-                            {t("maintenance.workOrder.view")}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+      {section === "templates" && (
+        <section className="space-y-4">
+          {canManage && isAdmin && (
+            <div className="flex flex-wrap items-end gap-2 rounded-xl border bg-card p-3">
+              <div className="min-w-56 flex-1 space-y-1.5">
+                <Label>{t("maintenance.template.copyFromGlobal")}</Label>
+                <Select value={copyGlobalId} onValueChange={v => v !== null && setCopyGlobalId(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(v: string) => globalTemplatesQuery.data?.find(template => template.id === v)?.name ?? t("maintenance.template.copyPlaceholder")}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(globalTemplatesQuery.data ?? []).map(template => (
+                      <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
                     ))}
-            </TableBody>
-          </Table>
-        </div>
-
-        {selectedOrder && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-medium">{selectedOrder.title}</h3>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(null)}>{t("common:common.close")}</Button>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" onClick={copyFromGlobal} disabled={!copyGlobalId || createTemplate.isPending || globalTemplatesQuery.isLoading}>
+                {t("maintenance.template.copy")}
+              </Button>
             </div>
-            {selectedReferencesQuery.error && <ErrorBanner message={errorMessage(selectedReferencesQuery.error, t("common:common.error.loadFailed"))} />}
-            {selectedReferencesQuery.isLoading
-              ? <p className="text-sm text-muted-foreground">{t("common:common.loading")}</p>
-              : <MaintenanceTemplateReference template={selectedReference?.template ?? null} />}
+          )}
+
+          {templatesQuery.isLoading
+            ? <p className="text-sm text-muted-foreground">{t("maintenance.template.loading")}</p>
+            : templates.length === 0
+              ? <p className="text-sm text-muted-foreground">{t("maintenance.template.empty")}</p>
+              : (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {templates.map(template => (
+                      <div key={template.id} className="flex flex-col gap-3 rounded-lg border bg-card p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="font-medium">{template.name}</span>
+                            {template.category && <Badge variant="outline" className="text-xs">{template.category}</Badge>}
+                          </div>
+                          {canManage && (
+                            <div className="flex shrink-0 gap-1">
+                              <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.edit")} onClick={() => openEditTemplate(template)}>
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.delete")} onClick={() => setDeleteTemplateTarget(template)}>
+                                <Trash2 className="size-4 text-destructive" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="grid gap-2 border-t border-dashed pt-3 text-xs sm:grid-cols-2">
+                          <div>
+                            <p className="font-medium text-muted-foreground">{t("maintenance.template.field.checklist")}</p>
+                            <p className="mt-1 line-clamp-2 text-sm">{preview(template.checklist) || t("maintenance.template.noChecklist")}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium text-muted-foreground">{t("maintenance.template.field.precautions")}</p>
+                            <p className="mt-1 line-clamp-2 text-sm">{preview(template.precautions) || t("overview.notSet")}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+        </section>
+      )}
+
+      {section === "workOrders" && (
+        <section className="space-y-4">
+          {!ship.baseProjectId && <p className="text-sm text-muted-foreground">{t("maintenance.workOrder.noBaseProject")}</p>}
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("maintenance.workOrder.field.title")}</TableHead>
+                  <TableHead>{t("maintenance.workOrder.field.template")}</TableHead>
+                  <TableHead>{t("maintenance.workOrder.field.status")}</TableHead>
+                  <TableHead className="w-24">{t("maintenance.workOrder.field.detail")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ordersQuery.isLoading
+                  ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("maintenance.workOrder.loading")}</TableCell></TableRow>
+                  : orders.length === 0
+                    ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("maintenance.workOrder.empty")}</TableCell></TableRow>
+                    : orders.map(order => (
+                        <TableRow key={`${order.id}-${order.referenceId}`}>
+                          <TableCell className="font-medium">{order.title}</TableCell>
+                          <TableCell>{templatesById.get(order.templateRefId)?.name ?? t("maintenance.reference.missingShort")}</TableCell>
+                          <TableCell>
+                            <Badge variant={STATUS_VARIANTS[order.status] ?? "outline"} className="text-xs">
+                              {t(`projects:issues.status.${order.status}` as const)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(order)}>
+                              {t("maintenance.workOrder.view")}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+              </TableBody>
+            </Table>
           </div>
-        )}
-      </section>
+
+          {selectedOrder && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-medium">{selectedOrder.title}</h3>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(null)}>{t("common:common.close")}</Button>
+              </div>
+              {selectedReferencesQuery.error && <ErrorBanner message={errorMessage(selectedReferencesQuery.error, t("common:common.error.loadFailed"))} />}
+              {selectedReferencesQuery.isLoading
+                ? <p className="text-sm text-muted-foreground">{t("common:common.loading")}</p>
+                : <MaintenanceTemplateReference template={selectedReference?.template ?? null} />}
+            </div>
+          )}
+        </section>
+      )}
 
       {canManage && (
         <>
