@@ -4,6 +4,7 @@ import i18n from "i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
 import { storageKey } from "@/shared/lib/branding";
+import { toIntlLocale } from "@/shared/lib/locale";
 
 // Lazy-load each namespace as its own chunk via Vite's `import.meta.glob`.
 // Vite resolves the pattern at build time, so each `(locale, namespace)` ships
@@ -96,14 +97,14 @@ const guardedLocalStorageDetector: CustomDetector = {
 const languageDetector = new LanguageDetector();
 languageDetector.addDetector(guardedLocalStorageDetector);
 
-// Map i18next language codes to BCP-47 codes for the document `lang`
+// Map i18next language codes to safe BCP-47 codes for the document `lang`
 // attribute. Only locales that need a country-specific mapping live here
-// (e.g. `zh` -> `zh-CN`); every other locale code is returned as-is, so
-// adding `fr`, `de`, etc. requires no change to this function.
+// (e.g. `zh` -> `zh-CN`); every other locale code is canonicalized.
 function toBcp47(lng: string): string {
-  if (lng.toLowerCase().startsWith("zh"))
+  const locale = toIntlLocale(lng, i18n.resolvedLanguage || "en");
+  if (locale.toLowerCase().startsWith("zh"))
     return "zh-CN";
-  return lng;
+  return locale;
 }
 
 function syncDocumentLang(lng: string): void {

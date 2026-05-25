@@ -3,9 +3,10 @@
 // still sees Chinese dates.
 
 import i18n from "@/app/i18n";
+import { toIntlLocale } from "@/shared/lib/locale";
 
 function lang(): string {
-  return i18n?.language || "en";
+  return toIntlLocale(i18n?.language, i18n?.resolvedLanguage || "en");
 }
 
 export function formatDate(value: Date | string | number): string {
