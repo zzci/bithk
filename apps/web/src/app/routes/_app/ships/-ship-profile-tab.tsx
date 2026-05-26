@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import type { ShipView } from "@/shared/lib/api/ships";
 import { Anchor, Calendar, Fingerprint, Ruler } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/shared/components/ui/badge";
 import { Card, CardContent } from "@/shared/components/ui/card";
+import { LifecycleBadge, ShipStatusBadge } from "./-ship-visuals";
 
 interface ShipProfileTabProps {
   readonly ship: ShipView;
@@ -27,7 +27,7 @@ export function ShipProfileTab({ ship }: ShipProfileTabProps) {
               <h2 className="text-sm font-medium">{t("profile.archive")}</h2>
               <p className="mt-1 text-xs text-muted-foreground">{t("profile.archiveDescription")}</p>
             </div>
-            <Badge variant="outline" className="text-xs">{t(`status.${ship.status}` as const)}</Badge>
+            <ShipStatusBadge status={ship.status} />
           </div>
 
           <ProfileSection title={t("overview.section.identity")}>
@@ -41,7 +41,7 @@ export function ShipProfileTab({ ship }: ShipProfileTabProps) {
 
           <ProfileSection title={t("overview.section.classification")}>
             <ProfileField label={t("field.lifecycleStage")}>
-              <Badge variant="secondary" className="text-xs">{t(`lifecycle.${ship.lifecycleStage}` as const)}</Badge>
+              <LifecycleBadge stage={ship.lifecycleStage} icon />
             </ProfileField>
             <ProfileField label={t("field.builder")}>{text(ship.builder)}</ProfileField>
             <ProfileField label={t("field.model")}>{text(ship.model)}</ProfileField>

@@ -43,15 +43,9 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useCreateProjectIssue, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { buildMemberLabelMap } from "./-member-helpers";
 import { StatCard, StatStrip } from "./-project-stats";
-
-const STATUS_VARIANTS: Record<IssueStatus, "default" | "outline" | "secondary"> = {
-  open: "outline",
-  in_progress: "default",
-  done: "secondary",
-  cancelled: "secondary",
-};
 
 const PRIORITY_VARIANTS: Record<IssuePriority, "default" | "outline" | "secondary" | "destructive"> = {
   low: "secondary",
@@ -317,7 +311,7 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
                               </Button>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={STATUS_VARIANTS[issue.status]} className="text-xs">
+                              <Badge variant="secondary" className={`text-xs ${ISSUE_STATUS_BADGE[issue.status]}`}>
                                 {t(`issues.status.${issue.status}` as const)}
                               </Badge>
                             </TableCell>

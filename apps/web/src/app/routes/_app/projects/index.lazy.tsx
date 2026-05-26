@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import type { CreateProjectInput, ProjectStatus, ProjectView } from "@/shared/lib/api/projects";
+import type { CreateProjectInput, ProjectView } from "@/shared/lib/api/projects";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Plus,
@@ -20,6 +20,7 @@ import { Input } from "@/shared/components/ui/input";
 import { useCreateProject, useProjects, useTags } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDate } from "@/shared/lib/format";
+import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ProjectFormDialog } from "./-project-form-dialog";
 import { projectsFilterToQuery } from "./-project-form-logic";
@@ -27,11 +28,6 @@ import { projectsFilterToQuery } from "./-project-form-logic";
 export const Route = createLazyFileRoute("/_app/projects/")({
   component: ProjectsListPage,
 });
-
-const STATUS_VARIANTS: Record<ProjectStatus, "default" | "outline" | "secondary"> = {
-  active: "default",
-  archived: "secondary",
-};
 
 function ProjectsListPage() {
   const { t } = useTranslation(["projects", "common"]);
@@ -195,7 +191,7 @@ function ProjectsGrid({
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="line-clamp-2">{project.name}</CardTitle>
-              <Badge variant={STATUS_VARIANTS[project.status]} className="shrink-0 text-xs">
+              <Badge variant="secondary" className={`shrink-0 text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
                 {t(`status.${project.status}` as const)}
               </Badge>
             </div>

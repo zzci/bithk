@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipLifecycleStage, ShipView } from "@/shared/lib/api/ships";
 import { useNavigate } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
+import { Check, ClipboardList, FolderKanban, Package, Pencil, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -29,9 +29,11 @@ import {
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
+import { ISSUE_STATUS_BADGE, LIFECYCLE_STYLES } from "./-ship-colors";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToUpdate } from "./-ship-form-logic";
 import { StatTile } from "./-ship-stats";
+import { LifecycleBadge, ShipStatusBadge } from "./-ship-visuals";
 
 interface ShipOverviewTabProps {
   readonly ship: ShipView;
@@ -39,6 +41,11 @@ interface ShipOverviewTabProps {
 }
 
 const ACTIVE_ORDER_STATUSES = new Set(["open", "in_progress"]);
+
+const PROJECT_STATUS_BADGE: Record<"active" | "archived", string> = {
+  active: "bg-success/10 text-success",
+  archived: "bg-muted text-muted-foreground",
+};
 
 function Card({ title, action, children }: { readonly title: string; readonly action?: ReactNode; readonly children: ReactNode }) {
   return (
@@ -90,6 +97,8 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [equipment, t]);
 
+  const equipmentCategoryMax = Math.max(1, ...equipmentCategories.map(([, count]) => count));
+
   const handleSubmit = (state: ShipFormState) => {
     updateShip.mutate(
       { id: ship.id, ...shipFormToUpdate(state) },
@@ -123,10 +132,10 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
 
           <ArchiveSection title={t("overview.section.classification")}>
             <Field label={t("field.lifecycleStage")}>
-              <Badge variant="outline" className="text-xs">{t(`lifecycle.${ship.lifecycleStage}` as const)}</Badge>
+              <LifecycleBadge stage={ship.lifecycleStage} icon />
             </Field>
             <Field label={t("field.status")}>
-              <Badge variant="outline" className="text-xs">{t(`status.${ship.status}` as const)}</Badge>
+              <ShipStatusBadge status={ship.status} />
             </Field>
             <Field label={t("field.builder")}>{text(ship.builder)}</Field>
             <Field label={t("field.model")}>{text(ship.model)}</Field>
@@ -153,9 +162,12 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
             : (
                 <ul className="space-y-2">
                   {activeOrders.slice(0, 5).map(order => (
-                    <li key={order.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
-                      <span className="min-w-0 truncate text-sm">{order.title}</span>
-                      <Badge variant="outline" className="shrink-0 text-xs">
+                    <li key={order.id} className="flex items-center gap-3 rounded-md border bg-muted/20 px-3 py-2">
+                      <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-maint/10 text-accent-maint [&>svg]:size-4">
+                        <Wrench />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{order.title}</span>
+                      <Badge variant="secondary" className={cn("shrink-0", ISSUE_STATUS_BADGE[order.status])}>
                         {t(`projects:issues.status.${order.status}` as const)}
                       </Badge>
                     </li>
@@ -168,10 +180,30 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
       <div className="space-y-4">
         <Card title={t("overview.quickStats")}>
           <div className="grid grid-cols-2 gap-3">
-            <StatTile label={t("detail.metrics.projects")} value={projects.length} />
-            <StatTile label={t("detail.metrics.equipment")} value={equipment.length} />
-            <StatTile label={t("detail.metrics.templates")} value={templates.length} />
-            <StatTile label={t("detail.metrics.workOrders")} value={orders.length} />
+            <StatTile
+              icon={<FolderKanban />}
+              accent="bg-accent-maint/10 text-accent-maint"
+              label={t("detail.metrics.projects")}
+              value={projects.length}
+            />
+            <StatTile
+              icon={<Package />}
+              accent="bg-success/10 text-success"
+              label={t("detail.metrics.equipment")}
+              value={equipment.length}
+            />
+            <StatTile
+              icon={<ClipboardList />}
+              accent="bg-info/10 text-info"
+              label={t("detail.metrics.templates")}
+              value={templates.length}
+            />
+            <StatTile
+              icon={<Wrench />}
+              accent="bg-warning/10 text-warning"
+              label={t("detail.metrics.workOrders")}
+              value={orders.length}
+            />
           </div>
         </Card>
 
@@ -190,10 +222,17 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
                       <button
                         type="button"
                         onClick={() => void navigate({ to: "/projects/$projectId", params: { projectId: project.id } })}
-                        className="flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                        className="flex w-full flex-col gap-1.5 rounded-md border bg-muted/20 px-3 py-2 text-left hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                       >
-                        <span className="min-w-0 truncate text-sm">{project.name}</span>
-                        {project.isBase && <Badge variant="secondary" className="shrink-0 text-xs">{t("projects.baseBadge")}</Badge>}
+                        <span className="min-w-0 truncate text-sm font-medium">{project.name}</span>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          {project.isBase && (
+                            <Badge variant="secondary" className="bg-primary/10 font-medium text-primary">{t("projects.baseBadge")}</Badge>
+                          )}
+                          <Badge variant="secondary" className={cn(PROJECT_STATUS_BADGE[project.status])}>
+                            {t(`projects:status.${project.status}` as const)}
+                          </Badge>
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -205,11 +244,19 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
           {equipmentCategories.length === 0
             ? <p className="text-sm text-muted-foreground">{t("overview.equipmentCategoriesEmpty")}</p>
             : (
-                <ul className="space-y-1.5">
+                <ul className="space-y-2.5">
                   {equipmentCategories.map(([category, count]) => (
-                    <li key={category} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="min-w-0 truncate">{category}</span>
-                      <span className="shrink-0 text-muted-foreground tabular-nums">{count}</span>
+                    <li key={category} className="space-y-1">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="min-w-0 truncate">{category}</span>
+                        <span className="shrink-0 font-medium tabular-nums">{count}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${Math.round((count / equipmentCategoryMax) * 100)}%` }}
+                        />
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -242,29 +289,43 @@ function ArchiveSection({ title, children }: { readonly title: string; readonly 
 }
 
 function LifecycleStepper({ current, t }: { readonly current: ShipLifecycleStage; readonly t: (key: string) => string }) {
-  const currentIndex = SHIP_LIFECYCLE_STAGES.indexOf(current);
+  // The "decommissioned" stage is an off-ramp, not a step on the build→service
+  // path, so the stepper renders the linear stages only.
+  const stages = SHIP_LIFECYCLE_STAGES.filter(stage => stage !== "decommissioned");
+  const currentIndex = stages.findIndex(stage => stage === current);
   return (
-    <ol className="flex flex-wrap gap-2">
-      {SHIP_LIFECYCLE_STAGES.map((stage, index) => {
+    <ol className="flex flex-wrap items-start gap-x-1 gap-y-3">
+      {stages.map((stage, index) => {
         const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "todo";
+        const style = LIFECYCLE_STYLES[stage];
         return (
-          <li
-            key={stage}
-            aria-current={state === "current" ? "step" : undefined}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs",
-              state === "current" && "border-primary bg-primary/10 font-medium text-primary",
-              state === "done" && "bg-muted/60 text-muted-foreground",
-              state === "todo" && "border-dashed text-muted-foreground",
+          <li key={stage} className="flex items-center gap-1">
+            <div
+              aria-current={state === "current" ? "step" : undefined}
+              className="flex w-[4.75rem] flex-col items-center gap-1.5 text-center"
+            >
+              <span
+                className={cn(
+                  "flex size-6 items-center justify-center rounded-full",
+                  state === "todo"
+                    ? "border-2 border-border bg-card"
+                    : cn("text-white", style.dot),
+                  state === "current" && cn("ring-4", style.ring),
+                )}
+              >
+                {state === "done" && <Check className="size-3.5" strokeWidth={3} />}
+                {state === "current" && <span className="size-1.5 rounded-full bg-white" />}
+              </span>
+              <span className={cn("text-xs font-medium", state === "todo" ? "text-muted-foreground" : "text-foreground")}>
+                {t(`lifecycle.${stage}`)}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {state === "done" ? t("overview.stepper.done") : state === "current" ? t("overview.stepper.current") : t("overview.stepper.todo")}
+              </span>
+            </div>
+            {index < stages.length - 1 && (
+              <span className={cn("mt-3 h-0.5 w-4 rounded-full", index < currentIndex ? "bg-success" : "bg-border")} />
             )}
-          >
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                state === "current" ? "bg-primary" : state === "done" ? "bg-muted-foreground" : "bg-border",
-              )}
-            />
-            {t(`lifecycle.${stage}`)}
           </li>
         );
       })}

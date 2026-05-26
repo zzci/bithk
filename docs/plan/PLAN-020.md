@@ -1,6 +1,6 @@
 # PLAN-020 Repeatable database seed script
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-05-25
 - **approvedAt**: 2026-05-25
 - **relatedTask**: CHORE-001
@@ -75,4 +75,11 @@ No schema, migration, or production-code changes.
 
 ## Annotations
 
-(pending approval)
+- 2026-05-25: Approved ("开始处理"). Implemented at `apps/api/scripts/seed.ts`
+  (not `scripts/seed.ts` as drafted) so the `@/` path alias resolves under the
+  api workspace, mirroring `apps/api/scripts/gen-api-docs.ts`.
+- 2026-05-25: `--fresh` wipe needed `PRAGMA defer_foreign_keys = ON` inside one
+  transaction — the migration's NO-ACTION `projects.ship_id` FK forms a delete
+  cycle with `ships.base_project_id`. Schema/migration drift noted in CHORE-001
+  for a possible follow-up; not fixed here (out of scope). Verified seed,
+  idempotent re-run, and reseed; typecheck + lint green.

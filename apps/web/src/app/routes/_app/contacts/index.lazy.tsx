@@ -264,10 +264,10 @@ export function ContactsListPage() {
                                   {contact.name}
                                 </Button>
                                 <div className="flex flex-wrap items-center gap-1">
-                                  <Badge variant={contact.visibility === "public" ? "secondary" : "outline"}>
+                                  <Badge variant="secondary" className={contact.visibility === "public" ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"}>
                                     {t(`visibility.${contact.visibility}` as const)}
                                   </Badge>
-                                  {contact.confidential && <Badge variant="outline">{t("field.confidential")}</Badge>}
+                                  {contact.confidential && <Badge variant="secondary" className="bg-warning/10 text-warning">{t("field.confidential")}</Badge>}
                                 </div>
                               </div>
                             </div>
@@ -482,10 +482,10 @@ function ContactDetailDrawer({
           <>
             <SheetHeader>
               <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant={contact.visibility === "public" ? "secondary" : "outline"}>
+                <Badge variant="secondary" className={contact.visibility === "public" ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"}>
                   {t(`visibility.${contact.visibility}` as const)}
                 </Badge>
-                {contact.confidential && <Badge variant="outline">{t("field.confidential")}</Badge>}
+                {contact.confidential && <Badge variant="secondary" className="bg-warning/10 text-warning">{t("field.confidential")}</Badge>}
               </div>
               <SheetTitle className="break-words text-lg">{contact.name}</SheetTitle>
               <SheetDescription className="sr-only">{contact.name}</SheetDescription>

@@ -41,6 +41,7 @@ import {
 } from "@/shared/components/ui/select";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
@@ -51,13 +52,6 @@ import {
 } from "./-project-issue-hooks";
 
 // ── Helpers ──
-
-export const statusVariants: Record<string, "default" | "outline" | "secondary"> = {
-  open: "outline",
-  in_progress: "default",
-  done: "secondary",
-  cancelled: "secondary",
-};
 
 export const priorityVariants: Record<string, "default" | "outline" | "secondary" | "destructive"> = {
   low: "secondary",
@@ -340,7 +334,7 @@ export function ProjectIssuePanel({
                 ? (
                     <Select value={issue.status} onValueChange={v => v !== null && patch({ status: v as typeof issue.status })}>
                       <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
-                        <Badge variant={statusVariants[issue.status]} className="cursor-pointer">
+                        <Badge variant="secondary" className={cn("cursor-pointer", ISSUE_STATUS_BADGE[issue.status])}>
                           {t(`status${statusKey(issue.status)}`)}
                         </Badge>
                       </SelectTrigger>
@@ -351,7 +345,7 @@ export function ProjectIssuePanel({
                       </SelectContent>
                     </Select>
                   )
-                : <Badge variant={statusVariants[issue.status]}>{t(`status${statusKey(issue.status)}`)}</Badge>}
+                : <Badge variant="secondary" className={ISSUE_STATUS_BADGE[issue.status]}>{t(`status${statusKey(issue.status)}`)}</Badge>}
 
               {permissions.canEditAll
                 ? (

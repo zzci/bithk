@@ -113,6 +113,11 @@
       "identity": "标识信息",
       "classification": "船型与生命周期",
       "dimensions": "主尺度"
+    },
+    "stepper": {
+      "done": "已完成",
+      "current": "当前阶段",
+      "todo": "待进入"
     }
   },
   "profile": {

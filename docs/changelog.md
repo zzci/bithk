@@ -56,6 +56,26 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Unified the app onto one global semantic color system (UI-010): `index.css`
+  gains dual-channel `success`/`warning`/`info` plus `accent-design`/
+  `accent-maint` tokens (blue `primary` unchanged), and `chart-1..5` were
+  refreshed to the shadcn official multi-hue palette. Cross-module status colors
+  now live in `shared/lib/status-colors.ts`; ship drops its hard-coded Tailwind
+  palette classes, and projects (status + issue badges) and contacts (visibility
+  + confidential) move off neutral-gray badges onto the shared tokens, so the
+  same status reads the same color everywhere. Recorded as decision 005 (local
+  extension to base-nova).
+- Ship detail page given a semantic color system (UI-009): a single
+  `-ship-colors.ts` map assigns each lifecycle stage its own hue (design violet,
+  building amber, sea-trial cyan, in-service emerald, maintenance indigo,
+  decommissioned slate) plus status-colored chips, consumed through a shared
+  `LifecycleBadge`/`ShipStatusBadge` and reused across the hero, overview,
+  profile, and ship list. The overview quick-stats and hero metrics gained
+  colored icon tiles, the lifecycle stepper colors each stage (done/current/
+  future states), upcoming-maintenance rows show a colored icon and a
+  status-colored badge, bound projects show status + base badges, and equipment
+  categories render proportional bars. Tailwind built-in palettes only — no
+  global theme tokens changed.
 - Ships, projects, and contacts modules normalized to the shared shadcn
   (base-nova) baseline (UI-008 / PLAN-021) so they match the rest of the app:
   removed the redundant `rounded-2xl bg-background` page wrapper and the

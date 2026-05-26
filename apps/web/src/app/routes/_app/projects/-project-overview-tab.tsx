@@ -11,6 +11,7 @@ import {
 } from "@/shared/components/ui/card";
 import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { formatDate } from "@/shared/lib/format";
+import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { memberLabel } from "./-member-helpers";
 
 interface ProjectOverviewTabProps {
@@ -99,7 +100,7 @@ export function ProjectOverviewTab({ project, members, userNames }: ProjectOverv
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-sm text-muted-foreground">{t("overview.status")}</dt>
                 <dd>
-                  <Badge variant="outline" className="text-xs">{t(`status.${project.status}` as const)}</Badge>
+                  <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>{t(`status.${project.status}` as const)}</Badge>
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-2">

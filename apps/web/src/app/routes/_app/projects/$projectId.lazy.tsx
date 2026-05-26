@@ -32,6 +32,7 @@ import {
   useProjectMembers,
 } from "@/shared/lib/api/projects";
 import { formatDate } from "@/shared/lib/format";
+import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { FileBrowser } from "../-file-browser";
 import { ProjectIssuesTab } from "./-project-issues-tab";
 import { ProjectMembersTab } from "./-project-members-tab";
@@ -125,7 +126,7 @@ function ProjectDetailPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="text-xs">{t(`status.${project.status}` as const)}</Badge>
+                  <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>{t(`status.${project.status}` as const)}</Badge>
                   {project.code && <span className="font-mono text-xs text-muted-foreground">{project.code}</span>}
                 </div>
                 <h1 className="truncate text-3xl font-semibold">{project.name}</h1>

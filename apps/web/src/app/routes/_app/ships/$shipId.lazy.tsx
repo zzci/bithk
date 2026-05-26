@@ -1,9 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowLeft, ChevronRight, MapPin, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, ClipboardList, FolderKanban, MapPin, Package, Trash2, Wrench } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -27,6 +26,7 @@ import { useAuthStore } from "@/shared/stores/auth";
 import { useProjectCapabilities } from "../projects/-use-project-role";
 import { StatTile } from "./-ship-stats";
 import { visibleShipTabs } from "./-ship-tabs";
+import { LifecycleBadge, ShipStatusBadge } from "./-ship-visuals";
 
 export const Route = createLazyFileRoute("/_app/ships/$shipId")({
   component: ShipDetailPage,
@@ -118,9 +118,13 @@ function ShipDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="text-xs">{t(`lifecycle.${ship.lifecycleStage}` as const)}</Badge>
-                <Badge variant="secondary" className="text-xs">{t(`status.${ship.status}` as const)}</Badge>
-                {ship.flagState && <Badge variant="ghost" className="text-xs">{ship.flagState}</Badge>}
+                <LifecycleBadge stage={ship.lifecycleStage} icon />
+                <ShipStatusBadge status={ship.status} />
+                {ship.flagState && (
+                  <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    {ship.flagState}
+                  </span>
+                )}
                 {ship.registryPort && (
                   <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     <MapPin className="size-3" />
@@ -159,21 +163,29 @@ function ShipDetailPage() {
 
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <StatTile
+              icon={<FolderKanban />}
+              accent="bg-accent-maint/10 text-accent-maint"
               label={t("detail.metrics.projects")}
               value={metric(projects?.length)}
               hint={projects ? t("detail.metricHints.projects", { base: projects.filter(project => project.isBase).length, linked: projects.filter(project => !project.isBase).length }) : undefined}
             />
             <StatTile
+              icon={<Package />}
+              accent="bg-success/10 text-success"
               label={t("detail.metrics.equipment")}
               value={metric(equipment?.length)}
               hint={retiredEquipmentCount === undefined ? undefined : t("detail.metricHints.equipment", { count: retiredEquipmentCount })}
             />
             <StatTile
+              icon={<ClipboardList />}
+              accent="bg-info/10 text-info"
               label={t("detail.metrics.templates")}
               value={metric(templates?.length)}
               hint={categoryCount === undefined ? undefined : t("detail.metricHints.templates", { count: categoryCount })}
             />
             <StatTile
+              icon={<Wrench />}
+              accent="bg-warning/10 text-warning"
               label={t("detail.metrics.workOrders")}
               value={metric(orders?.length)}
               hint={activeOrderCount === undefined ? undefined : t("detail.metricHints.workOrders", { count: activeOrderCount })}

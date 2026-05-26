@@ -113,6 +113,11 @@
       "identity": "Identity",
       "classification": "Class & lifecycle",
       "dimensions": "Principal dimensions"
+    },
+    "stepper": {
+      "done": "Complete",
+      "current": "Current",
+      "todo": "Upcoming"
     }
   },
   "profile": {

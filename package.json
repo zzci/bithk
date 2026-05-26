@@ -38,6 +38,7 @@
     "check:api-docs": "bun run --filter @app/api check:api-docs",
     "gen:env-docs": "bun scripts/gen-env-docs.ts",
     "gen:api-docs": "bun run --filter @app/api gen:api-docs",
+    "seed": "bun run --filter @app/api seed",
     "compile": "bun scripts/compile.ts",
     "clean": "bun scripts/clean.ts",
     "clean:all": "bun scripts/clean.ts --all",

@@ -15,6 +15,7 @@ import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToCreate } from "./-ship-form-logic";
+import { LifecycleBadge } from "./-ship-visuals";
 
 export const Route = createLazyFileRoute("/_app/ships/")({
   component: ShipsListPage,
@@ -215,7 +216,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
             <p className="font-mono text-xs text-muted-foreground">{ship.code}</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <Badge variant="secondary" className="text-xs">{t(`lifecycle.${ship.lifecycleStage}` as const)}</Badge>
+            <LifecycleBadge stage={ship.lifecycleStage} icon />
             {ship.status === "archived" && (
               <Badge variant="outline" className="text-xs">{t("status.archived")}</Badge>
             )}
