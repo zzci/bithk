@@ -28,10 +28,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   Volume is driven by a `COUNTS` table and generated from fixed vocab pools via
   a seeded PRNG, so runs are reproducible; the default produces ~20 accounts,
   30 contacts, 20 ships, 10 standalone projects, 30 issues, 20 procurements, and
-  20 documents. Most ships and standalone projects also get a fetched cover
-  image (from picsum.photos via the real file pipeline), with some left unset;
-  cover fetches are skipped gracefully when offline. Idempotent on re-run;
-  `--fresh` wipes the seeded rows and reseeds.
+  20 documents. Most ships and standalone projects also get a topical cover
+  image through the real file pipeline — vessel photos for ships, engine/
+  machinery photos for the (maintenance/refit) projects, fetched from
+  LoremFlickr with a picsum.photos fallback — with some left unset; cover
+  fetches are skipped gracefully when offline. Idempotent on re-run; `--fresh`
+  wipes the seeded rows and reseeds.
 - Drive file manager completion pass (FEAT-010 / PLAN-014): recursive folder
   upload from the browser, direct drag-and-drop moves, explicit current-folder
   versus drive-wide search, image thumbnails in grid view, and a version

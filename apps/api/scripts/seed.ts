@@ -283,22 +283,32 @@ async function seedShips(db: AppDatabase): Promise<{ shipsCreated: SeededShip[];
   return { shipsCreated, equipment };
 }
 
-/**
- * Fetch a demo cover image from picsum.photos as a `File`. Deterministic by
- * `seed`. Returns null on any network/HTTP failure so seeding continues
- * without a cover instead of aborting.
- */
-async function fetchCoverFile(seed: string, name: string): Promise<File | null> {
+async function tryFetchImage(url: string, name: string): Promise<File | null> {
   try {
-    const res = await fetch(`https://picsum.photos/seed/${seed}/1200/800`, { signal: AbortSignal.timeout(15_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000), redirect: "follow" });
     if (!res.ok)
       return null;
     const buffer = await res.arrayBuffer();
+    if (buffer.byteLength === 0)
+      return null;
     return new File([buffer], name, { type: res.headers.get("content-type") ?? "image/jpeg" });
   }
   catch {
     return null;
   }
+}
+
+/**
+ * Fetch a topical demo cover image as a `File`. Primary source is LoremFlickr
+ * (keyword-matched photos, deterministic via `lock`), with picsum.photos as a
+ * generic fallback. Returns null on total failure so seeding continues without
+ * a cover instead of aborting.
+ */
+async function fetchCoverFile(keywords: string, lock: number, name: string): Promise<File | null> {
+  return (
+    await tryFetchImage(`https://loremflickr.com/1200/800/${keywords}?lock=${lock}`, name)
+    ?? await tryFetchImage(`https://picsum.photos/seed/${keywords}-${lock}/1200/800`, name)
+  );
 }
 
 /**
@@ -311,10 +321,12 @@ async function seedCovers(db: AppDatabase, shipsCreated: SeededShip[], projectPo
   await initFileModule(config);
 
   let count = 0;
+  // Ships get vessel imagery; standalone projects are maintenance/refit work
+  // orders, so they get equipment/machinery imagery.
   for (let i = 0; i < shipsCreated.length; i++) {
     if (!chance(COVER_RATIO))
       continue;
-    const file = await fetchCoverFile(`ship-${i}`, `ship-${i}.jpg`);
+    const file = await fetchCoverFile("ship,yacht,vessel", i + 1, `ship-${i}.jpg`);
     if (!file)
       continue;
     await setShipCover(db, config, shipsCreated[i]!.id, file, ADMIN_ID);
@@ -323,7 +335,7 @@ async function seedCovers(db: AppDatabase, shipsCreated: SeededShip[], projectPo
   for (let i = 0; i < projectPool.length; i++) {
     if (!chance(COVER_RATIO))
       continue;
-    const file = await fetchCoverFile(`project-${i}`, `project-${i}.jpg`);
+    const file = await fetchCoverFile("ship,engine,machinery", i + 101, `project-${i}.jpg`);
     if (!file)
       continue;
     await setProjectCover(db, config, projectPool[i]!.id, file, projectPool[i]!.creatorId);
