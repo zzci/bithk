@@ -25,23 +25,25 @@ import type { AppDatabase } from "@/db";
 import { resolve } from "node:path";
 import process from "node:process";
 import { eq, inArray, sql } from "drizzle-orm";
+import { loadConfigStrict } from "@/config";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import * as contactService from "@/modules/contact/contact.service";
 import { contacts } from "@/modules/contact/schema";
 import { createDocument } from "@/modules/document/document.service";
+import { initFileModule } from "@/modules/file";
 import { createIssue } from "@/modules/issue/issue.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { createProcurement } from "@/modules/procurement/procurement.service";
 import { createCategory } from "@/modules/project/project.categories";
 import { listRoles } from "@/modules/project/project.roles";
-import { addMember, createProject } from "@/modules/project/project.service";
+import { addMember, createProject, setProjectCover } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
 import { settings } from "@/modules/settings/schema";
 import { ships } from "@/modules/ship/schema";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
-import { bindProject, createShip } from "@/modules/ship/ship.service";
+import { bindProject, createShip, setShipCover } from "@/modules/ship/ship.service";
 import { ROOT_DIR } from "@/root";
 
 const MARKER_KEY = "seed:applied";
@@ -58,6 +60,11 @@ const COUNTS = {
   procurements: 20,
   documents: 20,
 } as const;
+
+// Fraction of ships / standalone projects that get a fetched cover image; the
+// rest are intentionally left without one. Images come from picsum.photos, so
+// covers are skipped gracefully (no failure) when the network is unavailable.
+const COVER_RATIO = 0.7;
 
 // ─── Deterministic randomness ───────────────────────────────────────────
 // mulberry32 — a tiny seeded PRNG so every run yields the same data.
@@ -205,6 +212,7 @@ interface SeedCounts {
   issues: number;
   procurements: number;
   documents: number;
+  covers: number;
 }
 
 interface SeededProject {
@@ -236,8 +244,13 @@ async function seedContacts(db: AppDatabase): Promise<{ supplierIds: string[]; c
   return { supplierIds, count: COUNTS.contacts };
 }
 
-async function seedShips(db: AppDatabase): Promise<{ shipShortIds: string[]; equipment: number }> {
-  const shipShortIds: string[] = [];
+interface SeededShip {
+  readonly id: string;
+  readonly shortId: string;
+}
+
+async function seedShips(db: AppDatabase): Promise<{ shipsCreated: SeededShip[]; equipment: number }> {
+  const shipsCreated: SeededShip[] = [];
   let equipment = 0;
   for (let i = 0; i < COUNTS.ships; i++) {
     const name = `${pick(SHIP_PREFIX)} ${SHIP_NAMES[i % SHIP_NAMES.length]}${i >= SHIP_NAMES.length ? ` ${Math.floor(i / SHIP_NAMES.length) + 1}` : ""}`;
@@ -253,7 +266,7 @@ async function seedShips(db: AppDatabase): Promise<{ shipShortIds: string[]; equ
       ownerName: `${pick(COMPANY_A)} Holdings Ltd`,
       description: "Demo vessel record.",
     });
-    shipShortIds.push(ship.shortId);
+    shipsCreated.push({ id: ship.id, shortId: ship.shortId });
     const equipCount = randInt(1, 3);
     for (const eqName of sample(EQUIPMENT, equipCount)) {
       await createEquipment(db, ship.id, {
@@ -267,7 +280,56 @@ async function seedShips(db: AppDatabase): Promise<{ shipShortIds: string[]; equ
       equipment++;
     }
   }
-  return { shipShortIds, equipment };
+  return { shipsCreated, equipment };
+}
+
+/**
+ * Fetch a demo cover image from picsum.photos as a `File`. Deterministic by
+ * `seed`. Returns null on any network/HTTP failure so seeding continues
+ * without a cover instead of aborting.
+ */
+async function fetchCoverFile(seed: string, name: string): Promise<File | null> {
+  try {
+    const res = await fetch(`https://picsum.photos/seed/${seed}/1200/800`, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok)
+      return null;
+    const buffer = await res.arrayBuffer();
+    return new File([buffer], name, { type: res.headers.get("content-type") ?? "image/jpeg" });
+  }
+  catch {
+    return null;
+  }
+}
+
+/**
+ * Attach fetched cover images to a fraction (`COVER_RATIO`) of the ships and
+ * standalone projects, leaving the rest without one. Base projects are skipped
+ * — they inherit their ship's cover. Returns the number of covers actually set.
+ */
+async function seedCovers(db: AppDatabase, shipsCreated: SeededShip[], projectPool: SeededProject[]): Promise<number> {
+  const config = await loadConfigStrict(() => {});
+  await initFileModule(config);
+
+  let count = 0;
+  for (let i = 0; i < shipsCreated.length; i++) {
+    if (!chance(COVER_RATIO))
+      continue;
+    const file = await fetchCoverFile(`ship-${i}`, `ship-${i}.jpg`);
+    if (!file)
+      continue;
+    await setShipCover(db, config, shipsCreated[i]!.id, file, ADMIN_ID);
+    count++;
+  }
+  for (let i = 0; i < projectPool.length; i++) {
+    if (!chance(COVER_RATIO))
+      continue;
+    const file = await fetchCoverFile(`project-${i}`, `project-${i}.jpg`);
+    if (!file)
+      continue;
+    await setProjectCover(db, config, projectPool[i]!.id, file, projectPool[i]!.creatorId);
+    count++;
+  }
+  return count;
 }
 
 async function seedProjects(db: AppDatabase, shipShortIds: string[]): Promise<SeededProject[]> {
@@ -369,11 +431,12 @@ async function seedDocuments(db: AppDatabase): Promise<number> {
 
 async function seedContent(db: AppDatabase): Promise<SeedCounts> {
   const { supplierIds, count: contactCount } = await seedContacts(db);
-  const { shipShortIds, equipment } = await seedShips(db);
-  const projectPool = await seedProjects(db, shipShortIds);
+  const { shipsCreated, equipment } = await seedShips(db);
+  const projectPool = await seedProjects(db, shipsCreated.map(s => s.shortId));
   const issues = await seedIssues(db, projectPool);
   const procurements = await seedProcurements(db, projectPool, supplierIds);
   const documents = await seedDocuments(db);
+  const covers = await seedCovers(db, shipsCreated, projectPool);
 
   await db.insert(settings).values({
     key: MARKER_KEY,
@@ -381,7 +444,7 @@ async function seedContent(db: AppDatabase): Promise<SeedCounts> {
     updatedBy: ADMIN_ID,
   }).run();
 
-  return { contacts: contactCount, ships: COUNTS.ships, equipment, projects: projectPool.length, issues, procurements, documents };
+  return { contacts: contactCount, ships: COUNTS.ships, equipment, projects: projectPool.length, issues, procurements, documents, covers };
 }
 
 async function main(): Promise<void> {
@@ -411,6 +474,7 @@ async function main(): Promise<void> {
     console.log(`  issues:       ${counts.issues}`);
     console.log(`  procurements: ${counts.procurements}`);
     console.log(`  documents:    ${counts.documents}`);
+    console.log(`  cover images: ${counts.covers} (ships + standalone projects; some left unset)`);
     console.log(`\nAdmin demo account: username "${SEED_USERS[0]!.username}" (oauth_sub "seed|${SEED_USERS[0]!.username}", ${SEED_USERS[0]!.email}).`);
   }
   finally {

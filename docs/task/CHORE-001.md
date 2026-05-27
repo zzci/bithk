@@ -62,3 +62,12 @@ ships, 10 standalone projects, 30 issues, 20 procurements, 20 documents). Output
 stays reproducible across `--fresh` runs. Reseeded the dev DB. Note: the
 single-user `admin` row is auto-provisioned at login and is not seed data, so it
 regenerates on next dev login.
+
+Cover images: ~70% of ships and standalone projects get a cover fetched from
+picsum.photos and stored through the real file pipeline (`loadConfigStrict` +
+`initFileModule`, then `setShipCover` / `setProjectCover`); the rest are left
+without one, and base projects inherit their ship's cover. Fetch failures are
+non-fatal (covers skipped when offline). Cover `file_references` / `files` are
+owned by seed users (`created_by` / `uploaded_by`), so the existing `--fresh`
+user-cascade cleans them with no wipe change (verified: no row leak across
+reseeds; on-disk blobs are content-addressed and deduped).
