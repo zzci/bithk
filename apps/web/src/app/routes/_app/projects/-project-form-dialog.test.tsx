@@ -33,14 +33,14 @@ describe("projectFormDialog", () => {
       <ProjectFormDialog open onOpenChange={vi.fn()} pending={false} onSubmit={onSubmit} />,
     );
     await user.type(screen.getByLabelText("Name"), "  Bridge  ");
-    await user.type(screen.getByLabelText("Code"), "BRG");
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     const payload = onSubmit.mock.calls[0]![0];
     expect(payload.name).toBe("Bridge");
-    expect(payload.code).toBe("BRG");
-    expect(payload.status).toBe("active");
+    // Code and status are derived by the backend, never sent from here.
+    expect("code" in payload).toBe(false);
+    expect("status" in payload).toBe(false);
     // Untouched optional fields stay out of the payload entirely.
     expect("description" in payload).toBe(false);
     expect("tags" in payload).toBe(false);

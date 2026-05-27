@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CoverImage } from "@/shared/components/cover-image";
+import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -18,13 +20,21 @@ import {
 } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { useCreateProject, useProjects, useTags } from "@/shared/lib/api/projects";
+import {
+  useCreateProject,
+  useProject,
+  useProjectMembers,
+  useProjects,
+  useTags,
+} from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDate } from "@/shared/lib/format";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ProjectFormDialog } from "./-project-form-dialog";
 import { projectsFilterToQuery } from "./-project-form-logic";
+import { ProjectSettingsDialog } from "./-project-settings-dialog";
+import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/")({
   component: ProjectsListPage,
@@ -39,6 +49,7 @@ function ProjectsListPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
+  const [settingsProjectId, setSettingsProjectId] = useState<string | null>(null);
 
   const projectsQuery = useProjects({ ...projectsFilterToQuery(filter), page });
   const activeCountQuery = useProjects({ status: "active" });
@@ -79,10 +90,6 @@ function ProjectsListPage() {
 
   const openProject = (projectId: string) => {
     void navigate({ to: "/projects/$projectId", params: { projectId } });
-  };
-
-  const openSettings = (projectId: string) => {
-    void navigate({ to: "/projects/$projectId", params: { projectId }, search: { settings: true } });
   };
 
   return (
@@ -144,7 +151,7 @@ function ProjectsListPage() {
         ? <p className="text-sm text-muted-foreground">{t("list.loading")}</p>
         : visibleProjects.length === 0
           ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
-          : <ProjectsGrid projects={visibleProjects} isAdmin={isAdmin} openProject={openProject} openSettings={openSettings} />}
+          : <ProjectsGrid projects={visibleProjects} isAdmin={isAdmin} openProject={openProject} openSettings={setSettingsProjectId} />}
 
       {totalPages > 1 && meta && (
         <div className="flex items-center justify-between pt-2">
@@ -161,9 +168,51 @@ function ProjectsListPage() {
         onOpenChange={setCreateOpen}
         pending={createProject.isPending}
         errorMessage={createProject.error ? errorMessage(createProject.error, t("common:common.error.operationFailed")) : null}
+        availableTags={tags.map(tag => tag.name)}
         onSubmit={handleCreate}
       />
+
+      <ListSettingsDialog
+        projectId={settingsProjectId}
+        onClose={() => setSettingsProjectId(null)}
+      />
     </div>
+  );
+}
+
+// Loads the selected project (with capabilities), its members, and user names
+// on demand so the settings dialog can open over the list without navigating
+// into the project detail page.
+function ListSettingsDialog({
+  projectId,
+  onClose,
+}: {
+  readonly projectId: string | null;
+  readonly onClose: () => void;
+}) {
+  const projectQuery = useProject(projectId ?? undefined);
+  const membersQuery = useProjectMembers(projectId ?? undefined);
+  const usersQuery = useVisibleUsers();
+  const project = projectQuery.data;
+  const caps = useProjectCapabilities(project);
+
+  const userNames = useMemo(
+    () => new Map((usersQuery.data ?? []).map(u => [u.id, u.name])),
+    [usersQuery.data],
+  );
+
+  if (!projectId || !project || !caps.canOpenSettings)
+    return null;
+
+  return (
+    <ProjectSettingsDialog
+      open
+      onOpenChange={open => !open && onClose()}
+      project={project}
+      members={membersQuery.data ?? []}
+      userNames={userNames}
+      caps={caps}
+    />
   );
 }
 
@@ -197,6 +246,7 @@ function ProjectsGrid({
             }
           }}
         >
+          <CoverImage src={project.coverImageUrl} kind="project" className="h-32 w-full" />
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="line-clamp-2">{project.name}</CardTitle>

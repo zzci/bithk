@@ -1,38 +1,31 @@
-// Create project dialog. Used by the list page. Only the name is required;
-// code, description, status and tags are optional.
+// Create project dialog (Linear-style). Only the name is required; the
+// description and tags are optional. The project code and status are not set
+// here — the backend auto-generates the code (`P-<id>`) and defaults the status
+// to "active" (a freshly created project is never archived).
 
-import type { CreateProjectInput, ProjectStatus } from "@/shared/lib/api/projects";
+import type { CreateProjectInput } from "@/shared/lib/api/projects";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
+import { Separator } from "@/shared/components/ui/separator";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { TagsInput } from "./-tags-input";
-
-const STATUSES: readonly ProjectStatus[] = ["active", "archived"];
+import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 interface ProjectFormDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly pending: boolean;
   readonly errorMessage?: string | null;
+  readonly availableTags?: readonly string[];
   readonly onSubmit: (values: CreateProjectInput) => void;
 }
 
@@ -41,13 +34,12 @@ export function ProjectFormDialog({
   onOpenChange,
   pending,
   errorMessage,
+  availableTags = [],
   onSubmit,
 }: ProjectFormDialogProps) {
   const { t } = useTranslation(["projects", "common"]);
   const [name, setName] = useState("");
-  const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<ProjectStatus>("active");
   const [tags, setTags] = useState<readonly string[]>([]);
 
   /* eslint-disable react/set-state-in-effect -- reset the form fields whenever
@@ -56,9 +48,7 @@ export function ProjectFormDialog({
     if (!open)
       return;
     setName("");
-    setCode("");
     setDescription("");
-    setStatus("active");
     setTags([]);
   }, [open]);
   /* eslint-enable react/set-state-in-effect */
@@ -69,8 +59,6 @@ export function ProjectFormDialog({
       return;
     const values: CreateProjectInput = {
       name: name.trim(),
-      status,
-      ...(code.trim() ? { code: code.trim() } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(tags.length > 0 ? { tags } : {}),
     };
@@ -79,70 +67,42 @@ export function ProjectFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-        <form onSubmit={submit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>{t("create.title")}</DialogTitle>
-            <DialogDescription>{t("create.description")}</DialogDescription>
+      <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto p-0 sm:max-w-lg">
+        <form onSubmit={submit}>
+          <DialogHeader className="px-4 pt-4 pb-0">
+            <DialogTitle className="text-xs font-medium text-muted-foreground">
+              {t("create.title")}
+            </DialogTitle>
           </DialogHeader>
 
-          {errorMessage && <ErrorBanner message={errorMessage} />}
+          <div className="space-y-2 px-4 pt-2 pb-4">
+            {errorMessage && <ErrorBanner message={errorMessage} />}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="project-name">{t("field.name")}</Label>
             <Input
-              id="project-name"
+              aria-label={t("field.name")}
               autoFocus
               required
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder={t("create.namePlaceholder")}
+              className="border-0 px-0 text-lg font-medium shadow-none focus-visible:ring-0 md:text-lg"
             />
-          </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="project-code">{t("field.code")}</Label>
-            <Input
-              id="project-code"
-              value={code}
-              onChange={e => setCode(e.target.value)}
-              placeholder={t("create.codePlaceholder")}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="project-description">{t("field.description")}</Label>
             <Textarea
-              id="project-description"
+              aria-label={t("field.description")}
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder={t("create.descriptionPlaceholder")}
               rows={3}
+              className="resize-none border-0 px-0 shadow-none focus-visible:ring-0"
             />
+
+            <ProjectTagsCombobox value={tags} onChange={setTags} suggestions={availableTags} />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>{t("field.status")}</Label>
-            <Select value={status} onValueChange={v => v !== null && setStatus(v as ProjectStatus)}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {(v: string) => t(`status.${v}` as const)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {STATUSES.map(s => (
-                  <SelectItem key={s} value={s}>{t(`status.${s}` as const)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Separator />
 
-          <div className="space-y-1.5">
-            <Label>{t("field.tags")}</Label>
-            <TagsInput value={tags} onChange={setTags} />
-          </div>
-
-          <DialogFooter>
+          <DialogFooter className="px-4 py-3">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
             </Button>

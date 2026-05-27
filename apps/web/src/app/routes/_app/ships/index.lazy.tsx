@@ -5,6 +5,7 @@ import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { Calendar, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CoverImage } from "@/shared/components/cover-image";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -209,6 +210,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
         }
       }}
     >
+      <CoverImage src={ship.coverImageUrl} kind="ship" className="h-32 w-full" />
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">

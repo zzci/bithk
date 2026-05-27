@@ -73,6 +73,7 @@ export interface ShipView {
   readonly registryPort: string | null;
   readonly ownerName: string | null;
   readonly description: string | null;
+  readonly coverImageUrl: string | null;
   readonly creatorId: string;
   readonly version: number;
   readonly updatedAt: string;
@@ -247,6 +248,37 @@ export function useUpdateShip(): UseMutationResult<ShipView, Error, { id: string
     mutationFn: ({ id, ...payload }) => http<ApiEnvelope<ShipView>>(`/ships/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
+    }).then(r => r.data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.detail(data.id) });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.lists() });
+    },
+  });
+}
+
+export function useSetShipCover(): UseMutationResult<ShipView, Error, { id: string; file: File }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return http<ApiEnvelope<ShipView>>(`/ships/${encodeURIComponent(id)}/cover-image`, {
+        method: "POST",
+        body: fd,
+      }).then(r => r.data);
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.detail(data.id) });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.lists() });
+    },
+  });
+}
+
+export function useRemoveShipCover(): UseMutationResult<ShipView, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: id => http<ApiEnvelope<ShipView>>(`/ships/${encodeURIComponent(id)}/cover-image`, {
+      method: "DELETE",
     }).then(r => r.data),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: shipKeys.detail(data.id) });

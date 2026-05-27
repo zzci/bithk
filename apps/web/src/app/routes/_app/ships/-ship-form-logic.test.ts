@@ -30,6 +30,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     registryPort: "Valletta",
     ownerName: "Jane Doe",
     description: "Flagship build",
+    coverImageUrl: null,
     creatorId: "u1",
     version: 1,
     updatedAt: "2026-05-24T00:00:00.000Z",

@@ -25,6 +25,7 @@ const ship: ShipView = {
   registryPort: "Shanghai",
   ownerName: "Atlas Marine",
   description: "Main-engine refit and class survey readiness vessel.",
+  coverImageUrl: null,
   creatorId: "user-admin",
   version: 4,
   updatedAt: "2026-05-25T00:00:00.000Z",

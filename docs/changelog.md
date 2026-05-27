@@ -13,6 +13,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Project and ship cover images (FEAT-011 / FEAT-012 / FEAT-013): upload,
+  replace, and remove a cover through the file module (`POST`/`DELETE
+  /api/projects/:id/cover-image` and `/api/ships/:shortId/cover-image`), stored
+  as `project_cover` / `ship_cover` file references and shown on list cards and
+  detail headers. A project that is a ship's base project inherits the ship's
+  cover when it has none of its own. Projects and ships without a cover render a
+  default placeholder illustration (FEAT-014).
+
 - Database seed script for local testing (CHORE-001 / PLAN-020):
   `bun run seed` populates a coherent demo dataset (accounts, contacts, ships
   with equipment, projects with members/categories/ship binding, issues,
@@ -45,6 +53,11 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Create-project dialog reworked to a Linear-style layout (UI-012): a borderless
+  title and description, an existing-tag combobox sourced from the global tag
+  vocabulary (with inline tag creation), and no manual code or status fields —
+  the backend auto-generates the code and defaults the status to active.
+
 - Project module UI deduplication (UI-011): the project detail overview tab no
   longer repeats the header's key information (status, code, creator, updated)
   and tags cards — it keeps description, procurement category preview, and the
@@ -60,6 +73,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   that information.
 
 ### Fixed
+
+- The project list settings entry now opens the settings dialog in place over
+  the list (FIX-005) instead of navigating into the project detail page, so
+  closing it leaves the user on the list.
 
 - Single-user sessions are now reused when opening a new tab (FIX-004 /
   PLAN-015): the root route enters the authenticated app guard instead of

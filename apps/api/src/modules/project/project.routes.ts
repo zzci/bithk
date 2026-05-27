@@ -3,7 +3,7 @@ import type { ProjectCapability } from "./schema";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   composeCategory,
@@ -31,7 +31,9 @@ import {
   listProjects,
   listTags,
   removeMember,
+  removeProjectCover,
   resolveProjectId,
+  setProjectCover,
   softDeleteProject,
   updateMember,
   updateProject,
@@ -217,6 +219,36 @@ export function projectRoutes() {
     const db = c.get("db");
     await softDeleteProject(db, shortId);
     return c.json({ success: true, data: null });
+  });
+
+  // POST /projects/:id/cover-image — set / replace the cover (project.manage)
+  router.post("/projects/:id/cover-image", async (c) => {
+    const shortId = c.req.param("id");
+    const { projectId } = await requireProject(c, shortId, "project.manage");
+    const db = c.get("db");
+
+    const formData = await c.req.formData();
+    const file = formData.get("file");
+    if (!(file instanceof File))
+      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+    if (!file.type.startsWith("image/"))
+      throw new AppError("Cover image must be an image file", 400, "INVALID_MIMETYPE");
+
+    const updated = await setProjectCover(db, c.get("config"), projectId, file, actorId(c));
+    if (!updated)
+      throw new NotFoundError("Project", shortId);
+    return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
+  });
+
+  // DELETE /projects/:id/cover-image — remove the cover (project.manage)
+  router.delete("/projects/:id/cover-image", async (c) => {
+    const shortId = c.req.param("id");
+    const { projectId } = await requireProject(c, shortId, "project.manage");
+    const db = c.get("db");
+    const updated = await removeProjectCover(db, c.get("config"), projectId);
+    if (!updated)
+      throw new NotFoundError("Project", shortId);
+    return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
   });
 
   // ─── Members ───────────────────────────────────────────────────────

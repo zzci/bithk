@@ -41,14 +41,21 @@
   },
   "tags": {
     "placeholder": "Add a tag and press Enter",
+    "searchPlaceholder": "Search or create tags",
+    "create": "Create \"{{name}}\"",
+    "empty": "No tags yet",
     "remove": "Remove tag {{name}}"
+  },
+  "cover": {
+    "label": "Cover image",
+    "upload": "Upload cover",
+    "replace": "Replace cover",
+    "remove": "Remove cover"
   },
   "create": {
     "title": "Create project",
-    "description": "Create a new project. Only the name is required.",
     "submit": "Create",
     "namePlaceholder": "Project name",
-    "codePlaceholder": "Optional code",
     "descriptionPlaceholder": "Optional description"
   },
   "edit": {

@@ -3,7 +3,7 @@ import type { ShipRow } from "./ship.service";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { EQUIPMENT_STATUSES, SHIP_LIFECYCLE_STAGES, SHIP_STATUSES } from "./schema";
 import {
@@ -30,6 +30,8 @@ import {
   getShipByShortId,
   listShipProjects,
   listShips,
+  removeShipCover,
+  setShipCover,
   softDeleteShip,
   unbindProject,
   updateShip,
@@ -198,6 +200,34 @@ export function shipRoutes() {
       throw new NotFoundError("Ship", shortId);
     await softDeleteShip(db, shortId);
     return c.json({ success: true, data: null });
+  });
+
+  // POST /ships/:shortId/cover-image — set / replace the cover (manage).
+  router.post("/ships/:shortId/cover-image", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+
+    const formData = await c.req.formData();
+    const file = formData.get("file");
+    if (!(file instanceof File))
+      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+    if (!file.type.startsWith("image/"))
+      throw new AppError("Cover image must be an image file", 400, "INVALID_MIMETYPE");
+
+    const updated = await setShipCover(db, c.get("config"), ship.id, file, actorId(c));
+    if (!updated)
+      throw new NotFoundError("Ship", c.req.param("shortId"));
+    return c.json({ success: true, data: await composeShipWithBase(db, updated) });
+  });
+
+  // DELETE /ships/:shortId/cover-image — remove the cover (manage).
+  router.delete("/ships/:shortId/cover-image", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const updated = await removeShipCover(db, c.get("config"), ship.id);
+    if (!updated)
+      throw new NotFoundError("Ship", c.req.param("shortId"));
+    return c.json({ success: true, data: await composeShipWithBase(db, updated) });
   });
 
   // ─── Ship ↔ project binding ──────────────────────────────────────────

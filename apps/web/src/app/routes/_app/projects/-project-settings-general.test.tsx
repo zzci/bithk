@@ -31,6 +31,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     status: "active",
     description: "A bridge",
     tags: [{ id: "t1", name: "infra" }],
+    coverImageUrl: null,
     creatorId: "u1",
     version: 1,
     updatedAt: "2026-05-23T00:00:00.000Z",

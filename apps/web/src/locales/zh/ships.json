@@ -84,6 +84,12 @@
     "registryPort": "船籍港",
     "ownerName": "船东"
   },
+  "cover": {
+    "label": "封面图片",
+    "upload": "上传封面",
+    "replace": "更换封面",
+    "remove": "移除封面"
+  },
   "form": {
     "createTitle": "新建船舶",
     "editTitle": "编辑船舶",

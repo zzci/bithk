@@ -32,3 +32,9 @@
 | [UI-009](UI-009.md) | Add a semantic color system to the ship detail page | - | Done | 2026-05-25 |
 | [UI-010](UI-010.md) | Unify modules onto a global semantic color system | - | Done | 2026-05-25 |
 | [UI-011](UI-011.md) | Trim project module UI duplication + list settings entry | - | Done | 2026-05-27 |
+| [UI-012](UI-012.md) | Linear-style create project dialog (existing tags, auto code, hidden status) | - | Done | 2026-05-27 |
+| [FIX-005](FIX-005.md) | Open project settings in place from the list | - | Done | 2026-05-27 |
+| [FEAT-011](FEAT-011.md) | Project cover image | - | Done | 2026-05-27 |
+| [FEAT-012](FEAT-012.md) | Ship cover image | - | Done | 2026-05-27 |
+| [FEAT-013](FEAT-013.md) | Base project inherits the ship cover image | - | Done | 2026-05-27 |
+| [FEAT-014](FEAT-014.md) | Default cover placeholders for projects and ships | - | Done | 2026-05-27 |

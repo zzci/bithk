@@ -1,6 +1,7 @@
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
+import { fileReferences } from "@/modules/file/schema";
 import { ships } from "@/modules/ship/schema";
 
 export const PROJECT_STATUSES = ["active", "archived"] as const;
@@ -30,6 +31,9 @@ export const projects = sqliteTable("projects", {
   // additionally bound project also sets this. Nullable circular FK — see
   // `ships.baseProjectId`.
   shipId: text("ship_id").references((): AnySQLiteColumn => ships.id, { onDelete: "set null" }),
+  // Optional cover image: a `file_references` row with owner_type
+  // 'project_cover'. Nulled automatically when that reference is released.
+  coverReferenceId: text("cover_reference_id").references((): AnySQLiteColumn => fileReferences.id, { onDelete: "set null" }),
   creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   version: integer("version").notNull().default(1),
   deletedAt: text("deleted_at"),

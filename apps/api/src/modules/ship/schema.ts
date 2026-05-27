@@ -1,6 +1,7 @@
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
+import { fileReferences } from "@/modules/file/schema";
 import { projects } from "@/modules/project/schema";
 
 export const SHIP_STATUSES = ["active", "archived"] as const;
@@ -49,6 +50,9 @@ export const ships = sqliteTable("ships", {
   registryPort: text("registry_port"),
   ownerName: text("owner_name"),
   description: text("description"),
+  // Optional cover image: a `file_references` row with owner_type 'ship_cover'.
+  // Nulled automatically when that reference is released.
+  coverReferenceId: text("cover_reference_id").references((): AnySQLiteColumn => fileReferences.id, { onDelete: "set null" }),
   creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   version: integer("version").notNull().default(1),
   deletedAt: text("deleted_at"),

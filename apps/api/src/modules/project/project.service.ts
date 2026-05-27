@@ -1,9 +1,22 @@
 import type { ProjectCapability, ProjectStatus } from "./schema";
+import type { Config } from "@/config";
 import type { AppDatabase, AppTransaction } from "@/db";
+import type { FileServiceConfig } from "@/modules/file";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { releaseReference, uploadAndReference } from "@/modules/file";
+import { fileReferences } from "@/modules/file/schema";
+import { ships } from "@/modules/ship/schema";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { parseCapabilities, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects, projectTags, tags } from "./schema";
+
+/** owner_type discriminator for a project's cover image file reference. */
+export const PROJECT_COVER_OWNER_TYPE = "project_cover";
+
+/** Build the inline content URL the frontend renders in an <img>. */
+function buildCoverUrl(fileId: string, referenceId: string): string {
+  return `/api/files/${fileId}/content?ref=${referenceId}&inline=true`;
+}
 
 // Escape SQLite LIKE wildcards. Backslash is escaped first (it is the ESCAPE
 // char), then `%`/`_`, so the pattern is matched literally. Every LIKE built
@@ -33,6 +46,7 @@ export interface ProjectView {
   readonly status: ProjectStatus;
   readonly description: string | null;
   readonly tags: readonly ProjectTagView[];
+  readonly coverImageUrl: string | null;
   readonly creatorId: string;
   readonly version: number;
   readonly updatedAt: string;
@@ -48,7 +62,11 @@ export interface ProjectMemberView {
   readonly updatedAt: string;
 }
 
-export function composeProject(row: ProjectRow, projectTagList: readonly ProjectTagView[] = []): ProjectView {
+export function composeProject(
+  row: ProjectRow,
+  projectTagList: readonly ProjectTagView[] = [],
+  coverImageUrl: string | null = null,
+): ProjectView {
   return {
     id: row.shortId,
     code: row.code,
@@ -56,6 +74,7 @@ export function composeProject(row: ProjectRow, projectTagList: readonly Project
     status: row.status,
     description: row.description,
     tags: projectTagList,
+    coverImageUrl,
     creatorId: row.creatorId,
     version: row.version,
     updatedAt: row.updatedAt,
@@ -100,6 +119,69 @@ async function loadTagsByProject(db: AppDatabase, projectIds: readonly string[])
 
 async function loadTagsForProject(db: AppDatabase, projectId: string): Promise<ProjectTagView[]> {
   return (await loadTagsByProject(db, [projectId])).get(projectId) ?? [];
+}
+
+/**
+ * Resolve cover image URLs for a set of project rows, keyed by `cover_reference_id`.
+ * Returns a map from reference id to its inline content URL (only references
+ * that still resolve to a blob are included).
+ */
+async function loadCoverUrlsByReference(db: AppDatabase, referenceIds: readonly string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (referenceIds.length === 0)
+    return map;
+  const rows = await db.select({ id: fileReferences.id, fileId: fileReferences.fileId })
+    .from(fileReferences)
+    .where(inArray(fileReferences.id, [...referenceIds]))
+    .all();
+  for (const r of rows)
+    map.set(r.id, buildCoverUrl(r.fileId, r.id));
+  return map;
+}
+
+/**
+ * Resolve cover image URLs for a set of project rows, keyed by internal project
+ * id. A project shows its own cover when set; otherwise, when it is a ship's
+ * base project, it inherits that ship's cover. The inherited URL points at the
+ * ship's `ship_cover` reference — the file content route authorizes base-project
+ * members through the existing `ship_cover` hook, so the reuse is permission-safe.
+ */
+async function loadCoverUrlsByProject(db: AppDatabase, rows: readonly ProjectRow[]): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (rows.length === 0)
+    return result;
+
+  // Projects lacking an own cover are candidates for the ship fallback.
+  const fallbackProjectIds = rows.filter(r => !r.coverReferenceId).map(r => r.id);
+  const shipCoverByProject = new Map<string, string>(); // base project id → ship cover reference id
+  if (fallbackProjectIds.length > 0) {
+    const shipRows = await db.select({ baseProjectId: ships.baseProjectId, coverReferenceId: ships.coverReferenceId })
+      .from(ships)
+      .where(and(inArray(ships.baseProjectId, fallbackProjectIds), isNull(ships.deletedAt)))
+      .all();
+    for (const s of shipRows) {
+      if (s.baseProjectId && s.coverReferenceId)
+        shipCoverByProject.set(s.baseProjectId, s.coverReferenceId);
+    }
+  }
+
+  const refIds = [
+    ...rows.map(r => r.coverReferenceId).filter((v): v is string => v !== null),
+    ...shipCoverByProject.values(),
+  ];
+  const urlByRef = await loadCoverUrlsByReference(db, refIds);
+
+  for (const r of rows) {
+    const refId = r.coverReferenceId ?? shipCoverByProject.get(r.id) ?? null;
+    const url = refId ? urlByRef.get(refId) : undefined;
+    if (url)
+      result.set(r.id, url);
+  }
+  return result;
+}
+
+async function loadCoverUrlForProject(db: AppDatabase, row: ProjectRow): Promise<string | null> {
+  return (await loadCoverUrlsByProject(db, [row])).get(row.id) ?? null;
 }
 
 /**
@@ -204,9 +286,9 @@ export async function getProjectByShortId(db: AppDatabase, shortId: string): Pro
   ).get();
 }
 
-/** Compose a single project view with its tags loaded. */
+/** Compose a single project view with its tags and cover image loaded. */
 export async function composeProjectWithTags(db: AppDatabase, row: ProjectRow): Promise<ProjectView> {
-  return composeProject(row, await loadTagsForProject(db, row.id));
+  return composeProject(row, await loadTagsForProject(db, row.id), await loadCoverUrlForProject(db, row));
 }
 
 /** Resolve the internal project id (ULID) from a short id, excluding soft-deleted rows. */
@@ -275,7 +357,12 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
 
   const rows = await db.select().from(projects).where(where).orderBy(desc(projects.id)).limit(limit).offset((page - 1) * limit).all();
   const tagMap = await loadTagsByProject(db, rows.map(r => r.id));
-  const data = rows.map(r => composeProject(r, tagMap.get(r.id) ?? []));
+  const coverMap = await loadCoverUrlsByProject(db, rows);
+  const data = rows.map(r => composeProject(
+    r,
+    tagMap.get(r.id) ?? [],
+    coverMap.get(r.id) ?? null,
+  ));
 
   return { data, total };
 }
@@ -322,6 +409,68 @@ export async function softDeleteProject(db: AppDatabase, shortId: string): Promi
     .set({ deletedAt: now, updatedAt: now, version: sql`${projects.version} + 1` })
     .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
     .run();
+}
+
+// ─── Cover image ──────────────────────────────────────────────────────────
+//
+// One cover per project, modelled as a `project_cover` file reference. We
+// always repoint `projects.cover_reference_id` BEFORE releasing the previous
+// reference, because the SQLite `ALTER TABLE ADD COLUMN` FK can't carry an
+// `ON DELETE SET NULL` action — releasing a still-referenced row would fail.
+
+/** Replace a project's cover image. Returns the updated row, or undefined when the project is gone. */
+export async function setProjectCover(
+  db: AppDatabase,
+  config: Config,
+  projectId: string,
+  file: File,
+  uploadedBy: string,
+): Promise<ProjectRow | undefined> {
+  const project = await db.select().from(projects).where(eq(projects.id, projectId)).get();
+  if (!project)
+    return undefined;
+
+  const { reference } = await uploadAndReference(db, config, {
+    file,
+    ownerType: PROJECT_COVER_OWNER_TYPE,
+    ownerId: projectId,
+    uploadedBy,
+  });
+
+  const now = new Date().toISOString();
+  await db.update(projects)
+    .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${projects.version} + 1` })
+    .where(eq(projects.id, projectId))
+    .run();
+
+  const previous = project.coverReferenceId;
+  if (previous && previous !== reference.id)
+    await releaseReference(db, config, { referenceId: previous });
+
+  return await db.select().from(projects).where(eq(projects.id, projectId)).get();
+}
+
+/** Remove a project's cover image (no-op when it has none). */
+export async function removeProjectCover(
+  db: AppDatabase,
+  config: FileServiceConfig,
+  projectId: string,
+): Promise<ProjectRow | undefined> {
+  const project = await db.select().from(projects).where(eq(projects.id, projectId)).get();
+  if (!project)
+    return undefined;
+  const previous = project.coverReferenceId;
+  if (!previous)
+    return project;
+
+  const now = new Date().toISOString();
+  await db.update(projects)
+    .set({ coverReferenceId: null, updatedAt: now, version: sql`${projects.version} + 1` })
+    .where(eq(projects.id, projectId))
+    .run();
+  await releaseReference(db, config, { referenceId: previous });
+
+  return await db.select().from(projects).where(eq(projects.id, projectId)).get();
 }
 
 // ─── Member CRUD ────────────────────────────────────────────────────────

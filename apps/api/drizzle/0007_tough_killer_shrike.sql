@@ -1,0 +1,1 @@
+ALTER TABLE `ships` ADD `cover_reference_id` text REFERENCES file_references(id);

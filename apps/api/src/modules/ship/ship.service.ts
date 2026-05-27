@@ -1,7 +1,11 @@
 import type { ShipLifecycleStage, ShipStatus } from "./schema";
+import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
+import type { FileServiceConfig } from "@/modules/file";
 import type { ProjectView } from "@/modules/project/project.service";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { releaseReference, uploadAndReference } from "@/modules/file";
+import { fileReferences } from "@/modules/file/schema";
 import {
   composeProject,
   createProjectTx,
@@ -11,6 +15,14 @@ import {
 import { projectMembers, projects } from "@/modules/project/schema";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { ships } from "./schema";
+
+/** owner_type discriminator for a ship's cover image file reference. */
+export const SHIP_COVER_OWNER_TYPE = "ship_cover";
+
+/** Build the inline content URL the frontend renders in an <img>. */
+function buildCoverUrl(fileId: string, referenceId: string): string {
+  return `/api/files/${fileId}/content?ref=${referenceId}&inline=true`;
+}
 
 // Escape SQLite LIKE wildcards so user input is matched literally. Every LIKE
 // built from this MUST carry `ESCAPE '\'`.
@@ -47,6 +59,7 @@ export interface ShipView {
   readonly registryPort: string | null;
   readonly ownerName: string | null;
   readonly description: string | null;
+  readonly coverImageUrl: string | null;
   readonly creatorId: string;
   readonly version: number;
   readonly updatedAt: string;
@@ -56,7 +69,7 @@ export interface ShipProjectView extends ProjectView {
   readonly isBase: boolean;
 }
 
-export function composeShip(row: ShipRow, baseProjectShortId: string | null): ShipView {
+export function composeShip(row: ShipRow, baseProjectShortId: string | null, coverImageUrl: string | null = null): ShipView {
   return {
     id: row.shortId,
     code: row.code,
@@ -78,10 +91,31 @@ export function composeShip(row: ShipRow, baseProjectShortId: string | null): Sh
     registryPort: row.registryPort,
     ownerName: row.ownerName,
     description: row.description,
+    coverImageUrl,
     creatorId: row.creatorId,
     version: row.version,
     updatedAt: row.updatedAt,
   };
+}
+
+/** Map cover `file_references` ids to their inline content URL. */
+async function loadCoverUrlsByReference(db: AppDatabase, referenceIds: readonly string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (referenceIds.length === 0)
+    return map;
+  const rows = await db.select({ id: fileReferences.id, fileId: fileReferences.fileId })
+    .from(fileReferences)
+    .where(inArray(fileReferences.id, [...referenceIds]))
+    .all();
+  for (const r of rows)
+    map.set(r.id, buildCoverUrl(r.fileId, r.id));
+  return map;
+}
+
+async function loadCoverUrlForShip(db: AppDatabase, row: ShipRow): Promise<string | null> {
+  if (!row.coverReferenceId)
+    return null;
+  return (await loadCoverUrlsByReference(db, [row.coverReferenceId])).get(row.coverReferenceId) ?? null;
 }
 
 /** Map internal project ids to their short ids (skips soft-deleted projects). */
@@ -99,12 +133,13 @@ async function loadProjectShortIds(db: AppDatabase, internalIds: readonly string
   return map;
 }
 
-/** Compose a single ship view, resolving its base project short id. */
+/** Compose a single ship view, resolving its base project short id and cover. */
 export async function composeShipWithBase(db: AppDatabase, row: ShipRow): Promise<ShipView> {
+  const coverUrl = await loadCoverUrlForShip(db, row);
   if (!row.baseProjectId)
-    return composeShip(row, null);
+    return composeShip(row, null, coverUrl);
   const map = await loadProjectShortIds(db, [row.baseProjectId]);
-  return composeShip(row, map.get(row.baseProjectId) ?? null);
+  return composeShip(row, map.get(row.baseProjectId) ?? null, coverUrl);
 }
 
 // ─── Ship CRUD ────────────────────────────────────────────────────────────
@@ -249,7 +284,13 @@ export async function listShips(db: AppDatabase, params: ListShipParams = {}): P
   const rows = await db.select().from(ships).where(where).orderBy(desc(ships.id)).limit(limit).offset((page - 1) * limit).all();
   const baseIds = rows.map(r => r.baseProjectId).filter((v): v is string => v !== null);
   const shortIdMap = await loadProjectShortIds(db, baseIds);
-  const data = rows.map(r => composeShip(r, r.baseProjectId ? shortIdMap.get(r.baseProjectId) ?? null : null));
+  const coverRefIds = rows.map(r => r.coverReferenceId).filter((v): v is string => v !== null);
+  const coverMap = await loadCoverUrlsByReference(db, coverRefIds);
+  const data = rows.map(r => composeShip(
+    r,
+    r.baseProjectId ? shortIdMap.get(r.baseProjectId) ?? null : null,
+    r.coverReferenceId ? coverMap.get(r.coverReferenceId) ?? null : null,
+  ));
 
   return { data, total };
 }
@@ -331,6 +372,73 @@ export async function softDeleteShip(db: AppDatabase, shortId: string): Promise<
       .where(eq(ships.id, ship.id))
       .run();
   });
+}
+
+// ─── Cover image ──────────────────────────────────────────────────────────
+//
+// Mirrors the project cover (FEAT-011). One cover per ship, modelled as a
+// `ship_cover` file reference. The pointer is repointed BEFORE the previous
+// reference is released, because the SQLite `ALTER TABLE ADD COLUMN` FK cannot
+// carry an `ON DELETE SET NULL` action.
+
+/** Load a ship by internal id (ULID), including soft-deleted rows. */
+export async function getShipById(db: AppDatabase, id: string): Promise<ShipRow | undefined> {
+  return await db.select().from(ships).where(eq(ships.id, id)).get();
+}
+
+/** Replace a ship's cover image. Returns the updated row, or undefined when the ship is gone. */
+export async function setShipCover(
+  db: AppDatabase,
+  config: Config,
+  shipInternalId: string,
+  file: File,
+  uploadedBy: string,
+): Promise<ShipRow | undefined> {
+  const ship = await getShipById(db, shipInternalId);
+  if (!ship)
+    return undefined;
+
+  const { reference } = await uploadAndReference(db, config, {
+    file,
+    ownerType: SHIP_COVER_OWNER_TYPE,
+    ownerId: shipInternalId,
+    uploadedBy,
+  });
+
+  const now = new Date().toISOString();
+  await db.update(ships)
+    .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${ships.version} + 1` })
+    .where(eq(ships.id, shipInternalId))
+    .run();
+
+  const previous = ship.coverReferenceId;
+  if (previous && previous !== reference.id)
+    await releaseReference(db, config, { referenceId: previous });
+
+  return await getShipById(db, shipInternalId);
+}
+
+/** Remove a ship's cover image (no-op when it has none). */
+export async function removeShipCover(
+  db: AppDatabase,
+  config: FileServiceConfig,
+  shipInternalId: string,
+): Promise<ShipRow | undefined> {
+  const ship = await getShipById(db, shipInternalId);
+  if (!ship)
+    return undefined;
+  const previous = ship.coverReferenceId;
+  if (!previous)
+    return ship;
+
+  const now = new Date().toISOString();
+  await db.update(ships)
+    .set({ coverReferenceId: null, updatedAt: now, version: sql`${ships.version} + 1` })
+    .where(eq(ships.id, shipInternalId))
+    .run();
+  await releaseReference(db, config, { referenceId: previous });
+
+  return await getShipById(db, shipInternalId);
 }
 
 // ─── Permission helpers (anchored on the base project) ─────────────────────

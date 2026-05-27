@@ -3,6 +3,7 @@ import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-rou
 import { ArrowLeft, ChevronRight, ClipboardList, FolderKanban, MapPin, Package, Trash2, Wrench } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CoverImage } from "@/shared/components/cover-image";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -114,6 +115,7 @@ function ShipDetailPage() {
       </nav>
 
       <Card>
+        <CoverImage src={ship.coverImageUrl} kind="ship" className="h-40 w-full" />
         <CardContent className="space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-2">

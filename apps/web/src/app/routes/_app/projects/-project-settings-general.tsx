@@ -22,6 +22,7 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useUpdateProject } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { ProjectCoverField } from "./-project-cover-field";
 import { TagsInput } from "./-tags-input";
 
 const STATUSES: readonly ProjectStatus[] = ["active", "archived"];
@@ -66,50 +67,54 @@ export function ProjectSettingsGeneral({ project }: ProjectSettingsGeneralProps)
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      {updateProject.error && <ErrorBanner message={errorMessage(updateProject.error, t("common:common.error.saveFailed"))} />}
+    <div className="space-y-6">
+      <ProjectCoverField project={project} />
 
-      <div className="space-y-1.5">
-        <Label htmlFor="settings-name">{t("field.name")}</Label>
-        <Input id="settings-name" required value={name} onChange={e => setName(e.target.value)} />
-      </div>
+      <form onSubmit={submit} className="space-y-4">
+        {updateProject.error && <ErrorBanner message={errorMessage(updateProject.error, t("common:common.error.saveFailed"))} />}
 
-      <div className="space-y-1.5">
-        <Label htmlFor="settings-code">{t("field.code")}</Label>
-        <Input id="settings-code" value={code} onChange={e => setCode(e.target.value)} />
-      </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-name">{t("field.name")}</Label>
+          <Input id="settings-name" required value={name} onChange={e => setName(e.target.value)} />
+        </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="settings-description">{t("field.description")}</Label>
-        <Textarea id="settings-description" rows={3} value={description} onChange={e => setDescription(e.target.value)} />
-      </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-code">{t("field.code")}</Label>
+          <Input id="settings-code" value={code} onChange={e => setCode(e.target.value)} />
+        </div>
 
-      <div className="space-y-1.5">
-        <Label>{t("field.status")}</Label>
-        <Select value={status} onValueChange={v => v !== null && setStatus(v as ProjectStatus)}>
-          <SelectTrigger className="w-full">
-            <SelectValue>
-              {(v: string) => t(`status.${v}` as const)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {STATUSES.map(s => (
-              <SelectItem key={s} value={s}>{t(`status.${s}` as const)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-description">{t("field.description")}</Label>
+          <Textarea id="settings-description" rows={3} value={description} onChange={e => setDescription(e.target.value)} />
+        </div>
 
-      <div className="space-y-1.5">
-        <Label>{t("field.tags")}</Label>
-        <TagsInput value={tags} onChange={setTags} />
-      </div>
+        <div className="space-y-1.5">
+          <Label>{t("field.status")}</Label>
+          <Select value={status} onValueChange={v => v !== null && setStatus(v as ProjectStatus)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {(v: string) => t(`status.${v}` as const)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {STATUSES.map(s => (
+                <SelectItem key={s} value={s}>{t(`status.${s}` as const)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={updateProject.isPending || !name.trim()}>
-          {t("common:common.save")}
-        </Button>
-      </div>
-    </form>
+        <div className="space-y-1.5">
+          <Label>{t("field.tags")}</Label>
+          <TagsInput value={tags} onChange={setTags} />
+        </div>
+
+        <div className="flex justify-end">
+          <Button type="submit" disabled={updateProject.isPending || !name.trim()}>
+            {t("common:common.save")}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }

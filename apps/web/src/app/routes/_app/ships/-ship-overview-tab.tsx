@@ -30,6 +30,7 @@ import {
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
 import { ISSUE_STATUS_BADGE, LIFECYCLE_STYLES } from "./-ship-colors";
+import { ShipCoverField } from "./-ship-cover-field";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToUpdate } from "./-ship-form-logic";
 import { StatTile } from "./-ship-stats";
@@ -118,6 +119,8 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
             </Button>
           )}
         >
+          {canManage && <ShipCoverField ship={ship} />}
+
           <p className="text-sm whitespace-pre-wrap text-muted-foreground">
             {ship.description || t("overview.noDescription")}
           </p>

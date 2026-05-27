@@ -52,6 +52,7 @@ export interface ProjectView {
   readonly status: ProjectStatus;
   readonly description: string | null;
   readonly tags: readonly ProjectTag[];
+  readonly coverImageUrl: string | null;
   // Present only on the detail endpoint: the caller's effective capabilities.
   readonly capabilities?: readonly ProjectCapability[];
   readonly creatorId: string;
@@ -217,6 +218,37 @@ export function useUpdateProject(): UseMutationResult<ProjectView, Error, { id: 
     mutationFn: ({ id, ...payload }) => http<ApiEnvelope<ProjectView>>(`/projects/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
+    }).then(r => r.data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(data.id) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+    },
+  });
+}
+
+export function useSetProjectCover(): UseMutationResult<ProjectView, Error, { id: string; file: File }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return http<ApiEnvelope<ProjectView>>(`/projects/${encodeURIComponent(id)}/cover-image`, {
+        method: "POST",
+        body: fd,
+      }).then(r => r.data);
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(data.id) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+    },
+  });
+}
+
+export function useRemoveProjectCover(): UseMutationResult<ProjectView, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: id => http<ApiEnvelope<ProjectView>>(`/projects/${encodeURIComponent(id)}/cover-image`, {
+      method: "DELETE",
     }).then(r => r.data),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.detail(data.id) });

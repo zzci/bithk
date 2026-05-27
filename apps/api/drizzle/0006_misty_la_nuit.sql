@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `cover_reference_id` text REFERENCES file_references(id);

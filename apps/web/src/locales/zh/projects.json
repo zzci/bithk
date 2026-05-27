@@ -41,14 +41,21 @@
   },
   "tags": {
     "placeholder": "输入标签后按回车添加",
+    "searchPlaceholder": "搜索或创建标签",
+    "create": "创建 \"{{name}}\"",
+    "empty": "暂无标签",
     "remove": "移除标签 {{name}}"
+  },
+  "cover": {
+    "label": "封面图片",
+    "upload": "上传封面",
+    "replace": "更换封面",
+    "remove": "移除封面"
   },
   "create": {
     "title": "创建项目",
-    "description": "创建一个新项目，仅名称为必填项。",
     "submit": "创建",
     "namePlaceholder": "项目名称",
-    "codePlaceholder": "可选编号",
     "descriptionPlaceholder": "可选描述"
   },
   "edit": {

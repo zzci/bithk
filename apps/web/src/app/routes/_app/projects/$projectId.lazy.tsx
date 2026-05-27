@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   ChevronRight,
   ClipboardList,
-  FolderKanban,
   Package,
   Settings,
   Trash2,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CoverImage } from "@/shared/components/cover-image";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -123,11 +123,8 @@ function ProjectDetailPage() {
 
       <Card>
         <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_1fr]">
-          <div className="flex min-h-40 items-center justify-center rounded-lg border bg-muted/40">
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <FolderKanban className="size-12" aria-hidden="true" />
-              <span className="max-w-44 truncate text-xs font-mono">{project.code || project.id}</span>
-            </div>
+          <div className="min-h-40 overflow-hidden rounded-lg border">
+            <CoverImage src={project.coverImageUrl} kind="project" className="size-full min-h-40" />
           </div>
 
           <div className="flex min-w-0 flex-col gap-4">
