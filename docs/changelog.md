@@ -14,10 +14,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 ### Added
 
 - Database seed script for local testing (CHORE-001 / PLAN-020):
-  `bun run seed` populates a coherent demo dataset (4 accounts, contacts,
-  2 ships with equipment, a project with members/categories/ship binding,
-  issues, procurement, and a document tree) through the existing service-layer
-  creators. Idempotent on re-run; `--fresh` wipes the seeded rows and reseeds.
+  `bun run seed` populates a coherent demo dataset (accounts, contacts, ships
+  with equipment, projects with members/categories/ship binding, issues,
+  procurement, and a document tree) through the existing service-layer creators.
+  Volume is driven by a `COUNTS` table and generated from fixed vocab pools via
+  a seeded PRNG, so runs are reproducible; the default produces ~20 accounts,
+  30 contacts, 20 ships, 10 standalone projects, 30 issues, 20 procurements, and
+  20 documents. Idempotent on re-run; `--fresh` wipes the seeded rows and
+  reseeds.
 - Drive file manager completion pass (FEAT-010 / PLAN-014): recursive folder
   upload from the browser, direct drag-and-drop moves, explicit current-folder
   versus drive-wide search, image thumbnails in grid view, and a version

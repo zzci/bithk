@@ -55,3 +55,10 @@ usernames (`seed-admin`/`seed-pm`/…) and adding a post-insert check that fails
 fast if any seed user is missing. `--fresh` only removes `seed-`-owned rows, so
 pre-existing dev data created by real accounts is preserved. Seeded the dev DB
 at `data/db/app.db`.
+
+Scaled up (~10x): `seedContent` now generates data from fixed vocab pools via a
+seeded PRNG, driven by a `COUNTS` table (default ~20 users, 30 contacts, 20
+ships, 10 standalone projects, 30 issues, 20 procurements, 20 documents). Output
+stays reproducible across `--fresh` runs. Reseeded the dev DB. Note: the
+single-user `admin` row is auto-provisioned at login and is not seed data, so it
+regenerates on next dev login.
