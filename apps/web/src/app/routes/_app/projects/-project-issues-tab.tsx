@@ -45,7 +45,6 @@ import { useCreateProjectIssue, useProjectIssues } from "@/shared/lib/api/projec
 import { errorMessage } from "@/shared/lib/errors";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { buildMemberLabelMap } from "./-member-helpers";
-import { StatCard, StatStrip } from "./-project-stats";
 
 const PRIORITY_VARIANTS: Record<IssuePriority, "default" | "outline" | "secondary" | "destructive"> = {
   low: "secondary",
@@ -115,33 +114,6 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
 
   return (
     <div className="space-y-4">
-      <StatStrip>
-        <StatCard
-          label={t("issues.stats.total")}
-          value={statCount(totalCountQuery.data?.meta.total)}
-          active={statusFilter === "__all__"}
-          onClick={() => setStatus("__all__")}
-        />
-        <StatCard
-          label={t("issues.stats.pending")}
-          value={statCount(openCountQuery.data?.meta.total)}
-          active={statusFilter === "open"}
-          onClick={() => setStatus(statusFilter === "open" ? "__all__" : "open")}
-        />
-        <StatCard
-          label={t("issues.stats.inProgress")}
-          value={statCount(inProgressCountQuery.data?.meta.total)}
-          active={statusFilter === "in_progress"}
-          onClick={() => setStatus(statusFilter === "in_progress" ? "__all__" : "in_progress")}
-        />
-        <StatCard
-          label={t("issues.stats.done")}
-          value={statCount(doneCountQuery.data?.meta.total)}
-          active={statusFilter === "done"}
-          onClick={() => setStatus(statusFilter === "done" ? "__all__" : "done")}
-        />
-      </StatStrip>
-
       <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"

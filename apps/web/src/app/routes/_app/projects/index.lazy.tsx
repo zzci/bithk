@@ -4,6 +4,7 @@ import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Plus,
   Search,
+  Settings,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -80,6 +81,10 @@ function ProjectsListPage() {
     void navigate({ to: "/projects/$projectId", params: { projectId } });
   };
 
+  const openSettings = (projectId: string) => {
+    void navigate({ to: "/projects/$projectId", params: { projectId }, search: { settings: true } });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -139,7 +144,7 @@ function ProjectsListPage() {
         ? <p className="text-sm text-muted-foreground">{t("list.loading")}</p>
         : visibleProjects.length === 0
           ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
-          : <ProjectsGrid projects={visibleProjects} openProject={openProject} />}
+          : <ProjectsGrid projects={visibleProjects} isAdmin={isAdmin} openProject={openProject} openSettings={openSettings} />}
 
       {totalPages > 1 && meta && (
         <div className="flex items-center justify-between pt-2">
@@ -164,10 +169,14 @@ function ProjectsListPage() {
 
 function ProjectsGrid({
   projects,
+  isAdmin,
   openProject,
+  openSettings,
 }: {
   readonly projects: readonly ProjectView[];
+  readonly isAdmin: boolean;
   readonly openProject: (projectId: string) => void;
+  readonly openSettings: (projectId: string) => void;
 }) {
   const { t } = useTranslation("projects");
 
@@ -191,9 +200,24 @@ function ProjectsGrid({
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="line-clamp-2">{project.name}</CardTitle>
-              <Badge variant="secondary" className={`shrink-0 text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
-                {t(`status.${project.status}` as const)}
-              </Badge>
+              <div className="flex shrink-0 items-center gap-1">
+                <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
+                  {t(`status.${project.status}` as const)}
+                </Badge>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("list.openSettings")}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openSettings(project.id);
+                    }}
+                  >
+                    <Settings aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {project.code && <span className="font-mono">{project.code}</span>}
@@ -205,16 +229,6 @@ function ProjectsGrid({
             <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">
               {project.description || t("overview.noDescription")}
             </p>
-            <div className="grid grid-cols-2 gap-2 border-y py-2 text-xs">
-              <div>
-                <div className="text-muted-foreground">{t("list.card.status")}</div>
-                <div className="font-medium">{t(`status.${project.status}` as const)}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">{t("list.card.updated")}</div>
-                <div className="font-medium">{formatDate(project.updatedAt)}</div>
-              </div>
-            </div>
             {project.tags.length > 0
               ? (
                   <div className="flex flex-wrap gap-1">

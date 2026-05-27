@@ -41,6 +41,22 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   fallback, and ship files via the base project's drive FileBrowser. Added
   EN/ZH i18n, focused frontend/API tests, and a live e2e main-flow suite.
 
+### Changed
+
+- Project module UI deduplication (UI-011): the project detail overview tab no
+  longer repeats the header's key information (status, code, creator, updated)
+  and tags cards — it keeps description, procurement category preview, and the
+  member preview. The work order tab drops the status summary StatStrip that
+  duplicated the status filter chips. Project list cards add an admin-only
+  settings entry that deep-links into the project settings dialog via a
+  `settings` search param.
+
+### Removed
+
+- Project list cards no longer render the redundant status/updated grid block
+  (UI-011); the status badge and the date line in the card header already carry
+  that information.
+
 ### Fixed
 
 - Single-user sessions are now reused when opening a new tab (FIX-004 /

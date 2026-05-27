@@ -31,3 +31,4 @@
 | [UI-008](UI-008.md) | Normalize ships, projects, and contacts to the shared shadcn baseline | [PLAN-021](../plan/PLAN-021.md) | Done | 2026-05-25 |
 | [UI-009](UI-009.md) | Add a semantic color system to the ship detail page | - | Done | 2026-05-25 |
 | [UI-010](UI-010.md) | Unify modules onto a global semantic color system | - | Done | 2026-05-25 |
+| [UI-011](UI-011.md) | Trim project module UI duplication + list settings entry | - | Done | 2026-05-27 |

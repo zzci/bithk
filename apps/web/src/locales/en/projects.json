@@ -11,6 +11,7 @@
     "filterByTag": "Filter by tag",
     "tagAll": "All",
     "searchPlaceholder": "Search projects",
+    "openSettings": "Project settings",
     "viewMode": "Project view mode",
     "viewGrid": "Grid view",
     "viewList": "List view",
@@ -20,10 +21,6 @@
       "active": "Active projects",
       "archived": "Archived",
       "tags": "Tags"
-    },
-    "card": {
-      "status": "Status",
-      "updated": "Updated"
     },
     "col": {
       "name": "Name",
@@ -95,13 +92,9 @@
   "overview": {
     "description": "Description",
     "noDescription": "No description provided.",
-    "status": "Status",
     "creator": "Creator",
-    "members": "Members",
-    "memberCount": "{{count}} members",
     "notSet": "Not set",
     "noTags": "No tags.",
-    "keyInfo": "Key information",
     "memberPreview": "Members",
     "categoryPreview": "Procurement categories",
     "categoriesLoading": "Loading categories...",
@@ -138,12 +131,6 @@
     },
     "createTitle": "Create work order",
     "createDescription": "Add a new work order to this project.",
-    "stats": {
-      "total": "Total work orders",
-      "inProgress": "In progress",
-      "pending": "Pending",
-      "done": "Done"
-    },
     "status": {
       "open": "Open",
       "in_progress": "In Progress",

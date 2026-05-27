@@ -11,6 +11,7 @@
     "filterByTag": "按分类筛选",
     "tagAll": "全部",
     "searchPlaceholder": "搜索项目",
+    "openSettings": "项目设置",
     "viewMode": "项目视图模式",
     "viewGrid": "网格视图",
     "viewList": "列表视图",
@@ -20,10 +21,6 @@
       "active": "进行中项目",
       "archived": "已归档",
       "tags": "标签"
-    },
-    "card": {
-      "status": "状态",
-      "updated": "更新"
     },
     "col": {
       "name": "名称",
@@ -95,13 +92,9 @@
   "overview": {
     "description": "描述",
     "noDescription": "暂无描述。",
-    "status": "状态",
     "creator": "创建者",
-    "members": "成员",
-    "memberCount": "{{count}} 名成员",
     "notSet": "未设置",
     "noTags": "暂无标签。",
-    "keyInfo": "关键信息",
     "memberPreview": "成员",
     "categoryPreview": "采购分类",
     "categoriesLoading": "正在加载分类...",
@@ -138,12 +131,6 @@
     },
     "createTitle": "创建工单",
     "createDescription": "为该项目添加一个新工单。",
-    "stats": {
-      "total": "工单总数",
-      "inProgress": "进行中",
-      "pending": "待处理",
-      "done": "已完成"
-    },
     "status": {
       "open": "待处理",
       "in_progress": "进行中",

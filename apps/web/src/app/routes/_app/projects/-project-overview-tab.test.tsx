@@ -38,7 +38,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
 }
 
 describe("projectOverviewTab", () => {
-  it("renders description, status, code, member count and creator name", () => {
+  it("renders the project description", () => {
     const members = [{ id: "m1" }, { id: "m2" }] as ProjectMemberView[];
     renderWithProviders(
       <ProjectOverviewTab
@@ -48,14 +48,9 @@ describe("projectOverviewTab", () => {
       />,
     );
     expect(screen.getByText("A tall building")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(screen.getByText("TWR")).toBeInTheDocument();
-    expect(screen.getByText("2 members")).toBeInTheDocument();
-    expect(screen.getByText("Alice")).toBeInTheDocument();
-    expect(screen.getByText("infra")).toBeInTheDocument();
   });
 
-  it("falls back to placeholders for missing description, code and tags", () => {
+  it("falls back to the description placeholder when none is provided", () => {
     renderWithProviders(
       <ProjectOverviewTab
         project={project({ description: "", code: null, tags: [] })}
@@ -64,15 +59,6 @@ describe("projectOverviewTab", () => {
       />,
     );
     expect(screen.getByText("No description provided.")).toBeInTheDocument();
-    expect(screen.getByText("Not set")).toBeInTheDocument();
-    expect(screen.getByText("No tags.")).toBeInTheDocument();
-  });
-
-  it("shows the raw creator id when the name is unknown", () => {
-    renderWithProviders(
-      <ProjectOverviewTab project={project({ creatorId: "u-unknown" })} members={[]} userNames={new Map()} />,
-    );
-    expect(screen.getByText("u-unknown")).toBeInTheDocument();
   });
 
   it("lists member labels in the member preview", () => {

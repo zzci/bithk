@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createLazyFileRoute, Outlet, useNavigate, useParams } from "@tanstack/react-router";
+import { createLazyFileRoute, Outlet, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ChevronRight,
@@ -49,6 +49,7 @@ export const Route = createLazyFileRoute("/_app/projects/$projectId")({
 function ProjectDetailPage() {
   const { t } = useTranslation(["projects", "common"]);
   const { projectId } = useParams({ from: "/_app/projects/$projectId" });
+  const { settings: settingsParam } = useSearch({ from: "/_app/projects/$projectId" });
   const navigate = useNavigate();
 
   const projectQuery = useProject(projectId);
@@ -72,8 +73,15 @@ function ProjectDetailPage() {
   );
 
   const [tab, setTab] = useState("overview");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(settingsParam ?? false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Deep link from the project list (`?settings=true`) clears once the dialog closes.
+  const handleSettingsOpenChange = (open: boolean) => {
+    setSettingsOpen(open);
+    if (!open && settingsParam)
+      void navigate({ to: "/projects/$projectId", params: { projectId }, search: {}, replace: true });
+  };
 
   if (projectQuery.isLoading) {
     return <p className="text-muted-foreground">{t("detail.loading")}</p>;
@@ -241,7 +249,7 @@ function ProjectDetailPage() {
       {caps.canOpenSettings && (
         <ProjectSettingsDialog
           open={settingsOpen}
-          onOpenChange={setSettingsOpen}
+          onOpenChange={handleSettingsOpenChange}
           project={project}
           members={members}
           userNames={userNames}
