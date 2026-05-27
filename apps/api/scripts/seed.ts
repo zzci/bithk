@@ -51,10 +51,10 @@ const ADMIN_ID = "seed-user-admin";
 
 // Target volumes. Bump these to scale the dataset; counts flow through the
 // generators below so nothing else needs to change.
+// Ship count is driven by the curated `YACHTS` dataset below, not by COUNTS.
 const COUNTS = {
   users: 20,
   contacts: 30,
-  ships: 20,
   projects: 10,
   issues: 30,
   procurements: 20,
@@ -104,12 +104,51 @@ const LAST_NAMES = ["Chen", "Mercer", "Diaz", "Lin", "Voss", "Whitfield", "Okafo
 const COMPANY_A = ["Oceanic", "RadarTech", "Blue Horizon", "Pacific", "Nordic", "Atlas", "Meridian", "Harbor", "Coastal", "Apex", "Titan", "Vanguard", "Summit", "Delta", "Orion"] as const;
 const COMPANY_B = ["Marine Supplies", "Systems", "Charters", "Logistics", "Engineering", "Marine Services", "Electronics", "Shipyard", "Provisions", "Coatings"] as const;
 const CONTACT_TAGS = ["supplier", "client", "deck", "electronics", "safety", "provisioning", "logistics"] as const;
-const SHIP_PREFIX = ["MV", "SY", "MY", "RV", "FV"] as const;
-const SHIP_NAMES = ["Aurora", "Meridian", "Orion", "Tethys", "Calypso", "Poseidon", "Nautilus", "Triton", "Halcyon", "Zephyr", "Odyssey", "Mistral", "Borealis", "Solace", "Tempest", "Horizon", "Seraphine", "Valkyrie", "Equinox", "Mariner", "Aquila", "Cygnus", "Lyra", "Vega"] as const;
-const BUILDERS = ["Damen Shipyards", "Feadship", "Lürssen", "Oceanco", "Sunseeker", "Benetti", "Heesen", "Austal"] as const;
-const FLAG_STATES = ["Singapore", "Cayman Islands", "Marshall Islands", "Malta", "Panama", "Bahamas", "Norway", "Netherlands"] as const;
-const LIFECYCLE = ["design", "building", "sea_trial", "in_service", "maintenance", "decommissioned"] as const;
-const EQUIPMENT = ["Main Engine", "Auxiliary Generator", "Navigation Radar", "Bow Thruster", "Steering Gear", "Fire Pump", "Watermaker", "HVAC Unit", "Stabilizer", "Liferaft Station"] as const;
+// Curated real-world yacht models spanning 5–50 m LOA, with size-consistent
+// particulars. `gt` (gross tonnage) is only meaningful for the larger,
+// commercially-measured vessels; small craft leave it null. IMO/MMSI/call-sign
+// are assigned at seed time only to ≥24 m hulls (the rough threshold for
+// commercial registration). Ordered by length so the dataset reads as a fleet.
+interface YachtSpec {
+  readonly name: string;
+  readonly model: string;
+  readonly builder: string;
+  readonly buildYear: number;
+  readonly loa: number;
+  readonly beam: number;
+  readonly draft: number;
+  readonly gt: number | null;
+  readonly flagState: string;
+  readonly registryPort: string;
+  readonly lifecycle: "design" | "building" | "sea_trial" | "in_service" | "maintenance" | "decommissioned";
+}
+
+const YACHTS: readonly YachtSpec[] = [
+  { name: "Sea Sprite", model: "Williams DieselJet 565", builder: "Williams Jet Tenders", buildYear: 2021, loa: 5.6, beam: 2.1, draft: 0.45, gt: null, flagState: "United Kingdom", registryPort: "Southampton", lifecycle: "in_service" },
+  { name: "Kingfisher", model: "Axopar 28 Cabin", builder: "Axopar Boats", buildYear: 2022, loa: 8.0, beam: 2.5, draft: 0.6, gt: null, flagState: "Finland", registryPort: "Helsinki", lifecycle: "in_service" },
+  { name: "Marlin", model: "Sundancer 320", builder: "Sea Ray", buildYear: 2018, loa: 9.8, beam: 3.4, draft: 0.9, gt: null, flagState: "United States", registryPort: "Miami", lifecycle: "in_service" },
+  { name: "Halcyon", model: "Cap Camarat 10.5 WA", builder: "Jeanneau", buildYear: 2020, loa: 10.6, beam: 3.4, draft: 0.85, gt: null, flagState: "France", registryPort: "Cannes", lifecycle: "in_service" },
+  { name: "Aurelia", model: "Gran Turismo 41", builder: "Beneteau", buildYear: 2021, loa: 12.8, beam: 3.9, draft: 1.0, gt: null, flagState: "France", registryPort: "Nice", lifecycle: "in_service" },
+  { name: "Vela", model: "V50", builder: "Princess Yachts", buildYear: 2017, loa: 15.6, beam: 4.3, draft: 1.2, gt: null, flagState: "Malta", registryPort: "Valletta", lifecycle: "maintenance" },
+  { name: "Lumen", model: "55 Flybridge", builder: "Azimut", buildYear: 2019, loa: 16.7, beam: 4.8, draft: 1.45, gt: null, flagState: "Malta", registryPort: "Valletta", lifecycle: "in_service" },
+  { name: "Tempest", model: "Predator 60", builder: "Sunseeker", buildYear: 2020, loa: 18.4, beam: 5.0, draft: 1.5, gt: null, flagState: "Jersey", registryPort: "St. Helier", lifecycle: "in_service" },
+  { name: "Calypso", model: "Ferretti 670", builder: "Ferretti Yachts", buildYear: 2021, loa: 20.6, beam: 5.4, draft: 1.6, gt: null, flagState: "Italy", registryPort: "Genoa", lifecycle: "in_service" },
+  { name: "Meridian", model: "Pershing 7X", builder: "Pershing", buildYear: 2022, loa: 22.0, beam: 5.6, draft: 1.65, gt: null, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "in_service" },
+  { name: "Odyssey", model: "SL78", builder: "Sanlorenzo", buildYear: 2016, loa: 23.9, beam: 6.0, draft: 1.8, gt: null, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "maintenance" },
+  { name: "Aquila", model: "90 Ocean", builder: "Sunseeker", buildYear: 2019, loa: 27.5, beam: 6.7, draft: 2.0, gt: 130, flagState: "Malta", registryPort: "Valletta", lifecycle: "in_service" },
+  { name: "Serenity", model: "30M", builder: "Princess Yachts", buildYear: 2018, loa: 30.0, beam: 6.7, draft: 1.95, gt: 145, flagState: "Marshall Islands", registryPort: "Majuro", lifecycle: "in_service" },
+  { name: "Mistral", model: "Mangusta 104", builder: "Overmarine", buildYear: 2015, loa: 32.0, beam: 7.0, draft: 1.6, gt: 160, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "maintenance" },
+  { name: "Bluewater", model: "Delfino 95", builder: "Benetti", buildYear: 2020, loa: 33.0, beam: 7.6, draft: 2.25, gt: 250, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "in_service" },
+  { name: "Aurora", model: "SD96", builder: "Sanlorenzo", buildYear: 2021, loa: 35.5, beam: 7.8, draft: 2.3, gt: 290, flagState: "Malta", registryPort: "Valletta", lifecycle: "in_service" },
+  { name: "Nordwind", model: "38m Steel", builder: "Heesen Yachts", buildYear: 2017, loa: 38.0, beam: 8.0, draft: 2.4, gt: 330, flagState: "Gibraltar", registryPort: "Gibraltar", lifecycle: "in_service" },
+  { name: "Polaris", model: "Amels 180", builder: "Amels", buildYear: 2019, loa: 40.0, beam: 8.2, draft: 2.45, gt: 450, flagState: "Isle of Man", registryPort: "Douglas", lifecycle: "in_service" },
+  { name: "Costa Verde", model: "Mediterraneo 116", builder: "Benetti", buildYear: 2023, loa: 43.0, beam: 8.6, draft: 2.5, gt: 380, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "sea_trial" },
+  { name: "Valkyrie", model: "Heesen 4500", builder: "Heesen Yachts", buildYear: 2024, loa: 45.0, beam: 8.6, draft: 2.55, gt: 495, flagState: "Marshall Islands", registryPort: "Majuro", lifecycle: "building" },
+  { name: "Vantage", model: "F45 Vantage", builder: "Feadship", buildYear: 2026, loa: 47.5, beam: 8.8, draft: 2.6, gt: 499, flagState: "Netherlands", registryPort: "Amsterdam", lifecycle: "design" },
+  { name: "Leviathan", model: "Amels 165", builder: "Amels", buildYear: 2022, loa: 50.0, beam: 9.0, draft: 2.7, gt: 650, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "in_service" },
+] as const;
+
+const EQUIPMENT = ["Main Engine", "Auxiliary Generator", "Navigation Radar", "Bow Thruster", "Stern Thruster", "Steering Gear", "Fire Pump", "Watermaker", "Air Conditioning Plant", "Zero-Speed Stabilizers", "Tender Crane", "Autopilot", "Liferaft Station"] as const;
 const EQUIP_CATEGORIES = ["propulsion", "navigation", "safety", "deck", "electrical", "hvac"] as const;
 const MANUFACTURERS = ["MAN Energy Solutions", "Caterpillar", "Wärtsilä", "Furuno", "Kongsberg", "Rolls-Royce", "ABB"] as const;
 const PROJECT_KINDS = ["Dry-Dock Refit", "Newbuild", "Annual Survey", "Engine Overhaul", "Class Renewal", "Interior Refit", "Electronics Upgrade", "Hull Maintenance", "Sea Trial Prep", "Warranty Works"] as const;
@@ -249,25 +288,45 @@ interface SeededShip {
   readonly shortId: string;
 }
 
+/** Registration identifiers are only minted for ≥24 m hulls. */
+function registration(loa: number): { imoNumber: string | null; mmsi: string | null; callSign: string | null } {
+  if (loa < 24)
+    return { imoNumber: null, mmsi: null, callSign: null };
+  return {
+    imoNumber: `9${randInt(100000, 999999)}`,
+    mmsi: `2${randInt(10_000_000, 99_999_999)}`,
+    callSign: `2${pick(["A", "B", "C", "D", "E"])}${pick(["X", "Y", "Z"])}${randInt(1000, 9999)}`,
+  };
+}
+
 async function seedShips(db: AppDatabase): Promise<{ shipsCreated: SeededShip[]; equipment: number }> {
   const shipsCreated: SeededShip[] = [];
   let equipment = 0;
-  for (let i = 0; i < COUNTS.ships; i++) {
-    const name = `${pick(SHIP_PREFIX)} ${SHIP_NAMES[i % SHIP_NAMES.length]}${i >= SHIP_NAMES.length ? ` ${Math.floor(i / SHIP_NAMES.length) + 1}` : ""}`;
+  for (const y of YACHTS) {
+    const reg = registration(y.loa);
     const ship = await createShip(db, {
-      name,
+      name: y.name,
       creatorId: ADMIN_ID,
-      lifecycleStage: pick(LIFECYCLE),
-      builder: pick(BUILDERS),
-      buildYear: randInt(2005, 2026),
-      grossTonnage: randInt(500, 9000),
-      imoNumber: `9${randInt(100000, 999999)}`,
-      flagState: pick(FLAG_STATES),
-      ownerName: `${pick(COMPANY_A)} Holdings Ltd`,
-      description: "Demo vessel record.",
+      lifecycleStage: y.lifecycle,
+      model: y.model,
+      builder: y.builder,
+      buildYear: y.buildYear,
+      lengthOverall: y.loa,
+      beam: y.beam,
+      draft: y.draft,
+      grossTonnage: y.gt,
+      imoNumber: reg.imoNumber,
+      mmsi: reg.mmsi,
+      callSign: reg.callSign,
+      flagState: y.flagState,
+      registryPort: y.registryPort,
+      ownerName: `${pick(COMPANY_A)} Yachting Ltd`,
+      description: `${y.builder} ${y.model} — ${y.loa} m motor yacht.`,
     });
     shipsCreated.push({ id: ship.id, shortId: ship.shortId });
-    const equipCount = randInt(1, 3);
+
+    // Larger vessels carry more systems.
+    const equipCount = y.loa < 15 ? randInt(1, 2) : y.loa < 30 ? randInt(2, 4) : randInt(3, 6);
     for (const eqName of sample(EQUIPMENT, equipCount)) {
       await createEquipment(db, ship.id, {
         name: eqName,
@@ -456,7 +515,7 @@ async function seedContent(db: AppDatabase): Promise<SeedCounts> {
     updatedBy: ADMIN_ID,
   }).run();
 
-  return { contacts: contactCount, ships: COUNTS.ships, equipment, projects: projectPool.length, issues, procurements, documents, covers };
+  return { contacts: contactCount, ships: shipsCreated.length, equipment, projects: projectPool.length, issues, procurements, documents, covers };
 }
 
 async function main(): Promise<void> {
