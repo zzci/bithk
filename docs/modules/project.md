@@ -6,6 +6,10 @@ files — it is **not** an [`item`](./item.md) sub-type. Projects own their own 
 [`drive`](./drive.md)) and are authorized at the route layer against
 `project_members` (capability-based); there are no Zanzibar tuples for projects.
 
+Project tags are **not** owned here. The tag vocabulary lives in the shared
+[`tag`](./tag.md) module (scoped to `source_type = 'project'`); this module owns
+only the `project_tags` assignment join.
+
 ## Members are operators
 
 **Members** (`project_members`) are **operators** — they can be assigned issues
@@ -24,8 +28,8 @@ inheritance.
 
 ```text
 apps/api/src/modules/project/
-  schema.ts               # projects, project_roles, project_members, procurement_categories, tags, project_tags
-  project.service.ts      # project + member CRUD, tags, the capability helper contract
+  schema.ts               # projects, project_roles, project_members, procurement_categories, project_tags
+  project.service.ts      # project + member CRUD, tag assignment via shared helpers, the capability helper contract
   project.roles.ts        # role CRUD + default-role seeding + capability parsing
   project.categories.ts   # procurement-category CRUD
   project.routes.ts       # /api/projects/... and /api/tags
@@ -42,8 +46,7 @@ apps/api/src/modules/project/
 | `project_roles`          | User-defined roles, per project. `id`, `project_id`, `name`, `capabilities` (JSON `string[]` over `PROJECT_CAPABILITIES`), `is_system` (the seeded "Project Manager" role: undeletable, full capabilities), timestamps. |
 | `project_members`        | Operators. `id` (nanoid — **the assignment target**), `project_id`, `user_id` (NULL ⇒ virtual member), `display_name` (virtual), `role_id` → `project_roles`, `title` (job title / trade, display only), timestamps. Unique on `(project_id, user_id)` (multiple NULL `user_id` allowed ⇒ many virtual members). |
 | `procurement_categories` | Procurement classification, per project (flat). `id`, `project_id`, `name`, `code`, `description`, timestamps. |
-| `tags`                   | Global, user-defined tag vocabulary. `id`, `name` (unique), timestamps. |
-| `project_tags`           | Project ↔ tag many-to-many. PK `(project_id, tag_id)`. |
+| `project_tags`           | Project ↔ tag assignment join. PK `(project_id, tag_id)`; `tag_id` → `tags.id` (`ON DELETE CASCADE`) in the shared [`tag`](./tag.md) module. The vocabulary itself is **not** owned here. |
 
 ### Roles and capabilities
 
@@ -71,8 +74,9 @@ internal ULID `id` is never returned — responses map through `composeProject` 
 
 Mounted under `protectedRoutes`; every route requires `authRequired`. `:id` is
 the project `short_id`. See [api-routes.md](../reference/api-routes.md) for the
-full generated list (projects, members, roles, procurement-categories,
-`/api/tags`).
+full generated list (projects, members, roles, procurement-categories). The
+`/api/tags` routes are owned by the shared [`tag`](./tag.md) module; project tag
+filtering reads the `project` vocabulary through them.
 
 Highlights:
 
@@ -87,7 +91,8 @@ Highlights:
 - `/api/projects/:id/roles` — `roles.manage`.
 - `/api/projects/:id/procurement-categories` — `categories.manage` (read: any
   member).
-- `GET /api/tags` — global tag vocabulary (any authenticated user).
+- `GET /api/tags` — project tag vocabulary (defaults to `type=project`; any
+  authenticated user). Owned by the [`tag`](./tag.md) module.
 
 ## Permissions (fail-closed)
 
@@ -155,8 +160,10 @@ Project and member mutations emit per-action audit events with
 ## Backup
 
 `projectBackupContribution` — tables `projects`, `project_roles`,
-`project_members`, `procurement_categories`, `tags`,
-`project_tags` (parents before children); deps `["users"]`.
+`project_members`, `procurement_categories`, `project_tags` (parents before
+children); deps `["users", "ships", "tags"]`. The `tags` vocabulary table is
+backed up by the [`tag`](./tag.md) module, listed as a dep so it restores before
+`project_tags`.
 
 ## Out of scope
 

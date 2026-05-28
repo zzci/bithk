@@ -232,9 +232,11 @@ Document-specific fields keyed off `item_id`.
 | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `item_id`         | PK + FK → `items.id ON DELETE CASCADE`.                                                                              |
 | `content`         | Long text (≤ 50 000 chars enforced at zod boundary).                                                                  |
-| `tags`            | JSON array string. Default `'[]'`.                                                                                    |
 | `parent_id`       | Nullable self-FK to `items.id` via `documents → items` (`ON DELETE CASCADE`). **Business hierarchy column** — drives the sidebar tree. |
 | `comments_locked` | Boolean. When 1, new comments are rejected.                                                                            |
+
+Tags are **not** a column on `document_details` — they live in the
+`document_tags` join (see [Tags](#tags)).
 
 The **permission edge** for the parent hierarchy is a separate
 `relation_tuples` row `(item, X, parent_item, item, Y)` written /
@@ -242,6 +244,36 @@ rewritten in lockstep with `parent_id`. The two are read for two
 different purposes; neither derives the other. Document sharing is also
 expressed as policy tuples (`viewer` / `editor`), not as a dedicated
 shares table.
+
+### Tags
+
+Shared, type-scoped tag vocabulary owned by the `tag` module (see
+[`modules/tag.md`](../modules/tag.md)). One vocabulary table plus three
+assignment joins — project, contact, and document share the table without
+referencing each other.
+
+#### `tags`
+Central tag vocabulary.
+
+| Column        | Notes                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| `id`          | nanoid PK.                                                                                                     |
+| `name`        | Display name. **Uniqueness is type-scoped**, not global.                                                        |
+| `source_type` | Discriminator: `'project' \| 'contact' \| 'document'`. Scopes the namespace so each domain is independent.      |
+| `created_at` / `updated_at` | ISO strings.                                                                                     |
+
+Unique index on `(source_type, name)` — the same name may exist once per source
+type, never globally.
+
+#### `project_tags` / `contact_tags` / `document_tags`
+Assignment joins, owned by their respective domain modules. Each links a domain
+row to a `tags` row and cascades on tag delete.
+
+| Table           | Owner module | PK | Tag FK |
+| --------------- | ------------ | -- | ------ |
+| `project_tags`  | `project`    | `(project_id, tag_id)` | `tag_id` → `tags.id ON DELETE CASCADE` |
+| `contact_tags`  | `contact`    | `(contact_id, tag_id)` | `tag_id` → `tags.id ON DELETE CASCADE` |
+| `document_tags` | `document`   | `(item_id, tag_id)`    | `tag_id` → `tags.id ON DELETE CASCADE` |
 
 ### Drive
 
@@ -329,9 +361,11 @@ Direct (user-to-user) and public-link shares for a file entry.
 The current schema covers: accounts (users / groups / sessions / TOTP /
 preferences / PKCE state / auth lockouts), audit, settings, Zanzibar
 tuples, items + item comments, files + file references, the two
-sub-type detail tables (`issue_details`, `document_details`), and the
-drive's own five tables (`drive_entries`, `team_directories`,
-`team_directory_members`, `drive_file_versions`, `drive_file_shares`).
+sub-type detail tables (`issue_details`, `document_details`), the shared
+tag vocabulary (`tags`) with its three assignment joins (`project_tags`,
+`contact_tags`, `document_tags`), and the drive's own five tables
+(`drive_entries`, `team_directories`, `team_directory_members`,
+`drive_file_versions`, `drive_file_shares`).
 
 Group membership is **not** a dedicated table — it lives as
 `relation_tuples` rows in the `group` namespace, queried via
