@@ -81,19 +81,19 @@ function pin(overrides: Partial<PinnedItem> = {}): PinnedItem {
 }
 
 describe("projectOverviewTab", () => {
-  it("renders the description as an announcement", () => {
+  it("renders the project description", () => {
     renderWithProviders(
       <ProjectOverviewTab project={project()} userNames={new Map([["u1", "Alice"]])} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    expect(screen.getByText("Announcement")).toBeInTheDocument();
+    expect(screen.getByText("Description")).toBeInTheDocument();
     expect(screen.getByText("A tall building")).toBeInTheDocument();
   });
 
-  it("shows the announcement empty state when no description is set", () => {
+  it("shows the description empty state when no description is set", () => {
     renderWithProviders(
       <ProjectOverviewTab project={project({ description: "" })} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    expect(screen.getByText("No announcement yet.")).toBeInTheDocument();
+    expect(screen.getByText("No description yet.")).toBeInTheDocument();
   });
 
   it("renders the creator in the info block", () => {
@@ -116,11 +116,9 @@ describe("projectOverviewTab", () => {
     );
     expect(await screen.findByText("Fix pump")).toBeInTheDocument();
     expect(screen.getByText("Buy steel")).toBeInTheDocument();
-    // Kind badges distinguish the two types by label (+ icon). "Work order" is
-    // unique to the pin badge; "Procurement" also appears as the stat label, so
-    // expect more than one occurrence.
+    // Kind badges distinguish the two types by label (+ icon).
     expect(screen.getByText("Work order")).toBeInTheDocument();
-    expect(screen.getAllByText("Procurement").length).toBeGreaterThan(1);
+    expect(screen.getByText("Procurement")).toBeInTheDocument();
   });
 
   it("shows the pinned empty state when nothing is pinned", async () => {

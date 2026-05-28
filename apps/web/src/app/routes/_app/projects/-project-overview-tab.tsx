@@ -1,14 +1,13 @@
-// Overview tab: the project image+info block (moved from the old header), the
-// description rendered as an announcement, a mixed pinned-items area, and the
-// latest work orders + procurements. Read-only — pinning happens on the rows in
-// the Issues / Procurement tabs.
+// Overview tab: the project info block (moved from the old header), the project
+// description, a mixed pinned-items area, and the latest work orders +
+// procurements. Read-only — pinning happens on the rows in the Issues /
+// Procurement tabs.
 
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { PinnedItem } from "@/shared/lib/api/pins";
 import type { ProjectView } from "@/shared/lib/api/projects";
 import { ClipboardList, Package, Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CoverImage } from "@/shared/components/cover-image";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -22,7 +21,6 @@ import { useProcurements } from "@/shared/lib/api/procurement";
 import { useProjectIssues } from "@/shared/lib/api/projects";
 import { formatDate } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
-import { StatCard, StatStrip } from "./-project-stats";
 
 export type ProjectTab = "issues" | "procurement";
 
@@ -36,65 +34,46 @@ interface ProjectOverviewTabProps {
 export function ProjectOverviewTab({ project, userNames, caps, onOpenTab }: ProjectOverviewTabProps) {
   const { t } = useTranslation("projects");
 
-  const issuesCountQuery = useProjectIssues(project.id, { limit: 1 });
-  const procurementCountQuery = useProcurements(project.id, { limit: 1 }, caps.canViewProcurement);
   const latestIssuesQuery = useProjectIssues(project.id, { limit: 5 });
   const latestProcurementsQuery = useProcurements(project.id, { limit: 5 }, caps.canViewProcurement);
 
-  const count = (n: number | undefined) => (n === undefined ? "-" : n);
-
   return (
     <div className="space-y-6">
-      {/* 1. Image + info block (moved out of the old detail header). */}
+      {/* 1. Info block (moved out of the old detail header). */}
       <Card>
-        <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_1fr]">
-          <CoverImage
-            src={project.coverImageUrl}
-            kind="project"
-            seed={project.id}
-            className="min-h-40 rounded-lg border"
-          />
-          <div className="flex min-w-0 flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>
-                {t("overview.creator")}
-                {": "}
-                {userNames.get(project.creatorId) ?? project.creatorId}
-              </span>
-              <span className="text-muted-foreground/40">/</span>
-              <span>
-                {t("overview.updatedAt")}
-                {": "}
-                {formatDate(project.updatedAt)}
-              </span>
-            </div>
-
-            {project.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {project.tags.map(tag => (
-                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-                ))}
-              </div>
-            )}
-
-            <StatStrip className={caps.canViewProcurement ? "lg:grid-cols-2" : "lg:grid-cols-1"}>
-              <StatCard label={t("detail.metrics.issues")} value={count(issuesCountQuery.data?.meta.total)} icon={ClipboardList} />
-              {caps.canViewProcurement && (
-                <StatCard label={t("detail.metrics.procurement")} value={count(procurementCountQuery.data?.meta.total)} icon={Package} />
-              )}
-            </StatStrip>
+        <CardContent className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span>
+              {t("overview.creator")}
+              {": "}
+              {userNames.get(project.creatorId) ?? project.creatorId}
+            </span>
+            <span className="text-muted-foreground/40">/</span>
+            <span>
+              {t("overview.updatedAt")}
+              {": "}
+              {formatDate(project.updatedAt)}
+            </span>
           </div>
+
+          {project.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {project.tags.map(tag => (
+                <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* 2. Announcement — reuses project.description, no new field. */}
+      {/* 2. Description — reuses project.description, no new field. */}
       <Card size="sm">
         <CardHeader>
-          <CardTitle className="text-sm text-muted-foreground">{t("overview.announcement")}</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground">{t("overview.description")}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm whitespace-pre-wrap">
-            {project.description || <span className="text-muted-foreground">{t("overview.noAnnouncement")}</span>}
+            {project.description || <span className="text-muted-foreground">{t("overview.noDescription")}</span>}
           </p>
         </CardContent>
       </Card>
