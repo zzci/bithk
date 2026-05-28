@@ -5,6 +5,7 @@ import type { CategoryInput, ProcurementCategoryView } from "@/shared/lib/api/pr
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
@@ -110,7 +111,10 @@ export function ProjectSettingsCategories({ projectId, canManage }: ProjectSetti
         description={t("categories.delete.confirm", { name: deleteTarget?.name })}
         onConfirm={() => {
           if (deleteTarget) {
-            deleteCategory.mutate({ projectId, categoryId: deleteTarget.id });
+            deleteCategory.mutate({ projectId, categoryId: deleteTarget.id }, {
+              onSuccess: () => toast.success(t("toast.categoryDeleted")),
+              onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+            });
             setDeleteTarget(null);
           }
         }}
@@ -170,12 +174,20 @@ function CategoryDialog({ projectId, mode, category, open, onOpenChange }: Categ
       return;
     if (mode === "create") {
       createCategory.mutate({ projectId, name: name.trim(), ...buildInput() }, {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => {
+          toast.success(t("toast.categoryCreated"));
+          onOpenChange(false);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
       });
     }
     else if (category) {
       updateCategory.mutate({ projectId, categoryId: category.id, name: name.trim(), ...buildInput() }, {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => {
+          toast.success(t("toast.categoryUpdated"));
+          onOpenChange(false);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
       });
     }
   };

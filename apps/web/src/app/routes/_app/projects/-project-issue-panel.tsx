@@ -21,6 +21,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { MarkdownEditor } from "@/shared/components/editor";
 import {
   ResourceFooterSections,
@@ -97,7 +98,7 @@ export function ProjectIssuePanel({
   onClose,
   onMaximize,
 }: ProjectIssuePanelProps) {
-  const { t } = useTranslation("issues");
+  const { t } = useTranslation(["issues", "projects"]);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
 
@@ -167,18 +168,26 @@ export function ProjectIssuePanel({
 
   const patch = (body: UpdateProjectIssueInput) => {
     updateIssue.mutate({ projectId, issueId, ...body }, {
-      onError: err => setError(errorMessage(err, t("common.error.operationFailed"))),
+      onSuccess: () => toast.success(t("projects:toast.issueUpdated")),
+      onError: (err) => {
+        const message = errorMessage(err, t("common.error.operationFailed"));
+        setError(message);
+        toast.error(message);
+      },
     });
   };
 
   const confirmDelete = () => {
     deleteIssue.mutate({ projectId, issueId }, {
       onSuccess: () => {
+        toast.success(t("projects:toast.issueDeleted"));
         setDeleteOpen(false);
         onClose({ deleted: true });
       },
       onError: (err) => {
-        setError(errorMessage(err, t("common.error.deleteFailed")));
+        const message = errorMessage(err, t("common.error.deleteFailed"));
+        setError(message);
+        toast.error(message);
         setDeleteOpen(false);
       },
     });

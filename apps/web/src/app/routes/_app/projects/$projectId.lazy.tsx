@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
@@ -31,6 +32,7 @@ import {
   useProjectIssues,
   useProjectMembers,
 } from "@/shared/lib/api/projects";
+import { errorMessage } from "@/shared/lib/errors";
 import { formatDate } from "@/shared/lib/format";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { FileBrowser } from "../-file-browser";
@@ -102,8 +104,12 @@ function ProjectDetailPage() {
   const handleDelete = () => {
     deleteProject.mutate(project.id, {
       onSuccess: () => {
+        toast.success(t("toast.projectDeleted"));
         setDeleteOpen(false);
         void navigate({ to: "/projects" });
+      },
+      onError: (err) => {
+        toast.error(errorMessage(err, t("common:common.error.deleteFailed")));
       },
     });
   };

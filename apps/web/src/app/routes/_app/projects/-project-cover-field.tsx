@@ -6,6 +6,7 @@ import type { ProjectView } from "@/shared/lib/api/projects";
 import { Trash2, Upload } from "lucide-react";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -23,9 +24,20 @@ export function ProjectCoverField({ project }: { readonly project: ProjectView }
 
   const onPick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file)
-      setCover.mutate({ id: project.id, file });
+    if (file) {
+      setCover.mutate({ id: project.id, file }, {
+        onSuccess: () => toast.success(t("toast.coverUpdated")),
+        onError: err => toast.error(errorMessage(err, t("common:common.error.uploadFailed"))),
+      });
+    }
     event.target.value = "";
+  };
+
+  const onRemove = () => {
+    removeCover.mutate(project.id, {
+      onSuccess: () => toast.success(t("toast.coverRemoved")),
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
   };
 
   return (
@@ -41,7 +53,7 @@ export function ProjectCoverField({ project }: { readonly project: ProjectView }
             {project.coverImageUrl ? t("cover.replace") : t("cover.upload")}
           </Button>
           {project.coverImageUrl && (
-            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => removeCover.mutate(project.id)}>
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onRemove}>
               <Trash2 className="text-destructive" aria-hidden="true" />
               {t("cover.remove")}
             </Button>

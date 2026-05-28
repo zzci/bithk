@@ -11,6 +11,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { CalendarDays, LayoutGrid, List, Plus, SignalHigh, User, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -368,9 +369,11 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
     };
     createIssue.mutate({ projectId, ...body }, {
       onSuccess: () => {
+        toast.success(t("toast.issueCreated"));
         reset();
         onOpenChange(false);
       },
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
   };
 

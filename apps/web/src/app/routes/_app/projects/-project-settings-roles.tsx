@@ -6,6 +6,7 @@ import type { ProjectCapability, ProjectRoleView } from "@/shared/lib/api/projec
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -103,7 +104,10 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
         description={t("roles.delete.confirm", { name: deleteTarget?.name })}
         onConfirm={() => {
           if (deleteTarget) {
-            deleteRole.mutate({ projectId, roleId: deleteTarget.id });
+            deleteRole.mutate({ projectId, roleId: deleteTarget.id }, {
+              onSuccess: () => toast.success(t("toast.roleDeleted")),
+              onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+            });
             setDeleteTarget(null);
           }
         }}
@@ -163,12 +167,20 @@ function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogPro
       return;
     if (mode === "create") {
       createRole.mutate({ projectId, name: name.trim(), capabilities }, {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => {
+          toast.success(t("toast.roleCreated"));
+          onOpenChange(false);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
       });
     }
     else if (role) {
       updateRole.mutate({ projectId, roleId: role.id, name: name.trim(), capabilities }, {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => {
+          toast.success(t("toast.roleUpdated"));
+          onOpenChange(false);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
       });
     }
   };

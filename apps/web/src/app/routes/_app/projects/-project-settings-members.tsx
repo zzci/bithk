@@ -12,6 +12,7 @@ import type {
 import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -144,7 +145,10 @@ export function ProjectSettingsMembers({ projectId, members, userNames, canManag
         description={t("members.delete.confirm")}
         onConfirm={() => {
           if (deleteTarget) {
-            removeMember.mutate({ projectId, memberId: deleteTarget.id });
+            removeMember.mutate({ projectId, memberId: deleteTarget.id }, {
+              onSuccess: () => toast.success(t("toast.memberRemoved")),
+              onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+            });
             setDeleteTarget(null);
           }
         }}
@@ -217,9 +221,11 @@ function AddMemberDialog({ projectId, roles, open, onOpenChange, existingUserIds
       : { roleId, displayName: displayName.trim(), ...(title.trim() ? { title: title.trim() } : {}) };
     addMember.mutate({ projectId, ...body }, {
       onSuccess: () => {
+        toast.success(t("toast.memberAdded"));
         reset();
         onOpenChange(false);
       },
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
   };
 
@@ -331,7 +337,11 @@ function EditMemberDialog({ projectId, member, roles, open, onOpenChange }: Edit
         : {}),
     };
     updateMember.mutate({ projectId, memberId: member.id, ...body }, {
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => {
+        toast.success(t("toast.memberUpdated"));
+        onOpenChange(false);
+      },
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
   };
 
