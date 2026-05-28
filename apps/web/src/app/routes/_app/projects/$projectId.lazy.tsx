@@ -30,7 +30,7 @@ import {
 import { errorMessage } from "@/shared/lib/errors";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { FileBrowser } from "../-file-browser";
-import { ProjectIssuesTab } from "./-project-issues-tab";
+import { ProjectIssuesSearch, ProjectIssuesTab } from "./-project-issues-tab";
 import { ProjectOverviewTab } from "./-project-overview-tab";
 import { ProjectProcurementTab } from "./-project-procurement-tab";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
@@ -71,6 +71,9 @@ function ProjectDetailPage() {
   const [tab, setTab] = useState("overview");
   const [settingsOpen, setSettingsOpen] = useState(settingsParam ?? false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // Owned here so the header search popover (beside the settings action) and the
+  // issues tab share one search term.
+  const [issuesSearch, setIssuesSearch] = useState("");
 
   // Deep link from the project list (`?settings=true`) clears once the dialog closes.
   const handleSettingsOpenChange = (open: boolean) => {
@@ -155,8 +158,11 @@ function ProjectDetailPage() {
             </Button>
           )}
         </div>
-        {(caps.canOpenSettings || caps.canManageProject) && (
-          <div className="flex shrink-0 gap-2">
+        {(tab === "issues" || caps.canOpenSettings || caps.canManageProject) && (
+          <div className="flex shrink-0 items-center gap-2">
+            {tab === "issues" && (
+              <ProjectIssuesSearch value={issuesSearch} onChange={setIssuesSearch} />
+            )}
             {caps.canOpenSettings && (
               <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
                 <Settings aria-hidden="true" />
@@ -209,6 +215,7 @@ function ProjectDetailPage() {
             members={members}
             userNames={userNames}
             canManage={caps.has("issue.manage")}
+            search={issuesSearch}
           />
         </TabsContent>
 

@@ -11,7 +11,7 @@ import type {
   ProjectMemberView,
 } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
-import { CalendarDays, Pin, PinOff, Plus, SignalHigh, User, X } from "lucide-react";
+import { CalendarDays, ChevronRight, Pin, PinOff, Plus, Search, SignalHigh, User } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -25,20 +25,19 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { Separator } from "@/shared/components/ui/separator";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useToggleIssuePin } from "@/shared/lib/api/pins";
 import { useCreateProjectIssue, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
+import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
 
@@ -49,7 +48,27 @@ const PRIORITY_VARIANTS: Record<IssuePriority, "default" | "outline" | "secondar
   urgent: "destructive",
 };
 
+// Restrained semantic tint for priority cues (icon color), reusing existing
+// global tokens so the label/icon stays the primary signal.
+const PRIORITY_TINT: Record<IssuePriority, string> = {
+  low: "text-muted-foreground",
+  medium: "text-foreground",
+  high: "text-warning",
+  urgent: "text-destructive",
+};
+
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
+
+const ISSUE_STATUSES: readonly IssueStatus[] = ["open", "in_progress", "done", "cancelled"];
+
+// Small status dot tints, reusing the same global tokens as ISSUE_STATUS_BADGE
+// so the create dialog status selector matches the list's status colors.
+const STATUS_DOT: Record<IssueStatus, string> = {
+  open: "bg-warning",
+  in_progress: "bg-info",
+  done: "bg-success",
+  cancelled: "bg-muted-foreground",
+};
 
 interface ProjectIssuesTabProps {
   readonly projectId: string;
@@ -57,9 +76,11 @@ interface ProjectIssuesTabProps {
   readonly userNames: ReadonlyMap<string, string>;
   /** Holds `issue.manage` (admins included). Combined with the creator check to gate the pin toggle. */
   readonly canManage?: boolean;
+  /** Active search term, driven by the top-header search popover (see `ProjectIssuesSearch`). */
+  readonly search?: string;
 }
 
-export function ProjectIssuesTab({ projectId, members, userNames, canManage = false }: ProjectIssuesTabProps) {
+export function ProjectIssuesTab({ projectId, members, userNames, canManage = false, search = "" }: ProjectIssuesTabProps) {
   const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
   const currentUserId = useAuthStore(s => s.user?.id);
@@ -68,18 +89,24 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   // here so the toggle never appears where a 403 would follow.
   const canPin = (issue: ProjectIssueRow) => canManage || issue.creatorId === currentUserId;
 
-  const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [priorityFilter, setPriorityFilter] = useState<IssuePriority | "all">("all");
+  // Collapse is keyed by status; absent/false means expanded so groups default open.
+  const [collapsed, setCollapsed] = useState<Partial<Record<IssueStatus, boolean>>>({});
   const debouncedSearch = useDebounce(search, 300);
 
-  // Query each status group independently with the active search term so every
-  // status stays visible without a top-level status filter, and each group can
-  // surface its own total from `meta.total`.
+  const toggleGroup = (status: IssueStatus) =>
+    setCollapsed(prev => ({ ...prev, [status]: !prev[status] }));
+
+  // Query each status group independently with the active search term and the
+  // optional priority filter so every status stays visible without a top-level
+  // status filter, and each group can surface its own total from `meta.total`.
   const q = debouncedSearch || undefined;
-  const openQuery = useProjectIssues(projectId, { status: "open", q });
-  const inProgressQuery = useProjectIssues(projectId, { status: "in_progress", q });
-  const doneQuery = useProjectIssues(projectId, { status: "done", q });
-  const cancelledQuery = useProjectIssues(projectId, { status: "cancelled", q });
+  const priority = priorityFilter === "all" ? undefined : priorityFilter;
+  const openQuery = useProjectIssues(projectId, { status: "open", q, priority });
+  const inProgressQuery = useProjectIssues(projectId, { status: "in_progress", q, priority });
+  const doneQuery = useProjectIssues(projectId, { status: "done", q, priority });
+  const cancelledQuery = useProjectIssues(projectId, { status: "cancelled", q, priority });
 
   const groups: ReadonlyArray<{ status: IssueStatus; query: ReturnType<typeof useProjectIssues> }> = [
     { status: "open", query: openQuery },
@@ -104,14 +131,23 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Input
-          placeholder={t("issues.searchPlaceholder")}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full max-w-xs sm:flex-1"
-          aria-label={t("issues.searchPlaceholder")}
-        />
+      {/* Search now lives in the project-detail header (see `ProjectIssuesSearch`);
+          the tab toolbar keeps the basic priority filter and the create action. */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button type="button" variant="outline" aria-label={t("issues.field.priority")} />}>
+            <SignalHigh aria-hidden="true" />
+            {priorityFilter === "all" ? t("issues.allPriorities") : t(`issues.priority.${priorityFilter}` as const)}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuRadioGroup value={priorityFilter} onValueChange={v => setPriorityFilter(v as IssuePriority | "all")}>
+              <DropdownMenuRadioItem value="all">{t("issues.allPriorities")}</DropdownMenuRadioItem>
+              {PRIORITIES.map(p => (
+                <DropdownMenuRadioItem key={p} value={p}>{t(`issues.priority.${p}` as const)}</DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus aria-hidden="true" />
           {t("issues.create")}
@@ -127,60 +163,72 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
           : !hasAnyIssue
               ? <p className="py-10 text-center text-sm text-muted-foreground">{t("issues.empty")}</p>
               : (
-                  <div className="space-y-5">
+                  <div className="space-y-4">
                     {groups.map(({ status, query }) => {
                       const groupIssues = query.data?.data ?? [];
                       const count = query.data?.meta.total ?? groupIssues.length;
-                      const label = t(`issues.status.${status}` as const);
+                      // Show only populated statuses; empty groups (including
+                      // cancelled when it has nothing) drop out of the list.
+                      if (count === 0)
+                        return null;
+                      // Group headers use the product taxonomy labels (Todo /
+                      // In Progress / Completed / Cancelled); the shared
+                      // `issues.status.*` copy stays untouched for other surfaces.
+                      const label = t(`issues.group.${status}` as const);
+                      const isCollapsed = collapsed[status] ?? false;
                       return (
                         <section key={status} aria-label={label}>
-                          <div className="mb-1.5 flex items-center gap-2 px-0.5">
+                          <button
+                            type="button"
+                            aria-expanded={!isCollapsed}
+                            onClick={() => toggleGroup(status)}
+                            className="mb-1 flex w-full items-center gap-2 rounded-md px-0.5 py-1 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <ChevronRight
+                              aria-hidden="true"
+                              className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${isCollapsed ? "" : "rotate-90"}`}
+                            />
                             <Badge variant="secondary" className={`text-xs ${ISSUE_STATUS_BADGE[status]}`}>
                               {label}
                             </Badge>
                             <span className="text-xs text-muted-foreground">{count}</span>
-                          </div>
-                          {groupIssues.length === 0
-                            ? (
-                                <p className="rounded-md border border-dashed px-3 py-3 text-xs text-muted-foreground">
-                                  {t("issues.emptyColumn")}
-                                </p>
-                              )
-                            : (
-                                <ul className="divide-y rounded-md border">
-                                  {groupIssues.map(issue => (
-                                    <li key={issue.id} className="flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        className="flex min-w-0 flex-1 flex-col items-start gap-1 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                        onClick={() => openIssue(issue.id)}
-                                      >
-                                        <span className="w-full break-words text-sm font-medium">{issue.title}</span>
-                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                                          <Badge variant={PRIORITY_VARIANTS[issue.priority]} className="text-[10px]">
-                                            {t(`issues.priority.${issue.priority}` as const)}
-                                          </Badge>
-                                          <span className="inline-flex min-w-0 items-center gap-1">
-                                            <User aria-hidden="true" className="size-3 shrink-0" />
-                                            <span className="break-all">{assigneeLabel(issue)}</span>
-                                          </span>
-                                          {issue.dueDate && (
-                                            <span className="inline-flex items-center gap-1">
-                                              <CalendarDays aria-hidden="true" className="size-3 shrink-0" />
-                                              {issue.dueDate}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </button>
-                                      {canPin(issue) && (
-                                        <div className="shrink-0 pr-1">
-                                          <IssuePinToggle projectId={projectId} issue={issue} />
-                                        </div>
+                          </button>
+                          {!isCollapsed && (
+                            <ul className="space-y-0.5">
+                              {groupIssues.map(issue => (
+                                <li key={issue.id} className="flex items-center gap-1 rounded-lg transition-colors hover:bg-muted/50">
+                                  <button
+                                    type="button"
+                                    className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    onClick={() => openIssue(issue.id)}
+                                  >
+                                    {/* Row reads left-to-right: title -> priority -> assignee -> due date. */}
+                                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{issue.title}</span>
+                                    <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                                      <Badge variant={PRIORITY_VARIANTS[issue.priority]} className="text-[10px]">
+                                        {t(`issues.priority.${issue.priority}` as const)}
+                                      </Badge>
+                                      <span className="inline-flex min-w-0 max-w-32 items-center gap-1">
+                                        <User aria-hidden="true" className="size-3 shrink-0" />
+                                        <span className="truncate">{assigneeLabel(issue)}</span>
+                                      </span>
+                                      {issue.dueDate && (
+                                        <span className="inline-flex shrink-0 items-center gap-1">
+                                          <CalendarDays aria-hidden="true" className="size-3 shrink-0" />
+                                          {issue.dueDate}
+                                        </span>
                                       )}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
+                                    </div>
+                                  </button>
+                                  {canPin(issue) && (
+                                    <div className="shrink-0 pr-1">
+                                      <IssuePinToggle projectId={projectId} issue={issue} />
+                                    </div>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </section>
                       );
                     })}
@@ -195,6 +243,51 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
         onOpenChange={setCreateOpen}
       />
     </div>
+  );
+}
+
+interface ProjectIssuesSearchProps {
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+}
+
+/**
+ * Compact search trigger for the project-detail header (placed beside the
+ * settings action). It opens a small popover holding the work-order search
+ * input; the value is owned by the parent so it keeps filtering the grouped
+ * list. A filled dot marks an active query.
+ */
+export function ProjectIssuesSearch({ value, onChange }: ProjectIssuesSearchProps) {
+  const { t } = useTranslation(["projects"]);
+  const active = value.trim().length > 0;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={(
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label={t("issues.searchPlaceholder")}
+            className="relative"
+          />
+        )}
+      >
+        <Search aria-hidden="true" />
+        {active && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 rounded-full bg-primary" />}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="p-2">
+        <Input
+          autoFocus
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => e.stopPropagation()}
+          placeholder={t("issues.searchPlaceholder")}
+          aria-label={t("issues.searchPlaceholder")}
+          className="w-56"
+        />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -243,6 +336,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
   const createIssue = useCreateProjectIssue();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<IssueStatus>("open");
   const [priority, setPriority] = useState<IssuePriority>("medium");
   const [assigneeMemberId, setAssigneeMemberId] = useState("__none__");
   const [dueDate, setDueDate] = useState("");
@@ -250,6 +344,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
   const reset = () => {
     setTitle("");
     setDescription("");
+    setStatus("open");
     setPriority("medium");
     setAssigneeMemberId("__none__");
     setDueDate("");
@@ -261,6 +356,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
       return;
     const body: CreateProjectIssueInput = {
       title: title.trim(),
+      status,
       priority,
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(assigneeMemberId !== "__none__" ? { assigneeMemberId } : {}),
@@ -276,16 +372,18 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
     });
   };
 
-  // Dashed-border rounded pill shared by the inline metadata controls.
-  const pillClassName = "h-7 gap-1.5 rounded-full border-dashed px-2.5 text-xs font-normal";
-  const assigneeLabel = assigneeMemberId === "__none__"
-    ? t("issues.field.assignee")
-    : memberLabels.get(assigneeMemberId) ?? assigneeMemberId;
+  // Rounded pill shared by the inline metadata controls. Border style is added
+  // per-control to reflect a set (solid) vs empty (dashed) state.
+  const pillBase = "h-7 gap-1.5 rounded-full px-2.5 text-xs font-normal";
+  const assigned = assigneeMemberId !== "__none__";
+  const assigneeLabel = assigned
+    ? memberLabels.get(assigneeMemberId) ?? assigneeMemberId
+    : t("issues.field.assignee");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <form onSubmit={submit} className="space-y-3">
+      <DialogContent className="max-h-[calc(100svh-2rem)] gap-0 overflow-y-auto sm:max-w-xl">
+        <form onSubmit={submit} className="space-y-4">
           {/* The borderless title replaces the visible header; keep a
               visually-hidden DialogTitle so the dialog primitive and screen
               readers still announce a name. */}
@@ -308,28 +406,55 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
             onChange={e => setDescription(e.target.value)}
             placeholder={t("issues.field.descriptionPlaceholder")}
             aria-label={t("issues.field.description")}
-            rows={2}
-            className="min-h-0 resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
+            rows={6}
+            className="min-h-40 resize-y border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
           />
 
           <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={pillClassName} />}>
-                <SignalHigh aria-hidden="true" />
-                {t(`issues.priority.${priority}` as const)}
+              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={cn(pillBase, "border-solid")} />}>
+                <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[status])} />
+                {t(`issues.group.${status}` as const)}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuRadioGroup value={priority} onValueChange={v => setPriority(v as IssuePriority)}>
-                  {PRIORITIES.map(p => (
-                    <DropdownMenuRadioItem key={p} value={p}>{t(`issues.priority.${p}` as const)}</DropdownMenuRadioItem>
+                <DropdownMenuRadioGroup value={status} onValueChange={v => setStatus(v as IssueStatus)}>
+                  {ISSUE_STATUSES.map(s => (
+                    <DropdownMenuRadioItem key={s} value={s}>
+                      <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[s])} />
+                      {t(`issues.group.${s}` as const)}
+                    </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
 
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={pillClassName} />}>
-                <User aria-hidden="true" />
+              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={cn(pillBase, "border-solid")} />}>
+                <SignalHigh aria-hidden="true" className={cn("size-4", PRIORITY_TINT[priority])} />
+                {t(`issues.priority.${priority}` as const)}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuRadioGroup value={priority} onValueChange={v => setPriority(v as IssuePriority)}>
+                  {PRIORITIES.map(p => (
+                    <DropdownMenuRadioItem key={p} value={p}>
+                      <SignalHigh aria-hidden="true" className={cn("size-4", PRIORITY_TINT[p])} />
+                      {t(`issues.priority.${p}` as const)}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger render={(
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(pillBase, assigned ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+                />
+              )}
+              >
+                <User aria-hidden="true" className={assigned ? "text-info" : undefined} />
                 {assigneeLabel}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -342,32 +467,29 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={pillClassName} />}>
-                <CalendarDays aria-hidden="true" />
+            {/* The native date input overlays a labeled pill so the browser
+                calendar opens directly on click — no intermediate dropdown. */}
+            <div className="relative inline-flex">
+              <span
+                aria-hidden="true"
+                className={cn(pillBase, "pointer-events-none inline-flex items-center border", dueDate ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+              >
+                <CalendarDays className="size-4" />
                 {dueDate || t("issues.field.dueDate")}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="p-2">
-                <Input
-                  type="date"
-                  value={dueDate}
-                  aria-label={t("issues.field.dueDate")}
-                  onChange={e => setDueDate(e.target.value)}
-                  onKeyDown={e => e.stopPropagation()}
-                />
-                {dueDate && (
-                  <DropdownMenuItem className="mt-1" onClick={() => setDueDate("")}>
-                    <X aria-hidden="true" />
-                    {t("issues.field.clearDueDate")}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </span>
+              <input
+                type="date"
+                value={dueDate}
+                aria-label={t("issues.field.dueDate")}
+                onChange={e => setDueDate(e.target.value)}
+                className="absolute inset-0 cursor-pointer opacity-0"
+              />
+            </div>
           </div>
 
-          <Separator />
-
-          <div className="flex justify-end gap-2">
+          {/* Sticky footer keeps the actions reachable when a long description
+              scrolls the dialog body. */}
+          <div className="sticky bottom-0 -mx-4 -mb-4 flex justify-end gap-2 rounded-b-xl border-t bg-popover px-4 py-3">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
             </Button>

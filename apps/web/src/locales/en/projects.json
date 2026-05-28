@@ -181,6 +181,12 @@
       "done": "Done",
       "cancelled": "Cancelled"
     },
+    "group": {
+      "open": "Todo",
+      "in_progress": "In Progress",
+      "done": "Completed",
+      "cancelled": "Cancelled"
+    },
     "priority": {
       "low": "Low",
       "medium": "Medium",

@@ -181,6 +181,12 @@
       "done": "已完成",
       "cancelled": "已取消"
     },
+    "group": {
+      "open": "待办",
+      "in_progress": "进行中",
+      "done": "已完成",
+      "cancelled": "取消"
+    },
     "priority": {
       "low": "低",
       "medium": "中",

@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
-import { ProjectIssuesTab } from "./-project-issues-tab";
+import { ProjectIssuesSearch, ProjectIssuesTab } from "./-project-issues-tab";
 
 const navigateMock = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
@@ -70,9 +70,29 @@ describe("projectIssuesTab", () => {
     routeFetch([issue()]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     expect(await screen.findByText("Fix leak")).toBeInTheDocument();
-    expect(screen.getAllByText("Open").length).toBeGreaterThan(0);
+    // `open` is grouped under the product label "Todo".
+    expect(screen.getAllByText("Todo").length).toBeGreaterThan(0);
     expect(screen.getByText("High")).toBeInTheDocument();
     expect(screen.getByText("Unassigned")).toBeInTheDocument();
+  });
+
+  it("renders a row left-to-right with title, priority, assignee, and due date", async () => {
+    const members: ProjectMemberView[] = [{
+      id: "m1",
+      userId: "u1",
+      displayName: null,
+      roleId: "r1",
+      title: null,
+      createdAt: "2026-05-23T00:00:00.000Z",
+      updatedAt: "2026-05-23T00:00:00.000Z",
+    }];
+    routeFetch([issue({ id: "i1", title: "Fix leak", status: "open", priority: "urgent", assigneeMemberId: "m1", dueDate: "2026-06-15" })]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={members} userNames={new Map([["u1", "Alice"]])} />);
+    const row = await screen.findByRole("button", { name: /Fix leak/ });
+    expect(within(row).getByText("Fix leak")).toBeInTheDocument();
+    expect(within(row).getByText("Urgent")).toBeInTheDocument();
+    expect(within(row).getByText("Alice")).toBeInTheDocument();
+    expect(within(row).getByText("2026-06-15")).toBeInTheDocument();
   });
 
   it("navigates to the issue detail when a row is clicked", async () => {
@@ -86,15 +106,24 @@ describe("projectIssuesTab", () => {
     });
   });
 
-  it("debounces the search box into the issues query string", async () => {
-    const user = userEvent.setup();
+  it("applies the controlled search prop to the issues query", async () => {
     routeFetch([]);
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} search="pump" />);
     await screen.findByText("No work orders found.");
-    await user.type(screen.getByPlaceholderText("Search work orders..."), "pump");
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(c => String(c[0]).includes("q=pump"))).toBe(true);
     });
+  });
+
+  it("exposes a header search popover that reports input changes", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderWithProviders(<ProjectIssuesSearch value="" onChange={onChange} />);
+    // Search is a compact trigger, not a permanently visible input.
+    expect(screen.queryByPlaceholderText("Search work orders...")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Search work orders..." }));
+    await user.type(await screen.findByPlaceholderText("Search work orders..."), "p");
+    expect(onChange).toHaveBeenCalledWith("p");
   });
 
   it("surfaces a load error", async () => {
@@ -108,7 +137,7 @@ describe("projectIssuesTab", () => {
     await waitFor(() => expect(screen.getByText("Failed to load data")).toBeInTheDocument());
   });
 
-  it("renders a separate status group with its own count for each status", async () => {
+  it("renders a separate status group with its own count for populated statuses only", async () => {
     routeFetch([
       issue({ id: "i1", title: "Fix leak", status: "open" }),
       issue({ id: "i2", title: "Align shaft", status: "open" }),
@@ -116,7 +145,8 @@ describe("projectIssuesTab", () => {
     ]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
 
-    const openGroup = await screen.findByRole("region", { name: "Open" });
+    // `open` renders under the product label "Todo", `done` under "Completed".
+    const openGroup = await screen.findByRole("region", { name: "Todo" });
     expect(within(openGroup).getByText("2")).toBeInTheDocument();
     expect(within(openGroup).getByText("Fix leak")).toBeInTheDocument();
     expect(within(openGroup).getByText("Align shaft")).toBeInTheDocument();
@@ -125,10 +155,58 @@ describe("projectIssuesTab", () => {
     expect(within(inProgressGroup).getByText("1")).toBeInTheDocument();
     expect(within(inProgressGroup).getByText("Close report")).toBeInTheDocument();
 
-    // Empty statuses still appear as groups so the full picture stays visible.
-    const doneGroup = screen.getByRole("region", { name: "Done" });
-    expect(within(doneGroup).getByText("No work orders")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Cancelled" })).toBeInTheDocument();
+    // Empty statuses (here Completed and Cancelled) are hidden so the list shows
+    // only populated groups.
+    expect(screen.queryByRole("region", { name: "Completed" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Cancelled" })).not.toBeInTheDocument();
+  });
+
+  it("collapses and expands a status group while keeping its header visible", async () => {
+    const user = userEvent.setup();
+    routeFetch([issue({ id: "i1", title: "Fix leak", status: "open" })]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("Fix leak");
+
+    const toggle = screen.getByRole("button", { name: /Todo/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Fix leak")).not.toBeInTheDocument();
+    // Header (and count) stays visible so the group can be reopened.
+    expect(screen.getByRole("region", { name: "Todo" })).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Fix leak")).toBeInTheDocument();
+  });
+
+  it("keeps create and priority filter controls in the tab toolbar (search moved to the header)", async () => {
+    routeFetch([]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("No work orders found.");
+    expect(screen.getByRole("button", { name: "Create work order" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Priority" })).toBeInTheDocument();
+    // The search input no longer lives in the tab toolbar; it is in the header popover.
+    expect(screen.queryByPlaceholderText("Search work orders...")).not.toBeInTheDocument();
+  });
+
+  it("filters the status queries by priority without hiding the groups", async () => {
+    const user = userEvent.setup();
+    routeFetch([issue({ id: "i1", title: "Fix leak", status: "open", priority: "urgent" })]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("Fix leak");
+
+    await user.click(screen.getByRole("button", { name: "Priority" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Urgent" }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("priority=urgent"))).toBe(true);
+    });
+    // The populated status group stays visible; filtering does not flatten the
+    // grouped layout.
+    expect(screen.getByRole("region", { name: "Todo" })).toBeInTheDocument();
+    expect(screen.getByText("Fix leak")).toBeInTheDocument();
   });
 
   it("creates a work order through the compact composer", async () => {
@@ -153,6 +231,10 @@ describe("projectIssuesTab", () => {
 
     await user.type(await screen.findByPlaceholderText("Title"), "Replace pump seal");
 
+    // Status pill defaults to Todo (open); switch to In Progress.
+    await user.click(screen.getByRole("button", { name: /Todo/ }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "In Progress" }));
+
     // Priority pill defaults to Medium; pick High.
     await user.click(screen.getByRole("button", { name: /Medium/ }));
     await user.click(await screen.findByRole("menuitemradio", { name: "High" }));
@@ -161,11 +243,9 @@ describe("projectIssuesTab", () => {
     await user.click(screen.getByRole("button", { name: /Assignee/ }));
     await user.click(await screen.findByRole("menuitemradio", { name: "Alice" }));
 
-    // Due date pill: set the native date input then close the menu.
-    await user.click(screen.getByRole("button", { name: /Due date/ }));
-    // The base-ui menu popup also carries aria-label "Due date"; scope to the input.
+    // Due date: the native date input sits directly under a labeled pill, so the
+    // calendar opens straight from the field with no intermediate menu to open.
     fireEvent.change(await screen.findByLabelText("Due date", { selector: "input" }), { target: { value: "2026-06-15" } });
-    await user.keyboard("{Escape}");
 
     // Submit via the dialog's primary button (scope to avoid the toolbar twin).
     const dialog = screen.getByRole("dialog");
@@ -178,6 +258,7 @@ describe("projectIssuesTab", () => {
       const body = JSON.parse(String(post![1]!.body)) as Record<string, unknown>;
       expect(body).toMatchObject({
         title: "Replace pump seal",
+        status: "in_progress",
         priority: "high",
         assigneeMemberId: "m1",
         dueDate: "2026-06-15",
@@ -187,6 +268,17 @@ describe("projectIssuesTab", () => {
     // Dialog closes on success.
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   }, 15000);
+
+  it("shows a roomy multi-line description field in the create dialog", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("No work orders found.");
+    await user.click(screen.getByRole("button", { name: "Create work order" }));
+    const description = await screen.findByLabelText("Description");
+    expect(description.tagName).toBe("TEXTAREA");
+    expect(Number(description.getAttribute("rows"))).toBeGreaterThanOrEqual(4);
+  });
 
   it("pins an issue row via POST when the viewer can manage", async () => {
     const user = userEvent.setup();
