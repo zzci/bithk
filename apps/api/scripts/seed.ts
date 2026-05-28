@@ -62,9 +62,17 @@ const COUNTS = {
 } as const;
 
 // Fraction of ships / standalone projects that get a fetched cover image; the
-// rest are intentionally left without one. Images come from picsum.photos, so
-// covers are skipped gracefully (no failure) when the network is unavailable.
+// rest are intentionally left without one. Cover fetches are skipped gracefully
+// (no failure) when the network is unavailable.
 const COVER_RATIO = 0.7;
+
+// All covers are fetched at one fixed 16:9 landscape size so they display
+// uniformly. The UI renders covers with `object-cover` inside short, wide bands
+// (list cards `h-28`, detail headers `h-40`); a consistent wide ratio crops
+// cleanly in every slot instead of mixing portrait/odd aspects that look
+// broken. Keep this matched to the cover containers in the web app.
+const COVER_WIDTH = 1280;
+const COVER_HEIGHT = 720;
 
 // ─── Deterministic randomness ───────────────────────────────────────────
 // mulberry32 — a tiny seeded PRNG so every run yields the same data.
@@ -120,32 +128,31 @@ interface YachtSpec {
   readonly gt: number | null;
   readonly flagState: string;
   readonly registryPort: string;
-  readonly lifecycle: "design" | "building" | "sea_trial" | "in_service" | "maintenance" | "decommissioned";
 }
 
 const YACHTS: readonly YachtSpec[] = [
-  { name: "Sea Sprite", model: "Williams DieselJet 565", builder: "Williams Jet Tenders", buildYear: 2021, loa: 5.6, beam: 2.1, draft: 0.45, gt: null, flagState: "United Kingdom", registryPort: "Southampton", lifecycle: "in_service" },
-  { name: "Kingfisher", model: "Axopar 28 Cabin", builder: "Axopar Boats", buildYear: 2022, loa: 8.0, beam: 2.5, draft: 0.6, gt: null, flagState: "Finland", registryPort: "Helsinki", lifecycle: "in_service" },
-  { name: "Marlin", model: "Sundancer 320", builder: "Sea Ray", buildYear: 2018, loa: 9.8, beam: 3.4, draft: 0.9, gt: null, flagState: "United States", registryPort: "Miami", lifecycle: "in_service" },
-  { name: "Halcyon", model: "Cap Camarat 10.5 WA", builder: "Jeanneau", buildYear: 2020, loa: 10.6, beam: 3.4, draft: 0.85, gt: null, flagState: "France", registryPort: "Cannes", lifecycle: "in_service" },
-  { name: "Aurelia", model: "Gran Turismo 41", builder: "Beneteau", buildYear: 2021, loa: 12.8, beam: 3.9, draft: 1.0, gt: null, flagState: "France", registryPort: "Nice", lifecycle: "in_service" },
-  { name: "Vela", model: "V50", builder: "Princess Yachts", buildYear: 2017, loa: 15.6, beam: 4.3, draft: 1.2, gt: null, flagState: "Malta", registryPort: "Valletta", lifecycle: "maintenance" },
-  { name: "Lumen", model: "55 Flybridge", builder: "Azimut", buildYear: 2019, loa: 16.7, beam: 4.8, draft: 1.45, gt: null, flagState: "Malta", registryPort: "Valletta", lifecycle: "in_service" },
-  { name: "Tempest", model: "Predator 60", builder: "Sunseeker", buildYear: 2020, loa: 18.4, beam: 5.0, draft: 1.5, gt: null, flagState: "Jersey", registryPort: "St. Helier", lifecycle: "in_service" },
-  { name: "Calypso", model: "Ferretti 670", builder: "Ferretti Yachts", buildYear: 2021, loa: 20.6, beam: 5.4, draft: 1.6, gt: null, flagState: "Italy", registryPort: "Genoa", lifecycle: "in_service" },
-  { name: "Meridian", model: "Pershing 7X", builder: "Pershing", buildYear: 2022, loa: 22.0, beam: 5.6, draft: 1.65, gt: null, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "in_service" },
-  { name: "Odyssey", model: "SL78", builder: "Sanlorenzo", buildYear: 2016, loa: 23.9, beam: 6.0, draft: 1.8, gt: null, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "maintenance" },
-  { name: "Aquila", model: "90 Ocean", builder: "Sunseeker", buildYear: 2019, loa: 27.5, beam: 6.7, draft: 2.0, gt: 130, flagState: "Malta", registryPort: "Valletta", lifecycle: "in_service" },
-  { name: "Serenity", model: "30M", builder: "Princess Yachts", buildYear: 2018, loa: 30.0, beam: 6.7, draft: 1.95, gt: 145, flagState: "Marshall Islands", registryPort: "Majuro", lifecycle: "in_service" },
-  { name: "Mistral", model: "Mangusta 104", builder: "Overmarine", buildYear: 2015, loa: 32.0, beam: 7.0, draft: 1.6, gt: 160, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "maintenance" },
-  { name: "Bluewater", model: "Delfino 95", builder: "Benetti", buildYear: 2020, loa: 33.0, beam: 7.6, draft: 2.25, gt: 250, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "in_service" },
-  { name: "Aurora", model: "SD96", builder: "Sanlorenzo", buildYear: 2021, loa: 35.5, beam: 7.8, draft: 2.3, gt: 290, flagState: "Malta", registryPort: "Valletta", lifecycle: "in_service" },
-  { name: "Nordwind", model: "38m Steel", builder: "Heesen Yachts", buildYear: 2017, loa: 38.0, beam: 8.0, draft: 2.4, gt: 330, flagState: "Gibraltar", registryPort: "Gibraltar", lifecycle: "in_service" },
-  { name: "Polaris", model: "Amels 180", builder: "Amels", buildYear: 2019, loa: 40.0, beam: 8.2, draft: 2.45, gt: 450, flagState: "Isle of Man", registryPort: "Douglas", lifecycle: "in_service" },
-  { name: "Costa Verde", model: "Mediterraneo 116", builder: "Benetti", buildYear: 2023, loa: 43.0, beam: 8.6, draft: 2.5, gt: 380, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "sea_trial" },
-  { name: "Valkyrie", model: "Heesen 4500", builder: "Heesen Yachts", buildYear: 2024, loa: 45.0, beam: 8.6, draft: 2.55, gt: 495, flagState: "Marshall Islands", registryPort: "Majuro", lifecycle: "building" },
-  { name: "Vantage", model: "F45 Vantage", builder: "Feadship", buildYear: 2026, loa: 47.5, beam: 8.8, draft: 2.6, gt: 499, flagState: "Netherlands", registryPort: "Amsterdam", lifecycle: "design" },
-  { name: "Leviathan", model: "Amels 165", builder: "Amels", buildYear: 2022, loa: 50.0, beam: 9.0, draft: 2.7, gt: 650, flagState: "Cayman Islands", registryPort: "George Town", lifecycle: "in_service" },
+  { name: "Sea Sprite", model: "Williams DieselJet 565", builder: "Williams Jet Tenders", buildYear: 2021, loa: 5.6, beam: 2.1, draft: 0.45, gt: null, flagState: "United Kingdom", registryPort: "Southampton" },
+  { name: "Kingfisher", model: "Axopar 28 Cabin", builder: "Axopar Boats", buildYear: 2022, loa: 8.0, beam: 2.5, draft: 0.6, gt: null, flagState: "Finland", registryPort: "Helsinki" },
+  { name: "Marlin", model: "Sundancer 320", builder: "Sea Ray", buildYear: 2018, loa: 9.8, beam: 3.4, draft: 0.9, gt: null, flagState: "United States", registryPort: "Miami" },
+  { name: "Halcyon", model: "Cap Camarat 10.5 WA", builder: "Jeanneau", buildYear: 2020, loa: 10.6, beam: 3.4, draft: 0.85, gt: null, flagState: "France", registryPort: "Cannes" },
+  { name: "Aurelia", model: "Gran Turismo 41", builder: "Beneteau", buildYear: 2021, loa: 12.8, beam: 3.9, draft: 1.0, gt: null, flagState: "France", registryPort: "Nice" },
+  { name: "Vela", model: "V50", builder: "Princess Yachts", buildYear: 2017, loa: 15.6, beam: 4.3, draft: 1.2, gt: null, flagState: "Malta", registryPort: "Valletta" },
+  { name: "Lumen", model: "55 Flybridge", builder: "Azimut", buildYear: 2019, loa: 16.7, beam: 4.8, draft: 1.45, gt: null, flagState: "Malta", registryPort: "Valletta" },
+  { name: "Tempest", model: "Predator 60", builder: "Sunseeker", buildYear: 2020, loa: 18.4, beam: 5.0, draft: 1.5, gt: null, flagState: "Jersey", registryPort: "St. Helier" },
+  { name: "Calypso", model: "Ferretti 670", builder: "Ferretti Yachts", buildYear: 2021, loa: 20.6, beam: 5.4, draft: 1.6, gt: null, flagState: "Italy", registryPort: "Genoa" },
+  { name: "Meridian", model: "Pershing 7X", builder: "Pershing", buildYear: 2022, loa: 22.0, beam: 5.6, draft: 1.65, gt: null, flagState: "Cayman Islands", registryPort: "George Town" },
+  { name: "Odyssey", model: "SL78", builder: "Sanlorenzo", buildYear: 2016, loa: 23.9, beam: 6.0, draft: 1.8, gt: null, flagState: "Cayman Islands", registryPort: "George Town" },
+  { name: "Aquila", model: "90 Ocean", builder: "Sunseeker", buildYear: 2019, loa: 27.5, beam: 6.7, draft: 2.0, gt: 130, flagState: "Malta", registryPort: "Valletta" },
+  { name: "Serenity", model: "30M", builder: "Princess Yachts", buildYear: 2018, loa: 30.0, beam: 6.7, draft: 1.95, gt: 145, flagState: "Marshall Islands", registryPort: "Majuro" },
+  { name: "Mistral", model: "Mangusta 104", builder: "Overmarine", buildYear: 2015, loa: 32.0, beam: 7.0, draft: 1.6, gt: 160, flagState: "Cayman Islands", registryPort: "George Town" },
+  { name: "Bluewater", model: "Delfino 95", builder: "Benetti", buildYear: 2020, loa: 33.0, beam: 7.6, draft: 2.25, gt: 250, flagState: "Cayman Islands", registryPort: "George Town" },
+  { name: "Aurora", model: "SD96", builder: "Sanlorenzo", buildYear: 2021, loa: 35.5, beam: 7.8, draft: 2.3, gt: 290, flagState: "Malta", registryPort: "Valletta" },
+  { name: "Nordwind", model: "38m Steel", builder: "Heesen Yachts", buildYear: 2017, loa: 38.0, beam: 8.0, draft: 2.4, gt: 330, flagState: "Gibraltar", registryPort: "Gibraltar" },
+  { name: "Polaris", model: "Amels 180", builder: "Amels", buildYear: 2019, loa: 40.0, beam: 8.2, draft: 2.45, gt: 450, flagState: "Isle of Man", registryPort: "Douglas" },
+  { name: "Costa Verde", model: "Mediterraneo 116", builder: "Benetti", buildYear: 2023, loa: 43.0, beam: 8.6, draft: 2.5, gt: 380, flagState: "Cayman Islands", registryPort: "George Town" },
+  { name: "Valkyrie", model: "Heesen 4500", builder: "Heesen Yachts", buildYear: 2024, loa: 45.0, beam: 8.6, draft: 2.55, gt: 495, flagState: "Marshall Islands", registryPort: "Majuro" },
+  { name: "Vantage", model: "F45 Vantage", builder: "Feadship", buildYear: 2026, loa: 47.5, beam: 8.8, draft: 2.6, gt: 499, flagState: "Netherlands", registryPort: "Amsterdam" },
+  { name: "Leviathan", model: "Amels 165", builder: "Amels", buildYear: 2022, loa: 50.0, beam: 9.0, draft: 2.7, gt: 650, flagState: "Cayman Islands", registryPort: "George Town" },
 ] as const;
 
 const EQUIPMENT = ["Main Engine", "Auxiliary Generator", "Navigation Radar", "Bow Thruster", "Stern Thruster", "Steering Gear", "Fire Pump", "Watermaker", "Air Conditioning Plant", "Zero-Speed Stabilizers", "Tender Crane", "Autopilot", "Liferaft Station"] as const;
@@ -307,7 +314,6 @@ async function seedShips(db: AppDatabase): Promise<{ shipsCreated: SeededShip[];
     const ship = await createShip(db, {
       name: y.name,
       creatorId: ADMIN_ID,
-      lifecycleStage: y.lifecycle,
       model: y.model,
       builder: y.builder,
       buildYear: y.buildYear,
@@ -365,8 +371,8 @@ async function tryFetchImage(url: string, name: string): Promise<File | null> {
  */
 async function fetchCoverFile(keywords: string, lock: number, name: string): Promise<File | null> {
   return (
-    await tryFetchImage(`https://loremflickr.com/1200/800/${keywords}?lock=${lock}`, name)
-    ?? await tryFetchImage(`https://picsum.photos/seed/${keywords}-${lock}/1200/800`, name)
+    await tryFetchImage(`https://loremflickr.com/${COVER_WIDTH}/${COVER_HEIGHT}/${keywords}?lock=${lock}`, name)
+    ?? await tryFetchImage(`https://picsum.photos/seed/${keywords}-${lock}/${COVER_WIDTH}/${COVER_HEIGHT}`, name)
   );
 }
 

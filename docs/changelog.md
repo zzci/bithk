@@ -32,12 +32,13 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   spanning 5–50 m LOA with size-consistent particulars (beam, draft, gross
   tonnage, build year, flag/registry) and IMO/MMSI/call-sign on the ≥24 m hulls;
   equipment count scales with vessel size. Most ships and standalone projects
-  also get a topical cover
-  image through the real file pipeline — vessel photos for ships, engine/
-  machinery photos for the (maintenance/refit) projects, fetched from
+  also get a topical, uniformly-sized
+  16:9 cover image through the real file pipeline — vessel photos for ships,
+  engine/machinery photos for the (maintenance/refit) projects, fetched from
   LoremFlickr with a picsum.photos fallback — with some left unset; cover
-  fetches are skipped gracefully when offline. Idempotent on re-run; `--fresh`
-  wipes the seeded rows and reseeds.
+  fetches are skipped gracefully when offline. The fixed 16:9 size matches the
+  web app's `object-cover` cover bands so covers never display distorted.
+  Idempotent on re-run; `--fresh` wipes the seeded rows and reseeds.
 - Drive file manager completion pass (FEAT-010 / PLAN-014): recursive folder
   upload from the browser, direct drag-and-drop moves, explicit current-folder
   versus drive-wide search, image thumbnails in grid view, and a version
@@ -73,6 +74,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   `settings` search param.
 
 ### Removed
+
+- The ship lifecycle concept (REFACTOR-004): ships had two parallel state
+  fields — `status` (active/archived) and `lifecycleStage`
+  (design…decommissioned). A fleet has no lifecycle, only a status, so
+  `lifecycle_stage` is dropped from the `ships` table (migration 0008) along
+  with the lifecycle enum, badge, overview stepper, and form field. The ship
+  list now filters by status (All / Active / Archived) and cards/headers show
+  the status badge.
 
 - Project list cards no longer render the redundant status/updated grid block
   (UI-011); the status badge and the date line in the card header already carry
