@@ -1,7 +1,7 @@
 import type { AnySQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { TagSourceType } from "./schema";
 import type { AppDatabase, AppTransaction } from "@/db";
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, inArray, ne, or, sql } from "drizzle-orm";
 import { ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import { tags } from "./schema";
@@ -133,4 +133,184 @@ export async function deleteTag(db: AppDatabase, sourceType: TagSourceType, id: 
     return false;
   await db.delete(tags).where(eq(tags.id, id)).run();
   return true;
+}
+
+// ─── Resource assignment helpers ──────────────────────────────────────────
+// Reusable logic for a domain's assignment join table (project_tags /
+// contact_tags / document_tags). Callers pass an explicit binding so the tag
+// module never imports a domain schema — the dependency direction stays
+// one-way. Behavior mirrors the per-domain helpers these replace exactly.
+
+/**
+ * A domain's assignment join: the source type it scopes to, its join `table`,
+ * the column pointing back at the owning resource, and the `tag_id` column.
+ */
+export interface ResourceTagBinding {
+  readonly sourceType: TagSourceType;
+  readonly table: SQLiteTable;
+  readonly resourceColumn: AnySQLiteColumn;
+  readonly tagColumn: AnySQLiteColumn;
+}
+
+/** A tag id paired with its display name for one resource. */
+export interface ResourceTagView {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** A grouped tag view carrying the source-type-wide usage count. */
+export interface ResourceTagUsageView {
+  readonly id: string;
+  readonly name: string;
+  readonly usageCount: number;
+}
+
+/**
+ * Resolve the join table's JS property keys for the bound resource/tag columns.
+ * Insert `.values()` is keyed by property name, but a binding only carries the
+ * column objects, so match them back by identity. Throws if either column does
+ * not belong to the binding table (a wiring error).
+ */
+function joinColumnKeys(binding: ResourceTagBinding): { resourceKey: string; tagKey: string } {
+  const columns = getTableColumns(binding.table);
+  let resourceKey: string | undefined;
+  let tagKey: string | undefined;
+  for (const [key, column] of Object.entries(columns)) {
+    if (column === binding.resourceColumn)
+      resourceKey = key;
+    else if (column === binding.tagColumn)
+      tagKey = key;
+  }
+  if (!resourceKey || !tagKey)
+    throw new Error("Tag binding columns do not belong to the binding table");
+  return { resourceKey, tagKey };
+}
+
+/**
+ * Replace one resource's tags with `names`: drop its join rows, then upsert each
+ * normalized, non-empty, case-insensitively-deduplicated name into the shared
+ * vocabulary and re-link it. Runs synchronously inside a transaction.
+ */
+export function syncResourceTagsTx(
+  tx: AppTransaction,
+  binding: ResourceTagBinding,
+  resourceId: string,
+  names: readonly string[],
+  now: string,
+): void {
+  const { resourceKey, tagKey } = joinColumnKeys(binding);
+  tx.delete(binding.table).where(eq(binding.resourceColumn, resourceId)).run();
+  const seen = new Set<string>();
+  for (const raw of names) {
+    const name = raw.trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key))
+      continue;
+    seen.add(key);
+    const tagId = upsertTagIdTx(tx, binding.sourceType, name, now);
+    tx.insert(binding.table).values({ [resourceKey]: resourceId, [tagKey]: tagId } as Record<string, string>).run();
+  }
+}
+
+/** Tags assigned to one resource as `{id,name}`, ordered by name. */
+export async function listResourceTagViews(
+  db: AppDatabase,
+  binding: ResourceTagBinding,
+  resourceId: string,
+): Promise<readonly ResourceTagView[]> {
+  return await db
+    .select({ id: tags.id, name: tags.name })
+    .from(binding.table)
+    .innerJoin(tags, eq(tags.id, binding.tagColumn))
+    .where(eq(binding.resourceColumn, resourceId))
+    .orderBy(tags.name)
+    .all();
+}
+
+/** Tag names assigned to one resource, ordered by name. */
+export async function listResourceTagNames(
+  db: AppDatabase,
+  binding: ResourceTagBinding,
+  resourceId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ name: tags.name })
+    .from(binding.table)
+    .innerJoin(tags, eq(tags.id, binding.tagColumn))
+    .where(eq(binding.resourceColumn, resourceId))
+    .orderBy(tags.name)
+    .all();
+  return rows.map(r => r.name);
+}
+
+/**
+ * Load tags for a set of resource ids, grouped by resource id. Each view
+ * carries the same source-type-wide `usageCount` the global tag list reports
+ * (correlated subquery), so embedded tags match the filter vocabulary.
+ */
+export async function loadResourceTagsByResource(
+  db: AppDatabase,
+  binding: ResourceTagBinding,
+  resourceIds: readonly string[],
+): Promise<Map<string, ResourceTagUsageView[]>> {
+  const map = new Map<string, ResourceTagUsageView[]>();
+  if (resourceIds.length === 0)
+    return map;
+  const rows = await db
+    .select({
+      resourceId: binding.resourceColumn,
+      id: tags.id,
+      name: tags.name,
+      usageCount: sql<number>`(SELECT COUNT(*) FROM ${binding.table} WHERE ${binding.tagColumn} = ${tags.id})`,
+    })
+    .from(binding.table)
+    .innerJoin(tags, eq(tags.id, binding.tagColumn))
+    .where(inArray(binding.resourceColumn, [...resourceIds]))
+    .all();
+  for (const r of rows) {
+    // A bound resource column is always a text id column, so the value is a string.
+    const resourceId = r.resourceId as string;
+    const list = map.get(resourceId) ?? [];
+    list.push({ id: r.id, name: r.name, usageCount: r.usageCount });
+    map.set(resourceId, list);
+  }
+  return map;
+}
+
+/** Resolve a trimmed value matching `tags.id` OR `tags.name` within a source type. */
+export async function resolveTagIdByIdOrName(
+  db: AppDatabase,
+  sourceType: TagSourceType,
+  value: string,
+): Promise<string | null> {
+  const trimmed = value.trim();
+  if (!trimmed)
+    return null;
+  const row = await db
+    .select({ id: tags.id })
+    .from(tags)
+    .where(and(or(eq(tags.id, trimmed), eq(tags.name, trimmed)), eq(tags.sourceType, sourceType)))
+    .get();
+  return row?.id ?? null;
+}
+
+/**
+ * Resource ids assigned a given tag, looked up by tag id OR name (for list
+ * filtering). Returns an empty array when the tag does not resolve.
+ */
+export async function listResourceIdsByTag(
+  db: AppDatabase,
+  binding: ResourceTagBinding,
+  tagIdOrName: string,
+): Promise<string[]> {
+  const tagId = await resolveTagIdByIdOrName(db, binding.sourceType, tagIdOrName);
+  if (!tagId)
+    return [];
+  const rows = await db
+    .select({ resourceId: binding.resourceColumn })
+    .from(binding.table)
+    .where(eq(binding.tagColumn, tagId))
+    .all();
+  // A bound resource column is always a text id column, so values are strings.
+  return rows.map(r => r.resourceId as string);
 }
