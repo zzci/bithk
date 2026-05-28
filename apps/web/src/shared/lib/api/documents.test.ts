@@ -11,6 +11,7 @@ import {
   useCreateDocument,
   useDeleteDocument,
   useDocument,
+  useDocumentTags,
   useDocumentTree,
   useMoveDocument,
   useSetDocumentPin,
@@ -128,6 +129,17 @@ describe("document queries", () => {
     const { result } = renderHook(() => useDocument(undefined), { wrapper: makeWrapper() });
     expect(result.current.fetchStatus).toBe("idle");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Document tags are their own typed vocabulary: the list comes from the
+  // document-scoped `/documents/tags` route as a plain string[], never the
+  // global `/tags` (project) endpoint.
+  it("fetches the document tag list from /documents/tags as a string array", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: ["alpha", "beta"] }));
+    const { result } = renderHook(() => useDocumentTags(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/documents/tags");
+    expect(result.current.data).toEqual(["alpha", "beta"]);
   });
 });
 
