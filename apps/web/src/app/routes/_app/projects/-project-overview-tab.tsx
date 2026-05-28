@@ -156,6 +156,26 @@ function ProjectInfoCard({ creatorName, updatedAt, tags, description }: ProjectI
   );
 }
 
+// Shared list presentation for the pinned + latest-activity sections: one row
+// rhythm (title first, then a wrapping metadata line) and intentional muted
+// loading/empty states instead of loose body text.
+const ROW_BUTTON_CLASS
+  = "group flex w-full flex-col items-start gap-1.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+function ListState({ children }: { readonly children: ReactNode }) {
+  return (
+    <p className="px-2 py-6 text-center text-sm text-pretty text-muted-foreground">{children}</p>
+  );
+}
+
+function RowMeta({ children }: { readonly children: ReactNode }) {
+  return (
+    <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
 interface ProjectPinnedCardProps {
   readonly projectId: string;
   readonly caps: ProjectCapabilityInfo;
@@ -177,9 +197,9 @@ function ProjectPinnedCard({ projectId, caps, onOpenTab }: ProjectPinnedCardProp
       </CardHeader>
       <CardContent>
         {pinnedQuery.isLoading
-          ? <p className="text-sm text-muted-foreground">{t("overview.pinnedLoading")}</p>
+          ? <ListState>{t("overview.pinnedLoading")}</ListState>
           : pinned.length === 0
-            ? <p className="text-sm text-muted-foreground">{t("overview.noPinned")}</p>
+            ? <ListState>{t("overview.noPinned")}</ListState>
             : (
                 <ul aria-label={t("overview.pinned")} className="-mx-2 space-y-0.5">
                   {pinned.map(item => (
@@ -211,20 +231,20 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
       <button
         type="button"
         disabled={!canOpen}
-        className="group flex w-full flex-col items-start gap-1.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+        className={cn(ROW_BUTTON_CLASS, "disabled:pointer-events-none disabled:opacity-60")}
         onClick={() => onOpenTab(target)}
       >
         <span className="flex w-full items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</span>
+          <Pin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </span>
+        <RowMeta>
           <Badge variant="outline" className="shrink-0 gap-1">
             {isIssue
               ? <ClipboardList className="size-3" aria-hidden="true" />
               : <Package className="size-3" aria-hidden="true" />}
             {isIssue ? t("overview.pinKind.issue") : t("overview.pinKind.procurement")}
           </Badge>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</span>
-          <Pin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        </span>
-        <span className="flex w-full items-center gap-2 text-xs text-muted-foreground">
           <Badge
             variant="secondary"
             className={cn("shrink-0", isIssue ? ISSUE_STATUS_BADGE[item.status as keyof typeof ISSUE_STATUS_BADGE] ?? "" : "")}
@@ -234,7 +254,7 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
               : t(`procurement.status.${item.status}` as const)}
           </Badge>
           <span className="ml-auto shrink-0">{formatDate(item.pinnedAt)}</span>
-        </span>
+        </RowMeta>
       </button>
     </li>
   );
@@ -269,9 +289,9 @@ function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, is
       </CardHeader>
       <CardContent>
         {isLoading
-          ? <p className="text-sm text-muted-foreground">{loadingText}</p>
+          ? <ListState>{loadingText}</ListState>
           : isEmpty
-            ? <p className="text-sm text-muted-foreground">{emptyText}</p>
+            ? <ListState>{emptyText}</ListState>
             : <ul className="-mx-2 space-y-0.5">{children}</ul>}
       </CardContent>
     </Card>
@@ -290,14 +310,14 @@ function ActivityRow({ title, date, badge, onClick }: ActivityRowProps) {
     <li>
       <button
         type="button"
-        className="flex w-full flex-col items-start gap-1 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={ROW_BUTTON_CLASS}
         onClick={onClick}
       >
         <span className="w-full truncate text-sm font-medium text-foreground">{title}</span>
-        <span className="flex w-full items-center gap-2 text-xs text-muted-foreground">
+        <RowMeta>
           {badge}
           <span className="ml-auto shrink-0">{date}</span>
-        </span>
+        </RowMeta>
       </button>
     </li>
   );

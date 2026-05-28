@@ -175,4 +175,60 @@ describe("projectOverviewTab", () => {
     );
     expect(screen.queryByText("Latest procurements")).not.toBeInTheDocument();
   });
+
+  it("renders the latest work orders empty state", async () => {
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+    );
+    expect(await screen.findByText("No work orders found.")).toBeInTheDocument();
+  });
+
+  it("renders the latest procurements empty state", async () => {
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+    );
+    expect(await screen.findByText("No procurement records found.")).toBeInTheDocument();
+  });
+
+  it("navigates from a pinned work order row to the issues tab", async () => {
+    const user = userEvent.setup();
+    const onOpenTab = vi.fn();
+    routeFetch({ pinned: [pin({ id: "it1", type: "issue", title: "Fix pump", status: "open" })] });
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
+    );
+    await user.click(await screen.findByRole("button", { name: /Fix pump/ }));
+    expect(onOpenTab).toHaveBeenCalledWith("issues");
+  });
+
+  it("navigates from a pinned procurement row to the procurement tab", async () => {
+    const user = userEvent.setup();
+    const onOpenTab = vi.fn();
+    routeFetch({ pinned: [pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft" })] });
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
+    );
+    await user.click(await screen.findByRole("button", { name: /Buy steel/ }));
+    expect(onOpenTab).toHaveBeenCalledWith("procurement");
+  });
+
+  it("disables a pinned procurement row when procurement is not viewable", async () => {
+    const onOpenTab = vi.fn();
+    routeFetch({ pinned: [pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft" })] });
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={noProcCaps} onOpenTab={onOpenTab} />,
+    );
+    expect(await screen.findByRole("button", { name: /Buy steel/ })).toBeDisabled();
+  });
+
+  it("navigates from a latest work order row to the issues tab", async () => {
+    const user = userEvent.setup();
+    const onOpenTab = vi.fn();
+    routeFetch({ issues: [{ id: "i1", title: "Fix leak", status: "open", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }] });
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
+    );
+    await user.click(await screen.findByRole("button", { name: /Fix leak/ }));
+    expect(onOpenTab).toHaveBeenCalledWith("issues");
+  });
 });
