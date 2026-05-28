@@ -7,18 +7,25 @@ import { getReferenceById, releaseReference, uploadAndReference } from "@/module
 import { fileReferences } from "@/modules/file/schema";
 import { deleteSetting, getSetting, setSetting } from "@/modules/settings/settings.service";
 import { ships } from "@/modules/ship/schema";
-import { ValidationError } from "@/shared/lib/errors";
+import { tags } from "@/modules/tag/schema";
+import {
+  createTag as createTagInVocabulary,
+  deleteTag as deleteTagFromVocabulary,
+  listTagsWithUsage,
+  renameTag as renameTagInVocabulary,
+  upsertTagIdTx,
+} from "@/modules/tag/tag.service";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { seedProjectCategoriesTx } from "./project.global-categories";
 import { parseCapabilities, seedDefaultRoles } from "./project.roles";
-import { PROJECT_STATUSES, projectMembers, projectRoles, projects, projectTags, tags } from "./schema";
+import { PROJECT_STATUSES, projectMembers, projectRoles, projects, projectTags } from "./schema";
 
 /** Settings keys backing the admin "Project Defaults" section. */
 export const PROJECT_DEFAULT_STATUS_KEY = "project.defaults.status";
 export const PROJECT_DEFAULT_COVER_KEY = "project.defaults.coverReferenceId";
 
-/** Max length for a tag name, mirrored by the route-level zod schema. */
-const TAG_NAME_MAX = 50;
+/** Project assignment join, passed to the central tag service for usage counts. */
+const PROJECT_TAG_JOIN = { table: projectTags, tagId: projectTags.tagId } as const;
 
 /** owner_type discriminator for a project's cover image file reference. */
 export const PROJECT_COVER_OWNER_TYPE = "project_cover";
@@ -116,79 +123,31 @@ export function composeMember(row: ProjectMemberRow): ProjectMemberView {
 }
 
 // ─── Tags ───────────────────────────────────────────────────────────────
+// The vocabulary lives in the shared `tags` table scoped to source_type
+// 'project'; the central tag service owns create/rename/delete and upsert.
+// These wrappers fix the source type so callers (routes, tests) stay simple.
 
 export async function listTags(db: AppDatabase): Promise<readonly ProjectTagView[]> {
-  // usageCount = number of project_tags rows per tag (0 for orphaned tags).
-  // Order most-used first, breaking ties by name so the list is stable.
-  const usageCount = count(projectTags.tagId);
-  return await db
-    .select({ id: tags.id, name: tags.name, usageCount })
-    .from(tags)
-    .leftJoin(projectTags, eq(projectTags.tagId, tags.id))
-    .groupBy(tags.id)
-    .orderBy(desc(usageCount), tags.name)
-    .all();
+  return await listTagsWithUsage(db, "project", PROJECT_TAG_JOIN);
 }
 
-/** Count the projects currently referencing a tag. */
-async function tagUsageCount(db: AppDatabase, tagId: string): Promise<number> {
-  const row = await db.select({ value: count() }).from(projectTags).where(eq(projectTags.tagId, tagId)).get();
-  return row?.value ?? 0;
-}
-
-// ─── Tag admin (admin-only CRUD over the global vocabulary) ─────────────
-
-/** Create a tag. Names are trimmed; duplicates (exact match) are rejected. */
+/** Create a project tag. Names are trimmed; same-type duplicates are rejected. */
 export async function createTag(db: AppDatabase, name: string): Promise<ProjectTagView> {
-  const trimmed = name.trim();
-  if (!trimmed)
-    throw new ValidationError("Tag name is required", { name: "Required" });
-  if (trimmed.length > TAG_NAME_MAX)
-    throw new ValidationError(`Tag name must be at most ${TAG_NAME_MAX} characters`, { name: "Too long" });
-  const existing = await db.select({ id: tags.id }).from(tags).where(eq(tags.name, trimmed)).get();
-  if (existing)
-    throw new ValidationError("Tag name already exists", { name: "Duplicate" });
-
-  const id = nanoid();
-  const now = new Date().toISOString();
-  await db.insert(tags).values({ id, name: trimmed, createdAt: now, updatedAt: now }).run();
-  return { id, name: trimmed, usageCount: 0 };
+  return await createTagInVocabulary(db, "project", name);
 }
 
-/** Rename a tag. Returns undefined when the tag is gone; rejects a name collision. */
+/** Rename a project tag. Returns undefined when the tag is gone; rejects a same-type collision. */
 export async function renameTag(db: AppDatabase, id: string, name: string): Promise<ProjectTagView | undefined> {
-  const trimmed = name.trim();
-  if (!trimmed)
-    throw new ValidationError("Tag name is required", { name: "Required" });
-  if (trimmed.length > TAG_NAME_MAX)
-    throw new ValidationError(`Tag name must be at most ${TAG_NAME_MAX} characters`, { name: "Too long" });
-
-  const existing = await db.select({ id: tags.id }).from(tags).where(eq(tags.id, id)).get();
-  if (!existing)
-    return undefined;
-  const collision = await db.select({ id: tags.id }).from(tags).where(and(eq(tags.name, trimmed), ne(tags.id, id))).get();
-  if (collision)
-    throw new ValidationError("Tag name already exists", { name: "Duplicate" });
-
-  const now = new Date().toISOString();
-  await db.update(tags).set({ name: trimmed, updatedAt: now }).where(eq(tags.id, id)).run();
-  return { id, name: trimmed, usageCount: await tagUsageCount(db, id) };
+  return await renameTagInVocabulary(db, "project", id, name, PROJECT_TAG_JOIN);
 }
 
 /**
- * Delete a tag, cascade-unlinking it from every project first. Both deletes run
- * in one transaction; no in-use block — removing a tag simply untags its
- * projects. Returns false when the tag does not exist.
+ * Delete a project tag; the `project_tags.tag_id` cascade unlinks it from every
+ * project. No in-use block — removing a tag simply untags its projects. Returns
+ * false when the tag does not exist for this source type.
  */
 export async function deleteTag(db: AppDatabase, id: string): Promise<boolean> {
-  const existing = await db.select({ id: tags.id }).from(tags).where(eq(tags.id, id)).get();
-  if (!existing)
-    return false;
-  db.transaction((tx) => {
-    tx.delete(projectTags).where(eq(projectTags.tagId, id)).run();
-    tx.delete(tags).where(eq(tags.id, id)).run();
-  });
-  return true;
+  return await deleteTagFromVocabulary(db, "project", id);
 }
 
 /** Load tags for a set of internal project ids, grouped by project id. */
@@ -284,8 +243,9 @@ async function loadCoverUrlForProject(db: AppDatabase, row: ProjectRow): Promise
 }
 
 /**
- * Replace a project's tags with the given names (upsert into the global `tags`
- * vocabulary, then rewrite `project_tags`). Runs synchronously inside a tx.
+ * Replace a project's tags with the given names (upsert into the shared `tags`
+ * vocabulary under source_type 'project', then rewrite `project_tags`). Runs
+ * synchronously inside a tx.
  */
 function syncTagsTx(tx: AppTransaction, projectId: string, names: readonly string[], now: string): void {
   tx.delete(projectTags).where(eq(projectTags.projectId, projectId)).run();
@@ -295,12 +255,7 @@ function syncTagsTx(tx: AppTransaction, projectId: string, names: readonly strin
     if (!name || seen.has(name.toLowerCase()))
       continue;
     seen.add(name.toLowerCase());
-    const existing = tx.select({ id: tags.id }).from(tags).where(eq(tags.name, name)).get();
-    let tagId = existing?.id;
-    if (!tagId) {
-      tagId = nanoid();
-      tx.insert(tags).values({ id: tagId, name, createdAt: now, updatedAt: now }).run();
-    }
+    const tagId = upsertTagIdTx(tx, "project", name, now);
     tx.insert(projectTags).values({ projectId, tagId }).run();
   }
 }

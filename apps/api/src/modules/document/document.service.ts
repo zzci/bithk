@@ -1,14 +1,16 @@
-import type { AppDatabase, RunResult } from "@/db";
+import type { AppDatabase, AppTransaction, RunResult } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { groups } from "@/modules/account/groups/schema";
 import { documentAccess } from "@/modules/document/document.permission";
-import { documentDetails, documentPins } from "@/modules/document/schema";
+import { documentDetails, documentPins, documentTags } from "@/modules/document/schema";
 import { items } from "@/modules/item/schema";
 import { NOOP_POLICY_LOGGER } from "@/modules/policy";
 import { relationTuples } from "@/modules/policy/schema";
 import { listUserResources } from "@/modules/policy/zanzibar.engine";
 import { deleteSharesForResource } from "@/modules/share";
+import { tags } from "@/modules/tag/schema";
+import { upsertTagIdTx } from "@/modules/tag/tag.service";
 import { nanoid, ulid } from "@/shared/lib/id";
 
 // Escape the LIKE wildcards (`%`, `_`) *and* the escape character itself
@@ -80,7 +82,10 @@ async function composeDocument(
     id: item.shortId,
     title: item.title,
     content: d?.content ?? null,
-    tags: d?.tags ?? "[]",
+    // Tags are now sourced from the `document_tags` join over the global typed
+    // vocabulary. The response keeps the legacy JSON-string shape so the
+    // frontend contract is unchanged.
+    tags: JSON.stringify(await loadDocumentTagNames(db, item.id)),
     parentId: await getParentShortId(db, d?.parentId ?? null),
     version: item.version,
     commentsLocked: d?.commentsLocked ?? false,
@@ -88,6 +93,37 @@ async function composeDocument(
     createdAt: ulidTimestamp(item.id),
     updatedAt: item.updatedAt,
   };
+}
+
+/** Tag names assigned to a document, read from `document_tags`, sorted by name. */
+async function loadDocumentTagNames(db: DbReader, itemId: string): Promise<string[]> {
+  const rows = await db
+    .select({ name: tags.name })
+    .from(documentTags)
+    .innerJoin(tags, eq(tags.id, documentTags.tagId))
+    .where(eq(documentTags.itemId, itemId))
+    .orderBy(tags.name)
+    .all();
+  return rows.map(r => r.name);
+}
+
+/**
+ * Replace a document's tags with the given names: upsert into the shared `tags`
+ * vocabulary under source_type 'document', then rewrite `document_tags`. Runs
+ * synchronously inside a transaction.
+ */
+function syncDocumentTagsTx(tx: AppTransaction, itemId: string, names: readonly string[], now: string): void {
+  tx.delete(documentTags).where(eq(documentTags.itemId, itemId)).run();
+  const seen = new Set<string>();
+  for (const raw of names) {
+    const name = raw.trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key))
+      continue;
+    seen.add(key);
+    const tagId = upsertTagIdTx(tx, "document", name, now);
+    tx.insert(documentTags).values({ itemId, tagId }).run();
+  }
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────
@@ -127,10 +163,11 @@ export async function createDocument(db: AppDatabase, input: CreateDocumentInput
       updatedAt: now,
     }).run();
 
+    // `document_details.tags` is legacy; tags live in `document_tags` now, so
+    // the column keeps its "[]" default and is no longer written.
     tx.insert(documentDetails).values({
       itemId: id,
       content: input.content ?? null,
-      tags: JSON.stringify(input.tags ?? []),
       parentId: parentItemId,
       commentsLocked: false,
     }).run();
@@ -162,6 +199,9 @@ export async function createDocument(db: AppDatabase, input: CreateDocumentInput
         createdAt: now,
       }).run();
     }
+
+    if (input.tags && input.tags.length > 0)
+      syncDocumentTagsTx(tx, id, input.tags, now);
   });
 
   if (input.tags && input.tags.length > 0)
@@ -253,8 +293,6 @@ export async function updateDocument(
     const detailsPatch: Record<string, unknown> = {};
     if (input.content !== undefined)
       detailsPatch.content = input.content;
-    if (input.tags !== undefined)
-      detailsPatch.tags = JSON.stringify(input.tags);
     if (input.commentsLocked !== undefined)
       detailsPatch.commentsLocked = input.commentsLocked;
     if (parentItemIdSpec !== undefined)
@@ -262,6 +300,12 @@ export async function updateDocument(
     if (Object.keys(detailsPatch).length > 0) {
       tx.update(documentDetails).set(detailsPatch).where(eq(documentDetails.itemId, item.id)).run();
     }
+
+    // Tags are stored in `document_tags` (global typed vocabulary), rewritten
+    // here in the same transaction so the version bump above stays atomic with
+    // the tag change.
+    if (input.tags !== undefined)
+      syncDocumentTagsTx(tx, item.id, input.tags, now);
 
     if (parentItemIdSpec !== undefined) {
       // Rewrite the parent_item tuple in lockstep with the business column.
@@ -442,9 +486,10 @@ export async function listMyDocuments(db: AppDatabase, params: ListDocumentsPara
     : and(where, creatorClause);
 
   if (params.tag) {
-    const ids = await db.select({ itemId: documentDetails.itemId })
-      .from(documentDetails)
-      .where(sql`${documentDetails.tags} LIKE ${`%"${escapeLike(params.tag)}"%`} ESCAPE '\\'`)
+    const ids = await db.select({ itemId: documentTags.itemId })
+      .from(documentTags)
+      .innerJoin(tags, eq(tags.id, documentTags.tagId))
+      .where(and(eq(tags.sourceType, "document"), eq(tags.name, params.tag)))
       .all();
     if (ids.length === 0)
       return { data: [] as DocumentRow[], total: 0 };
@@ -757,15 +802,19 @@ export function invalidateTagCache(): void {
 export async function listAllTags(db: AppDatabase): Promise<readonly string[]> {
   if (tagCache && tagCache.db === db && Date.now() - tagCache.loadedAt < TAG_CACHE_TTL_MS)
     return tagCache.tags;
-  const rows = await db.all<{ tag: string }>(sql`
-    SELECT DISTINCT je.value AS tag
-    FROM ${documentDetails}, json_each(${documentDetails.tags}) AS je
-    WHERE je.value IS NOT NULL AND je.value != ''
-    ORDER BY je.value
-  `);
-  const tags = rows.map(r => r.tag);
-  tagCache = { db, loadedAt: Date.now(), tags };
-  return tags;
+  // Distinct document tag names actually in use, read from the global typed
+  // vocabulary via the `document_tags` join.
+  const rows = await db
+    .select({ name: tags.name })
+    .from(tags)
+    .innerJoin(documentTags, eq(documentTags.tagId, tags.id))
+    .where(eq(tags.sourceType, "document"))
+    .groupBy(tags.name)
+    .orderBy(tags.name)
+    .all();
+  const names = rows.map(r => r.name);
+  tagCache = { db, loadedAt: Date.now(), tags: names };
+  return names;
 }
 
 export async function listAllGroups(db: AppDatabase) {
