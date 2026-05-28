@@ -68,7 +68,7 @@ export function ProjectSettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[min(34rem,90svh)] gap-0 overflow-hidden p-0 sm:max-w-3xl">
-        <div className="grid h-full grid-cols-[13rem_1fr]">
+        <div className="grid h-full min-h-0 grid-cols-[13rem_1fr]">
           <aside className="flex min-h-0 flex-col border-r bg-muted/30 p-3">
             <DialogTitle className="px-2 pt-1 pb-3 text-sm font-semibold">{t("settings.title")}</DialogTitle>
             <nav role="tablist" aria-orientation="vertical" className="flex flex-col gap-1">
