@@ -13,7 +13,7 @@ import { CoverImage } from "@/shared/components/cover-image";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { Card } from "@/shared/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -237,9 +237,10 @@ function ProjectsGrid({
       {projects.map(project => (
         <Card
           key={project.id}
+          size="sm"
           role="button"
           tabIndex={0}
-          className="relative aspect-[3/4] cursor-pointer gap-0 p-0 ring-foreground/10 transition-all hover:shadow-lg hover:ring-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => openProject(project.id)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
@@ -248,59 +249,47 @@ function ProjectsGrid({
             }
           }}
         >
-          <CoverImage
-            src={project.coverImageUrl}
-            kind="project"
-            className="absolute inset-0 size-full transition-transform duration-300 ease-out group-hover/card:scale-[1.04]"
-          />
-          {/* Cinematic mask: keeps overlaid white text legible over any cover. */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/5"
-          />
-
-          {project.status === "archived" && (
-            <Badge className="absolute top-2.5 right-2.5 border-white/20 bg-black/55 text-[10px] font-medium tracking-wide text-white uppercase backdrop-blur-sm">
-              {t("status.archived")}
-            </Badge>
-          )}
-
-          <div className={`absolute inset-x-0 bottom-0 flex flex-col gap-2 p-3.5 ${isAdmin ? "pr-12" : ""}`}>
-            <h3 className="line-clamp-2 text-[15px] leading-tight font-semibold tracking-tight text-white drop-shadow-sm">
-              {project.name}
-            </h3>
-            {project.tags.length > 0 && (
+          <CoverImage src={project.coverImageUrl} kind="project" className="h-28 w-full" />
+          <CardHeader>
+            <div className="flex items-start justify-between gap-2">
+              <CardTitle className="line-clamp-2 min-w-0">{project.name}</CardTitle>
+              <div className="flex shrink-0 items-center gap-1">
+                {project.status === "archived" && (
+                  <Badge variant="secondary" className="text-[10px] tracking-wide uppercase">
+                    {t("status.archived")}
+                  </Badge>
+                )}
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("list.openSettings")}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openSettings(project.id);
+                    }}
+                  >
+                    <Settings aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          {project.tags.length > 0 && (
+            <CardContent>
               <div className="flex flex-wrap gap-1">
                 {project.tags.slice(0, 3).map(tag => (
-                  <span
-                    key={tag.id}
-                    className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium text-white ring-1 ring-inset ring-white/25 backdrop-blur-sm"
-                  >
+                  <Badge key={tag.id} variant="secondary" className="text-[10px] font-medium">
                     {tag.name}
-                  </span>
+                  </Badge>
                 ))}
                 {project.tags.length > 3 && (
-                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-medium text-white/80">
+                  <span className="self-center text-[10px] font-medium text-muted-foreground">
                     {t("list.moreTags", { count: project.tags.length - 3 })}
                   </span>
                 )}
               </div>
-            )}
-          </div>
-
-          {isAdmin && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("list.openSettings")}
-              className="absolute right-2.5 bottom-2.5 border border-white/15 bg-black/45 text-white backdrop-blur-sm hover:bg-black/65 hover:text-white focus-visible:ring-white/70"
-              onClick={(event) => {
-                event.stopPropagation();
-                openSettings(project.id);
-              }}
-            >
-              <Settings aria-hidden="true" />
-            </Button>
+            </CardContent>
           )}
         </Card>
       ))}
