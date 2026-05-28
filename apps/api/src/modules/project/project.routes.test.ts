@@ -327,6 +327,20 @@ describe("PATCH / DELETE /projects/:id (project.manage gate)", () => {
     expect((await ok.json() as { data: { name: string } }).data.name).toBe("X");
   });
 
+  test("PATCH cannot change the immutable code", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", code: "KEEP-1", creatorId: owner });
+    expect(project.code).toBe("keep-1");
+
+    const res = await app.request(`/projects/${project.shortId}`, jsonReq("PATCH", await cookieForUser(owner), { name: "P2", code: "HACKED" }));
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { name: string; code: string } };
+    expect(body.data.name).toBe("P2");
+    // The schema drops `code`, so the update never reaches the service: persisted code is unchanged.
+    expect(body.data.code).toBe("keep-1");
+  });
+
   test("PATCH with no fields is rejected with 422", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
