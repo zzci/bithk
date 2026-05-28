@@ -37,6 +37,9 @@ export type ProjectMemberRow = typeof projectMembers.$inferSelect;
 export interface ProjectTagView {
   readonly id: string;
   readonly name: string;
+  // Number of projects referencing this tag. Computed (never stored); used by
+  // the list filter to surface the most-used tags first.
+  readonly usageCount: number;
 }
 
 export interface ProjectView {
@@ -96,7 +99,16 @@ export function composeMember(row: ProjectMemberRow): ProjectMemberView {
 // ─── Tags ───────────────────────────────────────────────────────────────
 
 export async function listTags(db: AppDatabase): Promise<readonly ProjectTagView[]> {
-  return await db.select({ id: tags.id, name: tags.name }).from(tags).orderBy(tags.name).all();
+  // usageCount = number of project_tags rows per tag (0 for orphaned tags).
+  // Order most-used first, breaking ties by name so the list is stable.
+  const usageCount = count(projectTags.tagId);
+  return await db
+    .select({ id: tags.id, name: tags.name, usageCount })
+    .from(tags)
+    .leftJoin(projectTags, eq(projectTags.tagId, tags.id))
+    .groupBy(tags.id)
+    .orderBy(desc(usageCount), tags.name)
+    .all();
 }
 
 /** Load tags for a set of internal project ids, grouped by project id. */
@@ -104,14 +116,21 @@ async function loadTagsByProject(db: AppDatabase, projectIds: readonly string[])
   const map = new Map<string, ProjectTagView[]>();
   if (projectIds.length === 0)
     return map;
-  const rows = await db.select({ projectId: projectTags.projectId, id: tags.id, name: tags.name })
+  const rows = await db.select({
+    projectId: projectTags.projectId,
+    id: tags.id,
+    name: tags.name,
+    // Correlated count so embedded project tags carry the same usageCount the
+    // global tag list reports.
+    usageCount: sql<number>`(SELECT COUNT(*) FROM project_tags WHERE project_tags.tag_id = ${tags.id})`,
+  })
     .from(projectTags)
     .innerJoin(tags, eq(tags.id, projectTags.tagId))
     .where(inArray(projectTags.projectId, [...projectIds]))
     .all();
   for (const r of rows) {
     const list = map.get(r.projectId) ?? [];
-    list.push({ id: r.id, name: r.name });
+    list.push({ id: r.id, name: r.name, usageCount: r.usageCount });
     map.set(r.projectId, list);
   }
   return map;
