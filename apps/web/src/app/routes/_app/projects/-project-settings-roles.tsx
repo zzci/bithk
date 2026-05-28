@@ -31,6 +31,26 @@ import {
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 
+// Capabilities grouped by their module prefix (the segment before the ".").
+// Derived from PROJECT_CAPABILITIES so new capabilities slot into their module
+// automatically; the stored payload stays a flat capabilities[] regardless.
+const CAPABILITY_GROUPS: ReadonlyArray<readonly [string, readonly ProjectCapability[]]> = (() => {
+  const order: string[] = [];
+  const byModule = new Map<string, ProjectCapability[]>();
+  for (const cap of PROJECT_CAPABILITIES) {
+    const module = cap.split(".")[0] ?? cap;
+    const existing = byModule.get(module);
+    if (existing) {
+      existing.push(cap);
+    }
+    else {
+      byModule.set(module, [cap]);
+      order.push(module);
+    }
+  }
+  return order.map(module => [module, byModule.get(module)!] as const);
+})();
+
 interface ProjectSettingsRolesProps {
   readonly projectId: string;
   readonly canManage: boolean;
@@ -203,16 +223,23 @@ function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogPro
 
           <div className="space-y-2">
             <Label>{t("roles.field.capabilities")}</Label>
-            <div className="space-y-2 rounded-md border p-3">
-              {PROJECT_CAPABILITIES.map(cap => (
-                <div key={cap} className="flex items-center justify-between gap-2">
-                  <Label htmlFor={`cap-${cap}`} className="text-sm font-normal">{t(`capability.${cap}` as const)}</Label>
-                  <Switch
-                    id={`cap-${cap}`}
-                    checked={capabilities.includes(cap)}
-                    onCheckedChange={() => toggle(cap)}
-                  />
-                </div>
+            <div className="space-y-4 rounded-md border p-3">
+              {CAPABILITY_GROUPS.map(([module, caps]) => (
+                <fieldset key={module} className="space-y-2">
+                  <legend className="text-xs font-medium text-muted-foreground">
+                    {t(`capabilityGroup.${module}` as const)}
+                  </legend>
+                  {caps.map(cap => (
+                    <div key={cap} className="flex items-center justify-between gap-2">
+                      <Label htmlFor={`cap-${cap}`} className="text-sm font-normal">{t(`capability.${cap}` as const)}</Label>
+                      <Switch
+                        id={`cap-${cap}`}
+                        checked={capabilities.includes(cap)}
+                        onCheckedChange={() => toggle(cap)}
+                      />
+                    </div>
+                  ))}
+                </fieldset>
               ))}
             </div>
           </div>

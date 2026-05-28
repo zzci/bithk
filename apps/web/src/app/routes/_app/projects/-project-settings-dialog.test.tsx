@@ -45,7 +45,8 @@ describe("projectSettingsDialog", () => {
       <ProjectSettingsDialog open onOpenChange={vi.fn()} project={project} members={[]} userNames={new Map()} caps={caps} />,
     );
     expect(screen.getByRole("tab", { name: "General" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Members & roles" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Members" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Roles" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Categories" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Contacts" })).not.toBeInTheDocument();
   });
@@ -57,18 +58,30 @@ describe("projectSettingsDialog", () => {
     );
     expect(screen.getByRole("tab", { name: "Categories" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "General" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Members & roles" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Roles" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Contacts" })).not.toBeInTheDocument();
   });
 
-  it("merges the members tab when either members or roles can be managed", () => {
+  it("shows only the roles tab to a roles-only member", () => {
     const caps = computeCapabilities(["roles.manage"], false);
     renderWithProviders(
       <ProjectSettingsDialog open onOpenChange={vi.fn()} project={project} members={[]} userNames={new Map()} caps={caps} />,
     );
-    expect(screen.getByRole("tab", { name: "Members & roles" })).toBeInTheDocument();
-    // Roles-only access still surfaces the roles section heading inside the tab.
-    expect(screen.getByText("Roles")).toBeInTheDocument();
+    // Members and roles are now independently gated sections.
+    expect(screen.getByRole("tab", { name: "Roles" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
+    // The roles-only viewer lands on the roles section by default.
+    expect(screen.getByRole("button", { name: "Add role" })).toBeInTheDocument();
+  });
+
+  it("shows only the members tab to a members-only member", () => {
+    const caps = computeCapabilities(["members.manage"], false);
+    renderWithProviders(
+      <ProjectSettingsDialog open onOpenChange={vi.fn()} project={project} members={[]} userNames={new Map()} caps={caps} />,
+    );
+    expect(screen.getByRole("tab", { name: "Members" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Roles" })).not.toBeInTheDocument();
   });
 
   it("renders the dialog title and description", () => {

@@ -105,10 +105,10 @@
   "settings": {
     "title": "项目设置",
     "description": "管理本项目的详情、成员和分类。",
-    "rolesHeading": "角色",
     "tabs": {
       "general": "常规",
-      "members": "成员与角色",
+      "members": "成员",
+      "roles": "角色",
       "categories": "分类"
     }
   },
@@ -285,6 +285,14 @@
     "procurement.view": "查看采购",
     "procurement.manage": "管理采购",
     "issue.manage": "管理工单"
+  },
+  "capabilityGroup": {
+    "project": "项目",
+    "members": "成员",
+    "roles": "角色",
+    "categories": "分类",
+    "procurement": "采购",
+    "issue": "工单"
   },
   "categories": {
     "add": "添加分类",
