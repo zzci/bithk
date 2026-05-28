@@ -301,3 +301,43 @@ describe("DELETE issue", () => {
     expect(gone.status).toBe(404);
   });
 });
+
+// Original global issue detail exposed comments and attachments off the issue.
+// Under the project-scoped model the same surfaces must remain reachable through
+// `/projects/:projectId/issues/:id/...`, gated by project membership.
+describe("detail comments + attachments (project-scoped path)", () => {
+  test("a member posts/lists comments and lists attachments through the project-scoped path", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
+    const base = `/projects/${project.shortId}/issues/${issue.id}`;
+    const cookie = await cookieForUser(bob);
+
+    const posted = await app.request(`${base}/comments`, jsonReq("POST", cookie, { content: "hello" }));
+    expect(posted.status).toBe(201);
+    const postedBody = await posted.json() as { data: { id: string; content: string } };
+    expect(postedBody.data.content).toBe("hello");
+
+    const listed = await app.request(`${base}/comments`, { headers: { Cookie: cookie } });
+    expect(listed.status).toBe(200);
+    const listedBody = await listed.json() as { data: Array<{ id: string }> };
+    expect(listedBody.data.some(c => c.id === postedBody.data.id)).toBe(true);
+
+    const attachments = await app.request(`${base}/attachments`, { headers: { Cookie: cookie } });
+    expect(attachments.status).toBe(200);
+    expect((await attachments.json() as { data: unknown[] }).data).toEqual([]);
+  });
+
+  test("a non-member is fail-closed 404 on the comments path", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const outsider = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
+    const res = await app.request(`/projects/${project.shortId}/issues/${issue.id}/comments`, { headers: { Cookie: await cookieForUser(outsider) } });
+    expect(res.status).toBe(404);
+  });
+});
