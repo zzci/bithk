@@ -2,18 +2,16 @@ import type { ProjectCapability, ProjectStatus } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase, AppTransaction } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
+import type { ResourceTagUsageView } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { getReferenceById, releaseReference, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
 import { deleteSetting, getSetting, setSetting } from "@/modules/settings/settings.service";
 import { ships } from "@/modules/ship/schema";
-import { tags } from "@/modules/tag/schema";
 import {
-  createTag as createTagInVocabulary,
-  deleteTag as deleteTagFromVocabulary,
-  listTagsWithUsage,
-  renameTag as renameTagInVocabulary,
-  upsertTagIdTx,
+  listResourceIdsByTag,
+  loadResourceTagsByResource,
+  syncResourceTagsTx,
 } from "@/modules/tag/tag.service";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { seedProjectCategoriesTx } from "./project.global-categories";
@@ -24,8 +22,13 @@ import { PROJECT_STATUSES, projectMembers, projectRoles, projects, projectTags }
 export const PROJECT_DEFAULT_STATUS_KEY = "project.defaults.status";
 export const PROJECT_DEFAULT_COVER_KEY = "project.defaults.coverReferenceId";
 
-/** Project assignment join, passed to the central tag service for usage counts. */
-const PROJECT_TAG_JOIN = { table: projectTags, tagId: projectTags.tagId } as const;
+/** Project assignment binding, passed to the shared tag helpers. */
+const PROJECT_TAG_BINDING = {
+  sourceType: "project",
+  table: projectTags,
+  resourceColumn: projectTags.projectId,
+  tagColumn: projectTags.tagId,
+} as const;
 
 /** owner_type discriminator for a project's cover image file reference. */
 export const PROJECT_COVER_OWNER_TYPE = "project_cover";
@@ -60,13 +63,10 @@ export type ProjectMemberRow = typeof projectMembers.$inferSelect;
 // marker never leave the API. Member rows expose their own nanoid `id` (the
 // canonical assignment target) but drop the redundant internal `projectId`.
 
-export interface ProjectTagView {
-  readonly id: string;
-  readonly name: string;
-  // Number of projects referencing this tag. Computed (never stored); used by
-  // the list filter to surface the most-used tags first.
-  readonly usageCount: number;
-}
+// A project's tag with its source-type-wide usage count. Computed (never
+// stored); used by the list filter to surface the most-used tags first. Alias
+// of the shared tag view, whose shape ({id,name,usageCount}) is identical.
+export type ProjectTagView = ResourceTagUsageView;
 
 export interface ProjectView {
   readonly id: string; // project short_id
@@ -124,55 +124,12 @@ export function composeMember(row: ProjectMemberRow): ProjectMemberView {
 
 // ─── Tags ───────────────────────────────────────────────────────────────
 // The vocabulary lives in the shared `tags` table scoped to source_type
-// 'project'; the central tag service owns create/rename/delete and upsert.
-// These wrappers fix the source type so callers (routes, tests) stay simple.
-
-export async function listTags(db: AppDatabase): Promise<readonly ProjectTagView[]> {
-  return await listTagsWithUsage(db, "project", PROJECT_TAG_JOIN);
-}
-
-/** Create a project tag. Names are trimmed; same-type duplicates are rejected. */
-export async function createTag(db: AppDatabase, name: string): Promise<ProjectTagView> {
-  return await createTagInVocabulary(db, "project", name);
-}
-
-/** Rename a project tag. Returns undefined when the tag is gone; rejects a same-type collision. */
-export async function renameTag(db: AppDatabase, id: string, name: string): Promise<ProjectTagView | undefined> {
-  return await renameTagInVocabulary(db, "project", id, name, PROJECT_TAG_JOIN);
-}
-
-/**
- * Delete a project tag; the `project_tags.tag_id` cascade unlinks it from every
- * project. No in-use block — removing a tag simply untags its projects. Returns
- * false when the tag does not exist for this source type.
- */
-export async function deleteTag(db: AppDatabase, id: string): Promise<boolean> {
-  return await deleteTagFromVocabulary(db, "project", id);
-}
+// 'project'; the tag module owns the CRUD (/tags routes) and the assignment
+// helpers below. Project code only binds its join table via PROJECT_TAG_BINDING.
 
 /** Load tags for a set of internal project ids, grouped by project id. */
 async function loadTagsByProject(db: AppDatabase, projectIds: readonly string[]): Promise<Map<string, ProjectTagView[]>> {
-  const map = new Map<string, ProjectTagView[]>();
-  if (projectIds.length === 0)
-    return map;
-  const rows = await db.select({
-    projectId: projectTags.projectId,
-    id: tags.id,
-    name: tags.name,
-    // Correlated count so embedded project tags carry the same usageCount the
-    // global tag list reports.
-    usageCount: sql<number>`(SELECT COUNT(*) FROM project_tags WHERE project_tags.tag_id = ${tags.id})`,
-  })
-    .from(projectTags)
-    .innerJoin(tags, eq(tags.id, projectTags.tagId))
-    .where(inArray(projectTags.projectId, [...projectIds]))
-    .all();
-  for (const r of rows) {
-    const list = map.get(r.projectId) ?? [];
-    list.push({ id: r.id, name: r.name, usageCount: r.usageCount });
-    map.set(r.projectId, list);
-  }
-  return map;
+  return await loadResourceTagsByResource(db, PROJECT_TAG_BINDING, projectIds);
 }
 
 async function loadTagsForProject(db: AppDatabase, projectId: string): Promise<ProjectTagView[]> {
@@ -243,21 +200,11 @@ async function loadCoverUrlForProject(db: AppDatabase, row: ProjectRow): Promise
 }
 
 /**
- * Replace a project's tags with the given names (upsert into the shared `tags`
- * vocabulary under source_type 'project', then rewrite `project_tags`). Runs
- * synchronously inside a tx.
+ * Replace a project's tags with the given names. Delegates to the shared tag
+ * helper, bound to `project_tags`. Runs synchronously inside a tx.
  */
 function syncTagsTx(tx: AppTransaction, projectId: string, names: readonly string[], now: string): void {
-  tx.delete(projectTags).where(eq(projectTags.projectId, projectId)).run();
-  const seen = new Set<string>();
-  for (const raw of names) {
-    const name = raw.trim();
-    if (!name || seen.has(name.toLowerCase()))
-      continue;
-    seen.add(name.toLowerCase());
-    const tagId = upsertTagIdTx(tx, "project", name, now);
-    tx.insert(projectTags).values({ projectId, tagId }).run();
-  }
+  syncResourceTagsTx(tx, PROJECT_TAG_BINDING, projectId, names, now);
 }
 
 // ─── Project CRUD ───────────────────────────────────────────────────────
@@ -425,10 +372,10 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
     )!);
   }
   if (params.tagId) {
-    const taggedIds = await db.select({ projectId: projectTags.projectId }).from(projectTags).where(eq(projectTags.tagId, params.tagId)).all();
+    const taggedIds = await listResourceIdsByTag(db, PROJECT_TAG_BINDING, params.tagId);
     if (taggedIds.length === 0)
       return { data: [], total: 0 };
-    conditions.push(inArray(projects.id, taggedIds.map(r => r.projectId)));
+    conditions.push(inArray(projects.id, taggedIds));
   }
   if (params.memberUserId !== undefined) {
     const memberProjectIds = await db

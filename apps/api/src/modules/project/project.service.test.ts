@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
@@ -20,24 +19,19 @@ import { createRole, listRoles, parseCapabilities } from "./project.roles";
 import {
   addMember,
   createProject,
-  createTag,
-  deleteTag,
   getMemberCapabilities,
   getProjectByShortId,
   hasCapability,
   isMember,
   listMembers,
   listProjects,
-  listTags,
   removeMember,
-  renameTag,
   resolveAssignableMember,
   resolveProjectId,
   softDeleteProject,
   updateMember,
   updateProject,
 } from "./project.service";
-import { projectTags } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -261,36 +255,6 @@ describe("listProjects", () => {
   });
 });
 
-describe("listTags", () => {
-  test("returns usage counts ordered most-used first, ties by name", async () => {
-    const creator = await seedUser("Alice");
-    await createProject(db, { name: "A", creatorId: creator, tags: ["popular", "beta"] });
-    await createProject(db, { name: "B", creatorId: creator, tags: ["popular", "alpha"] });
-    await createProject(db, { name: "C", creatorId: creator, tags: ["popular"] });
-
-    const list = await listTags(db);
-    // "popular" used 3x first; "alpha"/"beta" each 1x, broken by name ascending.
-    expect(list.map(t => [t.name, t.usageCount])).toEqual([
-      ["popular", 3],
-      ["alpha", 1],
-      ["beta", 1],
-    ]);
-  });
-
-  test("includes orphaned tags with a zero count, ordered last", async () => {
-    const creator = await seedUser("Alice");
-    const project = await createProject(db, { name: "A", creatorId: creator, tags: ["kept", "dropped"] });
-    // Removing "dropped" from the project leaves it orphaned in the vocabulary.
-    await updateProject(db, project.shortId, { tags: ["kept"] });
-    await createProject(db, { name: "B", creatorId: creator, tags: ["kept"] });
-
-    const list = await listTags(db);
-    expect(list.map(t => t.name)).toEqual(["kept", "dropped"]);
-    expect(list.find(t => t.name === "dropped")!.usageCount).toBe(0);
-    expect(list.find(t => t.name === "kept")!.usageCount).toBe(2);
-  });
-});
-
 describe("access helpers", () => {
   test("isMember reflects membership and fails closed for non-members", async () => {
     const creator = await seedUser("Alice");
@@ -365,48 +329,6 @@ async function seedCoverReference(uploadedBy: string): Promise<string> {
   }).run();
   return refId;
 }
-
-describe("tag admin", () => {
-  test("createTag trims, rejects blanks and duplicates", async () => {
-    const tag = await createTag(db, "  Marine  ");
-    expect(tag.name).toBe("Marine");
-    expect(tag.usageCount).toBe(0);
-
-    expect(createTag(db, "   ")).rejects.toThrow();
-    expect(createTag(db, "Marine")).rejects.toThrow();
-  });
-
-  test("renameTag updates the name and rejects a collision", async () => {
-    const a = await createTag(db, "Alpha");
-    await createTag(db, "Beta");
-
-    const renamed = await renameTag(db, a.id, "Gamma");
-    expect(renamed?.name).toBe("Gamma");
-
-    expect(renameTag(db, a.id, "Beta")).rejects.toThrow();
-    expect(await renameTag(db, "missing", "X")).toBeUndefined();
-  });
-
-  test("deleteTag cascade-unlinks the tag from its projects", async () => {
-    const creator = await seedUser("Alice");
-    const project = await createProject(db, { name: "P", creatorId: creator, tags: ["shared"] });
-
-    const tag = (await listTags(db)).find(t => t.name === "shared")!;
-    expect(tag.usageCount).toBe(1);
-
-    expect(await deleteTag(db, tag.id)).toBe(true);
-
-    // The tag is gone and its project_tags links are removed.
-    expect((await listTags(db)).find(t => t.name === "shared")).toBeUndefined();
-    const links = await db.select().from(projectTags).where(eq(projectTags.tagId, tag.id)).all();
-    expect(links).toHaveLength(0);
-    // The project itself survives, now untagged.
-    const view = (await listProjects(db, {})).data.find(p => p.id === project.shortId)!;
-    expect(view.tags).toHaveLength(0);
-
-    expect(await deleteTag(db, tag.id)).toBe(false);
-  });
-});
 
 describe("global procurement categories", () => {
   test("CRUD over the global template set", async () => {
