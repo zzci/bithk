@@ -1,28 +1,21 @@
-// Overview tab: the project image+info block (moved from the old header), the
-// description rendered as an announcement, a mixed pinned-items area, and the
-// latest work orders + procurements. Read-only — pinning happens on the rows in
-// the Issues / Procurement tabs.
+// Overview tab: the project info block (moved from the old header), the project
+// description, a mixed pinned-items area, and the latest work orders +
+// procurements. Read-only — pinning happens on the rows in the Issues /
+// Procurement tabs.
 
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { PinnedItem } from "@/shared/lib/api/pins";
 import type { ProjectView } from "@/shared/lib/api/projects";
 import { ClipboardList, Package, Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CoverImage } from "@/shared/components/cover-image";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/shared/components/ui/card";
+import { Separator } from "@/shared/components/ui/separator";
 import { usePinnedItems } from "@/shared/lib/api/pins";
 import { useProcurements } from "@/shared/lib/api/procurement";
 import { useProjectIssues } from "@/shared/lib/api/projects";
 import { formatDate } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
-import { StatCard, StatStrip } from "./-project-stats";
 
 export type ProjectTab = "issues" | "procurement";
 
@@ -36,142 +29,115 @@ interface ProjectOverviewTabProps {
 export function ProjectOverviewTab({ project, userNames, caps, onOpenTab }: ProjectOverviewTabProps) {
   const { t } = useTranslation("projects");
 
-  const issuesCountQuery = useProjectIssues(project.id, { limit: 1 });
-  const procurementCountQuery = useProcurements(project.id, { limit: 1 }, caps.canViewProcurement);
   const latestIssuesQuery = useProjectIssues(project.id, { limit: 5 });
   const latestProcurementsQuery = useProcurements(project.id, { limit: 5 }, caps.canViewProcurement);
 
-  const count = (n: number | undefined) => (n === undefined ? "-" : n);
-
   return (
-    <div className="space-y-6">
-      {/* 1. Image + info block (moved out of the old detail header). */}
-      <Card>
-        <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_1fr]">
-          <CoverImage
-            src={project.coverImageUrl}
-            kind="project"
-            seed={project.id}
-            className="min-h-40 rounded-lg border"
-          />
-          <div className="flex min-w-0 flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>
-                {t("overview.creator")}
-                {": "}
-                {userNames.get(project.creatorId) ?? project.creatorId}
-              </span>
-              <span className="text-muted-foreground/40">/</span>
-              <span>
-                {t("overview.updatedAt")}
-                {": "}
-                {formatDate(project.updatedAt)}
-              </span>
-            </div>
+    <div className="space-y-8">
+      {/* 1. Info block (creator / updatedAt / tags) — borderless header. */}
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            {t("overview.creator")}
+            {": "}
+            {userNames.get(project.creatorId) ?? project.creatorId}
+          </span>
+          <span className="text-muted-foreground/40">/</span>
+          <span>
+            {t("overview.updatedAt")}
+            {": "}
+            {formatDate(project.updatedAt)}
+          </span>
+        </div>
 
-            {project.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {project.tags.map(tag => (
-                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-                ))}
-              </div>
-            )}
-
-            <StatStrip className={caps.canViewProcurement ? "lg:grid-cols-2" : "lg:grid-cols-1"}>
-              <StatCard label={t("detail.metrics.issues")} value={count(issuesCountQuery.data?.meta.total)} icon={ClipboardList} />
-              {caps.canViewProcurement && (
-                <StatCard label={t("detail.metrics.procurement")} value={count(procurementCountQuery.data?.meta.total)} icon={Package} />
-              )}
-            </StatStrip>
+        {project.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {project.tags.map(tag => (
+              <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-      {/* 2. Announcement — reuses project.description, no new field. */}
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle className="text-sm text-muted-foreground">{t("overview.announcement")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm whitespace-pre-wrap">
-            {project.description || <span className="text-muted-foreground">{t("overview.noAnnouncement")}</span>}
-          </p>
-        </CardContent>
-      </Card>
+      <Separator />
+
+      {/* 2. Description — reuses project.description, no new field. */}
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium text-muted-foreground">{t("overview.description")}</h3>
+        <p className="text-sm whitespace-pre-wrap">
+          {project.description || <span className="text-muted-foreground">{t("overview.noDescription")}</span>}
+        </p>
+      </section>
 
       {/* 3. Mixed pinned items (issues + procurements). */}
       <ProjectPinnedSection projectId={project.id} caps={caps} onOpenTab={onOpenTab} />
 
       {/* 4. Latest work orders. */}
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-sm text-muted-foreground">{t("overview.latestIssues")}</CardTitle>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-medium text-muted-foreground">{t("overview.latestIssues")}</h3>
           <Button variant="link" size="sm" className="h-auto p-0" onClick={() => onOpenTab("issues")}>
             {t("overview.viewAll")}
           </Button>
-        </CardHeader>
-        <CardContent>
-          {latestIssuesQuery.isLoading
-            ? <p className="text-sm text-muted-foreground">{t("issues.loading")}</p>
-            : (latestIssuesQuery.data?.data.length ?? 0) === 0
-                ? <p className="text-sm text-muted-foreground">{t("issues.empty")}</p>
+        </div>
+        {latestIssuesQuery.isLoading
+          ? <p className="text-sm text-muted-foreground">{t("issues.loading")}</p>
+          : (latestIssuesQuery.data?.data.length ?? 0) === 0
+              ? <p className="text-sm text-muted-foreground">{t("issues.empty")}</p>
+              : (
+                  <ul className="divide-y">
+                    {latestIssuesQuery.data!.data.map(issue => (
+                      <li key={issue.id}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => onOpenTab("issues")}
+                        >
+                          <span className="min-w-0 flex-1 truncate text-sm">{issue.title}</span>
+                          <Badge variant="secondary" className={`shrink-0 text-xs ${ISSUE_STATUS_BADGE[issue.status]}`}>
+                            {t(`issues.status.${issue.status}` as const)}
+                          </Badge>
+                          <span className="shrink-0 text-xs text-muted-foreground">{formatDate(issue.updatedAt)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+      </section>
+
+      {/* 5. Latest procurements — gated by procurement.view. */}
+      {caps.canViewProcurement && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium text-muted-foreground">{t("overview.latestProcurements")}</h3>
+            <Button variant="link" size="sm" className="h-auto p-0" onClick={() => onOpenTab("procurement")}>
+              {t("overview.viewAll")}
+            </Button>
+          </div>
+          {latestProcurementsQuery.isLoading
+            ? <p className="text-sm text-muted-foreground">{t("procurement.loading")}</p>
+            : (latestProcurementsQuery.data?.data.length ?? 0) === 0
+                ? <p className="text-sm text-muted-foreground">{t("procurement.empty")}</p>
                 : (
-                    <ul className="divide-y rounded-md border">
-                      {latestIssuesQuery.data!.data.map(issue => (
-                        <li key={issue.id}>
+                    <ul className="divide-y">
+                      {latestProcurementsQuery.data!.data.map(p => (
+                        <li key={p.id}>
                           <button
                             type="button"
-                            className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            onClick={() => onOpenTab("issues")}
+                            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => onOpenTab("procurement")}
                           >
-                            <span className="min-w-0 flex-1 truncate text-sm">{issue.title}</span>
-                            <Badge variant="secondary" className={`shrink-0 text-xs ${ISSUE_STATUS_BADGE[issue.status]}`}>
-                              {t(`issues.status.${issue.status}` as const)}
+                            <span className="min-w-0 flex-1 truncate text-sm">{p.itemName}</span>
+                            <Badge variant="outline" className="shrink-0 text-xs">
+                              {t(`procurement.status.${p.status}` as const)}
                             </Badge>
-                            <span className="shrink-0 text-xs text-muted-foreground">{formatDate(issue.updatedAt)}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">{formatDate(p.updatedAt)}</span>
                           </button>
                         </li>
                       ))}
                     </ul>
                   )}
-        </CardContent>
-      </Card>
-
-      {/* 5. Latest procurements — gated by procurement.view. */}
-      {caps.canViewProcurement && (
-        <Card size="sm">
-          <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-sm text-muted-foreground">{t("overview.latestProcurements")}</CardTitle>
-            <Button variant="link" size="sm" className="h-auto p-0" onClick={() => onOpenTab("procurement")}>
-              {t("overview.viewAll")}
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {latestProcurementsQuery.isLoading
-              ? <p className="text-sm text-muted-foreground">{t("procurement.loading")}</p>
-              : (latestProcurementsQuery.data?.data.length ?? 0) === 0
-                  ? <p className="text-sm text-muted-foreground">{t("procurement.empty")}</p>
-                  : (
-                      <ul className="divide-y rounded-md border">
-                        {latestProcurementsQuery.data!.data.map(p => (
-                          <li key={p.id}>
-                            <button
-                              type="button"
-                              className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              onClick={() => onOpenTab("procurement")}
-                            >
-                              <span className="min-w-0 flex-1 truncate text-sm">{p.itemName}</span>
-                              <Badge variant="outline" className="shrink-0 text-xs">
-                                {t(`procurement.status.${p.status}` as const)}
-                              </Badge>
-                              <span className="shrink-0 text-xs text-muted-foreground">{formatDate(p.updatedAt)}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-          </CardContent>
-        </Card>
+        </section>
       )}
     </div>
   );
@@ -189,24 +155,20 @@ function ProjectPinnedSection({ projectId, caps, onOpenTab }: ProjectPinnedSecti
   const pinned = pinnedQuery.data ?? [];
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="text-sm text-muted-foreground">{t("overview.pinned")}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {pinnedQuery.isLoading
-          ? <p className="text-sm text-muted-foreground">{t("overview.pinnedLoading")}</p>
-          : pinned.length === 0
-            ? <p className="text-sm text-muted-foreground">{t("overview.noPinned")}</p>
-            : (
-                <ul className="divide-y rounded-md border">
-                  {pinned.map(item => (
-                    <PinnedRow key={item.id} item={item} caps={caps} onOpenTab={onOpenTab} />
-                  ))}
-                </ul>
-              )}
-      </CardContent>
-    </Card>
+    <section className="space-y-3">
+      <h3 className="text-sm font-medium text-muted-foreground">{t("overview.pinned")}</h3>
+      {pinnedQuery.isLoading
+        ? <p className="text-sm text-muted-foreground">{t("overview.pinnedLoading")}</p>
+        : pinned.length === 0
+          ? <p className="text-sm text-muted-foreground">{t("overview.noPinned")}</p>
+          : (
+              <ul className="divide-y">
+                {pinned.map(item => (
+                  <PinnedRow key={item.id} item={item} caps={caps} onOpenTab={onOpenTab} />
+                ))}
+              </ul>
+            )}
+    </section>
   );
 }
 
@@ -229,7 +191,7 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
       <button
         type="button"
         disabled={!canOpen}
-        className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+        className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
         onClick={() => onOpenTab(target)}
       >
         <Badge variant="outline" className="shrink-0 gap-1">
