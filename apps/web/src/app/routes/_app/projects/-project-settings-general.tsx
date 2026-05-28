@@ -1,5 +1,6 @@
-// General settings section: edit the project's basic fields (name, code,
-// description, status) and tags. Submits via useUpdateProject.
+// General settings section: edit the project's basic fields (name,
+// description, status) and tags. Submits via useUpdateProject. The project
+// code is read-only and surfaced in the settings dialog sidebar, not here.
 
 import type {
   ProjectStatus,
@@ -37,7 +38,6 @@ export function ProjectSettingsGeneral({ project }: ProjectSettingsGeneralProps)
   const updateProject = useUpdateProject();
 
   const [name, setName] = useState(project.name);
-  const [code, setCode] = useState(project.code ?? "");
   const [description, setDescription] = useState(project.description ?? "");
   const [status, setStatus] = useState<ProjectStatus>(project.status);
   const [tags, setTags] = useState<readonly string[]>(project.tags.map(tag => tag.name));
@@ -46,7 +46,6 @@ export function ProjectSettingsGeneral({ project }: ProjectSettingsGeneralProps)
      changes (e.g. after a successful save invalidates and refetches). */
   useEffect(() => {
     setName(project.name);
-    setCode(project.code ?? "");
     setDescription(project.description ?? "");
     setStatus(project.status);
     setTags(project.tags.map(tag => tag.name));
@@ -60,7 +59,6 @@ export function ProjectSettingsGeneral({ project }: ProjectSettingsGeneralProps)
     const values: UpdateProjectInput = {
       name: name.trim(),
       status,
-      code: code.trim() || null,
       description: description.trim() || null,
       tags,
     };
@@ -80,11 +78,6 @@ export function ProjectSettingsGeneral({ project }: ProjectSettingsGeneralProps)
         <div className="space-y-1.5">
           <Label htmlFor="settings-name">{t("field.name")}</Label>
           <Input id="settings-name" required value={name} onChange={e => setName(e.target.value)} />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="settings-code">{t("field.code")}</Label>
-          <Input id="settings-code" value={code} onChange={e => setCode(e.target.value)} />
         </div>
 
         <div className="space-y-1.5">

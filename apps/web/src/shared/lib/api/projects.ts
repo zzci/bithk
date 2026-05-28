@@ -213,7 +213,6 @@ export function useCreateProject(): UseMutationResult<ProjectView, Error, Create
 
 export interface UpdateProjectInput {
   readonly name?: string;
-  readonly code?: string | null;
   readonly description?: string | null;
   readonly status?: ProjectStatus;
   readonly tags?: readonly string[];

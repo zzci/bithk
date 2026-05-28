@@ -43,9 +43,13 @@ describe("projectSettingsGeneral", () => {
   it("pre-fills the form from the project record", () => {
     renderWithProviders(<ProjectSettingsGeneral project={project()} />);
     expect(screen.getByLabelText("Name")).toHaveValue("Bridge");
-    expect(screen.getByLabelText("Code")).toHaveValue("BRG");
     expect(screen.getByLabelText("Description")).toHaveValue("A bridge");
     expect(screen.getByText("infra")).toBeInTheDocument();
+  });
+
+  it("does not render an editable code field", () => {
+    renderWithProviders(<ProjectSettingsGeneral project={project()} />);
+    expect(screen.queryByLabelText("Code")).not.toBeInTheDocument();
   });
 
   it("patches the project with the edited fields on save", async () => {
@@ -65,7 +69,7 @@ describe("projectSettingsGeneral", () => {
       const body = JSON.parse(String(patch![1]?.body));
       expect(body.name).toBe("Bridge II");
       expect(body.status).toBe("active");
-      expect(body.code).toBe("BRG");
+      expect(body.code).toBeUndefined();
       expect(body.tags).toEqual(["infra"]);
     });
   });
@@ -82,7 +86,6 @@ describe("projectSettingsGeneral", () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: project() }));
     renderWithProviders(<ProjectSettingsGeneral project={project()} />);
 
-    await user.clear(screen.getByLabelText("Code"));
     await user.clear(screen.getByLabelText("Description"));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -90,7 +93,6 @@ describe("projectSettingsGeneral", () => {
       const patch = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "PATCH");
       expect(patch).toBeTruthy();
       const body = JSON.parse(String(patch![1]?.body));
-      expect(body.code).toBeNull();
       expect(body.description).toBeNull();
     });
   });
