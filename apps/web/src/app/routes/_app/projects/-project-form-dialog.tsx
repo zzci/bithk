@@ -72,7 +72,7 @@ export function ProjectFormDialog({
         <form onSubmit={submit}>
           <DialogTitle className="sr-only">{t("create.title")}</DialogTitle>
 
-          <div className="space-y-2 px-5 pt-5 pb-4">
+          <div className="space-y-2 px-6 pt-6 pb-4">
             {errorMessage && <ErrorBanner message={errorMessage} />}
 
             <Input
@@ -99,7 +99,7 @@ export function ProjectFormDialog({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t bg-muted/30 px-5 py-3">
+          <div className="flex justify-end gap-2 border-t bg-muted/30 px-6 py-3">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
             </Button>
