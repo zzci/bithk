@@ -37,6 +37,8 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     amount: 500,
     currency: "USD",
     creatorId: "u1",
+    pinned: false,
+    pinnedAt: null,
     createdAt: "2026-05-23T00:00:00.000Z",
     updatedAt: "2026-05-23T00:00:00.000Z",
     version: 1,
@@ -154,6 +156,30 @@ describe("projectProcurementTab", () => {
         return u.includes("status=ordered") && u.includes("limit=20");
       })).toBe(true);
     });
+  });
+
+  it("pins a procurement row via POST and toasts on success", async () => {
+    const user = userEvent.setup();
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByText("Cement");
+    await user.click(screen.getByRole("button", { name: "Pin" }));
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "POST");
+      expect(post).toBeDefined();
+      expect(String(post![0])).toContain("/projects/p1/procurements/pr1/pin");
+    });
+  });
+
+  it("does not render the pin toggle for view-only members", async () => {
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
+    );
+    await screen.findByText("Cement");
+    expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument();
   });
 
   it("surfaces a load error from the procurements query", async () => {

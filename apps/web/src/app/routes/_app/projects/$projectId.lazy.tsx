@@ -3,20 +3,15 @@ import { createLazyFileRoute, Outlet, useNavigate, useParams, useSearch } from "
 import {
   ArrowLeft,
   ChevronRight,
-  ClipboardList,
-  Package,
   Settings,
   Trash2,
-  Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { CoverImage } from "@/shared/components/cover-image";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { Card, CardContent } from "@/shared/components/ui/card";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
@@ -33,15 +28,12 @@ import {
   useProjectMembers,
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
-import { formatDate } from "@/shared/lib/format";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { FileBrowser } from "../-file-browser";
 import { ProjectIssuesTab } from "./-project-issues-tab";
-import { ProjectMembersTab } from "./-project-members-tab";
 import { ProjectOverviewTab } from "./-project-overview-tab";
 import { ProjectProcurementTab } from "./-project-procurement-tab";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
-import { StatCard, StatStrip } from "./-project-stats";
 import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId")({
@@ -60,6 +52,8 @@ function ProjectDetailPage() {
 
   const deleteProject = useDeleteProject();
 
+  // Members no longer have a tab, but they still feed the assignee pickers in
+  // the issues and procurement tabs, so keep loading them.
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const project = projectQuery.data;
   const caps = useProjectCapabilities(project);
@@ -114,11 +108,10 @@ function ProjectDetailPage() {
     });
   };
 
-  const count = (n: number | undefined) => (n === undefined ? "-" : n);
   const tabCount = (n: number | undefined) => (n === undefined ? "" : ` ${n}`);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <nav className="flex items-center gap-1 text-sm text-muted-foreground" aria-label={t("detail.breadcrumb")}>
         <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => void navigate({ to: "/projects" })}>
           {t("page.title")}
@@ -127,101 +120,74 @@ function ProjectDetailPage() {
         <span className="truncate font-medium text-foreground">{project.name}</span>
       </nav>
 
-      <Card>
-        <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_1fr]">
-          <div className="min-h-40 overflow-hidden rounded-lg border">
-            <CoverImage src={project.coverImageUrl} kind="project" className="size-full min-h-40" />
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>{t(`status.${project.status}` as const)}</Badge>
-                  {project.code && <span className="font-mono text-xs text-muted-foreground">{project.code}</span>}
-                </div>
-                <h1 className="truncate text-3xl font-semibold">{project.name}</h1>
-                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span>
-                    {t("overview.creator")}
-                    {": "}
-                    {userNames.get(project.creatorId) ?? project.creatorId}
-                  </span>
-                  <span className="text-muted-foreground/40">/</span>
-                  <span>
-                    {t("overview.updatedAt")}
-                    {": "}
-                    {formatDate(project.updatedAt)}
-                  </span>
-                </div>
-              </div>
-              {(caps.canOpenSettings || caps.canManageProject) && (
-                <div className="flex gap-2">
-                  {caps.canOpenSettings && (
-                    <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-                      <Settings aria-hidden="true" />
-                      {t("detail.settings")}
-                    </Button>
-                  )}
-                  {caps.canManageProject && (
-                    <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
-                      <Trash2 className="text-destructive" aria-hidden="true" />
-                      {t("common:common.delete")}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {project.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {project.tags.map(tag => (
-                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-                ))}
-              </div>
+      {/* Compact title row — replaces the old hero card. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <h1 className="truncate text-2xl font-semibold">{project.name}</h1>
+          <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
+            {t(`status.${project.status}` as const)}
+          </Badge>
+          {project.code && <span className="font-mono text-xs text-muted-foreground">{project.code}</span>}
+        </div>
+        {(caps.canOpenSettings || caps.canManageProject) && (
+          <div className="flex shrink-0 gap-2">
+            {caps.canOpenSettings && (
+              <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+                <Settings aria-hidden="true" />
+                {t("detail.settings")}
+              </Button>
             )}
-
-            <StatStrip className={caps.canViewProcurement ? "lg:grid-cols-3" : "lg:grid-cols-2"}>
-              <StatCard label={t("detail.metrics.members")} value={members.length} icon={Users} />
-              <StatCard label={t("detail.metrics.issues")} value={count(issuesCount)} icon={ClipboardList} />
-              {caps.canViewProcurement && (
-                <StatCard label={t("detail.metrics.procurement")} value={count(procurementCount)} icon={Package} />
-              )}
-            </StatStrip>
+            {caps.canManageProject && (
+              <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="text-destructive" aria-hidden="true" />
+                {t("common:common.delete")}
+              </Button>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
+      {/* Tabs promoted to the page's primary navigation. */}
       <Tabs value={tab} onValueChange={v => v !== null && setTab(v)}>
-        <TabsList variant="line">
-          <TabsTrigger value="overview">{t("tabs.overview")}</TabsTrigger>
-          <TabsTrigger value="issues">
+        <TabsList variant="line" className="h-auto gap-6 overflow-x-auto border-b text-base">
+          <TabsTrigger value="overview" className="pb-2 text-base font-medium data-active:font-semibold">
+            {t("tabs.overview")}
+          </TabsTrigger>
+          <TabsTrigger value="issues" className="pb-2 text-base font-medium data-active:font-semibold">
             {t("tabs.issues")}
             {tabCount(issuesCount)}
           </TabsTrigger>
           {caps.canViewProcurement && (
-            <TabsTrigger value="procurement">
+            <TabsTrigger value="procurement" className="pb-2 text-base font-medium data-active:font-semibold">
               {t("tabs.procurement")}
               {tabCount(procurementCount)}
             </TabsTrigger>
           )}
-          <TabsTrigger value="members">
-            {t("tabs.members")}
-            {tabCount(members.length)}
+          <TabsTrigger value="files" className="pb-2 text-base font-medium data-active:font-semibold">
+            {t("tabs.files")}
           </TabsTrigger>
-          <TabsTrigger value="files">{t("tabs.files")}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="pt-4">
-          <ProjectOverviewTab project={project} members={members} userNames={userNames} />
+        <TabsContent value="overview" className="pt-6">
+          <ProjectOverviewTab
+            project={project}
+            userNames={userNames}
+            caps={caps}
+            onOpenTab={setTab}
+          />
         </TabsContent>
 
-        <TabsContent value="issues" className="pt-4">
-          <ProjectIssuesTab projectId={project.id} members={members} userNames={userNames} />
+        <TabsContent value="issues" className="pt-6">
+          <ProjectIssuesTab
+            projectId={project.id}
+            members={members}
+            userNames={userNames}
+            canManage={caps.has("issue.manage")}
+          />
         </TabsContent>
 
         {caps.canViewProcurement && (
-          <TabsContent value="procurement" className="pt-4">
+          <TabsContent value="procurement" className="pt-6">
             <ProjectProcurementTab
               projectId={project.id}
               members={members}
@@ -231,11 +197,7 @@ function ProjectDetailPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="members" className="pt-4">
-          <ProjectMembersTab projectId={project.id} userNames={userNames} />
-        </TabsContent>
-
-        <TabsContent value="files" className="pt-4">
+        <TabsContent value="files" className="pt-6">
           <div className="h-[calc(100svh-18rem)] min-h-[24rem]">
             <FileBrowser
               ownerType="project"

@@ -43,6 +43,8 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     amount: null,
     currency: null,
     creatorId: "u1",
+    pinned: false,
+    pinnedAt: null,
     createdAt: "2026-05-23T00:00:00.000Z",
     updatedAt: "2026-05-23T00:00:00.000Z",
     version: 1,

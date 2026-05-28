@@ -8,7 +8,7 @@ import type {
   ProcurementStatus,
 } from "@/shared/lib/api/procurement";
 import type { ProjectMemberView } from "@/shared/lib/api/projects";
-import { Plus } from "lucide-react";
+import { Pin, PinOff, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -42,6 +42,7 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { useContacts } from "@/shared/lib/api/contacts";
+import { useToggleProcurementPin } from "@/shared/lib/api/pins";
 import {
   PROCUREMENT_STATUSES,
   useChangeProcurementStatus,
@@ -256,9 +257,12 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                       <TableCell className="text-sm">{memberName(row.assigneeMemberId)}</TableCell>
                       {canManage && (
                         <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
-                            {t("common:common.delete")}
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <ProcurementPinToggle projectId={projectId} row={row} />
+                            <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
+                              {t("common:common.delete")}
+                            </Button>
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>
@@ -307,6 +311,37 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
         />
       )}
     </div>
+  );
+}
+
+interface ProcurementPinToggleProps {
+  readonly projectId: string;
+  readonly row: ProcurementRow;
+}
+
+/** Ghost icon toggle that pins/unpins a procurement, with success/error toasts. */
+function ProcurementPinToggle({ projectId, row }: ProcurementPinToggleProps) {
+  const { t } = useTranslation(["projects", "common"]);
+  const togglePin = useToggleProcurementPin();
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="size-8"
+      aria-pressed={row.pinned}
+      aria-label={t(row.pinned ? "overview.unpinAction" : "overview.pinAction")}
+      disabled={togglePin.isPending}
+      onClick={() => {
+        const willPin = !row.pinned;
+        togglePin.mutate({ projectId, id: row.id, pin: willPin }, {
+          onSuccess: () => toast.success(t(willPin ? "toast.procurementPinned" : "toast.procurementUnpinned")),
+          onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+        });
+      }}
+    >
+      {row.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
+    </Button>
   );
 }
 

@@ -1,8 +1,11 @@
-import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
+import type { PinnedItem } from "@/shared/lib/api/pins";
+import type { ProjectView } from "@/shared/lib/api/projects";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
 import { ProjectOverviewTab } from "./-project-overview-tab";
+import { computeCapabilities } from "./-use-project-role";
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -10,17 +13,44 @@ function jsonResponse(body: unknown) {
   });
 }
 
+function listResponse(data: unknown[]) {
+  return jsonResponse({ success: true, data, meta: { total: data.length, page: 1, limit: 20 } });
+}
+
 const fetchMock = vi.fn<typeof fetch>();
+
+interface RouteData {
+  readonly issues?: unknown[];
+  readonly procurements?: unknown[];
+  readonly pinned?: readonly PinnedItem[];
+}
+
+function routeFetch({ issues = [], procurements = [], pinned = [] }: RouteData = {}) {
+  fetchMock.mockImplementation(async (url) => {
+    const path = String(url);
+    if (path.includes("/pinned-items"))
+      return jsonResponse({ success: true, data: pinned });
+    if (path.includes("/issues"))
+      return listResponse(issues);
+    if (path.includes("/procurements"))
+      return listResponse(procurements);
+    return jsonResponse({ success: true, data: [] });
+  });
+}
 
 beforeEach(() => {
   fetchMock.mockReset();
-  fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
+  routeFetch();
   globalThis.fetch = fetchMock;
 });
 
 afterEach(() => {
   fetchMock.mockReset();
 });
+
+// Procurement-capable caps unless a test opts into the view-only variant.
+const procCaps = computeCapabilities(["procurement.view"], false);
+const noProcCaps = computeCapabilities([], false);
 
 function project(overrides: Partial<ProjectView> = {}): ProjectView {
   return {
@@ -31,72 +61,91 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     status: "active",
     creatorId: "u1",
     tags: [{ id: "t1", name: "infra" }],
+    coverImageUrl: null,
     createdAt: "2026-05-23T00:00:00.000Z",
     updatedAt: "2026-05-23T00:00:00.000Z",
     ...overrides,
   } as ProjectView;
 }
 
+function pin(overrides: Partial<PinnedItem> = {}): PinnedItem {
+  return {
+    id: "it1",
+    shortId: "i1",
+    type: "issue",
+    title: "Pinned order",
+    status: "open",
+    pinnedAt: "2026-05-24T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 describe("projectOverviewTab", () => {
-  it("renders the project description", () => {
-    const members = [{ id: "m1" }, { id: "m2" }] as ProjectMemberView[];
+  it("renders the description as an announcement", () => {
     renderWithProviders(
-      <ProjectOverviewTab
-        project={project()}
-        members={members}
-        userNames={new Map([["u1", "Alice"]])}
-      />,
+      <ProjectOverviewTab project={project()} userNames={new Map([["u1", "Alice"]])} caps={procCaps} onOpenTab={vi.fn()} />,
     );
+    expect(screen.getByText("Announcement")).toBeInTheDocument();
     expect(screen.getByText("A tall building")).toBeInTheDocument();
   });
 
-  it("falls back to the description placeholder when none is provided", () => {
+  it("shows the announcement empty state when no description is set", () => {
     renderWithProviders(
-      <ProjectOverviewTab
-        project={project({ description: "", code: null, tags: [] })}
-        members={[]}
-        userNames={new Map()}
-      />,
+      <ProjectOverviewTab project={project({ description: "" })} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    expect(screen.getByText("No description provided.")).toBeInTheDocument();
+    expect(screen.getByText("No announcement yet.")).toBeInTheDocument();
   });
 
-  it("lists member labels in the member preview", () => {
-    const members = [
-      { id: "m1", userId: "u2", displayName: null, title: "Lead" },
-      { id: "m2", userId: null, displayName: "Guest", title: null },
-    ] as ProjectMemberView[];
+  it("renders the creator in the info block", () => {
     renderWithProviders(
-      <ProjectOverviewTab
-        project={project()}
-        members={members}
-        userNames={new Map([["u1", "Alice"], ["u2", "Bob"]])}
-      />,
+      <ProjectOverviewTab project={project()} userNames={new Map([["u1", "Alice"]])} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    expect(screen.getByText("Bob")).toBeInTheDocument();
-    expect(screen.getByText("Lead")).toBeInTheDocument();
-    expect(screen.getByText("Guest")).toBeInTheDocument();
+    expect(screen.getByText(/Alice/)).toBeInTheDocument();
+    expect(screen.getByText("infra")).toBeInTheDocument();
   });
 
-  it("shows the empty member placeholder when there are no members", () => {
-    renderWithProviders(
-      <ProjectOverviewTab project={project()} members={[]} userNames={new Map()} />,
-    );
-    expect(screen.getByText("No members yet.")).toBeInTheDocument();
-  });
-
-  it("renders procurement category preview from the current API", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({
-      success: true,
-      data: [
-        { id: "c1", name: "Main engine", code: "ME", description: "Engine spares", createdAt: "", updatedAt: "" },
+  it("renders a mixed pinned list with kind badges", async () => {
+    routeFetch({
+      pinned: [
+        pin({ id: "it1", type: "issue", title: "Fix pump", status: "open" }),
+        pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft", pinnedAt: "2026-05-23T00:00:00.000Z" }),
       ],
-    }));
+    });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} members={[]} userNames={new Map()} />,
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    expect(await screen.findByText("Main engine")).toBeInTheDocument();
-    expect(screen.getByText("ME")).toBeInTheDocument();
-    expect(screen.getByText("Engine spares")).toBeInTheDocument();
+    expect(await screen.findByText("Fix pump")).toBeInTheDocument();
+    expect(screen.getByText("Buy steel")).toBeInTheDocument();
+    // Kind badges distinguish the two types by label (+ icon). "Work order" is
+    // unique to the pin badge; "Procurement" also appears as the stat label, so
+    // expect more than one occurrence.
+    expect(screen.getByText("Work order")).toBeInTheDocument();
+    expect(screen.getAllByText("Procurement").length).toBeGreaterThan(1);
+  });
+
+  it("shows the pinned empty state when nothing is pinned", async () => {
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+    );
+    expect(await screen.findByText(/Nothing pinned yet/)).toBeInTheDocument();
+  });
+
+  it("switches to the issues tab from the latest work orders 'View all'", async () => {
+    const user = userEvent.setup();
+    const onOpenTab = vi.fn();
+    routeFetch({ issues: [{ id: "i1", title: "Fix leak", status: "open", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }] });
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
+    );
+    await screen.findByText("Fix leak");
+    await user.click(screen.getAllByRole("button", { name: "View all" })[0]!);
+    expect(onOpenTab).toHaveBeenCalledWith("issues");
+  });
+
+  it("hides procurement sections when the viewer lacks procurement.view", () => {
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={noProcCaps} onOpenTab={vi.fn()} />,
+    );
+    expect(screen.queryByText("Latest procurements")).not.toBeInTheDocument();
   });
 });

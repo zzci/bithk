@@ -105,6 +105,10 @@ export interface ProjectIssueRow {
   readonly assigneeMemberId: string | null;
   readonly projectId: string;
   readonly dueDate: string | null;
+  // Pin state from the shared item base. `pinnedAt` is the ISO stamp when pinned,
+  // NULL otherwise; both surface the project overview Pin area.
+  readonly pinned: boolean;
+  readonly pinnedAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly version: number;
