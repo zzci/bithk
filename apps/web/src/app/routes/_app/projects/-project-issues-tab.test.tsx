@@ -46,9 +46,15 @@ function issue(overrides: Partial<ProjectIssueRow> = {}): ProjectIssueRow {
   } as ProjectIssueRow;
 }
 
+// The grouped tab queries one list per status, so the mock honours the `status`
+// query param and returns only the matching issues (with a matching total).
 function routeFetch(issues: ProjectIssueRow[]) {
-  fetchMock.mockImplementation(async () =>
-    jsonResponse({ success: true, data: issues, meta: { total: issues.length, page: 1, limit: 20 } }));
+  fetchMock.mockImplementation(async (input) => {
+    const url = new URL(String(input), "http://localhost");
+    const status = url.searchParams.get("status");
+    const matched = status ? issues.filter(i => i.status === status) : issues;
+    return jsonResponse({ success: true, data: matched, meta: { total: matched.length, page: 1, limit: 20 } });
+  });
 }
 
 const noMembers: never[] = [];
@@ -92,7 +98,9 @@ describe("projectIssuesTab", () => {
   });
 
   it("surfaces a load error", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(
+    // Each status group fires its own request, so return a fresh response per
+    // call rather than sharing one (a Response body can only be read once).
+    fetchMock.mockImplementation(async () => jsonResponse(
       { success: false, error: { code: "FORBIDDEN", message: "denied" } },
       { status: 403 },
     ));
@@ -100,35 +108,27 @@ describe("projectIssuesTab", () => {
     await waitFor(() => expect(screen.getByText("Failed to load data")).toBeInTheDocument());
   });
 
-  it("renders the status filter chips", async () => {
-    routeFetch([issue()]);
+  it("renders a separate status group with its own count for each status", async () => {
+    routeFetch([
+      issue({ id: "i1", title: "Fix leak", status: "open" }),
+      issue({ id: "i2", title: "Align shaft", status: "open" }),
+      issue({ id: "i3", title: "Close report", status: "in_progress" }),
+    ]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
-    await screen.findByText("Fix leak");
-    expect(screen.getByRole("button", { name: /All statuses/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Open/ })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /In Progress/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /Done/ }).length).toBeGreaterThan(0);
-  });
 
-  it("toggles the status filter when a status chip is clicked", async () => {
-    const user = userEvent.setup();
-    routeFetch([issue()]);
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
-    const all = await screen.findByRole("button", { name: /All statuses/ });
-    const open = screen.getByRole("button", { name: /Open/ });
-    expect(all).toHaveAttribute("aria-pressed", "true");
-    expect(open).toHaveAttribute("aria-pressed", "false");
+    const openGroup = await screen.findByRole("region", { name: "Open" });
+    expect(within(openGroup).getByText("2")).toBeInTheDocument();
+    expect(within(openGroup).getByText("Fix leak")).toBeInTheDocument();
+    expect(within(openGroup).getByText("Align shaft")).toBeInTheDocument();
 
-    await user.click(open);
-    expect(open).toHaveAttribute("aria-pressed", "true");
-    expect(all).toHaveAttribute("aria-pressed", "false");
-    // The list re-queries scoped to the chosen status (limit 20 = main list).
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.some((c) => {
-        const u = String(c[0]);
-        return u.includes("status=open") && u.includes("limit=20");
-      })).toBe(true);
-    });
+    const inProgressGroup = screen.getByRole("region", { name: "In Progress" });
+    expect(within(inProgressGroup).getByText("1")).toBeInTheDocument();
+    expect(within(inProgressGroup).getByText("Close report")).toBeInTheDocument();
+
+    // Empty statuses still appear as groups so the full picture stays visible.
+    const doneGroup = screen.getByRole("region", { name: "Done" });
+    expect(within(doneGroup).getByText("No work orders")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Cancelled" })).toBeInTheDocument();
   });
 
   it("creates a work order through the compact composer", async () => {
@@ -210,19 +210,5 @@ describe("projectIssuesTab", () => {
     );
     await screen.findByText("Fix leak");
     expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument();
-  });
-
-  it("switches to a status-based kanban view using existing issue statuses", async () => {
-    const user = userEvent.setup();
-    routeFetch([
-      issue({ id: "i1", title: "Fix leak", status: "open" }),
-      issue({ id: "i2", title: "Align shaft", status: "in_progress" }),
-      issue({ id: "i3", title: "Close report", status: "done" }),
-    ]);
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
-    await user.click(await screen.findByRole("button", { name: "Kanban view" }));
-    expect(screen.getByText("Align shaft")).toBeInTheDocument();
-    expect(screen.getAllByText("In Progress").length).toBeGreaterThan(0);
-    expect(screen.getByText("No work orders")).toBeInTheDocument();
   });
 });
