@@ -9,7 +9,6 @@
     "loading": "正在加载项目...",
     "total": "{{count}} 个项目",
     "filterByTag": "按分类筛选",
-    "tagAll": "全部",
     "searchPlaceholder": "搜索项目",
     "openSettings": "项目设置",
     "viewMode": "项目视图模式",
@@ -18,7 +17,7 @@
     "moreTags": "+{{count}}",
     "kpi": {
       "total": "项目总数",
-      "active": "进行中项目",
+      "active": "正常项目",
       "archived": "已归档",
       "tags": "标签"
     },
@@ -29,7 +28,7 @@
     }
   },
   "status": {
-    "active": "进行中",
+    "active": "正常",
     "archived": "已归档"
   },
   "field": {

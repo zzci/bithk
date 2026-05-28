@@ -9,7 +9,6 @@
     "loading": "Loading projects...",
     "total": "{{count}} projects",
     "filterByTag": "Filter by tag",
-    "tagAll": "All",
     "searchPlaceholder": "Search projects",
     "openSettings": "Project settings",
     "viewMode": "Project view mode",
