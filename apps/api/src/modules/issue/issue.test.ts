@@ -117,6 +117,22 @@ const SCHEMA_DDL: readonly string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_tuples_object ON relation_tuples (namespace, object_id, relation)`,
   `CREATE INDEX IF NOT EXISTS idx_tuples_subject ON relation_tuples (subject_namespace, subject_id, subject_relation)`,
+  // `createProject` reads `settings` (project defaults) and seeds from
+  // `global_procurement_categories` (copy-on-create), so both must exist here.
+  `CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS global_procurement_categories (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT,
+    description TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
 ];
 
 function makeDb(path: string): AppDatabase {

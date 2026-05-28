@@ -485,3 +485,65 @@ describe("GET /tags", () => {
     expect(names).toEqual(["alpha", "beta"]);
   });
 });
+
+describe("tag admin (admin only)", () => {
+  test("a non-admin cannot mutate tags; an admin can create/rename/delete", async () => {
+    const app = buildApp(db);
+    const user = await sessionFor("user");
+    const admin = await sessionFor("admin");
+
+    const denied = await app.request("/tags", jsonReq("POST", user.cookie, { name: "X" }));
+    expect(denied.status).toBe(403);
+
+    const created = await app.request("/tags", jsonReq("POST", admin.cookie, { name: "Coastal" }));
+    expect(created.status).toBe(201);
+    const tag = (await created.json() as { data: { id: string; name: string } }).data;
+    expect(tag.name).toBe("Coastal");
+
+    const renamed = await app.request(`/tags/${tag.id}`, jsonReq("PATCH", admin.cookie, { name: "Offshore" }));
+    expect(renamed.status).toBe(200);
+    expect((await renamed.json() as { data: { name: string } }).data.name).toBe("Offshore");
+
+    const removed = await app.request(`/tags/${tag.id}`, jsonReq("DELETE", admin.cookie));
+    expect(removed.status).toBe(200);
+
+    const missing = await app.request(`/tags/${tag.id}`, jsonReq("DELETE", admin.cookie));
+    expect(missing.status).toBe(404);
+  });
+
+  test("a duplicate tag name is rejected with 422", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+    await app.request("/tags", jsonReq("POST", admin.cookie, { name: "Dup" }));
+    const res = await app.request("/tags", jsonReq("POST", admin.cookie, { name: "Dup" }));
+    expect(res.status).toBe(422);
+  });
+});
+
+describe("global procurement categories (admin only)", () => {
+  test("a non-admin is blocked; an admin CRUDs the global set", async () => {
+    const app = buildApp(db);
+    const user = await sessionFor("user");
+    const admin = await sessionFor("admin");
+
+    const denied = await app.request("/global-procurement-categories", jsonReq("POST", user.cookie, { name: "X" }));
+    expect(denied.status).toBe(403);
+    const deniedList = await app.request("/global-procurement-categories", { headers: { Cookie: user.cookie } });
+    expect(deniedList.status).toBe(403);
+
+    const created = await app.request("/global-procurement-categories", jsonReq("POST", admin.cookie, { name: "Engine", code: "ENG" }));
+    expect(created.status).toBe(201);
+    const cat = (await created.json() as { data: { id: string } }).data;
+
+    const list = await app.request("/global-procurement-categories", { headers: { Cookie: admin.cookie } });
+    expect((await list.json() as { data: unknown[] }).data).toHaveLength(1);
+
+    const patched = await app.request(`/global-procurement-categories/${cat.id}`, jsonReq("PATCH", admin.cookie, { name: "Engine room" }));
+    expect((await patched.json() as { data: { name: string } }).data.name).toBe("Engine room");
+
+    const removed = await app.request(`/global-procurement-categories/${cat.id}`, jsonReq("DELETE", admin.cookie));
+    expect(removed.status).toBe(200);
+    const missing = await app.request(`/global-procurement-categories/${cat.id}`, jsonReq("DELETE", admin.cookie));
+    expect(missing.status).toBe(404);
+  });
+});

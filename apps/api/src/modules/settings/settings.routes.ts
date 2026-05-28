@@ -16,7 +16,9 @@ import {
   setSetting,
 } from "./settings.service";
 
-const SETTING_KEY_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/;
+// Case-insensitive so camelCase keys (e.g. `project.defaults.coverReferenceId`)
+// are writable through the generic settings CRUD.
+const SETTING_KEY_RE = /^[a-z0-9][\w.-]{0,127}$/i;
 const LIKE_SPECIAL_RE = /[%_]/g;
 
 const putSettingSchema = z.object({

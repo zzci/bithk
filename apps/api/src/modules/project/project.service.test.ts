@@ -3,13 +3,25 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
+import { fileReferences, files } from "@/modules/file/schema";
+import { setSetting } from "@/modules/settings/settings.service";
+import { listCategories } from "./project.categories";
+import {
+  createGlobalCategory,
+  deleteGlobalCategory,
+  listGlobalCategories,
+  updateGlobalCategory,
+} from "./project.global-categories";
 import { createRole, listRoles, parseCapabilities } from "./project.roles";
 import {
   addMember,
   createProject,
+  createTag,
+  deleteTag,
   getMemberCapabilities,
   getProjectByShortId,
   hasCapability,
@@ -18,12 +30,14 @@ import {
   listProjects,
   listTags,
   removeMember,
+  renameTag,
   resolveAssignableMember,
   resolveProjectId,
   softDeleteProject,
   updateMember,
   updateProject,
 } from "./project.service";
+import { projectTags } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -322,5 +336,162 @@ describe("access helpers", () => {
 
     expect(await resolveAssignableMember(db, projectB.id, member.id)).toBeNull();
     expect(await resolveAssignableMember(db, projectA.id, "missing")).toBeNull();
+  });
+});
+
+/** Insert a usable cover file reference and return its id. */
+async function seedCoverReference(uploadedBy: string): Promise<string> {
+  const fileId = nanoid();
+  const refId = nanoid();
+  const now = new Date().toISOString();
+  await db.insert(files).values({
+    id: fileId,
+    sha256: `sha-${fileId}`,
+    size: 1,
+    mimetype: "image/png",
+    storageDriver: "local",
+    storageKey: `key-${fileId}`,
+    refCount: 1,
+    uploadedBy,
+  }).run();
+  await db.insert(fileReferences).values({
+    id: refId,
+    fileId,
+    ownerType: "project_cover",
+    ownerId: "defaults",
+    filename: "cover.png",
+    createdBy: uploadedBy,
+    createdAt: now,
+  }).run();
+  return refId;
+}
+
+describe("tag admin", () => {
+  test("createTag trims, rejects blanks and duplicates", async () => {
+    const tag = await createTag(db, "  Marine  ");
+    expect(tag.name).toBe("Marine");
+    expect(tag.usageCount).toBe(0);
+
+    expect(createTag(db, "   ")).rejects.toThrow();
+    expect(createTag(db, "Marine")).rejects.toThrow();
+  });
+
+  test("renameTag updates the name and rejects a collision", async () => {
+    const a = await createTag(db, "Alpha");
+    await createTag(db, "Beta");
+
+    const renamed = await renameTag(db, a.id, "Gamma");
+    expect(renamed?.name).toBe("Gamma");
+
+    expect(renameTag(db, a.id, "Beta")).rejects.toThrow();
+    expect(await renameTag(db, "missing", "X")).toBeUndefined();
+  });
+
+  test("deleteTag cascade-unlinks the tag from its projects", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator, tags: ["shared"] });
+
+    const tag = (await listTags(db)).find(t => t.name === "shared")!;
+    expect(tag.usageCount).toBe(1);
+
+    expect(await deleteTag(db, tag.id)).toBe(true);
+
+    // The tag is gone and its project_tags links are removed.
+    expect((await listTags(db)).find(t => t.name === "shared")).toBeUndefined();
+    const links = await db.select().from(projectTags).where(eq(projectTags.tagId, tag.id)).all();
+    expect(links).toHaveLength(0);
+    // The project itself survives, now untagged.
+    const view = (await listProjects(db, {})).data.find(p => p.id === project.shortId)!;
+    expect(view.tags).toHaveLength(0);
+
+    expect(await deleteTag(db, tag.id)).toBe(false);
+  });
+});
+
+describe("global procurement categories", () => {
+  test("CRUD over the global template set", async () => {
+    const created = await createGlobalCategory(db, { name: "Hull", code: "HUL" });
+    expect(created.name).toBe("Hull");
+    expect((await listGlobalCategories(db)).map(c => c.name)).toEqual(["Hull"]);
+
+    const updated = await updateGlobalCategory(db, created.id, { name: "Hull & deck" });
+    expect(updated?.name).toBe("Hull & deck");
+    expect(await updateGlobalCategory(db, "missing", { name: "X" })).toBeUndefined();
+
+    expect(await deleteGlobalCategory(db, created.id)).toBe(true);
+    expect(await deleteGlobalCategory(db, created.id)).toBe(false);
+    expect(await listGlobalCategories(db)).toHaveLength(0);
+  });
+
+  test("a new project is seeded from the current global set (copy-on-create)", async () => {
+    const creator = await seedUser("Alice");
+    await createGlobalCategory(db, { name: "Engine", code: "ENG" });
+    await createGlobalCategory(db, { name: "Safety" });
+
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const seeded = await listCategories(db, project.id);
+    expect(seeded.map(c => c.name).sort()).toEqual(["Engine", "Safety"]);
+  });
+
+  test("a project created with no globals defined gets none", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    expect(await listCategories(db, project.id)).toHaveLength(0);
+  });
+
+  test("later global edits do not touch existing projects", async () => {
+    const creator = await seedUser("Alice");
+    const cat = await createGlobalCategory(db, { name: "Original" });
+    const project = await createProject(db, { name: "P", creatorId: creator });
+
+    // Mutate the global set after the project exists.
+    await updateGlobalCategory(db, cat.id, { name: "Renamed" });
+    await createGlobalCategory(db, { name: "Added later" });
+    await deleteGlobalCategory(db, cat.id);
+
+    const seeded = await listCategories(db, project.id);
+    // The project keeps its original copy, unaffected by global churn.
+    expect(seeded.map(c => c.name)).toEqual(["Original"]);
+  });
+});
+
+describe("project defaults on create", () => {
+  test("applies the default status when the payload omits it", async () => {
+    const creator = await seedUser("Alice");
+    await setSetting(db, "project.defaults.status", "archived");
+
+    const defaulted = await createProject(db, { name: "Defaulted", creatorId: creator });
+    expect(defaulted.status).toBe("archived");
+
+    // An explicit status in the payload overrides the default.
+    const explicit = await createProject(db, { name: "Explicit", status: "active", creatorId: creator });
+    expect(explicit.status).toBe("active");
+  });
+
+  test("falls back to active when the default status is unset or invalid", async () => {
+    const creator = await seedUser("Alice");
+    const none = await createProject(db, { name: "None", creatorId: creator });
+    expect(none.status).toBe("active");
+
+    await setSetting(db, "project.defaults.status", "bogus");
+    const invalid = await createProject(db, { name: "Invalid", creatorId: creator });
+    expect(invalid.status).toBe("active");
+  });
+
+  test("applies the default cover reference when the payload omits it", async () => {
+    const creator = await seedUser("Alice");
+    const refId = await seedCoverReference(creator);
+    await setSetting(db, "project.defaults.coverReferenceId", refId);
+
+    const withCover = await createProject(db, { name: "Cover", creatorId: creator });
+    expect(withCover.coverReferenceId).toBe(refId);
+  });
+
+  test("ignores a dangling default cover reference (create stays safe)", async () => {
+    const creator = await seedUser("Alice");
+    await setSetting(db, "project.defaults.coverReferenceId", "does-not-exist");
+
+    const created = await createProject(db, { name: "NoCover", creatorId: creator });
+    expect(created.coverReferenceId).toBeNull();
   });
 });
