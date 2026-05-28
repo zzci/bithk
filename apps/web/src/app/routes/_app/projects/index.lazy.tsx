@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
@@ -80,8 +81,12 @@ function ProjectsListPage() {
   const handleCreate = (values: CreateProjectInput) => {
     createProject.mutate(values, {
       onSuccess: (project) => {
+        toast.success(t("toast.projectCreated"));
         setCreateOpen(false);
         void navigate({ to: "/projects/$projectId", params: { projectId: project.id } });
+      },
+      onError: (err) => {
+        toast.error(errorMessage(err, t("common:common.error.operationFailed")));
       },
     });
   };

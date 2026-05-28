@@ -11,6 +11,7 @@ import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -227,7 +228,10 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                                 onValueChange={(v) => {
                                   if (v === null || v === row.status)
                                     return;
-                                  changeStatus.mutate({ projectId, id: row.id, status: v as ProcurementStatus });
+                                  changeStatus.mutate({ projectId, id: row.id, status: v as ProcurementStatus }, {
+                                    onSuccess: () => toast.success(t("toast.procurementStatusChanged")),
+                                    onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+                                  });
                                 }}
                               >
                                 <SelectTrigger size="sm" className="w-32" aria-label={t("procurement.changeStatus")}>
@@ -282,7 +286,10 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
         description={t("procurement.delete.confirm", { name: deleteTarget?.itemName })}
         onConfirm={() => {
           if (deleteTarget) {
-            deleteProcurement.mutate({ projectId, id: deleteTarget.id });
+            deleteProcurement.mutate({ projectId, id: deleteTarget.id }, {
+              onSuccess: () => toast.success(t("toast.procurementDeleted")),
+              onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+            });
             setDeleteTarget(null);
           }
         }}
@@ -352,9 +359,11 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
     };
     createProcurement.mutate({ projectId, ...body }, {
       onSuccess: () => {
+        toast.success(t("toast.procurementCreated"));
         reset();
         onOpenChange(false);
       },
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
   };
 

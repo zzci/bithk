@@ -3,6 +3,28 @@
     "title": "Projects",
     "description": "Browse projects you belong to and manage their work."
   },
+  "toast": {
+    "projectCreated": "Project created",
+    "projectUpdated": "Project updated",
+    "projectDeleted": "Project deleted",
+    "coverUpdated": "Cover image updated",
+    "coverRemoved": "Cover image removed",
+    "memberAdded": "Member added",
+    "memberUpdated": "Member updated",
+    "memberRemoved": "Member removed",
+    "roleCreated": "Role created",
+    "roleUpdated": "Role updated",
+    "roleDeleted": "Role deleted",
+    "categoryCreated": "Category created",
+    "categoryUpdated": "Category updated",
+    "categoryDeleted": "Category deleted",
+    "procurementCreated": "Procurement created",
+    "procurementDeleted": "Procurement deleted",
+    "procurementStatusChanged": "Procurement status updated",
+    "issueCreated": "Work order created",
+    "issueUpdated": "Work order updated",
+    "issueDeleted": "Work order deleted"
+  },
   "list": {
     "create": "Create project",
     "empty": "No projects found.",

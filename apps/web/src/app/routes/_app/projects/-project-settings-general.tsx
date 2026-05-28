@@ -8,6 +8,7 @@ import type {
 } from "@/shared/lib/api/projects";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
@@ -63,7 +64,10 @@ export function ProjectSettingsGeneral({ project }: ProjectSettingsGeneralProps)
       description: description.trim() || null,
       tags,
     };
-    updateProject.mutate({ id: project.id, ...values });
+    updateProject.mutate({ id: project.id, ...values }, {
+      onSuccess: () => toast.success(t("toast.projectUpdated")),
+      onError: err => toast.error(errorMessage(err, t("common:common.error.saveFailed"))),
+    });
   };
 
   return (
