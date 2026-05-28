@@ -1,18 +1,19 @@
 // Project default fields section of the Project Defaults tab. Two settings,
 // applied by the backend when a project is created without an explicit value:
-//   • project.defaults.status            → active | archived
-//   • project.defaults.coverReferenceId  → a file reference id
-// Each can be set (PUT) or cleared (DELETE). The cover is identified by its
-// file reference id: the backend exposes no admin upload-to-reference endpoint,
-// so this is an id field rather than an inline image picker.
+//   • project.defaults.status            → active | archived (PUT/DELETE setting)
+//   • project.defaults.coverReferenceId  → managed server-side by the dedicated
+//     /admin/project-default-cover endpoints. The cover is edited through a
+//     visual picker (upload / replace / remove with a live preview), mirroring
+//     the per-project cover field; the file reference id is never typed.
 
 import type { ProjectStatus } from "@/shared/lib/api/projects";
-import { useRef, useState } from "react";
+import { Trash2, Upload } from "lucide-react";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { CoverImage } from "@/shared/components/cover-image";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -21,11 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { useDefaultCover, useRemoveDefaultCover, useUploadDefaultCover } from "@/shared/lib/api/admin-default-cover";
 import { useDeleteSetting, usePutSetting, useSetting } from "@/shared/lib/api/settings";
 import { errorMessage } from "@/shared/lib/errors";
 
 const STATUS_KEY = "project.defaults.status";
-const COVER_KEY = "project.defaults.coverReferenceId";
 const STATUS_OPTIONS: readonly ProjectStatus[] = ["active", "archived"];
 
 export function ProjectDefaultFieldsSection() {
@@ -91,38 +92,34 @@ function DefaultStatusField() {
   );
 }
 
+// Visual default-cover picker: a live preview plus upload / replace / remove
+// actions backed by the /admin/project-default-cover endpoints. Each action is
+// its own mutation (type="button"), mirroring the per-project cover field.
 function DefaultCoverField() {
   const { t } = useTranslation(["settings", "common"]);
-  const settingQuery = useSetting(COVER_KEY);
-  const putSetting = usePutSetting();
-  const deleteSetting = useDeleteSetting();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const coverQuery = useDefaultCover();
+  const uploadCover = useUploadDefaultCover();
+  const removeCover = useRemoveDefaultCover();
 
-  const current = settingQuery.data ?? null;
-  const pending = putSetting.isPending || deleteSetting.isPending;
+  const url = coverQuery.data?.url ?? null;
+  const hasCover = coverQuery.data?.referenceId != null;
+  const pending = uploadCover.isPending || removeCover.isPending;
+  const error = uploadCover.error ?? removeCover.error;
 
-  // Resync the editable field whenever the persisted value changes (initial
-  // load, post-save invalidation) without an effect — mirrors SettingsCard.
-  const [value, setValue] = useState(current ?? "");
-  const prevCurrentRef = useRef(current);
-  if (prevCurrentRef.current !== current) {
-    prevCurrentRef.current = current;
-    setValue(current ?? "");
-  }
-
-  const trimmed = value.trim();
-  const dirty = trimmed !== (current ?? "");
-
-  const onSave = () => {
-    if (!trimmed || !dirty)
-      return;
-    putSetting.mutate({ key: COVER_KEY, value: trimmed }, {
-      onSuccess: () => toast.success(t("settings:projectDefaults.defaults.toast.coverSaved")),
-      onError: err => toast.error(errorMessage(err, t("common:common.error.saveFailed"))),
-    });
+  const onPick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      uploadCover.mutate(file, {
+        onSuccess: () => toast.success(t("settings:projectDefaults.defaults.toast.coverSaved")),
+        onError: err => toast.error(errorMessage(err, t("common:common.error.uploadFailed"))),
+      });
+    }
+    event.target.value = "";
   };
 
-  const onClear = () => {
-    deleteSetting.mutate(COVER_KEY, {
+  const onRemove = () => {
+    removeCover.mutate(undefined, {
       onSuccess: () => toast.success(t("settings:projectDefaults.defaults.toast.coverCleared")),
       onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
@@ -130,25 +127,23 @@ function DefaultCoverField() {
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="default-cover">{t("settings:projectDefaults.defaults.coverLabel")}</Label>
-      {(putSetting.error || deleteSetting.error) && (
-        <ErrorBanner message={errorMessage(putSetting.error ?? deleteSetting.error, t("common:common.error.operationFailed"))} />
-      )}
-      <div className="flex items-center gap-2">
-        <Input
-          id="default-cover"
-          className="max-w-md font-mono"
-          placeholder={t("settings:projectDefaults.defaults.coverPlaceholder")}
-          value={value}
-          disabled={pending}
-          onChange={e => setValue(e.target.value)}
-        />
-        <Button size="sm" disabled={pending || !trimmed || !dirty} onClick={onSave}>
-          {t("common:common.save")}
-        </Button>
-        <Button variant="outline" size="sm" disabled={pending || current === null} onClick={onClear}>
-          {t("settings:projectDefaults.defaults.clear")}
-        </Button>
+      <Label>{t("settings:projectDefaults.defaults.coverLabel")}</Label>
+      {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
+      <div className="flex items-center gap-4">
+        <CoverImage src={url} kind="project" className="h-24 w-40 shrink-0 rounded-lg border" />
+        <div className="flex flex-col gap-2">
+          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
+          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => inputRef.current?.click()}>
+            <Upload aria-hidden="true" />
+            {hasCover ? t("settings:projectDefaults.defaults.coverReplace") : t("settings:projectDefaults.defaults.coverUpload")}
+          </Button>
+          {hasCover && (
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onRemove}>
+              <Trash2 className="text-destructive" aria-hidden="true" />
+              {t("settings:projectDefaults.defaults.coverRemove")}
+            </Button>
+          )}
+        </div>
       </div>
       <p className="text-xs text-muted-foreground">{t("settings:projectDefaults.defaults.coverHint")}</p>
     </div>
