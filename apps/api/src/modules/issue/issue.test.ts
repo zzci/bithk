@@ -366,6 +366,19 @@ describe("listByProject", () => {
     expect(r.data.map(d => d.title).sort()).toEqual(["A1", "A2"]);
   });
 
+  test("paginates with page / limit (newest-first)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    for (let i = 0; i < 5; i++)
+      await createIssue(db, { title: `Task ${i}`, creatorId: creator, projectId: project.id });
+
+    const page1 = await listByProject(db, { projectId: project.id, page: 1, limit: 2 });
+    expect(page1.data).toHaveLength(2);
+    expect(page1.total).toBe(5);
+    const page3 = await listByProject(db, { projectId: project.id, page: 3, limit: 2 });
+    expect(page3.data).toHaveLength(1);
+  });
+
   test("filters by status / priority / title", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
