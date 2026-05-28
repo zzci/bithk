@@ -282,6 +282,7 @@
   "roles": {
     "add": "添加角色",
     "empty": "尚未定义角色。",
+    "owner": "项目所有者",
     "system": "系统",
     "noCapabilities": "无权限",
     "createTitle": "创建角色",

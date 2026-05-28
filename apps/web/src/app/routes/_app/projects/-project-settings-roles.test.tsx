@@ -52,16 +52,24 @@ describe("projectSettingsRoles", () => {
     expect(await screen.findByText("No roles defined.")).toBeInTheDocument();
   });
 
-  it("renders each role with its capability badges and a system marker", async () => {
+  it("renders custom-role capability badges but hides them for the system owner role", async () => {
     routeFetch([
       role({ id: "r1", name: "Engineer", capabilities: ["procurement.view"] }),
-      role({ id: "sys", name: "Owner", isSystem: true, capabilities: [] }),
+      // Give the system role capabilities to prove they are still hidden.
+      role({ id: "sys", name: "Project Manager", isSystem: true, capabilities: ["project.manage"] }),
     ]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
     expect(await screen.findByText("Engineer")).toBeInTheDocument();
+    // Custom roles keep their capability badge list.
     expect(screen.getByText("View procurement")).toBeInTheDocument();
+    // The system role is always presented as "Project Owner", never its stored name.
+    expect(screen.getByText("Project Owner")).toBeInTheDocument();
+    expect(screen.queryByText("Project Manager")).not.toBeInTheDocument();
     expect(screen.getByText("System")).toBeInTheDocument();
-    expect(screen.getByText("No capabilities")).toBeInTheDocument();
+    // The system owner role is capability-locked, so its capability badges and
+    // the "No capabilities" placeholder are both suppressed.
+    expect(screen.queryByText("Manage project")).not.toBeInTheDocument();
+    expect(screen.queryByText("No capabilities")).not.toBeInTheDocument();
   });
 
   it("hides management controls when the viewer cannot manage", async () => {
@@ -73,9 +81,9 @@ describe("projectSettingsRoles", () => {
   });
 
   it("does not offer edit/delete for system roles", async () => {
-    routeFetch([role({ id: "sys", name: "Owner", isSystem: true, capabilities: [] })]);
+    routeFetch([role({ id: "sys", name: "Project Manager", isSystem: true, capabilities: [] })]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("Owner");
+    await screen.findByText("Project Owner");
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });

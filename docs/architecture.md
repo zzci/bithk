@@ -117,7 +117,7 @@ apps/api/src/modules/
 The ship module is a thin aggregate over existing project, issue, and drive
 building blocks. Creating a ship also creates a base project and links the two
 with `ships.base_project_id` and `projects.ship_id`; the creator is seeded as
-that project's Project Manager.
+that project's Project Owner.
 
 Ship authorization is anchored on the base project. Reading a ship requires
 base-project membership (app admins bypass); writes require `project.manage` on

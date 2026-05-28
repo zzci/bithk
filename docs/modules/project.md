@@ -43,7 +43,7 @@ apps/api/src/modules/project/
 | Table                    | Purpose |
 | ------------------------ | ------- |
 | `projects`               | Project aggregate (basic fields only). `id` (ULID, internal), `short_id` (nanoid, the **sole external identifier**), `code` (unique), `name`, `status` (`active`/`archived`), `description`, `creator_id`, `version`, `deleted_at`, `updated_at`. |
-| `project_roles`          | User-defined roles, per project. `id`, `project_id`, `name`, `capabilities` (JSON `string[]` over `PROJECT_CAPABILITIES`), `is_system` (the seeded "Project Manager" role: undeletable, full capabilities), timestamps. |
+| `project_roles`          | User-defined roles, per project. `id`, `project_id`, `name`, `capabilities` (JSON `string[]` over `PROJECT_CAPABILITIES`), `is_system` (the seeded "Project Owner" role: undeletable, full capabilities), timestamps. |
 | `project_members`        | Operators. `id` (nanoid — **the assignment target**), `project_id`, `user_id` (NULL ⇒ virtual member), `display_name` (virtual), `role_id` → `project_roles`, `title` (job title / trade, display only), timestamps. Unique on `(project_id, user_id)` (multiple NULL `user_id` allowed ⇒ many virtual members). |
 | `procurement_categories` | Procurement classification, per project (flat). `id`, `project_id`, `name`, `code`, `description`, timestamps. |
 | `project_tags`           | Project ↔ tag assignment join. PK `(project_id, tag_id)`; `tag_id` → `tags.id` (`ON DELETE CASCADE`) in the shared [`tag`](./tag.md) module. The vocabulary itself is **not** owned here. |
@@ -53,7 +53,7 @@ apps/api/src/modules/project/
 `PROJECT_CAPABILITIES`: `project.manage`, `members.manage`, `roles.manage`,
 `categories.manage`, `procurement.view`, `procurement.manage`, `issue.manage`.
 Each project seeds two roles on creation:
-**Project Manager** (`is_system=1`, all capabilities — the creator gets it) and
+**Project Owner** (`is_system=1`, all capabilities — the creator gets it) and
 **Member** (no capabilities). Route gates check capabilities, not role names.
 
 ### Virtual members
@@ -83,7 +83,7 @@ Highlights:
 - `GET /api/projects` — list; admins see all, others only their projects.
   Filters: `status`, `tagId`, `page`, `limit`. Archived projects are excluded
   unless `status=archived` is requested.
-- `POST /api/projects` — **admin only**; creator becomes the Project Manager
+- `POST /api/projects` — **admin only**; creator becomes the Project Owner
   member. Body: `{ name, code?, description?, status?, tags? }`.
 - `GET/PATCH/DELETE /api/projects/:id` — read (member), update/delete
   (`project.manage`).
@@ -112,7 +112,7 @@ membership/capability check — they hold the full capability set on every
 project. This prevents lock-out when a project loses its last managing member.
 The bypass lives in each route gate (`requireProject`, the procurement and
 project-issue gates, the drive project owner resolver). The seeded
-"Project Manager" role is `is_system` (undeletable, capabilities locked to the
+"Project Owner" role is `is_system` (undeletable, capabilities locked to the
 full set) as a second guard. The frontend mirrors the bypass
 (`computeCapabilities` grants admins everything).
 

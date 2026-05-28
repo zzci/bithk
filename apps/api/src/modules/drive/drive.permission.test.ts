@@ -154,7 +154,7 @@ describe("resolveEntryCapabilities — project roles", () => {
     const project = await createProject(db, { name: `proj-${nanoid()}`, creatorId: creator });
     if (role !== "none") {
       const roles = await listRoles(db, project.id);
-      const roleId = roles.find(r => r.name === (role === "pm" ? "Project Manager" : "Member"))!.id;
+      const roleId = roles.find(r => r.name === (role === "pm" ? "Project Owner" : "Member"))!.id;
       await addMember(db, project.id, { roleId, userId: actor });
     }
     const folder = await createDriveFolder(db, { ownerType: "project", ownerId: project.id, createdBy: creator, name: "files" });

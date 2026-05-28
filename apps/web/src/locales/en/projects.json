@@ -282,6 +282,7 @@
   "roles": {
     "add": "Add role",
     "empty": "No roles defined.",
+    "owner": "Project Owner",
     "system": "System",
     "noCapabilities": "No capabilities",
     "createTitle": "Create role",

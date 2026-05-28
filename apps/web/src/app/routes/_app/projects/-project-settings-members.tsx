@@ -71,9 +71,11 @@ export function ProjectSettingsMembers({ projectId, members, userNames, canManag
   const [deleteTarget, setDeleteTarget] = useState<ProjectMemberView | null>(null);
 
   const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
+  // The system owner role is presented as "Project Owner"; custom roles keep
+  // their stored name.
   const roleNames = useMemo(
-    () => new Map(roles.map(r => [r.id, r.name])),
-    [roles],
+    () => new Map(roles.map(r => [r.id, r.isSystem ? t("roles.owner") : r.name])),
+    [roles, t],
   );
 
   const existingUserIds = useMemo(
@@ -409,18 +411,21 @@ interface RoleSelectProps {
 
 function RoleSelect({ roles, value, onChange }: RoleSelectProps) {
   const { t } = useTranslation("projects");
+  // System owner role displays as "Project Owner"; custom roles keep their name.
+  const roleLabel = (role: ProjectRoleView | undefined) =>
+    role ? (role.isSystem ? t("roles.owner") : role.name) : value;
   return (
     <div className="space-y-1.5">
       <Label>{t("members.field.role")}</Label>
       <Select value={value} onValueChange={v => v !== null && onChange(v)}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder={t("members.selectRole")}>
-            {(v: string) => roles.find(r => r.id === v)?.name ?? v}
+            {(v: string) => roleLabel(roles.find(r => r.id === v))}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {roles.map(r => (
-            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+            <SelectItem key={r.id} value={r.id}>{roleLabel(r)}</SelectItem>
           ))}
         </SelectContent>
       </Select>

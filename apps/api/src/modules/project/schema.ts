@@ -47,7 +47,7 @@ export const projects = sqliteTable("projects", {
 ]);
 
 // User-defined roles, per project. Capabilities are a JSON string[] validated
-// against PROJECT_CAPABILITIES. The seeded "Project Manager" role is `isSystem`
+// against PROJECT_CAPABILITIES. The seeded "Project Owner" role is `isSystem`
 // (undeletable, capabilities locked to the full set) to prevent lock-out.
 export const projectRoles = sqliteTable("project_roles", {
   id: text("id").primaryKey(), // nanoid

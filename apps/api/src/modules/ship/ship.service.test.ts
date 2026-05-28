@@ -85,7 +85,7 @@ describe("createShip", () => {
     expect(baseProject!.shipId).toBe(ship.id);
   });
 
-  test("seeds the creator as Project Manager on the base project", async () => {
+  test("seeds the creator as Project Owner on the base project", async () => {
     const creator = await seedUser("Alice");
     const ship = await createShip(db, { name: "Bridge", creatorId: creator });
 

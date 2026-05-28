@@ -88,16 +88,21 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{role.name}</span>
+                      <span className="font-medium">{role.isSystem ? t("roles.owner") : role.name}</span>
                       {role.isSystem && <Badge variant="outline" className="text-xs">{t("roles.system")}</Badge>}
                     </div>
-                    <div className="flex flex-wrap gap-1">
-                      {role.capabilities.length === 0
-                        ? <span className="text-xs text-muted-foreground">{t("roles.noCapabilities")}</span>
-                        : role.capabilities.map(cap => (
-                            <Badge key={cap} variant="secondary" className="text-xs">{t(`capability.${cap}` as const)}</Badge>
-                          ))}
-                    </div>
+                    {/* The system owner role holds every capability and is
+                        capability-locked; the badge list is noise, so we omit it
+                        and only show capabilities for custom roles. */}
+                    {!role.isSystem && (
+                      <div className="flex flex-wrap gap-1">
+                        {role.capabilities.length === 0
+                          ? <span className="text-xs text-muted-foreground">{t("roles.noCapabilities")}</span>
+                          : role.capabilities.map(cap => (
+                              <Badge key={cap} variant="secondary" className="text-xs">{t(`capability.${cap}` as const)}</Badge>
+                            ))}
+                      </div>
+                    )}
                   </div>
                   {canManage && !role.isSystem && (
                     <div className="flex shrink-0 gap-1">

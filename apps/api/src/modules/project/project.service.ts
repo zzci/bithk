@@ -227,7 +227,7 @@ export interface CreateProjectInput {
 
 /**
  * Synchronous core of project creation: insert the project row, seed default
- * roles, add the creator as a "Project Manager" member, and sync tags. Runs
+ * roles, add the creator as a "Project Owner" member, and sync tags. Runs
  * entirely inside the caller's transaction so it can be composed into a larger
  * atomic unit (e.g. `createShip`). Returns the internal ULID and short id.
  */
@@ -299,7 +299,7 @@ async function resolveDefaultCoverReferenceId(db: AppDatabase): Promise<string |
 
 /**
  * Create a project and, in the same synchronous transaction, seed its default
- * roles and add the creator as a "Project Manager" member. `code` is
+ * roles and add the creator as a "Project Owner" member. `code` is
  * auto-generated from the short id when not supplied. bun:sqlite transactions
  * are synchronous — keep the callback sync so COMMIT/ROLLBACK semantics hold.
  */

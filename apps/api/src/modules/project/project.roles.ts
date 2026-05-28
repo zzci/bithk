@@ -47,7 +47,7 @@ function sanitize(caps: readonly string[]): ProjectCapability[] {
 
 // ─── Seeding ────────────────────────────────────────────────────────────
 // Run inside the createProject transaction. Seeds one undeletable, all-powerful
-// "Project Manager" role (the creator gets it) and a baseline "Member" role.
+// "Project Owner" role (the creator gets it) and a baseline "Member" role.
 export interface SeededRoles {
   readonly pmRoleId: string;
   readonly memberRoleId: string;
@@ -60,7 +60,7 @@ export function seedDefaultRoles(tx: AppTransaction, projectId: string, now: str
     {
       id: pmRoleId,
       projectId,
-      name: "Project Manager",
+      name: "Project Owner",
       capabilities: JSON.stringify([...PROJECT_CAPABILITIES]),
       isSystem: 1,
       createdAt: now,

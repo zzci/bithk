@@ -88,7 +88,7 @@ async function cookieForUser(userId: string): Promise<string> {
 
 async function pmRoleId(projectId: string): Promise<string> {
   const roles = await listRoles(db, projectId);
-  return roles.find(r => r.name === "Project Manager")!.id;
+  return roles.find(r => r.name === "Project Owner")!.id;
 }
 
 async function memberRoleId(projectId: string): Promise<string> {

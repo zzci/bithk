@@ -74,8 +74,9 @@ describe("projectSettingsMembers", () => {
     renderWithProviders(
       <ProjectSettingsMembers projectId="p1" members={[member()]} userNames={userNames} canManage={false} />,
     );
-    // Role name resolves once the roles query settles.
-    expect(await screen.findByText("Owner")).toBeInTheDocument();
+    // Role name resolves once the roles query settles. The system role (r1) is
+    // presented as "Project Owner", not its stored name "Owner".
+    expect(await screen.findByText("Project Owner")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("Engineer")).toBeInTheDocument();
     expect(screen.queryByText("Virtual")).not.toBeInTheDocument();
