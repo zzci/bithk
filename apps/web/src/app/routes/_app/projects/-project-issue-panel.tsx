@@ -512,7 +512,7 @@ export function ProjectIssuePanel({
               )
             : issue.description
               ? (
-                  <div key="description-readonly" className="rounded-md bg-muted/40 px-2 py-1">
+                  <div key="description-readonly" className="text-sm leading-relaxed">
                     <MarkdownEditor value={issue.description} readOnly />
                   </div>
                 )

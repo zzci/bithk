@@ -104,14 +104,17 @@ function ProjectIssueDrawer() {
         className="fixed inset-y-0 right-0 z-50 w-full border-l bg-background shadow-xl sm:w-[min(var(--issue-drawer-width),92vw)]"
         style={drawerStyle}
       >
+        {/* Resize handle: a full-height grab strip pinned to the drawer's left
+            edge. Sits above the panel (z-20) with a wide hit area so it is easy
+            to grab; a centred pill makes the affordance discoverable. */}
         <div
           role="separator"
           aria-orientation="vertical"
           aria-label={t("resizeDrawer")}
-          className="group absolute inset-y-0 left-0 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none items-center justify-center sm:flex"
+          className="group absolute inset-y-0 left-0 z-20 hidden w-2.5 cursor-col-resize touch-none items-center justify-center transition-colors hover:bg-primary/5 sm:flex"
           onPointerDown={handleDrawerResizeStart}
         >
-          <div className="h-full w-px bg-border transition-colors group-hover:bg-primary group-active:bg-primary" />
+          <div className="h-10 w-1 rounded-full bg-border transition-colors group-hover:bg-primary group-active:bg-primary" />
         </div>
         <ProjectIssuePanel
           projectId={projectId}
