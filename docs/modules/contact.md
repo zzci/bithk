@@ -3,7 +3,8 @@
 Global shared contact directory for suppliers, customers, subcontractors, and
 other external parties. Contacts are no longer owned by projects. Procurement
 records reference this directory through `supplier_id`, while classification is
-handled with the global `tags` vocabulary.
+handled with the shared [`tag`](./tag.md) vocabulary (scoped to
+`source_type = 'contact'`).
 
 ## File layout
 
@@ -23,10 +24,11 @@ apps/api/src/modules/contact/
 | Table | Purpose |
 | ----- | ------- |
 | `contacts` | Global contact rows. `id` (nanoid), `owner_id` (creator), `name`, `contact_person`, `phone`, `email`, `address`, `tax_id`, `note`, `status` (`active`/`inactive`), `visibility` (`private`/`public`), `confidential`, timestamps. Indexed by `owner_id`. |
-| `contact_tags` | Contact-to-tag many-to-many links. PK `(contact_id, tag_id)`, `contact_id` cascades with `contacts`, `tag_id` references the global `tags` table owned by the project module. |
+| `contact_tags` | Contact-to-tag assignment join. PK `(contact_id, tag_id)`, `contact_id` cascades with `contacts`, `tag_id` references the shared `tags` table (`ON DELETE CASCADE`) owned by the [`tag`](./tag.md) module. |
 
-The module reuses the global `tags` table rather than defining contact types.
-There is no supplier/client/subcontractor enum and no `rating` column.
+The module reuses the shared `tags` vocabulary (source type `contact`) rather
+than defining contact types. There is no supplier/client/subcontractor enum and
+no `rating` column.
 
 ## Routes
 
@@ -80,6 +82,7 @@ Write routes emit `contact.created`, `contact.updated`, `contact.deleted`,
 ## Backup
 
 `contactBackupContribution` registers the `contacts` data module with tables
-`contacts` then `contact_tags`. It depends on `projects` because the global
-`tags` table is part of the project backup contribution. Owner/viewer policy
-tuples are exported by the `policies` contribution.
+`contacts` then `contact_tags`. It depends on `tags` (deps `["tags"]`) so the
+shared `tags` vocabulary — backed up by the [`tag`](./tag.md) module — restores
+before `contact_tags` references it. Owner/viewer policy tuples are exported by
+the `policies` contribution.

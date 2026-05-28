@@ -26,6 +26,7 @@ application".
 | `settings` (per-key DB-backed settings + admin UI) | [settings.md](settings.md) |
 | `share` (unified token-based sharing + public links) | [share.md](share.md) |
 | `system` (health, version, build info) | [system.md](system.md) |
+| `tag` (shared type-scoped tag vocabulary + assignment helpers) | [tag.md](tag.md) |
 
 ## Reference business modules (start here when adapting)
 

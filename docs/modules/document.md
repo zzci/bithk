@@ -12,8 +12,8 @@ expressed as policy tuples in the `item` namespace.
 
 ```text
 apps/api/src/modules/document/
-  schema.ts            # document_details ONLY (no documents / shares / attachments / comments)
-  document.service.ts  # composition over items + document_details + policy
+  schema.ts            # document_details + document_tags (no documents / shares / attachments / comments)
+  document.service.ts  # composition over items + document_details + document_tags + policy
   document.routes.ts   # /api/documents/...
   document.backup.ts   # backup contribution (document_details only)
   index.ts             # backup registration
@@ -24,7 +24,8 @@ apps/api/src/modules/document/
 
 | Table              | Purpose                                                                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `document_details` | Per-document business fields keyed off `item_id` (1:1 with `items` rows where `type='document'`). Columns: `content`, `tags` (JSON array string), `parent_id` (self-FK through `items.id`), `comments_locked`. |
+| `document_details` | Per-document business fields keyed off `item_id` (1:1 with `items` rows where `type='document'`). Columns: `content`, `parent_id` (self-FK through `items.id`), `comments_locked`. Tags are **not** stored here — they live in `document_tags`. |
+| `document_tags` | Document ↔ tag assignment join. PK `(item_id, tag_id)`; `item_id` → `items.id` (the document base row), `tag_id` → `tags.id` (`ON DELETE CASCADE`) in the shared [`tag`](./tag.md) module (scoped to `source_type = 'document'`). The sole authoritative tag store for documents. |
 | `document_pins` | Per-user pin (a personal UI affordance, **not** authorization). Composite PK `(user_id, item_id)` (both FK, cascade). A document shared with several users can be pinned independently by each; `listMyDocuments` reports a per-caller `pinned` flag. |
 
 The **business hierarchy** lives in `document_details.parent_id` — what
@@ -55,7 +56,7 @@ Mounted under `protectedRoutes`. All require `authRequired`.
 | GET    | `/api/documents/tags`                         | All tags currently in use.                                                                                                                              |
 | GET    | `/api/documents/users`                        | Active users (for the share UI).                                                                                                                        |
 | GET    | `/api/documents/groups`                       | All groups (for the share UI).                                                                                                                          |
-| GET    | `/api/documents/:id`                          | Detail (`:id` is the 8-char short id). Includes `version`.                                                                                              |
+| GET    | `/api/documents/:id`                          | Detail (`:id` is the 8-char short id). Includes `version`. `tags` is exposed as a JSON string array sourced from the `document_tags` join.                |
 | PATCH  | `/api/documents/:id`                          | Update. Body **must** include `version`. Mismatch returns 409 with the current row. `parentId` change re-parents and rewrites the `parent_item` tuple.   |
 | PATCH  | `/api/documents/:id/move`                     | Re-parent. Body: `{ parentId: short_id \| null }`. Validates target exists, caller can edit it, and the move would not introduce a cycle.               |
 | DELETE | `/api/documents/:id`                          | **Soft delete** of the document and every descendant. Each `item_attachment` reference in the subtree is released so the async GC reclaims blobs.        |
@@ -120,9 +121,11 @@ past a configured age.
 
 ## Backup
 
-`document_details` only. `items` / `item_comments` rows and the
-`relation_tuples` carrying owner / share / `parent_item` come from the
-`items` / `policies` contributions, which `document_details` depends on.
+Tables `document_details` then `document_tags`; deps `["items", "policies",
+"tags"]`. `items` / `item_comments` rows and the `relation_tuples` carrying
+owner / share / `parent_item` come from the `items` / `policies` contributions;
+`document_tags.tag_id` references the shared `tags` table backed up by the
+[`tag`](./tag.md) module, listed as a dep so it restores first.
 
 ## Out of scope
 

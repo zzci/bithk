@@ -63,6 +63,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Tag abstraction consolidated into one module (REFACTOR-005 / PLAN-031): a
+  dedicated `tag` module now owns the tag vocabulary, source-type validation,
+  the create / rename / delete / list APIs, the `/api/tags` routes (behind a
+  source registry so the tag module imports no domain schema), and reusable
+  assignment helpers. The central `tags` table is type-scoped — unique per
+  `(source_type, name)` over `project` / `contact` / `document` — and the
+  project, contact, and document services were migrated onto the shared helpers
+  and their `project_tags` / `contact_tags` / `document_tags` joins. The tag
+  vocabulary is no longer "project-owned" or globally unique.
+
 - Issue detail backend parity (FIX-006 / PLAN-027): current project-scoped
   issue details were compared against the original global issue details from
   `/app/zzci/access`. No non-UI behavior gap was found; focused API tests now
@@ -130,6 +140,11 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   `settings` search param.
 
 ### Removed
+
+- The legacy `document_details.tags` JSON column (REFACTOR-005 / PLAN-031):
+  document tags now live solely in the `document_tags` join over the shared
+  typed `tags` vocabulary; the document row still exposes `tags` as a JSON
+  string array sourced from that join.
 
 - The ship lifecycle concept (REFACTOR-004): ships had two parallel state
   fields — `status` (active/archived) and `lifecycleStage`
