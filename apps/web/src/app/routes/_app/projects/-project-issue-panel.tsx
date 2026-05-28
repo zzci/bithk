@@ -43,6 +43,8 @@ import {
 } from "@/shared/components/ui/select";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
+import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
 import {
@@ -53,24 +55,14 @@ import {
 
 // ── Helpers ──
 
-export const statusVariants: Record<string, "default" | "outline" | "secondary"> = {
-  open: "outline",
-  in_progress: "default",
-  done: "secondary",
-  cancelled: "secondary",
-};
-
+// Priority badge variants — kept in sync with the issues list so the same
+// priority reads identically across the tab and the detail panel.
 export const priorityVariants: Record<string, "default" | "outline" | "secondary" | "destructive"> = {
   low: "secondary",
   medium: "outline",
   high: "default",
   urgent: "destructive",
 };
-
-export function statusKey(s: string) {
-  const map: Record<string, string> = { open: "Open", in_progress: "InProgress", done: "Done", cancelled: "Cancelled" };
-  return map[s] ?? s;
-}
 
 export function priorityKey(p: string) {
   const map: Record<string, string> = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
@@ -104,7 +96,7 @@ export function ProjectIssuePanel({
   onClose,
   onMaximize,
 }: ProjectIssuePanelProps) {
-  const { t } = useTranslation("issues");
+  const { t } = useTranslation(["issues", "projects"]);
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
 
@@ -350,23 +342,24 @@ export function ProjectIssuePanel({
 
         {/* Meta row */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          {/* Status */}
+          {/* Status — uses the project status colors + taxonomy labels so the
+              detail badge matches the issues list and the rest of the app. */}
           {permissions.canEditStatus
             ? (
                 <Select value={issue.status} onValueChange={v => v !== null && patch({ status: v as typeof issue.status })}>
                   <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
-                    <Badge variant={statusVariants[issue.status]} className="cursor-pointer">
-                      {t(`status${statusKey(issue.status)}`)}
+                    <Badge variant="secondary" className={cn("cursor-pointer", ISSUE_STATUS_BADGE[issue.status])}>
+                      {t(`projects:issues.group.${issue.status}` as const)}
                     </Badge>
                   </SelectTrigger>
                   <SelectContent>
                     {STATUSES.map(s => (
-                      <SelectItem key={s} value={s}>{t(`status${statusKey(s)}`)}</SelectItem>
+                      <SelectItem key={s} value={s}>{t(`projects:issues.group.${s}` as const)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )
-            : <Badge variant={statusVariants[issue.status]}>{t(`status${statusKey(issue.status)}`)}</Badge>}
+            : <Badge variant="secondary" className={ISSUE_STATUS_BADGE[issue.status]}>{t(`projects:issues.group.${issue.status}` as const)}</Badge>}
 
           {/* Priority */}
           {permissions.canEditAll
