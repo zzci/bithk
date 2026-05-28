@@ -1,3 +1,29 @@
+CREATE TABLE `contact_tags` (
+	`contact_id` text NOT NULL,
+	`tag_id` text NOT NULL,
+	PRIMARY KEY(`contact_id`, `tag_id`),
+	FOREIGN KEY (`contact_id`) REFERENCES `contacts`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `contacts` (
+	`id` text PRIMARY KEY NOT NULL,
+	`owner_id` text NOT NULL,
+	`name` text NOT NULL,
+	`contact_person` text,
+	`phone` text,
+	`email` text,
+	`address` text,
+	`tax_id` text,
+	`note` text,
+	`status` text DEFAULT 'active' NOT NULL,
+	`visibility` text DEFAULT 'private' NOT NULL,
+	`confidential` integer DEFAULT false NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX `contacts_owner_idx` ON `contacts` (`owner_id`);--> statement-breakpoint
 CREATE TABLE `auth_lockouts` (
 	`key` text PRIMARY KEY NOT NULL,
 	`failures` integer DEFAULT 0 NOT NULL,
@@ -261,6 +287,17 @@ CREATE TABLE `issue_details` (
 );
 --> statement-breakpoint
 CREATE INDEX `issue_project_idx` ON `issue_details` (`project_id`);--> statement-breakpoint
+CREATE TABLE `issue_references` (
+	`id` text PRIMARY KEY NOT NULL,
+	`item_id` text NOT NULL,
+	`ref_type` text NOT NULL,
+	`ref_id` text NOT NULL,
+	`label` text,
+	`created_at` text NOT NULL,
+	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `issue_references_item_idx` ON `issue_references` (`item_id`);--> statement-breakpoint
 CREATE TABLE `item_comments` (
 	`id` text PRIMARY KEY NOT NULL,
 	`item_id` text NOT NULL,
@@ -286,6 +323,8 @@ CREATE TABLE `items` (
 	`status` text NOT NULL,
 	`creator_id` text NOT NULL,
 	`version` integer DEFAULT 1 NOT NULL,
+	`pinned` integer DEFAULT false NOT NULL,
+	`pinned_at` text,
 	`deleted_at` text,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`creator_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
@@ -295,6 +334,7 @@ CREATE UNIQUE INDEX `idx_items_short_id` ON `items` (`short_id`);--> statement-b
 CREATE INDEX `idx_items_type_deleted` ON `items` (`type`,`deleted_at`);--> statement-breakpoint
 CREATE INDEX `idx_items_creator_deleted` ON `items` (`creator_id`,`deleted_at`);--> statement-breakpoint
 CREATE INDEX `idx_items_type_status_deleted` ON `items` (`type`,`status`,`deleted_at`);--> statement-breakpoint
+CREATE INDEX `idx_items_pinned` ON `items` (`pinned`,`pinned_at`);--> statement-breakpoint
 CREATE TABLE `relation_tuples` (
 	`id` text PRIMARY KEY NOT NULL,
 	`namespace` text NOT NULL,
@@ -323,12 +363,21 @@ CREATE TABLE `procurement_details` (
 	`currency` text,
 	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`supplier_id`) REFERENCES `project_contacts`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`supplier_id`) REFERENCES `contacts`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`category_id`) REFERENCES `procurement_categories`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`assignee_member_id`) REFERENCES `project_members`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `procurement_project_idx` ON `procurement_details` (`project_id`);--> statement-breakpoint
+CREATE TABLE `global_procurement_categories` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`code` text,
+	`description` text,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `procurement_categories` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
@@ -341,25 +390,6 @@ CREATE TABLE `procurement_categories` (
 );
 --> statement-breakpoint
 CREATE INDEX `procurement_categories_project_idx` ON `procurement_categories` (`project_id`);--> statement-breakpoint
-CREATE TABLE `project_contacts` (
-	`id` text PRIMARY KEY NOT NULL,
-	`project_id` text NOT NULL,
-	`type` text NOT NULL,
-	`name` text NOT NULL,
-	`contact_person` text,
-	`phone` text,
-	`email` text,
-	`address` text,
-	`tax_id` text,
-	`rating` integer,
-	`status` text DEFAULT 'active' NOT NULL,
-	`note` text,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL,
-	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `project_contacts_project_type_idx` ON `project_contacts` (`project_id`,`type`);--> statement-breakpoint
 CREATE TABLE `project_members` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
@@ -404,16 +434,21 @@ CREATE TABLE `projects` (
 	`name` text NOT NULL,
 	`status` text DEFAULT 'active' NOT NULL,
 	`description` text,
+	`ship_id` text,
+	`cover_reference_id` text,
 	`creator_id` text NOT NULL,
 	`version` integer DEFAULT 1 NOT NULL,
 	`deleted_at` text,
 	`updated_at` text NOT NULL,
+	FOREIGN KEY (`ship_id`) REFERENCES `ships`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`cover_reference_id`) REFERENCES `file_references`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`creator_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `projects_short_id_idx` ON `projects` (`short_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `projects_code_idx` ON `projects` (`code`);--> statement-breakpoint
 CREATE INDEX `projects_status_idx` ON `projects` (`status`,`deleted_at`);--> statement-breakpoint
+CREATE INDEX `projects_ship_idx` ON `projects` (`ship_id`);--> statement-breakpoint
 CREATE TABLE `tags` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -455,4 +490,70 @@ CREATE INDEX `shares_resource_idx` ON `shares` (`resource_type`,`resource_id`);-
 CREATE INDEX `shares_created_by_idx` ON `shares` (`created_by`);--> statement-breakpoint
 CREATE INDEX `shares_shared_with_idx` ON `shares` (`shared_with_user_id`);--> statement-breakpoint
 CREATE INDEX `shares_share_type_idx` ON `shares` (`share_type`);--> statement-breakpoint
-CREATE INDEX `shares_active_expires_idx` ON `shares` (`is_active`,`expires_at`);
+CREATE INDEX `shares_active_expires_idx` ON `shares` (`is_active`,`expires_at`);--> statement-breakpoint
+CREATE TABLE `maintenance_templates` (
+	`id` text PRIMARY KEY NOT NULL,
+	`ship_id` text,
+	`name` text NOT NULL,
+	`category` text,
+	`checklist` text,
+	`precautions` text,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`ship_id`) REFERENCES `ships`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `maintenance_templates_ship_idx` ON `maintenance_templates` (`ship_id`);--> statement-breakpoint
+CREATE TABLE `ship_equipment` (
+	`id` text PRIMARY KEY NOT NULL,
+	`ship_id` text NOT NULL,
+	`name` text NOT NULL,
+	`category` text,
+	`manufacturer` text,
+	`model` text,
+	`serial_number` text,
+	`location` text,
+	`installed_at` text,
+	`status` text DEFAULT 'active' NOT NULL,
+	`note` text,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`ship_id`) REFERENCES `ships`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `ship_equipment_ship_idx` ON `ship_equipment` (`ship_id`);--> statement-breakpoint
+CREATE TABLE `ships` (
+	`id` text PRIMARY KEY NOT NULL,
+	`short_id` text NOT NULL,
+	`code` text NOT NULL,
+	`name` text NOT NULL,
+	`status` text DEFAULT 'active' NOT NULL,
+	`base_project_id` text,
+	`model` text,
+	`builder` text,
+	`build_year` integer,
+	`length_overall` real,
+	`beam` real,
+	`draft` real,
+	`gross_tonnage` real,
+	`imo_number` text,
+	`mmsi` text,
+	`call_sign` text,
+	`flag_state` text,
+	`registry_port` text,
+	`owner_name` text,
+	`description` text,
+	`cover_reference_id` text,
+	`creator_id` text NOT NULL,
+	`version` integer DEFAULT 1 NOT NULL,
+	`deleted_at` text,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`base_project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`cover_reference_id`) REFERENCES `file_references`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`creator_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `ships_short_id_idx` ON `ships` (`short_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `ships_code_idx` ON `ships` (`code`);--> statement-breakpoint
+CREATE INDEX `ships_status_idx` ON `ships` (`status`,`deleted_at`);--> statement-breakpoint
+CREATE INDEX `ships_base_project_idx` ON `ships` (`base_project_id`);
