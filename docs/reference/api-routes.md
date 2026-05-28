@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 204 routes total.
+> 209 routes total.
 
 | Method | Path |
 |---|---|
@@ -176,6 +176,9 @@
 | POST | `/api/projects/:projectId/issues/:id/comments/:cid/attachments` |
 | DELETE | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` |
+| POST | `/api/projects/:projectId/issues/:id/pin` |
+| POST | `/api/projects/:projectId/issues/:id/unpin` |
+| GET | `/api/projects/:projectId/pinned-items` |
 | GET | `/api/projects/:projectId/procurements` |
 | POST | `/api/projects/:projectId/procurements` |
 | DELETE | `/api/projects/:projectId/procurements/:id` |
@@ -188,7 +191,9 @@
 | POST | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments` |
 | DELETE | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments/:aid` |
+| POST | `/api/projects/:projectId/procurements/:id/pin` |
 | POST | `/api/projects/:projectId/procurements/:id/status` |
+| POST | `/api/projects/:projectId/procurements/:id/unpin` |
 | GET | `/api/settings` |
 | DELETE | `/api/settings/:key` |
 | GET | `/api/settings/:key` |

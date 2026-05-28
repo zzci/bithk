@@ -1,7 +1,9 @@
 import type { AppDatabase, RunResult } from "@/db";
 import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
+import { procurementDetails } from "@/modules/procurement/schema";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 
@@ -317,6 +319,92 @@ export async function listItemsByType(
     .all();
 
   return { data, total };
+}
+
+/**
+ * Pin or unpin an item. Pinning stamps `pinned_at = now`; unpinning clears it
+ * back to NULL. The version is bumped and `updated_at` refreshed on every
+ * successful write, matching the other item mutations so optimistic reads keep
+ * observing a monotonic counter. Scoped to live (non-soft-deleted) rows.
+ *
+ * Capability gating lives at the route layer (issue.manage / procurement.manage
+ * as appropriate) — this primitive trusts its caller.
+ */
+export async function setItemPinned(db: AppDatabase, id: string, pinned: boolean): Promise<ItemRow | undefined> {
+  const now = new Date().toISOString();
+  await db
+    .update(items)
+    .set({
+      pinned,
+      pinnedAt: pinned ? now : null,
+      updatedAt: now,
+      version: sql`${items.version} + 1`,
+    })
+    .where(and(eq(items.id, id), isNull(items.deletedAt)))
+    .run();
+
+  return await db.select().from(items).where(eq(items.id, id)).get();
+}
+
+/** A pinned-item entry as rendered in the project overview Pin area. */
+export interface PinnedItem {
+  readonly id: string; // internal ULID
+  readonly shortId: string; // external 8-char id used in URLs
+  readonly type: string; // "issue" | "procurement" | …
+  readonly title: string;
+  readonly status: string;
+  readonly pinnedAt: string;
+}
+
+/**
+ * List a project's pinned items as the union of pinned issues and pinned
+ * procurements, ordered by `pinned_at DESC` (most-recently-pinned first).
+ *
+ * Procurement visibility is the caller's responsibility: pass
+ * `includeProcurements: false` to omit pinned procurements entirely (the route
+ * layer sets this from the `procurement.view` capability). When false, only
+ * pinned issues are returned. Soft-deleted items are always excluded; rows with
+ * a NULL `pinned_at` cannot occur because `setItemPinned` always stamps it when
+ * pinning.
+ */
+export async function listPinnedByProject(
+  db: AppDatabase,
+  projectId: string,
+  options: { readonly includeProcurements: boolean },
+): Promise<PinnedItem[]> {
+  const issueRows = await db
+    .select({
+      id: items.id,
+      shortId: items.shortId,
+      type: items.type,
+      title: items.title,
+      status: items.status,
+      pinnedAt: items.pinnedAt,
+    })
+    .from(items)
+    .innerJoin(issueDetails, eq(issueDetails.itemId, items.id))
+    .where(and(eq(items.pinned, true), isNull(items.deletedAt), eq(issueDetails.projectId, projectId)))
+    .all();
+
+  const procurementRows = options.includeProcurements
+    ? await db
+        .select({
+          id: items.id,
+          shortId: items.shortId,
+          type: items.type,
+          title: items.title,
+          status: items.status,
+          pinnedAt: items.pinnedAt,
+        })
+        .from(items)
+        .innerJoin(procurementDetails, eq(procurementDetails.itemId, items.id))
+        .where(and(eq(items.pinned, true), isNull(items.deletedAt), eq(procurementDetails.projectId, projectId)))
+        .all()
+    : [];
+
+  return [...issueRows, ...procurementRows]
+    .map(r => ({ ...r, pinnedAt: r.pinnedAt ?? "" }))
+    .sort((a, b) => (a.pinnedAt < b.pinnedAt ? 1 : a.pinnedAt > b.pinnedAt ? -1 : 0));
 }
 
 /**

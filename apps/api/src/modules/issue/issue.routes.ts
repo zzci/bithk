@@ -13,6 +13,7 @@ import {
   uploadAndReference,
 } from "@/modules/file";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
+import { setItemPinned } from "@/modules/item/item.service";
 import { isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
@@ -237,6 +238,33 @@ export function issueRoutes() {
 
     return c.json({ success: true, data: updated });
   });
+
+  // ─── Pin / Unpin ───────────────────────────────────────────────────
+  // Pinning is a manage-level curation action: an app admin or a member who
+  // can edit the issue (pm via `issue.manage`, or the creator) may pin/unpin.
+  // A status-only assignee cannot. Mirrors the edit gate in the PATCH route.
+  for (const pinned of [true, false] as const) {
+    router.post(`/projects/:projectId/issues/:id/${pinned ? "pin" : "unpin"}`, async (c) => {
+      const { db, user, issueShort, item, access, isAdmin } = await loadProjectIssue(c);
+      if (!isAdmin && !access.canEdit)
+        throw new ForbiddenError();
+      await setItemPinned(db, item.id, pinned);
+      const updated = await getIssueByShortId(db, issueShort);
+      if (!updated)
+        throw new NotFoundError("Issue", issueShort);
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: pinned ? "issue.pinned" : "issue.unpinned",
+        resourceType: "issue",
+        resourceId: issueShort,
+        resourceName: updated.title,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: updated });
+    });
+  }
 
   // ─── Delete (soft) ─────────────────────────────────────────────────
   router.delete("/projects/:projectId/issues/:id", async (c) => {

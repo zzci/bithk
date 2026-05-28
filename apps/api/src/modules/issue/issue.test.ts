@@ -54,6 +54,8 @@ const SCHEMA_DDL: readonly string[] = [
     status TEXT NOT NULL,
     creator_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     version INTEGER NOT NULL DEFAULT 1,
+    pinned INTEGER NOT NULL DEFAULT false,
+    pinned_at TEXT,
     deleted_at TEXT,
     updated_at TEXT NOT NULL
   )`,
