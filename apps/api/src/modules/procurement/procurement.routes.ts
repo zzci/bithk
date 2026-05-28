@@ -3,6 +3,7 @@ import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
+import { setItemPinned } from "@/modules/item/item.service";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { NotFoundError } from "@/shared/lib/errors";
@@ -155,6 +156,25 @@ export function procurementRoutes() {
     await softDeleteProcurement(db, procurement.id);
     return c.json({ success: true, data: null });
   });
+
+  // ─── Pin / Unpin ───────────────────────────────────────────────────
+  // Curation action gated on `procurement.manage` (admins bypass), same as the
+  // other procurement mutations. `requireProcurement(needManage=true)` also
+  // fail-closes non-members and view-only members to 404.
+  for (const pinned of [true, false] as const) {
+    router.post(`/projects/:projectId/procurements/:id/${pinned ? "pin" : "unpin"}`, async (c) => {
+      const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"), true);
+      const db = c.get("db");
+      const item = await resolveProcurementItem(db, procurement.id);
+      if (!item)
+        throw new NotFoundError("Procurement", procurement.id);
+      await setItemPinned(db, item.id, pinned);
+      const updated = await getProcurementByShortId(db, procurement.id);
+      if (!updated)
+        throw new NotFoundError("Procurement", procurement.id);
+      return c.json({ success: true, data: updated });
+    });
+  }
 
   // ─── Status change ─────────────────────────────────────────────────
   router.post("/projects/:projectId/procurements/:id/status", async (c) => {

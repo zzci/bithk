@@ -59,6 +59,10 @@ export interface ProcurementRow {
   readonly createdAt: string; // decoded from items.id (ULID timestamp prefix)
   readonly updatedAt: string;
   readonly version: number;
+  // Pin state lives on the shared `items` base. Pinned procurements surface in
+  // the project overview Pin area; `pinnedAt` is set when pinned, NULL otherwise.
+  readonly pinned: boolean;
+  readonly pinnedAt: string | null;
 }
 
 function composeProcurement(
@@ -82,6 +86,8 @@ function composeProcurement(
     createdAt: ulidTimestamp(item.id),
     updatedAt: item.updatedAt,
     version: item.version,
+    pinned: item.pinned,
+    pinnedAt: item.pinnedAt,
   };
 }
 

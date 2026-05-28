@@ -41,6 +41,10 @@ export interface IssueRow {
   readonly createdAt: string; // decoded from items.id (ULID timestamp prefix)
   readonly updatedAt: string;
   readonly version: number;
+  // Pin state lives on the shared `items` base. Pinned issues surface in the
+  // project overview Pin area; `pinnedAt` is set when pinned, NULL otherwise.
+  readonly pinned: boolean;
+  readonly pinnedAt: string | null;
 }
 
 // Crockford base32 → ms decode for the ULID timestamp prefix that lives on
@@ -97,6 +101,8 @@ async function composeIssue(
     createdAt: ulidTimestamp(item.id),
     updatedAt: item.updatedAt,
     version: item.version,
+    pinned: item.pinned,
+    pinnedAt: item.pinnedAt,
   };
 }
 

@@ -19,6 +19,12 @@ export const items = sqliteTable("items", {
   status: text("status").notNull(),
   creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   version: integer("version").notNull().default(1),
+  // Pin flag shared by every sub-type (issue, procurement, …). Pinned items
+  // surface in the project overview's Pin area. `pinned_at` records when the
+  // pin was set so the Pin area can order by most-recently-pinned; it is
+  // cleared back to NULL on unpin.
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+  pinnedAt: text("pinned_at"),
   deletedAt: text("deleted_at"),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()).$onUpdateFn(() => new Date().toISOString()),
 }, t => [
@@ -26,6 +32,8 @@ export const items = sqliteTable("items", {
   index("idx_items_type_deleted").on(t.type, t.deletedAt),
   index("idx_items_creator_deleted").on(t.creatorId, t.deletedAt),
   index("idx_items_type_status_deleted").on(t.type, t.status, t.deletedAt),
+  // Backs the project Pin area: pinned rows ordered by most-recently-pinned.
+  index("idx_items_pinned").on(t.pinned, t.pinnedAt),
 ]);
 
 export const itemComments = sqliteTable("item_comments", {

@@ -9,6 +9,9 @@ import { documentRoutes } from "@/modules/document";
 import { driveRoutes } from "@/modules/drive";
 import { fileRoutes } from "@/modules/file";
 import { issueRoutes } from "@/modules/issue";
+// Importing `itemRoutes` also runs the `item` module's load-time side effects
+// (backup contribution + the `item_attachment` file permission hooks).
+import { itemRoutes } from "@/modules/item";
 import { policyRoutes } from "@/modules/policy";
 import { procurementRoutes } from "@/modules/procurement";
 import { projectRoutes } from "@/modules/project";
@@ -17,16 +20,13 @@ import { settingsRoutes } from "@/modules/settings";
 import { shareRoutes } from "@/modules/share";
 import { shipRoutes } from "@/modules/ship";
 import { maintenanceTemplateRoutes } from "@/modules/ship/ship.maintenance-template.service";
-// Side-effect import: the `item` module ships no HTTP routes; it registers
-// its backup contribution and the `item_attachment` file permission hook at
-// load time.
-import "@/modules/item";
 
 export function protectedRoutes() {
   const app = new Hono<AppEnv>();
 
   app.route("/", accountRoutes());
   app.route("/", issueRoutes());
+  app.route("/", itemRoutes());
   app.route("/", policyRoutes());
   app.route("/", projectRoutes());
   app.route("/", contactRoutes());
