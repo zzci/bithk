@@ -3,9 +3,9 @@ import type { Config } from "@/config";
 import type { AppDatabase, AppTransaction } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import { releaseReference, uploadAndReference } from "@/modules/file";
+import { getReferenceById, releaseReference, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
-import { getSetting } from "@/modules/settings/settings.service";
+import { deleteSetting, getSetting, setSetting } from "@/modules/settings/settings.service";
 import { ships } from "@/modules/ship/schema";
 import { ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
@@ -22,6 +22,15 @@ const TAG_NAME_MAX = 50;
 
 /** owner_type discriminator for a project's cover image file reference. */
 export const PROJECT_COVER_OWNER_TYPE = "project_cover";
+
+/**
+ * owner_type / owner_id for the single GLOBAL default-cover file reference.
+ * Distinct from `project_cover` so the GC/orphan-sweep never confuses the
+ * shared default with a per-project cover. The default is a singleton, so the
+ * owner_id is a fixed sentinel rather than a project id.
+ */
+export const PROJECT_DEFAULT_COVER_OWNER_TYPE = "project_cover_default";
+const PROJECT_DEFAULT_COVER_OWNER_ID = "global";
 
 /** Build the inline content URL the frontend renders in an <img>. */
 function buildCoverUrl(fileId: string, referenceId: string): string {
@@ -597,6 +606,72 @@ export async function removeProjectCover(
   await releaseReference(db, config, { referenceId: previous });
 
   return await db.select().from(projects).where(eq(projects.id, projectId)).get();
+}
+
+// ─── Global default cover ───────────────────────────────────────────────────
+//
+// One shared cover image, applied to new projects at creation
+// (`resolveDefaultCoverReferenceId` reads PROJECT_DEFAULT_COVER_KEY). Modelled
+// as a `project_cover_default` file reference whose id is stored in that
+// setting. Replace/remove release the prior reference so no blob is orphaned.
+
+export interface DefaultCoverView {
+  readonly referenceId: string | null;
+  readonly url: string | null;
+}
+
+/**
+ * Read the current global default cover. Returns nulls when unset or when the
+ * stored reference no longer exists (dangling default), mirroring
+ * `resolveDefaultCoverReferenceId`.
+ */
+export async function getDefaultProjectCover(db: AppDatabase): Promise<DefaultCoverView> {
+  const referenceId = await getSetting(db, PROJECT_DEFAULT_COVER_KEY);
+  if (!referenceId)
+    return { referenceId: null, url: null };
+  const reference = await getReferenceById(db, referenceId);
+  if (!reference)
+    return { referenceId: null, url: null };
+  return { referenceId, url: buildCoverUrl(reference.fileId, referenceId) };
+}
+
+/**
+ * Upload / replace the global default cover. Stores the new reference id in
+ * PROJECT_DEFAULT_COVER_KEY and releases the previous reference (if any) so the
+ * key always points at a live reference that create-seeding can consume.
+ */
+export async function setDefaultProjectCover(
+  db: AppDatabase,
+  config: Config,
+  file: File,
+  uploadedBy: string,
+): Promise<DefaultCoverView> {
+  const previous = await getSetting(db, PROJECT_DEFAULT_COVER_KEY);
+
+  const { reference, file: stored } = await uploadAndReference(db, config, {
+    file,
+    ownerType: PROJECT_DEFAULT_COVER_OWNER_TYPE,
+    ownerId: PROJECT_DEFAULT_COVER_OWNER_ID,
+    uploadedBy,
+  });
+
+  await setSetting(db, PROJECT_DEFAULT_COVER_KEY, reference.id, { updatedBy: uploadedBy });
+
+  if (previous && previous !== reference.id)
+    await releaseReference(db, config, { referenceId: previous });
+
+  return { referenceId: reference.id, url: buildCoverUrl(stored.id, reference.id) };
+}
+
+/**
+ * Remove the global default cover: release the current reference (if any) and
+ * clear the setting. Idempotent — safe to call when no default is set.
+ */
+export async function removeDefaultProjectCover(db: AppDatabase, config: FileServiceConfig): Promise<void> {
+  const previous = await getSetting(db, PROJECT_DEFAULT_COVER_KEY);
+  await deleteSetting(db, PROJECT_DEFAULT_COVER_KEY);
+  if (previous)
+    await releaseReference(db, config, { referenceId: previous });
 }
 
 // ─── Member CRUD ────────────────────────────────────────────────────────

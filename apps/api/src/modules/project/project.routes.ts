@@ -34,15 +34,18 @@ import {
   createProject,
   createTag,
   deleteTag,
+  getDefaultProjectCover,
   getMemberCapabilities,
   getProjectByShortId,
   listMembers,
   listProjects,
   listTags,
+  removeDefaultProjectCover,
   removeMember,
   removeProjectCover,
   renameTag,
   resolveProjectId,
+  setDefaultProjectCover,
   setProjectCover,
   softDeleteProject,
   updateMember,
@@ -235,6 +238,38 @@ export function projectRoutes() {
     const id = c.req.param("id");
     if (!await deleteGlobalCategory(db, id))
       throw new NotFoundError("Global procurement category", id);
+    return c.json({ success: true, data: null });
+  });
+
+  // ─── Global default project cover (admin only) ────────────────────
+  // Backs the admin "Project Defaults" cover picker. The reference id is
+  // stored in PROJECT_DEFAULT_COVER_KEY, which project create-seeding reads
+  // to apply this cover to new projects. A distinct owner_type
+  // ("project_cover_default") keeps it separate from per-project covers.
+
+  // GET — preview the current default cover (nulls when unset).
+  router.get("/admin/project-default-cover", adminRequired, async (c) => {
+    const db = c.get("db");
+    return c.json({ success: true, data: await getDefaultProjectCover(db) });
+  });
+
+  // POST (multipart `file`) — upload / replace the default cover.
+  router.post("/admin/project-default-cover", adminRequired, async (c) => {
+    const db = c.get("db");
+    const formData = await c.req.formData();
+    const file = formData.get("file");
+    if (!(file instanceof File))
+      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+    if (!file.type.startsWith("image/"))
+      throw new AppError("Cover image must be an image file", 400, "INVALID_MIMETYPE");
+    const result = await setDefaultProjectCover(db, c.get("config"), file, actorId(c));
+    return c.json({ success: true, data: result });
+  });
+
+  // DELETE — release + clear the default cover (idempotent).
+  router.delete("/admin/project-default-cover", adminRequired, async (c) => {
+    const db = c.get("db");
+    await removeDefaultProjectCover(db, c.get("config"));
     return c.json({ success: true, data: null });
   });
 

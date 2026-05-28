@@ -170,6 +170,45 @@ describe("auth gating", () => {
   });
 });
 
+describe("admin default-cover routes are admin-gated", () => {
+  test("GET → 401 without a session", async () => {
+    const res = await buildApp(db).request("/admin/project-default-cover");
+    expect(res.status).toBe(401);
+  });
+
+  test("GET → 403 for a non-admin user", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("user");
+    const res = await app.request("/admin/project-default-cover", { headers: { Cookie: cookie } });
+    expect(res.status).toBe(403);
+  });
+
+  test("POST → 403 for a non-admin user", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("user");
+    const res = await app.request("/admin/project-default-cover", { method: "POST", headers: { Cookie: cookie } });
+    expect(res.status).toBe(403);
+  });
+
+  test("DELETE → 403 for a non-admin user", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("user");
+    const res = await app.request("/admin/project-default-cover", { method: "DELETE", headers: { Cookie: cookie } });
+    expect(res.status).toBe(403);
+  });
+
+  test("POST → 400 for admin when no file is provided", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request("/admin/project-default-cover", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: new FormData(),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("POST /projects (admin only)", () => {
   test("admin creates a project and becomes its pm member", async () => {
     const app = buildApp(db);
