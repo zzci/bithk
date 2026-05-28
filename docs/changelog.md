@@ -60,17 +60,58 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Issue detail backend parity (FIX-006 / PLAN-027): current project-scoped
+  issue details were compared against the original global issue details from
+  `/app/zzci/access`. No non-UI behavior gap was found; focused API tests now
+  lock project-scoped detail comments, attachments, and fail-closed non-member
+  access without changing frontend UI.
+
+- Project overview list polish (UI-019 / PLAN-028): the pinned-items, latest
+  work-order, and latest-procurement cards now share one row rhythm — title
+  first, then a wrapping metadata line (kind/status badges and date) that stays
+  aligned and reflows on narrow screens. Loading and empty states render as
+  intentional centred muted blocks instead of loose body text. Data hooks,
+  permission gating, pinned behaviour, and tab navigation are unchanged.
+
 - Project overview metadata simplification (UI-017 / PLAN-025): creator, last
   updated, tags, and description now read as one unified project information
   card, and the right-side work-order / procurement summary metric tiles are
   gone. Pinned work and the latest work-order / procurement list cards are
   unchanged.
 
+- Global typed tag vocabulary (FEAT-015 / PLAN-023): the shared `tags` table
+  moved out of the project module into `@/modules/tag` and gained a
+  `source_type` discriminator (`project` / `contact` / `document`) with
+  uniqueness scoped to `(source_type, name)`. Project, contact, and document
+  tags now have independent namespaces, so the same word can exist as a project
+  tag and a contact tag without colliding; duplicates are rejected only within
+  one source type. Document tags became first-class rows through a new
+  `document_tags` join over the typed vocabulary instead of the legacy
+  `document_details.tags` JSON column. The document API response keeps its
+  JSON-string `tags` shape, so the frontend contract is unchanged. The admin
+  `/api/tags` endpoints accept an optional `type` (`project` by default) to
+  list, create, rename, and delete any typed vocabulary. Breaking: the `tags`
+  table schema changed and `tags.name` is no longer globally unique.
+
 - Project overview page polish (UI-015 / PLAN-022): the overview tab now uses a
   restrained card-based dashboard with summary metrics, clearer description,
   pinned work, and recent activity groups. Rows use a responsive two-line
   structure so titles, status badges, and dates remain scannable on narrow
   screens.
+
+- Project work-order list redesign (UI-016 / PLAN-024): the project issues tab
+  now removes top status filters and view switching in favor of compact
+  status-grouped lists with visible counts. The toolbar keeps search and create,
+  while rows preserve detail navigation, pinning, priority, assignee, and due
+  date metadata with responsive wrapping.
+- Project work-order grouped-list refinement (UI-018 / PLAN-026): work-order
+  status groups are collapsible, empty groups are hidden, cancelled appears only
+  when populated, and rows now use a lighter single-line order of title,
+  priority, assignee, and due date. Search moved to a compact header trigger
+  beside settings, while create and priority filtering remain in the tab
+  toolbar. The create dialog is wider, gives description more room, opens the
+  native due-date picker directly from the field, and includes a supported-status
+  selector with restrained semantic cues.
 
 - Create-project dialog reworked to a Linear-style layout (UI-012): a borderless
   title and description, an existing-tag combobox sourced from the global tag

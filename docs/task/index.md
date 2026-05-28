@@ -42,3 +42,9 @@
 | [REFACTOR-004](REFACTOR-004.md) | Remove the ship lifecycle concept (keep status only) | - | Done | 2026-05-28 |
 | [UI-014](UI-014.md) | Left-nav project settings dialog + tag picker fixes | - | Done | 2026-05-28 |
 | [UI-015](UI-015.md) | Improve project overview information hierarchy | [PLAN-022](../plan/PLAN-022.md) | Done | 2026-05-28 |
+| [FEAT-015](FEAT-015.md) | Introduce global typed tags | [PLAN-023](../plan/PLAN-023.md) | Done | 2026-05-28 |
+| [UI-016](UI-016.md) | Redesign project work-order list by status | [PLAN-024](../plan/PLAN-024.md) | Done | 2026-05-28 |
+| [UI-017](UI-017.md) | Simplify project overview metadata layout | [PLAN-025](../plan/PLAN-025.md) | Done | 2026-05-28 |
+| [UI-018](UI-018.md) | Refine collapsible project work-order grouped list | [PLAN-026](../plan/PLAN-026.md) | Done | 2026-05-28 |
+| [FIX-006](FIX-006.md) | Restore original issue detail behavior without UI changes | [PLAN-027](../plan/PLAN-027.md) | Done | 2026-05-28 |
+| [UI-019](UI-019.md) | Polish project overview lists | [PLAN-028](../plan/PLAN-028.md) | Completed | 2026-05-28 |

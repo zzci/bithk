@@ -24,3 +24,9 @@
 | [PLAN-020](PLAN-020.md) | Repeatable database seed script | Done | 2026-05-25 |
 | [PLAN-021](PLAN-021.md) | Ships/projects/contacts shadcn baseline normalization | Done | 2026-05-25 |
 | [PLAN-022](PLAN-022.md) | Project overview hierarchy polish | Done | 2026-05-28 |
+| [PLAN-023](PLAN-023.md) | Global typed tags model | Completed | 2026-05-28 |
+| [PLAN-024](PLAN-024.md) | Status-grouped project work-order list | Done | 2026-05-28 |
+| [PLAN-025](PLAN-025.md) | Project overview metadata layout simplification | Done | 2026-05-28 |
+| [PLAN-026](PLAN-026.md) | Collapsible project work-order grouped list refinement | Done | 2026-05-28 |
+| [PLAN-027](PLAN-027.md) | Original issue detail behavior migration | Completed | 2026-05-28 |
+| [PLAN-028](PLAN-028.md) | Project overview list polish | Done | 2026-05-28 |
