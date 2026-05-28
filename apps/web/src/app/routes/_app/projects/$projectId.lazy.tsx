@@ -224,7 +224,10 @@ function ProjectDetailPage() {
         )}
 
         <TabsContent value="files" className="pt-6">
-          <div className="h-[calc(100svh-18rem)] min-h-[24rem]">
+          {/* -mx-4 cancels the drive surface's internal px-4 gutter so file rows
+              align flush with the other tabs' content (the layout main has ≥16px
+              horizontal padding, so this never overflows). */}
+          <div className="-mx-4 h-[calc(100svh-18rem)] min-h-[24rem]">
             <FileBrowser
               ownerType="project"
               ownerId={project.id}
