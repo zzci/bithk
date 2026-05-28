@@ -27,6 +27,7 @@ import { projectRoutes } from "@/modules/project";
 import { settingsRoutes } from "@/modules/settings";
 import { sharePublicRoutes, shareRoutes } from "@/modules/share";
 import { systemRoutes } from "@/modules/system";
+import { tagRoutes } from "@/modules/tag";
 
 const { values: cli } = parseArgs({
   args: process.argv.slice(2),
@@ -47,6 +48,7 @@ app.route("/", itemRoutes());
 app.route("/", policyRoutes());
 app.route("/", projectRoutes());
 app.route("/", contactRoutes());
+app.route("/", tagRoutes());
 app.route("/", procurementRoutes());
 app.route("/", documentRoutes());
 app.route("/", driveRoutes());
