@@ -138,7 +138,7 @@ describe("project cover", () => {
     await setProjectCover(db, testConfig(), project.id, pngFile(), creator);
     const ref = { ownerId: project.id } as Parameters<typeof projectCoverPermissionHook.canDelete>[2];
 
-    // The creator is seeded as the Project Manager member → has project.manage.
+    // The creator is seeded as the Project Owner member → has project.manage.
     expect(await projectCoverPermissionHook.canDelete(db, { id: creator, role: "user" }, ref)).toBe(true);
 
     // A plain member (Member role) holds no manage capability.

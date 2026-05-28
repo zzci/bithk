@@ -87,7 +87,7 @@ describe("createProject", () => {
     expect(project.code).toContain("P-");
 
     const roles = await listRoles(db, project.id);
-    expect(roles.map(r => r.name).sort()).toEqual(["Member", "Project Manager"]);
+    expect(roles.map(r => r.name).sort()).toEqual(["Member", "Project Owner"]);
     const pmRole = roles.find(r => r.isSystem === 1)!;
     expect(parseCapabilities(pmRole.capabilities)).toContain("project.manage");
 
