@@ -188,6 +188,30 @@ describe("projectIssuesTab", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  it("pins an issue row via POST when the viewer can manage", async () => {
+    const user = userEvent.setup();
+    routeFetch([issue()]);
+    renderWithProviders(
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByText("Fix leak");
+    await user.click(screen.getByRole("button", { name: "Pin" }));
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "POST");
+      expect(post).toBeDefined();
+      expect(String(post![0])).toContain("/projects/p1/issues/i1/pin");
+    });
+  });
+
+  it("hides the pin toggle from viewers who cannot manage or own the issue", async () => {
+    routeFetch([issue()]);
+    renderWithProviders(
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />,
+    );
+    await screen.findByText("Fix leak");
+    expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument();
+  });
+
   it("switches to a status-based kanban view using existing issue statuses", async () => {
     const user = userEvent.setup();
     routeFetch([

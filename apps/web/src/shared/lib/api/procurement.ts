@@ -45,6 +45,9 @@ export interface ProcurementRow {
   readonly amount: number | null;
   readonly currency: string | null;
   readonly creatorId: string;
+  // Pin state from the shared item base; mirrors ProjectIssueRow.
+  readonly pinned: boolean;
+  readonly pinnedAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly version: number;

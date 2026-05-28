@@ -23,7 +23,11 @@
     "procurementStatusChanged": "Procurement status updated",
     "issueCreated": "Work order created",
     "issueUpdated": "Work order updated",
-    "issueDeleted": "Work order deleted"
+    "issueDeleted": "Work order deleted",
+    "issuePinned": "Work order pinned",
+    "issueUnpinned": "Work order unpinned",
+    "procurementPinned": "Procurement pinned",
+    "procurementUnpinned": "Procurement unpinned"
   },
   "list": {
     "create": "Create project",
@@ -98,8 +102,7 @@
     "settings": "Settings",
     "metrics": {
       "issues": "Work orders",
-      "procurement": "Procurement",
-      "members": "Members"
+      "procurement": "Procurement"
     }
   },
   "settings": {
@@ -116,20 +119,27 @@
     "overview": "Overview",
     "issues": "Work Orders",
     "procurement": "Procurement",
-    "members": "Members",
     "files": "Files"
   },
   "overview": {
-    "description": "Description",
-    "noDescription": "No description provided.",
     "creator": "Creator",
     "notSet": "Not set",
     "noTags": "No tags.",
-    "memberPreview": "Members",
-    "categoryPreview": "Procurement categories",
-    "categoriesLoading": "Loading categories...",
     "updatedAt": "Last updated",
-    "noMembers": "No members yet."
+    "announcement": "Announcement",
+    "noAnnouncement": "No announcement yet.",
+    "pinned": "Pinned",
+    "pinnedLoading": "Loading pinned items...",
+    "noPinned": "Nothing pinned yet. Pin a work order or procurement to surface it here.",
+    "pinKind": {
+      "issue": "Work order",
+      "procurement": "Procurement"
+    },
+    "pinAction": "Pin",
+    "unpinAction": "Unpin",
+    "latestIssues": "Latest work orders",
+    "latestProcurements": "Latest procurements",
+    "viewAll": "View all"
   },
   "issues": {
     "create": "Create work order",

@@ -5,10 +5,11 @@ import type {
   CreateProjectIssueInput,
   IssuePriority,
   IssueStatus,
+  ProjectIssueRow,
   ProjectMemberView,
 } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
-import { CalendarDays, LayoutGrid, List, Plus, SignalHigh, User, X } from "lucide-react";
+import { CalendarDays, LayoutGrid, List, Pin, PinOff, Plus, SignalHigh, User, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -47,9 +48,11 @@ import {
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
+import { useToggleIssuePin } from "@/shared/lib/api/pins";
 import { useCreateProjectIssue, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
+import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
 
 const PRIORITY_VARIANTS: Record<IssuePriority, "default" | "outline" | "secondary" | "destructive"> = {
@@ -68,11 +71,18 @@ interface ProjectIssuesTabProps {
   readonly projectId: string;
   readonly members: readonly ProjectMemberView[];
   readonly userNames: ReadonlyMap<string, string>;
+  /** Holds `issue.manage` (admins included). Combined with the creator check to gate the pin toggle. */
+  readonly canManage?: boolean;
 }
 
-export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssuesTabProps) {
+export function ProjectIssuesTab({ projectId, members, userNames, canManage = false }: ProjectIssuesTabProps) {
   const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
+  const currentUserId = useAuthStore(s => s.user?.id);
+
+  // Backend gates issue pinning on admin || issue.manage || creator. Mirror that
+  // here so the toggle never appears where a 403 would follow.
+  const canPin = (issue: ProjectIssueRow) => canManage || issue.creatorId === currentUserId;
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("__all__");
@@ -228,24 +238,30 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
                     {issues.filter(issue => issue.status === status).length === 0
                       ? <p className="px-1 py-4 text-center text-xs text-muted-foreground">{t("issues.emptyColumn")}</p>
                       : issues.filter(issue => issue.status === status).map(issue => (
-                          <button
-                            key={issue.id}
-                            type="button"
-                            className="rounded-md border bg-card p-3 text-left shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            onClick={() => openIssue(issue.id)}
-                          >
-                            <div className="line-clamp-2 text-sm font-medium">{issue.title}</div>
-                            <div className="mt-2 flex flex-wrap items-center gap-1">
-                              <Badge variant={PRIORITY_VARIANTS[issue.priority]} className="text-xs">
-                                {t(`issues.priority.${issue.priority}` as const)}
-                              </Badge>
-                              {issue.assigneeMemberId && (
-                                <Badge variant="outline" className="max-w-full truncate text-xs">
-                                  {memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId}
+                          <div key={issue.id} className="relative">
+                            <button
+                              type="button"
+                              className="w-full rounded-md border bg-card p-3 text-left shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              onClick={() => openIssue(issue.id)}
+                            >
+                              <div className="line-clamp-2 pr-7 text-sm font-medium">{issue.title}</div>
+                              <div className="mt-2 flex flex-wrap items-center gap-1">
+                                <Badge variant={PRIORITY_VARIANTS[issue.priority]} className="text-xs">
+                                  {t(`issues.priority.${issue.priority}` as const)}
                                 </Badge>
-                              )}
-                            </div>
-                          </button>
+                                {issue.assigneeMemberId && (
+                                  <Badge variant="outline" className="max-w-full truncate text-xs">
+                                    {memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId}
+                                  </Badge>
+                                )}
+                              </div>
+                            </button>
+                            {canPin(issue) && (
+                              <div className="absolute right-1 top-1">
+                                <IssuePinToggle projectId={projectId} issue={issue} />
+                              </div>
+                            )}
+                          </div>
                         ))}
                   </div>
                 </div>
@@ -262,13 +278,14 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
                     <TableHead>{t("issues.col.priority")}</TableHead>
                     <TableHead>{t("issues.col.assignee")}</TableHead>
                     <TableHead>{t("issues.col.dueDate")}</TableHead>
+                    <TableHead className="w-12" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {issuesQuery.isLoading
-                    ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">{t("issues.loading")}</TableCell></TableRow>
+                    ? <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">{t("issues.loading")}</TableCell></TableRow>
                     : issues.length === 0
-                      ? <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">{t("issues.empty")}</TableCell></TableRow>
+                      ? <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">{t("issues.empty")}</TableCell></TableRow>
                       : issues.map(issue => (
                           <TableRow
                             key={issue.id}
@@ -304,6 +321,9 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
                                 : <span className="text-muted-foreground">{t("issues.unassigned")}</span>}
                             </TableCell>
                             <TableCell className="text-sm">{issue.dueDate ?? "—"}</TableCell>
+                            <TableCell className="text-right">
+                              {canPin(issue) && <IssuePinToggle projectId={projectId} issue={issue} />}
+                            </TableCell>
                           </TableRow>
                         ))}
                 </TableBody>
@@ -328,6 +348,38 @@ export function ProjectIssuesTab({ projectId, members, userNames }: ProjectIssue
         onOpenChange={setCreateOpen}
       />
     </div>
+  );
+}
+
+interface IssuePinToggleProps {
+  readonly projectId: string;
+  readonly issue: ProjectIssueRow;
+}
+
+/** Ghost icon toggle that pins/unpins an issue, with success/error toasts. */
+function IssuePinToggle({ projectId, issue }: IssuePinToggleProps) {
+  const { t } = useTranslation(["projects", "common"]);
+  const togglePin = useToggleIssuePin();
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="size-8"
+      aria-pressed={issue.pinned}
+      aria-label={t(issue.pinned ? "overview.unpinAction" : "overview.pinAction")}
+      disabled={togglePin.isPending}
+      onClick={(event) => {
+        event.stopPropagation();
+        const willPin = !issue.pinned;
+        togglePin.mutate({ projectId, id: issue.id, pin: willPin }, {
+          onSuccess: () => toast.success(t(willPin ? "toast.issuePinned" : "toast.issueUnpinned")),
+          onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+        });
+      }}
+    >
+      {issue.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
+    </Button>
   );
 }
 

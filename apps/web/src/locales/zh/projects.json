@@ -23,7 +23,11 @@
     "procurementStatusChanged": "采购状态已更新",
     "issueCreated": "工单已创建",
     "issueUpdated": "工单已更新",
-    "issueDeleted": "工单已删除"
+    "issueDeleted": "工单已删除",
+    "issuePinned": "工单已置顶",
+    "issueUnpinned": "工单已取消置顶",
+    "procurementPinned": "采购已置顶",
+    "procurementUnpinned": "采购已取消置顶"
   },
   "list": {
     "create": "创建项目",
@@ -98,8 +102,7 @@
     "settings": "设置",
     "metrics": {
       "issues": "工单",
-      "procurement": "采购",
-      "members": "成员"
+      "procurement": "采购"
     }
   },
   "settings": {
@@ -116,20 +119,27 @@
     "overview": "概览",
     "issues": "工单",
     "procurement": "采购",
-    "members": "成员",
     "files": "文件"
   },
   "overview": {
-    "description": "描述",
-    "noDescription": "暂无描述。",
     "creator": "创建者",
     "notSet": "未设置",
     "noTags": "暂无标签。",
-    "memberPreview": "成员",
-    "categoryPreview": "采购分类",
-    "categoriesLoading": "正在加载分类...",
     "updatedAt": "最近更新",
-    "noMembers": "暂无成员。"
+    "announcement": "公告",
+    "noAnnouncement": "暂无公告。",
+    "pinned": "置顶",
+    "pinnedLoading": "正在加载置顶项...",
+    "noPinned": "暂无置顶项。置顶工单或采购即可在此展示。",
+    "pinKind": {
+      "issue": "工单",
+      "procurement": "采购"
+    },
+    "pinAction": "置顶",
+    "unpinAction": "取消置顶",
+    "latestIssues": "最新工单",
+    "latestProcurements": "最新采购",
+    "viewAll": "查看全部"
   },
   "issues": {
     "create": "创建工单",
