@@ -1,5 +1,5 @@
-import type { ProjectIssueRow } from "@/shared/lib/api/projects";
-import { screen, waitFor } from "@testing-library/react";
+import type { ProjectIssueRow, ProjectMemberView } from "@/shared/lib/api/projects";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
@@ -129,6 +129,63 @@ describe("projectIssuesTab", () => {
         return u.includes("status=open") && u.includes("limit=20");
       })).toBe(true);
     });
+  });
+
+  it("creates a work order through the compact composer", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    const members: ProjectMemberView[] = [{
+      id: "m1",
+      userId: "u1",
+      displayName: null,
+      roleId: "r1",
+      title: null,
+      createdAt: "2026-05-23T00:00:00.000Z",
+      updatedAt: "2026-05-23T00:00:00.000Z",
+    }];
+    renderWithProviders(
+      <ProjectIssuesTab projectId="p1" members={members} userNames={new Map([["u1", "Alice"]])} />,
+    );
+    await screen.findByText("No work orders found.");
+
+    // Toolbar button is the only "Create work order" control until the dialog opens.
+    await user.click(screen.getByRole("button", { name: "Create work order" }));
+
+    await user.type(await screen.findByPlaceholderText("Title"), "Replace pump seal");
+
+    // Priority pill defaults to Medium; pick High.
+    await user.click(screen.getByRole("button", { name: /Medium/ }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "High" }));
+
+    // Assignee pill: pick the project member.
+    await user.click(screen.getByRole("button", { name: /Assignee/ }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Alice" }));
+
+    // Due date pill: set the native date input then close the menu.
+    await user.click(screen.getByRole("button", { name: /Due date/ }));
+    // The base-ui menu popup also carries aria-label "Due date"; scope to the input.
+    fireEvent.change(await screen.findByLabelText("Due date", { selector: "input" }), { target: { value: "2026-06-15" } });
+    await user.keyboard("{Escape}");
+
+    // Submit via the dialog's primary button (scope to avoid the toolbar twin).
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Create work order" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "POST");
+      expect(post).toBeDefined();
+      expect(String(post![0])).toContain("/projects/p1/issues");
+      const body = JSON.parse(String(post![1]!.body)) as Record<string, unknown>;
+      expect(body).toMatchObject({
+        title: "Replace pump seal",
+        priority: "high",
+        assigneeMemberId: "m1",
+        dueDate: "2026-06-15",
+      });
+    });
+
+    // Dialog closes on success.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("switches to a status-based kanban view using existing issue statuses", async () => {

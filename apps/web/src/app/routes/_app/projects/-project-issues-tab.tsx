@@ -8,7 +8,7 @@ import type {
   ProjectMemberView,
 } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
-import { LayoutGrid, List, Plus } from "lucide-react";
+import { CalendarDays, LayoutGrid, List, Plus, SignalHigh, User, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -16,14 +16,18 @@ import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -31,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { Separator } from "@/shared/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -369,91 +374,105 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
     });
   };
 
+  // Dashed-border rounded pill shared by the inline metadata controls.
+  const pillClassName = "h-7 gap-1.5 rounded-full border-dashed px-2.5 text-xs font-normal";
+  const assigneeLabel = assigneeMemberId === "__none__"
+    ? t("issues.field.assignee")
+    : memberLabels.get(assigneeMemberId) ?? assigneeMemberId;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <form onSubmit={submit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>{t("issues.createTitle")}</DialogTitle>
-            <DialogDescription>{t("issues.createDescription")}</DialogDescription>
-          </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          {/* The borderless title replaces the visible header; keep a
+              visually-hidden DialogTitle so the dialog primitive and screen
+              readers still announce a name. */}
+          <DialogTitle className="sr-only">{t("issues.createTitle")}</DialogTitle>
 
           {createIssue.error && <ErrorBanner message={errorMessage(createIssue.error, t("common:common.error.operationFailed"))} />}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="issue-title">{t("issues.field.title")}</Label>
-            <Input
-              id="issue-title"
-              autoFocus
-              required
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-            />
-          </div>
+          <Input
+            autoFocus
+            required
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder={t("issues.field.title")}
+            aria-label={t("issues.field.title")}
+            className="h-auto border-0 bg-transparent px-0 py-0 text-lg font-medium shadow-none focus-visible:border-0 focus-visible:ring-0"
+          />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="issue-description">{t("issues.field.description")}</Label>
-            <Textarea
-              id="issue-description"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder={t("issues.field.descriptionPlaceholder")}
-              rows={3}
-            />
-          </div>
+          <Textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder={t("issues.field.descriptionPlaceholder")}
+            aria-label={t("issues.field.description")}
+            rows={2}
+            className="min-h-0 resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
+          />
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>{t("issues.field.priority")}</Label>
-              <Select value={priority} onValueChange={v => v !== null && setPriority(v as IssuePriority)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: string) => t(`issues.priority.${v}` as const)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
+          <div className="flex flex-wrap items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={pillClassName} />}>
+                <SignalHigh aria-hidden="true" />
+                {t(`issues.priority.${priority}` as const)}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuRadioGroup value={priority} onValueChange={v => setPriority(v as IssuePriority)}>
                   {PRIORITIES.map(p => (
-                    <SelectItem key={p} value={p}>{t(`issues.priority.${p}` as const)}</SelectItem>
+                    <DropdownMenuRadioItem key={p} value={p}>{t(`issues.priority.${p}` as const)}</DropdownMenuRadioItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="issue-due">{t("issues.field.dueDate")}</Label>
-              <Input
-                id="issue-due"
-                type="date"
-                value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
-              />
-            </div>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={pillClassName} />}>
+                <User aria-hidden="true" />
+                {assigneeLabel}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuRadioGroup value={assigneeMemberId} onValueChange={v => setAssigneeMemberId(v as string)}>
+                  <DropdownMenuRadioItem value="__none__">{t("issues.unassigned")}</DropdownMenuRadioItem>
+                  {members.map(m => (
+                    <DropdownMenuRadioItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={pillClassName} />}>
+                <CalendarDays aria-hidden="true" />
+                {dueDate || t("issues.field.dueDate")}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="p-2">
+                <Input
+                  type="date"
+                  value={dueDate}
+                  aria-label={t("issues.field.dueDate")}
+                  onChange={e => setDueDate(e.target.value)}
+                  onKeyDown={e => e.stopPropagation()}
+                />
+                {dueDate && (
+                  <DropdownMenuItem className="mt-1" onClick={() => setDueDate("")}>
+                    <X aria-hidden="true" />
+                    {t("issues.field.clearDueDate")}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>{t("issues.field.assignee")}</Label>
-            <Select value={assigneeMemberId} onValueChange={v => v !== null && setAssigneeMemberId(v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {(v: string) => (v === "__none__" ? t("issues.unassigned") : memberLabels.get(v) ?? v)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t("issues.unassigned")}</SelectItem>
-                {members.map(m => (
-                  <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Separator />
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={createIssue.isPending || !title.trim()}>
               {t("issues.create")}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

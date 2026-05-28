@@ -133,7 +133,8 @@
       "descriptionPlaceholder": "Add a description...",
       "priority": "Priority",
       "assignee": "Assignee",
-      "dueDate": "Due date"
+      "dueDate": "Due date",
+      "clearDueDate": "Clear due date"
     },
     "createTitle": "Create work order",
     "createDescription": "Add a new work order to this project.",

@@ -133,7 +133,8 @@
       "descriptionPlaceholder": "添加描述...",
       "priority": "优先级",
       "assignee": "负责人",
-      "dueDate": "截止日期"
+      "dueDate": "截止日期",
+      "clearDueDate": "清除截止日期"
     },
     "createTitle": "创建工单",
     "createDescription": "为该项目添加一个新工单。",
