@@ -79,6 +79,19 @@ export const projectMembers = sqliteTable("project_members", {
   uniqueIndex("project_members_project_user_idx").on(t.projectId, t.userId),
 ]);
 
+// Global procurement categories: an admin-maintained template set. Mirrors the
+// per-project shape minus `projectId`. Copied into each new project's
+// `procurement_categories` at creation time (copy-on-create); later edits here
+// do NOT propagate to existing projects, and per-project edits stay independent.
+export const globalProcurementCategories = sqliteTable("global_procurement_categories", {
+  id: text("id").primaryKey(), // nanoid
+  name: text("name").notNull(),
+  code: text("code"),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 // Procurement categories, per project (flat).
 export const procurementCategories = sqliteTable("procurement_categories", {
   id: text("id").primaryKey(), // nanoid

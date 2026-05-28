@@ -13,6 +13,13 @@ import {
   updateCategory,
 } from "./project.categories";
 import {
+  composeGlobalCategory,
+  createGlobalCategory,
+  deleteGlobalCategory,
+  listGlobalCategories,
+  updateGlobalCategory,
+} from "./project.global-categories";
+import {
   composeRole,
   createRole,
   deleteRole,
@@ -25,6 +32,8 @@ import {
   composeMember,
   composeProjectWithTags,
   createProject,
+  createTag,
+  deleteTag,
   getMemberCapabilities,
   getProjectByShortId,
   listMembers,
@@ -32,6 +41,7 @@ import {
   listTags,
   removeMember,
   removeProjectCover,
+  renameTag,
   resolveProjectId,
   setProjectCover,
   softDeleteProject,
@@ -100,6 +110,20 @@ const updateRoleSchema = z.object({
   capabilities: capabilitiesSchema.optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
+const tagNameSchema = z.object({ name: z.string().min(1).max(50) });
+
+const createGlobalCategorySchema = z.object({
+  name: z.string().min(1).max(255),
+  code: z.string().max(100).nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
+});
+
+const updateGlobalCategorySchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  code: z.string().max(100).nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
+}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
+
 const createCategorySchema = z.object({
   name: z.string().min(1).max(255),
   code: z.string().max(100).nullable().optional(),
@@ -154,6 +178,64 @@ export function projectRoutes() {
   router.get("/tags", async (c) => {
     const db = c.get("db");
     return c.json({ success: true, data: await listTags(db) });
+  });
+
+  // ─── Tag admin (admin only) ────────────────────────────────────────
+  router.post("/tags", adminRequired, async (c) => {
+    const db = c.get("db");
+    const body = tagNameSchema.parse(await c.req.json());
+    return c.json({ success: true, data: await createTag(db, body.name) }, 201);
+  });
+
+  router.patch("/tags/:id", adminRequired, async (c) => {
+    const db = c.get("db");
+    const id = c.req.param("id");
+    const body = tagNameSchema.parse(await c.req.json());
+    const tag = await renameTag(db, id, body.name);
+    if (!tag)
+      throw new NotFoundError("Tag", id);
+    return c.json({ success: true, data: tag });
+  });
+
+  // Delete a tag, cascade-unlinking it from every project (no in-use block).
+  router.delete("/tags/:id", adminRequired, async (c) => {
+    const db = c.get("db");
+    const id = c.req.param("id");
+    if (!await deleteTag(db, id))
+      throw new NotFoundError("Tag", id);
+    return c.json({ success: true, data: null });
+  });
+
+  // ─── Global procurement categories (admin only) ────────────────────
+  // The template set copied into each new project at creation (copy-on-create).
+  router.get("/global-procurement-categories", adminRequired, async (c) => {
+    const db = c.get("db");
+    return c.json({ success: true, data: (await listGlobalCategories(db)).map(composeGlobalCategory) });
+  });
+
+  router.post("/global-procurement-categories", adminRequired, async (c) => {
+    const db = c.get("db");
+    const body = createGlobalCategorySchema.parse(await c.req.json());
+    const category = await createGlobalCategory(db, body);
+    return c.json({ success: true, data: composeGlobalCategory(category) }, 201);
+  });
+
+  router.patch("/global-procurement-categories/:id", adminRequired, async (c) => {
+    const db = c.get("db");
+    const id = c.req.param("id");
+    const body = updateGlobalCategorySchema.parse(await c.req.json());
+    const category = await updateGlobalCategory(db, id, body);
+    if (!category)
+      throw new NotFoundError("Global procurement category", id);
+    return c.json({ success: true, data: composeGlobalCategory(category) });
+  });
+
+  router.delete("/global-procurement-categories/:id", adminRequired, async (c) => {
+    const db = c.get("db");
+    const id = c.req.param("id");
+    if (!await deleteGlobalCategory(db, id))
+      throw new NotFoundError("Global procurement category", id);
+    return c.json({ success: true, data: null });
   });
 
   // GET /projects — list. Admins see all; others see only projects they belong to.

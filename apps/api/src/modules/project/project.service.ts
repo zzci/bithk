@@ -5,10 +5,20 @@ import type { FileServiceConfig } from "@/modules/file";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { releaseReference, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
+import { getSetting } from "@/modules/settings/settings.service";
 import { ships } from "@/modules/ship/schema";
+import { ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
+import { seedProjectCategoriesTx } from "./project.global-categories";
 import { parseCapabilities, seedDefaultRoles } from "./project.roles";
-import { projectMembers, projectRoles, projects, projectTags, tags } from "./schema";
+import { PROJECT_STATUSES, projectMembers, projectRoles, projects, projectTags, tags } from "./schema";
+
+/** Settings keys backing the admin "Project Defaults" section. */
+export const PROJECT_DEFAULT_STATUS_KEY = "project.defaults.status";
+export const PROJECT_DEFAULT_COVER_KEY = "project.defaults.coverReferenceId";
+
+/** Max length for a tag name, mirrored by the route-level zod schema. */
+const TAG_NAME_MAX = 50;
 
 /** owner_type discriminator for a project's cover image file reference. */
 export const PROJECT_COVER_OWNER_TYPE = "project_cover";
@@ -109,6 +119,67 @@ export async function listTags(db: AppDatabase): Promise<readonly ProjectTagView
     .groupBy(tags.id)
     .orderBy(desc(usageCount), tags.name)
     .all();
+}
+
+/** Count the projects currently referencing a tag. */
+async function tagUsageCount(db: AppDatabase, tagId: string): Promise<number> {
+  const row = await db.select({ value: count() }).from(projectTags).where(eq(projectTags.tagId, tagId)).get();
+  return row?.value ?? 0;
+}
+
+// ─── Tag admin (admin-only CRUD over the global vocabulary) ─────────────
+
+/** Create a tag. Names are trimmed; duplicates (exact match) are rejected. */
+export async function createTag(db: AppDatabase, name: string): Promise<ProjectTagView> {
+  const trimmed = name.trim();
+  if (!trimmed)
+    throw new ValidationError("Tag name is required", { name: "Required" });
+  if (trimmed.length > TAG_NAME_MAX)
+    throw new ValidationError(`Tag name must be at most ${TAG_NAME_MAX} characters`, { name: "Too long" });
+  const existing = await db.select({ id: tags.id }).from(tags).where(eq(tags.name, trimmed)).get();
+  if (existing)
+    throw new ValidationError("Tag name already exists", { name: "Duplicate" });
+
+  const id = nanoid();
+  const now = new Date().toISOString();
+  await db.insert(tags).values({ id, name: trimmed, createdAt: now, updatedAt: now }).run();
+  return { id, name: trimmed, usageCount: 0 };
+}
+
+/** Rename a tag. Returns undefined when the tag is gone; rejects a name collision. */
+export async function renameTag(db: AppDatabase, id: string, name: string): Promise<ProjectTagView | undefined> {
+  const trimmed = name.trim();
+  if (!trimmed)
+    throw new ValidationError("Tag name is required", { name: "Required" });
+  if (trimmed.length > TAG_NAME_MAX)
+    throw new ValidationError(`Tag name must be at most ${TAG_NAME_MAX} characters`, { name: "Too long" });
+
+  const existing = await db.select({ id: tags.id }).from(tags).where(eq(tags.id, id)).get();
+  if (!existing)
+    return undefined;
+  const collision = await db.select({ id: tags.id }).from(tags).where(and(eq(tags.name, trimmed), ne(tags.id, id))).get();
+  if (collision)
+    throw new ValidationError("Tag name already exists", { name: "Duplicate" });
+
+  const now = new Date().toISOString();
+  await db.update(tags).set({ name: trimmed, updatedAt: now }).where(eq(tags.id, id)).run();
+  return { id, name: trimmed, usageCount: await tagUsageCount(db, id) };
+}
+
+/**
+ * Delete a tag, cascade-unlinking it from every project first. Both deletes run
+ * in one transaction; no in-use block — removing a tag simply untags its
+ * projects. Returns false when the tag does not exist.
+ */
+export async function deleteTag(db: AppDatabase, id: string): Promise<boolean> {
+  const existing = await db.select({ id: tags.id }).from(tags).where(eq(tags.id, id)).get();
+  if (!existing)
+    return false;
+  db.transaction((tx) => {
+    tx.delete(projectTags).where(eq(projectTags.tagId, id)).run();
+    tx.delete(tags).where(eq(tags.id, id)).run();
+  });
+  return true;
 }
 
 /** Load tags for a set of internal project ids, grouped by project id. */
@@ -237,6 +308,10 @@ export interface CreateProjectInput {
   // Optional link to a ship. Set by `createShip` so the base project points
   // back at its ship. Additive — absent for ordinary project creation.
   readonly shipId?: string | undefined;
+  // Optional cover reference. Normally a project gets its cover via the
+  // cover-image upload endpoint; `createProject` fills this from the
+  // `project.defaults.coverReferenceId` setting when the caller omits it.
+  readonly coverReferenceId?: string | null | undefined;
 }
 
 /**
@@ -259,6 +334,7 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     status: input.status ?? "active",
     description: input.description ?? null,
     shipId: input.shipId ?? null,
+    coverReferenceId: input.coverReferenceId ?? null,
     creatorId: input.creatorId,
     version: 1,
     deletedAt: null,
@@ -278,10 +354,36 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     updatedAt: now,
   }).run();
 
+  // Copy-on-create: seed this project's procurement categories from the
+  // current global template set (no-op when none are defined).
+  seedProjectCategoriesTx(tx, id, now);
+
   if (input.tags && input.tags.length > 0)
     syncTagsTx(tx, id, input.tags, now);
 
   return { id, shortId };
+}
+
+/**
+ * Resolve the default project status from settings, falling back to "active"
+ * when the setting is unset or holds an unknown status.
+ */
+async function resolveDefaultStatus(db: AppDatabase): Promise<ProjectStatus> {
+  const raw = await getSetting(db, PROJECT_DEFAULT_STATUS_KEY);
+  return raw && (PROJECT_STATUSES as readonly string[]).includes(raw) ? raw as ProjectStatus : "active";
+}
+
+/**
+ * Resolve the default cover reference id from settings. Returns null when unset
+ * or when the configured reference no longer exists, so a dangling default can
+ * never block project creation (the FK would otherwise reject the insert).
+ */
+async function resolveDefaultCoverReferenceId(db: AppDatabase): Promise<string | null> {
+  const refId = await getSetting(db, PROJECT_DEFAULT_COVER_KEY);
+  if (!refId)
+    return null;
+  const exists = await db.select({ id: fileReferences.id }).from(fileReferences).where(eq(fileReferences.id, refId)).get();
+  return exists ? refId : null;
 }
 
 /**
@@ -291,9 +393,14 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
  * are synchronous — keep the callback sync so COMMIT/ROLLBACK semantics hold.
  */
 export async function createProject(db: AppDatabase, input: CreateProjectInput): Promise<ProjectRow> {
+  // Apply the admin "Project Defaults" for fields the payload omits. Explicit
+  // values in `input` always win; settings resolve async, before the sync tx.
+  const status = input.status ?? await resolveDefaultStatus(db);
+  const coverReferenceId = input.coverReferenceId ?? await resolveDefaultCoverReferenceId(db);
+
   let id = "";
   db.transaction((tx) => {
-    id = createProjectTx(tx, input).id;
+    id = createProjectTx(tx, { ...input, status, coverReferenceId }).id;
   });
 
   return (await db.select().from(projects).where(eq(projects.id, id)).get())!;
