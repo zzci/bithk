@@ -22,7 +22,74 @@
   "tabs": {
     "auth": "Authentication",
     "smtp": "SMTP",
-    "webhook": "Webhooks"
+    "webhook": "Webhooks",
+    "projectDefaults": "Project Defaults"
+  },
+  "projectDefaults": {
+    "defaults": {
+      "title": "Project Defaults",
+      "description": "Values applied to new projects when the creator does not set them explicitly.",
+      "statusLabel": "Default status",
+      "statusUnset": "Not set",
+      "statusHint": "Applied when a project is created without a status. Falls back to Active when unset.",
+      "status_active": "Active",
+      "status_archived": "Archived",
+      "clear": "Clear",
+      "coverLabel": "Default cover reference",
+      "coverPlaceholder": "File reference id",
+      "coverHint": "The file reference id used as the cover for new projects. Leave empty for no default cover.",
+      "toast": {
+        "statusSaved": "Default status saved.",
+        "statusCleared": "Default status cleared.",
+        "coverSaved": "Default cover saved.",
+        "coverCleared": "Default cover cleared."
+      }
+    },
+    "tags": {
+      "title": "Tags",
+      "description": "The global tag vocabulary shared across all projects.",
+      "add": "Add Tag",
+      "addTitle": "Add Tag",
+      "editTitle": "Rename Tag",
+      "dialogDescription": "Tags are shared across all projects.",
+      "fieldName": "Name",
+      "colName": "Name",
+      "colUsage": "Projects",
+      "empty": "No tags yet.",
+      "delete": {
+        "title": "Delete tag",
+        "confirm": "Delete \"{{name}}\"? It will be removed from {{count}} project(s)."
+      },
+      "toast": {
+        "created": "Tag created.",
+        "renamed": "Tag renamed.",
+        "deleted": "Tag \"{{name}}\" deleted."
+      }
+    },
+    "categories": {
+      "title": "Global Procurement Categories",
+      "description": "The template category set copied into every new project on creation.",
+      "add": "Add Category",
+      "addTitle": "Add Category",
+      "editTitle": "Edit Category",
+      "dialogDescription": "Global categories seed each new project's procurement categories.",
+      "fieldName": "Name",
+      "fieldCode": "Code",
+      "fieldDescription": "Description",
+      "colName": "Name",
+      "colCode": "Code",
+      "colDescription": "Description",
+      "empty": "No global categories yet.",
+      "delete": {
+        "title": "Delete category",
+        "confirm": "Delete \"{{name}}\"? New projects will no longer seed this category."
+      },
+      "toast": {
+        "created": "Category created.",
+        "updated": "Category updated.",
+        "deleted": "Category \"{{name}}\" deleted."
+      }
+    }
   },
   "auth": {
     "sessionTitle": "Session & Admin",
