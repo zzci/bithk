@@ -314,6 +314,9 @@ async function seedShips(db: AppDatabase): Promise<{ shipsCreated: SeededShip[];
     const ship = await createShip(db, {
       name: y.name,
       creatorId: ADMIN_ID,
+      // Lifecycle was dropped (REFACTOR-004); ships are active/archived only.
+      // Retire the oldest hulls so the status filter has data on both sides.
+      status: y.buildYear < 2017 ? "archived" : "active",
       model: y.model,
       builder: y.builder,
       buildYear: y.buildYear,
