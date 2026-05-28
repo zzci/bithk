@@ -6,11 +6,13 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
+import { auditEvents } from "@/modules/audit/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
@@ -208,6 +210,37 @@ describe("POST issues (create)", () => {
     const foreign = await addMember(db, other.id, { roleId: await memberRoleId(other.id), userId: bob });
     const res = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", await cookieForUser(owner), { title: "X", assigneeMemberId: foreign.id }));
     expect(res.status).toBe(404);
+  });
+
+  test("creating with an assignee emits issue.created AND issue.assigned (access parity)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const member = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+
+    const res = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", await cookieForUser(owner), { title: "Assigned order", assigneeMemberId: member.id }));
+    expect(res.status).toBe(201);
+    const { data } = await res.json() as { data: { id: string } };
+
+    const events = await db.select().from(auditEvents).where(and(eq(auditEvents.resourceType, "issue"), eq(auditEvents.resourceId, data.id))).all();
+    const actions = events.map(e => e.action);
+    expect(actions).toContain("issue.created");
+    expect(actions).toContain("issue.assigned");
+    const assigned = events.find(e => e.action === "issue.assigned")!;
+    expect(JSON.parse(assigned.detail!)).toEqual({ from: null, to: member.id });
+  });
+
+  test("creating without an assignee does not emit issue.assigned", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const res = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", await cookieForUser(owner), { title: "Plain order" }));
+    expect(res.status).toBe(201);
+    const { data } = await res.json() as { data: { id: string } };
+
+    const events = await db.select().from(auditEvents).where(and(eq(auditEvents.resourceType, "issue"), eq(auditEvents.resourceId, data.id))).all();
+    expect(events.map(e => e.action)).not.toContain("issue.assigned");
   });
 
   test("an empty title is rejected with 422", async () => {

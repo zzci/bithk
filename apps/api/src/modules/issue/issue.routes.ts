@@ -156,6 +156,21 @@ export function issueRoutes() {
       result: "success",
     });
 
+    // Mirror access: a create that sets an assignee also emits issue.assigned.
+    if (body.assigneeMemberId) {
+      await audit(db, c.get("logger"), {
+        actorId: actor.id,
+        actorName: actor.name,
+        action: "issue.assigned",
+        resourceType: "issue",
+        resourceId: issue.id,
+        resourceName: issue.title,
+        detail: { from: null, to: body.assigneeMemberId },
+        ...auditMeta(c),
+        result: "success",
+      });
+    }
+
     return c.json({ success: true, data: issue }, 201);
   });
 
