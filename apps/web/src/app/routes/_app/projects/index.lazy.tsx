@@ -45,7 +45,7 @@ function ProjectsListPage() {
   const navigate = useNavigate();
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
-  const [filter, setFilter] = useState<string>("__all__");
+  const [filter, setFilter] = useState<string>("__active__");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
@@ -63,9 +63,6 @@ function ProjectsListPage() {
 
   const activeCount = activeCountQuery.data?.meta.total;
   const archivedCount = archivedCountQuery.data?.meta.total;
-  const totalCount = activeCount !== undefined && archivedCount !== undefined
-    ? activeCount + archivedCount
-    : undefined;
 
   const visibleProjects = useMemo(() => {
     const all = projectsQuery.data?.data ?? [];
@@ -113,7 +110,7 @@ function ProjectsListPage() {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">{t("list.filterByTag")}</span>
           {[
-            { key: "__all__", label: t("list.tagAll"), count: totalCount },
+            { key: "__active__", label: t("status.active"), count: activeCount },
             { key: "__archived__", label: t("status.archived"), count: archivedCount },
             ...tags.map(tag => ({ key: tag.id, label: tag.name, count: undefined })),
           ].map(opt => (
@@ -251,9 +248,11 @@ function ProjectsGrid({
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="line-clamp-2">{project.name}</CardTitle>
               <div className="flex shrink-0 items-center gap-1">
-                <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
-                  {t(`status.${project.status}` as const)}
-                </Badge>
+                {project.status === "archived" && (
+                  <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
+                    {t(`status.${project.status}` as const)}
+                  </Badge>
+                )}
                 {isAdmin && (
                   <Button
                     variant="ghost"

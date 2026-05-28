@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { addTag, projectsFilterToQuery, removeTag } from "./-project-form-logic";
 
 describe("projectsFilterToQuery", () => {
-  it("maps __all__ to no filter", () => {
-    expect(projectsFilterToQuery("__all__")).toEqual({});
+  it("maps __active__ to an active status filter (the default)", () => {
+    expect(projectsFilterToQuery("__active__")).toEqual({ status: "active" });
   });
 
   it("maps __archived__ to an archived status filter", () => {

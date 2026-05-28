@@ -5,12 +5,13 @@ import type { ProjectStatus } from "@/shared/lib/api/projects";
 
 /**
  * Map the single list-filter chip selection to query params. The list uses one
- * mutually-exclusive control: "__all__" (no filter), "__archived__" (a status
- * filter surfaced as a chip), or a tag id.
+ * mutually-exclusive control: "__active__" (active projects, the default),
+ * "__archived__" (archived projects), or a tag id. There is no unfiltered
+ * option — the list never shows archived projects by default.
  */
 export function projectsFilterToQuery(filter: string): { status?: ProjectStatus; tagId?: string } {
-  if (filter === "__all__")
-    return {};
+  if (filter === "__active__")
+    return { status: "active" };
   if (filter === "__archived__")
     return { status: "archived" };
   return { tagId: filter };
