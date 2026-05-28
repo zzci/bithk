@@ -1,13 +1,12 @@
 import type { ContactAccessActor, ContactCapability } from "./contact.permission";
 import type { ContactStatus, ContactVisibility } from "./schema";
-import type { AppDatabase, AppTransaction, RunResult } from "@/db";
+import type { AppDatabase, RunResult } from "@/db";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { createTuple, deleteTupleByKey, deleteTuplesForEntity } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
 import { shares } from "@/modules/share/schema";
-import { tags } from "@/modules/tag/schema";
-import { upsertTagIdTx } from "@/modules/tag/tag.service";
+import { listResourceIdsByTag, listResourceTagViews, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import {
@@ -16,6 +15,13 @@ import {
   resolveContactCapabilities,
 } from "./contact.permission";
 import { contacts, contactTags } from "./schema";
+
+const CONTACT_TAG_BINDING = {
+  sourceType: "contact",
+  table: contactTags,
+  resourceColumn: contactTags.contactId,
+  tagColumn: contactTags.tagId,
+} as const;
 
 export type ContactRow = typeof contacts.$inferSelect;
 
@@ -118,7 +124,7 @@ export async function create(
       createdAt: now,
     }).run();
 
-    syncTagsTx(tx, id, input.tags ?? [], now);
+    syncResourceTagsTx(tx, CONTACT_TAG_BINDING, id, input.tags ?? [], now);
   });
 
   return compose(db, actor, (await db.select().from(contacts).where(eq(contacts.id, id)).get())!);
@@ -148,17 +154,10 @@ export async function list(
   }
 
   if (params.tag) {
-    const tagId = await resolveTagId(db, params.tag);
-    if (!tagId)
+    const ids = await listResourceIdsByTag(db, CONTACT_TAG_BINDING, params.tag);
+    if (ids.length === 0)
       return [];
-    const taggedRows = await db
-      .select({ contactId: contactTags.contactId })
-      .from(contactTags)
-      .where(eq(contactTags.tagId, tagId))
-      .all();
-    if (taggedRows.length === 0)
-      return [];
-    conditions.push(inArray(contacts.id, taggedRows.map(r => r.contactId)));
+    conditions.push(inArray(contacts.id, ids));
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -212,7 +211,7 @@ export async function update(
       patch.confidential = input.confidential;
     tx.update(contacts).set(patch).where(eq(contacts.id, id)).run();
     if (input.tags !== undefined)
-      syncTagsTx(tx, id, input.tags, now);
+      syncResourceTagsTx(tx, CONTACT_TAG_BINDING, id, input.tags, now);
   });
 
   return compose(db, actor, (await db.select().from(contacts).where(eq(contacts.id, id)).get())!);
@@ -276,7 +275,7 @@ async function composeWithCapabilities(
   row: ContactRow,
   caps: Set<ContactCapability>,
 ): Promise<ContactView> {
-  const tagList = await loadTagsForContact(db, row.id);
+  const tagList = await listResourceTagViews(db, CONTACT_TAG_BINDING, row.id);
   const isExplicitViewerOrOwnerOrAdmin = actor.role === "admin"
     || row.ownerId === actor.id
     || (await check(db, "contact", row.id, "viewer", "user", actor.id)).allowed;
@@ -300,43 +299,6 @@ async function composeWithCapabilities(
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
-}
-
-function syncTagsTx(tx: AppTransaction, contactId: string, names: readonly string[], now: string): void {
-  tx.delete(contactTags).where(eq(contactTags.contactId, contactId)).run();
-  const seen = new Set<string>();
-  for (const raw of names) {
-    const name = raw.trim();
-    const key = name.toLowerCase();
-    if (!name || seen.has(key))
-      continue;
-    seen.add(key);
-
-    const tagId = upsertTagIdTx(tx, "contact", name, now);
-    tx.insert(contactTags).values({ contactId, tagId }).run();
-  }
-}
-
-async function loadTagsForContact(db: AppDatabase, contactId: string): Promise<readonly ContactTagView[]> {
-  return await db
-    .select({ id: tags.id, name: tags.name })
-    .from(contactTags)
-    .innerJoin(tags, eq(tags.id, contactTags.tagId))
-    .where(eq(contactTags.contactId, contactId))
-    .orderBy(tags.name)
-    .all();
-}
-
-async function resolveTagId(db: AppDatabase, tag: string): Promise<string | null> {
-  const value = tag.trim();
-  if (!value)
-    return null;
-  const row = await db
-    .select({ id: tags.id })
-    .from(tags)
-    .where(and(or(eq(tags.id, value), eq(tags.name, value)), eq(tags.sourceType, "contact")))
-    .get();
-  return row?.id ?? null;
 }
 
 function targetTuple(contactId: string, target: ContactGrantTarget) {
