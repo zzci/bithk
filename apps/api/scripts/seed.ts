@@ -32,7 +32,8 @@ import * as contactService from "@/modules/contact/contact.service";
 import { contacts } from "@/modules/contact/schema";
 import { createDocument } from "@/modules/document/document.service";
 import { initFileModule } from "@/modules/file";
-import { createIssue } from "@/modules/issue/issue.service";
+import { createIssue, resolveIssueItem } from "@/modules/issue/issue.service";
+import { createComment } from "@/modules/item/comment.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { createProcurement } from "@/modules/procurement/procurement.service";
@@ -56,7 +57,7 @@ const COUNTS = {
   users: 20,
   contacts: 30,
   projects: 10,
-  issues: 30,
+  issues: 40,
   procurements: 20,
   documents: 20,
 } as const;
@@ -160,9 +161,84 @@ const EQUIP_CATEGORIES = ["propulsion", "navigation", "safety", "deck", "electri
 const MANUFACTURERS = ["MAN Energy Solutions", "Caterpillar", "Wärtsilä", "Furuno", "Kongsberg", "Rolls-Royce", "ABB"] as const;
 const PROJECT_KINDS = ["Dry-Dock Refit", "Newbuild", "Annual Survey", "Engine Overhaul", "Class Renewal", "Interior Refit", "Electronics Upgrade", "Hull Maintenance", "Sea Trial Prep", "Warranty Works"] as const;
 const CATEGORY_NAMES = ["Deck Equipment", "Electronics", "Safety Gear", "Engine Parts", "Interior", "Provisions", "Paint & Coatings", "Electrical"] as const;
-const ISSUE_TITLES = ["Inspect and recoat hull below waterline", "Replace bridge navigation radar", "Annual safety equipment audit", "Overhaul main engine", "Service bow thruster", "Renew class certificates", "Calibrate bridge sensors", "Replace emergency fire pump", "Test steering gear", "Update ECDIS charts", "Inspect lifeboats and davits", "Clean and gauge fuel tanks", "Repair HVAC compressor", "Replace sacrificial anodes", "Survey ballast water tanks"] as const;
-const ISSUE_STATUSES = ["open", "in_progress", "done", "cancelled"] as const;
-const ISSUE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
+const ISSUE_TITLES = ["Inspect and recoat hull below waterline", "Replace bridge navigation radar", "Annual safety equipment audit", "Overhaul main engine", "Service bow thruster", "Renew class certificates", "Calibrate bridge sensors", "Replace emergency fire pump", "Test steering gear", "Update ECDIS charts", "Inspect lifeboats and davits", "Clean and gauge fuel tanks", "Repair HVAC compressor", "Replace sacrificial anodes", "Survey ballast water tanks", "Polish stainless rails and fittings", "Replace anchor windlass motor", "Service tender crane hydraulics", "Recalibrate autopilot gyro", "Renew firefighting foam stock"] as const;
+type IssueStatus = "open" | "in_progress" | "done" | "cancelled";
+type IssuePriority = "low" | "medium" | "high" | "urgent";
+
+// Work-order content is generated per status so each lane reads differently:
+// a fresh report, an in-flight job with progress notes, a signed-off job, or a
+// dropped one with a reason. `weight` sets how many of the 40 issues land in
+// each status; `comments` are candidate notes (a subset is posted, in order,
+// authored by rotating project members — some internal).
+interface IssueStatusProfile {
+  readonly status: IssueStatus;
+  readonly weight: number;
+  readonly priorities: readonly IssuePriority[];
+  readonly describe: (title: string) => string;
+  readonly assignChance: number;
+  readonly due: "future" | "past" | "none";
+  readonly comments: readonly { readonly text: string; readonly internal?: boolean }[];
+  readonly minComments: number;
+}
+
+const ISSUE_PROFILES: readonly IssueStatusProfile[] = [
+  {
+    status: "open",
+    weight: 11,
+    priorities: ["medium", "high", "urgent"],
+    describe: t => `${t}. Raised during the latest inspection round; scope and parts to be confirmed before scheduling.`,
+    assignChance: 0.3,
+    due: "future",
+    minComments: 0,
+    comments: [
+      { text: "Logged from the walk-through. Please confirm whether this is in scope for the current docking." },
+      { text: "Added to the period work list — awaiting parts lead time before we schedule." },
+      { text: "Need a budget line for this before it can be released to the yard.", internal: true },
+    ],
+  },
+  {
+    status: "in_progress",
+    weight: 12,
+    priorities: ["medium", "high", "urgent"],
+    describe: t => `${t}. Work order released and underway — current status tracked in the comments below.`,
+    assignChance: 1,
+    due: "future",
+    minComments: 2,
+    comments: [
+      { text: "Crew assigned and work area prepared. Started this morning." },
+      { text: "Parts on order, ETA next week — holding at roughly 60% complete." },
+      { text: "Interim inspection done, no additional defects found so far." },
+      { text: "Subcontractor confirmed for the specialist portion.", internal: true },
+    ],
+  },
+  {
+    status: "done",
+    weight: 12,
+    priorities: ["low", "medium", "high"],
+    describe: t => `${t}. Completed this period — see the sign-off and test notes below.`,
+    assignChance: 1,
+    due: "past",
+    minComments: 2,
+    comments: [
+      { text: "Work completed and area cleaned up." },
+      { text: "Function test passed; signed off by the chief engineer." },
+      { text: "Documentation filed and class surveyor notified." },
+    ],
+  },
+  {
+    status: "cancelled",
+    weight: 5,
+    priorities: ["low", "medium"],
+    describe: t => `${t}. Raised but later cancelled — reason recorded in the comments.`,
+    assignChance: 0.4,
+    due: "none",
+    minComments: 1,
+    comments: [
+      { text: "Cancelled — superseded by a newer, broader work order." },
+      { text: "Out of scope for this docking; deferred to the next class survey." },
+    ],
+  },
+];
 const PROCUREMENT_ITEMS = ["Anti-fouling paint (200 L)", "Navigation radar unit", "Marine diesel fuel", "Safety harness set", "Engine spare parts kit", "LED deck lighting", "Liferaft (25-person)", "Hydraulic oil (drums)", "Bridge console module", "Provisioning supplies", "Mooring lines", "Bilge pump assembly"] as const;
 const PROCUREMENT_STATUSES = ["draft", "requested", "ordered", "received", "closed"] as const;
 const CURRENCIES = ["USD", "EUR", "SGD", "GBP"] as const;
@@ -256,6 +332,7 @@ interface SeedCounts {
   equipment: number;
   projects: number;
   issues: number;
+  comments: number;
   procurements: number;
   documents: number;
   covers: number;
@@ -266,6 +343,9 @@ interface SeededProject {
   readonly shortId: string;
   readonly creatorId: string;
   readonly memberIds: string[];
+  // Member rows paired with their backing user id, so issue comments can be
+  // authored by a real project member (the assignee or a teammate).
+  readonly members: { readonly memberId: string; readonly userId: string }[];
   readonly categoryIds: string[];
 }
 
@@ -429,9 +509,11 @@ async function seedProjects(db: AppDatabase, shipShortIds: string[]): Promise<Se
       throw new Error("Expected a default non-system 'Member' role on the new project");
 
     const memberIds: string[] = [];
+    const members: { memberId: string; userId: string }[] = [];
     for (const userId of sample(MEMBER_IDS.filter(id => id !== creatorId), randInt(2, 5))) {
       const member = await addMember(db, project.id, { roleId: memberRole.id, userId });
       memberIds.push(member.id);
+      members.push({ memberId: member.id, userId });
     }
 
     const categoryIds: string[] = [];
@@ -443,7 +525,7 @@ async function seedProjects(db: AppDatabase, shipShortIds: string[]): Promise<Se
     if (chance(0.6) && shipShortIds.length > 0)
       await bindProject(db, await resolveShipInternalId(db, pick(shipShortIds)), project.shortId);
 
-    result.push({ id: project.id, shortId: project.shortId, creatorId, memberIds, categoryIds });
+    result.push({ id: project.id, shortId: project.shortId, creatorId, memberIds, members, categoryIds });
   }
   return result;
 }
@@ -456,22 +538,69 @@ async function resolveShipInternalId(db: AppDatabase, shortId: string): Promise<
   return row.id;
 }
 
-async function seedIssues(db: AppDatabase, projectPool: SeededProject[]): Promise<number> {
-  for (let i = 0; i < COUNTS.issues; i++) {
+async function seedIssues(db: AppDatabase, projectPool: SeededProject[]): Promise<{ issues: number; comments: number }> {
+  // Expand profiles into a status plan totalling COUNTS.issues, padding any
+  // rounding gap with `open` so the count stays exact.
+  const totalWeight = ISSUE_PROFILES.reduce((s, p) => s + p.weight, 0);
+  const plan: IssueStatusProfile[] = [];
+  for (const profile of ISSUE_PROFILES) {
+    const n = Math.round((profile.weight / totalWeight) * COUNTS.issues);
+    for (let i = 0; i < n; i++)
+      plan.push(profile);
+  }
+  while (plan.length < COUNTS.issues)
+    plan.push(ISSUE_PROFILES[0]!);
+  plan.length = COUNTS.issues;
+
+  let comments = 0;
+  for (let i = 0; i < plan.length; i++) {
+    const profile = plan[i]!;
     const project = pick(projectPool);
-    const assign = project.memberIds.length > 0 && chance(0.5);
-    await createIssue(db, {
-      title: pick(ISSUE_TITLES),
-      description: "Demo work order.",
+    const title = ISSUE_TITLES[i % ISSUE_TITLES.length]!;
+
+    const assignedMember = profile.assignChance > 0 && project.members.length > 0 && chance(profile.assignChance)
+      ? pick(project.members)
+      : null;
+    const dueDate = profile.due === "future"
+      ? dayOffset(randInt(120, 320))
+      : profile.due === "past"
+        ? dayOffset(randInt(-90, -5))
+        : undefined;
+
+    const issue = await createIssue(db, {
+      title,
+      description: profile.describe(title),
       projectId: project.id,
       creatorId: project.creatorId,
-      priority: pick(ISSUE_PRIORITIES),
-      status: pick(ISSUE_STATUSES),
-      ...(assign ? { assigneeMemberId: pick(project.memberIds) } : {}),
-      ...(chance(0.4) ? { dueDate: dayOffset(randInt(120, 330)) } : {}),
+      priority: pick(profile.priorities),
+      status: profile.status,
+      ...(assignedMember ? { assigneeMemberId: assignedMember.memberId } : {}),
+      ...(dueDate ? { dueDate } : {}),
     });
+
+    // Post a status-appropriate subset of comments, authored by rotating
+    // project members (favouring the assignee), to make the thread realistic.
+    const item = await resolveIssueItem(db, issue.id);
+    if (!item)
+      continue;
+    const maxComments = Math.min(profile.comments.length, profile.minComments + randInt(1, 2));
+    const authors = [
+      ...(assignedMember ? [assignedMember.userId] : []),
+      project.creatorId,
+      ...project.members.map(m => m.userId),
+    ];
+    for (let c = 0; c < maxComments; c++) {
+      const note = profile.comments[c]!;
+      await createComment(db, {
+        itemId: item.id,
+        authorId: authors[c % authors.length]!,
+        content: note.text,
+        ...(note.internal ? { isInternal: true } : {}),
+      });
+      comments++;
+    }
   }
-  return COUNTS.issues;
+  return { issues: plan.length, comments };
 }
 
 async function seedProcurements(db: AppDatabase, projectPool: SeededProject[], supplierIds: string[]): Promise<number> {
@@ -513,7 +642,7 @@ async function seedContent(db: AppDatabase): Promise<SeedCounts> {
   const { supplierIds, count: contactCount } = await seedContacts(db);
   const { shipsCreated, equipment } = await seedShips(db);
   const projectPool = await seedProjects(db, shipsCreated.map(s => s.shortId));
-  const issues = await seedIssues(db, projectPool);
+  const { issues, comments } = await seedIssues(db, projectPool);
   const procurements = await seedProcurements(db, projectPool, supplierIds);
   const documents = await seedDocuments(db);
   const covers = await seedCovers(db, shipsCreated, projectPool);
@@ -524,7 +653,7 @@ async function seedContent(db: AppDatabase): Promise<SeedCounts> {
     updatedBy: ADMIN_ID,
   }).run();
 
-  return { contacts: contactCount, ships: shipsCreated.length, equipment, projects: projectPool.length, issues, procurements, documents, covers };
+  return { contacts: contactCount, ships: shipsCreated.length, equipment, projects: projectPool.length, issues, comments, procurements, documents, covers };
 }
 
 async function main(): Promise<void> {
@@ -551,7 +680,7 @@ async function main(): Promise<void> {
     console.log(`  contacts:     ${counts.contacts}`);
     console.log(`  ships:        ${counts.ships} (+ base projects, ${counts.equipment} equipment)`);
     console.log(`  projects:     ${counts.projects} standalone`);
-    console.log(`  issues:       ${counts.issues}`);
+    console.log(`  issues:       ${counts.issues} (across open/in_progress/done/cancelled, ${counts.comments} comments)`);
     console.log(`  procurements: ${counts.procurements}`);
     console.log(`  documents:    ${counts.documents}`);
     console.log(`  cover images: ${counts.covers} (ships + standalone projects; some left unset)`);

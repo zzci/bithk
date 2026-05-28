@@ -27,8 +27,11 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   procurement, and a document tree) through the existing service-layer creators.
   Volume is driven by a `COUNTS` table and generated from fixed vocab pools via
   a seeded PRNG, so runs are reproducible; the default produces ~20 accounts,
-  30 contacts, 10 standalone projects, 30 issues, 20 procurements, and 20
-  documents. Ships come from a curated fleet of 22 real-world yacht models
+  30 contacts, 10 standalone projects, 40 work-order issues, 20 procurements,
+  and 20 documents. Issues are generated per status (open / in_progress / done /
+  cancelled) with status-appropriate descriptions, assignment, due dates (future
+  for active, past for done), and threaded comments (some internal) so each
+  status lane reads realistically. Ships come from a curated fleet of 22 real-world yacht models
   spanning 5–50 m LOA with size-consistent particulars (beam, draft, gross
   tonnage, build year, flag/registry) and IMO/MMSI/call-sign on the ≥24 m hulls;
   equipment count scales with vessel size. Most ships and standalone projects
