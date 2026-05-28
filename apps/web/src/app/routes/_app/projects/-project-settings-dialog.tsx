@@ -6,9 +6,11 @@
 
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
-import { FolderTree, Settings, ShieldCheck, Users } from "lucide-react";
+import { Copy, FolderTree, Settings, ShieldCheck, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -67,6 +69,19 @@ export function ProjectSettingsDialog({
 
   const label = (section: SettingsSection) => t(`settings.tabs.${section}` as const);
 
+  const code = project.code?.toLowerCase();
+  const handleCopyCode = async () => {
+    if (!project.code)
+      return;
+    try {
+      await navigator.clipboard.writeText(project.code);
+      toast.success(t("detail.codeCopied"));
+    }
+    catch {
+      toast.error(t("detail.copyFailed"));
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[min(34rem,90svh)] gap-0 overflow-hidden p-0 sm:max-w-3xl">
@@ -97,6 +112,19 @@ export function ProjectSettingsDialog({
                 );
               })}
             </nav>
+            {code && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-auto h-7 justify-start gap-1.5 px-2 font-mono text-xs text-muted-foreground"
+                aria-label={t("detail.copyCode")}
+                onClick={() => void handleCopyCode()}
+              >
+                {code}
+                <Copy aria-hidden="true" className="size-3" />
+              </Button>
+            )}
           </aside>
 
           <section role="tabpanel" className="flex h-full min-h-0 flex-col">

@@ -92,4 +92,22 @@ describe("projectSettingsDialog", () => {
     expect(screen.getByText("Project settings")).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+
+  it("pins a copyable project code to the sidebar", () => {
+    const caps = computeCapabilities(undefined, true);
+    renderWithProviders(
+      <ProjectSettingsDialog open onOpenChange={vi.fn()} project={{ ...project, code: "BRG" }} members={[]} userNames={new Map()} caps={caps} />,
+    );
+    const copy = screen.getByRole("button", { name: "Copy project ID" });
+    expect(copy).toBeInTheDocument();
+    expect(copy).toHaveTextContent("brg");
+  });
+
+  it("omits the code control when the project has no code", () => {
+    const caps = computeCapabilities(undefined, true);
+    renderWithProviders(
+      <ProjectSettingsDialog open onOpenChange={vi.fn()} project={project} members={[]} userNames={new Map()} caps={caps} />,
+    );
+    expect(screen.queryByRole("button", { name: "Copy project ID" })).not.toBeInTheDocument();
+  });
 });
