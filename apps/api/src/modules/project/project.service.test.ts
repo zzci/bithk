@@ -16,6 +16,7 @@ import {
   isMember,
   listMembers,
   listProjects,
+  listTags,
   removeMember,
   resolveAssignableMember,
   resolveProjectId,
@@ -243,6 +244,36 @@ describe("listProjects", () => {
     expect(mine.total).toBe(1);
     const theirs = await listProjects(db, { memberUserId: outsider });
     expect(theirs.total).toBe(0);
+  });
+});
+
+describe("listTags", () => {
+  test("returns usage counts ordered most-used first, ties by name", async () => {
+    const creator = await seedUser("Alice");
+    await createProject(db, { name: "A", creatorId: creator, tags: ["popular", "beta"] });
+    await createProject(db, { name: "B", creatorId: creator, tags: ["popular", "alpha"] });
+    await createProject(db, { name: "C", creatorId: creator, tags: ["popular"] });
+
+    const list = await listTags(db);
+    // "popular" used 3x first; "alpha"/"beta" each 1x, broken by name ascending.
+    expect(list.map(t => [t.name, t.usageCount])).toEqual([
+      ["popular", 3],
+      ["alpha", 1],
+      ["beta", 1],
+    ]);
+  });
+
+  test("includes orphaned tags with a zero count, ordered last", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "A", creatorId: creator, tags: ["kept", "dropped"] });
+    // Removing "dropped" from the project leaves it orphaned in the vocabulary.
+    await updateProject(db, project.shortId, { tags: ["kept"] });
+    await createProject(db, { name: "B", creatorId: creator, tags: ["kept"] });
+
+    const list = await listTags(db);
+    expect(list.map(t => t.name)).toEqual(["kept", "dropped"]);
+    expect(list.find(t => t.name === "dropped")!.usageCount).toBe(0);
+    expect(list.find(t => t.name === "kept")!.usageCount).toBe(2);
   });
 });
 

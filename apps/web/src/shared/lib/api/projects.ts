@@ -43,6 +43,9 @@ export type ProjectCapability = typeof PROJECT_CAPABILITIES[number];
 export interface ProjectTag {
   readonly id: string;
   readonly name: string;
+  // Number of projects referencing this tag (computed by the API). Drives the
+  // most-used-first ordering of the list filter.
+  readonly usageCount: number;
 }
 
 export interface ProjectView {

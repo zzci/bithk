@@ -30,7 +30,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     name: "Bridge",
     status: "active",
     description: "A bridge",
-    tags: [{ id: "t1", name: "infra" }],
+    tags: [{ id: "t1", name: "infra", usageCount: 1 }],
     coverImageUrl: null,
     creatorId: "u1",
     version: 1,

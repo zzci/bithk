@@ -34,6 +34,7 @@ import { useAuthStore } from "@/shared/stores/auth";
 import { ProjectFormDialog } from "./-project-form-dialog";
 import { projectsFilterToQuery } from "./-project-form-logic";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
+import { ProjectTagFilter } from "./-project-tag-filter";
 import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/")({
@@ -107,18 +108,17 @@ function ProjectsListPage() {
       {projectsQuery.error && <ErrorBanner message={errorMessage(projectsQuery.error, t("common:common.error.loadFailed"))} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">{t("list.filterByTag")}</span>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-sm text-muted-foreground">{t("list.filterByTag")}</span>
           {[
             { key: "__active__", label: t("status.active"), count: activeCount },
             { key: "__archived__", label: t("status.archived"), count: archivedCount },
-            ...tags.map(tag => ({ key: tag.id, label: tag.name, count: undefined })),
           ].map(opt => (
             <Button
               key={opt.key}
               size="sm"
               variant={filter === opt.key ? "default" : "outline"}
-              className="h-8 rounded-full"
+              className="h-8 shrink-0 rounded-full"
               aria-pressed={filter === opt.key}
               onClick={() => {
                 setFilter(opt.key);
@@ -131,6 +131,14 @@ function ProjectsListPage() {
               )}
             </Button>
           ))}
+          <ProjectTagFilter
+            tags={tags}
+            selectedTagId={tags.some(tag => tag.id === filter) ? filter : null}
+            onSelect={(tagId) => {
+              setFilter(tagId);
+              setPage(1);
+            }}
+          />
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
