@@ -20,6 +20,9 @@ import { settingsRoutes } from "@/modules/settings";
 import { shareRoutes } from "@/modules/share";
 import { shipRoutes } from "@/modules/ship";
 import { maintenanceTemplateRoutes } from "@/modules/ship/ship.maintenance-template.service";
+// Side-effect import: the tag module has no routes of its own, but importing it
+// registers the `tags` backup contribution (the shared typed-tag vocabulary).
+import "@/modules/tag";
 
 export function protectedRoutes() {
   const app = new Hono<AppEnv>();
