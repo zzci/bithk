@@ -14,7 +14,6 @@ import {
   getProcurementByShortId,
   listByProject,
   resolveProcurementItem,
-  softDeleteProcurement,
   updateProcurement,
 } from "./procurement.service";
 import { PROCUREMENT_STATUSES } from "./schema";
@@ -30,6 +29,10 @@ const createSchema = z.object({
   quantity: z.number().int().min(0).nullable().optional(),
   amount: z.number().int().min(0).nullable().optional(),
   currency: z.string().max(10).nullable().optional(),
+  // Issue-parity fields. Mirror `issue.routes.ts` create semantics.
+  description: z.string().max(2000).nullable().optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  dueDate: z.string().max(30).nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -41,6 +44,11 @@ const updateSchema = z.object({
   quantity: z.number().int().min(0).nullable().optional(),
   amount: z.number().int().min(0).nullable().optional(),
   currency: z.string().max(10).nullable().optional(),
+  // Issue-parity fields. Mirror `issue.routes.ts` update semantics — a null
+  // description / dueDate clears the stored value.
+  description: z.string().max(2000).nullable().optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  dueDate: z.string().max(30).nullable().optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), {
   message: "At least one field must be provided",
 });
@@ -149,13 +157,9 @@ export function procurementRoutes() {
     return c.json({ success: true, data: updated });
   });
 
-  // ─── Delete (soft) ─────────────────────────────────────────────────
-  router.delete("/projects/:projectId/procurements/:id", async (c) => {
-    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"), true);
-    const db = c.get("db");
-    await softDeleteProcurement(db, procurement.id);
-    return c.json({ success: true, data: null });
-  });
+  // Procurement is intentionally non-deletable: there is no DELETE route. A
+  // procurement that is no longer relevant is moved to the `cancelled` status
+  // instead, preserving its audit trail and references.
 
   // ─── Pin / Unpin ───────────────────────────────────────────────────
   // Curation action gated on `procurement.manage` (admins bypass), same as the

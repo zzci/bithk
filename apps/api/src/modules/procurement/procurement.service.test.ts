@@ -21,7 +21,6 @@ import {
   createProcurement,
   getProcurementByShortId,
   listByProject,
-  softDeleteProcurement,
   updateProcurement,
 } from "./procurement.service";
 
@@ -104,6 +103,39 @@ describe("createProcurement", () => {
     expect(tuples).toHaveLength(1);
     expect(tuples[0]!.relation).toBe("owner");
     expect(tuples[0]!.subjectId).toBe(creator);
+  });
+
+  test("writes issue-parity fields and defaults priority to medium", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+
+    const withFields = await createProcurement(db, {
+      projectId: project.id,
+      itemName: "Generators",
+      description: "Backup power units",
+      priority: "high",
+      dueDate: "2026-09-01",
+      creatorId: creator,
+    });
+    expect(withFields.description).toBe("Backup power units");
+    expect(withFields.priority).toBe("high");
+    expect(withFields.dueDate).toBe("2026-09-01");
+
+    const defaults = await createProcurement(db, {
+      projectId: project.id,
+      itemName: "Bolts",
+      creatorId: creator,
+    });
+    expect(defaults.priority).toBe("medium");
+    expect(defaults.description).toBeNull();
+    expect(defaults.dueDate).toBeNull();
+
+    // The fields also surface through list responses.
+    const listed = await listByProject(db, project.id);
+    const generators = listed.data.find(r => r.itemName === "Generators")!;
+    expect(generators.priority).toBe("high");
+    expect(generators.description).toBe("Backup power units");
+    expect(generators.dueDate).toBe("2026-09-01");
   });
 
   test("uses an explicit title when provided", async () => {
@@ -213,7 +245,7 @@ describe("changeStatus", () => {
 });
 
 describe("listByProject", () => {
-  test("paginates, filters by status, scopes to the project, excludes soft-deleted", async () => {
+  test("paginates, filters by status, scopes to the project", async () => {
     const creator = await seedUser("Alice");
     const projectA = await createProject(db, { name: "A", creatorId: creator });
     const projectB = await createProject(db, { name: "B", creatorId: creator });
@@ -229,10 +261,23 @@ describe("listByProject", () => {
     const ordered = await listByProject(db, projectA.id, { status: "ordered" });
     expect(ordered.total).toBe(1);
     expect(ordered.data[0]!.itemName).toBe("A2");
+  });
 
-    await softDeleteProcurement(db, a2.id);
-    const afterDelete = await listByProject(db, projectA.id);
-    expect(afterDelete.total).toBe(1);
+  test("filters by the cancelled status", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const keep = await createProcurement(db, { projectId: project.id, itemName: "Keep", creatorId: creator });
+    const drop = await createProcurement(db, { projectId: project.id, itemName: "Drop", creatorId: creator });
+    await changeStatus(db, logger, drop.id, "cancelled", { id: creator, name: "Alice" }, { ip: "1", userAgent: "t" });
+
+    const cancelled = await listByProject(db, project.id, { status: "cancelled" });
+    expect(cancelled.total).toBe(1);
+    expect(cancelled.data[0]!.itemName).toBe("Drop");
+
+    // The non-cancelled procurement is still listed and untouched.
+    const all = await listByProject(db, project.id);
+    expect(all.total).toBe(2);
+    expect(all.data.map(r => r.itemName)).toContain(keep.itemName);
   });
 
   test("filters by category", async () => {
@@ -278,26 +323,59 @@ describe("updateProcurement", () => {
     await expect(updateProcurement(db, row.id, { supplierId: "missing-supplier" })).rejects.toThrow("Supplier is not a valid contact");
   });
 
+  test("patches issue-parity fields and clears description / dueDate to null", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const row = await createProcurement(db, {
+      projectId: project.id,
+      itemName: "Cranes",
+      description: "Initial note",
+      priority: "low",
+      dueDate: "2026-08-01",
+      creatorId: creator,
+    });
+
+    const updated = await updateProcurement(db, row.id, {
+      description: "Revised note",
+      priority: "urgent",
+      dueDate: "2026-12-31",
+    });
+    expect(updated?.description).toBe("Revised note");
+    expect(updated?.priority).toBe("urgent");
+    expect(updated?.dueDate).toBe("2026-12-31");
+
+    // Sending null clears description and dueDate; priority is left untouched.
+    const cleared = await updateProcurement(db, row.id, { description: null, dueDate: null });
+    expect(cleared?.description).toBeNull();
+    expect(cleared?.dueDate).toBeNull();
+    expect(cleared?.priority).toBe("urgent");
+  });
+
   test("returns undefined for an unknown procurement", async () => {
     expect(await updateProcurement(db, "missing00", { itemName: "x" })).toBeUndefined();
   });
 });
 
-describe("softDeleteProcurement", () => {
-  test("hides the procurement and clears its tuples", async () => {
+describe("cancellation (procurement is non-deletable)", () => {
+  test("moving to cancelled preserves the row, its base item, and its owner tuple", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
     const row = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: creator });
 
-    await softDeleteProcurement(db, row.id);
-    expect(await getProcurementByShortId(db, row.id)).toBeUndefined();
+    await changeStatus(db, logger, row.id, "cancelled", { id: creator, name: "Alice" }, { ip: "1", userAgent: "t" });
+
+    // The procurement is still addressable — cancellation is not deletion.
+    const after = await getProcurementByShortId(db, row.id);
+    expect(after?.status).toBe("cancelled");
 
     const item = await db.select().from(items).where(eq(items.shortId, row.id)).get();
+    expect(item!.deletedAt).toBeNull();
     const tuples = await db.select().from(relationTuples).where(and(
       eq(relationTuples.namespace, "item"),
       eq(relationTuples.objectId, item!.id),
     )).all();
-    expect(tuples).toEqual([]);
+    expect(tuples).toHaveLength(1);
+    expect(tuples[0]!.relation).toBe("owner");
   });
 });
 

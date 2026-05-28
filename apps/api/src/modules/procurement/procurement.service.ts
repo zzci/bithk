@@ -1,4 +1,4 @@
-import type { ProcurementStatus } from "./schema";
+import type { ProcurementPriority, ProcurementStatus } from "./schema";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
 import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
@@ -55,6 +55,9 @@ export interface ProcurementRow {
   readonly quantity: number | null;
   readonly amount: number | null;
   readonly currency: string | null;
+  readonly description: string | null;
+  readonly priority: ProcurementPriority;
+  readonly dueDate: string | null;
   readonly creatorId: string;
   readonly createdAt: string; // decoded from items.id (ULID timestamp prefix)
   readonly updatedAt: string;
@@ -82,6 +85,9 @@ function composeProcurement(
     quantity: details.quantity,
     amount: details.amount,
     currency: details.currency,
+    description: details.description,
+    priority: details.priority,
+    dueDate: details.dueDate,
     creatorId: item.creatorId,
     createdAt: ulidTimestamp(item.id),
     updatedAt: item.updatedAt,
@@ -125,6 +131,9 @@ export interface CreateProcurementInput {
   readonly quantity?: number | null | undefined;
   readonly amount?: number | null | undefined;
   readonly currency?: string | null | undefined;
+  readonly description?: string | null | undefined;
+  readonly priority?: ProcurementPriority | undefined;
+  readonly dueDate?: string | null | undefined;
   readonly creatorId: string;
 }
 
@@ -176,6 +185,9 @@ export async function createProcurement(db: AppDatabase, input: CreateProcuremen
       quantity: input.quantity ?? null,
       amount: input.amount ?? null,
       currency: input.currency ?? null,
+      description: input.description ?? null,
+      priority: input.priority ?? "medium",
+      dueDate: input.dueDate ?? null,
     }).run();
 
     tx.insert(relationTuples).values({
@@ -218,6 +230,9 @@ export interface UpdateProcurementInput {
   readonly quantity?: number | null | undefined;
   readonly amount?: number | null | undefined;
   readonly currency?: string | null | undefined;
+  readonly description?: string | null | undefined;
+  readonly priority?: ProcurementPriority | undefined;
+  readonly dueDate?: string | null | undefined;
 }
 
 export async function updateProcurement(
@@ -266,30 +281,17 @@ export async function updateProcurement(
       detailsPatch.amount = input.amount;
     if (input.currency !== undefined)
       detailsPatch.currency = input.currency;
+    if (input.description !== undefined)
+      detailsPatch.description = input.description;
+    if (input.priority !== undefined)
+      detailsPatch.priority = input.priority;
+    if (input.dueDate !== undefined)
+      detailsPatch.dueDate = input.dueDate;
     if (Object.keys(detailsPatch).length > 0)
       tx.update(procurementDetails).set(detailsPatch).where(eq(procurementDetails.itemId, item.id)).run();
   });
 
   return await getProcurementByShortId(db, shortId);
-}
-
-export async function softDeleteProcurement(db: AppDatabase, shortId: string): Promise<void> {
-  const item = await db.select().from(items).where(
-    and(eq(items.shortId, shortId), eq(items.type, "procurement")),
-  ).get();
-  if (!item)
-    return;
-  const now = new Date().toISOString();
-  db.transaction((tx) => {
-    tx.update(items)
-      .set({ deletedAt: now, updatedAt: now, version: sql`${items.version} + 1` })
-      .where(and(eq(items.id, item.id), isNull(items.deletedAt)))
-      .run();
-    tx.delete(relationTuples).where(and(
-      eq(relationTuples.namespace, "item"),
-      eq(relationTuples.objectId, item.id),
-    )).run();
-  });
 }
 
 // ─── Status ───────────────────────────────────────────────────────────
