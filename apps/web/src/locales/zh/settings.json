@@ -22,7 +22,74 @@
   "tabs": {
     "auth": "身份认证",
     "smtp": "SMTP",
-    "webhook": "Webhook"
+    "webhook": "Webhook",
+    "projectDefaults": "项目默认值"
+  },
+  "projectDefaults": {
+    "defaults": {
+      "title": "项目默认值",
+      "description": "创建项目时，若创建者未显式设置，则套用以下默认值。",
+      "statusLabel": "默认状态",
+      "statusUnset": "未设置",
+      "statusHint": "创建项目时若未指定状态则套用。未设置时回退为「进行中」。",
+      "status_active": "进行中",
+      "status_archived": "已归档",
+      "clear": "清除",
+      "coverLabel": "默认封面引用",
+      "coverPlaceholder": "文件引用 ID",
+      "coverHint": "用作新项目封面的文件引用 ID。留空表示无默认封面。",
+      "toast": {
+        "statusSaved": "默认状态已保存。",
+        "statusCleared": "默认状态已清除。",
+        "coverSaved": "默认封面已保存。",
+        "coverCleared": "默认封面已清除。"
+      }
+    },
+    "tags": {
+      "title": "标签",
+      "description": "所有项目共享的全局标签词表。",
+      "add": "添加标签",
+      "addTitle": "添加标签",
+      "editTitle": "重命名标签",
+      "dialogDescription": "标签在所有项目间共享。",
+      "fieldName": "名称",
+      "colName": "名称",
+      "colUsage": "项目数",
+      "empty": "暂无标签。",
+      "delete": {
+        "title": "删除标签",
+        "confirm": "删除「{{name}}」？将从 {{count}} 个项目中移除。"
+      },
+      "toast": {
+        "created": "标签已创建。",
+        "renamed": "标签已重命名。",
+        "deleted": "标签「{{name}}」已删除。"
+      }
+    },
+    "categories": {
+      "title": "全局采购分类",
+      "description": "创建项目时复制到每个新项目的分类模板集。",
+      "add": "添加分类",
+      "addTitle": "添加分类",
+      "editTitle": "编辑分类",
+      "dialogDescription": "全局分类用于初始化每个新项目的采购分类。",
+      "fieldName": "名称",
+      "fieldCode": "编码",
+      "fieldDescription": "描述",
+      "colName": "名称",
+      "colCode": "编码",
+      "colDescription": "描述",
+      "empty": "暂无全局分类。",
+      "delete": {
+        "title": "删除分类",
+        "confirm": "删除「{{name}}」？新项目将不再初始化此分类。"
+      },
+      "toast": {
+        "created": "分类已创建。",
+        "updated": "分类已更新。",
+        "deleted": "分类「{{name}}」已删除。"
+      }
+    }
   },
   "auth": {
     "sessionTitle": "会话与管理员",
