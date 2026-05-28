@@ -114,8 +114,8 @@ describe("projectOverviewTab", () => {
     renderWithProviders(
       <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    // Scope to the pinned list so the kind badges (which share the word
-    // "Procurement" with the summary metric label) are asserted unambiguously.
+    // Scope to the pinned list so the kind badges are asserted unambiguously
+    // against the "Latest procurements" list heading on the same page.
     const pinnedList = within(await screen.findByRole("list", { name: "Pinned" }));
     expect(pinnedList.getByText("Fix pump")).toBeInTheDocument();
     expect(pinnedList.getByText("Buy steel")).toBeInTheDocument();
@@ -124,7 +124,17 @@ describe("projectOverviewTab", () => {
     expect(pinnedList.getByText("Procurement")).toBeInTheDocument();
   });
 
-  it("shows work order and procurement metric counts in the summary", async () => {
+  it("combines creator, last updated, tags, and description in one info block", () => {
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map([["u1", "Alice"]])} caps={procCaps} onOpenTab={vi.fn()} />,
+    );
+    expect(screen.getByText(/Creator/)).toBeInTheDocument();
+    expect(screen.getByText(/Last updated/)).toBeInTheDocument();
+    expect(screen.getByText("infra")).toBeInTheDocument();
+    expect(screen.getByText("A tall building")).toBeInTheDocument();
+  });
+
+  it("no longer renders the work order and procurement summary metrics", async () => {
     routeFetch({
       issues: [{ id: "i1", title: "Fix leak", status: "open", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }],
       procurements: [{ id: "pr1", itemName: "Buy steel", status: "draft", updatedAt: "2026-05-24T00:00:00.000Z" }],
@@ -132,13 +142,12 @@ describe("projectOverviewTab", () => {
     renderWithProviders(
       <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
+    // Latest lists still load, but the old summary metric tiles are gone.
     await screen.findByText("Fix leak");
     await screen.findByText("Buy steel");
-    // Metric labels come from detail.metrics; counts come from list meta.total.
-    expect(screen.getByText("Work orders")).toBeInTheDocument();
-    expect(screen.getByText("Procurement")).toBeInTheDocument();
-    // One work order + one procurement → two metric values of "1".
-    expect(screen.getAllByText("1")).toHaveLength(2);
+    // The "Work orders" metric label only existed on the removed summary tiles
+    // ("Latest work orders" is a different heading), so it must be absent now.
+    expect(screen.queryByText("Work orders")).not.toBeInTheDocument();
   });
 
   it("shows the pinned empty state when nothing is pinned", async () => {
