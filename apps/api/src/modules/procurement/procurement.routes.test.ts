@@ -217,6 +217,40 @@ describe("POST procurement (procurement.manage)", () => {
     expect(body.data.status).toBe("draft");
   });
 
+  test("create accepts description/priority/dueDate and defaults priority to medium", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    const withFields = await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", cookie, {
+      itemName: "Generators",
+      description: "Backup power",
+      priority: "high",
+      dueDate: "2026-09-01",
+    }));
+    expect(withFields.status).toBe(201);
+    const wf = (await res2json(withFields)).data;
+    expect(wf.description).toBe("Backup power");
+    expect(wf.priority).toBe("high");
+    expect(wf.dueDate).toBe("2026-09-01");
+
+    const defaults = await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", cookie, { itemName: "Bolts" }));
+    expect(defaults.status).toBe(201);
+    const df = (await res2json(defaults)).data;
+    expect(df.priority).toBe("medium");
+    expect(df.description).toBeNull();
+    expect(df.dueDate).toBeNull();
+  });
+
+  test("an invalid priority is rejected with 422", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const res = await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", await cookieForUser(owner), { itemName: "X", priority: "critical" }));
+    expect(res.status).toBe(422);
+  });
+
   test("a negative quantity or amount is rejected with 422", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
@@ -279,7 +313,7 @@ describe("detail / update / delete (cross-project + manage gate)", () => {
     expect((await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("DELETE", cookie))).status).toBe(404);
   });
 
-  test("the pm updates then soft-deletes", async () => {
+  test("the pm updates; deletion is unavailable (no DELETE route)", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
@@ -290,11 +324,32 @@ describe("detail / update / delete (cross-project + manage gate)", () => {
     expect(patched.status).toBe(200);
     expect((await res2json(patched)).data.itemName).toBe("Steel pipes");
 
-    const del = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("DELETE", cookie));
-    expect(del.status).toBe(200);
+    // Issue-parity fields update, and null clears description / dueDate.
+    const detail = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, {
+      description: "A note",
+      priority: "urgent",
+      dueDate: "2026-10-10",
+    }));
+    expect(detail.status).toBe(200);
+    const dd = (await res2json(detail)).data;
+    expect(dd.description).toBe("A note");
+    expect(dd.priority).toBe("urgent");
+    expect(dd.dueDate).toBe("2026-10-10");
 
-    const gone = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, { headers: { Cookie: cookie } });
-    expect(gone.status).toBe(404);
+    const cleared = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { description: null, dueDate: null }));
+    expect(cleared.status).toBe(200);
+    const cd = (await res2json(cleared)).data;
+    expect(cd.description).toBeNull();
+    expect(cd.dueDate).toBeNull();
+    expect(cd.priority).toBe("urgent");
+
+    // Procurement is non-deletable: the DELETE route does not exist (404),
+    // and the procurement remains addressable afterwards.
+    const del = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("DELETE", cookie));
+    expect(del.status).toBe(404);
+
+    const stillThere = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, { headers: { Cookie: cookie } });
+    expect(stillThere.status).toBe(200);
   });
 });
 
@@ -323,7 +378,7 @@ describe("status change", () => {
     const cookie = await cookieForUser(owner);
 
     let lastVersion = proc.version;
-    for (const next of ["closed", "draft", "received"]) {
+    for (const next of ["closed", "cancelled", "draft", "received"]) {
       const res = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: next }));
       expect(res.status).toBe(200);
       const body = await res.json() as { data: { status: string; version: number } };
@@ -355,7 +410,14 @@ describe("status change", () => {
 });
 
 interface ProcurementResponse {
-  data: { itemName: string; status: string; supplierId?: string | null };
+  data: {
+    itemName: string;
+    status: string;
+    supplierId?: string | null;
+    description?: string | null;
+    priority?: string;
+    dueDate?: string | null;
+  };
 }
 
 async function res2json(res: Response): Promise<ProcurementResponse> {

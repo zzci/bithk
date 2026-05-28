@@ -3,8 +3,12 @@ import { contacts } from "@/modules/contact/schema";
 import { items } from "@/modules/item/schema";
 import { procurementCategories, projectMembers, projects } from "@/modules/project/schema";
 
-export const PROCUREMENT_STATUSES = ["draft", "requested", "ordered", "received", "closed"] as const;
+export const PROCUREMENT_STATUSES = ["draft", "requested", "ordered", "received", "closed", "cancelled"] as const;
 export type ProcurementStatus = typeof PROCUREMENT_STATUSES[number];
+
+// Issue-parity priority levels, mirroring `issue_details.priority` exactly.
+export const PROCUREMENT_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
+export type ProcurementPriority = typeof PROCUREMENT_PRIORITIES[number];
 
 // `procurement` is a sub-type of the `item` base. The base owns the universal
 // columns (title / status / creator / version / soft-delete / timestamps) and
@@ -31,4 +35,9 @@ export const procurementDetails = sqliteTable("procurement_details", {
   quantity: integer("quantity"),
   amount: integer("amount"), // minor currency unit
   currency: text("currency"),
+  // Issue-parity fields mirroring `issue_details` exactly so the procurement
+  // detail UI reaches feature parity with the project issue detail.
+  description: text("description"),
+  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("medium"),
+  dueDate: text("due_date"),
 }, t => [index("procurement_project_idx").on(t.projectId)]);
