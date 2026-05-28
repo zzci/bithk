@@ -1,4 +1,4 @@
-import type { AppDatabase, AppTransaction, RunResult } from "@/db";
+import type { AppDatabase, RunResult } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { groups } from "@/modules/account/groups/schema";
@@ -10,8 +10,17 @@ import { relationTuples } from "@/modules/policy/schema";
 import { listUserResources } from "@/modules/policy/zanzibar.engine";
 import { deleteSharesForResource } from "@/modules/share";
 import { tags } from "@/modules/tag/schema";
-import { upsertTagIdTx } from "@/modules/tag/tag.service";
+import { listResourceIdsByTag, listResourceTagNames, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { nanoid, ulid } from "@/shared/lib/id";
+
+// Document assignment join binding for the shared tag helpers. Scopes every
+// helper call to source_type 'document' and the `document_tags` join.
+const DOCUMENT_TAG_BINDING = {
+  sourceType: "document",
+  table: documentTags,
+  resourceColumn: documentTags.itemId,
+  tagColumn: documentTags.tagId,
+} as const;
 
 // Escape the LIKE wildcards (`%`, `_`) *and* the escape character itself
 // (`\`) so a user-supplied term is matched literally. Backslash must be
@@ -66,14 +75,14 @@ async function getParentShortId(db: DbReader, parentItemId: string | null): Prom
   return row?.shortId ?? null;
 }
 
-// Minimum surface composeDocument needs: a `select` entry point.
-// Both `AppDatabase` and Drizzle's transaction handle satisfy this
-// shape, so call sites can pass `tx` from inside a `db.transaction`
-// callback without resorting to `as unknown as AppDatabase`.
+// Minimum surface `getParentShortId` needs: a `select` entry point. Both
+// `AppDatabase` and Drizzle's transaction handle satisfy this shape, so call
+// sites can pass `tx` from inside a `db.transaction` callback without
+// resorting to `as unknown as AppDatabase`.
 type DbReader = Pick<AppDatabase, "select">;
 
 async function composeDocument(
-  db: DbReader,
+  db: AppDatabase,
   item: typeof items.$inferSelect,
   details?: typeof documentDetails.$inferSelect | undefined,
 ): Promise<DocumentRow> {
@@ -85,7 +94,7 @@ async function composeDocument(
     // Tags are now sourced from the `document_tags` join over the global typed
     // vocabulary. The response keeps the legacy JSON-string shape so the
     // frontend contract is unchanged.
-    tags: JSON.stringify(await loadDocumentTagNames(db, item.id)),
+    tags: JSON.stringify(await listResourceTagNames(db, DOCUMENT_TAG_BINDING, item.id)),
     parentId: await getParentShortId(db, d?.parentId ?? null),
     version: item.version,
     commentsLocked: d?.commentsLocked ?? false,
@@ -93,37 +102,6 @@ async function composeDocument(
     createdAt: ulidTimestamp(item.id),
     updatedAt: item.updatedAt,
   };
-}
-
-/** Tag names assigned to a document, read from `document_tags`, sorted by name. */
-async function loadDocumentTagNames(db: DbReader, itemId: string): Promise<string[]> {
-  const rows = await db
-    .select({ name: tags.name })
-    .from(documentTags)
-    .innerJoin(tags, eq(tags.id, documentTags.tagId))
-    .where(eq(documentTags.itemId, itemId))
-    .orderBy(tags.name)
-    .all();
-  return rows.map(r => r.name);
-}
-
-/**
- * Replace a document's tags with the given names: upsert into the shared `tags`
- * vocabulary under source_type 'document', then rewrite `document_tags`. Runs
- * synchronously inside a transaction.
- */
-function syncDocumentTagsTx(tx: AppTransaction, itemId: string, names: readonly string[], now: string): void {
-  tx.delete(documentTags).where(eq(documentTags.itemId, itemId)).run();
-  const seen = new Set<string>();
-  for (const raw of names) {
-    const name = raw.trim();
-    const key = name.toLowerCase();
-    if (!name || seen.has(key))
-      continue;
-    seen.add(key);
-    const tagId = upsertTagIdTx(tx, "document", name, now);
-    tx.insert(documentTags).values({ itemId, tagId }).run();
-  }
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────
@@ -163,8 +141,8 @@ export async function createDocument(db: AppDatabase, input: CreateDocumentInput
       updatedAt: now,
     }).run();
 
-    // `document_details.tags` is legacy; tags live in `document_tags` now, so
-    // the column keeps its "[]" default and is no longer written.
+    // Tags live in the `document_tags` join (written below), never on
+    // `document_details`, so no tag field is set here.
     tx.insert(documentDetails).values({
       itemId: id,
       content: input.content ?? null,
@@ -201,7 +179,7 @@ export async function createDocument(db: AppDatabase, input: CreateDocumentInput
     }
 
     if (input.tags && input.tags.length > 0)
-      syncDocumentTagsTx(tx, id, input.tags, now);
+      syncResourceTagsTx(tx, DOCUMENT_TAG_BINDING, id, input.tags, now);
   });
 
   if (input.tags && input.tags.length > 0)
@@ -305,7 +283,7 @@ export async function updateDocument(
     // here in the same transaction so the version bump above stays atomic with
     // the tag change.
     if (input.tags !== undefined)
-      syncDocumentTagsTx(tx, item.id, input.tags, now);
+      syncResourceTagsTx(tx, DOCUMENT_TAG_BINDING, item.id, input.tags, now);
 
     if (parentItemIdSpec !== undefined) {
       // Rewrite the parent_item tuple in lockstep with the business column.
@@ -486,14 +464,12 @@ export async function listMyDocuments(db: AppDatabase, params: ListDocumentsPara
     : and(where, creatorClause);
 
   if (params.tag) {
-    const ids = await db.select({ itemId: documentTags.itemId })
-      .from(documentTags)
-      .innerJoin(tags, eq(tags.id, documentTags.tagId))
-      .where(and(eq(tags.sourceType, "document"), eq(tags.name, params.tag)))
-      .all();
+    // Filter is by tag NAME today; `listResourceIdsByTag` accepts a name or id,
+    // so name lookups keep working unchanged.
+    const ids = await listResourceIdsByTag(db, DOCUMENT_TAG_BINDING, params.tag);
     if (ids.length === 0)
       return { data: [] as DocumentRow[], total: 0 };
-    where = and(where, inArray(items.id, ids.map(r => r.itemId)));
+    where = and(where, inArray(items.id, ids));
   }
 
   const page = Math.max(1, params.page ?? 1);

@@ -33,7 +33,6 @@ import { tags } from "@/modules/tag/schema";
 export const documentDetails = sqliteTable("document_details", {
   itemId: text("item_id").primaryKey().references(() => items.id, { onDelete: "cascade" }),
   content: text("content"),
-  tags: text("tags").notNull().default("[]"),
   parentId: text("parent_id").references((): AnySQLiteColumn => items.id, { onDelete: "cascade" }),
   commentsLocked: integer("comments_locked", { mode: "boolean" }).notNull().default(false),
 }, t => [
@@ -59,10 +58,9 @@ export const documentPins = sqliteTable("document_pins", {
 ]);
 
 // Attaches document items to the global typed tag vocabulary (source_type
-// 'document'). The join is the authoritative tag link; the legacy
-// `document_details.tags` JSON column is kept until the service layer reads
-// tags from here. `item_id` → items.id (the document base row), `tag_id` →
-// tags.id; both cascade on delete.
+// 'document'). This join is the sole authoritative tag store for documents.
+// `item_id` → items.id (the document base row), `tag_id` → tags.id; both
+// cascade on delete.
 export const documentTags = sqliteTable("document_tags", {
   itemId: text("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
   tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
