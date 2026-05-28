@@ -8,8 +8,8 @@ import { createDb } from "@/db";
 import { streamJsonBackup } from "@/modules/backup/export.service";
 import { __resetBackupRegistryForTests, getDataModules, registerBackupContribution } from "@/modules/backup/registry";
 import { importJsonBackup, validateBackupData } from "@/modules/backup/restore.service";
-import { projectBackupContribution } from "@/modules/project/project.backup";
-import { tags } from "@/modules/project/schema";
+import { tags } from "@/modules/tag/schema";
+import { tagBackupContribution } from "@/modules/tag/tag.backup";
 import { contactBackupContribution } from "./contact.backup";
 import { contacts, contactTags } from "./schema";
 
@@ -22,7 +22,7 @@ beforeEach(async () => {
   sourceDb = await createDb(resolvePath(dir, "source.db"));
   restoredDb = await createDb(resolvePath(dir, "restored.db"));
   __resetBackupRegistryForTests();
-  registerBackupContribution(projectBackupContribution);
+  registerBackupContribution(tagBackupContribution);
   registerBackupContribution(contactBackupContribution);
 });
 
@@ -38,7 +38,7 @@ describe("contact backup contribution", () => {
     const mod = getDataModules().contacts;
     expect(mod?.name).toBe("contacts");
     expect(mod?.tables.map(table => getTableName(table))).toEqual(["contacts", "contact_tags"]);
-    expect(mod?.deps).toEqual(["projects"]);
+    expect(mod?.deps).toEqual(["tags"]);
   });
 
   test("contact index registers the contribution when imported", async () => {
@@ -55,6 +55,7 @@ describe("contact backup contribution", () => {
     await sourceDb.insert(tags).values({
       id: "tag_supplier",
       name: "supplier",
+      sourceType: "contact",
       createdAt: now,
       updatedAt: now,
     }).run();
@@ -81,7 +82,7 @@ describe("contact backup contribution", () => {
 
     const { modules, body } = streamJsonBackup(sourceDb, ["contacts"]);
     const parsed = validateBackupData(JSON.parse(await readStreamToString(body)));
-    expect(modules).toEqual(["projects", "contacts"]);
+    expect(modules).toEqual(["tags", "contacts"]);
     expect(parsed.tables.contacts).toHaveLength(1);
     expect(parsed.tables.contact_tags).toHaveLength(1);
 

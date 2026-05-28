@@ -1,8 +1,19 @@
 import type { Context } from "hono";
 import type { ProjectCapability } from "./schema";
+import type { TagSourceType } from "@/modules/tag/schema";
+import type { TagJoin } from "@/modules/tag/tag.service";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
+import { contactTags } from "@/modules/contact/schema";
+import { documentTags } from "@/modules/document/schema";
+import { TAG_SOURCE_TYPES } from "@/modules/tag/schema";
+import {
+  createTag as createTypedTag,
+  deleteTag as deleteTypedTag,
+  listTagsWithUsage,
+  renameTag as renameTypedTag,
+} from "@/modules/tag/tag.service";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
@@ -32,18 +43,14 @@ import {
   composeMember,
   composeProjectWithTags,
   createProject,
-  createTag,
-  deleteTag,
   getDefaultProjectCover,
   getMemberCapabilities,
   getProjectByShortId,
   listMembers,
   listProjects,
-  listTags,
   removeDefaultProjectCover,
   removeMember,
   removeProjectCover,
-  renameTag,
   resolveProjectId,
   setDefaultProjectCover,
   setProjectCover,
@@ -51,7 +58,18 @@ import {
   updateMember,
   updateProject,
 } from "./project.service";
-import { PROJECT_CAPABILITIES, PROJECT_STATUSES } from "./schema";
+import { PROJECT_CAPABILITIES, PROJECT_STATUSES, projectTags } from "./schema";
+
+// `/tags` manages all three typed vocabularies (project/contact/document); each
+// domain's join table supplies the assignment count. `type` defaults to project
+// so existing project-only callers are unchanged.
+const TAG_JOINS: Record<TagSourceType, TagJoin> = {
+  project: { table: projectTags, tagId: projectTags.tagId },
+  contact: { table: contactTags, tagId: contactTags.tagId },
+  document: { table: documentTags, tagId: documentTags.tagId },
+};
+
+const tagTypeSchema = z.enum(TAG_SOURCE_TYPES).default("project");
 
 const tagsShape = { tags: z.array(z.string().min(1).max(50)).max(50).optional() };
 
@@ -113,7 +131,7 @@ const updateRoleSchema = z.object({
   capabilities: capabilitiesSchema.optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
-const tagNameSchema = z.object({ name: z.string().min(1).max(50) });
+const tagNameSchema = z.object({ name: z.string().min(1).max(50), type: tagTypeSchema });
 
 const createGlobalCategorySchema = z.object({
   name: z.string().min(1).max(255),
@@ -177,34 +195,37 @@ export function projectRoutes() {
   const router = new Hono<AppEnv>();
   router.use("*", authRequired);
 
-  // GET /tags — global tag vocabulary (for the list filter).
+  // GET /tags[?type=] — typed tag vocabulary with usage counts (for the list
+  // filter). `type` defaults to project.
   router.get("/tags", async (c) => {
     const db = c.get("db");
-    return c.json({ success: true, data: await listTags(db) });
+    const type = tagTypeSchema.parse(c.req.query("type"));
+    return c.json({ success: true, data: await listTagsWithUsage(db, type, TAG_JOINS[type]) });
   });
 
   // ─── Tag admin (admin only) ────────────────────────────────────────
   router.post("/tags", adminRequired, async (c) => {
     const db = c.get("db");
     const body = tagNameSchema.parse(await c.req.json());
-    return c.json({ success: true, data: await createTag(db, body.name) }, 201);
+    return c.json({ success: true, data: await createTypedTag(db, body.type, body.name) }, 201);
   });
 
   router.patch("/tags/:id", adminRequired, async (c) => {
     const db = c.get("db");
     const id = c.req.param("id");
     const body = tagNameSchema.parse(await c.req.json());
-    const tag = await renameTag(db, id, body.name);
+    const tag = await renameTypedTag(db, body.type, id, body.name, TAG_JOINS[body.type]);
     if (!tag)
       throw new NotFoundError("Tag", id);
     return c.json({ success: true, data: tag });
   });
 
-  // Delete a tag, cascade-unlinking it from every project (no in-use block).
+  // Delete a tag, cascade-unlinking it from every assignment (no in-use block).
   router.delete("/tags/:id", adminRequired, async (c) => {
     const db = c.get("db");
     const id = c.req.param("id");
-    if (!await deleteTag(db, id))
+    const type = tagTypeSchema.parse(c.req.query("type"));
+    if (!await deleteTypedTag(db, type, id))
       throw new NotFoundError("Tag", id);
     return c.json({ success: true, data: null });
   });

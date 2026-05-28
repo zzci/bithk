@@ -5,8 +5,9 @@ import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { createTuple, deleteTupleByKey, deleteTuplesForEntity } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
-import { tags } from "@/modules/project/schema";
 import { shares } from "@/modules/share/schema";
+import { tags } from "@/modules/tag/schema";
+import { upsertTagIdTx } from "@/modules/tag/tag.service";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import {
@@ -311,12 +312,7 @@ function syncTagsTx(tx: AppTransaction, contactId: string, names: readonly strin
       continue;
     seen.add(key);
 
-    const existing = tx.select({ id: tags.id }).from(tags).where(eq(tags.name, name)).get();
-    let tagId = existing?.id;
-    if (!tagId) {
-      tagId = nanoid();
-      tx.insert(tags).values({ id: tagId, name, createdAt: now, updatedAt: now }).run();
-    }
+    const tagId = upsertTagIdTx(tx, "contact", name, now);
     tx.insert(contactTags).values({ contactId, tagId }).run();
   }
 }
@@ -338,7 +334,7 @@ async function resolveTagId(db: AppDatabase, tag: string): Promise<string | null
   const row = await db
     .select({ id: tags.id })
     .from(tags)
-    .where(or(eq(tags.id, value), eq(tags.name, value)))
+    .where(and(or(eq(tags.id, value), eq(tags.name, value)), eq(tags.sourceType, "contact")))
     .get();
   return row?.id ?? null;
 }

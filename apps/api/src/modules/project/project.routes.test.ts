@@ -586,3 +586,43 @@ describe("global procurement categories (admin only)", () => {
     expect(missing.status).toBe(404);
   });
 });
+
+describe("typed /tags admin", () => {
+  interface TagBody { data: { id: string; name: string; usageCount: number } }
+
+  test("type defaults to project and scopes list/create per source type", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+
+    // POST without `type` creates a project tag; a contact tag may reuse the name.
+    const projectTag = await app.request("/tags", jsonReq("POST", admin.cookie, { name: "VIP" }));
+    expect(projectTag.status).toBe(201);
+    const contactTag = await app.request("/tags", jsonReq("POST", admin.cookie, { name: "VIP", type: "contact" }));
+    expect(contactTag.status).toBe(201);
+    expect((await contactTag.json() as TagBody).data.id)
+      .not
+      .toBe((await projectTag.json() as TagBody).data.id);
+
+    // A same-type duplicate is rejected.
+    const dup = await app.request("/tags", jsonReq("POST", admin.cookie, { name: "VIP" }));
+    expect(dup.status).toBe(422);
+
+    // GET defaults to project; ?type=contact returns the contact vocabulary.
+    const projectList = await app.request("/tags", { headers: { Cookie: admin.cookie } });
+    expect((await projectList.json() as { data: { name: string }[] }).data.map(t => t.name)).toEqual(["VIP"]);
+    const contactList = await app.request("/tags?type=contact", { headers: { Cookie: admin.cookie } });
+    expect((await contactList.json() as { data: { name: string }[] }).data.map(t => t.name)).toEqual(["VIP"]);
+  });
+
+  test("deleting a tag is scoped by type", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+    const created = await app.request("/tags", jsonReq("POST", admin.cookie, { name: "temp", type: "contact" }));
+    const tagId = (await created.json() as TagBody).data.id;
+
+    // Wrong type → 404; correct type → 200; second delete → 404.
+    expect((await app.request(`/tags/${tagId}`, jsonReq("DELETE", admin.cookie))).status).toBe(404);
+    expect((await app.request(`/tags/${tagId}?type=contact`, jsonReq("DELETE", admin.cookie))).status).toBe(200);
+    expect((await app.request(`/tags/${tagId}?type=contact`, jsonReq("DELETE", admin.cookie))).status).toBe(404);
+  });
+});
