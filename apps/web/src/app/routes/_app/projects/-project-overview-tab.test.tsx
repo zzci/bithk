@@ -132,8 +132,10 @@ describe("projectOverviewTab", () => {
     renderWithProviders(
       <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
+    await screen.findByText("Fix leak");
+    await screen.findByText("Buy steel");
     // Metric labels come from detail.metrics; counts come from list meta.total.
-    expect(await screen.findByText("Work orders")).toBeInTheDocument();
+    expect(screen.getByText("Work orders")).toBeInTheDocument();
     expect(screen.getByText("Procurement")).toBeInTheDocument();
     // One work order + one procurement → two metric values of "1".
     expect(screen.getAllByText("1")).toHaveLength(2);

@@ -4,10 +4,10 @@
 // procurements grouped into separate cards. Read-only — pinning happens on the
 // rows in the Issues / Procurement tabs.
 
+import type { ReactNode } from "react";
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { PinnedItem } from "@/shared/lib/api/pins";
 import type { ProjectView } from "@/shared/lib/api/projects";
-import type { ReactNode } from "react";
 import { ClipboardList, Clock, Package, Pin, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
