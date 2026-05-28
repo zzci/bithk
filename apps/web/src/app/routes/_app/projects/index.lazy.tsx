@@ -249,7 +249,7 @@ function ProjectsGrid({
             }
           }}
         >
-          <CoverImage src={project.coverImageUrl} kind="project" className="h-28 w-full" />
+          <CoverImage src={project.coverImageUrl} kind="project" seed={project.id} className="h-28 w-full" />
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="line-clamp-2 min-w-0">{project.name}</CardTitle>
