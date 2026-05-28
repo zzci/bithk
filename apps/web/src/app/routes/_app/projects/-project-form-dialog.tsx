@@ -2,6 +2,10 @@
 // description and tags are optional. The project code and status are not set
 // here — the backend auto-generates the code (`P-<id>`) and defaults the status
 // to "active" (a freshly created project is never archived).
+//
+// Layout note: the dialog manages its own padding (`p-0` on the content) and
+// uses a custom bordered footer rather than the shared `DialogFooter`, which
+// bleeds with negative margins that assume the default `p-4` content padding.
 
 import type { CreateProjectInput } from "@/shared/lib/api/projects";
 import { useEffect, useState } from "react";
@@ -10,13 +14,10 @@ import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { Separator } from "@/shared/components/ui/separator";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
@@ -67,15 +68,11 @@ export function ProjectFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto p-0 sm:max-w-lg">
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
         <form onSubmit={submit}>
-          <DialogHeader className="px-4 pt-4 pb-0">
-            <DialogTitle className="text-xs font-medium text-muted-foreground">
-              {t("create.title")}
-            </DialogTitle>
-          </DialogHeader>
+          <DialogTitle className="sr-only">{t("create.title")}</DialogTitle>
 
-          <div className="space-y-2 px-4 pt-2 pb-4">
+          <div className="space-y-2 px-5 pt-5 pb-4">
             {errorMessage && <ErrorBanner message={errorMessage} />}
 
             <Input
@@ -85,7 +82,7 @@ export function ProjectFormDialog({
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder={t("create.namePlaceholder")}
-              className="border-0 px-0 text-lg font-medium shadow-none focus-visible:ring-0 md:text-lg"
+              className="h-auto border-0 bg-transparent px-0 py-0 text-lg font-semibold shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
             />
 
             <Textarea
@@ -94,22 +91,22 @@ export function ProjectFormDialog({
               onChange={e => setDescription(e.target.value)}
               placeholder={t("create.descriptionPlaceholder")}
               rows={3}
-              className="resize-none border-0 px-0 shadow-none focus-visible:ring-0"
+              className="min-h-16 resize-none border-0 bg-transparent px-0 py-0 text-sm shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
             />
 
-            <ProjectTagsCombobox value={tags} onChange={setTags} suggestions={availableTags} />
+            <div className="pt-2">
+              <ProjectTagsCombobox value={tags} onChange={setTags} suggestions={availableTags} />
+            </div>
           </div>
 
-          <Separator />
-
-          <DialogFooter className="px-4 py-3">
+          <div className="flex justify-end gap-2 border-t bg-muted/30 px-5 py-3">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
               {t("create.submit")}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

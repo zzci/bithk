@@ -1,22 +1,20 @@
-// Multi-select tag picker for the create-project dialog: lists the existing
-// global tag vocabulary and lets the user create a brand-new tag inline.
-// Values are plain tag names — the create-project API accepts names directly.
-//
-// Filtering is done here (not via base-ui's `items` prop) so an extra
-// "create" entry can be appended for any unmatched query.
+// Linear-style tag picker for the create-project dialog. Selected tags render
+// as removable chips; a dashed "Tags" pill opens a popup with a search box that
+// lists the existing global tag vocabulary and offers to create a new tag from
+// the typed query. Values are plain tag names — the create API accepts names.
 
+import { TagIcon, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import {
   Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
   ComboboxContent,
-  ComboboxEmpty,
+  ComboboxInput,
   ComboboxItem,
   ComboboxList,
-  ComboboxValue,
+  ComboboxTrigger,
 } from "@/shared/components/ui/combobox";
 
 interface ProjectTagsComboboxProps {
@@ -31,44 +29,59 @@ export function ProjectTagsCombobox({ value, onChange, suggestions }: ProjectTag
 
   const trimmed = query.trim();
   const q = trimmed.toLowerCase();
-  const matches = suggestions.filter(
-    s => !value.some(v => v.toLowerCase() === s.toLowerCase()) && s.toLowerCase().includes(q),
-  );
+  // Show every matching suggestion (selected ones included, with a check) so the
+  // list works as a multi-select toggle.
+  const matches = suggestions.filter(s => s.toLowerCase().includes(q));
   const canCreate
     = trimmed.length > 0
       && !suggestions.some(s => s.toLowerCase() === q)
       && !value.some(v => v.toLowerCase() === q);
 
+  const remove = (tag: string) => onChange(value.filter(v => v !== tag));
+
   return (
-    <Combobox
-      multiple
-      value={value as string[]}
-      onValueChange={next => onChange(next)}
-      onInputValueChange={setQuery}
-    >
-      <ComboboxChips>
-        <ComboboxValue>
-          {(selected: string[]) => (
-            <>
-              {selected.map(tag => (
-                <ComboboxChip key={tag}>{tag}</ComboboxChip>
-              ))}
-              <ComboboxChipsInput placeholder={t("tags.searchPlaceholder")} />
-            </>
-          )}
-        </ComboboxValue>
-      </ComboboxChips>
-      <ComboboxContent>
-        <ComboboxEmpty>{t("tags.empty")}</ComboboxEmpty>
-        <ComboboxList>
-          {matches.map(tag => (
-            <ComboboxItem key={tag} value={tag}>{tag}</ComboboxItem>
-          ))}
-          {canCreate && (
-            <ComboboxItem value={trimmed}>{t("tags.create", { name: trimmed })}</ComboboxItem>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
+    <div className="flex flex-wrap items-center gap-1.5">
+      {value.map(tag => (
+        <Badge key={tag} variant="secondary" className="gap-1 pr-1 text-xs font-normal">
+          {tag}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={t("tags.remove", { name: tag })}
+            onClick={() => remove(tag)}
+            className="-mr-0.5 rounded-sm hover:text-destructive"
+          >
+            <X className="size-3" />
+          </Button>
+        </Badge>
+      ))}
+
+      <Combobox
+        multiple
+        value={value as string[]}
+        onValueChange={next => onChange(next)}
+        onInputValueChange={setQuery}
+      >
+        <ComboboxTrigger className="inline-flex h-7 items-center gap-1.5 rounded-md border border-dashed border-input px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          <TagIcon className="size-3.5" aria-hidden="true" />
+          {t("field.tags")}
+        </ComboboxTrigger>
+        <ComboboxContent>
+          <ComboboxInput showTrigger={false} placeholder={t("tags.searchPlaceholder")} />
+          <ComboboxList>
+            {matches.length === 0 && !canCreate && (
+              <p className="px-2 py-4 text-center text-sm text-muted-foreground">{t("tags.empty")}</p>
+            )}
+            {matches.map(tag => (
+              <ComboboxItem key={tag} value={tag}>{tag}</ComboboxItem>
+            ))}
+            {canCreate && (
+              <ComboboxItem value={trimmed}>{t("tags.create", { name: trimmed })}</ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </div>
   );
 }

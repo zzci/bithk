@@ -230,7 +230,7 @@ function ProjectsGrid({
   const { t } = useTranslation("projects");
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {projects.map(project => (
         <Card
           key={project.id}
@@ -246,7 +246,7 @@ function ProjectsGrid({
             }
           }}
         >
-          <CoverImage src={project.coverImageUrl} kind="project" className="h-32 w-full" />
+          <CoverImage src={project.coverImageUrl} kind="project" className="h-28 w-full" />
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="line-clamp-2">{project.name}</CardTitle>

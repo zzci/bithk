@@ -153,7 +153,7 @@ export function ShipsListPage() {
           : visibleShips.length === 0
             ? <p className="text-sm text-muted-foreground">{t("list.noMatches")}</p>
             : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {visibleShips.map(ship => (
                     <ShipCard
                       key={ship.id}
@@ -210,7 +210,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
         }
       }}
     >
-      <CoverImage src={ship.coverImageUrl} kind="ship" className="h-32 w-full" />
+      <CoverImage src={ship.coverImageUrl} kind="ship" className="h-28 w-full" />
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">

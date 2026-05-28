@@ -56,7 +56,7 @@
     "title": "Create project",
     "submit": "Create",
     "namePlaceholder": "Project name",
-    "descriptionPlaceholder": "Optional description"
+    "descriptionPlaceholder": "Add a description…"
   },
   "edit": {
     "title": "Edit project",
