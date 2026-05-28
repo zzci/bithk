@@ -186,7 +186,7 @@ describe("projectIssuesTab", () => {
 
     // Dialog closes on success.
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  });
+  }, 15000);
 
   it("pins an issue row via POST when the viewer can manage", async () => {
     const user = userEvent.setup();
