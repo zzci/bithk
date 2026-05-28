@@ -2,7 +2,7 @@
 import { createLazyFileRoute, Outlet, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  ChevronRight,
+  Copy,
   Settings,
   Trash2,
 } from "lucide-react";
@@ -108,17 +108,31 @@ function ProjectDetailPage() {
     });
   };
 
+  const handleCopyCode = async () => {
+    if (!project.code)
+      return;
+    try {
+      await navigator.clipboard.writeText(project.code);
+      toast.success(t("detail.codeCopied"));
+    }
+    catch {
+      toast.error(t("detail.copyFailed"));
+    }
+  };
+
   const tabCount = (n: number | undefined) => (n === undefined ? "" : ` ${n}`);
 
   return (
     <div className="space-y-5">
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground" aria-label={t("detail.breadcrumb")}>
-        <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => void navigate({ to: "/projects" })}>
-          {t("page.title")}
-        </Button>
-        <ChevronRight aria-hidden="true" />
-        <span className="truncate font-medium text-foreground">{project.name}</span>
-      </nav>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 h-8 px-2 text-muted-foreground"
+        onClick={() => void navigate({ to: "/projects" })}
+      >
+        <ArrowLeft aria-hidden="true" />
+        {t("detail.back")}
+      </Button>
 
       {/* Compact title row — replaces the old hero card. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -127,7 +141,19 @@ function ProjectDetailPage() {
           <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
             {t(`status.${project.status}` as const)}
           </Badge>
-          {project.code && <span className="font-mono text-xs text-muted-foreground">{project.code}</span>}
+          {project.code && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
+              aria-label={t("detail.copyCode")}
+              onClick={() => void handleCopyCode()}
+            >
+              {project.code}
+              <Copy aria-hidden="true" className="size-3" />
+            </Button>
+          )}
         </div>
         {(caps.canOpenSettings || caps.canManageProject) && (
           <div className="flex shrink-0 gap-2">
@@ -150,20 +176,20 @@ function ProjectDetailPage() {
       {/* Tabs promoted to the page's primary navigation. */}
       <Tabs value={tab} onValueChange={v => v !== null && setTab(v)}>
         <TabsList variant="line" className="h-auto gap-6 overflow-x-auto border-b text-base">
-          <TabsTrigger value="overview" className="pb-2 text-base font-medium data-active:font-semibold">
+          <TabsTrigger value="overview" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
             {t("tabs.overview")}
           </TabsTrigger>
-          <TabsTrigger value="issues" className="pb-2 text-base font-medium data-active:font-semibold">
+          <TabsTrigger value="issues" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
             {t("tabs.issues")}
             {tabCount(issuesCount)}
           </TabsTrigger>
           {caps.canViewProcurement && (
-            <TabsTrigger value="procurement" className="pb-2 text-base font-medium data-active:font-semibold">
+            <TabsTrigger value="procurement" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
               {t("tabs.procurement")}
               {tabCount(procurementCount)}
             </TabsTrigger>
           )}
-          <TabsTrigger value="files" className="pb-2 text-base font-medium data-active:font-semibold">
+          <TabsTrigger value="files" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
             {t("tabs.files")}
           </TabsTrigger>
         </TabsList>
@@ -198,7 +224,10 @@ function ProjectDetailPage() {
         )}
 
         <TabsContent value="files" className="pt-6">
-          <div className="h-[calc(100svh-18rem)] min-h-[24rem]">
+          {/* -mx-4 cancels the drive surface's internal px-4 gutter so file rows
+              align flush with the other tabs' content (the layout main has ≥16px
+              horizontal padding, so this never overflows). */}
+          <div className="-mx-4 h-[calc(100svh-18rem)] min-h-[24rem]">
             <FileBrowser
               ownerType="project"
               ownerId={project.id}

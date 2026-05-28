@@ -100,6 +100,9 @@
     "breadcrumb": "项目面包屑",
     "loading": "正在加载项目...",
     "settings": "设置",
+    "copyCode": "复制项目编号",
+    "codeCopied": "项目编号已复制",
+    "copyFailed": "复制项目编号失败",
     "metrics": {
       "issues": "工单",
       "procurement": "采购"

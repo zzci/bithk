@@ -100,6 +100,9 @@
     "breadcrumb": "Project breadcrumb",
     "loading": "Loading project...",
     "settings": "Settings",
+    "copyCode": "Copy project ID",
+    "codeCopied": "Project ID copied",
+    "copyFailed": "Could not copy project ID",
     "metrics": {
       "issues": "Work orders",
       "procurement": "Procurement"
