@@ -32,12 +32,12 @@ function hueFromSeed(seed: string): number {
 
 export function CoverImage({ src, kind, className, seed }: CoverImageProps) {
   if (src)
-    return <img src={src} alt="" className={cn("object-cover", className)} />;
+    return <img data-slot="card-media" src={src} alt="" className={cn("object-cover", className)} />;
 
   const hue = seed ? hueFromSeed(seed) : NEUTRAL_HUE[kind];
   // Low-alpha gradient layered over the theme-aware `bg-muted` base: the muted
   // token keeps it calm in both themes while the hue adds quiet variety.
   const backgroundImage = `linear-gradient(135deg, hsl(${hue} 45% 55% / 0.10), hsl(${(hue + 40) % 360} 45% 55% / 0.18))`;
 
-  return <div aria-hidden="true" className={cn("bg-muted", className)} style={{ backgroundImage }} />;
+  return <div data-slot="card-media" aria-hidden="true" className={cn("bg-muted", className)} style={{ backgroundImage }} />;
 }
