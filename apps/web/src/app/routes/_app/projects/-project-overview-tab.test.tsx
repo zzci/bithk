@@ -1,6 +1,6 @@
 import type { PinnedItem } from "@/shared/lib/api/pins";
 import type { ProjectView } from "@/shared/lib/api/projects";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
@@ -114,11 +114,29 @@ describe("projectOverviewTab", () => {
     renderWithProviders(
       <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    expect(await screen.findByText("Fix pump")).toBeInTheDocument();
-    expect(screen.getByText("Buy steel")).toBeInTheDocument();
+    // Scope to the pinned list so the kind badges (which share the word
+    // "Procurement" with the summary metric label) are asserted unambiguously.
+    const pinnedList = within(await screen.findByRole("list", { name: "Pinned" }));
+    expect(pinnedList.getByText("Fix pump")).toBeInTheDocument();
+    expect(pinnedList.getByText("Buy steel")).toBeInTheDocument();
     // Kind badges distinguish the two types by label (+ icon).
-    expect(screen.getByText("Work order")).toBeInTheDocument();
+    expect(pinnedList.getByText("Work order")).toBeInTheDocument();
+    expect(pinnedList.getByText("Procurement")).toBeInTheDocument();
+  });
+
+  it("shows work order and procurement metric counts in the summary", async () => {
+    routeFetch({
+      issues: [{ id: "i1", title: "Fix leak", status: "open", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }],
+      procurements: [{ id: "pr1", itemName: "Buy steel", status: "draft", updatedAt: "2026-05-24T00:00:00.000Z" }],
+    });
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+    );
+    // Metric labels come from detail.metrics; counts come from list meta.total.
+    expect(await screen.findByText("Work orders")).toBeInTheDocument();
     expect(screen.getByText("Procurement")).toBeInTheDocument();
+    // One work order + one procurement → two metric values of "1".
+    expect(screen.getAllByText("1")).toHaveLength(2);
   });
 
   it("shows the pinned empty state when nothing is pinned", async () => {
