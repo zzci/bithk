@@ -48,7 +48,6 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     code: "HULL-1",
     name: "Serenity",
     status: "active",
-    lifecycleStage: "building",
     baseProjectId: "p1",
     model: null,
     builder: "Acme Yards",
@@ -73,12 +72,11 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
 }
 
 describe("shipOverviewTab", () => {
-  it("renders the lifecycle stage, basic info and placeholders for unset fields", () => {
+  it("renders the status, basic info and placeholders for unset fields", () => {
     routeFetch();
     renderWithProviders(<ShipOverviewTab ship={ship()} canManage={false} />);
     expect(screen.getByText("Flagship build")).toBeInTheDocument();
-    // Lifecycle "Building" appears both in the archive field and the stepper.
-    expect(screen.getAllByText("Building").length).toBeGreaterThan(0);
+    expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("HULL-1")).toBeInTheDocument();
     expect(screen.getByText("Acme Yards")).toBeInTheDocument();
     // model + several maritime fields are null → "Not set" placeholder.

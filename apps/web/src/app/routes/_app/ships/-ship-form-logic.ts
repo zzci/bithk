@@ -2,13 +2,12 @@
 // normalization (trimming, number parsing, empty → null) is unit-testable
 // without a render harness.
 
-import type { CreateShipInput, ShipLifecycleStage, ShipStatus, ShipView, UpdateShipInput } from "@/shared/lib/api/ships";
+import type { CreateShipInput, ShipStatus, ShipView, UpdateShipInput } from "@/shared/lib/api/ships";
 
 export interface ShipFormState {
   readonly name: string;
   readonly code: string;
   readonly status: ShipStatus;
-  readonly lifecycleStage: ShipLifecycleStage;
   readonly model: string;
   readonly builder: string;
   readonly buildYear: string;
@@ -29,7 +28,6 @@ export const EMPTY_SHIP_FORM: ShipFormState = {
   name: "",
   code: "",
   status: "active",
-  lifecycleStage: "design",
   model: "",
   builder: "",
   buildYear: "",
@@ -57,7 +55,6 @@ export function shipFormFromView(ship: ShipView): ShipFormState {
     name: ship.name,
     code: ship.code,
     status: ship.status,
-    lifecycleStage: ship.lifecycleStage,
     model: ship.model ?? "",
     builder: ship.builder ?? "",
     buildYear: numToInput(ship.buildYear),
@@ -91,7 +88,7 @@ export function parseNumberOrNull(v: string): number | null {
 }
 
 /** The descriptive (non-core) ship columns, normalized for a PATCH body. */
-function descriptiveFields(state: ShipFormState): Omit<UpdateShipInput, "name" | "code" | "status" | "lifecycleStage"> {
+function descriptiveFields(state: ShipFormState): Omit<UpdateShipInput, "name" | "code" | "status"> {
   return {
     model: textOrNull(state.model),
     builder: textOrNull(state.builder),
@@ -119,7 +116,6 @@ export function shipFormToCreate(state: ShipFormState): CreateShipInput {
   return {
     name: state.name.trim(),
     status: state.status,
-    lifecycleStage: state.lifecycleStage,
     ...(state.code.trim() ? { code: state.code.trim() } : {}),
   };
 }
@@ -129,7 +125,6 @@ export function shipFormToUpdate(state: ShipFormState): UpdateShipInput {
   return {
     name: state.name.trim(),
     status: state.status,
-    lifecycleStage: state.lifecycleStage,
     ...(state.code.trim() ? { code: state.code.trim() } : {}),
     ...descriptiveFields(state),
   };

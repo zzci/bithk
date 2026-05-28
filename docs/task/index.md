@@ -39,4 +39,5 @@
 | [FEAT-013](FEAT-013.md) | Base project inherits the ship cover image | - | Done | 2026-05-27 |
 | [FEAT-014](FEAT-014.md) | Default cover placeholders for projects and ships | - | Done | 2026-05-27 |
 | [UI-013](UI-013.md) | Fix and polish the Linear-style create-project dialog | - | Done | 2026-05-27 |
+| [REFACTOR-004](REFACTOR-004.md) | Remove the ship lifecycle concept (keep status only) | - | Done | 2026-05-28 |
 | [UI-014](UI-014.md) | Left-nav project settings dialog + tag picker fixes | - | Done | 2026-05-28 |

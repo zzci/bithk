@@ -16,7 +16,6 @@ export const fixtureShips: readonly ShipView[] = [
     code: "ATL-001",
     name: "Atlas Voyager",
     status: "active",
-    lifecycleStage: "maintenance",
     baseProjectId: "proj-atlas-refit",
     model: "Container 300",
     builder: "North Dock",
@@ -41,7 +40,6 @@ export const fixtureShips: readonly ShipView[] = [
     code: "BOR-NB-2026",
     name: "Boreal Newbuild",
     status: "active",
-    lifecycleStage: "building",
     baseProjectId: "proj-boreal-build",
     model: "Feeder 1800",
     builder: "South Yard",
@@ -66,7 +64,6 @@ export const fixtureShips: readonly ShipView[] = [
     code: "CAS-ST-01",
     name: "Cascade Trial",
     status: "active",
-    lifecycleStage: "sea_trial",
     baseProjectId: "proj-cascade-trial",
     model: "Chemical 38K",
     builder: "East Yard",
@@ -91,7 +88,6 @@ export const fixtureShips: readonly ShipView[] = [
     code: "DEL-042",
     name: "Delta Trader",
     status: "archived",
-    lifecycleStage: "in_service",
     baseProjectId: "proj-delta-pm",
     model: "Bulk 76K",
     builder: "Blue Yard",
@@ -352,11 +348,10 @@ export const fixtureIssueReferences: Record<string, readonly IssueReferenceView[
 
 export function listFixtureShips(params: URLSearchParams): ShipsListResult {
   const status = params.get("status");
-  const lifecycleStage = params.get("lifecycleStage");
   const page = Number(params.get("page") ?? 1);
   const limit = Number(params.get("limit") ?? 20);
   const filtered = fixtureShips.filter(ship =>
-    (!status || ship.status === status) && (!lifecycleStage || ship.lifecycleStage === lifecycleStage),
+    (!status || ship.status === status),
   );
   return {
     data: filtered.slice((page - 1) * limit, page * limit),

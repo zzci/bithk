@@ -7,16 +7,6 @@ import { projects } from "@/modules/project/schema";
 export const SHIP_STATUSES = ["active", "archived"] as const;
 export type ShipStatus = typeof SHIP_STATUSES[number];
 
-export const SHIP_LIFECYCLE_STAGES = [
-  "design",
-  "building",
-  "sea_trial",
-  "in_service",
-  "maintenance",
-  "decommissioned",
-] as const;
-export type ShipLifecycleStage = typeof SHIP_LIFECYCLE_STAGES[number];
-
 export const EQUIPMENT_STATUSES = ["active", "retired"] as const;
 export type EquipmentStatus = typeof EQUIPMENT_STATUSES[number];
 
@@ -31,7 +21,6 @@ export const ships = sqliteTable("ships", {
   code: text("code").notNull(), // hull number, unique
   name: text("name").notNull(),
   status: text("status", { enum: SHIP_STATUSES }).notNull().default("active"),
-  lifecycleStage: text("lifecycle_stage", { enum: SHIP_LIFECYCLE_STAGES }).notNull().default("design"),
   // Permission anchor + file carrier. Nullable circular FK (see header).
   // Explicit return type breaks the projects ↔ ships circular type inference.
   baseProjectId: text("base_project_id").references((): AnySQLiteColumn => projects.id, { onDelete: "set null" }),

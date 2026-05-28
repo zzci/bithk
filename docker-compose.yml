@@ -1,13 +1,27 @@
+# Docker test stack, fronted by the external `traefik` network at
+# https://bit.fr.ds.cc (route: /app/traefik/services/bit.yml -> bit:3000).
+# Reset: docker compose down && rm -rf data-docker
 services:
   app:
     container_name: bit
     hostname: bit
     image: bit:latest
+    build:
+      context: .
+      args:
+        BUILD_COMMIT: ${BUILD_COMMIT:-dev}
+        # APP_DISPLAY_NAME is baked into the SPA at build time, not runtime.
+        APP_NAME: bit
+        APP_DISPLAY_NAME: BIT.YT
     restart: unless-stopped
+    # Run as root so the bind-mounted ./data-docker (created root-owned by the
+    # daemon) stays writable across rm/recreate cycles.
+    user: "0:0"
     env_file:
       - .env.docker
     volumes:
       - ./data-docker:/app/data
+      - ./.secret/docker-admin.hash:/app/secret/admin.hash:ro
     networks:
       - traefik
 

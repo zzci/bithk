@@ -27,7 +27,7 @@ import { useAuthStore } from "@/shared/stores/auth";
 import { useProjectCapabilities } from "../projects/-use-project-role";
 import { StatTile } from "./-ship-stats";
 import { visibleShipTabs } from "./-ship-tabs";
-import { LifecycleBadge, ShipStatusBadge } from "./-ship-visuals";
+import { ShipStatusBadge } from "./-ship-visuals";
 
 export const Route = createLazyFileRoute("/_app/ships/$shipId")({
   component: ShipDetailPage,
@@ -120,7 +120,6 @@ function ShipDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <LifecycleBadge stage={ship.lifecycleStage} icon />
                 <ShipStatusBadge status={ship.status} />
                 {ship.flagState && (
                   <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">

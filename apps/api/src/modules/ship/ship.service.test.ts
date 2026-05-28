@@ -75,7 +75,6 @@ describe("createShip", () => {
     expect(ship.shortId).toHaveLength(8);
     expect(ship.name).toBe("Aurora");
     expect(ship.status).toBe("active");
-    expect(ship.lifecycleStage).toBe("design");
     expect(ship.version).toBe(1);
     expect(ship.code).toContain("S-");
     expect(ship.baseProjectId).not.toBeNull();
@@ -99,14 +98,12 @@ describe("createShip", () => {
     const ship = await createShip(db, {
       name: "Tower",
       code: "HULL-1",
-      lifecycleStage: "in_service",
       buildYear: 2024,
       lengthOverall: 42.5,
       imoNumber: "IMO1234567",
       creatorId: creator,
     });
     expect(ship.code).toBe("HULL-1");
-    expect(ship.lifecycleStage).toBe("in_service");
     expect(ship.buildYear).toBe(2024);
     expect(ship.lengthOverall).toBe(42.5);
     expect(ship.imoNumber).toBe("IMO1234567");
@@ -149,10 +146,10 @@ describe("softDeleteShip", () => {
 });
 
 describe("listShips", () => {
-  test("paginates, filters by status / lifecycleStage, excludes soft-deleted", async () => {
+  test("paginates, filters by status, excludes soft-deleted", async () => {
     const creator = await seedUser("Alice");
     await createShip(db, { name: "A", status: "active", creatorId: creator });
-    await createShip(db, { name: "B", status: "archived", lifecycleStage: "maintenance", creatorId: creator });
+    await createShip(db, { name: "B", status: "archived", creatorId: creator });
     const gone = await createShip(db, { name: "C", creatorId: creator });
     await softDeleteShip(db, gone.shortId);
 
@@ -162,9 +159,6 @@ describe("listShips", () => {
     const archived = await listShips(db, { status: "archived" });
     expect(archived.total).toBe(1);
     expect(archived.data[0]!.name).toBe("B");
-
-    const maint = await listShips(db, { lifecycleStage: "maintenance" });
-    expect(maint.data.map(s => s.name)).toEqual(["B"]);
   });
 
   test("memberUserId scopes to ships whose base project the user belongs to", async () => {

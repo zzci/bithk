@@ -22,7 +22,7 @@ vi.mock("../-file-browser", () => ({
 }));
 
 function ship(overrides: Partial<ShipView> = {}): ShipView {
-  return { id: "s1", name: "Serenity", baseProjectId: "p1", lifecycleStage: "design", ...overrides } as ShipView;
+  return { id: "s1", name: "Serenity", baseProjectId: "p1", ...overrides } as ShipView;
 }
 
 describe("shipFilesTab", () => {

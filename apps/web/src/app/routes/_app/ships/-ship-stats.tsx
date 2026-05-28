@@ -11,7 +11,7 @@ interface StatTileProps {
   readonly value: ReactNode;
   readonly hint?: ReactNode;
   readonly icon?: ReactNode;
-  /** Tailwind classes for the icon tile background + text (from `LIFECYCLE_STYLES`). */
+  /** Tailwind classes for the icon tile background + text (semantic token + opacity). */
   readonly accent?: string;
   readonly className?: string;
 }

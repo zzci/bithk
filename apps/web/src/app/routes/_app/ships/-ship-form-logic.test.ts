@@ -14,7 +14,6 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     code: "HULL-1",
     name: "Serenity",
     status: "active",
-    lifecycleStage: "building",
     baseProjectId: "p1",
     model: "Custom 40",
     builder: "Acme Yards",
@@ -57,7 +56,6 @@ describe("shipFormFromView", () => {
     const form = shipFormFromView(ship({ model: null, buildYear: null }));
     expect(form.name).toBe("Serenity");
     expect(form.code).toBe("HULL-1");
-    expect(form.lifecycleStage).toBe("building");
     expect(form.buildYear).toBe("");
     expect(form.model).toBe("");
     expect(form.lengthOverall).toBe("40.5");
@@ -66,8 +64,8 @@ describe("shipFormFromView", () => {
 
 describe("shipFormToCreate", () => {
   it("trims the name and omits a blank code (API auto-generates it)", () => {
-    const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "  Aurora  ", lifecycleStage: "design" });
-    expect(out).toEqual({ name: "Aurora", status: "active", lifecycleStage: "design" });
+    const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "  Aurora  " });
+    expect(out).toEqual({ name: "Aurora", status: "active" });
     expect("code" in out).toBe(false);
   });
 

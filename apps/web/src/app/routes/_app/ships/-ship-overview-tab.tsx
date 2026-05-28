@@ -1,13 +1,13 @@
 // Overview tab: a two-column dashboard for one ship. Left column holds the
-// editable archive, the lifecycle stepper and active maintenance; the right
-// column previews quick stats, bound projects and equipment categories. Every
-// value is real ship data — editing stays gated on `canManage`.
+// editable archive and active maintenance; the right column previews quick
+// stats, bound projects and equipment categories. Every value is real ship
+// data — editing stays gated on `canManage`.
 
 import type { ReactNode } from "react";
 import type { ShipFormState } from "./-ship-form-logic";
-import type { ShipLifecycleStage, ShipView } from "@/shared/lib/api/ships";
+import type { ShipView } from "@/shared/lib/api/ships";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ClipboardList, FolderKanban, Package, Pencil, Wrench } from "lucide-react";
+import { ClipboardList, FolderKanban, Package, Pencil, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -20,7 +20,6 @@ import {
   Card as UICard,
 } from "@/shared/components/ui/card";
 import {
-  SHIP_LIFECYCLE_STAGES,
   useShipEquipment,
   useShipMaintenanceOrders,
   useShipMaintenanceTemplates,
@@ -29,12 +28,12 @@ import {
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
-import { ISSUE_STATUS_BADGE, LIFECYCLE_STYLES } from "./-ship-colors";
+import { ISSUE_STATUS_BADGE } from "./-ship-colors";
 import { ShipCoverField } from "./-ship-cover-field";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToUpdate } from "./-ship-form-logic";
 import { StatTile } from "./-ship-stats";
-import { LifecycleBadge, ShipStatusBadge } from "./-ship-visuals";
+import { ShipStatusBadge } from "./-ship-visuals";
 
 interface ShipOverviewTabProps {
   readonly ship: ShipView;
@@ -134,9 +133,6 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
           </ArchiveSection>
 
           <ArchiveSection title={t("overview.section.classification")}>
-            <Field label={t("field.lifecycleStage")}>
-              <LifecycleBadge stage={ship.lifecycleStage} icon />
-            </Field>
             <Field label={t("field.status")}>
               <ShipStatusBadge status={ship.status} />
             </Field>
@@ -153,10 +149,6 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
             <Field label={t("field.draft")}>{num(ship.draft)}</Field>
             <Field label={t("field.grossTonnage")}>{num(ship.grossTonnage)}</Field>
           </ArchiveSection>
-        </Card>
-
-        <Card title={t("overview.lifecycle")}>
-          <LifecycleStepper current={ship.lifecycleStage} t={t} />
         </Card>
 
         <Card title={t("overview.upcomingMaintenance")}>
@@ -288,50 +280,5 @@ function ArchiveSection({ title, children }: { readonly title: string; readonly 
       <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">{children}</dl>
     </div>
-  );
-}
-
-function LifecycleStepper({ current, t }: { readonly current: ShipLifecycleStage; readonly t: (key: string) => string }) {
-  // The "decommissioned" stage is an off-ramp, not a step on the build→service
-  // path, so the stepper renders the linear stages only.
-  const stages = SHIP_LIFECYCLE_STAGES.filter(stage => stage !== "decommissioned");
-  const currentIndex = stages.findIndex(stage => stage === current);
-  return (
-    <ol className="flex flex-wrap items-start gap-x-1 gap-y-3">
-      {stages.map((stage, index) => {
-        const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "todo";
-        const style = LIFECYCLE_STYLES[stage];
-        return (
-          <li key={stage} className="flex items-center gap-1">
-            <div
-              aria-current={state === "current" ? "step" : undefined}
-              className="flex w-[4.75rem] flex-col items-center gap-1.5 text-center"
-            >
-              <span
-                className={cn(
-                  "flex size-6 items-center justify-center rounded-full",
-                  state === "todo"
-                    ? "border-2 border-border bg-card"
-                    : cn("text-white", style.dot),
-                  state === "current" && cn("ring-4", style.ring),
-                )}
-              >
-                {state === "done" && <Check className="size-3.5" strokeWidth={3} />}
-                {state === "current" && <span className="size-1.5 rounded-full bg-white" />}
-              </span>
-              <span className={cn("text-xs font-medium", state === "todo" ? "text-muted-foreground" : "text-foreground")}>
-                {t(`lifecycle.${stage}`)}
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                {state === "done" ? t("overview.stepper.done") : state === "current" ? t("overview.stepper.current") : t("overview.stepper.todo")}
-              </span>
-            </div>
-            {index < stages.length - 1 && (
-              <span className={cn("mt-3 h-0.5 w-4 rounded-full", index < currentIndex ? "bg-success" : "bg-border")} />
-            )}
-          </li>
-        );
-      })}
-    </ol>
   );
 }

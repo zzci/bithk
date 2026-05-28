@@ -117,7 +117,6 @@ describe("/api/ships main flow", () => {
       body: {
         name: `e2e-ship-${token}`,
         code: `E2E-SHIP-${token}`,
-        lifecycleStage: "in_service",
       },
     });
     const ship = shipRes.data;

@@ -30,7 +30,7 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-function listPayload(stage = "design") {
+function listPayload() {
   return {
     success: true,
     data: [{
@@ -38,7 +38,6 @@ function listPayload(stage = "design") {
       name: "Serenity",
       code: "HULL-1",
       status: "active",
-      lifecycleStage: stage,
       baseProjectId: "p1",
       model: "Container 300",
       builder: "North Dock",
@@ -63,7 +62,7 @@ function listPayload(stage = "design") {
 }
 
 describe("shipsListPage", () => {
-  it("renders the heading and a ship card with its lifecycle badge", async () => {
+  it("renders the heading and a ship card with its status badge", async () => {
     fetchMock.mockResolvedValue(jsonResponse(listPayload()));
     renderWithProviders(<ShipsListPage />);
     expect(screen.getByRole("heading", { name: "Ships" })).toBeInTheDocument();
@@ -88,7 +87,7 @@ describe("shipsListPage", () => {
     expect(screen.getByRole("button", { name: "Create ship" })).toBeInTheDocument();
   });
 
-  it("renders the stage filter chips with fleet counts", async () => {
+  it("renders the status filter chips with fleet counts", async () => {
     fetchMock.mockResolvedValue(jsonResponse(listPayload()));
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
@@ -110,14 +109,14 @@ describe("shipsListPage", () => {
     expect(screen.getByText("Serenity")).toBeInTheDocument();
   });
 
-  it("refetches with a lifecycleStage filter when a stage chip is selected", async () => {
+  it("refetches with a status filter when a status chip is selected", async () => {
     fetchMock.mockResolvedValue(jsonResponse(listPayload()));
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: /In service/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Archived/ }));
     await waitFor(() => {
-      const filtered = fetchMock.mock.calls.find(c => String(c[0]).includes("lifecycleStage=in_service"));
+      const filtered = fetchMock.mock.calls.find(c => String(c[0]).includes("status=archived"));
       expect(filtered).toBeDefined();
     });
   });

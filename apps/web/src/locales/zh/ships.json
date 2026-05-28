@@ -1,12 +1,12 @@
 {
   "page": {
     "title": "船舶",
-    "description": "管理游艇从建造到运营全生命周期。"
+    "description": "管理你的船队。"
   },
   "list": {
     "create": "新建船舶",
-    "filterByStage": "生命周期阶段",
-    "stageAll": "全部",
+    "filterByStatus": "状态",
+    "statusAll": "全部",
     "loading": "正在加载船舶…",
     "empty": "暂无船舶。",
     "noMatches": "没有符合搜索条件的船舶。",
@@ -25,14 +25,6 @@
   "status": {
     "active": "在用",
     "archived": "已归档"
-  },
-  "lifecycle": {
-    "design": "设计",
-    "building": "建造",
-    "sea_trial": "海试",
-    "in_service": "服役",
-    "maintenance": "维护",
-    "decommissioned": "退役"
   },
   "tabs": {
     "overview": "概览",
@@ -68,7 +60,6 @@
     "name": "名称",
     "code": "船体编号",
     "status": "状态",
-    "lifecycleStage": "生命周期阶段",
     "description": "描述",
     "builder": "建造方",
     "model": "型号",
@@ -104,8 +95,6 @@
     "noDescription": "暂无描述。",
     "notSet": "未设置",
     "archive": "船舶档案",
-    "lifecycle": "生命周期",
-    "currentStage": "当前阶段",
     "upcomingMaintenance": "即将到期的维护",
     "upcomingEmpty": "暂无进行中的维护工单。",
     "quickStats": "快捷统计",
@@ -117,13 +106,8 @@
     "viewAll": "查看全部",
     "section": {
       "identity": "标识信息",
-      "classification": "船型与生命周期",
+      "classification": "船型与状态",
       "dimensions": "主尺度"
-    },
-    "stepper": {
-      "done": "已完成",
-      "current": "当前阶段",
-      "todo": "待进入"
     }
   },
   "profile": {

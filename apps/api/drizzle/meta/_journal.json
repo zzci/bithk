@@ -57,6 +57,13 @@
       "when": 1779908307081,
       "tag": "0007_tough_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1779927068401,
+      "tag": "0008_sleepy_blizzard",
+      "breakpoints": true
     }
   ]
 }

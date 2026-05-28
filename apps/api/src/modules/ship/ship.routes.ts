@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
-import { EQUIPMENT_STATUSES, SHIP_LIFECYCLE_STAGES, SHIP_STATUSES } from "./schema";
+import { EQUIPMENT_STATUSES, SHIP_STATUSES } from "./schema";
 import {
   composeEquipment,
   createEquipment,
@@ -60,7 +60,6 @@ const createShipSchema = z.object({
   code: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(255),
   status: z.enum(SHIP_STATUSES).optional(),
-  lifecycleStage: z.enum(SHIP_LIFECYCLE_STAGES).optional(),
   ...shipCoreShape,
 });
 
@@ -68,7 +67,6 @@ const updateShipSchema = z.object({
   code: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(255).optional(),
   status: z.enum(SHIP_STATUSES).optional(),
-  lifecycleStage: z.enum(SHIP_LIFECYCLE_STAGES).optional(),
   ...shipCoreShape,
 }).refine(
   v => Object.values(v).some(value => value !== undefined),
@@ -77,7 +75,6 @@ const updateShipSchema = z.object({
 
 const listSchema = z.object({
   status: z.enum(SHIP_STATUSES).optional(),
-  lifecycleStage: z.enum(SHIP_LIFECYCLE_STAGES).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
@@ -149,7 +146,6 @@ export function shipRoutes() {
     const user = c.get("user")!;
     const query = listSchema.parse({
       status: c.req.query("status"),
-      lifecycleStage: c.req.query("lifecycleStage"),
       page: c.req.query("page"),
       limit: c.req.query("limit"),
     });

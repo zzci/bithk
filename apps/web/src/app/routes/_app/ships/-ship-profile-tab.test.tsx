@@ -9,7 +9,6 @@ const ship: ShipView = {
   code: "ATL-001",
   name: "Atlas Voyager",
   status: "active",
-  lifecycleStage: "maintenance",
   baseProjectId: "proj-atlas-refit",
   model: "Container 300",
   builder: "North Dock",

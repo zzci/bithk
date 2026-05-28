@@ -1,12 +1,12 @@
 {
   "page": {
     "title": "Ships",
-    "description": "Manage vessels across their build and service lifecycle."
+    "description": "Manage your fleet of vessels."
   },
   "list": {
     "create": "Create ship",
-    "filterByStage": "Lifecycle stage",
-    "stageAll": "All",
+    "filterByStatus": "Status",
+    "statusAll": "All",
     "loading": "Loading ships…",
     "empty": "No ships yet.",
     "noMatches": "No ships match your search.",
@@ -25,14 +25,6 @@
   "status": {
     "active": "Active",
     "archived": "Archived"
-  },
-  "lifecycle": {
-    "design": "Design",
-    "building": "Building",
-    "sea_trial": "Sea trial",
-    "in_service": "In service",
-    "maintenance": "Maintenance",
-    "decommissioned": "Decommissioned"
   },
   "tabs": {
     "overview": "Overview",
@@ -68,7 +60,6 @@
     "name": "Name",
     "code": "Hull number",
     "status": "Status",
-    "lifecycleStage": "Lifecycle stage",
     "description": "Description",
     "builder": "Builder",
     "model": "Model",
@@ -104,8 +95,6 @@
     "noDescription": "No description provided.",
     "notSet": "Not set",
     "archive": "Ship archive",
-    "lifecycle": "Lifecycle",
-    "currentStage": "Current stage",
     "upcomingMaintenance": "Upcoming maintenance",
     "upcomingEmpty": "No active maintenance work orders.",
     "quickStats": "Quick stats",
@@ -117,13 +106,8 @@
     "viewAll": "View all",
     "section": {
       "identity": "Identity",
-      "classification": "Class & lifecycle",
+      "classification": "Class & status",
       "dimensions": "Principal dimensions"
-    },
-    "stepper": {
-      "done": "Complete",
-      "current": "Current",
-      "todo": "Upcoming"
     }
   },
   "profile": {

@@ -3,7 +3,7 @@ import type { ShipView } from "@/shared/lib/api/ships";
 import { Anchor, Calendar, Fingerprint, Ruler } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/shared/components/ui/card";
-import { LifecycleBadge, ShipStatusBadge } from "./-ship-visuals";
+import { ShipStatusBadge } from "./-ship-visuals";
 
 interface ShipProfileTabProps {
   readonly ship: ShipView;
@@ -40,9 +40,6 @@ export function ShipProfileTab({ ship }: ShipProfileTabProps) {
           </ProfileSection>
 
           <ProfileSection title={t("overview.section.classification")}>
-            <ProfileField label={t("field.lifecycleStage")}>
-              <LifecycleBadge stage={ship.lifecycleStage} icon />
-            </ProfileField>
             <ProfileField label={t("field.builder")}>{text(ship.builder)}</ProfileField>
             <ProfileField label={t("field.model")}>{text(ship.model)}</ProfileField>
             <ProfileField label={t("field.buildYear")}>{num(ship.buildYear)}</ProfileField>

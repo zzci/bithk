@@ -40,7 +40,7 @@ afterEach(() => {
 describe("shipKeys", () => {
   it("builds stable, scoped query keys", () => {
     expect(shipKeys.lists()).toEqual(["ships", "list"]);
-    expect(shipKeys.list("active", "design", 2)).toEqual(["ships", "list", "active", "design", 2]);
+    expect(shipKeys.list("active", 2)).toEqual(["ships", "list", "active", 2]);
     expect(shipKeys.detail("s1")).toEqual(["ships", "detail", "s1"]);
     expect(shipKeys.projects("s1")).toEqual(["ships", "s1", "projects"]);
     expect(shipKeys.equipment("s1")).toEqual(["ships", "s1", "equipment"]);
@@ -50,18 +50,18 @@ describe("shipKeys", () => {
 });
 
 describe("useShips", () => {
-  it("encodes the stage filter and pagination, unwrapping the list envelope", async () => {
+  it("encodes the status filter and pagination, unwrapping the list envelope", async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
-      data: [{ id: "s1", name: "Serenity", code: "H-1", status: "active", lifecycleStage: "design" }],
+      data: [{ id: "s1", name: "Serenity", code: "H-1", status: "active" }],
       meta: { total: 1, page: 1, limit: 20 },
     }));
-    const { result } = renderHook(() => useShips({ lifecycleStage: "design", page: 1 }), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useShips({ status: "active", page: 1 }), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.data).toHaveLength(1);
     const url = String(fetchMock.mock.calls[0]![0]);
     expect(url).toContain("/api/ships?");
-    expect(url).toContain("lifecycleStage=design");
+    expect(url).toContain("status=active");
     expect(url).toContain("page=1");
   });
 });

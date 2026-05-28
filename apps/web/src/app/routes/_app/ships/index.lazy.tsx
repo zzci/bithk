@@ -1,33 +1,32 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ShipFormState } from "./-ship-form-logic";
-import type { ShipLifecycleStage, ShipView } from "@/shared/lib/api/ships";
+import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { Calendar, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CoverImage } from "@/shared/components/cover-image";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { SHIP_LIFECYCLE_STAGES, useCreateShip, useShips } from "@/shared/lib/api/ships";
+import { SHIP_STATUSES, useCreateShip, useShips } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToCreate } from "./-ship-form-logic";
-import { LifecycleBadge } from "./-ship-visuals";
+import { ShipStatusBadge } from "./-ship-visuals";
 
 export const Route = createLazyFileRoute("/_app/ships/")({
   component: ShipsListPage,
 });
 
-const STAGE_ALL = "__all__";
+const STATUS_ALL = "__all__";
 const CURRENT_YEAR = new Date().getUTCFullYear();
 
-/** Fleet-wide count for a lifecycle stage, read from the list endpoint's meta. */
-function useStageCount(stage?: ShipLifecycleStage): number | undefined {
-  return useShips(stage ? { lifecycleStage: stage } : {}).data?.meta.total;
+/** Fleet-wide count for a status, read from the list endpoint's meta. */
+function useStatusCount(status?: ShipStatus): number | undefined {
+  return useShips(status ? { status } : {}).data?.meta.total;
 }
 
 export function ShipsListPage() {
@@ -35,26 +34,22 @@ export function ShipsListPage() {
   const navigate = useNavigate();
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
-  const [stage, setStage] = useState<string>(STAGE_ALL);
+  const [status, setStatus] = useState<string>(STATUS_ALL);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
 
   const shipsQuery = useShips({
-    lifecycleStage: stage === STAGE_ALL ? undefined : (stage as ShipLifecycleStage),
+    status: status === STATUS_ALL ? undefined : (status as ShipStatus),
     page,
   });
   const createShip = useCreateShip();
 
-  // Fleet KPIs: each is the `meta.total` of a stage-scoped list query, so the
+  // Fleet KPIs: each is the `meta.total` of a status-scoped list query, so the
   // numbers are accurate across pages rather than just the visible slice.
-  const totalCount = useStageCount();
-  const designCount = useStageCount("design");
-  const buildingCount = useStageCount("building");
-  const seaTrialCount = useStageCount("sea_trial");
-  const inServiceCount = useStageCount("in_service");
-  const maintenanceCount = useStageCount("maintenance");
-  const decommissionedCount = useStageCount("decommissioned");
+  const totalCount = useStatusCount();
+  const activeCount = useStatusCount("active");
+  const archivedCount = useStatusCount("archived");
   const ships = useMemo(() => shipsQuery.data?.data ?? [], [shipsQuery.data]);
   const meta = shipsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
@@ -78,14 +73,10 @@ export function ShipsListPage() {
     });
   };
 
-  const stageCounts: Record<string, number | undefined> = {
-    [STAGE_ALL]: totalCount,
-    design: designCount,
-    building: buildingCount,
-    sea_trial: seaTrialCount,
-    in_service: inServiceCount,
-    maintenance: maintenanceCount,
-    decommissioned: decommissionedCount,
+  const statusCounts: Record<string, number | undefined> = {
+    [STATUS_ALL]: totalCount,
+    active: activeCount,
+    archived: archivedCount,
   };
 
   return (
@@ -107,22 +98,22 @@ export function ShipsListPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">{t("list.filterByStage")}</span>
+          <span className="text-sm text-muted-foreground">{t("list.filterByStatus")}</span>
           {[
-            { key: STAGE_ALL, label: t("list.stageAll") },
-            ...SHIP_LIFECYCLE_STAGES.map(s => ({ key: s, label: t(`lifecycle.${s}` as const) })),
+            { key: STATUS_ALL, label: t("list.statusAll") },
+            ...SHIP_STATUSES.map(s => ({ key: s, label: t(`status.${s}` as const) })),
           ].map((opt) => {
-            const count = stageCounts[opt.key];
+            const count = statusCounts[opt.key];
             return (
               <Button
                 key={opt.key}
                 size="sm"
-                variant={stage === opt.key ? "default" : "outline"}
+                variant={status === opt.key ? "default" : "outline"}
                 className="h-8 rounded-full"
-                aria-pressed={stage === opt.key}
+                aria-pressed={status === opt.key}
                 aria-label={count === undefined ? opt.label : `${opt.label} ${count}`}
                 onClick={() => {
-                  setStage(opt.key);
+                  setStatus(opt.key);
                   setPage(1);
                 }}
               >
@@ -218,10 +209,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
             <p className="font-mono text-xs text-muted-foreground">{ship.code}</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <LifecycleBadge stage={ship.lifecycleStage} icon />
-            {ship.status === "archived" && (
-              <Badge variant="outline" className="text-xs">{t("status.archived")}</Badge>
-            )}
+            <ShipStatusBadge status={ship.status} />
           </div>
         </div>
       </CardHeader>

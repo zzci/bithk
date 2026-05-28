@@ -36,24 +36,17 @@ RUN bun install --frozen-lockfile
 ARG BUILD_COMMIT=unknown
 ENV BUILD_COMMIT=${BUILD_COMMIT}
 
+# Brand identity is baked into the SPA bundle at build time
+# (apps/web/vite.config.ts -> VITE_APP_* -> index.html + branding.ts), so the
+# runtime env_file cannot change it — it must be passed as a build arg.
+ARG APP_NAME=bit
+ARG APP_DISPLAY_NAME=bit
+ENV APP_NAME=${APP_NAME}
+ENV APP_DISPLAY_NAME=${APP_DISPLAY_NAME}
+
 # Copy source and compile
 COPY . .
 RUN bun scripts/compile.ts --target bun-linux-x64 --outfile app
-
-# Resolve the libsql native module path inside the bun-hoisted store and
-# stage it under a deterministic location so the runtime stage can copy
-# it without a wildcard. Fail loudly if multiple versions are present.
-RUN set -e; \
-  count="$(ls -d /app/node_modules/.bun/libsql@*/ 2>/dev/null | wc -l)"; \
-  if [ "$count" != "1" ]; then \
-    echo "Expected exactly one libsql install, found $count" >&2; \
-    ls -d /app/node_modules/.bun/libsql@*/ >&2 || true; \
-    exit 1; \
-  fi; \
-  src="$(ls -d /app/node_modules/.bun/libsql@*/)"; \
-  mkdir -p /app/_libsql/@libsql; \
-  cp -rL "$src/node_modules/@libsql/linux-x64-gnu" /app/_libsql/@libsql/linux-x64-gnu; \
-  cp -rL "$src/node_modules/libsql" /app/_libsql/libsql
 
 # ---- Runtime stage ----
 # `RUNTIME_BASE` is declared at the top of this file as a global ARG;
@@ -87,11 +80,8 @@ WORKDIR /app
 COPY --from=build --chown=app:app /app/dist/app ./app
 RUN chmod +x ./app
 
-# Native binding that bun --compile cannot embed. The build stage already
-# resolved the bun-hoisted path under /app/_libsql so this COPY is
-# wildcard-free and reproducible.
-COPY --from=build --chown=app:app /app/_libsql/@libsql/linux-x64-gnu ./node_modules/@libsql/linux-x64-gnu
-COPY --from=build --chown=app:app /app/_libsql/libsql ./node_modules/libsql
+# The DB driver is `bun:sqlite`, which is part of the Bun runtime baked into
+# the compiled binary — no external native module needs to be copied here.
 
 # Persist DB + uploaded attachments + logs across container recreation. Set
 # DB_PATH / LOG_FILE / upload paths under /app/data; defaults already do.

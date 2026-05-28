@@ -35,29 +35,11 @@ export const SHIP_STATUSES: readonly ShipStatus[] = ["active", "archived"];
 export type EquipmentStatus = "active" | "retired";
 export const EQUIPMENT_STATUSES: readonly EquipmentStatus[] = ["active", "retired"];
 
-export type ShipLifecycleStage
-  = | "design"
-    | "building"
-    | "sea_trial"
-    | "in_service"
-    | "maintenance"
-    | "decommissioned";
-
-export const SHIP_LIFECYCLE_STAGES: readonly ShipLifecycleStage[] = [
-  "design",
-  "building",
-  "sea_trial",
-  "in_service",
-  "maintenance",
-  "decommissioned",
-];
-
 export interface ShipView {
   readonly id: string; // ship shortId
   readonly code: string;
   readonly name: string;
   readonly status: ShipStatus;
-  readonly lifecycleStage: ShipLifecycleStage;
   readonly baseProjectId: string | null; // base project shortId (for files/drive + caps)
   readonly model: string | null;
   readonly builder: string | null;
@@ -146,7 +128,7 @@ export interface ListMeta {
 export const shipKeys = {
   all: ["ships"] as const,
   lists: () => ["ships", "list"] as const,
-  list: (status: string, stage: string, page: number) => ["ships", "list", status, stage, page] as const,
+  list: (status: string, page: number) => ["ships", "list", status, page] as const,
   detail: (id: string) => ["ships", "detail", id] as const,
   projects: (id: string) => ["ships", id, "projects"] as const,
   equipment: (id: string) => ["ships", id, "equipment"] as const,
@@ -160,7 +142,6 @@ export const shipKeys = {
 
 export interface ShipsQuery {
   readonly status?: ShipStatus | undefined;
-  readonly lifecycleStage?: ShipLifecycleStage | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -172,17 +153,14 @@ export interface ShipsListResult {
 
 export function useShips(query: ShipsQuery = {}) {
   const status = query.status;
-  const stage = query.lifecycleStage;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   return useQuery<ShipsListResult>({
-    queryKey: shipKeys.list(status ?? "all", stage ?? "all", page),
+    queryKey: shipKeys.list(status ?? "all", page),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
-      if (stage)
-        params.set("lifecycleStage", stage);
       params.set("page", String(page));
       params.set("limit", String(limit));
       const res = await http<ApiListEnvelope<ShipView>>(`/ships?${params.toString()}`);
@@ -207,7 +185,6 @@ export interface CreateShipInput {
   readonly name: string;
   readonly code?: string;
   readonly status?: ShipStatus;
-  readonly lifecycleStage?: ShipLifecycleStage;
 }
 
 export function useCreateShip(): UseMutationResult<ShipView, Error, CreateShipInput> {
@@ -225,7 +202,6 @@ export interface UpdateShipInput {
   readonly name?: string;
   readonly code?: string;
   readonly status?: ShipStatus;
-  readonly lifecycleStage?: ShipLifecycleStage;
   readonly model?: string | null;
   readonly builder?: string | null;
   readonly buildYear?: number | null;
