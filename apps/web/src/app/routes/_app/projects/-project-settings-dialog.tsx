@@ -1,12 +1,12 @@
-// Project settings dialog: a left-nav surface that groups General, Members &
-// Roles, and Procurement Categories. Each nav item is gated by the matching
+// Project settings dialog: a left-nav surface with distinct General, Members,
+// Roles, and Categories sections. Each nav item is gated by the matching
 // capability so a member only sees what they may manage. The dialog has a fixed
 // size — the right pane scrolls internally so switching sections never resizes
 // (or "jumps") the modal.
 
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
-import { FolderTree, Settings, Users } from "lucide-react";
+import { FolderTree, Settings, ShieldCheck, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,11 +20,12 @@ import { ProjectSettingsGeneral } from "./-project-settings-general";
 import { ProjectSettingsMembers } from "./-project-settings-members";
 import { ProjectSettingsRoles } from "./-project-settings-roles";
 
-type SettingsSection = "general" | "members" | "categories";
+type SettingsSection = "general" | "members" | "roles" | "categories";
 
 const SECTION_ICON: Record<SettingsSection, typeof Settings> = {
   general: Settings,
   members: Users,
+  roles: ShieldCheck,
   categories: FolderTree,
 };
 
@@ -49,7 +50,8 @@ export function ProjectSettingsDialog({
 
   const sections = useMemo<readonly SettingsSection[]>(() => [
     caps.canManageProject ? "general" : null,
-    caps.canManageMembers || caps.canManageRoles ? "members" : null,
+    caps.canManageMembers ? "members" : null,
+    caps.canManageRoles ? "roles" : null,
     caps.canManageCategories ? "categories" : null,
   ].filter((value): value is SettingsSection => value !== null), [caps]);
 
@@ -105,25 +107,16 @@ export function ProjectSettingsDialog({
               {active === "general" && <ProjectSettingsGeneral project={project} />}
 
               {active === "members" && (
-                <div className="space-y-6">
-                  {caps.canManageMembers && (
-                    <section className="space-y-2">
-                      <h3 className="text-sm font-medium">{t("settings.tabs.members")}</h3>
-                      <ProjectSettingsMembers
-                        projectId={project.id}
-                        members={members}
-                        userNames={userNames}
-                        canManage={caps.canManageMembers}
-                      />
-                    </section>
-                  )}
-                  {caps.canManageRoles && (
-                    <section className="space-y-2">
-                      <h3 className="text-sm font-medium">{t("settings.rolesHeading")}</h3>
-                      <ProjectSettingsRoles projectId={project.id} canManage={caps.canManageRoles} />
-                    </section>
-                  )}
-                </div>
+                <ProjectSettingsMembers
+                  projectId={project.id}
+                  members={members}
+                  userNames={userNames}
+                  canManage={caps.canManageMembers}
+                />
+              )}
+
+              {active === "roles" && (
+                <ProjectSettingsRoles projectId={project.id} canManage={caps.canManageRoles} />
               )}
 
               {active === "categories" && (

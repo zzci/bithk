@@ -99,6 +99,46 @@ describe("projectSettingsRoles", () => {
     });
   });
 
+  it("groups capability toggles by module in the create dialog", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    await screen.findByText("No roles defined.");
+
+    await user.click(screen.getByRole("button", { name: "Add role" }));
+    const dialog = await screen.findByRole("dialog");
+
+    // Module group headers rendered as fieldset legends.
+    for (const header of ["Project", "Members", "Roles", "Categories", "Procurement", "Work orders"])
+      expect(within(dialog).getByText(header)).toBeInTheDocument();
+
+    // Grouping is presentational only — the procurement group still holds both
+    // procurement capability toggles by their flat capability key.
+    expect(within(dialog).getByRole("switch", { name: "View procurement" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("switch", { name: "Manage procurement" })).toBeInTheDocument();
+  });
+
+  it("submits a flat capabilities[] payload when toggles are grouped", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    await screen.findByText("No roles defined.");
+
+    await user.click(screen.getByRole("button", { name: "Add role" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Name"), "Reviewer");
+    await user.click(within(dialog).getByRole("switch", { name: "View procurement" }));
+    await user.click(within(dialog).getByRole("switch", { name: "Manage project" }));
+    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
+      expect(post).toBeTruthy();
+      const body = JSON.parse(String(post![1]?.body));
+      expect(body.capabilities).toEqual(["procurement.view", "project.manage"]);
+    });
+  });
+
   it("deletes a role after confirmation", async () => {
     const user = userEvent.setup();
     routeFetch([role({ id: "r1", name: "Engineer" })]);

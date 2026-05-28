@@ -105,10 +105,10 @@
   "settings": {
     "title": "Project settings",
     "description": "Manage this project's details, members, and categories.",
-    "rolesHeading": "Roles",
     "tabs": {
       "general": "General",
-      "members": "Members & roles",
+      "members": "Members",
+      "roles": "Roles",
       "categories": "Categories"
     }
   },
@@ -285,6 +285,14 @@
     "procurement.view": "View procurement",
     "procurement.manage": "Manage procurement",
     "issue.manage": "Manage work orders"
+  },
+  "capabilityGroup": {
+    "project": "Project",
+    "members": "Members",
+    "roles": "Roles",
+    "categories": "Categories",
+    "procurement": "Procurement",
+    "issue": "Work orders"
   },
   "categories": {
     "add": "Add category",
