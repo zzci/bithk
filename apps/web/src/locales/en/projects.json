@@ -149,6 +149,7 @@
     "empty": "No work orders found.",
     "loading": "Loading work orders...",
     "searchPlaceholder": "Search work orders...",
+    "statusFilter": "Filter by status",
     "allStatuses": "All statuses",
     "allPriorities": "All priorities",
     "viewMode": "Work order view mode",
