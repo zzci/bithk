@@ -60,6 +60,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Project overview metadata simplification (UI-017 / PLAN-025): creator, last
+  updated, tags, and description now read as one unified project information
+  card, and the right-side work-order / procurement summary metric tiles are
+  gone. Pinned work and the latest work-order / procurement list cards are
+  unchanged.
+
 - Project overview page polish (UI-015 / PLAN-022): the overview tab now uses a
   restrained card-based dashboard with summary metrics, clearer description,
   pinned work, and recent activity groups. Rows use a responsive two-line

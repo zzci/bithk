@@ -1,8 +1,8 @@
-// Overview tab: a restrained work-focused dashboard. A summary card (creator,
-// last updated, tags, and compact work-order / procurement metrics), the
-// project description, a mixed pinned-items card, and the latest work orders +
-// procurements grouped into separate cards. Read-only — pinning happens on the
-// rows in the Issues / Procurement tabs.
+// Overview tab: a restrained work-focused dashboard. A unified project
+// information card (creator, last updated, tags, and description), a mixed
+// pinned-items card, and the latest work orders + procurements grouped into
+// separate cards. Read-only — pinning happens on the rows in the Issues /
+// Procurement tabs.
 
 import type { ReactNode } from "react";
 import type { ProjectCapabilityInfo } from "./-use-project-role";
@@ -41,22 +41,16 @@ export function ProjectOverviewTab({ project, userNames, caps, onOpenTab }: Proj
   const latestIssuesQuery = useProjectIssues(project.id, { limit: 5 });
   const latestProcurementsQuery = useProcurements(project.id, { limit: 5 }, caps.canViewProcurement);
 
-  const issuesCount = latestIssuesQuery.data?.meta.total;
-  const procurementCount = latestProcurementsQuery.data?.meta.total;
   const showProcurement = caps.canViewProcurement;
 
   return (
     <div className="space-y-6">
-      <ProjectSummaryCard
+      <ProjectInfoCard
         creatorName={userNames.get(project.creatorId) ?? project.creatorId}
         updatedAt={project.updatedAt}
         tags={project.tags}
-        issuesCount={issuesCount}
-        procurementCount={procurementCount}
-        showProcurement={showProcurement}
+        description={project.description}
       />
-
-      <ProjectDescriptionCard description={project.description} />
 
       <ProjectPinnedCard projectId={project.id} caps={caps} onOpenTab={onOpenTab} />
 
@@ -115,97 +109,48 @@ export function ProjectOverviewTab({ project, userNames, caps, onOpenTab }: Proj
   );
 }
 
-interface ProjectSummaryCardProps {
+interface ProjectInfoCardProps {
   readonly creatorName: string;
   readonly updatedAt: string;
   readonly tags: ProjectView["tags"];
-  readonly issuesCount: number | undefined;
-  readonly procurementCount: number | undefined;
-  readonly showProcurement: boolean;
+  readonly description: string | null;
 }
 
-function ProjectSummaryCard({ creatorName, updatedAt, tags, issuesCount, procurementCount, showProcurement }: ProjectSummaryCardProps) {
+function ProjectInfoCard({ creatorName, updatedAt, tags, description }: ProjectInfoCardProps) {
   const { t } = useTranslation("projects");
 
   return (
     <Card size="sm">
-      <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <User className="size-3.5 shrink-0" aria-hidden="true" />
-              {t("overview.creator")}
-              {": "}
-              {creatorName}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="size-3.5 shrink-0" aria-hidden="true" />
-              {t("overview.updatedAt")}
-              {": "}
-              {formatDate(updatedAt)}
-            </span>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <User className="size-3.5 shrink-0" aria-hidden="true" />
+            {t("overview.creator")}
+            {": "}
+            {creatorName}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="size-3.5 shrink-0" aria-hidden="true" />
+            {t("overview.updatedAt")}
+            {": "}
+            {formatDate(updatedAt)}
+          </span>
+        </div>
+
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {tags.map(tag => (
+              <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+            ))}
           </div>
+        )}
 
-          {tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {tags.map(tag => (
-                <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-              ))}
-            </div>
-          )}
+        <div className="flex flex-col gap-1.5 border-t pt-4">
+          <span className="text-sm font-medium text-muted-foreground">{t("overview.description")}</span>
+          <p className="max-w-prose text-sm leading-relaxed break-words whitespace-pre-wrap">
+            {description || <span className="text-muted-foreground">{t("overview.noDescription")}</span>}
+          </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 sm:shrink-0">
-          <SummaryMetric
-            icon={<ClipboardList className="size-4" aria-hidden="true" />}
-            value={issuesCount}
-            label={t("detail.metrics.issues")}
-          />
-          {showProcurement && (
-            <SummaryMetric
-              icon={<Package className="size-4" aria-hidden="true" />}
-              value={procurementCount}
-              label={t("detail.metrics.procurement")}
-            />
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-interface SummaryMetricProps {
-  readonly icon: ReactNode;
-  readonly value: number | undefined;
-  readonly label: string;
-}
-
-function SummaryMetric({ icon, value, label }: SummaryMetricProps) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-        {icon}
-      </span>
-      <div className="flex flex-col leading-tight">
-        <span className="text-lg font-semibold tabular-nums text-foreground">{value ?? "—"}</span>
-        <span className="text-xs text-muted-foreground">{label}</span>
-      </div>
-    </div>
-  );
-}
-
-function ProjectDescriptionCard({ description }: { readonly description: string | null }) {
-  const { t } = useTranslation("projects");
-
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="text-sm text-muted-foreground">{t("overview.description")}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="max-w-prose text-sm leading-relaxed break-words whitespace-pre-wrap">
-          {description || <span className="text-muted-foreground">{t("overview.noDescription")}</span>}
-        </p>
       </CardContent>
     </Card>
   );
