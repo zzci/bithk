@@ -1,3 +1,4 @@
+import type { ResourceTagBinding } from "./tag.service";
 import type { AppDatabase } from "@/db";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,14 +10,26 @@ import { contacts, contactTags } from "@/modules/contact/schema";
 import {
   createTag,
   deleteTag,
+  listResourceIdsByTag,
+  listResourceTagNames,
+  listResourceTagViews,
   listTagsWithUsage,
+  loadResourceTagsByResource,
   normalizeTagName,
   renameTag,
+  resolveTagIdByIdOrName,
+  syncResourceTagsTx,
   upsertTagIdTx,
 } from "./tag.service";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 const contactJoin = { table: contactTags, tagId: contactTags.tagId };
+const contactBinding: ResourceTagBinding = {
+  sourceType: "contact",
+  table: contactTags,
+  resourceColumn: contactTags.contactId,
+  tagColumn: contactTags.tagId,
+};
 
 let db: AppDatabase;
 let dbPath: string;
@@ -139,5 +152,80 @@ describe("deleteTag", () => {
     const links = await db.select().from(contactTags).all();
     expect(links).toHaveLength(0);
     expect(await deleteTag(db, "contact", tag.id)).toBe(false);
+  });
+});
+
+describe("syncResourceTagsTx", () => {
+  test("trims, drops blanks, dedupes case-insensitively, and replaces (not appends)", async () => {
+    const c1 = await seedContact("c1");
+    db.transaction((tx) => {
+      syncResourceTagsTx(tx, contactBinding, c1, ["VIP", "vip", "  Lead  ", ""], new Date().toISOString());
+    });
+    // "vip" is a case-insensitive dup of "VIP"; the blank is skipped. Ordered by name.
+    expect(await listResourceTagNames(db, contactBinding, c1)).toEqual(["Lead", "VIP"]);
+
+    // A second sync replaces the prior set rather than appending to it.
+    db.transaction((tx) => {
+      syncResourceTagsTx(tx, contactBinding, c1, ["Lead"], new Date().toISOString());
+    });
+    expect(await listResourceTagNames(db, contactBinding, c1)).toEqual(["Lead"]);
+  });
+});
+
+describe("listResourceTagViews", () => {
+  test("returns {id,name} for one resource ordered by name", async () => {
+    const c1 = await seedContact("c1");
+    db.transaction((tx) => {
+      syncResourceTagsTx(tx, contactBinding, c1, ["Zeta", "Alpha"], new Date().toISOString());
+    });
+    const views = await listResourceTagViews(db, contactBinding, c1);
+    expect(views.map(v => v.name)).toEqual(["Alpha", "Zeta"]);
+    expect(views.every(v => typeof v.id === "string" && v.id.length > 0)).toBe(true);
+  });
+});
+
+describe("loadResourceTagsByResource", () => {
+  test("groups tags by resource with source-type-wide usage counts", async () => {
+    const c1 = await seedContact("c1");
+    const c2 = await seedContact("c2");
+    const now = new Date().toISOString();
+    db.transaction((tx) => {
+      syncResourceTagsTx(tx, contactBinding, c1, ["shared", "solo"], now);
+      syncResourceTagsTx(tx, contactBinding, c2, ["shared"], now);
+    });
+    const map = await loadResourceTagsByResource(db, contactBinding, [c1, c2]);
+    expect(map.get(c1)!.map(t => [t.name, t.usageCount]).sort()).toEqual([["shared", 2], ["solo", 1]]);
+    expect(map.get(c2)!.map(t => [t.name, t.usageCount])).toEqual([["shared", 2]]);
+    // Empty input short-circuits to an empty map.
+    expect((await loadResourceTagsByResource(db, contactBinding, [])).size).toBe(0);
+  });
+});
+
+describe("resolveTagIdByIdOrName", () => {
+  test("resolves by id or trimmed name, scoped to the source type", async () => {
+    const tag = await createTag(db, "contact", "supplier");
+    expect(await resolveTagIdByIdOrName(db, "contact", tag.id)).toBe(tag.id);
+    expect(await resolveTagIdByIdOrName(db, "contact", "supplier")).toBe(tag.id);
+    expect(await resolveTagIdByIdOrName(db, "contact", "  supplier  ")).toBe(tag.id);
+    // A different source type does not resolve the same id.
+    expect(await resolveTagIdByIdOrName(db, "project", tag.id)).toBeNull();
+    expect(await resolveTagIdByIdOrName(db, "contact", "missing")).toBeNull();
+    expect(await resolveTagIdByIdOrName(db, "contact", "   ")).toBeNull();
+  });
+});
+
+describe("listResourceIdsByTag", () => {
+  test("returns resource ids by tag id or name; empty for an unknown tag", async () => {
+    const c1 = await seedContact("c1");
+    const c2 = await seedContact("c2");
+    const now = new Date().toISOString();
+    db.transaction((tx) => {
+      syncResourceTagsTx(tx, contactBinding, c1, ["lead"], now);
+      syncResourceTagsTx(tx, contactBinding, c2, ["lead"], now);
+    });
+    const tagId = (await resolveTagIdByIdOrName(db, "contact", "lead"))!;
+    expect((await listResourceIdsByTag(db, contactBinding, "lead")).sort()).toEqual([c1, c2]);
+    expect((await listResourceIdsByTag(db, contactBinding, tagId)).sort()).toEqual([c1, c2]);
+    expect(await listResourceIdsByTag(db, contactBinding, "unknown")).toEqual([]);
   });
 });
