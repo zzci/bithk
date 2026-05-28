@@ -41,3 +41,4 @@
 | [UI-013](UI-013.md) | Fix and polish the Linear-style create-project dialog | - | Done | 2026-05-27 |
 | [REFACTOR-004](REFACTOR-004.md) | Remove the ship lifecycle concept (keep status only) | - | Done | 2026-05-28 |
 | [UI-014](UI-014.md) | Left-nav project settings dialog + tag picker fixes | - | Done | 2026-05-28 |
+| [UI-015](UI-015.md) | Improve project overview information hierarchy | [PLAN-022](../plan/PLAN-022.md) | Done | 2026-05-28 |

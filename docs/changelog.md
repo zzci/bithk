@@ -60,6 +60,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Project overview page polish (UI-015 / PLAN-022): the overview tab now uses a
+  restrained card-based dashboard with summary metrics, clearer description,
+  pinned work, and recent activity groups. Rows use a responsive two-line
+  structure so titles, status badges, and dates remain scannable on narrow
+  screens.
+
 - Create-project dialog reworked to a Linear-style layout (UI-012): a borderless
   title and description, an existing-tag combobox sourced from the global tag
   vocabulary (with inline tag creation), and no manual code or status fields —
