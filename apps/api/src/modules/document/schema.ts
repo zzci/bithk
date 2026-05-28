@@ -2,6 +2,7 @@ import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 import { items } from "@/modules/item/schema";
+import { tags } from "@/modules/tag/schema";
 
 // `document` is a Tier-C sub-type of the `item` base. The base owns the
 // universal columns (title / status / creator / version / soft-delete /
@@ -56,3 +57,13 @@ export const documentPins = sqliteTable("document_pins", {
   primaryKey({ columns: [t.userId, t.itemId] }),
   index("idx_document_pins_user").on(t.userId),
 ]);
+
+// Attaches document items to the global typed tag vocabulary (source_type
+// 'document'). The join is the authoritative tag link; the legacy
+// `document_details.tags` JSON column is kept until the service layer reads
+// tags from here. `item_id` → items.id (the document base row), `tag_id` →
+// tags.id; both cascade on delete.
+export const documentTags = sqliteTable("document_tags", {
+  itemId: text("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
+}, t => [primaryKey({ columns: [t.itemId, t.tagId] })]);

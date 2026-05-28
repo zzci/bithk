@@ -17,3 +17,4 @@ export * from "@/modules/project/schema";
 export * from "@/modules/settings/schema";
 export * from "@/modules/share/schema";
 export * from "@/modules/ship/schema";
+export * from "@/modules/tag/schema";

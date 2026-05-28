@@ -1,5 +1,5 @@
 import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { tags } from "@/modules/project/schema";
+import { tags } from "@/modules/tag/schema";
 
 export const CONTACT_STATUSES = ["active", "inactive"] as const;
 export type ContactStatus = typeof CONTACT_STATUSES[number];

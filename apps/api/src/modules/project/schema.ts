@@ -3,6 +3,7 @@ import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "driz
 import { users } from "@/modules/account/users/schema";
 import { fileReferences } from "@/modules/file/schema";
 import { ships } from "@/modules/ship/schema";
+import { tags } from "@/modules/tag/schema";
 
 export const PROJECT_STATUSES = ["active", "archived"] as const;
 export type ProjectStatus = typeof PROJECT_STATUSES[number];
@@ -103,15 +104,9 @@ export const procurementCategories = sqliteTable("procurement_categories", {
   updatedAt: text("updated_at").notNull(),
 }, t => [index("procurement_categories_project_idx").on(t.projectId)]);
 
-// User-defined tags classify projects (global vocabulary, many-to-many). The
-// project list filters/groups by tag.
-export const tags = sqliteTable("tags", {
-  id: text("id").primaryKey(), // nanoid
-  name: text("name").notNull(),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-}, t => [uniqueIndex("tags_name_idx").on(t.name)]);
-
+// User-defined tags classify projects (many-to-many). The vocabulary itself
+// lives in `@/modules/tag/schema` (scoped to source_type 'project'); the
+// project list filters/groups by tag through this join.
 export const projectTags = sqliteTable("project_tags", {
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
