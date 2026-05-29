@@ -1,8 +1,8 @@
-// Procurement tab: filterable list (status + category) + create dialog + per-row
-// status change. Rows open the procurement detail drawer. Mounted only when the
-// caller has procurement.view, so it assumes read access; create/status/pin need
-// canManage. Procurement is non-deletable — retire a record via the `cancelled`
-// status instead.
+// Procurement tab: filterable list (status + category) + create dialog. Status
+// is display-only here — editing happens in the detail panel. Rows open the
+// procurement detail drawer. Mounted only when the caller has procurement.view,
+// so it assumes read access; create/pin need canManage. Procurement is
+// non-deletable — retire a record via the `cancelled` status instead.
 
 import type {
   CreateProcurementInput,
@@ -50,7 +50,6 @@ import { useToggleProcurementPin } from "@/shared/lib/api/pins";
 import {
   PROCUREMENT_PRIORITIES,
   PROCUREMENT_STATUSES,
-  useChangeProcurementStatus,
   useCreateProcurement,
   useProcurements,
 } from "@/shared/lib/api/procurement";
@@ -79,15 +78,8 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     categoryId: categoryFilter === "__all__" ? undefined : categoryFilter,
     page,
   });
-  const draftSummaryQuery = useProcurements(projectId, { status: "draft", limit: 1000 });
-  const requestedSummaryQuery = useProcurements(projectId, { status: "requested", limit: 1000 });
-  const orderedSummaryQuery = useProcurements(projectId, { status: "ordered", limit: 1000 });
-  const receivedSummaryQuery = useProcurements(projectId, { status: "received", limit: 1000 });
-  const closedSummaryQuery = useProcurements(projectId, { status: "closed", limit: 1000 });
-  const cancelledSummaryQuery = useProcurements(projectId, { status: "cancelled", limit: 1000 });
   const suppliersQuery = useContacts();
   const categoriesQuery = useProcurementCategories(projectId);
-  const changeStatus = useChangeProcurementStatus();
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
   const suppliers = useMemo(
@@ -100,14 +92,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   const rows = procurementsQuery.data?.data ?? [];
   const meta = procurementsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
-  const stageSummaries: Record<ProcurementStatus, { readonly count: number | undefined; readonly rows: readonly ProcurementRow[] }> = {
-    draft: { count: draftSummaryQuery.data?.meta.total, rows: draftSummaryQuery.data?.data ?? [] },
-    requested: { count: requestedSummaryQuery.data?.meta.total, rows: requestedSummaryQuery.data?.data ?? [] },
-    ordered: { count: orderedSummaryQuery.data?.meta.total, rows: orderedSummaryQuery.data?.data ?? [] },
-    received: { count: receivedSummaryQuery.data?.meta.total, rows: receivedSummaryQuery.data?.data ?? [] },
-    closed: { count: closedSummaryQuery.data?.meta.total, rows: closedSummaryQuery.data?.data ?? [] },
-    cancelled: { count: cancelledSummaryQuery.data?.meta.total, rows: cancelledSummaryQuery.data?.data ?? [] },
-  };
 
   const openProcurement = (id: string) => {
     void navigate({ to: "/projects/$projectId/procurements/$procurementId", params: { projectId, procurementId: id } });
@@ -126,57 +110,31 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     return row.currency ? `${row.amount} ${row.currency}` : String(row.amount);
   };
 
-  const formatSummaryAmount = (summaryRows: readonly ProcurementRow[]) => {
-    const amountRows = summaryRows.filter(row => row.amount !== null);
-    if (amountRows.length === 0)
-      return "—";
-    const currencies = new Set(amountRows.map(row => row.currency ?? ""));
-    if (currencies.size > 1)
-      return t("procurement.mixedCurrencies");
-    const currency = amountRows[0]?.currency;
-    const total = amountRows.reduce((sum, row) => sum + (row.amount ?? 0), 0);
-    return currency ? `${total} ${currency}` : String(total);
-  };
-
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card p-3">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-medium">{t("procurement.pipeline.title")}</h3>
-            <p className="text-xs text-muted-foreground">{t("procurement.pipeline.description")}</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {PROCUREMENT_STATUSES.map(status => (
-            <button
-              key={status}
-              type="button"
-              className="rounded-md border bg-muted/20 p-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:border-primary data-[active=true]:bg-primary/5"
-              data-active={statusFilter === status}
-              aria-pressed={statusFilter === status}
-              onClick={() => {
-                setStatusFilter(statusFilter === status ? "__all__" : status);
-                setPage(1);
-              }}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium">{t(`procurement.status.${status}` as const)}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {stageSummaries[status].count ?? "—"}
-                </Badge>
-              </div>
-              <div className="mt-2 text-lg font-semibold tabular-nums">
-                {formatSummaryAmount(stageSummaries[status].rows)}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">{t("procurement.pipeline.amount")}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              if (v === null)
+                return;
+              setStatusFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue>
+                {(v: string) => (v === "__all__" ? t("procurement.allStatuses") : t(`procurement.status.${v}` as const))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("procurement.allStatuses")}</SelectItem>
+              {PROCUREMENT_STATUSES.map(s => (
+                <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select
             value={categoryFilter}
             onValueChange={(v) => {
@@ -228,52 +186,33 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
               : rows.length === 0
                 ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.empty")}</TableCell></TableRow>
                 : rows.map(row => (
-                    <TableRow key={row.id} className="border-0">
-                      <TableCell className="font-medium">
-                        <Button
-                          variant="link"
-                          className="h-auto justify-start p-0 font-medium text-foreground hover:text-primary"
-                          onClick={() => openProcurement(row.id)}
-                        >
-                          {row.itemName}
-                        </Button>
-                      </TableCell>
+                    <TableRow
+                      key={row.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={row.itemName}
+                      className="cursor-pointer border-0 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      onClick={() => openProcurement(row.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openProcurement(row.id);
+                        }
+                      }}
+                    >
+                      <TableCell className="font-medium">{row.itemName}</TableCell>
                       <TableCell>
-                        {canManage
-                          ? (
-                              <Select
-                                value={row.status}
-                                onValueChange={(v) => {
-                                  if (v === null || v === row.status)
-                                    return;
-                                  changeStatus.mutate({ projectId, id: row.id, status: v as ProcurementStatus }, {
-                                    onSuccess: () => toast.success(t("toast.procurementStatusChanged")),
-                                    onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
-                                  });
-                                }}
-                              >
-                                <SelectTrigger size="sm" className="w-32" aria-label={t("procurement.changeStatus")}>
-                                  <SelectValue>
-                                    {(v: string) => t(`procurement.status.${v}` as const)}
-                                  </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {PROCUREMENT_STATUSES.map(s => (
-                                    <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )
-                          : (
-                              <Badge variant="outline" className="text-xs">{t(`procurement.status.${row.status}` as const)}</Badge>
-                            )}
+                        <Badge variant="outline" className="text-xs">{t(`procurement.status.${row.status}` as const)}</Badge>
                       </TableCell>
                       <TableCell className="text-sm">{formatAmount(row)}</TableCell>
                       <TableCell className="text-sm">{categoryName(row.categoryId)}</TableCell>
                       <TableCell className="text-sm">{supplierName(row.supplierId)}</TableCell>
                       <TableCell className="text-sm">{memberName(row.assigneeMemberId)}</TableCell>
                       {canManage && (
-                        <TableCell>
+                        <TableCell
+                          onClick={event => event.stopPropagation()}
+                          onKeyDown={event => event.stopPropagation()}
+                        >
                           <div className="flex items-center gap-1">
                             <ProcurementPinToggle projectId={projectId} row={row} />
                           </div>

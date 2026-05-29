@@ -121,27 +121,82 @@ describe("projectProcurementTab", () => {
     expect(await screen.findByRole("button", { name: /Create procurement/ })).toBeInTheDocument();
   });
 
-  it("renders the pipeline summary with all six stages including cancelled", async () => {
+  it("does not render the procurement pipeline summary cards", async () => {
     routeFetch([row()]);
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
     await screen.findByText("Cement");
-    for (const stage of ["Draft", "Requested", "Ordered", "Received", "Closed", "Cancelled"])
-      expect(screen.getByRole("button", { name: new RegExp(stage) })).toBeInTheDocument();
+    expect(screen.queryByText("Procurement pipeline")).not.toBeInTheDocument();
+    // The per-stage summary queries (limit=1000) must no longer fire.
+    const urls = fetchMock.mock.calls.map(c => String(c[0]));
+    expect(urls.some(url => url.includes("limit=1000"))).toBe(false);
   });
 
-  it("opens the procurement detail drawer when an item name is clicked", async () => {
+  it("renders the status and category toolbar filters", async () => {
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
+    );
+    await screen.findByText("Cement");
+    expect(screen.getByText("All statuses")).toBeInTheDocument();
+    expect(screen.getByText("All categories")).toBeInTheDocument();
+  });
+
+  it("opens the procurement detail drawer when the list row is clicked", async () => {
     const user = userEvent.setup();
     routeFetch([row()]);
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
-    await user.click(await screen.findByRole("button", { name: "Cement" }));
+    const rowEl = (await screen.findByText("Cement")).closest("tr")!;
+    await user.click(rowEl);
     expect(navigateMock).toHaveBeenCalledWith({
       to: "/projects/$projectId/procurements/$procurementId",
       params: { projectId: "p1", procurementId: "pr1" },
     });
+  });
+
+  it("opens the detail drawer when Enter is pressed on a focused row", async () => {
+    const user = userEvent.setup();
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
+    );
+    const rowEl = (await screen.findByText("Cement")).closest("tr")! as HTMLElement;
+    expect(rowEl).toHaveAttribute("role", "button");
+    expect(rowEl).toHaveAttribute("tabindex", "0");
+    rowEl.focus();
+    await user.keyboard("{Enter}");
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/projects/$projectId/procurements/$procurementId",
+      params: { projectId: "p1", procurementId: "pr1" },
+    });
+  });
+
+  it("shows status read-only in the list with no inline status control or mutation", async () => {
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByText("Cement");
+    // Status is a non-interactive badge — no inline status select even for managers.
+    expect(screen.queryByLabelText("Change status")).not.toBeInTheDocument();
+    expect(screen.getByText("Draft")).toBeInTheDocument();
+    // The list never issues a status-change request.
+    const statusCalls = fetchMock.mock.calls.filter(c => String(c[0]).endsWith("/status"));
+    expect(statusCalls).toHaveLength(0);
+  });
+
+  it("does not navigate when the pin toggle is clicked", async () => {
+    const user = userEvent.setup();
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByText("Cement");
+    await user.click(screen.getByRole("button", { name: "Pin" }));
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it("does not offer a delete action (procurement is non-deletable)", async () => {
@@ -149,52 +204,33 @@ describe("projectProcurementTab", () => {
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
     );
-    await screen.findByRole("button", { name: "Cement" });
+    await screen.findByText("Cement");
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
-  it("renders the cancelled label on a cancelled row's status control", async () => {
+  it("renders a cancelled row's status as a read-only badge", async () => {
     routeFetch([row({ status: "cancelled" })]);
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
     );
-    await screen.findByRole("button", { name: "Cement" });
-    const statusControl = screen.getByLabelText("Change status");
-    expect(statusControl).toHaveTextContent("Cancelled");
+    await screen.findByText("Cement");
+    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Change status")).not.toBeInTheDocument();
   });
 
-  it("renders pipeline stage counts and amount totals without colliding with the paginated list", async () => {
-    routeFetch([
-      row({ id: "draft-1", status: "draft", amount: 500, currency: "USD" }),
-      row({ id: "ordered-1", status: "ordered", amount: 1200, currency: "USD" }),
-      row({ id: "ordered-2", status: "ordered", amount: 300, currency: "USD" }),
-    ]);
-    renderWithProviders(
-      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
-    );
-    expect((await screen.findAllByText("Cement")).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /Draft1 500 USD Amount/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Ordered2 1500 USD Amount/ })).toBeInTheDocument();
-
-    const urls = fetchMock.mock.calls.map(c => String(c[0]));
-    expect(urls.some(url => url.includes("status=ordered") && url.includes("limit=1000"))).toBe(true);
-    expect(urls.some(url => url.includes("page=1") && url.includes("limit=20"))).toBe(true);
-  });
-
-  it("toggles the status filter when a pipeline stage is clicked", async () => {
+  it("drives the procurements query from the status filter, including cancelled", async () => {
     const user = userEvent.setup();
     routeFetch([row()]);
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
-    const ordered = await screen.findByRole("button", { name: /Ordered/ });
-    expect(ordered).toHaveAttribute("aria-pressed", "false");
-    await user.click(ordered);
-    expect(ordered).toHaveAttribute("aria-pressed", "true");
+    await screen.findByText("Cement");
+    await user.click(screen.getByText("All statuses"));
+    await user.click(await screen.findByRole("option", { name: "Cancelled" }));
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((c) => {
         const u = String(c[0]);
-        return u.includes("status=ordered") && u.includes("limit=20");
+        return u.includes("status=cancelled") && u.includes("limit=20");
       })).toBe(true);
     });
   });
