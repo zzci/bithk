@@ -19,6 +19,7 @@
     "categoryUpdated": "分类已更新",
     "categoryDeleted": "分类已删除",
     "procurementCreated": "采购已创建",
+    "procurementUpdated": "采购已更新",
     "procurementDeleted": "采购已删除",
     "procurementStatusChanged": "采购状态已更新",
     "issueCreated": "工单已创建",
@@ -220,7 +221,10 @@
       "assignee": "负责人",
       "quantity": "数量",
       "amount": "金额",
-      "currency": "货币"
+      "currency": "货币",
+      "description": "描述",
+      "priority": "优先级",
+      "dueDate": "截止日期"
     },
     "createTitle": "创建采购",
     "createDescription": "为该项目添加一条新的采购记录。",
@@ -239,7 +243,29 @@
       "requested": "已申请",
       "ordered": "已下单",
       "received": "已收货",
-      "closed": "已关闭"
+      "closed": "已关闭",
+      "cancelled": "已取消"
+    },
+    "priority": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "urgent": "紧急"
+    },
+    "detail": {
+      "title": "采购详情",
+      "description": "查看并编辑采购记录。",
+      "backToList": "返回列表",
+      "openFullPage": "打开全屏页面",
+      "clickToEditTitle": "点击编辑",
+      "creator": "创建人",
+      "createdAt": "创建时间",
+      "updatedAt": "更新时间",
+      "unassigned": "未分配",
+      "notSet": "未设置",
+      "noDescription": "暂无描述。",
+      "descriptionPlaceholder": "添加描述...",
+      "loadFailed": "加载采购失败"
     }
   },
   "members": {

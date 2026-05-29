@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
 import { ProjectProcurementTab } from "./-project-procurement-tab";
 
+const navigateMock = vi.fn();
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => navigateMock,
+}));
+
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     ...init,
@@ -16,6 +21,7 @@ const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
   fetchMock.mockReset();
+  navigateMock.mockReset();
   globalThis.fetch = fetchMock;
 });
 
@@ -36,6 +42,9 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     quantity: 10,
     amount: 500,
     currency: "USD",
+    description: null,
+    priority: "medium",
+    dueDate: null,
     creatorId: "u1",
     pinned: false,
     pinnedAt: null,
@@ -112,14 +121,46 @@ describe("projectProcurementTab", () => {
     expect(await screen.findByRole("button", { name: /Create procurement/ })).toBeInTheDocument();
   });
 
-  it("renders the pipeline summary with all five stages", async () => {
+  it("renders the pipeline summary with all six stages including cancelled", async () => {
     routeFetch([row()]);
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
     await screen.findByText("Cement");
-    for (const stage of ["Draft", "Requested", "Ordered", "Received", "Closed"])
+    for (const stage of ["Draft", "Requested", "Ordered", "Received", "Closed", "Cancelled"])
       expect(screen.getByRole("button", { name: new RegExp(stage) })).toBeInTheDocument();
+  });
+
+  it("opens the procurement detail drawer when an item name is clicked", async () => {
+    const user = userEvent.setup();
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
+    );
+    await user.click(await screen.findByRole("button", { name: "Cement" }));
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/projects/$projectId/procurements/$procurementId",
+      params: { projectId: "p1", procurementId: "pr1" },
+    });
+  });
+
+  it("does not offer a delete action (procurement is non-deletable)", async () => {
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByRole("button", { name: "Cement" });
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("renders the cancelled label on a cancelled row's status control", async () => {
+    routeFetch([row({ status: "cancelled" })]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByRole("button", { name: "Cement" });
+    const statusControl = screen.getByLabelText("Change status");
+    expect(statusControl).toHaveTextContent("Cancelled");
   });
 
   it("renders pipeline stage counts and amount totals without colliding with the paginated list", async () => {
