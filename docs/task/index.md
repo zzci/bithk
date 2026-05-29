@@ -53,5 +53,5 @@
 | [REFACTOR-005](REFACTOR-005.md) | Consolidate the tag abstraction | [PLAN-031](../plan/PLAN-031.md) | Done | 2026-05-28 |
 | [REFACTOR-006](REFACTOR-006.md) | Align project issues with the access issue reference | [PLAN-032](../plan/PLAN-032.md) | In Progress | 2026-05-28 |
 | [UI-020](UI-020.md) | Present the project owner role and simplify role settings | [PLAN-033](../plan/PLAN-033.md) | Done | 2026-05-28 |
-| [UI-021](UI-021.md) | Immutable lowercase project code, moved to settings sidebar bottom | [PLAN-034](../plan/PLAN-034.md) | In Progress | 2026-05-28 |
+| [UI-021](UI-021.md) | Immutable lowercase project code, moved to settings sidebar bottom | [PLAN-034](../plan/PLAN-034.md) | Done | 2026-05-28 |
 | [FEAT-016](FEAT-016.md) | Procurement detail experience with issue-detail parity | [PLAN-035](../plan/PLAN-035.md) | In Progress | 2026-05-28 |

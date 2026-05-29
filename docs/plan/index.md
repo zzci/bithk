@@ -35,5 +35,5 @@
 | [PLAN-031](PLAN-031.md) | Tag abstraction consolidation | Completed | 2026-05-28 |
 | [PLAN-032](PLAN-032.md) | Align project issues with access issue reference | Implementing | 2026-05-28 |
 | [PLAN-033](PLAN-033.md) | Present the project owner role and simplify role settings | Done | 2026-05-28 |
-| [PLAN-034](PLAN-034.md) | Immutable lowercase project code placement | Implementing | 2026-05-28 |
+| [PLAN-034](PLAN-034.md) | Immutable lowercase project code placement | Done | 2026-05-28 |
 | [PLAN-035](PLAN-035.md) | Procurement detail parity with issue details | Implementing | 2026-05-28 |

@@ -63,6 +63,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Project code is now lowercase and immutable after creation (UI-021 /
+  PLAN-034): the backend generates/normalizes the code in lowercase and the
+  update API no longer accepts `code`. The editable code field was removed from
+  the project settings General form; the code is shown read-only at the bottom
+  of the settings dialog left sidebar with a copy control.
+
 - Tag abstraction consolidated into one module (REFACTOR-005 / PLAN-031): a
   dedicated `tag` module now owns the tag vocabulary, source-type validation,
   the create / rename / delete / list APIs, the `/api/tags` routes (behind a
