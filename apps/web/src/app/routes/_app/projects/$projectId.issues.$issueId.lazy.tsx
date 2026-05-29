@@ -85,7 +85,8 @@ function ProjectIssueDrawer() {
   }, [drawerWidth]);
 
   const close = () => {
-    void navigate({ to: "/projects/$projectId", params: { projectId } });
+    // Return to the issues tab the work order belongs to, not the default overview.
+    void navigate({ to: "/projects/$projectId", params: { projectId }, search: { tab: "issues" } });
   };
 
   const drawerStyle = {

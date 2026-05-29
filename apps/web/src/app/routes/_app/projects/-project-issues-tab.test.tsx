@@ -294,6 +294,26 @@ describe("projectIssuesTab", () => {
     });
   }, 15000);
 
+  it("opens the native date picker when the due-date pill is clicked", async () => {
+    const user = userEvent.setup();
+    const showPicker = vi.fn();
+    const original = (HTMLInputElement.prototype as { showPicker?: (() => void) | undefined }).showPicker;
+    (HTMLInputElement.prototype as { showPicker?: (() => void) | undefined }).showPicker = showPicker;
+    try {
+      routeFetch([]);
+      renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+      await screen.findByText("No work orders found.");
+      await user.click(screen.getByRole("button", { name: "Create work order" }));
+      const dialog = await screen.findByRole("dialog");
+
+      await user.click(within(dialog).getByRole("button", { name: "Due date" }));
+      expect(showPicker).toHaveBeenCalledTimes(1);
+    }
+    finally {
+      (HTMLInputElement.prototype as { showPicker?: (() => void) | undefined }).showPicker = original;
+    }
+  });
+
   it("shows a roomy multi-line description field in the create dialog", async () => {
     const user = userEvent.setup();
     routeFetch([]);

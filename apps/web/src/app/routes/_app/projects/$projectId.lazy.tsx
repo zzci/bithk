@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { ProjectDetailSearch, ProjectDetailTab } from "./$projectId";
 import { createLazyFileRoute, Outlet, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -43,7 +44,7 @@ export const Route = createLazyFileRoute("/_app/projects/$projectId")({
 function ProjectDetailPage() {
   const { t } = useTranslation(["projects", "common"]);
   const { projectId } = useParams({ from: "/_app/projects/$projectId" });
-  const { settings: settingsParam } = useSearch({ from: "/_app/projects/$projectId" });
+  const { settings: settingsParam, tab: tabParam } = useSearch({ from: "/_app/projects/$projectId" });
   const navigate = useNavigate();
 
   const projectQuery = useProject(projectId);
@@ -68,7 +69,17 @@ function ProjectDetailPage() {
     [usersQuery.data],
   );
 
-  const [tab, setTab] = useState("overview");
+  // The active tab is persisted in the URL so it survives navigating away to a
+  // work-order's drawer/fullscreen route and back (default "overview" is dropped
+  // from the URL). Tab switches replace the search param in place.
+  const tab = tabParam ?? "overview";
+  const setTab = (value: string) => {
+    const search: ProjectDetailSearch = {
+      ...(settingsParam ? { settings: true } : {}),
+      ...(value === "overview" ? {} : { tab: value as ProjectDetailTab }),
+    };
+    void navigate({ to: "/projects/$projectId", params: { projectId }, search, replace: true });
+  };
   const [settingsOpen, setSettingsOpen] = useState(settingsParam ?? false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
