@@ -228,17 +228,25 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
               : rows.length === 0
                 ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.empty")}</TableCell></TableRow>
                 : rows.map(row => (
-                    <TableRow key={row.id} className="border-0">
-                      <TableCell className="font-medium">
-                        <Button
-                          variant="link"
-                          className="h-auto justify-start p-0 font-medium text-foreground hover:text-primary"
-                          onClick={() => openProcurement(row.id)}
-                        >
-                          {row.itemName}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
+                    <TableRow
+                      key={row.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={row.itemName}
+                      className="cursor-pointer border-0 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      onClick={() => openProcurement(row.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openProcurement(row.id);
+                        }
+                      }}
+                    >
+                      <TableCell className="font-medium">{row.itemName}</TableCell>
+                      <TableCell
+                        onClick={event => event.stopPropagation()}
+                        onKeyDown={event => event.stopPropagation()}
+                      >
                         {canManage
                           ? (
                               <Select
@@ -273,7 +281,10 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                       <TableCell className="text-sm">{supplierName(row.supplierId)}</TableCell>
                       <TableCell className="text-sm">{memberName(row.assigneeMemberId)}</TableCell>
                       {canManage && (
-                        <TableCell>
+                        <TableCell
+                          onClick={event => event.stopPropagation()}
+                          onKeyDown={event => event.stopPropagation()}
+                        >
                           <div className="flex items-center gap-1">
                             <ProcurementPinToggle projectId={projectId} row={row} />
                           </div>

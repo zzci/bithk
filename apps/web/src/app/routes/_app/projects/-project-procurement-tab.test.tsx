@@ -131,17 +131,57 @@ describe("projectProcurementTab", () => {
       expect(screen.getByRole("button", { name: new RegExp(stage) })).toBeInTheDocument();
   });
 
-  it("opens the procurement detail drawer when an item name is clicked", async () => {
+  it("opens the procurement detail drawer when the list row is clicked", async () => {
     const user = userEvent.setup();
     routeFetch([row()]);
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
-    await user.click(await screen.findByRole("button", { name: "Cement" }));
+    const rowEl = (await screen.findByText("Cement")).closest("tr")!;
+    await user.click(rowEl);
     expect(navigateMock).toHaveBeenCalledWith({
       to: "/projects/$projectId/procurements/$procurementId",
       params: { projectId: "p1", procurementId: "pr1" },
     });
+  });
+
+  it("opens the detail drawer when Enter is pressed on a focused row", async () => {
+    const user = userEvent.setup();
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
+    );
+    const rowEl = (await screen.findByText("Cement")).closest("tr")! as HTMLElement;
+    expect(rowEl).toHaveAttribute("role", "button");
+    expect(rowEl).toHaveAttribute("tabindex", "0");
+    rowEl.focus();
+    await user.keyboard("{Enter}");
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/projects/$projectId/procurements/$procurementId",
+      params: { projectId: "p1", procurementId: "pr1" },
+    });
+  });
+
+  it("does not navigate when the status select is changed", async () => {
+    const user = userEvent.setup();
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByText("Cement");
+    await user.click(screen.getByLabelText("Change status"));
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate when the pin toggle is clicked", async () => {
+    const user = userEvent.setup();
+    routeFetch([row()]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByText("Cement");
+    await user.click(screen.getByRole("button", { name: "Pin" }));
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it("does not offer a delete action (procurement is non-deletable)", async () => {
@@ -149,7 +189,7 @@ describe("projectProcurementTab", () => {
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
     );
-    await screen.findByRole("button", { name: "Cement" });
+    await screen.findByText("Cement");
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
@@ -158,7 +198,7 @@ describe("projectProcurementTab", () => {
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
     );
-    await screen.findByRole("button", { name: "Cement" });
+    await screen.findByText("Cement");
     const statusControl = screen.getByLabelText("Change status");
     expect(statusControl).toHaveTextContent("Cancelled");
   });
