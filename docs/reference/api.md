@@ -172,31 +172,48 @@ All document routes require authentication. `:id` is the document's
 
 ### Issues
 
-All issue routes require authentication. `:id` is the issue's 8-char short id.
+All issue routes require authentication. Issues are **project-scoped work
+orders** — there is no global `/api/issues`; every route is nested under its
+owning project and gated on project membership (non-member ⇒ fail-closed 404).
+`:id` is the issue's 8-char short id and must belong to the path project. See
+[`docs/modules/issue.md`](../modules/issue.md) for the model and its intentional
+deltas from the access reference.
 
 | Method | Path                                          | Description                                                                                                |
 | ------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| GET    | `/api/issues`                                 | Lists issues (admin: all; user: creator OR assignee). Filters: `q`, `status`, `priority`, `assignee_id`, `creator_id`. |
-| POST   | `/api/issues`                                 | Create. Body: `{ title, description?, priority?, assigneeId?, dueDate? }`.                                  |
-| GET    | `/api/issues/:id`                             | Detail.                                                                                                     |
-| PATCH  | `/api/issues/:id`                             | Update. Assignees can only update `status`.                                                                  |
-| DELETE | `/api/issues/:id`                             | **Soft delete** (sets `items.deleted_at`, clears policy tuples).                                              |
-| GET    | `/api/issues/:id/attachments`                 | List attachments.                                                                                            |
-| POST   | `/api/issues/:id/attachments`                 | Upload (multipart).                                                                                          |
-| GET    | `/api/issues/:id/attachments/:aid`            | Download.                                                                                                    |
-| DELETE | `/api/issues/:id/attachments/:aid`            | Release attachment reference.                                                                                |
-| GET    | `/api/issues/:id/comments`                    | List comments.                                                                                              |
-| POST   | `/api/issues/:id/comments`                    | Add comment.                                                                                                |
-| DELETE | `/api/issues/:id/comments/:cid`               | Delete comment. **Detach attachments first** — this route does not cascade-release them.                     |
-| GET    | `/api/issues/:id/comments/:cid/attachments`         | List the comment's attachments.                                                                  |
-| POST   | `/api/issues/:id/comments/:cid/attachments`         | Upload an attachment to the comment. Multipart `file=`. Author-only.                              |
-| GET    | `/api/issues/:id/comments/:cid/attachments/:aid`    | Download. `?inline=true` opts into inline rendering for safe MIME types.                           |
-| DELETE | `/api/issues/:id/comments/:cid/attachments/:aid`    | Release the reference (uploader or admin). Async GC reclaims the blob.                            |
+| GET    | `/api/projects/:projectId/issues`             | List the project's work orders (members only). Filters: `q`, `status`, `priority`, `page`, `limit`.        |
+| POST   | `/api/projects/:projectId/issues`             | Create. Body: `{ title, description?, status?, priority?, assigneeMemberId?, dueDate?, references? }` — `assigneeMemberId` is a `project_members.id`. |
+| GET    | `/api/projects/:projectId/issues/:id`         | Detail.                                                                                                     |
+| PATCH  | `/api/projects/:projectId/issues/:id`         | Update. Assignees who are neither PM nor creator can only update `status`.                                   |
+| DELETE | `/api/projects/:projectId/issues/:id`         | **Soft delete** (sets `items.deleted_at`, clears policy tuples).                                              |
+| POST   | `/api/projects/:projectId/issues/:id/pin`     | Pin (admin / PM / creator). BITHK-only.                                                                       |
+| POST   | `/api/projects/:projectId/issues/:id/unpin`   | Unpin (same gate). BITHK-only.                                                                                |
+| GET    | `/api/projects/:projectId/issues/:id/attachments`              | List attachments.                                                                       |
+| POST   | `/api/projects/:projectId/issues/:id/attachments`              | Upload (multipart).                                                                     |
+| GET    | `/api/projects/:projectId/issues/:id/attachments/:aid`         | Download. `?inline=true` opts into inline rendering for safe MIME types.                |
+| DELETE | `/api/projects/:projectId/issues/:id/attachments/:aid`         | Release attachment reference.                                                           |
+| GET    | `/api/projects/:projectId/issues/:id/comments`                 | List comments.                                                                          |
+| POST   | `/api/projects/:projectId/issues/:id/comments`                 | Add comment.                                                                            |
+| DELETE | `/api/projects/:projectId/issues/:id/comments/:cid`            | Delete comment (author or admin). **Detach attachments first** — no cascade-release.    |
+| GET    | `/api/projects/:projectId/issues/:id/comments/:cid/attachments`      | List the comment's attachments.                                                   |
+| POST   | `/api/projects/:projectId/issues/:id/comments/:cid/attachments`      | Upload an attachment to the comment. Multipart `file=`. Author-only.              |
+| GET    | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` | Download. `?inline=true` opts into inline rendering for safe MIME types.           |
+| DELETE | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` | Release the reference (uploader or admin). Async GC reclaims the blob.            |
+
+Issue references and ship maintenance orders are top-level (not project-nested)
+and BITHK-only:
+
+| Method | Path                                          | Description                                                                                                |
+| ------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/issues/:issueShortId/references`        | List an issue's generic references (any reader).                                                            |
+| POST   | `/api/issues/:issueShortId/references`        | Add a reference (editor).                                                                                    |
+| DELETE | `/api/issues/:issueShortId/references/:referenceId` | Remove a reference (editor).                                                                           |
+| GET    | `/api/ships/:shipShortId/maintenance-orders`  | Read-only list of maintenance-template issues across a ship's bound projects (ship read gate).             |
 
 ### Files (low-level)
 
 Uploads are always issued through a parent resource route (e.g.
-`POST /api/issues/:id/attachments`) — the consumer route owns the
+`POST /api/projects/:projectId/issues/:id/attachments`) — the consumer route owns the
 permission boundary. The two endpoints below are the read surface for
 content that has already been uploaded; both require a `ref=<reference id>`
 query parameter so the registered permission hook can resolve the consumer

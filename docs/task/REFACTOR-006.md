@@ -1,9 +1,9 @@
 # REFACTOR-006 Align project issues with the access issue reference
 
-- Status: In Progress
+- Status: Done
 - Plan: [PLAN-032](../plan/PLAN-032.md)
 - Owner: BKD L2 (campaign l1-lsqiuvv9-20260528225223)
-- Updated: 2026-05-28
+- Updated: 2026-05-29
 
 ## Goal
 
@@ -124,3 +124,12 @@ hand-authored migrations (coordinate with CHORE-002).
   project ownership; the dominant gap is the frontend list/detail UI. Migration
   ownership stays with CHORE-002/PLAN-030; if schema changes are needed they go
   through Drizzle generate, not hand-authored SQL.
+- 2026-05-29 - Done. L3-A (backend parity) and L3-B (frontend access-parity +
+  Linear-style grouped list) merged to the campaign base. L3-C finalized
+  project-scoped e2e coverage (CRUD + membership gate, attachment and
+  comment-attachment lifecycles, inline-safe `?inline` download), confirmed
+  `locales/{en,zh}/issues.json` + `projects.json` issue keys are in sync
+  (`check:i18n` green), and documented the project-ownership model and kept
+  extras (pin/unpin, references + ship maintenance-orders, search) in
+  `docs/modules/issue.md` and `docs/reference/api.md` as intentional deltas from
+  the access reference.

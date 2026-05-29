@@ -3,8 +3,8 @@
 // (admin-only) and operates inside it (admins bypass project membership), so
 // the suite uses the admin client throughout.
 import { describe, expect, it } from "bun:test";
-import { createTestProject } from "../../lib/project";
 import { getClient } from "../../lib/oidc";
+import { createTestProject } from "../../lib/project";
 
 interface Issue {
   id: string;
@@ -80,6 +80,38 @@ describe("/api/projects/:projectId/issues CRUD + comments", () => {
     await admin.raw(`${base}/${issueId}/comments/${added.data.id}`, { method: "DELETE" });
     const after = await admin.json<{ data: Comment[] }>(`${base}/${issueId}/comments`);
     expect(after.data).toHaveLength(0);
+
+    // Cleanup.
+    await admin.raw(`${base}/${issueId}`, { method: "DELETE" });
+  });
+});
+
+describe("/api/projects/:projectId/issues membership gate", () => {
+  // Project-scope delta from the access reference (global `/api/issues`):
+  // every issue route is gated on project membership, and a non-member is
+  // fail-closed to 404 so neither project membership nor issue existence is
+  // leaked. `user@example.com` is provisioned as a plain user (non-admin) and
+  // is never added to the admin-created project, so it has no access.
+  it("fail-closes a non-member to 404 on list / create / read", async () => {
+    const admin = await getClient("admin@example.com", "admin");
+    const outsider = await getClient("user@example.com", "admin");
+    const projectId = await createTestProject(admin);
+    const base = `/api/projects/${projectId}/issues`;
+
+    // Admin seeds an issue the outsider must not be able to see.
+    const seeded = await admin.json<{ data: Issue }>(base, {
+      method: "POST",
+      body: { title: "members-only" },
+    });
+    const issueId = seeded.data.id;
+
+    // Non-member: list, create, and read all fail-closed to 404.
+    expect((await outsider.raw(base)).status).toBe(404);
+    expect((await outsider.raw(base, {
+      method: "POST",
+      body: { title: "intruder" },
+    })).status).toBe(404);
+    expect((await outsider.raw(`${base}/${issueId}`)).status).toBe(404);
 
     // Cleanup.
     await admin.raw(`${base}/${issueId}`, { method: "DELETE" });
