@@ -195,4 +195,87 @@ describe("projectProcurementPanel", () => {
     // No editable status control, so the change-status affordance is absent.
     expect(screen.queryByLabelText("Change status")).not.toBeInTheDocument();
   });
+
+  it("renders the fullscreen variant with a back-to-list action", async () => {
+    routeFetch(procurement());
+    renderWithProviders(
+      <ProjectProcurementPanel
+        projectId="p1"
+        procurementId="pr1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="fullscreen"
+        onClose={vi.fn()}
+      />,
+    );
+    expect(await screen.findByRole("heading", { name: "Cement" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /back to list/i })).toBeInTheDocument();
+  });
+
+  it("patches a procurement field (quantity) through inline editing", async () => {
+    const user = userEvent.setup();
+    routeFetch(procurement());
+    renderWithProviders(
+      <ProjectProcurementPanel
+        projectId="p1"
+        procurementId="pr1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByRole("heading", { name: "Cement" });
+    // Quantity renders as an inline "10" affordance; click reveals the editor.
+    await user.click(screen.getByRole("button", { name: "10" }));
+    const input = screen.getByDisplayValue("10");
+    await user.clear(input);
+    await user.type(input, "25");
+    await user.tab(); // blur commits the inline edit
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "PATCH");
+      expect(patch).toBeDefined();
+      expect(String(patch![0])).toContain("/projects/p1/procurements/pr1");
+      expect(JSON.parse(String(patch![1]?.body))).toMatchObject({ quantity: 25 });
+    });
+  });
+
+  it("renders no delete control (procurement is non-deletable)", async () => {
+    routeFetch(procurement());
+    renderWithProviders(
+      <ProjectProcurementPanel
+        projectId="p1"
+        procurementId="pr1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByRole("heading", { name: "Cement" });
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  });
+
+  it("renders the comments and attachments footer sections", async () => {
+    routeFetch(procurement());
+    renderWithProviders(
+      <ProjectProcurementPanel
+        projectId="p1"
+        procurementId="pr1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByRole("heading", { name: "Cement" });
+    // Comments section renders from ResourceFooterSections; the attachment
+    // upload affordance is present for managers.
+    expect(await screen.findByText("Comments")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /upload/i })).toBeInTheDocument();
+  });
 });
