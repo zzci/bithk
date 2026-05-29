@@ -1,11 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
-// Project work-order detail panel. Mounted as a drawer from the project Issues
-// tab and as a fullscreen page at `/projects/$projectId/issues/$issueId`.
-// Assignment is member-based (`project_members.id`); all reads/writes go
-// through the project-scoped issue endpoints.
+// Project work-order detail panel. A 1:1 port of the access issue panel
+// (`portal/issues/-issue-panel.tsx`), adapted only for project nesting:
+// assignment is member-based (`project_members.id`), reads/writes go through the
+// project-scoped issue hooks, and attachments/comments resolve under
+// `projects/{projectId}/issues`. Mounted as a drawer from the Issues tab and as
+// a fullscreen page at `/projects/$projectId/issues/$issueId/full`.
 
 import type { UpdateProjectIssueInput } from "./-project-issue-hooks";
-import type { ProjectMemberView } from "@/shared/lib/api/projects";
+import type { ProjectIssueRow, ProjectMemberView } from "@/shared/lib/api/projects";
 import {
   ArrowLeft,
   Maximize2,
@@ -21,7 +23,6 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { MarkdownEditor } from "@/shared/components/editor";
 import {
   ResourceFooterSections,
@@ -54,17 +55,14 @@ import {
 
 // ── Helpers ──
 
+// Priority badge variants — kept in sync with the issues list so the same
+// priority reads identically across the tab and the detail panel.
 export const priorityVariants: Record<string, "default" | "outline" | "secondary" | "destructive"> = {
   low: "secondary",
   medium: "outline",
   high: "default",
   urgent: "destructive",
 };
-
-export function statusKey(s: string) {
-  const map: Record<string, string> = { open: "Open", in_progress: "InProgress", done: "Done", cancelled: "Cancelled" };
-  return map[s] ?? s;
-}
 
 export function priorityKey(p: string) {
   const map: Record<string, string> = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
@@ -105,7 +103,7 @@ export function ProjectIssuePanel({
   const issueQuery = useProjectIssue(projectId, issueId);
   const updateIssue = useUpdateProjectIssue();
   const deleteIssue = useDeleteProjectIssue();
-  const issue = issueQuery.data ?? null;
+  const issue: ProjectIssueRow | null = issueQuery.data ?? null;
 
   const [error, setError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -127,7 +125,9 @@ export function ProjectIssuePanel({
     panelRef.current?.focus();
   }, []);
 
-  // Drafts are seeded when entering edit mode (below), so no effect sync.
+  // Drafts are seeded when entering edit mode (so an in-flight patch that
+  // refreshes `issue` never clobbers what the user is typing); the read views
+  // always render straight from `issue`.
   const startEditTitle = () => {
     if (!issue)
       return;
@@ -168,26 +168,18 @@ export function ProjectIssuePanel({
 
   const patch = (body: UpdateProjectIssueInput) => {
     updateIssue.mutate({ projectId, issueId, ...body }, {
-      onSuccess: () => toast.success(t("projects:toast.issueUpdated")),
-      onError: (err) => {
-        const message = errorMessage(err, t("common.error.operationFailed"));
-        setError(message);
-        toast.error(message);
-      },
+      onError: err => setError(errorMessage(err, t("common.error.operationFailed"))),
     });
   };
 
   const confirmDelete = () => {
     deleteIssue.mutate({ projectId, issueId }, {
       onSuccess: () => {
-        toast.success(t("projects:toast.issueDeleted"));
         setDeleteOpen(false);
         onClose({ deleted: true });
       },
       onError: (err) => {
-        const message = errorMessage(err, t("common.error.deleteFailed"));
-        setError(message);
-        toast.error(message);
+        setError(errorMessage(err, t("common.error.deleteFailed")));
         setDeleteOpen(false);
       },
     });
@@ -210,10 +202,12 @@ export function ProjectIssuePanel({
 
   const saveTitle = () => {
     const trimmed = titleDraft.trim();
-    if (issue && trimmed && trimmed !== issue.title)
+    if (issue && trimmed && trimmed !== issue.title) {
       patch({ title: trimmed });
-    else if (issue)
+    }
+    else if (issue) {
       setTitleDraft(issue.title);
+    }
     setEditingTitle(false);
   };
 
@@ -253,11 +247,9 @@ export function ProjectIssuePanel({
     return <CenteredHint tone="destructive">{error ?? t("common.error.loadFailed")}</CenteredHint>;
 
   const creatorName = userNames.get(issue.creatorId) ?? issue.creatorId;
-  const assigneeLabel = issue.assigneeMemberId ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId : null;
-
-  // Quiet meta tile styling, shared by the four fields in the zen meta grid.
-  const tileClass = "min-w-0 rounded-lg border bg-card px-3 py-2.5";
-  const tileLabelClass = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+  const assigneeLabel = issue.assigneeMemberId
+    ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId
+    : null;
 
   return (
     <div
@@ -266,8 +258,8 @@ export function ProjectIssuePanel({
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
-      {/* Action bar — title and fields live in the zen content column below. */}
-      <div className="flex items-center gap-1 px-3 py-2 shrink-0">
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2 shrink-0">
         {variant === "fullscreen" && (
           <Button
             variant="ghost"
@@ -279,18 +271,38 @@ export function ProjectIssuePanel({
             {t("backToList")}
           </Button>
         )}
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
-          {canUploadAttachment && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => fileInputRef.current?.click()}
-              title={t("attachments.upload")}
-              disabled={upload.isPending}
-            >
-              <Paperclip className="size-4" />
-            </Button>
-          )}
+        <div className="min-w-0 flex-1">
+          {editingTitle && permissions.canEditAll
+            ? (
+                <input
+                  className="w-full bg-transparent text-base font-semibold tracking-tight outline-none border-b-2 border-primary"
+                  value={titleDraft}
+                  autoFocus
+                  onChange={e => setTitleDraft(e.target.value)}
+                  onBlur={saveTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      saveTitle();
+                    }
+                    else if (e.key === "Escape") {
+                      setTitleDraft(issue.title);
+                      setEditingTitle(false);
+                    }
+                  }}
+                />
+              )
+            : (
+                <h1
+                  className={`truncate text-base font-semibold tracking-tight ${permissions.canEditAll ? "cursor-pointer hover:text-primary" : ""}`}
+                  onClick={() => permissions.canEditAll && startEditTitle()}
+                  title={permissions.canEditAll ? t("clickToEditTitle") : issue.title}
+                >
+                  {issue.title}
+                </h1>
+              )}
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
           {permissions.canDelete && (
             <Button
               variant="ghost"
@@ -322,244 +334,235 @@ export function ProjectIssuePanel({
             </Button>
           )}
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={e => handleUpload(e.target.files)}
-        />
       </div>
 
-      {/* Body — zen-mode centered reading column */}
-      <div className="flex-1 overflow-y-auto">
-        <div className={cn("mx-auto flex w-full flex-col gap-6 px-5 pb-12 pt-1", variant === "fullscreen" ? "max-w-3xl sm:px-8 sm:pt-4" : "")}>
-          <ErrorBanner message={error} />
+      {/* Body — scrollable */}
+      <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-2">
+        <ErrorBanner message={error} />
 
-          {/* Title block: status / priority chips + the issue title */}
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {permissions.canEditStatus
-                ? (
-                    <Select value={issue.status} onValueChange={v => v !== null && patch({ status: v as typeof issue.status })}>
-                      <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
-                        <Badge variant="secondary" className={cn("cursor-pointer", ISSUE_STATUS_BADGE[issue.status])}>
-                          {t(`status${statusKey(issue.status)}`)}
-                        </Badge>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STATUSES.map(s => (
-                          <SelectItem key={s} value={s}>{t(`status${statusKey(s)}`)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )
-                : <Badge variant="secondary" className={ISSUE_STATUS_BADGE[issue.status]}>{t(`status${statusKey(issue.status)}`)}</Badge>}
+        {/* Meta row */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          {/* Status — uses the project status colors + taxonomy labels so the
+              detail badge matches the issues list and the rest of the app. */}
+          {permissions.canEditStatus
+            ? (
+                <Select value={issue.status} onValueChange={v => v !== null && patch({ status: v as typeof issue.status })}>
+                  <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
+                    <Badge variant="secondary" className={cn("cursor-pointer", ISSUE_STATUS_BADGE[issue.status])}>
+                      {t(`projects:issues.group.${issue.status}` as const)}
+                    </Badge>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUSES.map(s => (
+                      <SelectItem key={s} value={s}>{t(`projects:issues.group.${s}` as const)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )
+            : <Badge variant="secondary" className={ISSUE_STATUS_BADGE[issue.status]}>{t(`projects:issues.group.${issue.status}` as const)}</Badge>}
 
-              {permissions.canEditAll
-                ? (
-                    <Select value={issue.priority} onValueChange={v => v !== null && patch({ priority: v as typeof issue.priority })}>
-                      <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
-                        <Badge variant={priorityVariants[issue.priority]} className="cursor-pointer">
-                          {t(`priority${priorityKey(issue.priority)}`)}
-                        </Badge>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRIORITIES.map(p => (
-                          <SelectItem key={p} value={p}>{t(`priority${priorityKey(p)}`)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )
-                : <Badge variant={priorityVariants[issue.priority]}>{t(`priority${priorityKey(issue.priority)}`)}</Badge>}
-            </div>
+          {/* Priority */}
+          {permissions.canEditAll
+            ? (
+                <Select value={issue.priority} onValueChange={v => v !== null && patch({ priority: v as typeof issue.priority })}>
+                  <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
+                    <Badge variant={priorityVariants[issue.priority]} className="cursor-pointer">
+                      {t(`priority${priorityKey(issue.priority)}`)}
+                    </Badge>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITIES.map(p => (
+                      <SelectItem key={p} value={p}>{t(`priority${priorityKey(p)}`)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )
+            : <Badge variant={priorityVariants[issue.priority]}>{t(`priority${priorityKey(issue.priority)}`)}</Badge>}
 
-            {editingTitle && permissions.canEditAll
+          <span className="mx-1 text-muted-foreground/50">·</span>
+
+          {/* Assignee — project member picker */}
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <span>
+              {t("field.assignee")}
+              :
+            </span>
+            {permissions.canEditAll
               ? (
-                  <input
-                    className="w-full bg-transparent text-xl font-semibold tracking-tight outline-none border-b-2 border-primary sm:text-2xl"
-                    value={titleDraft}
-                    autoFocus
-                    onChange={e => setTitleDraft(e.target.value)}
-                    onBlur={saveTitle}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        saveTitle();
-                      }
-                      else if (e.key === "Escape") {
-                        setTitleDraft(issue.title);
-                        setEditingTitle(false);
-                      }
+                  <Select
+                    value={issue.assigneeMemberId ?? "__none__"}
+                    onValueChange={(v) => {
+                      if (v === null)
+                        return;
+                      patch({ assigneeMemberId: v === "__none__" ? null : v });
                     }}
-                  />
+                  >
+                    <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-xs text-foreground hover:text-primary [&>svg:last-child]:size-3">
+                      <SelectValue>
+                        {(v: string) => {
+                          if (v === "__none__")
+                            return <span className="text-muted-foreground">{t("unassigned")}</span>;
+                          return memberLabels.get(v) ?? v;
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{t("unassigned")}</SelectItem>
+                      {members.map(m => (
+                        <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )
               : (
-                  <h1
-                    className={cn("text-xl font-semibold leading-snug tracking-tight sm:text-2xl", permissions.canEditAll && "cursor-pointer hover:text-primary")}
-                    onClick={() => permissions.canEditAll && startEditTitle()}
-                    title={permissions.canEditAll ? t("clickToEditTitle") : issue.title}
-                  >
-                    {issue.title}
-                  </h1>
+                  <span className="text-foreground">
+                    {assigneeLabel ?? t("unassigned")}
+                  </span>
                 )}
-          </div>
+          </span>
 
-          {/* Meta grid — quiet, evenly spaced fields */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className={tileClass}>
-              <div className={tileLabelClass}>{t("field.assignee")}</div>
-              <div className="mt-1 text-sm">
-                {permissions.canEditAll
-                  ? (
-                      <Select
-                        value={issue.assigneeMemberId ?? "__none__"}
-                        onValueChange={(v) => {
-                          if (v === null)
-                            return;
-                          patch({ assigneeMemberId: v === "__none__" ? null : v });
-                        }}
-                      >
-                        <SelectTrigger className="h-auto w-full border-0 bg-transparent p-0 shadow-none gap-1 text-sm text-foreground hover:text-primary [&>svg:last-child]:size-3">
-                          <SelectValue>
-                            {(v: string) => {
-                              if (v === "__none__")
-                                return <span className="text-muted-foreground">{t("unassigned")}</span>;
-                              return memberLabels.get(v) ?? v;
-                            }}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">{t("unassigned")}</SelectItem>
-                          {members.map(m => (
-                            <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )
-                  : <span className={assigneeLabel ? "" : "text-muted-foreground"}>{assigneeLabel ?? t("unassigned")}</span>}
-              </div>
-            </div>
+          <span className="mx-1 text-muted-foreground/50">·</span>
 
-            <div className={tileClass}>
-              <div className={tileLabelClass}>{t("field.dueDate")}</div>
-              <div className="mt-1 text-sm">
-                {permissions.canEditAll
-                  ? (
-                      <span className="relative inline-flex items-center">
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="-mx-1 h-auto gap-1 px-1 text-sm font-normal text-foreground hover:text-primary"
-                          onClick={() => dueDateInputRef.current?.showPicker()}
-                        >
-                          {issue.dueDate ?? (
-                            <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                              {t("notSet")}
-                              <Pencil className="size-2.5" />
-                            </span>
-                          )}
-                        </Button>
-                        <input
-                          ref={dueDateInputRef}
-                          type="date"
-                          className="sr-only"
-                          tabIndex={-1}
-                          value={issue.dueDate ?? ""}
-                          onChange={e => patch({ dueDate: e.target.value || null })}
-                        />
-                      </span>
-                    )
-                  : <span className={issue.dueDate ? "" : "text-muted-foreground"}>{issue.dueDate ?? "—"}</span>}
-              </div>
-            </div>
-
-            <div className={tileClass}>
-              <div className={tileLabelClass}>{t("col.creator")}</div>
-              <div className="mt-1 truncate text-sm" title={creatorName}>{creatorName}</div>
-            </div>
-
-            <div className={tileClass}>
-              <div className={tileLabelClass}>{t("col.createdAt")}</div>
-              <div className="mt-1 text-sm">{formatDateTime(issue.createdAt)}</div>
-            </div>
-          </div>
-
-          <div className="-mt-3 text-right text-[11px] text-muted-foreground/70">
-            {t("updatedAt")}
-            {" "}
-            {formatDateTime(issue.updatedAt)}
-          </div>
-
-          {/* Description */}
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <h2 className={tileLabelClass}>{t("field.description")}</h2>
-              {permissions.canEditAll && !editingDesc && issue.description && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="gap-1 text-muted-foreground"
-                  onClick={startEditDesc}
-                >
-                  <Pencil className="size-3" />
-                  {t("common.edit")}
-                </Button>
-              )}
-            </div>
-            {editingDesc && permissions.canEditAll
+          {/* Due date */}
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <span>
+              {t("field.dueDate")}
+              :
+            </span>
+            {permissions.canEditAll
               ? (
-                  <div key="description-edit" className="space-y-2">
-                    <MarkdownEditor
-                      value={descDraft}
-                      onChange={setDescDraft}
-                      placeholder={t("field.descriptionPlaceholder")}
-                      minHeight={200}
+                  <span className="relative inline-flex items-center">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary"
+                      onClick={() => dueDateInputRef.current?.showPicker()}
+                    >
+                      {issue.dueDate ?? (
+                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                          {t("notSet")}
+                          <Pencil className="size-2.5" />
+                        </span>
+                      )}
+                    </button>
+                    <input
+                      ref={dueDateInputRef}
+                      type="date"
+                      className="sr-only"
+                      tabIndex={-1}
+                      value={issue.dueDate ?? ""}
+                      onChange={e => patch({ dueDate: e.target.value || null })}
                     />
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={cancelDesc}>
-                        {t("common.cancel")}
-                      </Button>
-                      <Button size="sm" onClick={saveDesc}>
-                        {t("common.save")}
-                      </Button>
-                    </div>
-                  </div>
+                  </span>
                 )
-              : issue.description
-                ? (
-                    <div key="description-readonly" className="text-sm leading-relaxed">
-                      <MarkdownEditor value={issue.description} readOnly />
-                    </div>
-                  )
-                : permissions.canEditAll
-                  ? (
-                      <button
-                        type="button"
-                        onClick={startEditDesc}
-                        className="w-full rounded-md bg-muted/20 px-3 py-6 text-center text-sm italic text-muted-foreground leading-snug transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {t("field.noDescription")}
-                      </button>
-                    )
-                  : (
-                      <div className="text-sm italic text-muted-foreground leading-snug">
-                        {t("field.noDescription")}
-                      </div>
-                    )}
-          </section>
+              : <span className="text-foreground">{issue.dueDate ?? "—"}</span>}
+          </span>
 
-          <ResourceFooterSections
-            resource={`projects/${projectId}/issues`}
-            resourceId={issue.id}
-            i18nNs="issues"
-            userMap={userMap}
-            commentsEnableReply
-            sectionSpacingClassName="mt-2"
-            canDeleteAttachment={att => !!isAdmin || issue.creatorId === user?.id || att.uploadedBy === user?.id}
-            canDeleteComment={c => !!isAdmin || c.authorId === user?.id}
+          <div className="ml-auto inline-flex items-center gap-0.5">
+            {canUploadAttachment && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                onClick={() => fileInputRef.current?.click()}
+                title={t("attachments.upload")}
+              >
+                <Paperclip className="size-3" />
+                {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
+              </button>
+            )}
+            {permissions.canEditAll && !editingDesc && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                onClick={startEditDesc}
+              >
+                <Pencil className="size-3" />
+                {t("common.edit")}
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={e => handleUpload(e.target.files)}
           />
         </div>
+
+        {/* Description */}
+        <div>
+          {editingDesc && permissions.canEditAll
+            ? (
+                <div key="description-edit" className="space-y-2">
+                  <MarkdownEditor
+                    value={descDraft}
+                    onChange={setDescDraft}
+                    placeholder={t("field.descriptionPlaceholder")}
+                    minHeight={160}
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={cancelDesc}>
+                      {t("common.cancel")}
+                    </Button>
+                    <Button size="sm" onClick={saveDesc}>
+                      {t("common.save")}
+                    </Button>
+                  </div>
+                </div>
+              )
+            : issue.description
+              ? (
+                  <div key="description-readonly" className="text-sm leading-relaxed">
+                    <MarkdownEditor value={issue.description} readOnly />
+                  </div>
+                )
+              : permissions.canEditAll
+                ? (
+                    <button
+                      type="button"
+                      onClick={startEditDesc}
+                      className="w-full rounded-md border border-dashed bg-muted/30 px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
+                    >
+                      {t("field.noDescription")}
+                    </button>
+                  )
+                : (
+                    <div className="rounded-md border border-dashed bg-muted/30 px-2 py-1 text-sm italic text-muted-foreground leading-snug">
+                      {t("field.noDescription")}
+                    </div>
+                  )}
+        </div>
+
+        {/* Creator + timestamps — subtle footer-style strip above the
+            attachments section, right-aligned and toned down so it
+            reads as auxiliary info rather than primary content. */}
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-[11px] text-muted-foreground/80">
+          <span className="inline-flex items-center gap-1">
+            <span className="text-muted-foreground/60">{t("col.creator")}</span>
+            <span className="text-foreground/70">{creatorName}</span>
+          </span>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="text-muted-foreground/60">{t("col.createdAt")}</span>
+            <span className="text-foreground/70">{formatDateTime(issue.createdAt)}</span>
+          </span>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="text-muted-foreground/60">{t("updatedAt")}</span>
+            <span className="text-foreground/70">{formatDateTime(issue.updatedAt)}</span>
+          </span>
+        </div>
+
+        <ResourceFooterSections
+          resource={`projects/${projectId}/issues`}
+          resourceId={issue.id}
+          i18nNs="issues"
+          userMap={userMap}
+          commentsEnableReply
+          sectionSpacingClassName="mt-4"
+          canDeleteAttachment={att => !!isAdmin || issue.creatorId === user?.id || att.uploadedBy === user?.id}
+          canDeleteComment={c => !!isAdmin || c.authorId === user?.id}
+        />
       </div>
 
       <ConfirmDeleteDialog

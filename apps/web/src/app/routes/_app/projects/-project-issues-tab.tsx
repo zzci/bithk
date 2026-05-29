@@ -1,7 +1,13 @@
-// Issues (work orders) tab: compact status-grouped list + create dialog. Each
-// status (open / in_progress / done / cancelled) is its own queried group with
-// a visible count. Any project member can create a work order; the assignee
-// picker lists project members.
+// Issues (work orders) tab: a Linear-style status-grouped list. Search and
+// create are the primary top actions; a clickable status-filter chip row and
+// clickable section headers both select the active status. Each status renders
+// as a collapsible full-width section bar (chevron + label + count + a "+"
+// quick-create that pre-sets that status); rows are compact single-line buttons
+// showing a status icon, the short id, the title, a priority signal, a relative
+// due date (overdue accented), and a colored assignee avatar. Only fields the
+// issue model actually exposes are shown — no fabricated tags or sub-issue
+// progress. A pin toggle is kept as an isolated row affordance for the project
+// pinned-home surface. The detail view (drawer / fullscreen) opens on row click.
 
 import type {
   CreateProjectIssueInput,
@@ -10,12 +16,22 @@ import type {
   ProjectIssueRow,
   ProjectMemberView,
 } from "@/shared/lib/api/projects";
-import { useNavigate } from "@tanstack/react-router";
-import { CalendarDays, ChevronRight, Pin, PinOff, Plus, Search, SignalHigh, User } from "lucide-react";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import {
+  AlertTriangle,
+  ChevronRight,
+  Pin,
+  PinOff,
+  Plus,
+  Search,
+  SignalHigh,
+  SignalLow,
+  SignalMedium,
+  User,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -36,33 +52,31 @@ import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useToggleIssuePin } from "@/shared/lib/api/pins";
 import { useCreateProjectIssue, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
-import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
 
-const PRIORITY_VARIANTS: Record<IssuePriority, "default" | "outline" | "secondary" | "destructive"> = {
-  low: "secondary",
-  medium: "outline",
-  high: "default",
-  urgent: "destructive",
-};
-
-// Restrained semantic tint for priority cues (icon color), reusing existing
-// global tokens so the label/icon stays the primary signal.
-const PRIORITY_TINT: Record<IssuePriority, string> = {
-  low: "text-muted-foreground",
-  medium: "text-foreground",
-  high: "text-warning",
-  urgent: "text-destructive",
+// Priority signal icons (ascending bars), tinted by severity — shared by the
+// row indicator and the create dialog selector.
+const PRIORITY_META: Record<IssuePriority, { readonly Icon: typeof SignalLow; readonly tone: string }> = {
+  low: { Icon: SignalLow, tone: "text-muted-foreground" },
+  medium: { Icon: SignalMedium, tone: "text-muted-foreground" },
+  high: { Icon: SignalHigh, tone: "text-warning" },
+  urgent: { Icon: AlertTriangle, tone: "text-destructive" },
 };
 
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
-
 const ISSUE_STATUSES: readonly IssueStatus[] = ["open", "in_progress", "done", "cancelled"];
 
-// Small status dot tints, reusing the same global tokens as ISSUE_STATUS_BADGE
-// so the create dialog status selector matches the list's status colors.
+// Status icon tints, aligned with the global status color tokens.
+const STATUS_ICON_TINT: Record<IssueStatus, string> = {
+  open: "text-muted-foreground",
+  in_progress: "text-info",
+  done: "text-success",
+  cancelled: "text-muted-foreground/60",
+};
+
+// Small status dot used by the filter chips + create dialog selector.
 const STATUS_DOT: Record<IssueStatus, string> = {
   open: "bg-warning",
   in_progress: "bg-info",
@@ -70,17 +84,155 @@ const STATUS_DOT: Record<IssueStatus, string> = {
   cancelled: "bg-muted-foreground",
 };
 
+// Distinct avatar background palette (deterministic per member id).
+const AVATAR_COLORS = [
+  "bg-rose-500",
+  "bg-orange-500",
+  "bg-amber-500",
+  "bg-emerald-500",
+  "bg-teal-500",
+  "bg-sky-500",
+  "bg-indigo-500",
+  "bg-violet-500",
+  "bg-fuchsia-500",
+  "bg-pink-500",
+] as const;
+
+type StatusFilter = IssueStatus | "all";
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0)
+    return "?";
+  if (parts.length === 1)
+    return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
+
+function avatarColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1)
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length]!;
+}
+
+// Status glyphs drawn inline so they read identically across lucide versions:
+// empty circle (todo), half-filled (in progress), check (done), slash (cancelled).
+function StatusIcon({ status, label }: { readonly status: IssueStatus; readonly label: string }) {
+  const tint = STATUS_ICON_TINT[status];
+  return (
+    <svg viewBox="0 0 16 16" className={cn("size-4 shrink-0", tint)} role="img" aria-label={label}>
+      {status === "done"
+        ? (
+            <>
+              <circle cx="8" cy="8" r="7" fill="currentColor" />
+              <path d="M4.7 8.2l2.2 2.2 4.4-4.6" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </>
+          )
+        : (
+            <>
+              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+              {status === "in_progress" && (
+                <path d="M8 8 V2 A6 6 0 0 1 8 14 Z" fill="currentColor" />
+              )}
+              {status === "cancelled" && (
+                <line x1="5" y1="5" x2="11" y2="11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              )}
+            </>
+          )}
+    </svg>
+  );
+}
+
+function PrioritySignal({ priority, label }: { readonly priority: IssuePriority; readonly label: string }) {
+  const { Icon, tone } = PRIORITY_META[priority];
+  return (
+    <span className="inline-flex shrink-0" title={label} aria-label={label}>
+      <Icon aria-hidden="true" className={cn("size-3.5", tone)} />
+    </span>
+  );
+}
+
+/** Bare priority icon for the create dialog's pill/selector (no title wrapper). */
+function PriorityGlyph({ priority }: { readonly priority: IssuePriority }) {
+  const { Icon, tone } = PRIORITY_META[priority];
+  return <Icon aria-hidden="true" className={cn("size-4", tone)} />;
+}
+
+function MemberAvatar({ id, label }: { readonly id: string | null; readonly label: string }) {
+  if (!id) {
+    return (
+      <span
+        title={label}
+        className="flex size-5 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/40"
+      >
+        <User aria-hidden="true" className="size-3 text-muted-foreground/50" />
+      </span>
+    );
+  }
+  return (
+    <span
+      title={label}
+      className={cn("flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white", avatarColor(id))}
+    >
+      {initialsOf(label)}
+    </span>
+  );
+}
+
+// Start-of-day timestamp for "now", captured once per mount (kept out of render
+// to stay pure; the relative label does not need to tick within a session).
+function useStartOfToday(): number {
+  const [todayTs] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  });
+  return todayTs;
+}
+
+// Relative due date with an overdue/today accent. `value` is a YYYY-MM-DD date.
+function DueLabel({ value }: { readonly value: string }) {
+  const { t } = useTranslation("projects");
+  const todayTs = useStartOfToday();
+  const parts = value.split("-").map(Number);
+  const due = new Date(parts[0]!, (parts[1]! - 1), parts[2]!);
+  due.setHours(0, 0, 0, 0);
+  const diff = Math.round((due.getTime() - todayTs) / 86_400_000);
+
+  let text: string;
+  let tone = "text-muted-foreground";
+  if (diff < 0) {
+    text = t("issues.due.overdue", { count: -diff });
+    tone = "text-destructive";
+  }
+  else if (diff === 0) {
+    text = t("issues.due.today");
+    tone = "text-warning";
+  }
+  else if (diff === 1) {
+    text = t("issues.due.tomorrow");
+  }
+  else {
+    text = t("issues.due.inDays", { count: diff });
+  }
+
+  return (
+    <span title={value} className={cn("shrink-0 whitespace-nowrap tabular-nums", tone)}>
+      {text}
+    </span>
+  );
+}
+
 interface ProjectIssuesTabProps {
   readonly projectId: string;
   readonly members: readonly ProjectMemberView[];
   readonly userNames: ReadonlyMap<string, string>;
   /** Holds `issue.manage` (admins included). Combined with the creator check to gate the pin toggle. */
   readonly canManage?: boolean;
-  /** Active search term, driven by the top-header search popover (see `ProjectIssuesSearch`). */
-  readonly search?: string;
 }
 
-export function ProjectIssuesTab({ projectId, members, userNames, canManage = false, search = "" }: ProjectIssuesTabProps) {
+export function ProjectIssuesTab({ projectId, members, userNames, canManage = false }: ProjectIssuesTabProps) {
   const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
   const currentUserId = useAuthStore(s => s.user?.id);
@@ -90,35 +242,45 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   const canPin = (issue: ProjectIssueRow) => canManage || issue.creatorId === currentUserId;
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [priorityFilter, setPriorityFilter] = useState<IssuePriority | "all">("all");
-  // Collapse is keyed by status; absent/false means expanded so groups default open.
+  const [createStatus, setCreateStatus] = useState<IssueStatus>("open");
+  const [search, setSearch] = useState("");
+  // Selected status; "all" shows every populated section.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // Per-status collapse of the section's rows (header stays visible).
   const [collapsed, setCollapsed] = useState<Partial<Record<IssueStatus, boolean>>>({});
   const debouncedSearch = useDebounce(search, 300);
 
-  const toggleGroup = (status: IssueStatus) =>
-    setCollapsed(prev => ({ ...prev, [status]: !prev[status] }));
+  // The drawer is a nested route; read the active issueId (if any) so the open
+  // row stays highlighted while its drawer overlays the list.
+  const activeParams = useParams({ strict: false }) as { readonly issueId?: string };
+  const activeIssueId = activeParams.issueId;
 
-  // Query each status group independently with the active search term and the
-  // optional priority filter so every status stays visible without a top-level
-  // status filter, and each group can surface its own total from `meta.total`.
   const q = debouncedSearch || undefined;
-  const priority = priorityFilter === "all" ? undefined : priorityFilter;
-  const openQuery = useProjectIssues(projectId, { status: "open", q, priority });
-  const inProgressQuery = useProjectIssues(projectId, { status: "in_progress", q, priority });
-  const doneQuery = useProjectIssues(projectId, { status: "done", q, priority });
-  const cancelledQuery = useProjectIssues(projectId, { status: "cancelled", q, priority });
+  const openQuery = useProjectIssues(projectId, { status: "open", q });
+  const inProgressQuery = useProjectIssues(projectId, { status: "in_progress", q });
+  const doneQuery = useProjectIssues(projectId, { status: "done", q });
+  const cancelledQuery = useProjectIssues(projectId, { status: "cancelled", q });
 
-  const groups: ReadonlyArray<{ status: IssueStatus; query: ReturnType<typeof useProjectIssues> }> = [
-    { status: "open", query: openQuery },
-    { status: "in_progress", query: inProgressQuery },
-    { status: "done", query: doneQuery },
-    { status: "cancelled", query: cancelledQuery },
-  ];
+  const queryByStatus: Record<IssueStatus, ReturnType<typeof useProjectIssues>> = {
+    open: openQuery,
+    in_progress: inProgressQuery,
+    done: doneQuery,
+    cancelled: cancelledQuery,
+  };
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
-  const loadError = groups.find(g => g.query.error)?.query.error;
-  const isInitialLoading = groups.every(g => g.query.isLoading);
-  const hasAnyIssue = groups.some(g => (g.query.data?.data.length ?? 0) > 0);
+
+  const countOf = (status: IssueStatus) => queryByStatus[status].data?.meta.total ?? 0;
+  const totalAll = ISSUE_STATUSES.reduce((sum, s) => sum + countOf(s), 0);
+
+  const groups = ISSUE_STATUSES.map(status => queryByStatus[status]);
+  const loadError = groups.find(g => g.error)?.error;
+  const isInitialLoading = groups.every(g => g.isLoading);
+  const hasAnyIssue = totalAll > 0;
+
+  const visibleStatuses: readonly IssueStatus[] = statusFilter === "all"
+    ? ISSUE_STATUSES.filter(s => countOf(s) > 0)
+    : [statusFilter];
 
   const assigneeLabel = (issue: ProjectIssueRow) =>
     issue.assigneeMemberId
@@ -129,29 +291,60 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
     void navigate({ to: "/projects/$projectId/issues/$issueId", params: { projectId, issueId } });
   };
 
+  const openCreate = (status: IssueStatus) => {
+    setCreateStatus(status);
+    setCreateOpen(true);
+  };
+
+  const toggleCollapse = (status: IssueStatus) =>
+    setCollapsed(prev => ({ ...prev, [status]: !prev[status] }));
+
   return (
-    <div className="space-y-4">
-      {/* Search now lives in the project-detail header (see `ProjectIssuesSearch`);
-          the tab toolbar keeps the basic priority filter and the create action. */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button type="button" variant="outline" aria-label={t("issues.field.priority")} />}>
-            <SignalHigh aria-hidden="true" />
-            {priorityFilter === "all" ? t("issues.allPriorities") : t(`issues.priority.${priorityFilter}` as const)}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuRadioGroup value={priorityFilter} onValueChange={v => setPriorityFilter(v as IssuePriority | "all")}>
-              <DropdownMenuRadioItem value="all">{t("issues.allPriorities")}</DropdownMenuRadioItem>
-              {PRIORITIES.map(p => (
-                <DropdownMenuRadioItem key={p} value={p}>{t(`issues.priority.${p}` as const)}</DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button onClick={() => setCreateOpen(true)}>
+    <div className="space-y-5">
+      {/* Top toolbar — search and create are the primary actions. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative max-w-xs flex-1">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t("issues.searchPlaceholder")}
+            aria-label={t("issues.searchPlaceholder")}
+            className="pl-8"
+          />
+        </div>
+        <Button onClick={() => openCreate("open")}>
           <Plus aria-hidden="true" />
           {t("issues.create")}
         </Button>
+      </div>
+
+      {/* Status filter row — clickable chips that select the active status. */}
+      <div role="group" aria-label={t("issues.statusFilter")} className="flex flex-wrap items-center gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant={statusFilter === "all" ? "secondary" : "ghost"}
+          aria-pressed={statusFilter === "all"}
+          onClick={() => setStatusFilter("all")}
+        >
+          {t("issues.allStatuses")}
+          <span className="ml-1 text-xs text-muted-foreground">{totalAll}</span>
+        </Button>
+        {ISSUE_STATUSES.map(s => (
+          <Button
+            key={s}
+            type="button"
+            size="sm"
+            variant={statusFilter === s ? "secondary" : "ghost"}
+            aria-pressed={statusFilter === s}
+            onClick={() => setStatusFilter(s)}
+          >
+            <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[s])} />
+            {t(`issues.group.${s}` as const)}
+            <span className="ml-1 text-xs text-muted-foreground">{countOf(s)}</span>
+          </Button>
+        ))}
       </div>
 
       {loadError && <ErrorBanner message={errorMessage(loadError, t("common:common.error.loadFailed"))} />}
@@ -163,71 +356,99 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
           : !hasAnyIssue
               ? <p className="py-10 text-center text-sm text-muted-foreground">{t("issues.empty")}</p>
               : (
-                  <div className="space-y-4">
-                    {groups.map(({ status, query }) => {
-                      const groupIssues = query.data?.data ?? [];
-                      const count = query.data?.meta.total ?? groupIssues.length;
-                      // Show only populated statuses; empty groups (including
-                      // cancelled when it has nothing) drop out of the list.
-                      if (count === 0)
-                        return null;
-                      // Group headers use the product taxonomy labels (Todo /
-                      // In Progress / Completed / Cancelled); the shared
-                      // `issues.status.*` copy stays untouched for other surfaces.
+                  <div className="space-y-2.5">
+                    {visibleStatuses.map((status) => {
+                      const groupIssues = queryByStatus[status].data?.data ?? [];
+                      const count = countOf(status);
                       const label = t(`issues.group.${status}` as const);
                       const isCollapsed = collapsed[status] ?? false;
                       return (
                         <section key={status} aria-label={label}>
-                          <button
-                            type="button"
-                            aria-expanded={!isCollapsed}
-                            onClick={() => toggleGroup(status)}
-                            className="mb-1 flex w-full items-center gap-2 rounded-md px-0.5 py-1 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          {/* Full-width section bar: collapse chevron + status filter + quick-create. */}
+                          <div
+                            className={cn(
+                              "flex w-full items-center gap-1 rounded-lg bg-muted/50 px-1.5 py-1 transition-colors",
+                              statusFilter === status && "ring-1 ring-inset ring-primary/30",
+                            )}
                           >
-                            <ChevronRight
-                              aria-hidden="true"
-                              className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${isCollapsed ? "" : "rotate-90"}`}
-                            />
-                            <Badge variant="secondary" className={`text-xs ${ISSUE_STATUS_BADGE[status]}`}>
-                              {label}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">{count}</span>
-                          </button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-expanded={!isCollapsed}
+                              aria-label={t("issues.toggleSection")}
+                              className="size-6 text-muted-foreground"
+                              onClick={() => toggleCollapse(status)}
+                            >
+                              <ChevronRight aria-hidden="true" className={cn("size-4 transition-transform", !isCollapsed && "rotate-90")} />
+                            </Button>
+                            <button
+                              type="button"
+                              aria-pressed={statusFilter === status}
+                              aria-label={label}
+                              onClick={() => setStatusFilter(status)}
+                              className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <StatusIcon status={status} label={label} />
+                              <span className="text-sm font-medium">{label}</span>
+                              <span className="text-xs text-muted-foreground">{count}</span>
+                            </button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={t("issues.createInStatus", { status: label })}
+                              className="size-6 text-muted-foreground"
+                              onClick={() => openCreate(status)}
+                            >
+                              <Plus aria-hidden="true" className="size-4" />
+                            </Button>
+                          </div>
+
                           {!isCollapsed && (
-                            <ul className="space-y-0.5">
-                              {groupIssues.map(issue => (
-                                <li key={issue.id} className="flex items-center gap-1 rounded-lg transition-colors hover:bg-muted/50">
-                                  <button
-                                    type="button"
-                                    className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    onClick={() => openIssue(issue.id)}
-                                  >
-                                    {/* Row reads left-to-right: title -> priority -> assignee -> due date. */}
-                                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{issue.title}</span>
-                                    <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                                      <Badge variant={PRIORITY_VARIANTS[issue.priority]} className="text-[10px]">
-                                        {t(`issues.priority.${issue.priority}` as const)}
-                                      </Badge>
-                                      <span className="inline-flex min-w-0 max-w-32 items-center gap-1">
-                                        <User aria-hidden="true" className="size-3 shrink-0" />
-                                        <span className="truncate">{assigneeLabel(issue)}</span>
-                                      </span>
-                                      {issue.dueDate && (
-                                        <span className="inline-flex shrink-0 items-center gap-1">
-                                          <CalendarDays aria-hidden="true" className="size-3 shrink-0" />
-                                          {issue.dueDate}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </button>
-                                  {canPin(issue) && (
-                                    <div className="shrink-0 pr-1">
-                                      <IssuePinToggle projectId={projectId} issue={issue} />
-                                    </div>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
+                            groupIssues.length === 0
+                              ? <p className="px-3 py-2 text-sm text-muted-foreground">{t("issues.emptyColumn")}</p>
+                              : (
+                                  <ul className="mt-0.5">
+                                    {groupIssues.map((issue) => {
+                                      const priorityLabel = t(`issues.priority.${issue.priority}` as const);
+                                      return (
+                                        <li
+                                          key={issue.id}
+                                          className={cn(
+                                            "group flex items-center rounded-md transition-colors hover:bg-muted/50",
+                                            activeIssueId === issue.id && "bg-muted/60",
+                                          )}
+                                        >
+                                          <button
+                                            type="button"
+                                            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            onClick={() => openIssue(issue.id)}
+                                          >
+                                            <StatusIcon status={issue.status} label={label} />
+                                            <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{issue.id}</span>
+                                            <span className="min-w-0 flex-1 truncate text-sm">{issue.title}</span>
+                                            <div className="ml-auto flex shrink-0 items-center gap-3 text-xs">
+                                              <PrioritySignal priority={issue.priority} label={priorityLabel} />
+                                              {issue.dueDate && <DueLabel value={issue.dueDate} />}
+                                              <MemberAvatar id={issue.assigneeMemberId} label={assigneeLabel(issue)} />
+                                            </div>
+                                          </button>
+                                          {canPin(issue) && (
+                                            <div
+                                              className={cn(
+                                                "shrink-0 pr-1 transition-opacity",
+                                                issue.pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+                                              )}
+                                            >
+                                              <IssuePinToggle projectId={projectId} issue={issue} />
+                                            </div>
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )
                           )}
                         </section>
                       );
@@ -236,58 +457,15 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                 )}
 
       <CreateIssueDialog
+        key={createStatus}
         projectId={projectId}
         members={members}
         memberLabels={memberLabels}
+        initialStatus={createStatus}
         open={createOpen}
         onOpenChange={setCreateOpen}
       />
     </div>
-  );
-}
-
-interface ProjectIssuesSearchProps {
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-}
-
-/**
- * Compact search trigger for the project-detail header (placed beside the
- * settings action). It opens a small popover holding the work-order search
- * input; the value is owned by the parent so it keeps filtering the grouped
- * list. A filled dot marks an active query.
- */
-export function ProjectIssuesSearch({ value, onChange }: ProjectIssuesSearchProps) {
-  const { t } = useTranslation(["projects"]);
-  const active = value.trim().length > 0;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={(
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label={t("issues.searchPlaceholder")}
-            className="relative"
-          />
-        )}
-      >
-        <Search aria-hidden="true" />
-        {active && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 rounded-full bg-primary" />}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="p-2">
-        <Input
-          autoFocus
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onKeyDown={e => e.stopPropagation()}
-          placeholder={t("issues.searchPlaceholder")}
-          aria-label={t("issues.searchPlaceholder")}
-          className="w-56"
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -304,8 +482,8 @@ function IssuePinToggle({ projectId, issue }: IssuePinToggleProps) {
     <Button
       type="button"
       variant="ghost"
-      size="icon"
-      className="size-8"
+      size="icon-sm"
+      className="size-7"
       aria-pressed={issue.pinned}
       aria-label={t(issue.pinned ? "overview.unpinAction" : "overview.pinAction")}
       disabled={togglePin.isPending}
@@ -327,16 +505,17 @@ interface CreateIssueDialogProps {
   readonly projectId: string;
   readonly members: readonly ProjectMemberView[];
   readonly memberLabels: ReadonlyMap<string, string>;
+  readonly initialStatus: IssueStatus;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
 
-function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChange }: CreateIssueDialogProps) {
+function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, open, onOpenChange }: CreateIssueDialogProps) {
   const { t } = useTranslation(["projects", "common"]);
   const createIssue = useCreateProjectIssue();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<IssueStatus>("open");
+  const [status, setStatus] = useState<IssueStatus>(initialStatus);
   const [priority, setPriority] = useState<IssuePriority>("medium");
   const [assigneeMemberId, setAssigneeMemberId] = useState("__none__");
   const [dueDate, setDueDate] = useState("");
@@ -344,7 +523,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
   const reset = () => {
     setTitle("");
     setDescription("");
-    setStatus("open");
+    setStatus(initialStatus);
     setPriority("medium");
     setAssigneeMemberId("__none__");
     setDueDate("");
@@ -430,14 +609,14 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
 
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button type="button" variant="outline" className={cn(pillBase, "border-solid")} />}>
-                <SignalHigh aria-hidden="true" className={cn("size-4", PRIORITY_TINT[priority])} />
+                <PriorityGlyph priority={priority} />
                 {t(`issues.priority.${priority}` as const)}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuRadioGroup value={priority} onValueChange={v => setPriority(v as IssuePriority)}>
                   {PRIORITIES.map(p => (
                     <DropdownMenuRadioItem key={p} value={p}>
-                      <SignalHigh aria-hidden="true" className={cn("size-4", PRIORITY_TINT[p])} />
+                      <PriorityGlyph priority={p} />
                       {t(`issues.priority.${p}` as const)}
                     </DropdownMenuRadioItem>
                   ))}
@@ -474,7 +653,6 @@ function CreateIssueDialog({ projectId, members, memberLabels, open, onOpenChang
                 aria-hidden="true"
                 className={cn(pillBase, "pointer-events-none inline-flex items-center border", dueDate ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
               >
-                <CalendarDays className="size-4" />
                 {dueDate || t("issues.field.dueDate")}
               </span>
               <input
