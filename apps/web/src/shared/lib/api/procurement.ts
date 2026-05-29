@@ -22,7 +22,7 @@ interface ApiListEnvelope<T> {
 
 // ── Types ──
 
-export type ProcurementStatus = "draft" | "requested" | "ordered" | "received" | "closed";
+export type ProcurementStatus = "draft" | "requested" | "ordered" | "received" | "closed" | "cancelled";
 
 export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "draft",
@@ -30,6 +30,17 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "ordered",
   "received",
   "closed",
+  "cancelled",
+];
+
+// Issue-parity priority levels, mirroring `issue_details.priority` exactly.
+export type ProcurementPriority = "low" | "medium" | "high" | "urgent";
+
+export const PROCUREMENT_PRIORITIES: readonly ProcurementPriority[] = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
 ];
 
 export interface ProcurementRow {
@@ -44,6 +55,11 @@ export interface ProcurementRow {
   readonly quantity: number | null;
   readonly amount: number | null;
   readonly currency: string | null;
+  // Issue-parity fields mirroring `issue_details`; priority is never null
+  // (the backend defaults it to "medium").
+  readonly description: string | null;
+  readonly priority: ProcurementPriority;
+  readonly dueDate: string | null;
   readonly creatorId: string;
   // Pin state from the shared item base; mirrors ProjectIssueRow.
   readonly pinned: boolean;
@@ -66,6 +82,8 @@ export const procurementKeys = {
   list: (projectId: string, query: string) =>
     ["procurements", projectId, "list", query] as const,
   byProject: (projectId: string) => ["procurements", projectId] as const,
+  detail: (projectId: string, id: string) =>
+    ["procurements", projectId, "detail", id] as const,
 };
 
 // ── Queries ──
@@ -113,6 +131,23 @@ export function useProcurements(
   });
 }
 
+/**
+ * Reads a single procurement by short id. Mirrors `useProjectIssue`: keyed
+ * under `procurementKeys.detail` so the update mutation can prime this cache,
+ * while `byProject` invalidation keeps the list in sync.
+ */
+export function useProcurement(projectId: string | undefined, id: string | undefined) {
+  return useQuery<ProcurementRow>({
+    queryKey: procurementKeys.detail(projectId ?? "", id ?? ""),
+    queryFn: () => http<ApiEnvelope<ProcurementRow>>(
+      `/projects/${encodeURIComponent(projectId!)}/procurements/${encodeURIComponent(id!)}`,
+    ).then(r => r.data),
+    enabled: !!projectId && !!id,
+    retry: false,
+    staleTime: 5_000,
+  });
+}
+
 // ── Mutations ──
 
 export interface CreateProcurementInput {
@@ -125,6 +160,9 @@ export interface CreateProcurementInput {
   readonly quantity?: number;
   readonly amount?: number;
   readonly currency?: string;
+  readonly description?: string;
+  readonly priority?: ProcurementPriority;
+  readonly dueDate?: string;
 }
 
 export function useCreateProcurement(): UseMutationResult<ProcurementRow, Error, { projectId: string } & CreateProcurementInput> {
@@ -149,6 +187,9 @@ export interface UpdateProcurementInput {
   readonly quantity?: number | null;
   readonly amount?: number | null;
   readonly currency?: string | null;
+  readonly description?: string | null;
+  readonly priority?: ProcurementPriority;
+  readonly dueDate?: string | null;
 }
 
 export function useUpdateProcurement(): UseMutationResult<ProcurementRow, Error, { projectId: string; id: string } & UpdateProcurementInput> {
@@ -158,24 +199,19 @@ export function useUpdateProcurement(): UseMutationResult<ProcurementRow, Error,
       `/projects/${encodeURIComponent(projectId)}/procurements/${encodeURIComponent(id)}`,
       { method: "PATCH", body: JSON.stringify(body) },
     ).then(r => r.data),
-    onSuccess: (_data, { projectId }) => {
+    onSuccess: (data, { projectId, id }) => {
+      // Prime the detail cache so the open panel reflects the change instantly,
+      // then invalidate the project-scoped list/summary queries (byProject is a
+      // prefix of both the list and detail keys).
+      queryClient.setQueryData(procurementKeys.detail(projectId, id), data);
       void queryClient.invalidateQueries({ queryKey: procurementKeys.byProject(projectId) });
     },
   });
 }
 
-export function useDeleteProcurement(): UseMutationResult<null, Error, { projectId: string; id: string }> {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ projectId, id }) => http<ApiEnvelope<null>>(
-      `/projects/${encodeURIComponent(projectId)}/procurements/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-    ).then(r => r.data),
-    onSuccess: (_data, { projectId }) => {
-      void queryClient.invalidateQueries({ queryKey: procurementKeys.byProject(projectId) });
-    },
-  });
-}
+// Procurement is intentionally non-deletable (mirrors the backend, which has no
+// DELETE route): retire a record by moving it to the `cancelled` status. No
+// delete hook is exposed.
 
 export function useChangeProcurementStatus(): UseMutationResult<ProcurementRow, Error, { projectId: string; id: string; status: ProcurementStatus }> {
   const queryClient = useQueryClient();

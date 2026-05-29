@@ -1,20 +1,23 @@
 // Procurement tab: filterable list (status + category) + create dialog + per-row
-// status change and delete. Mounted only when the caller has procurement.view,
-// so it assumes read access; create/delete/status need canManage.
+// status change. Rows open the procurement detail drawer. Mounted only when the
+// caller has procurement.view, so it assumes read access; create/status/pin need
+// canManage. Procurement is non-deletable — retire a record via the `cancelled`
+// status instead.
 
 import type {
   CreateProcurementInput,
+  ProcurementPriority,
   ProcurementRow,
   ProcurementStatus,
 } from "@/shared/lib/api/procurement";
 import type { ProjectMemberView } from "@/shared/lib/api/projects";
+import { useNavigate } from "@tanstack/react-router";
 import { Pin, PinOff, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
   Dialog,
   DialogContent,
@@ -41,13 +44,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { Textarea } from "@/shared/components/ui/textarea";
 import { useContacts } from "@/shared/lib/api/contacts";
 import { useToggleProcurementPin } from "@/shared/lib/api/pins";
 import {
+  PROCUREMENT_PRIORITIES,
   PROCUREMENT_STATUSES,
   useChangeProcurementStatus,
   useCreateProcurement,
-  useDeleteProcurement,
   useProcurements,
 } from "@/shared/lib/api/procurement";
 import { useProcurementCategories } from "@/shared/lib/api/projects";
@@ -63,12 +67,12 @@ interface ProjectProcurementTabProps {
 
 export function ProjectProcurementTab({ projectId, members, userNames, canManage }: ProjectProcurementTabProps) {
   const { t } = useTranslation(["projects", "common"]);
+  const navigate = useNavigate();
 
   const [statusFilter, setStatusFilter] = useState("__all__");
   const [categoryFilter, setCategoryFilter] = useState("__all__");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<ProcurementRow | null>(null);
 
   const procurementsQuery = useProcurements(projectId, {
     status: statusFilter === "__all__" ? undefined : (statusFilter as ProcurementStatus),
@@ -80,10 +84,10 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   const orderedSummaryQuery = useProcurements(projectId, { status: "ordered", limit: 1000 });
   const receivedSummaryQuery = useProcurements(projectId, { status: "received", limit: 1000 });
   const closedSummaryQuery = useProcurements(projectId, { status: "closed", limit: 1000 });
+  const cancelledSummaryQuery = useProcurements(projectId, { status: "cancelled", limit: 1000 });
   const suppliersQuery = useContacts();
   const categoriesQuery = useProcurementCategories(projectId);
   const changeStatus = useChangeProcurementStatus();
-  const deleteProcurement = useDeleteProcurement();
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
   const suppliers = useMemo(
@@ -102,6 +106,11 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     ordered: { count: orderedSummaryQuery.data?.meta.total, rows: orderedSummaryQuery.data?.data ?? [] },
     received: { count: receivedSummaryQuery.data?.meta.total, rows: receivedSummaryQuery.data?.data ?? [] },
     closed: { count: closedSummaryQuery.data?.meta.total, rows: closedSummaryQuery.data?.data ?? [] },
+    cancelled: { count: cancelledSummaryQuery.data?.meta.total, rows: cancelledSummaryQuery.data?.data ?? [] },
+  };
+
+  const openProcurement = (id: string) => {
+    void navigate({ to: "/projects/$projectId/procurements/$procurementId", params: { projectId, procurementId: id } });
   };
 
   const supplierName = (id: string | null) =>
@@ -138,7 +147,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
             <p className="text-xs text-muted-foreground">{t("procurement.pipeline.description")}</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {PROCUREMENT_STATUSES.map(status => (
             <button
               key={status}
@@ -220,7 +229,15 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                 ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.empty")}</TableCell></TableRow>
                 : rows.map(row => (
                     <TableRow key={row.id} className="border-0">
-                      <TableCell className="font-medium">{row.itemName}</TableCell>
+                      <TableCell className="font-medium">
+                        <Button
+                          variant="link"
+                          className="h-auto justify-start p-0 font-medium text-foreground hover:text-primary"
+                          onClick={() => openProcurement(row.id)}
+                        >
+                          {row.itemName}
+                        </Button>
+                      </TableCell>
                       <TableCell>
                         {canManage
                           ? (
@@ -259,9 +276,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <ProcurementPinToggle projectId={projectId} row={row} />
-                            <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
-                              {t("common:common.delete")}
-                            </Button>
                           </div>
                         </TableCell>
                       )}
@@ -279,25 +293,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           </div>
         )}
       </div>
-
-      <ConfirmDeleteDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open)
-            setDeleteTarget(null);
-        }}
-        title={t("procurement.delete.title")}
-        description={t("procurement.delete.confirm", { name: deleteTarget?.itemName })}
-        onConfirm={() => {
-          if (deleteTarget) {
-            deleteProcurement.mutate({ projectId, id: deleteTarget.id }, {
-              onSuccess: () => toast.success(t("toast.procurementDeleted")),
-              onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
-            });
-            setDeleteTarget(null);
-          }
-        }}
-      />
 
       {canManage && (
         <CreateProcurementDialog
@@ -360,6 +355,9 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
   const createProcurement = useCreateProcurement();
   const [itemName, setItemName] = useState("");
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<ProcurementPriority>("medium");
+  const [dueDate, setDueDate] = useState("");
   const [quantity, setQuantity] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("");
@@ -370,6 +368,9 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
   const reset = () => {
     setItemName("");
     setTitle("");
+    setDescription("");
+    setPriority("medium");
+    setDueDate("");
     setQuantity("");
     setAmount("");
     setCurrency("");
@@ -384,7 +385,10 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
       return;
     const body: CreateProcurementInput = {
       itemName: itemName.trim(),
+      priority,
       ...(title.trim() ? { title: title.trim() } : {}),
+      ...(description.trim() ? { description: description.trim() } : {}),
+      ...(dueDate ? { dueDate } : {}),
       ...(quantity ? { quantity: Number(quantity) } : {}),
       ...(amount ? { amount: Number(amount) } : {}),
       ...(currency.trim() ? { currency: currency.trim() } : {}),
@@ -421,6 +425,39 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
           <div className="space-y-1.5">
             <Label htmlFor="proc-title">{t("procurement.field.title")}</Label>
             <Input id="proc-title" value={title} onChange={e => setTitle(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="proc-description">{t("procurement.field.description")}</Label>
+            <Textarea
+              id="proc-description"
+              rows={4}
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder={t("procurement.detail.descriptionPlaceholder")}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>{t("procurement.field.priority")}</Label>
+              <Select value={priority} onValueChange={v => v !== null && setPriority(v as ProcurementPriority)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v: string) => t(`procurement.priority.${v}` as const)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {PROCUREMENT_PRIORITIES.map(p => (
+                    <SelectItem key={p} value={p}>{t(`procurement.priority.${p}` as const)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="proc-due">{t("procurement.field.dueDate")}</Label>
+              <Input id="proc-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">

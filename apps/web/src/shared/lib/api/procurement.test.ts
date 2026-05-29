@@ -3,10 +3,11 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeWrapper } from "@/test/utils";
 import {
+  PROCUREMENT_STATUSES,
   procurementKeys,
   useChangeProcurementStatus,
   useCreateProcurement,
-  useDeleteProcurement,
+  useProcurement,
   useProcurements,
   useUpdateProcurement,
 } from "./procurement";
@@ -42,6 +43,9 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     quantity: null,
     amount: null,
     currency: null,
+    description: null,
+    priority: "medium",
+    dueDate: null,
     creatorId: "u1",
     pinned: false,
     pinnedAt: null,
@@ -61,12 +65,36 @@ describe("procurementKeys", () => {
       "status=ordered&categoryId=c1&page=2&limit=1",
     ]);
     expect(procurementKeys.byProject("p")).toEqual(["procurements", "p"]);
+    expect(procurementKeys.detail("p", "pr1")).toEqual(["procurements", "p", "detail", "pr1"]);
   });
 
   it("separates count-only queries from paginated list queries", () => {
     expect(procurementKeys.list("p", "page=1&limit=1")).not.toEqual(
       procurementKeys.list("p", "page=1&limit=20"),
     );
+  });
+});
+
+describe("pROCUREMENT_STATUSES", () => {
+  it("includes the cancelled stage in pipeline order", () => {
+    expect(PROCUREMENT_STATUSES).toEqual(["draft", "requested", "ordered", "received", "closed", "cancelled"]);
+  });
+});
+
+describe("useProcurement", () => {
+  it("stays disabled until both ids are supplied", () => {
+    const { result } = renderHook(() => useProcurement("proj1", undefined), { wrapper: makeWrapper() });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reads a single procurement and unwraps the envelope", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: row({ itemName: "Pump", priority: "high" }) }));
+    const { result } = renderHook(() => useProcurement("proj1", "pr1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.itemName).toBe("Pump");
+    expect(result.current.data?.priority).toBe("high");
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/projects/proj1/procurements/pr1");
   });
 });
 
@@ -145,13 +173,31 @@ describe("procurement mutations", () => {
     expect(init?.method).toBe("PATCH");
   });
 
-  it("deletes a row via DELETE", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: null }));
-    const { result } = renderHook(() => useDeleteProcurement(), { wrapper: makeWrapper() });
-    await result.current.mutateAsync({ projectId: "proj1", id: "pr1" });
-    const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe("/api/projects/proj1/procurements/pr1");
-    expect(init?.method).toBe("DELETE");
+  it("sends the issue-parity fields (description, priority, dueDate) on create", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: row({ priority: "high" }) }));
+    const { result } = renderHook(() => useCreateProcurement(), { wrapper: makeWrapper() });
+    await result.current.mutateAsync({
+      projectId: "proj1",
+      itemName: "Steel",
+      description: "Hot rolled",
+      priority: "high",
+      dueDate: "2026-09-01",
+    });
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      itemName: "Steel",
+      description: "Hot rolled",
+      priority: "high",
+      dueDate: "2026-09-01",
+    });
+  });
+
+  it("clears nullable issue-parity fields on update", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: row() }));
+    const { result } = renderHook(() => useUpdateProcurement(), { wrapper: makeWrapper() });
+    await result.current.mutateAsync({ projectId: "proj1", id: "pr1", description: null, dueDate: null, priority: "urgent" });
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({ description: null, dueDate: null, priority: "urgent" });
   });
 
   it("changes status through the dedicated endpoint", async () => {

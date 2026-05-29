@@ -19,6 +19,7 @@
     "categoryUpdated": "Category updated",
     "categoryDeleted": "Category deleted",
     "procurementCreated": "Procurement created",
+    "procurementUpdated": "Procurement updated",
     "procurementDeleted": "Procurement deleted",
     "procurementStatusChanged": "Procurement status updated",
     "issueCreated": "Work order created",
@@ -229,7 +230,10 @@
       "assignee": "Assignee",
       "quantity": "Quantity",
       "amount": "Amount",
-      "currency": "Currency"
+      "currency": "Currency",
+      "description": "Description",
+      "priority": "Priority",
+      "dueDate": "Due date"
     },
     "createTitle": "Create procurement",
     "createDescription": "Add a new procurement record to this project.",
@@ -248,7 +252,29 @@
       "requested": "Requested",
       "ordered": "Ordered",
       "received": "Received",
-      "closed": "Closed"
+      "closed": "Closed",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "detail": {
+      "title": "Procurement detail",
+      "description": "View and edit a procurement record.",
+      "backToList": "Back to list",
+      "openFullPage": "Open full page",
+      "clickToEditTitle": "Click to edit",
+      "creator": "Creator",
+      "createdAt": "Created",
+      "updatedAt": "Updated",
+      "unassigned": "Unassigned",
+      "notSet": "Not set",
+      "noDescription": "No description yet.",
+      "descriptionPlaceholder": "Add a description...",
+      "loadFailed": "Failed to load procurement"
     }
   },
   "members": {

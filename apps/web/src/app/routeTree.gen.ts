@@ -35,7 +35,9 @@ import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/users/index'
 import { Route as AppAdminUsersGroupsRouteImport } from './routes/_app/admin/users/groups'
+import { Route as AppProjectsProjectIdProcurementsProcurementIdRouteImport } from './routes/_app/projects/$projectId.procurements.$procurementId'
 import { Route as AppProjectsProjectIdIssuesIssueIdRouteImport } from './routes/_app/projects/$projectId.issues.$issueId'
+import { Route as AppProjectsProjectIdProcurementsProcurementIdFullRouteImport } from './routes/_app/projects/$projectId_.procurements.$procurementId.full'
 import { Route as AppProjectsProjectIdIssuesIssueIdFullRouteImport } from './routes/_app/projects/$projectId_.issues.$issueId.full'
 
 const TotpVerifyRoute = TotpVerifyRouteImport.update({
@@ -197,6 +199,16 @@ const AppAdminUsersGroupsRoute = AppAdminUsersGroupsRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/admin/users/groups.lazy').then((d) => d.Route),
 )
+const AppProjectsProjectIdProcurementsProcurementIdRoute =
+  AppProjectsProjectIdProcurementsProcurementIdRouteImport.update({
+    id: '/procurements/$procurementId',
+    path: '/procurements/$procurementId',
+    getParentRoute: () => AppProjectsProjectIdRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId.procurements.$procurementId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AppProjectsProjectIdIssuesIssueIdRoute =
   AppProjectsProjectIdIssuesIssueIdRouteImport.update({
     id: '/issues/$issueId',
@@ -204,6 +216,16 @@ const AppProjectsProjectIdIssuesIssueIdRoute =
     getParentRoute: () => AppProjectsProjectIdRoute,
   } as any).lazy(() =>
     import('./routes/_app/projects/$projectId.issues.$issueId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const AppProjectsProjectIdProcurementsProcurementIdFullRoute =
+  AppProjectsProjectIdProcurementsProcurementIdFullRouteImport.update({
+    id: '/projects/$projectId_/procurements/$procurementId/full',
+    path: '/projects/$projectId/procurements/$procurementId/full',
+    getParentRoute: () => AppRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId_.procurements.$procurementId.full.lazy').then(
       (d) => d.Route,
     ),
   )
@@ -245,7 +267,9 @@ export interface FileRoutesByFullPath {
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/projects/$projectId/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
+  '/projects/$projectId/procurements/$procurementId/full': typeof AppProjectsProjectIdProcurementsProcurementIdFullRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -272,7 +296,9 @@ export interface FileRoutesByTo {
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/projects/$projectId/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
+  '/projects/$projectId/procurements/$procurementId/full': typeof AppProjectsProjectIdProcurementsProcurementIdFullRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -303,7 +329,9 @@ export interface FileRoutesById {
   '/_app/admin/users/groups': typeof AppAdminUsersGroupsRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
+  '/_app/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/_app/projects/$projectId_/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
+  '/_app/projects/$projectId_/procurements/$procurementId/full': typeof AppProjectsProjectIdProcurementsProcurementIdFullRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -334,7 +362,9 @@ export interface FileRouteTypes {
     | '/admin/users/groups'
     | '/admin/users/'
     | '/projects/$projectId/issues/$issueId'
+    | '/projects/$projectId/procurements/$procurementId'
     | '/projects/$projectId/issues/$issueId/full'
+    | '/projects/$projectId/procurements/$procurementId/full'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -361,7 +391,9 @@ export interface FileRouteTypes {
     | '/admin/users/groups'
     | '/admin/users'
     | '/projects/$projectId/issues/$issueId'
+    | '/projects/$projectId/procurements/$procurementId'
     | '/projects/$projectId/issues/$issueId/full'
+    | '/projects/$projectId/procurements/$procurementId/full'
   id:
     | '__root__'
     | '/'
@@ -391,7 +423,9 @@ export interface FileRouteTypes {
     | '/_app/admin/users/groups'
     | '/_app/admin/users/'
     | '/_app/projects/$projectId/issues/$issueId'
+    | '/_app/projects/$projectId/procurements/$procurementId'
     | '/_app/projects/$projectId_/issues/$issueId/full'
+    | '/_app/projects/$projectId_/procurements/$procurementId/full'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -588,12 +622,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersGroupsRouteImport
       parentRoute: typeof AppAdminUsersRoute
     }
+    '/_app/projects/$projectId/procurements/$procurementId': {
+      id: '/_app/projects/$projectId/procurements/$procurementId'
+      path: '/procurements/$procurementId'
+      fullPath: '/projects/$projectId/procurements/$procurementId'
+      preLoaderRoute: typeof AppProjectsProjectIdProcurementsProcurementIdRouteImport
+      parentRoute: typeof AppProjectsProjectIdRoute
+    }
     '/_app/projects/$projectId/issues/$issueId': {
       id: '/_app/projects/$projectId/issues/$issueId'
       path: '/issues/$issueId'
       fullPath: '/projects/$projectId/issues/$issueId'
       preLoaderRoute: typeof AppProjectsProjectIdIssuesIssueIdRouteImport
       parentRoute: typeof AppProjectsProjectIdRoute
+    }
+    '/_app/projects/$projectId_/procurements/$procurementId/full': {
+      id: '/_app/projects/$projectId_/procurements/$procurementId/full'
+      path: '/projects/$projectId/procurements/$procurementId/full'
+      fullPath: '/projects/$projectId/procurements/$procurementId/full'
+      preLoaderRoute: typeof AppProjectsProjectIdProcurementsProcurementIdFullRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/projects/$projectId_/issues/$issueId/full': {
       id: '/_app/projects/$projectId_/issues/$issueId/full'
@@ -657,11 +705,14 @@ const AppDocumentsRouteWithChildren = AppDocumentsRoute._addFileChildren(
 
 interface AppProjectsProjectIdRouteChildren {
   AppProjectsProjectIdIssuesIssueIdRoute: typeof AppProjectsProjectIdIssuesIssueIdRoute
+  AppProjectsProjectIdProcurementsProcurementIdRoute: typeof AppProjectsProjectIdProcurementsProcurementIdRoute
 }
 
 const AppProjectsProjectIdRouteChildren: AppProjectsProjectIdRouteChildren = {
   AppProjectsProjectIdIssuesIssueIdRoute:
     AppProjectsProjectIdIssuesIssueIdRoute,
+  AppProjectsProjectIdProcurementsProcurementIdRoute:
+    AppProjectsProjectIdProcurementsProcurementIdRoute,
 }
 
 const AppProjectsProjectIdRouteWithChildren =
@@ -678,6 +729,7 @@ interface AppRouteChildren {
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppShipsIndexRoute: typeof AppShipsIndexRoute
   AppProjectsProjectIdIssuesIssueIdFullRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRoute
+  AppProjectsProjectIdProcurementsProcurementIdFullRoute: typeof AppProjectsProjectIdProcurementsProcurementIdFullRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -692,6 +744,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppShipsIndexRoute: AppShipsIndexRoute,
   AppProjectsProjectIdIssuesIssueIdFullRoute:
     AppProjectsProjectIdIssuesIssueIdFullRoute,
+  AppProjectsProjectIdProcurementsProcurementIdFullRoute:
+    AppProjectsProjectIdProcurementsProcurementIdFullRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
