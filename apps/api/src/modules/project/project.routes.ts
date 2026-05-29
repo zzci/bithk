@@ -60,7 +60,7 @@ const createProjectSchema = z.object({
 });
 
 const updateProjectSchema = z.object({
-  code: z.string().min(1).max(100).optional(),
+  // `code` is immutable after creation — update requests cannot carry it.
   name: z.string().min(1).max(255).optional(),
   status: z.enum(PROJECT_STATUSES).optional(),
   description: z.string().max(2000).nullable().optional(),

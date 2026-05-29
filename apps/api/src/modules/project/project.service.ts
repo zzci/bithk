@@ -234,7 +234,9 @@ export interface CreateProjectInput {
 export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): { id: string; shortId: string } {
   const id = ulid();
   const shortId = nanoid();
-  const code = input.code ?? `P-${shortId.toUpperCase()}`;
+  // `code` is a standalone label (separate from shortId) and is always stored
+  // lowercase: both the auto-generated value and any supplied code are lowercased.
+  const code = (input.code ?? `p-${shortId}`).toLowerCase();
   const now = new Date().toISOString();
 
   tx.insert(projects).values({
@@ -405,7 +407,6 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
 }
 
 export interface UpdateProjectInput {
-  readonly code?: string | undefined;
   readonly name?: string | undefined;
   readonly status?: ProjectStatus | undefined;
   readonly description?: string | null | undefined;
@@ -419,7 +420,8 @@ export async function updateProject(db: AppDatabase, shortId: string, input: Upd
 
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { updatedAt: now, version: sql`${projects.version} + 1` };
-  for (const key of ["code", "name", "status", "description"] as const) {
+  // `code` is immutable after creation, so it is intentionally excluded here.
+  for (const key of ["name", "status", "description"] as const) {
     if (input[key] !== undefined)
       patch[key] = input[key];
   }

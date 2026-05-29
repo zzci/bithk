@@ -84,7 +84,7 @@ describe("createProject", () => {
     expect(project.name).toBe("Bridge");
     expect(project.status).toBe("active");
     expect(project.version).toBe(1);
-    expect(project.code).toContain("P-");
+    expect(project.code).toContain("p-");
 
     const roles = await listRoles(db, project.id);
     expect(roles.map(r => r.name).sort()).toEqual(["Member", "Project Owner"]);
@@ -97,10 +97,17 @@ describe("createProject", () => {
     expect(members[0]!.roleId).toBe(pmRole.id);
   });
 
-  test("accepts a provided code", async () => {
+  test("lowercases an auto-generated code", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Bridge", creatorId: creator });
+    expect(project.code).toMatch(/^p-[0-9a-z]+$/);
+    expect(project.code).toBe(project.code.toLowerCase());
+  });
+
+  test("lowercases a supplied uppercase code", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "Tower", code: "TOWER-1", creatorId: creator });
-    expect(project.code).toBe("TOWER-1");
+    expect(project.code).toBe("tower-1");
   });
 
   test("persists description and tags", async () => {
@@ -170,6 +177,18 @@ describe("updateProject", () => {
     expect(updated?.name).toBe("P2");
     expect(updated?.status).toBe("archived");
     expect(updated!.version).toBe(2);
+  });
+
+  test("code is immutable: a sneaked-in code is ignored", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", code: "ORIG-1", creatorId: creator });
+    expect(project.code).toBe("orig-1");
+
+    // Force a `code` field past the typed input to prove the service never
+    // patches it (the column is dropped from the patched-keys loop).
+    const updated = await updateProject(db, project.shortId, { name: "P2", code: "HACKED" } as unknown as Parameters<typeof updateProject>[2]);
+    expect(updated?.name).toBe("P2");
+    expect(updated?.code).toBe("orig-1");
   });
 });
 
