@@ -150,6 +150,8 @@
     "loading": "正在加载工单...",
     "searchPlaceholder": "搜索工单...",
     "statusFilter": "按状态筛选",
+    "createInStatus": "新建{{status}}工单",
+    "toggleSection": "折叠/展开分组",
     "allStatuses": "全部状态",
     "allPriorities": "全部优先级",
     "viewMode": "工单视图模式",
@@ -193,6 +195,12 @@
       "medium": "中",
       "high": "高",
       "urgent": "紧急"
+    },
+    "due": {
+      "today": "今天",
+      "tomorrow": "明天",
+      "inDays": "{{count}} 天后",
+      "overdue": "逾期 {{count}} 天"
     }
   },
   "procurement": {

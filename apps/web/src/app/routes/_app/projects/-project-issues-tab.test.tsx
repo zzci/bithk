@@ -87,24 +87,28 @@ describe("projectIssuesTab", () => {
     expect(await screen.findByText("No work orders found.")).toBeInTheDocument();
   });
 
-  it("renders an issue row under its status section with priority and unassigned marker", async () => {
+  it("renders an issue row under its status section with the short id and unassigned avatar", async () => {
     routeFetch([issue()]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     expect(await screen.findByText("Fix leak")).toBeInTheDocument();
     // `open` is grouped under the product label "Todo".
     expect(screen.getByRole("region", { name: "Todo" })).toBeInTheDocument();
-    expect(screen.getByText("High")).toBeInTheDocument();
-    expect(screen.getByText("Unassigned")).toBeInTheDocument();
+    // Short id is shown; priority + assignee are icon/avatar with accessible titles.
+    expect(screen.getByText("i1")).toBeInTheDocument();
+    expect(screen.getByTitle("High")).toBeInTheDocument();
+    expect(screen.getByTitle("Unassigned")).toBeInTheDocument();
   });
 
-  it("renders a row left-to-right with title, priority, assignee, and due date", async () => {
-    routeFetch([issue({ priority: "urgent", assigneeMemberId: "m1", dueDate: "2026-06-15" })]);
+  it("renders a row with title, priority signal, due date, and assignee avatar", async () => {
+    routeFetch([issue({ priority: "urgent", assigneeMemberId: "m1", dueDate: "2099-06-15" })]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={[member()]} userNames={new Map([["u1", "Alice"]])} />);
     const row = await screen.findByRole("button", { name: /Fix leak/ });
     expect(within(row).getByText("Fix leak")).toBeInTheDocument();
-    expect(within(row).getByText("Urgent")).toBeInTheDocument();
-    expect(within(row).getByText("Alice")).toBeInTheDocument();
-    expect(within(row).getByText("2026-06-15")).toBeInTheDocument();
+    expect(within(row).getByTitle("Urgent")).toBeInTheDocument();
+    // Assignee avatar carries the member label as its title; due date keeps the
+    // raw value as a title while showing a relative label.
+    expect(within(row).getByTitle("Alice")).toBeInTheDocument();
+    expect(within(row).getByTitle("2099-06-15")).toBeInTheDocument();
   });
 
   it("navigates to the issue drawer route when a row is clicked", async () => {
@@ -133,10 +137,8 @@ describe("projectIssuesTab", () => {
     routeFetch([]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     await screen.findByText("No work orders found.");
-    // Search input and create button both live in the top toolbar.
     expect(screen.getByPlaceholderText("Search work orders...")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create work order" })).toBeInTheDocument();
-    // The priority filter control is gone from the visible top controls.
     expect(screen.queryByRole("button", { name: "Priority" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "All priorities" })).not.toBeInTheDocument();
   });
@@ -154,7 +156,6 @@ describe("projectIssuesTab", () => {
     const filterGroup = screen.getByRole("group", { name: "Filter by status" });
     await user.click(within(filterGroup).getByRole("button", { name: /Completed/ }));
 
-    // Only the selected status section remains.
     expect(screen.getByText("Close report")).toBeInTheDocument();
     expect(screen.queryByText("Fix leak")).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Todo" })).not.toBeInTheDocument();
@@ -171,12 +172,29 @@ describe("projectIssuesTab", () => {
     expect(screen.getByRole("region", { name: "In Progress" })).toBeInTheDocument();
 
     const todoRegion = screen.getByRole("region", { name: "Todo" });
-    await user.click(within(todoRegion).getByRole("button", { name: /Todo/ }));
+    // The section header's filter control carries the exact status label.
+    await user.click(within(todoRegion).getByRole("button", { name: "Todo" }));
 
-    // Selecting Todo via its header collapses the view to just that status.
     expect(screen.getByText("Fix leak")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "In Progress" })).not.toBeInTheDocument();
     expect(screen.queryByText("Mid task")).not.toBeInTheDocument();
+  });
+
+  it("collapses a section's rows while keeping its header visible", async () => {
+    const user = userEvent.setup();
+    routeFetch([issue({ status: "open", title: "Fix leak" })]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("Fix leak");
+
+    const todoRegion = screen.getByRole("region", { name: "Todo" });
+    const chevron = within(todoRegion).getByRole("button", { name: "Toggle section" });
+    expect(chevron).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(chevron);
+    expect(chevron).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Fix leak")).not.toBeInTheDocument();
+    // Header stays so the section can be reopened.
+    expect(screen.getByRole("region", { name: "Todo" })).toBeInTheDocument();
   });
 
   it("renders a separate status section with its own count for populated statuses only", async () => {
@@ -196,7 +214,6 @@ describe("projectIssuesTab", () => {
     expect(within(inProgressGroup).getByText("1")).toBeInTheDocument();
     expect(within(inProgressGroup).getByText("Close report")).toBeInTheDocument();
 
-    // Empty statuses (Completed, Cancelled) are hidden in the "all" view.
     expect(screen.queryByRole("region", { name: "Completed" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Cancelled" })).not.toBeInTheDocument();
   });
@@ -223,19 +240,16 @@ describe("projectIssuesTab", () => {
 
     await user.type(within(dialog).getByPlaceholderText("Title"), "Replace pump seal");
 
-    // Status pill defaults to Todo (open); switch to In Progress.
     await user.click(within(dialog).getByRole("button", { name: /Todo/ }));
     await user.click(await screen.findByRole("menuitemradio", { name: "In Progress" }));
 
-    // Priority pill defaults to Medium; pick High.
     await user.click(within(dialog).getByRole("button", { name: /Medium/ }));
     await user.click(await screen.findByRole("menuitemradio", { name: "High" }));
 
-    // Assignee pill: pick the project member.
     await user.click(within(dialog).getByRole("button", { name: /Assignee/ }));
     await user.click(await screen.findByRole("menuitemradio", { name: "Alice" }));
 
-    fireEvent.change(within(dialog).getByLabelText("Due date", { selector: "input" }), { target: { value: "2026-06-15" } });
+    fireEvent.change(within(dialog).getByLabelText("Due date", { selector: "input" }), { target: { value: "2099-06-15" } });
 
     await user.click(within(dialog).getByRole("button", { name: "Create work order" }));
 
@@ -249,11 +263,35 @@ describe("projectIssuesTab", () => {
         status: "in_progress",
         priority: "high",
         assigneeMemberId: "m1",
-        dueDate: "2026-06-15",
+        dueDate: "2099-06-15",
       });
     });
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  }, 15000);
+
+  it("opens the composer pre-set to a status via the section quick-create", async () => {
+    const user = userEvent.setup();
+    routeFetch([issue({ id: "i9", title: "Done thing", status: "done" })]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("Done thing");
+
+    const doneRegion = screen.getByRole("region", { name: "Completed" });
+    await user.click(within(doneRegion).getByRole("button", { name: "New Completed work order" }));
+
+    const dialog = await screen.findByRole("dialog");
+    // Status pill is pre-set to the section's status.
+    expect(within(dialog).getByRole("button", { name: /Completed/ })).toBeInTheDocument();
+
+    await user.type(within(dialog).getByPlaceholderText("Title"), "Another done item");
+    await user.click(within(dialog).getByRole("button", { name: "Create work order" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "POST");
+      expect(post).toBeDefined();
+      const body = JSON.parse(String(post![1]!.body)) as Record<string, unknown>;
+      expect(body).toMatchObject({ title: "Another done item", status: "done" });
+    });
   }, 15000);
 
   it("shows a roomy multi-line description field in the create dialog", async () => {

@@ -150,6 +150,8 @@
     "loading": "Loading work orders...",
     "searchPlaceholder": "Search work orders...",
     "statusFilter": "Filter by status",
+    "createInStatus": "New {{status}} work order",
+    "toggleSection": "Toggle section",
     "allStatuses": "All statuses",
     "allPriorities": "All priorities",
     "viewMode": "Work order view mode",
@@ -193,6 +195,12 @@
       "medium": "Medium",
       "high": "High",
       "urgent": "Urgent"
+    },
+    "due": {
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "inDays": "In {{count}}d",
+      "overdue": "{{count}}d overdue"
     }
   },
   "procurement": {
