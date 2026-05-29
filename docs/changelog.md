@@ -63,6 +63,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Project issues aligned with the access issue reference (REFACTOR-006 /
+  PLAN-032): the project work-order module now mirrors the `/app/zzci/access`
+  issue baseline for CRUD, permissions, audit events, comments, and attachments
+  (including comment attachments and inline-safe `?inline` downloads). Project
+  ownership remains the one core product delta — issues stay nested under
+  `/api/projects/:projectId/issues` with project-member assignment and a
+  fail-closed membership gate — and the BITHK-only extras (pin/unpin, issue
+  references + ship maintenance-orders, command-palette search) plus the
+  Linear-style grouped work-order list are kept as intentional deltas, not
+  parity gaps. Adds project-scoped e2e coverage (CRUD, membership gate,
+  attachment + comment-attachment lifecycles, inline download) and documents the
+  model in `docs/modules/issue.md`.
 - Tag abstraction consolidated into one module (REFACTOR-005 / PLAN-031): a
   dedicated `tag` module now owns the tag vocabulary, source-type validation,
   the create / rename / delete / list APIs, the `/api/tags` routes (behind a

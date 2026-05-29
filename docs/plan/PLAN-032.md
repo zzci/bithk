@@ -1,9 +1,9 @@
 # PLAN-032 Align project issues with the access issue reference
 
-- Status: Implementing
+- Status: Done
 - Task: [REFACTOR-006](../task/REFACTOR-006.md)
 - Owner: BKD L2 (campaign l1-lsqiuvv9-20260528225223)
-- Updated: 2026-05-28
+- Updated: 2026-05-29
 
 ## Objective
 
@@ -110,3 +110,18 @@ panel/drawer/fullscreen/inline-edit flow. This refinement is folded into L3-B
   additive/compatible changes only.
 - Migration ownership overlap with CHORE-002 — avoid generating migrations;
   escalate if schema changes are unavoidable.
+
+## Outcome (2026-05-29)
+
+All three L3 subtasks complete and merged to the campaign base:
+
+- **A — backend parity:** issue service/routes/tests mirror the access baseline,
+  adapted for project scope; pin/unpin and references kept.
+- **B — frontend parity + list refinement:** access-style detail/drawer/upload/
+  comment flow with the Linear-style grouped work-order list.
+- **C — e2e / i18n / docs / verify:** project-scoped e2e suites
+  (`tests/e2e/modules/issue/*`) cover CRUD, the membership gate, attachment and
+  comment-attachment lifecycles, and `?inline` download behavior;
+  `locales/{en,zh}` issue keys verified in sync (`check:i18n` green);
+  `docs/modules/issue.md`, `docs/reference/api.md`, and the changelog record the
+  project-ownership model and the kept extras as intentional deltas from access.

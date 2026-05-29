@@ -1,8 +1,8 @@
 // Issue comment-attachment lifecycle: upload, list, download, delete — under
 // the project-scoped issue comment routes.
 import { describe, expect, it } from "bun:test";
-import { createTestProject } from "../../lib/project";
 import { getClient } from "../../lib/oidc";
+import { createTestProject } from "../../lib/project";
 
 interface Issue { id: string; title: string }
 interface Comment { id: string; content: string; authorId: string }
