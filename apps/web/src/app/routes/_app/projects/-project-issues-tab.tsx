@@ -29,7 +29,7 @@ import {
   SignalMedium,
   User,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
@@ -519,6 +519,25 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
   const [priority, setPriority] = useState<IssuePriority>("medium");
   const [assigneeMemberId, setAssigneeMemberId] = useState("__none__");
   const [dueDate, setDueDate] = useState("");
+  const dueDateInputRef = useRef<HTMLInputElement>(null);
+
+  // Open the native calendar on click; fall back to focus when showPicker is
+  // unavailable (older browsers / programmatic-open restrictions).
+  const openDuePicker = () => {
+    const input = dueDateInputRef.current;
+    if (!input)
+      return;
+    if (typeof input.showPicker === "function") {
+      try {
+        input.showPicker();
+        return;
+      }
+      catch {
+        // showPicker can throw if not allowed; fall through to focus.
+      }
+    }
+    input.focus();
+  };
 
   const reset = () => {
     setTitle("");
@@ -589,7 +608,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
             className="min-h-40 resize-y border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
           />
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 pb-2">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button type="button" variant="outline" className={cn(pillBase, "border-solid")} />}>
                 <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[status])} />
@@ -646,21 +665,25 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* The native date input overlays a labeled pill so the browser
-                calendar opens directly on click — no intermediate dropdown. */}
-            <div className="relative inline-flex">
-              <span
-                aria-hidden="true"
-                className={cn(pillBase, "pointer-events-none inline-flex items-center border", dueDate ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+            {/* A focusable pill button opens the native calendar via showPicker;
+                the date input itself stays visually hidden but keeps the value. */}
+            <div className="inline-flex items-center">
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(pillBase, "border", dueDate ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+                onClick={openDuePicker}
               >
                 {dueDate || t("issues.field.dueDate")}
-              </span>
+              </Button>
               <input
+                ref={dueDateInputRef}
                 type="date"
                 value={dueDate}
                 aria-label={t("issues.field.dueDate")}
+                tabIndex={-1}
                 onChange={e => setDueDate(e.target.value)}
-                className="absolute inset-0 cursor-pointer opacity-0"
+                className="sr-only"
               />
             </div>
           </div>
