@@ -250,11 +250,12 @@
       "confirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
     },
     "status": {
-      "draft": "Draft",
       "requested": "Requested",
       "ordered": "Ordered",
+      "confirmed": "Confirmed",
+      "in_transit": "In transit",
       "received": "Received",
-      "closed": "Closed",
+      "accepted": "Accepted",
       "cancelled": "Cancelled"
     },
     "priority": {
@@ -276,7 +277,9 @@
       "notSet": "Not set",
       "noDescription": "No description yet.",
       "descriptionPlaceholder": "Add a description...",
-      "loadFailed": "Failed to load procurement"
+      "loadFailed": "Failed to load procurement",
+      "procurementDetails": "Procurement details",
+      "resizeDrawer": "Resize procurement drawer"
     }
   },
   "members": {

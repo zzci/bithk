@@ -33,7 +33,7 @@ function procurement(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     projectId: "p1",
     title: null,
     itemName: "Cement",
-    status: "draft",
+    status: "requested",
     supplierId: null,
     categoryId: null,
     assigneeMemberId: null,
@@ -44,6 +44,7 @@ function procurement(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     priority: "medium",
     dueDate: null,
     creatorId: "u1",
+    tags: [],
     pinned: false,
     pinnedAt: null,
     createdAt: "2026-05-23T00:00:00.000Z",
@@ -85,7 +86,7 @@ describe("projectProcurementPanel", () => {
       />,
     );
     expect(await screen.findByRole("heading", { name: "Cement" })).toBeInTheDocument();
-    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(screen.getByText("Requested")).toBeInTheDocument();
     expect(screen.getByText("Medium")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
   });

@@ -35,7 +35,7 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     projectId: "p1",
     title: null,
     itemName: "Cement",
-    status: "draft",
+    status: "requested",
     supplierId: "s1",
     categoryId: "c1",
     assigneeMemberId: null,
@@ -46,6 +46,7 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     priority: "medium",
     dueDate: null,
     creatorId: "u1",
+    tags: [],
     pinned: false,
     pinnedAt: null,
     createdAt: "2026-05-23T00:00:00.000Z",
@@ -182,7 +183,7 @@ describe("projectProcurementTab", () => {
     await screen.findByText("Cement");
     // Status is a non-interactive badge — no inline status select even for managers.
     expect(screen.queryByLabelText("Change status")).not.toBeInTheDocument();
-    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(screen.getByText("Requested")).toBeInTheDocument();
     // The list never issues a status-change request.
     const statusCalls = fetchMock.mock.calls.filter(c => String(c[0]).endsWith("/status"));
     expect(statusCalls).toHaveLength(0);

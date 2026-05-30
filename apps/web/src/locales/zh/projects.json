@@ -250,11 +250,12 @@
       "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"
     },
     "status": {
-      "draft": "草稿",
       "requested": "已申请",
       "ordered": "已下单",
+      "confirmed": "已确认",
+      "in_transit": "运输中",
       "received": "已收货",
-      "closed": "已关闭",
+      "accepted": "已验收",
       "cancelled": "已取消"
     },
     "priority": {
@@ -276,7 +277,9 @@
       "notSet": "未设置",
       "noDescription": "暂无描述。",
       "descriptionPlaceholder": "添加描述...",
-      "loadFailed": "加载采购失败"
+      "loadFailed": "加载采购失败",
+      "procurementDetails": "采购细节",
+      "resizeDrawer": "调整采购抽屉大小"
     }
   },
   "members": {

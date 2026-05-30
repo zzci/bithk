@@ -22,16 +22,32 @@ interface ApiListEnvelope<T> {
 
 // ── Types ──
 
-export type ProcurementStatus = "draft" | "requested" | "ordered" | "received" | "closed" | "cancelled";
+export type ProcurementStatus = "requested" | "ordered" | "confirmed" | "in_transit" | "received" | "accepted" | "cancelled";
 
 export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
-  "draft",
   "requested",
   "ordered",
+  "confirmed",
+  "in_transit",
   "received",
-  "closed",
+  "accepted",
   "cancelled",
 ];
+
+// Tag reference carried on procurement rows and detail (name resolved by the
+// API). Mirrors `IssueTagRef` (source_type='procurement').
+export interface ProcurementTagRef {
+  readonly id: string;
+  readonly name: string;
+}
+
+// Selectable procurement-tag vocabulary entry (usage-count ordered), mirroring
+// the project-tag shape used by the issue tag picker.
+export interface ProcurementTag {
+  readonly id: string;
+  readonly name: string;
+  readonly usageCount: number;
+}
 
 // Issue-parity priority levels, mirroring `issue_details.priority` exactly.
 export type ProcurementPriority = "low" | "medium" | "high" | "urgent";
@@ -61,6 +77,8 @@ export interface ProcurementRow {
   readonly priority: ProcurementPriority;
   readonly dueDate: string | null;
   readonly creatorId: string;
+  // Assigned tags (source_type='procurement'), resolved by the API.
+  readonly tags: readonly ProcurementTagRef[];
   // Pin state from the shared item base; mirrors ProjectIssueRow.
   readonly pinned: boolean;
   readonly pinnedAt: string | null;
@@ -148,6 +166,16 @@ export function useProcurement(projectId: string | undefined, id: string | undef
   });
 }
 
+// Selectable procurement-tag vocabulary (type=procurement), usage-count ordered.
+// Mirrors `useIssueTags`; drives the panel tag picker autocomplete.
+export function useProcurementTags() {
+  return useQuery<readonly ProcurementTag[]>({
+    queryKey: ["tags", "procurement"],
+    queryFn: () => http<ApiEnvelope<readonly ProcurementTag[]>>("/tags?type=procurement").then(r => r.data),
+    staleTime: 30_000,
+  });
+}
+
 // ── Mutations ──
 
 export interface CreateProcurementInput {
@@ -163,6 +191,7 @@ export interface CreateProcurementInput {
   readonly description?: string;
   readonly priority?: ProcurementPriority;
   readonly dueDate?: string;
+  readonly tags?: readonly string[];
 }
 
 export function useCreateProcurement(): UseMutationResult<ProcurementRow, Error, { projectId: string } & CreateProcurementInput> {
@@ -190,6 +219,8 @@ export interface UpdateProcurementInput {
   readonly description?: string | null;
   readonly priority?: ProcurementPriority;
   readonly dueDate?: string | null;
+  // Replacement tag set (source_type='procurement'); omit to leave unchanged.
+  readonly tags?: readonly string[];
 }
 
 export function useUpdateProcurement(): UseMutationResult<ProcurementRow, Error, { projectId: string; id: string } & UpdateProcurementInput> {

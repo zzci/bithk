@@ -36,7 +36,7 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     projectId: "proj1",
     title: null,
     itemName: "Cement",
-    status: "draft",
+    status: "requested",
     supplierId: null,
     categoryId: null,
     assigneeMemberId: null,
@@ -47,6 +47,7 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
     priority: "medium",
     dueDate: null,
     creatorId: "u1",
+    tags: [],
     pinned: false,
     pinnedAt: null,
     createdAt: "2026-05-23T00:00:00.000Z",
@@ -77,7 +78,7 @@ describe("procurementKeys", () => {
 
 describe("pROCUREMENT_STATUSES", () => {
   it("includes the cancelled stage in pipeline order", () => {
-    expect(PROCUREMENT_STATUSES).toEqual(["draft", "requested", "ordered", "received", "closed", "cancelled"]);
+    expect(PROCUREMENT_STATUSES).toEqual(["requested", "ordered", "confirmed", "in_transit", "received", "accepted", "cancelled"]);
   });
 });
 
