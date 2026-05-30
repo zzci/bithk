@@ -15,9 +15,11 @@ routes honor view + comment capabilities (today they gate on bare membership).
 ## Scope (after approval)
 
 - Backend: add `project.view`, `comment.create`, `files.manage`; remove
-  `procurement.view`; seed Reader/Commenter/Writer presets; update gates in
-  issue, comment, procurement, and drive routes; data migration for the cap
-  rename.
+  `procurement.view`; add a `kind` discriminator to `project_roles`; seed two
+  implicit system roles (Owner + Guest) plus Reader/Commenter/Writer presets;
+  change `deleteRole` to auto-demote a deleted custom role's members to Guest
+  (drop the "in use" rejection); update gates in issue, comment, procurement,
+  and drive routes; data migration for the cap rename + Member→Guest.
 - Frontend: mirror capabilities, derive view/comment/files flags, gate write
   affordances, add a role preset quick-fill, i18n.
 
@@ -31,3 +33,7 @@ routes honor view + comment capabilities (today they gate on bare membership).
 
 - 2026-05-30: Investigation + proposal written (PLAN-042). Awaiting L1/user
   approval before any implementation.
+- 2026-05-30: Extended per L1 — two implicit system roles (Owner + Guest) and a
+  delete-fallback that auto-demotes a deleted custom role's members to Guest;
+  'Member' maps to Guest, read-only is the separate Reader preset. Still
+  analysis-only, awaiting approval.

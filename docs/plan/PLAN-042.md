@@ -30,9 +30,16 @@ gap.
 - Roles (`project_roles`) hold a JSON capability set; members inherit caps via
   their role (`getMemberCapabilities`, `project.service.ts:656`).
 - Seed (`project.roles.ts:56`): `Project Owner` (isSystem, full set) + `Member`
-  (empty caps).
+  (empty caps, **not** isSystem, deletable).
 - Gate helpers: `requireProject(c, shortId, capability?)`
   (`project.routes.ts:150`), `hasCapability` (`project.service.ts:668`).
+- **Role deletion today** (`deleteRole`, `project.roles.ts:144`): refuses
+  `isSystem` roles (`"system"`) **and** any role still held by a member
+  (`"in_use"`). `projectMembers.roleId` FK is `onDelete: "restrict"`
+  (`schema.ts:71`), so a held role cannot be deleted at the DB level either —
+  members of a role are never auto-migrated; the admin must manually reassign
+  every member first. `isSystem` is the **only** discriminator on a role; there
+  is no way to tell two system roles apart structurally.
 
 ### 1.2 Effective access of a `Member` (empty caps) — the key finding
 
@@ -106,23 +113,72 @@ Resulting set (9): `project.view`, `comment.create`, `issue.manage`,
 
 ---
 
-## 3. GitHub-style preset roles
+## 3. Roles: two implicit system roles + editable presets
 
-Seed these as the project's default roles (creator keeps the system Owner role):
+### 3.1 Two IMPLICIT system roles (mandatory, undeletable)
+
+Every project always has exactly two `isSystem` roles — the two ends of the
+spectrum — neither of which can be deleted or have its capabilities edited:
+
+| Implicit role | Capabilities | Purpose |
+|---|---|---|
+| **Owner** (`kind='owner'`) | all 9 | Full control; the project creator holds it. (Today's `Project Owner`.) |
+| **Guest** (`kind='guest'`) | **none** (empty) | The no-permission **safety-net / fallback**. A member with Guest can do nothing beyond appearing as a member (no `project.view` ⇒ cannot even read). |
+
+Both stay locked: `updateRole` already no-ops capability edits on `isSystem`
+roles (`project.roles.ts:128`), so Guest stays empty and Owner stays full;
+`deleteRole` refuses both (`"system"`).
+
+**Discriminator.** `isSystem` alone cannot distinguish Owner from Guest. Add a
+nullable `kind` column to `project_roles` — `'owner' | 'guest' | null` (null =
+custom). Seeded system roles set it; custom roles leave it null. This is what
+the deletion-fallback and the Owner-lockout guard key on (instead of fragile
+capability-set sniffing).
+
+### 3.2 Editable GitHub-style presets (seeded, non-system)
+
+Seeded as ordinary editable/deletable roles so projects can assign them out of
+the box and tune them:
 
 | Preset | Capabilities | GitHub analogue |
 |---|---|---|
 | **Reader** (read-only) | `project.view` | Read |
 | **Commenter** | `project.view`, `comment.create` | Read + discussion |
 | **Writer** (read-write) | `project.view`, `comment.create`, `issue.manage`, `procurement.manage`, `files.manage`, `categories.manage` | Write |
-| **Owner** (existing, isSystem) | all 9 | Admin/Owner |
 
 `members.manage`, `roles.manage`, `project.manage` stay Owner-only by default;
-they remain assignable to a custom role via the Roles UI for a "Maintainer"-style
-tier if desired (not seeded).
+assignable to a custom "Maintainer"-style role via the Roles UI if desired (not
+seeded).
 
-Presets are seeded as ordinary (non-system, editable/deletable) roles so a
-project can tune them; only Owner stays `isSystem`/locked.
+> Alternative considered: ship Reader/Commenter/Writer as *quick-fill templates*
+> in the create-role dialog rather than seeded rows, keeping the project's role
+> list to just Owner+Guest. Rejected as the default because the user wants ready
+> "授权" tiers; the template quick-fill is still added on top (see §6) for
+> building custom roles.
+
+### 3.3 Role deletion → auto-demote to Guest (NEW behavior)
+
+Replace the current `"in_use"` rejection with auto-reassignment:
+
+- Deleting an **implicit system role** (Owner or Guest, `kind` set / `isSystem`):
+  refused → `"system"` (unchanged).
+- Deleting a **custom role** (`kind=null`): inside one transaction,
+  1. `UPDATE project_members SET role_id = <this project's Guest roleId>
+     WHERE role_id = <deleted roleId>` — every holder is demoted to Guest (no
+     permissions), never left dangling or errored.
+  2. `DELETE` the role.
+  Result `"deleted"`. The `"in_use"` branch is removed entirely.
+- The `onDelete: "restrict"` FK stays as a safety net: the in-transaction
+  reassignment runs *before* the delete, so no holder references the row at
+  delete time and the FK never trips.
+- Requires a `resolveGuestRole(db, projectId)` helper (select where
+  `projectId` and `kind='guest'`). Guest is guaranteed to exist (seeded per
+  project; backfilled by migration — see §5), so the fallback target is always
+  present.
+
+Members demoted to Guest immediately lose all access (no `project.view`); they
+remain on the member roster and an Owner can reassign them a real role. This is
+the intended "suspended / no-permission" state.
 
 ---
 
@@ -155,6 +211,15 @@ project can tune them; only Owner stays `isSystem`/locked.
    to `project.view` for consistency (a member without `project.view` is
    effectively suspended). Low priority; can stay membership-only.
 
+8. **Role lifecycle** (`project.roles.ts`) — `seedDefaultRoles` seeds the two
+   implicit system roles (Owner `kind=owner`, Guest `kind=guest`) + Reader/
+   Commenter/Writer presets; `deleteRole` drops the `"in_use"` branch and instead
+   reassigns holders to the project's Guest role before deleting a custom role
+   (see §3.3); add `resolveGuestRole(db, projectId)`. `composeRole` exposes
+   `kind` so the UI can label Owner/Guest. `DELETE /projects/:id/roles/:roleId`
+   (`project.routes.ts:396`) no longer returns the "role in use" validation
+   error.
+
 All denials stay fail-closed 404 (mirroring existing convention) except
 action-level denials on a readable subject (locked post, non-author delete),
 which stay 403.
@@ -163,24 +228,33 @@ which stay 403.
 
 ## 5. Migration mapping (dev-stage, breaking allowed)
 
+- **Schema:** add nullable `kind` column to `project_roles`
+  (`'owner' | 'guest' | null`). Change the model in `schema.ts`, then let
+  Drizzle Kit emit the migration (never hand-author).
 - **Capability rename:** any stored role capability `procurement.view` →
   `project.view`. `parseCapabilities` already drops unknown strings, so a stale
   `procurement.view` would otherwise silently vanish — migrate it explicitly.
-- **Seed change:** `seedDefaultRoles` (`project.roles.ts:56`) seeds Owner +
-  **Reader + Commenter + Writer** instead of Owner + empty `Member`.
-- **Existing roles:**
-  - Empty-cap `Member` rows → grant `project.view` (become Reader). *(Option:
-    map to Writer to preserve their current de-facto issue+files write power.
-    Recommend Reader for a clean model; dev DB is reseeded anyway.)*
-  - Custom roles that had `issue.manage`/`procurement.manage` → add
-    `project.view` (and `comment.create`) so writers can still read/comment.
+- **'Member' → 'Guest' (the key mapping).** The current empty-caps `Member`
+  role *is* the no-permission state, so it becomes the implicit **Guest**:
+  set `isSystem=1`, `kind='guest'`, keep capabilities empty (display name via
+  i18n "Guest"). **Member is NOT the read-only role** — read-only is the new,
+  separate, editable **Reader** preset (`project.view`). This keeps a clean
+  split: Guest = no access fallback; Reader = read-only.
+  - Backfill safety: for any project lacking a `kind='guest'` row (e.g. its
+    Member was renamed/deleted), insert an empty-caps system Guest role so the
+    deletion-fallback target always exists.
+  - Mark the existing `Project Owner` row `kind='owner'`.
+- **Seed change:** `seedDefaultRoles` (`project.roles.ts:56`) seeds the two
+  implicit system roles **Owner(kind=owner) + Guest(kind=guest)** plus the three
+  editable presets **Reader + Commenter + Writer**. Creator → Owner.
+- **Existing custom roles:**
   - Roles with `procurement.view` → `project.view`.
-- DB is migrate-on-boot in dev (see campaign note: restart tmux `bithk-dd24e5`
-  to apply). **Schema change → regenerate Drizzle migration via the tool**
-  (never hand-edit), then a small data-migration step for the cap rename.
+  - Roles that had `issue.manage`/`procurement.manage` → add `project.view`
+    (and `comment.create`) so writers retain read/comment.
+- DB is migrate-on-boot in dev (restart tmux `bithk-dd24e5` to apply).
   Because the dev dataset is reseeded from the static seed (CHORE-003), the
-  cleanest path is: update schema + seed + reseed, with the cap-rename data
-  migration as a safety net for any live DB.
+  cleanest path is: update schema + seed + reseed; the cap-rename and
+  Member→Guest data migration is the safety net for any live DB.
 
 ---
 
@@ -205,8 +279,19 @@ which stay 403.
     `-file-browser.tsx`, project files tab) — hide upload/new-folder/rename/
     delete for project scope unless `canManageFiles`.
 - `…/projects/-project-settings-roles.tsx` — capability groups auto-derive, so
-  new caps appear automatically. Add a **preset quick-fill** (Reader / Commenter
-  / Writer buttons that set the checkbox set) in `RoleDialog` — optional polish.
+  new caps appear automatically. Changes:
+  - Render both implicit roles (Owner + Guest) as read-only/locked with a
+    "System" badge; hide edit/delete for `isSystem` (today only Owner is
+    rendered specially — `role.isSystem ? t("roles.owner")` at L91). Add a Guest
+    label + an explanatory line ("members of a deleted role fall back here").
+  - The delete-confirm copy changes: deleting a custom role now **reassigns its
+    members to Guest** rather than being blocked when in use. Update
+    `roles.delete.confirm` wording to state the demotion. The old "role in use"
+    error path is gone.
+  - Add a **preset quick-fill** (Reader / Commenter / Writer buttons that set the
+    checkbox set) in `RoleDialog` for building custom roles.
+  - `ProjectRoleView` gains `kind` (`'owner'|'guest'|null`); mirror in
+    `projects.ts`.
 - i18n `locales/{en,zh}/projects.json` — add `capability.project.view`,
   `capability.comment.create`, `capability.files.manage`, and
   `capabilityGroup.comment`, `capabilityGroup.files`; remove
@@ -219,7 +304,9 @@ which stay 403.
 ### DAG
 
 ```
-B1  schema caps + seed presets + cap-rename migration + parseCapabilities
+B1  schema caps + `kind` column + seed (Owner+Guest implicit, Reader/Commenter/
+        Writer presets) + deleteRole→demote-to-Guest + resolveGuestRole +
+        cap-rename & Member→Guest migration + parseCapabilities + role tests
         │
         ▼
 B2  issue routes/service gates (read=project.view, create=issue.manage,
@@ -229,8 +316,9 @@ B4  drive project-scope gates (read=project.view, write=files.manage) + tests
    (B2/B3/B4 parallel after B1)
         │
         ▼
-F1  frontend caps mirror + role flags + UI gating + role preset UI + i18n + tests
-   (depends on B1 capability contract; can start once B1 names are fixed)
+F1  frontend caps mirror + role flags + UI gating + Owner/Guest locked rendering
+        + delete-demotes-to-Guest copy + preset quick-fill + i18n + tests
+   (depends on B1 capability + kind contract; can start once B1 names are fixed)
 ```
 
 A separate CHORE may follow to regenerate API docs / reseed (mirrors CHORE-002/003).
@@ -262,7 +350,14 @@ A separate CHORE may follow to regenerate API docs / reseed (mirrors CHORE-002/0
    upload files. (route tests)
 3. Writer role: can create/edit issues + procurement + upload/manage files +
    comment; cannot manage members/roles/project. (route tests)
-4. Owner unchanged (full set, isSystem). App admin bypass unchanged.
-5. Roles UI shows the new capabilities grouped correctly; presets seed on new
-   projects. (web tests)
-6. `bun run check` green.
+4. Owner unchanged (full set, isSystem, `kind=owner`). App admin bypass unchanged.
+5. **Guest** role exists per project (isSystem, `kind=guest`, empty caps,
+   undeletable); a Guest member can do nothing (no `project.view`). (route tests)
+6. **Delete-fallback:** deleting a custom role reassigns every holder to Guest in
+   one transaction and succeeds (no "in use" error); no member is left dangling.
+   (route + service tests)
+7. 'Member' no longer exists as a distinct empty role — it is migrated to Guest;
+   read-only is the separate Reader preset. (migration test)
+8. Roles UI shows new capabilities grouped correctly; Owner + Guest render locked;
+   presets seed on new projects; delete copy states the demotion. (web tests)
+9. `bun run check` green.
