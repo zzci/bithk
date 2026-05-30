@@ -1,0 +1,12 @@
+HULL INSPECTION REPORT
+======================
+Vessel: MV Aurora
+Date: 2026-03-14
+Surveyor: Class Society
+
+Findings:
+- Anti-fouling coating intact, minor blistering at bow (port).
+- Sacrificial anodes 40% consumed — replace at next docking.
+- No structural deformation observed below waterline.
+
+Recommendation: schedule recoat within 6 months.

@@ -21,27 +21,23 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   cover when it has none of its own. Projects and ships without a cover render a
   default placeholder illustration (FEAT-014).
 
-- Database seed script for local testing (CHORE-001 / PLAN-020):
-  `bun run seed` populates a coherent demo dataset (accounts, contacts, ships
-  with equipment, projects with members/categories/ship binding, issues,
-  procurement, and a document tree) through the existing service-layer creators.
-  Volume is driven by a `COUNTS` table and generated from fixed vocab pools via
-  a seeded PRNG, so runs are reproducible; the default produces ~20 accounts,
-  30 contacts, 10 standalone projects, 40 work-order issues, 20 procurements,
-  and 20 documents. Issues are generated per status (open / in_progress / done /
-  cancelled) with status-appropriate descriptions, assignment, due dates (future
-  for active, past for done), and threaded comments (some internal) so each
-  status lane reads realistically. Ships come from a curated fleet of 22 real-world yacht models
-  spanning 5–50 m LOA with size-consistent particulars (beam, draft, gross
-  tonnage, build year, flag/registry) and IMO/MMSI/call-sign on the ≥24 m hulls;
-  equipment count scales with vessel size. Most ships and standalone projects
-  also get a topical, uniformly-sized
-  16:9 cover image through the real file pipeline — vessel photos for ships,
-  engine/machinery photos for the (maintenance/refit) projects, fetched from
-  LoremFlickr with a picsum.photos fallback — with some left unset; cover
-  fetches are skipped gracefully when offline. The fixed 16:9 size matches the
-  web app's `object-cover` cover bands so covers never display distorted.
-  Idempotent on re-run; `--fresh` wipes the seeded rows and reseeds.
+- Full-feature static seed dataset (CHORE-003 / PLAN-041, supersedes the
+  PRNG seed from CHORE-001 / PLAN-020): `bun run seed` resets the database and
+  imports a curated static dataset from `apps/api/scripts/seed/data/*.json`
+  through the real service-layer creators, with demo files committed under
+  `apps/api/scripts/seed/assets/` so covers and attachments are stable and work
+  offline. Coverage spans every module: 15 accounts + 3 groups, 11 contacts,
+  22 real-world yachts (5–50 m) with equipment and global/ship maintenance
+  templates, 8 standalone projects (members, categories, tags, covers, ship
+  binding) plus ship base projects, ~64 work-order issues across all five
+  statuses with tags, comments (some internal) and attachments, ~300
+  procurements (10 per project) with suppliers/categories/attachments,
+  documents (tree, tags, pins, attachments, public links + collaborator
+  grants), drive (personal + team directories with members, folders, uploaded
+  and text files, an extra version, and direct/public_link shares), audit
+  events, cron jobs with run logs, and settings. Cross-record links use stable
+  keys resolved by the importer; adding a schema field later means editing the
+  JSON object only.
 - Drive file manager completion pass (FEAT-010 / PLAN-014): recursive folder
   upload from the browser, direct drag-and-drop moves, explicit current-folder
   versus drive-wide search, image thumbnails in grid view, and a version
