@@ -5,6 +5,14 @@ import { renderWithProviders } from "@/test/utils";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
 import { computeCapabilities } from "./-use-project-role";
 
+// The General section (mounted by default) navigates away on project delete;
+// stub useNavigate so the dialog can render without a live router.
+const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }));
+vi.mock("@tanstack/react-router", async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useNavigate: () => navigateMock,
+}));
+
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     ...init,
@@ -93,13 +101,15 @@ describe("projectSettingsDialog", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("pins a copyable project code to the sidebar", () => {
+  it("pins a labeled, copyable project id to the sidebar", () => {
     const caps = computeCapabilities(undefined, true);
     renderWithProviders(
       <ProjectSettingsDialog open onOpenChange={vi.fn()} project={{ ...project, code: "BRG" }} members={[]} userNames={new Map()} caps={caps} />,
     );
     const copy = screen.getByRole("button", { name: "Copy project ID" });
     expect(copy).toBeInTheDocument();
+    // The lowercase id is prefixed by the localized "Project ID:" label.
+    expect(copy).toHaveTextContent("Project ID:");
     expect(copy).toHaveTextContent("brg");
   });
 
