@@ -33,10 +33,10 @@ describe("sniffKind", () => {
     expect(sniffKind(new Uint8Array(0))).toBe("text");
   });
 
-  test("returns null for unknown binary blobs (e.g. SVG/XML)", () => {
-    // SVG: starts with `<svg` ASCII, currently classified as text — that is
-    // intentional: we accept text/svg+xml only via the higher-level mimetype
-    // check, never inline-render. The signature itself is text-y.
+  test("returns null for unknown non-text binary blobs", () => {
+    // SVG is XML text and sniffs as "text" (accepted as image/svg+xml by
+    // mimeMatchesContent, never inline-rendered). A binary blob with no
+    // known signature still sniffs as null.
     expect(sniffKind(bytes(0x00, 0x01, 0x02, 0x03, 0x04))).toBeNull();
   });
 });
@@ -63,8 +63,15 @@ describe("mimeMatchesContent", () => {
     expect(mimeMatchesContent("text/csv", new TextEncoder().encode("a,b,c\n1,2,3"))).toBe(true);
   });
 
-  test("text claimed as image/svg+xml is rejected (must use text/*)", () => {
-    expect(mimeMatchesContent("image/svg+xml", new TextEncoder().encode("<svg/>"))).toBe(false);
+  test("svg xml content claimed as image/svg+xml passes (sniffs as text)", () => {
+    const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1 1\"><rect width=\"1\" height=\"1\"/></svg>";
+    expect(mimeMatchesContent("image/svg+xml", new TextEncoder().encode(svg))).toBe(true);
+    expect(mimeMatchesContent("image/svg+xml", new TextEncoder().encode("<svg/>"))).toBe(true);
+  });
+
+  test("text content claimed as a non-svg image type is still rejected", () => {
+    // The text arm only matches text/* and the svg exception — never image/png.
+    expect(mimeMatchesContent("image/png", new TextEncoder().encode("not a png"))).toBe(false);
   });
 });
 
