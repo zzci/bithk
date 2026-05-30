@@ -277,6 +277,6 @@ describe("projectProcurementPanel", () => {
     // Comments section renders from ResourceFooterSections; the attachment
     // upload affordance is present for managers.
     expect(await screen.findByText("Comments")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /upload/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /upload/i }).length).toBeGreaterThan(0);
   });
 });
