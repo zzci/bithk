@@ -10,6 +10,7 @@ import type { UpdateProjectIssueInput } from "./-project-issue-hooks";
 import type { ProjectIssueRow, ProjectMemberView } from "@/shared/lib/api/projects";
 import {
   ArrowLeft,
+  ChevronDown,
   Maximize2,
   Paperclip,
   Pencil,
@@ -436,13 +437,13 @@ export function ProjectIssuePanel({
                       type="button"
                       className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary"
                       onClick={() => dueDateInputRef.current?.showPicker()}
+                      aria-label={t("field.dueDate")}
+                      title={t("field.dueDate")}
                     >
-                      {issue.dueDate ?? (
-                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                          {t("notSet")}
-                          <Pencil className="size-2.5" />
-                        </span>
-                      )}
+                      {issue.dueDate
+                        ? <span>{issue.dueDate}</span>
+                        : <span className="text-muted-foreground">{t("notSet")}</span>}
+                      <ChevronDown className="size-3" />
                     </button>
                     <input
                       ref={dueDateInputRef}
