@@ -46,8 +46,13 @@ Frontend (`apps/web/src/app/routes/_app/projects/`):
   debounced search, row → detail drawer, hover pin toggle, `CreateIssueDialog`.
 - **-project-issue-panel.tsx** (581 lines): inline-editable title / status /
   priority / assignee / **due-date (button + hidden native picker, ChevronDown
-  glyph)** / tags; markdown description editor; `ResourceFooterSections` with
+  glyph)**; markdown description editor; `ResourceFooterSections` with
   `commentsEnableAttachments` **on**; delete affordance.
+  - **In-flight (concurrent campaign L2-E `m2c3lt5j`)**: this panel is gaining
+    (a) a **description region background** (rounded `bg-muted/40`, matching the
+    comments surface) and (b) a **panel-level tag view/add/remove UI** (the
+    panel previously had no tag editing). These land on the issue panel before
+    procurement mirrors it — **procurement's target surface includes both.**
 - **-project-issue-hooks.ts** + `shared/lib/api/projects.ts`: query/mutation
   hooks (`useProjectIssues`, `useProjectIssue`, create/update/delete,
   `useIssueTags`).
@@ -96,7 +101,9 @@ machinery. **Prefer reuse; the only net-new backend table is the tag join.**
 | Tag vocabulary + assignment (`tag.service.ts`, `ResourceTagBinding`, `syncResourceTagsTx`, `listResourceIdsByAnyTag`) | **Already fully generic** | Add `procurementTagBinding`; mirror `issueTagBinding` exactly. Zero changes to `tag.service.ts`. |
 | Comments + item/comment attachments (`mountItemCommentRoutes`, `ResourceFooterSections`, `comment-section.tsx`) | **Already shared** | Flip `commentsEnableAttachments` on; add the comment-attachment delete gate. |
 | Markdown editor, Select/Badge/Button/Dialog, `buildMemberLabelMap`, pins API, `useResourceAttachmentUpload` | **Already shared** | No change. |
-| `ProjectTagFilter` (multi-select) | Shared, issue-only consumer | Reuse verbatim for procurement (type-param already supported). |
+| `ProjectTagFilter` (multi-select, list) | Shared, issue-only consumer | Reuse verbatim for procurement (type-param already supported). |
+| **Panel-level tag view/add/remove UI** | Landing on issue panel via L2-E `m2c3lt5j` | Mirror the **final** issue-panel tag-editing component for procurement (same control, `type='procurement'`). Coordinate so F2 copies the merged pattern, not a pre-edit snapshot. |
+| **Description region background** (rounded `bg-muted/40`) | Landing on issue panel via L2-E `m2c3lt5j` | Mirror the same description surface treatment on the procurement panel. |
 | Status colour tokens (`status-colors.ts`) | Issue-only (`ISSUE_STATUS_BADGE`) | **Extract** a `PROCUREMENT_STATUS_BADGE` map alongside it (parallel to decision 005 token policy). |
 | Status-grouped collapsible list UI | Issue-only (tab) | **Generalise** the grouping shell or copy-and-type for the 6 procurement statuses. (See open question Q1.) |
 | Pin toggle, priority-variant map | Duplicated per module | Optional small abstraction; low priority, defer unless cheap. |
@@ -157,7 +164,7 @@ All L3 run in **isolated worktrees** (L1 rule). Quality gate `bun run check`.
 | --- | --- | --- | --- | --- |
 | **B1** | Procurement tags + list filters (backend) | worktree | `modules/procurement/{schema,procurement.service,procurement.routes}.ts`, `modules/tag/schema.ts` (add `procurement` source type), `routes/protected.ts` (register `GET /tags?type=procurement`), new migration `0005_*` + `meta/_journal.json`, procurement tests | — |
 | **F1** | Procurement tab: status grouping + tag filter + search | worktree | `-project-procurement-tab.tsx`, `shared/lib/api/procurement.ts` (add tag hook, `q`/`tagIds` params) | B1 |
-| **F2** | Procurement panel: tags, per-comment attachments, status tokens, due-date glyph | worktree | `-project-procurement-panel.tsx`, `shared/lib/status-colors.ts` (add `PROCUREMENT_STATUS_BADGE`) | B1 |
+| **F2** | Procurement panel: panel-level tag view/add/remove, per-comment attachments, status tokens, due-date glyph, description-region background | worktree | `-project-procurement-panel.tsx`, `shared/lib/status-colors.ts` (add `PROCUREMENT_STATUS_BADGE`) | B1, **L2-E `m2c3lt5j` merged** |
 
 - **Edge B1 → {F1, F2}**: the frontend needs the tag vocabulary/filter API and
   the `tags` create/update contract before wiring UI.
@@ -177,6 +184,11 @@ All L3 run in **isolated worktrees** (L1 rule). Quality gate `bun run check`.
   uncommitted edit to `apps/api/scripts/seed.ts` on the main tree. No campaign
   L3 should touch `seed.ts`; if procurement-tag seed data is wanted, defer and
   coordinate with that campaign.
+- **Concurrent issue-panel campaign (L2-E `m2c3lt5j`)**: it is adding
+  panel-level tag editing + a description-region background to the issue panel
+  that procurement must mirror. F2 should **gate on that work merging first** so
+  it copies the final pattern, not a stale snapshot, avoiding a second-pass
+  rework. No file conflict (different panel files), pure ordering dependency.
 - **PLAN-035 / zrk82evn regression**: description/priority/dueDate/cancelled,
   clickable rows and the category filter are already shipped. The tab refactor
   (table → grouped) must preserve the category filter and all PLAN-035 fields.
