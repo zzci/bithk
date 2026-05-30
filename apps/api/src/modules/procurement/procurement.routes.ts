@@ -253,11 +253,13 @@ export function procurementRoutes() {
           canDelete: authorId => isAdmin || authorId === user.id,
         };
       }
-      const canView = isAdmin || (await isProjectMember(db, projectId, user.id) && await hasCapability(db, projectId, user.id, "procurement.view"));
+      const isMember = await isProjectMember(db, projectId, user.id);
+      const canRead = isAdmin || (isMember && await hasCapability(db, projectId, user.id, "procurement.view"));
+      const canPost = isAdmin || (isMember && await hasCapability(db, projectId, user.id, "procurement.comment"));
       return {
-        canRead: canView,
-        canPost: canView,
-        includeInternal: canView,
+        canRead,
+        canPost,
+        includeInternal: canRead,
         canDelete: authorId => isAdmin || authorId === user.id,
       };
     },
