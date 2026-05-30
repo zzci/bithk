@@ -1,9 +1,10 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { contacts } from "@/modules/contact/schema";
 import { items } from "@/modules/item/schema";
 import { procurementCategories, projectMembers, projects } from "@/modules/project/schema";
+import { tags } from "@/modules/tag/schema";
 
-export const PROCUREMENT_STATUSES = ["draft", "requested", "ordered", "received", "closed", "cancelled"] as const;
+export const PROCUREMENT_STATUSES = ["requested", "ordered", "confirmed", "in_transit", "received", "accepted", "cancelled"] as const;
 export type ProcurementStatus = typeof PROCUREMENT_STATUSES[number];
 
 // Issue-parity priority levels, mirroring `issue_details.priority` exactly.
@@ -41,3 +42,12 @@ export const procurementDetails = sqliteTable("procurement_details", {
   priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("medium"),
   dueDate: text("due_date"),
 }, t => [index("procurement_project_idx").on(t.projectId)]);
+
+// Procurement ⇄ global tag assignment (source_type='procurement'). Mirrors
+// `issue_tags`: a composite-PK join from a procurement's `items.id` to the
+// shared, type-scoped tag vocabulary. Both sides cascade so deleting a
+// procurement or a tag unlinks the assignment automatically.
+export const procurementTags = sqliteTable("procurement_tags", {
+  itemId: text("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
+}, t => [primaryKey({ columns: [t.itemId, t.tagId] })]);

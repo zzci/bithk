@@ -1,7 +1,8 @@
 import type { ProcurementPriority, ProcurementStatus } from "./schema";
 import type { AppDatabase } from "@/db";
+import type { ResourceTagBinding } from "@/modules/tag/tag.service";
 import type { Logger } from "@/shared/lib/logger";
-import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { audit } from "@/modules/audit/audit.service";
 import { resolve as resolveGlobalContact } from "@/modules/contact/contact.service";
 import { items } from "@/modules/item/schema";
@@ -9,9 +10,29 @@ import { relationTuples } from "@/modules/policy/schema";
 import { resolveCategory } from "@/modules/project/project.categories";
 import { resolveAssignableMember } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
+import { listResourceIdsByAnyTag, listResourceTagViews, loadResourceTagsByResource, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
-import { PROCUREMENT_STATUSES, procurementDetails } from "./schema";
+import { PROCUREMENT_STATUSES, procurementDetails, procurementTags } from "./schema";
+
+// The procurement domain's tag assignment binding (source_type='procurement').
+// Built here from the local join table so the procurement service can sync/read
+// tags directly, and exported so `routes/protected.ts` registers the same
+// binding for the shared `GET /tags?type=procurement` vocabulary route.
+export const procurementTagBinding: ResourceTagBinding = {
+  sourceType: "procurement",
+  table: procurementTags,
+  resourceColumn: procurementTags.itemId,
+  tagColumn: procurementTags.tagId,
+};
+
+// Backslash is the ESCAPE char, so it must be escaped first; every LIKE built
+// from this MUST carry `ESCAPE '\'` or the backslashes match literally.
+const LIKE_SPECIAL_RE = /[\\%_]/g;
+
+function escapeLike(v: string): string {
+  return v.replace(LIKE_SPECIAL_RE, "\\$&");
+}
 
 // Crockford base32 → ms decode for the ULID timestamp prefix that lives on
 // `items.id`. The first 10 chars carry the creation millisecond.
@@ -66,12 +87,15 @@ export interface ProcurementRow {
   // the project overview Pin area; `pinnedAt` is set when pinned, NULL otherwise.
   readonly pinned: boolean;
   readonly pinnedAt: string | null;
+  // Tags assigned to this procurement (source_type='procurement'), ordered by name.
+  readonly tags: { readonly id: string; readonly name: string }[];
 }
 
 function composeProcurement(
   item: typeof items.$inferSelect,
   details: typeof procurementDetails.$inferSelect,
   projectShortId: string,
+  tags: readonly { id: string; name: string }[],
 ): ProcurementRow {
   return {
     id: item.shortId,
@@ -94,13 +118,14 @@ function composeProcurement(
     version: item.version,
     pinned: item.pinned,
     pinnedAt: item.pinnedAt,
+    tags: tags.map(t => ({ id: t.id, name: t.name })),
   };
 }
 
 async function loadByShortId(
   db: AppDatabase,
   shortId: string,
-): Promise<{ item: typeof items.$inferSelect; details: typeof procurementDetails.$inferSelect; projectShortId: string } | undefined> {
+): Promise<{ item: typeof items.$inferSelect; details: typeof procurementDetails.$inferSelect; projectShortId: string; tags: readonly { id: string; name: string }[] } | undefined> {
   const item = await db.select().from(items).where(
     and(eq(items.shortId, shortId), eq(items.type, "procurement"), isNull(items.deletedAt)),
   ).get();
@@ -114,7 +139,8 @@ async function loadByShortId(
   const project = await db.select({ shortId: projects.shortId }).from(projects).where(eq(projects.id, details.projectId)).get();
   if (!project)
     return undefined;
-  return { item, details, projectShortId: project.shortId };
+  const tags = await listResourceTagViews(db, procurementTagBinding, item.id);
+  return { item, details, projectShortId: project.shortId, tags };
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────
@@ -135,6 +161,8 @@ export interface CreateProcurementInput {
   readonly priority?: ProcurementPriority | undefined;
   readonly dueDate?: string | null | undefined;
   readonly creatorId: string;
+  // Optional tag names (source_type='procurement') synced with the procurement.
+  readonly tags?: readonly string[] | undefined;
 }
 
 /**
@@ -168,7 +196,7 @@ export async function createProcurement(db: AppDatabase, input: CreateProcuremen
       shortId,
       type: "procurement",
       title: input.title ?? input.itemName,
-      status: input.status ?? "draft",
+      status: input.status ?? "requested",
       creatorId: input.creatorId,
       version: 1,
       deletedAt: null,
@@ -201,6 +229,10 @@ export async function createProcurement(db: AppDatabase, input: CreateProcuremen
       createdBy: input.creatorId,
       createdAt: now,
     }).run();
+
+    // Optional tag assignment (source_type='procurement'), synced inside the same tx.
+    if (input.tags)
+      syncResourceTagsTx(tx, procurementTagBinding, id, input.tags, now);
   });
 
   return (await getProcurementByShortId(db, shortId))!;
@@ -208,7 +240,7 @@ export async function createProcurement(db: AppDatabase, input: CreateProcuremen
 
 export async function getProcurementByShortId(db: AppDatabase, shortId: string): Promise<ProcurementRow | undefined> {
   const loaded = await loadByShortId(db, shortId);
-  return loaded ? composeProcurement(loaded.item, loaded.details, loaded.projectShortId) : undefined;
+  return loaded ? composeProcurement(loaded.item, loaded.details, loaded.projectShortId, loaded.tags) : undefined;
 }
 
 /**
@@ -233,6 +265,8 @@ export interface UpdateProcurementInput {
   readonly description?: string | null | undefined;
   readonly priority?: ProcurementPriority | undefined;
   readonly dueDate?: string | null | undefined;
+  // Replacement tag set (source_type='procurement'); omit to leave tags unchanged.
+  readonly tags?: readonly string[] | undefined;
 }
 
 export async function updateProcurement(
@@ -289,6 +323,10 @@ export async function updateProcurement(
       detailsPatch.dueDate = input.dueDate;
     if (Object.keys(detailsPatch).length > 0)
       tx.update(procurementDetails).set(detailsPatch).where(eq(procurementDetails.itemId, item.id)).run();
+
+    // Replace the procurement's tag set when `tags` is provided (omit = unchanged).
+    if (input.tags !== undefined)
+      syncResourceTagsTx(tx, procurementTagBinding, item.id, input.tags, now);
   });
 
   return await getProcurementByShortId(db, shortId);
@@ -355,8 +393,14 @@ export async function changeStatus(
 // ─── List ─────────────────────────────────────────────────────────────
 
 export interface ListProcurementParams {
+  // Title / item-name search (LIKE on items.title OR procurement_details.item_name).
+  readonly q?: string | undefined;
   readonly status?: string | undefined;
+  readonly priority?: string | undefined;
   readonly categoryId?: string | undefined;
+  // Multi-tag filter (source_type='procurement'). OR / union semantics: a
+  // procurement matches if it carries ANY of these tags. Empty/omitted = no filter.
+  readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -382,8 +426,23 @@ export async function listByProject(
   ];
   if (params.status && isProcurementStatus(params.status))
     conditions.push(eq(items.status, params.status));
+  if (params.priority && params.priority !== "__all__")
+    conditions.push(eq(procurementDetails.priority, params.priority as ProcurementPriority));
   if (params.categoryId)
     conditions.push(eq(procurementDetails.categoryId, params.categoryId));
+  if (params.q) {
+    const like = `%${escapeLike(params.q)}%`;
+    conditions.push(sql`(${items.title} LIKE ${like} ESCAPE '\\' OR ${procurementDetails.itemName} LIKE ${like} ESCAPE '\\')`);
+  }
+
+  // Multi-tag filter: union of the item ids carrying any of the selected tags.
+  if (params.tagIds && params.tagIds.length > 0) {
+    const tagItemIds = await listResourceIdsByAnyTag(db, procurementTagBinding, params.tagIds);
+    if (tagItemIds.length === 0)
+      return { data: [], total: 0 };
+    conditions.push(inArray(items.id, tagItemIds));
+  }
+
   const where = and(...conditions);
 
   const totalRow = await db.select({ value: count() })
@@ -407,6 +466,7 @@ export async function listByProject(
     .offset((page - 1) * limit)
     .all();
 
-  const data = rows.map(r => composeProcurement(r.item, r.details, project.shortId));
+  const tagMap = await loadResourceTagsByResource(db, procurementTagBinding, rows.map(r => r.item.id));
+  const data = rows.map(r => composeProcurement(r.item, r.details, project.shortId, tagMap.get(r.item.id) ?? []));
   return { data, total };
 }

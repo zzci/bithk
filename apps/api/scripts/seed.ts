@@ -244,7 +244,7 @@ const ISSUE_PROFILES: readonly IssueStatusProfile[] = [
   },
 ];
 const PROCUREMENT_ITEMS = ["Anti-fouling paint (200 L)", "Navigation radar unit", "Marine diesel fuel", "Safety harness set", "Engine spare parts kit", "LED deck lighting", "Liferaft (25-person)", "Hydraulic oil (drums)", "Bridge console module", "Provisioning supplies", "Mooring lines", "Bilge pump assembly"] as const;
-const PROCUREMENT_STATUSES = ["draft", "requested", "ordered", "received", "closed"] as const;
+const PROCUREMENT_STATUSES = ["requested", "ordered", "confirmed", "in_transit", "received", "accepted", "cancelled"] as const;
 const CURRENCIES = ["USD", "EUR", "SGD", "GBP"] as const;
 const DOC_TITLES = ["Fleet Operations Handbook", "Dry-Dock Refit Procedure", "Safety Management Manual", "Emergency Response Plan", "Maintenance Schedule", "Crew Onboarding Guide", "Bunkering Checklist", "Class Survey Notes", "Equipment Inventory", "Voyage Planning SOP", "Bridge Resource Management", "Waste Management Plan"] as const;
 

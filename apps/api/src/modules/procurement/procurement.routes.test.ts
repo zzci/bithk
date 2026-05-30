@@ -214,7 +214,7 @@ describe("POST procurement (procurement.manage)", () => {
     expect(ok.status).toBe(201);
     const body = await res2json(ok);
     expect(body.data.itemName).toBe("Steel");
-    expect(body.data.status).toBe("draft");
+    expect(body.data.status).toBe("requested");
   });
 
   test("create accepts description/priority/dueDate and defaults priority to medium", async () => {
@@ -370,7 +370,7 @@ describe("status change", () => {
     expect(events[0]!.resourceId).toBe(proc.id);
   });
 
-  test("free transitions: the pm moves backward and out of 'closed', version bumping each time", async () => {
+  test("free transitions: the pm moves backward and out of 'accepted', version bumping each time", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
@@ -378,7 +378,7 @@ describe("status change", () => {
     const cookie = await cookieForUser(owner);
 
     let lastVersion = proc.version;
-    for (const next of ["closed", "cancelled", "draft", "received"]) {
+    for (const next of ["accepted", "cancelled", "requested", "received"]) {
       const res = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: next }));
       expect(res.status).toBe(200);
       const body = await res.json() as { data: { status: string; version: number } };
@@ -409,6 +409,48 @@ describe("status change", () => {
   });
 });
 
+describe("tags + list filters", () => {
+  test("create accepts tags, embeds them, and the list filters by tagIds (OR) + q", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    const created = await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", cookie, { itemName: "Steel beams", tags: ["alpha", "beta"] }));
+    expect(created.status).toBe(201);
+    expect((await res2json(created)).data.tags!.map(t => t.name).sort()).toEqual(["alpha", "beta"]);
+
+    await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", cookie, { itemName: "Copper wire", tags: ["gamma"] }));
+
+    // tagIds filter (repeated + comma forms both supported), OR / union semantics
+    const byTag = await app.request(`/projects/${project.shortId}/procurements?tagIds=alpha,gamma`, { headers: { Cookie: cookie } });
+    expect(byTag.status).toBe(200);
+    const tagBody = await byTag.json() as { data: { itemName: string }[]; meta: { total: number } };
+    expect(tagBody.meta.total).toBe(2);
+
+    const single = await app.request(`/projects/${project.shortId}/procurements?tagIds=gamma`, { headers: { Cookie: cookie } });
+    const singleBody = await single.json() as { data: { itemName: string }[] };
+    expect(singleBody.data.map(r => r.itemName)).toEqual(["Copper wire"]);
+
+    // q filter on item name
+    const byQ = await app.request(`/projects/${project.shortId}/procurements?q=steel`, { headers: { Cookie: cookie } });
+    const qBody = await byQ.json() as { data: { itemName: string }[] };
+    expect(qBody.data.map(r => r.itemName)).toEqual(["Steel beams"]);
+  });
+
+  test("update replaces the tag set", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner, tags: ["alpha"] });
+
+    const patched = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { tags: ["beta", "gamma"] }));
+    expect(patched.status).toBe(200);
+    expect((await res2json(patched)).data.tags!.map(t => t.name).sort()).toEqual(["beta", "gamma"]);
+  });
+});
+
 interface ProcurementResponse {
   data: {
     itemName: string;
@@ -417,6 +459,7 @@ interface ProcurementResponse {
     description?: string | null;
     priority?: string;
     dueDate?: string | null;
+    tags?: { id: string; name: string }[];
   };
 }
 

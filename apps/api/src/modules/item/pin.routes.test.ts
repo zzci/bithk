@@ -224,7 +224,7 @@ describe("pinned-list (GET /projects/:projectId/pinned-items)", () => {
     expect(body.data[1].type).toBe("issue");
     expect(body.data[1].shortId).toBe(issue.id);
     // Entry shape carries enough to render the Pin area.
-    expect(body.data[0]).toMatchObject({ title: "Steel", status: "draft" });
+    expect(body.data[0]).toMatchObject({ title: "Steel", status: "requested" });
     expect(typeof body.data[0].id).toBe("string");
     expect(typeof body.data[0].pinnedAt).toBe("string");
   });
