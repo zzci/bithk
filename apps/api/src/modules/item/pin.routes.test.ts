@@ -157,7 +157,7 @@ describe("issue pin / unpin", () => {
     const owner = await seedUser("user");
     const manager = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMemberWithCaps(project.id, manager, ["issue.manage"]);
+    await addMemberWithCaps(project.id, manager, ["issue.view", "issue.manage"]);
     const issue = await createIssue(db, { title: "Fix pump", projectId: project.id, creatorId: owner });
 
     const res = await app.request(`/projects/${project.shortId}/issues/${issue.id}/pin`, jsonReq("POST", await cookieForUser(manager)));

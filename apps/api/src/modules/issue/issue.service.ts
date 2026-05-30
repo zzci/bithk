@@ -473,6 +473,7 @@ export interface IssueAccess {
   readonly isAssignee: boolean;
   readonly canRead: boolean;
   readonly canEdit: boolean;
+  readonly canComment: boolean;
 }
 
 /**
@@ -505,8 +506,10 @@ export async function resolveProjectIssueAccess(
     ))
     .get();
   const isAssignee = !!assignedTuple;
-  const canEdit = isMember && (isCreator || caps.has("issue.manage"));
-  return { isCreator, isAssignee, canRead: isMember, canEdit };
+  const canRead = isMember && (caps?.has("issue.view") ?? false);
+  const canEdit = isMember && (isCreator || (caps?.has("issue.manage") ?? false));
+  const canComment = isMember && (caps?.has("issue.comment") ?? false);
+  return { isCreator, isAssignee, canRead, canEdit, canComment };
 }
 
 /**
