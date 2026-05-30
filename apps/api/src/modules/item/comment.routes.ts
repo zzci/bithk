@@ -15,13 +15,14 @@ import {
 } from "@/modules/file";
 import { createComment, deleteComment, getCommentById, listComments } from "@/modules/item/comment.service";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 
 const DEFAULT_COMMENT_MAX_LENGTH = 2000;
 
 function buildCommentSchema(maxLength: number) {
   return z.object({
-    content: z.string().min(1).max(maxLength),
+    content: z.string().max(maxLength).default(""),
+    hasAttachments: z.boolean().optional().default(false),
     replyToId: z.string().nullish(),
   });
 }
@@ -124,6 +125,8 @@ export function mountItemCommentRoutes<TResource>(
     if (!perms.canPost)
       throw new ForbiddenError();
     const body = commentSchema.parse(await c.req.json());
+    if (body.content.trim().length === 0 && !body.hasAttachments)
+      throw new ValidationError("Comment requires content or an attachment", { content: "Comment cannot be empty" });
     const comment = await createComment(db, {
       itemId: subject.item.id,
       authorId: user.id,
