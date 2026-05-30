@@ -117,12 +117,15 @@ export function ProjectSettingsDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="mt-auto h-7 justify-start gap-1.5 px-2 font-mono text-xs text-muted-foreground"
+                className="mt-auto h-7 justify-start gap-1.5 px-2 text-xs text-muted-foreground"
                 aria-label={t("detail.copyCode")}
                 onClick={() => void handleCopyCode()}
               >
-                {code}
-                <Copy aria-hidden="true" className="size-3" />
+                <span className="truncate">
+                  {t("settings.projectId")}
+                  <span className="font-mono">{code}</span>
+                </span>
+                <Copy aria-hidden="true" className="size-3 shrink-0" />
               </Button>
             )}
           </aside>

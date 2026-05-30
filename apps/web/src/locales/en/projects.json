@@ -118,7 +118,8 @@
       "members": "Members",
       "roles": "Roles",
       "categories": "Categories"
-    }
+    },
+    "projectId": "Project ID: "
   },
   "tabs": {
     "overview": "Overview",
@@ -372,5 +373,17 @@
       "title": "Delete category",
       "confirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
     }
+  },
+  "dangerZone": {
+    "title": "Danger zone",
+    "archive": "Archive",
+    "restore": "Restore",
+    "delete": "Delete project",
+    "archiveConfirmTitle": "Archive project?",
+    "archiveConfirmDescription": "Archived projects are hidden from the active list. You can restore it later.",
+    "restoreConfirmTitle": "Restore project?",
+    "restoreConfirmDescription": "This project will return to the active list.",
+    "deleteConfirmTitle": "Delete project?",
+    "deleteConfirmDescription": "This permanently removes the project and its data. This action cannot be undone."
   }
 }

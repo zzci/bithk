@@ -118,7 +118,8 @@
       "members": "成员",
       "roles": "角色",
       "categories": "分类"
-    }
+    },
+    "projectId": "项目ID："
   },
   "tabs": {
     "overview": "概览",
@@ -372,5 +373,17 @@
       "title": "删除分类",
       "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"
     }
+  },
+  "dangerZone": {
+    "title": "危险操作",
+    "archive": "归档",
+    "restore": "恢复",
+    "delete": "删除项目",
+    "archiveConfirmTitle": "归档该项目？",
+    "archiveConfirmDescription": "归档后项目将从活动列表中隐藏，之后可随时恢复。",
+    "restoreConfirmTitle": "恢复该项目？",
+    "restoreConfirmDescription": "该项目将重新回到活动列表。",
+    "deleteConfirmTitle": "删除该项目？",
+    "deleteConfirmDescription": "此操作将永久删除该项目及其数据，且无法撤销。"
   }
 }
