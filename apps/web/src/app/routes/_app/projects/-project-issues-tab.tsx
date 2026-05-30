@@ -315,37 +315,42 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
 
   return (
     <div className="space-y-5">
-      {/* Top toolbar — search and create are the primary actions. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative max-w-xs flex-1">
-          <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={t("issues.searchPlaceholder")}
-            aria-label={t("issues.searchPlaceholder")}
-            className="pl-8"
-          />
+      {/* Top toolbar — tag filter on the left, search + create grouped on the
+          right, on a single row that wraps gracefully on narrow widths. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Tag filter bar — responsive multi-select chips with a searchable
+            "More" combobox. Union semantics: selecting tags narrows the list to
+            issues carrying any selected tag. Empty when the project has no tags,
+            keeping search + create right-aligned. */}
+        {issueTags.length > 0
+          ? (
+              <div role="group" aria-label={t("issues.tagFilter")}>
+                <ProjectTagFilter
+                  multiple
+                  tags={issueTags}
+                  selectedTagIds={selectedTagIds}
+                  onToggle={toggleTag}
+                />
+              </div>
+            )
+          : <div />}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="relative max-w-xs flex-1">
+            <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t("issues.searchPlaceholder")}
+              aria-label={t("issues.searchPlaceholder")}
+              className="pl-8"
+            />
+          </div>
+          <Button onClick={() => openCreate("todo")}>
+            <Plus aria-hidden="true" />
+            {t("issues.create")}
+          </Button>
         </div>
-        <Button onClick={() => openCreate("todo")}>
-          <Plus aria-hidden="true" />
-          {t("issues.create")}
-        </Button>
       </div>
-
-      {/* Tag filter bar — responsive multi-select chips with a searchable
-          "More" combobox. Union semantics: selecting tags narrows the list to
-          issues carrying any selected tag. */}
-      {issueTags.length > 0 && (
-        <div role="group" aria-label={t("issues.tagFilter")}>
-          <ProjectTagFilter
-            multiple
-            tags={issueTags}
-            selectedTagIds={selectedTagIds}
-            onToggle={toggleTag}
-          />
-        </div>
-      )}
 
       {loadError && <ErrorBanner message={errorMessage(loadError, t("common:common.error.loadFailed"))} />}
 

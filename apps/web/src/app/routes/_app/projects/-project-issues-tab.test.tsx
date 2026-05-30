@@ -169,6 +169,26 @@ describe("projectIssuesTab", () => {
     expect(screen.queryByRole("button", { name: "All priorities" })).not.toBeInTheDocument();
   });
 
+  it("lays out the tag filter on the left and search + create grouped on the right of one toolbar row", async () => {
+    routeFetch([issue({ tags: [{ id: "t1", name: "electrical" }] })]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("Fix leak");
+
+    const tagFilter = screen.getByRole("group", { name: "Filter by tags" });
+    const search = screen.getByPlaceholderText("Search work orders...");
+    const create = screen.getByRole("button", { name: "Create work order" });
+
+    // Search + create share a right-side group that excludes the tag filter.
+    const rightGroup = create.parentElement!;
+    expect(rightGroup).toContainElement(search);
+    expect(rightGroup).not.toContainElement(tagFilter);
+
+    // The toolbar row holds the tag filter and the right group as adjacent siblings.
+    const toolbar = rightGroup.parentElement!;
+    expect(toolbar).toContainElement(tagFilter);
+    expect(tagFilter.nextElementSibling).toBe(rightGroup);
+  });
+
   it("no longer renders the status-filter chip row", async () => {
     routeFetch([issue({ status: "todo" })]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
