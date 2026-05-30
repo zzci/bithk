@@ -64,7 +64,7 @@ function TagChip({ tag, active, onActivate, tabIndex }: TagChipProps) {
     <Button
       size="sm"
       variant={active ? "default" : "outline"}
-      className="h-8 shrink-0 rounded-full"
+      className="h-7 shrink-0 rounded-md px-2.5 text-xs"
       aria-pressed={active}
       tabIndex={tabIndex}
       onClick={() => onActivate(tag.id)}
@@ -152,7 +152,7 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
                     <Button
                       size="sm"
                       variant={overflowActive ? "default" : "outline"}
-                      className="h-8 shrink-0 rounded-full"
+                      className="h-7 shrink-0 rounded-md px-2.5 text-xs"
                       aria-label={t("list.tagFilterMoreLabel")}
                     />
                   )}
@@ -188,7 +188,7 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
           </span>
         ))}
         <span data-measure-more className="inline-flex">
-          <Button size="sm" variant="outline" className="h-8 shrink-0 rounded-full" tabIndex={-1}>
+          <Button size="sm" variant="outline" className="h-7 shrink-0 rounded-md px-2.5 text-xs" tabIndex={-1}>
             {t("list.tagFilterMore")}
             <ChevronDown aria-hidden="true" />
           </Button>
@@ -240,7 +240,7 @@ function TagFilterMoreCombobox({ tags, overflow, selectedTagIds, onToggle, activ
       <ComboboxTrigger
         aria-label={t("list.tagFilterMoreLabel")}
         className={cn(
-          "inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-sm font-medium transition-colors",
+          "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors",
           active
             ? "border-transparent bg-primary text-primary-foreground hover:bg-primary/90"
             : "border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
