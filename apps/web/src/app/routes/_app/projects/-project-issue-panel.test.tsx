@@ -204,3 +204,22 @@ describe("projectIssuePanel tags", () => {
     expect(screen.queryByText("Tags")).not.toBeInTheDocument();
   });
 });
+
+describe("projectIssuePanel sticky composer", () => {
+  it("opts the comment composer into the bottom-pinned sticky layout", async () => {
+    routeFetch(issue());
+    renderWithProviders(
+      <ProjectIssuePanel
+        projectId="p1"
+        issueId="i1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("Inspect hull");
+    await waitFor(() => expect(document.querySelector(".sticky.bottom-0")).not.toBeNull());
+  });
+});

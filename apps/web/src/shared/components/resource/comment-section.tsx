@@ -86,6 +86,12 @@ export interface ResourceCommentSectionProps {
   readonly currentUserId?: string | undefined;
   /** Delete predicate for comment attachments (mirrors the backend rule). */
   readonly canDeleteAttachment?: ((att: ResourceAttachment) => boolean) | undefined;
+  /**
+   * Opt-in: pin the composer to the bottom of the scroll container (comment
+   * list scrolls above it). Off by default so shared consumers (procurement,
+   * documents) keep the composer-at-top layout unchanged.
+   */
+  readonly stickyComposer?: boolean;
 }
 
 export function ResourceCommentSection({
@@ -99,6 +105,7 @@ export function ResourceCommentSection({
   enableAttachments = false,
   currentUserId,
   canDeleteAttachment,
+  stickyComposer = false,
 }: ResourceCommentSectionProps) {
   const { t } = useTranslation(i18nNs);
   const qc = useQueryClient();
@@ -182,58 +189,66 @@ export function ResourceCommentSection({
 
   const canCompose = !locked;
 
+  // Shared composer body — rendered either at the top (default) or pinned to
+  // the bottom inside the sticky wrapper (opt-in), never both.
+  const composerInner = (
+    <>
+      {enableReply && replyTarget && (
+        <div className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <CornerUpLeft className="size-3 shrink-0" />
+            <span className="shrink-0">{t("comments.replyingTo")}</span>
+            <span className="truncate text-foreground/80">
+              {displayName(userMap, replyTarget.authorId)}
+            </span>
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="ml-2"
+            onClick={() => setReplyTarget(null)}
+            title={t("common.cancel")}
+          >
+            <X className="size-3" />
+          </Button>
+        </div>
+      )}
+      <MarkdownEditor
+        key={editorKey}
+        onChange={md => setNewComment(md)}
+        compact
+        placeholder={t("comments.placeholder")}
+        minHeight={60}
+      />
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          disabled={submit.isPending || !newComment.trim()}
+          onClick={() => submit.mutate({ content: newComment.trim(), replyToId: replyTarget?.id ?? null })}
+        >
+          <Send className="size-3.5 mr-1.5" />
+          {t("comments.send")}
+        </Button>
+      </div>
+    </>
+  );
+
   return (
     <div>
       <ErrorBanner message={error} className="mb-3" />
 
-      {canCompose
-        ? (
-            <div ref={composerRef} className="mb-4 space-y-2 rounded-md bg-muted/40 p-3">
-              {enableReply && replyTarget && (
-                <div className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
-                  <span className="inline-flex min-w-0 items-center gap-1">
-                    <CornerUpLeft className="size-3 shrink-0" />
-                    <span className="shrink-0">{t("comments.replyingTo")}</span>
-                    <span className="truncate text-foreground/80">
-                      {displayName(userMap, replyTarget.authorId)}
-                    </span>
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    className="ml-2"
-                    onClick={() => setReplyTarget(null)}
-                    title={t("common.cancel")}
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </div>
-              )}
-              <MarkdownEditor
-                key={editorKey}
-                onChange={md => setNewComment(md)}
-                compact
-                placeholder={t("comments.placeholder")}
-                minHeight={60}
-              />
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  disabled={submit.isPending || !newComment.trim()}
-                  onClick={() => submit.mutate({ content: newComment.trim(), replyToId: replyTarget?.id ?? null })}
-                >
-                  <Send className="size-3.5 mr-1.5" />
-                  {t("comments.send")}
-                </Button>
-              </div>
-            </div>
-          )
-        : (
-            <div className="mb-4 flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
-              <Lock className="size-3.5 shrink-0" />
-              <span>{t("comments.lockedNotice")}</span>
-            </div>
-          )}
+      {!canCompose && (
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+          <Lock className="size-3.5 shrink-0" />
+          <span>{t("comments.lockedNotice")}</span>
+        </div>
+      )}
+
+      {canCompose && !stickyComposer && (
+        <div ref={composerRef} className="mb-4 space-y-2">
+          {composerInner}
+        </div>
+      )}
 
       <div className="space-y-3">
         {commentsQuery.isLoading
@@ -348,6 +363,14 @@ export function ResourceCommentSection({
                 </>
               )}
       </div>
+
+      {canCompose && stickyComposer && (
+        <div className="sticky bottom-0 z-10 -mx-4 border-t border-border/60 bg-background px-4 py-2">
+          <div ref={composerRef} className="space-y-2">
+            {composerInner}
+          </div>
+        </div>
+      )}
 
       <ConfirmDeleteDialog
         open={deleteTarget !== null}

@@ -585,6 +585,7 @@ export function ProjectIssuePanel({
           userMap={userMap}
           commentsEnableReply
           commentsEnableAttachments
+          commentsStickyComposer
           currentUserId={user?.id}
           sectionSpacingClassName="mt-4"
           canDeleteAttachment={att => !!isAdmin || issue.creatorId === user?.id || att.uploadedBy === user?.id}
