@@ -125,6 +125,8 @@ export function sniffKind(buf: Uint8Array): SniffedKind | null {
  *
  * For text, anything that looks like ASCII / UTF-8 may claim any
  * `text/*` subtype (we cannot meaningfully sub-classify csv vs plain).
+ * `image/svg+xml` is also accepted here because SVG is XML text; it is safe
+ * because SVG is never inline-rendered on download (forced to octet-stream).
  */
 export function mimeMatchesContent(claimed: string, buf: Uint8Array): boolean {
   const kind = sniffKind(buf);
@@ -151,6 +153,10 @@ export function mimeMatchesContent(claimed: string, buf: Uint8Array): boolean {
     case "7z":
       return lc === "application/x-7z-compressed";
     case "text":
-      return lc.startsWith("text/");
+      // SVG is XML text, so it sniffs as `text`. Accept the image/svg+xml
+      // claim (ALLOWED_MIMETYPES already permits image/*). SVG is never
+      // inline-rendered: buildDownloadResponse forces application/octet-stream
+      // + attachment for it, so allowing the upload cannot cause stored XSS.
+      return lc.startsWith("text/") || lc === "image/svg+xml";
   }
 }
