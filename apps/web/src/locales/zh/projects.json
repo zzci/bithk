@@ -210,8 +210,11 @@
     "create": "创建采购",
     "empty": "未找到采购记录。",
     "loading": "正在加载采购...",
+    "searchPlaceholder": "搜索采购...",
     "allStatuses": "全部状态",
+    "allPriorities": "全部优先级",
     "allCategories": "全部分类",
+    "tagFilter": "按标签筛选",
     "total": "{{count}} 条记录",
     "none": "无",
     "mixedCurrencies": "多币种",
@@ -234,8 +237,10 @@
       "amount": "金额",
       "currency": "货币",
       "description": "描述",
+      "status": "状态",
       "priority": "优先级",
-      "dueDate": "截止日期"
+      "dueDate": "截止日期",
+      "tags": "标签"
     },
     "createTitle": "创建采购",
     "createDescription": "为该项目添加一条新的采购记录。",
@@ -250,12 +255,13 @@
       "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"
     },
     "status": {
-      "draft": "草稿",
       "requested": "已申请",
       "ordered": "已下单",
+      "confirmed": "已确认",
+      "in_transit": "物流中",
       "received": "已收货",
-      "closed": "已关闭",
-      "cancelled": "已取消"
+      "accepted": "已验收",
+      "cancelled": "取消"
     },
     "priority": {
       "low": "低",
