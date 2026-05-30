@@ -7,7 +7,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileUp, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
@@ -23,6 +23,7 @@ import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDate } from "@/shared/lib/format";
 import { BASE_PATH, http } from "@/shared/lib/http";
+import { retypeBlobToMime } from "@/shared/lib/preview-blob";
 
 export interface ResourceAttachment {
   readonly id: string;
@@ -37,7 +38,10 @@ export function attachmentsQueryKey(resource: string, resourceId: string) {
   return [resource, resourceId, "attachments"] as const;
 }
 
-function isPreviewable(mimetype: string): boolean {
+// `image/svg+xml` is covered by the `image/` prefix; it previews safely
+// because the image branch renders through <img> over a re-typed blob (the
+// backend still serves SVG as octet-stream + attachment).
+export function isPreviewable(mimetype: string): boolean {
   return (
     mimetype.startsWith("image/")
     || mimetype === "application/pdf"
@@ -249,13 +253,7 @@ function ResourceAttachmentPreviewDialog({
         </DialogHeader>
         <div className="flex-1 overflow-hidden bg-muted/10">
           {isImage && (
-            <div className="flex h-full items-center justify-center p-4">
-              <img
-                src={url}
-                alt={attachment.filename}
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
+            <ImagePreview url={url} mime={attachment.mimetype} alt={attachment.filename} i18nNs={i18nNs} />
           )}
           {isPdf && (
             <iframe
@@ -268,6 +266,78 @@ function ResourceAttachmentPreviewDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Image preview: fetch the attachment bytes and render them via <img> over a
+// re-typed blob URL. The content endpoint serves script-bearing types (SVG)
+// as application/octet-stream, which `<img src=?inline>` would refuse to
+// render; re-typing the blob to the declared mimetype fixes rendering without
+// trusting the server Content-Type. Safety: SVG is shown ONLY through <img>
+// (never inline <svg>/<object>/<iframe>) and the backend never serves it
+// inline, so embedded scripts/handlers never execute. Blob URL is ephemeral
+// and revoked on cleanup.
+function ImagePreview({ url, mime, alt, i18nNs }: {
+  readonly url: string;
+  readonly mime: string;
+  readonly alt: string;
+  readonly i18nNs: string;
+}) {
+  const { t } = useTranslation(i18nNs);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let created: string | null = null;
+    const controller = new AbortController();
+    setObjectUrl(null);
+    setFailed(false);
+    // Direct fetch (not `httpRaw`) for the same reason as TextPreview: the
+    // endpoint may 302 to a cross-origin presigned URL, and this is a
+    // read-only GET with no CSRF surface.
+    fetch(url, { credentials: "include", signal: controller.signal })
+      .then((res) => {
+        if (!res.ok)
+          throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled)
+          return;
+        created = URL.createObjectURL(retypeBlobToMime(blob, mime));
+        setObjectUrl(created);
+      })
+      .catch(() => {
+        if (!cancelled)
+          setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (created)
+        URL.revokeObjectURL(created);
+    };
+  }, [url, mime]);
+
+  if (failed) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center text-sm text-destructive">
+        {t("common.error.loadFailed")}
+      </div>
+    );
+  }
+  if (!objectUrl) {
+    return <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">{t("common.loading")}</div>;
+  }
+  return (
+    <div className="flex h-full items-center justify-center p-4">
+      <img
+        src={objectUrl}
+        alt={alt}
+        className="max-h-full max-w-full object-contain"
+      />
+    </div>
   );
 }
 
