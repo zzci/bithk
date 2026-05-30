@@ -170,7 +170,7 @@ describe("projectIssuesTab", () => {
   });
 
   it("lays out the tag filter on the left and search + create grouped on the right of one toolbar row", async () => {
-    routeFetch([issue({ tags: [{ id: "t1", name: "electrical" }] })]);
+    routeFetch([issue({ tags: [{ id: "t1", name: "electrical" }] })], tagList("electrical"));
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     await screen.findByText("Fix leak");
 
