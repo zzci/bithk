@@ -36,14 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useContacts } from "@/shared/lib/api/contacts";
@@ -57,6 +49,8 @@ import {
 } from "@/shared/lib/api/procurement";
 import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
+import { cn } from "@/shared/lib/utils";
 import { buildMemberLabelMap } from "./-member-helpers";
 import { ProjectTagFilter } from "./-project-tag-filter";
 import { ProjectTagsCombobox } from "./-project-tags-combobox";
@@ -121,8 +115,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     id ? supplierNames.get(id) ?? id : <span className="text-muted-foreground">{t("procurement.none")}</span>;
   const categoryName = (id: string | null) =>
     id ? categoryNames.get(id) ?? id : <span className="text-muted-foreground">{t("procurement.none")}</span>;
-  const memberName = (id: string | null) =>
-    id ? memberLabels.get(id) ?? id : <span className="text-muted-foreground">{t("procurement.none")}</span>;
 
   const formatAmount = (row: ProcurementRow) => {
     if (row.amount === null)
@@ -235,71 +227,46 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
 
       {procurementsQuery.error && <ErrorBanner message={errorMessage(procurementsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader className="[&_tr]:border-0">
-            <TableRow className="border-0">
-              <TableHead>{t("procurement.col.itemName")}</TableHead>
-              <TableHead>{t("procurement.col.status")}</TableHead>
-              <TableHead>{t("procurement.col.amount")}</TableHead>
-              <TableHead>{t("procurement.col.category")}</TableHead>
-              <TableHead>{t("procurement.col.supplier")}</TableHead>
-              <TableHead>{t("procurement.col.assignee")}</TableHead>
-              {canManage && <TableHead>{t("procurement.col.actions")}</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody className="[&_tr]:border-0">
-            {procurementsQuery.isLoading
-              ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.loading")}</TableCell></TableRow>
-              : rows.length === 0
-                ? <TableRow><TableCell colSpan={canManage ? 7 : 6} className="h-24 text-center text-muted-foreground">{t("procurement.empty")}</TableCell></TableRow>
-                : rows.map(row => (
-                    <TableRow
-                      key={row.id}
-                      role="button"
-                      tabIndex={0}
+      {procurementsQuery.isLoading
+        ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("procurement.loading")}</p>
+        : rows.length === 0
+          ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("procurement.empty")}</p>
+          : (
+              <ul>
+                {rows.map(row => (
+                  <li key={row.id} className="group flex items-center rounded-md transition-colors hover:bg-muted/50">
+                    <button
+                      type="button"
                       aria-label={row.itemName}
-                      className="cursor-pointer border-0 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => openProcurement(row.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          openProcurement(row.id);
-                        }
-                      }}
                     >
-                      <TableCell className="font-medium">{row.itemName}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{t(`procurement.status.${row.status}` as const)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">{formatAmount(row)}</TableCell>
-                      <TableCell className="text-sm">{categoryName(row.categoryId)}</TableCell>
-                      <TableCell className="text-sm">{supplierName(row.supplierId)}</TableCell>
-                      <TableCell className="text-sm">{memberName(row.assigneeMemberId)}</TableCell>
-                      {canManage && (
-                        <TableCell
-                          onClick={event => event.stopPropagation()}
-                          onKeyDown={event => event.stopPropagation()}
-                        >
-                          <div className="flex items-center gap-1">
-                            <ProcurementPinToggle projectId={projectId} row={row} />
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-          </TableBody>
-        </Table>
-        {totalPages > 1 && meta && (
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs text-muted-foreground">{t("procurement.total", { count: meta.total })}</span>
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-              <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
-            </div>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{row.itemName}</span>
+                      <Badge variant="secondary" className={cn("shrink-0", PROCUREMENT_STATUS_BADGE[row.status])}>{t(`procurement.status.${row.status}` as const)}</Badge>
+                      <div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+                        <span className="tabular-nums">{formatAmount(row)}</span>
+                        <span className="hidden truncate sm:inline">{categoryName(row.categoryId)}</span>
+                        <span className="hidden truncate md:inline">{supplierName(row.supplierId)}</span>
+                      </div>
+                    </button>
+                    {canManage && (
+                      <div className="shrink-0 pr-1 transition-opacity">
+                        <ProcurementPinToggle projectId={projectId} row={row} />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+      {totalPages > 1 && meta && (
+        <div className="flex items-center justify-between px-3 py-2">
+          <span className="text-xs text-muted-foreground">{t("procurement.total", { count: meta.total })}</span>
+          <div className="flex gap-1">
+            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
+            <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {canManage && (
         <CreateProcurementDialog
