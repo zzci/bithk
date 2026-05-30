@@ -83,7 +83,7 @@ function pin(overrides: Partial<PinnedItem> = {}): PinnedItem {
 describe("projectOverviewTab", () => {
   it("renders the project description", () => {
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map([["u1", "Alice"]])} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
     expect(screen.getByText("Description")).toBeInTheDocument();
     expect(screen.getByText("A tall building")).toBeInTheDocument();
@@ -91,17 +91,9 @@ describe("projectOverviewTab", () => {
 
   it("shows the description empty state when no description is set", () => {
     renderWithProviders(
-      <ProjectOverviewTab project={project({ description: "" })} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project({ description: "" })} caps={procCaps} onOpenTab={vi.fn()} />,
     );
     expect(screen.getByText("No description yet.")).toBeInTheDocument();
-  });
-
-  it("renders the creator in the info block", () => {
-    renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map([["u1", "Alice"]])} caps={procCaps} onOpenTab={vi.fn()} />,
-    );
-    expect(screen.getByText(/Alice/)).toBeInTheDocument();
-    expect(screen.getByText("infra")).toBeInTheDocument();
   });
 
   it("renders a mixed pinned list with kind badges", async () => {
@@ -112,7 +104,7 @@ describe("projectOverviewTab", () => {
       ],
     });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
     // Scope to the pinned list so the kind badges are asserted unambiguously
     // against the "Latest procurements" list heading on the same page.
@@ -124,14 +116,15 @@ describe("projectOverviewTab", () => {
     expect(pinnedList.getByText("Procurement")).toBeInTheDocument();
   });
 
-  it("combines creator, last updated, tags, and description in one info block", () => {
+  it("shows only the description in the info card — creator/updated/tags moved to the header", () => {
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map([["u1", "Alice"]])} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    expect(screen.getByText(/Creator/)).toBeInTheDocument();
-    expect(screen.getByText(/Last updated/)).toBeInTheDocument();
-    expect(screen.getByText("infra")).toBeInTheDocument();
+    expect(screen.getByText("Description")).toBeInTheDocument();
     expect(screen.getByText("A tall building")).toBeInTheDocument();
+    expect(screen.queryByText(/Creator/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Last updated/)).not.toBeInTheDocument();
+    expect(screen.queryByText("infra")).not.toBeInTheDocument();
   });
 
   it("no longer renders the work order and procurement summary metrics", async () => {
@@ -140,7 +133,7 @@ describe("projectOverviewTab", () => {
       procurements: [{ id: "pr1", itemName: "Buy steel", status: "draft", updatedAt: "2026-05-24T00:00:00.000Z" }],
     });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
     // Latest lists still load, but the old summary metric tiles are gone.
     await screen.findByText("Fix leak");
@@ -152,7 +145,7 @@ describe("projectOverviewTab", () => {
 
   it("shows the pinned empty state when nothing is pinned", async () => {
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
     expect(await screen.findByText(/Nothing pinned yet/)).toBeInTheDocument();
   });
@@ -162,7 +155,7 @@ describe("projectOverviewTab", () => {
     const onOpenTab = vi.fn();
     routeFetch({ issues: [{ id: "i1", title: "Fix leak", status: "todo", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }] });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={onOpenTab} />,
     );
     await screen.findByText("Fix leak");
     await user.click(screen.getAllByRole("button", { name: "View all" })[0]!);
@@ -171,21 +164,21 @@ describe("projectOverviewTab", () => {
 
   it("hides procurement sections when the viewer lacks procurement.view", () => {
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={noProcCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={noProcCaps} onOpenTab={vi.fn()} />,
     );
     expect(screen.queryByText("Latest procurements")).not.toBeInTheDocument();
   });
 
   it("renders the latest work orders empty state", async () => {
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
     expect(await screen.findByText("No work orders found.")).toBeInTheDocument();
   });
 
   it("renders the latest procurements empty state", async () => {
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
     expect(await screen.findByText("No procurement records found.")).toBeInTheDocument();
   });
@@ -195,7 +188,7 @@ describe("projectOverviewTab", () => {
     const onOpenTab = vi.fn();
     routeFetch({ pinned: [pin({ id: "it1", type: "issue", title: "Fix pump", status: "todo" })] });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={onOpenTab} />,
     );
     await user.click(await screen.findByRole("button", { name: /Fix pump/ }));
     expect(onOpenTab).toHaveBeenCalledWith("issues");
@@ -206,7 +199,7 @@ describe("projectOverviewTab", () => {
     const onOpenTab = vi.fn();
     routeFetch({ pinned: [pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft" })] });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={onOpenTab} />,
     );
     await user.click(await screen.findByRole("button", { name: /Buy steel/ }));
     expect(onOpenTab).toHaveBeenCalledWith("procurement");
@@ -216,7 +209,7 @@ describe("projectOverviewTab", () => {
     const onOpenTab = vi.fn();
     routeFetch({ pinned: [pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft" })] });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={noProcCaps} onOpenTab={onOpenTab} />,
+      <ProjectOverviewTab project={project()} caps={noProcCaps} onOpenTab={onOpenTab} />,
     );
     expect(await screen.findByRole("button", { name: /Buy steel/ })).toBeDisabled();
   });
@@ -226,7 +219,7 @@ describe("projectOverviewTab", () => {
     const onOpenTab = vi.fn();
     routeFetch({ issues: [{ id: "i1", title: "Fix leak", status: "todo", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }] });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
+      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={onOpenTab} />,
     );
     await user.click(await screen.findByRole("button", { name: /Fix leak/ }));
     expect(onOpenTab).toHaveBeenCalledWith("issues");
