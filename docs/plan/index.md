@@ -36,4 +36,5 @@
 | [PLAN-032](PLAN-032.md) | Align project issues with access issue reference | Implementing | 2026-05-28 |
 | [PLAN-033](PLAN-033.md) | Present the project owner role and simplify role settings | Done | 2026-05-28 |
 | [PLAN-034](PLAN-034.md) | Immutable lowercase project code placement | Done | 2026-05-28 |
-| [PLAN-035](PLAN-035.md) | Procurement detail parity with issue details | Implementing | 2026-05-28 |
+| [PLAN-035](PLAN-035.md) | Procurement detail parity with issue details | Completed | 2026-05-29 |
+| [PLAN-036](PLAN-036.md) | Route project detail tabs by URL | Completed | 2026-05-30 |

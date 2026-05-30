@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import type { ProjectDetailSearch, ProjectDetailTab } from "./$projectId";
-import { createLazyFileRoute, Outlet, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import type { ProjectDetailTab } from "./-project-tabs";
+import { createLazyFileRoute, Outlet, useLocation, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Copy,
@@ -17,7 +17,6 @@ import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialo
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/shared/components/ui/tabs";
@@ -30,22 +29,20 @@ import {
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
-import { FileBrowser } from "../-file-browser";
-import { ProjectIssuesTab } from "./-project-issues-tab";
-import { ProjectOverviewTab } from "./-project-overview-tab";
-import { ProjectProcurementTab } from "./-project-procurement-tab";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
+import { activeProjectTab, PROJECT_TAB_TO } from "./-project-tabs";
 import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId")({
-  component: ProjectDetailPage,
+  component: ProjectDetailLayout,
 });
 
-function ProjectDetailPage() {
+function ProjectDetailLayout() {
   const { t } = useTranslation(["projects", "common"]);
   const { projectId } = useParams({ from: "/_app/projects/$projectId" });
-  const { settings: settingsParam, tab: tabParam } = useSearch({ from: "/_app/projects/$projectId" });
+  const { settings: settingsParam } = useSearch({ from: "/_app/projects/$projectId" });
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const projectQuery = useProject(projectId);
   const membersQuery = useProjectMembers(projectId);
@@ -53,8 +50,8 @@ function ProjectDetailPage() {
 
   const deleteProject = useDeleteProject();
 
-  // Members no longer have a tab, but they still feed the assignee pickers in
-  // the issues and procurement tabs, so keep loading them.
+  // Members still feed the assignee pickers in the issue/procurement tabs, but
+  // those tabs fetch their own copy now; the layout only needs them for caps.
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const project = projectQuery.data;
   const caps = useProjectCapabilities(project);
@@ -69,25 +66,22 @@ function ProjectDetailPage() {
     [usersQuery.data],
   );
 
-  // The active tab is persisted in the URL so it survives navigating away to a
-  // work-order's drawer/fullscreen route and back (default "overview" is dropped
-  // from the URL). Tab switches replace the search param in place.
-  const tab = tabParam ?? "overview";
-  const setTab = (value: string) => {
-    const search: ProjectDetailSearch = {
-      ...(settingsParam ? { settings: true } : {}),
-      ...(value === "overview" ? {} : { tab: value as ProjectDetailTab }),
-    };
-    void navigate({ to: "/projects/$projectId", params: { projectId }, search, replace: true });
+  // The active tab is derived from the path (one route per tab) so back/forward
+  // and detail close/back always resolve to the correct tab.
+  const tab = activeProjectTab(pathname, projectId);
+  const goToTab = (value: ProjectDetailTab) => {
+    void navigate({ to: PROJECT_TAB_TO[value], params: { projectId } });
   };
+
   const [settingsOpen, setSettingsOpen] = useState(settingsParam ?? false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // Deep link from the project list (`?settings=true`) clears once the dialog closes.
+  // Deep link from the project list (`?settings=true`) clears once the dialog
+  // closes, keeping the current tab route in place.
   const handleSettingsOpenChange = (open: boolean) => {
     setSettingsOpen(open);
     if (!open && settingsParam)
-      void navigate({ to: "/projects/$projectId", params: { projectId }, search: {}, replace: true });
+      void navigate({ to: ".", search: {}, replace: true });
   };
 
   if (projectQuery.isLoading) {
@@ -184,8 +178,8 @@ function ProjectDetailPage() {
         )}
       </div>
 
-      {/* Tabs promoted to the page's primary navigation. */}
-      <Tabs value={tab} onValueChange={v => v !== null && setTab(v)}>
+      {/* Tabs promoted to the page's primary navigation; each tab is a route. */}
+      <Tabs value={tab} onValueChange={v => v !== null && goToTab(v as ProjectDetailTab)}>
         <TabsList variant="line" className="h-auto gap-6 overflow-x-auto border-b text-base">
           <TabsTrigger value="overview" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
             {t("tabs.overview")}
@@ -204,52 +198,12 @@ function ProjectDetailPage() {
             {t("tabs.files")}
           </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="overview" className="pt-6">
-          <ProjectOverviewTab
-            project={project}
-            userNames={userNames}
-            caps={caps}
-            onOpenTab={setTab}
-          />
-        </TabsContent>
-
-        <TabsContent value="issues" className="pt-6">
-          <ProjectIssuesTab
-            projectId={project.id}
-            members={members}
-            userNames={userNames}
-            canManage={caps.has("issue.manage")}
-          />
-        </TabsContent>
-
-        {caps.canViewProcurement && (
-          <TabsContent value="procurement" className="pt-6">
-            <ProjectProcurementTab
-              projectId={project.id}
-              members={members}
-              userNames={userNames}
-              canManage={caps.canManageProcurement}
-            />
-          </TabsContent>
-        )}
-
-        <TabsContent value="files" className="pt-6">
-          {/* -mx-4 cancels the drive surface's internal px-4 gutter so file rows
-              align flush with the other tabs' content (the layout main has ≥16px
-              horizontal padding, so this never overflows). */}
-          <div className="-mx-4 h-[calc(100svh-18rem)] min-h-[24rem]">
-            <FileBrowser
-              ownerType="project"
-              ownerId={project.id}
-              canManage
-              rootLabel={project.name}
-              showTitle={false}
-              showSearch={false}
-            />
-          </div>
-        </TabsContent>
       </Tabs>
+
+      {/* The active tab route renders here. */}
+      <div className="pt-1">
+        <Outlet />
+      </div>
 
       {caps.canOpenSettings && (
         <ProjectSettingsDialog
@@ -270,8 +224,6 @@ function ProjectDetailPage() {
         pending={deleteProject.isPending}
         onConfirm={handleDelete}
       />
-
-      <Outlet />
     </div>
   );
 }

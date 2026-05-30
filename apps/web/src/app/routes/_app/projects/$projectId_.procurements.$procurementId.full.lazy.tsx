@@ -30,7 +30,8 @@ function ProjectProcurementFullscreenPage() {
   );
 
   const goBack = () => {
-    void navigate({ to: "/projects/$projectId", params: { projectId } });
+    // Return to the procurement tab route, not the default overview.
+    void navigate({ to: "/projects/$projectId/procurements", params: { projectId } });
   };
 
   return (
