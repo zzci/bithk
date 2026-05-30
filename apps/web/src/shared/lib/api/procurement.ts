@@ -6,6 +6,7 @@
 // hiding the tab. All ids are shortIds.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ProjectTag } from "./projects";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
@@ -22,14 +23,15 @@ interface ApiListEnvelope<T> {
 
 // ── Types ──
 
-export type ProcurementStatus = "draft" | "requested" | "ordered" | "received" | "closed" | "cancelled";
+export type ProcurementStatus = "requested" | "ordered" | "confirmed" | "in_transit" | "received" | "accepted" | "cancelled";
 
 export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
-  "draft",
   "requested",
   "ordered",
+  "confirmed",
+  "in_transit",
   "received",
-  "closed",
+  "accepted",
   "cancelled",
 ];
 
@@ -64,6 +66,9 @@ export interface ProcurementRow {
   // Pin state from the shared item base; mirrors ProjectIssueRow.
   readonly pinned: boolean;
   readonly pinnedAt: string | null;
+  // Tags assigned to this procurement (source_type='procurement'), resolved by
+  // the API. Mirrors ProjectIssueRow.tags.
+  readonly tags: readonly { readonly id: string; readonly name: string }[];
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly version: number;
@@ -86,11 +91,20 @@ export const procurementKeys = {
     ["procurements", projectId, "detail", id] as const,
 };
 
+// Selectable procurement-tag vocabulary cache key (type=procurement).
+export const procurementTagKeys = {
+  vocabulary: ["tags", "procurement"] as const,
+};
+
 // ── Queries ──
 
 export interface ProcurementsQuery {
+  readonly q?: string | undefined;
   readonly status?: ProcurementStatus | undefined;
+  readonly priority?: ProcurementPriority | undefined;
   readonly categoryId?: string | undefined;
+  // Union (OR) filter: a procurement matches when it carries ANY of these tag ids.
+  readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -100,34 +114,56 @@ export interface ProcurementsResult {
   readonly meta: ProcurementListMeta;
 }
 
+function procurementsQueryString(query: ProcurementsQuery): string {
+  const params = new URLSearchParams();
+  if (query.q)
+    params.set("q", query.q);
+  if (query.status)
+    params.set("status", query.status);
+  if (query.priority)
+    params.set("priority", query.priority);
+  if (query.categoryId)
+    params.set("categoryId", query.categoryId);
+  // Repeatable tagId params; sorted so the cache key stays stable regardless of
+  // selection order (the backend union semantics are order-independent).
+  if (query.tagIds && query.tagIds.length > 0) {
+    for (const tagId of [...query.tagIds].sort())
+      params.append("tagIds", tagId);
+  }
+  params.set("page", String(query.page ?? 1));
+  params.set("limit", String(query.limit ?? 20));
+  return params.toString();
+}
+
 export function useProcurements(
   projectId: string | undefined,
   query: ProcurementsQuery = {},
   enabled = true,
 ) {
-  const status = query.status;
-  const categoryId = query.categoryId;
-  const page = query.page ?? 1;
-  const limit = query.limit ?? 20;
-  const params = new URLSearchParams();
-  if (status)
-    params.set("status", status);
-  if (categoryId)
-    params.set("categoryId", categoryId);
-  params.set("page", String(page));
-  params.set("limit", String(limit));
-  const queryString = params.toString();
+  const queryString = procurementsQueryString(query);
   return useQuery<ProcurementsResult>({
     queryKey: procurementKeys.list(projectId ?? "", queryString),
     queryFn: async () => {
       const res = await http<ApiListEnvelope<ProcurementRow>>(
         `/projects/${encodeURIComponent(projectId!)}/procurements?${queryString}`,
       );
-      return { data: res.data, meta: res.meta };
+      // Normalize at the boundary: coerce `tags` to an array so a contract-
+      // violating or stale-cache row can never reach the UI without one.
+      return { data: res.data.map(r => ({ ...r, tags: r.tags ?? [] })), meta: res.meta };
     },
     enabled: enabled && !!projectId,
     retry: false,
     staleTime: 5_000,
+  });
+}
+
+// Selectable procurement-tag vocabulary (type=procurement), usage-count ordered.
+// Drives the procurement list multi-select tag filter. Mirrors `useIssueTags`.
+export function useProcurementTags() {
+  return useQuery<readonly ProjectTag[]>({
+    queryKey: procurementTagKeys.vocabulary,
+    queryFn: () => http<ApiEnvelope<readonly ProjectTag[]>>("/tags?type=procurement").then(r => r.data),
+    staleTime: 30_000,
   });
 }
 
@@ -163,6 +199,8 @@ export interface CreateProcurementInput {
   readonly description?: string;
   readonly priority?: ProcurementPriority;
   readonly dueDate?: string;
+  // Optional tag names (source_type='procurement') synced with the procurement.
+  readonly tags?: readonly string[];
 }
 
 export function useCreateProcurement(): UseMutationResult<ProcurementRow, Error, { projectId: string } & CreateProcurementInput> {
@@ -174,6 +212,8 @@ export function useCreateProcurement(): UseMutationResult<ProcurementRow, Error,
     ).then(r => r.data),
     onSuccess: (_data, { projectId }) => {
       void queryClient.invalidateQueries({ queryKey: procurementKeys.byProject(projectId) });
+      // A created procurement may introduce new tag names into the vocabulary.
+      void queryClient.invalidateQueries({ queryKey: procurementTagKeys.vocabulary });
     },
   });
 }
@@ -190,6 +230,8 @@ export interface UpdateProcurementInput {
   readonly description?: string | null;
   readonly priority?: ProcurementPriority;
   readonly dueDate?: string | null;
+  // Replacement tag set (source_type='procurement'); omit to leave tags unchanged.
+  readonly tags?: readonly string[];
 }
 
 export function useUpdateProcurement(): UseMutationResult<ProcurementRow, Error, { projectId: string; id: string } & UpdateProcurementInput> {
@@ -205,6 +247,8 @@ export function useUpdateProcurement(): UseMutationResult<ProcurementRow, Error,
       // prefix of both the list and detail keys).
       queryClient.setQueryData(procurementKeys.detail(projectId, id), data);
       void queryClient.invalidateQueries({ queryKey: procurementKeys.byProject(projectId) });
+      // An updated tag set may introduce new tag names into the vocabulary.
+      void queryClient.invalidateQueries({ queryKey: procurementTagKeys.vocabulary });
     },
   });
 }

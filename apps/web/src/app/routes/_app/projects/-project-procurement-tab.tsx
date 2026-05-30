@@ -10,9 +10,9 @@ import type {
   ProcurementRow,
   ProcurementStatus,
 } from "@/shared/lib/api/procurement";
-import type { ProjectMemberView } from "@/shared/lib/api/projects";
+import type { ProjectMemberView, ProjectTag } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
-import { Pin, PinOff, Plus } from "lucide-react";
+import { Pin, PinOff, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -45,6 +45,7 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useContacts } from "@/shared/lib/api/contacts";
 import { useToggleProcurementPin } from "@/shared/lib/api/pins";
 import {
@@ -52,10 +53,13 @@ import {
   PROCUREMENT_STATUSES,
   useCreateProcurement,
   useProcurements,
+  useProcurementTags,
 } from "@/shared/lib/api/procurement";
 import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { buildMemberLabelMap } from "./-member-helpers";
+import { ProjectTagFilter } from "./-project-tag-filter";
+import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 interface ProjectProcurementTabProps {
   readonly projectId: string;
@@ -68,14 +72,30 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
 
+  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("__all__");
+  const [priorityFilter, setPriorityFilter] = useState("__all__");
   const [categoryFilter, setCategoryFilter] = useState("__all__");
+  // Selected tag ids; empty means no tag filter. A procurement matches the union
+  // of the selected tags.
+  const [selectedTagIds, setSelectedTagIds] = useState<readonly string[]>([]);
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
+  const debouncedSearch = useDebounce(search, 300);
+
+  const procurementTagsQuery = useProcurementTags();
+  const procurementTags = useMemo(() => procurementTagsQuery.data ?? [], [procurementTagsQuery.data]);
+  const toggleTag = (tagId: string) => {
+    setSelectedTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]));
+    setPage(1);
+  };
 
   const procurementsQuery = useProcurements(projectId, {
+    q: debouncedSearch || undefined,
     status: statusFilter === "__all__" ? undefined : (statusFilter as ProcurementStatus),
+    priority: priorityFilter === "__all__" ? undefined : (priorityFilter as ProcurementPriority),
     categoryId: categoryFilter === "__all__" ? undefined : categoryFilter,
+    tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
     page,
   });
   const suppliersQuery = useContacts();
@@ -113,7 +133,20 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative max-w-xs flex-1">
+            <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder={t("procurement.searchPlaceholder")}
+              aria-label={t("procurement.searchPlaceholder")}
+              className="pl-8"
+            />
+          </div>
           <Select
             value={statusFilter}
             onValueChange={(v) => {
@@ -132,6 +165,27 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
               <SelectItem value="__all__">{t("procurement.allStatuses")}</SelectItem>
               {PROCUREMENT_STATUSES.map(s => (
                 <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={priorityFilter}
+            onValueChange={(v) => {
+              if (v === null)
+                return;
+              setPriorityFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue>
+                {(v: string) => (v === "__all__" ? t("procurement.allPriorities") : t(`procurement.priority.${v}` as const))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("procurement.allPriorities")}</SelectItem>
+              {PROCUREMENT_PRIORITIES.map(p => (
+                <SelectItem key={p} value={p}>{t(`procurement.priority.${p}` as const)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -164,6 +218,20 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           </Button>
         )}
       </div>
+
+      {/* Tag filter bar — responsive multi-select chips. Union semantics:
+          selecting tags narrows the list to procurements carrying any selected
+          tag. */}
+      {procurementTags.length > 0 && (
+        <div role="group" aria-label={t("procurement.tagFilter")}>
+          <ProjectTagFilter
+            multiple
+            tags={procurementTags}
+            selectedTagIds={selectedTagIds}
+            onToggle={toggleTag}
+          />
+        </div>
+      )}
 
       {procurementsQuery.error && <ErrorBanner message={errorMessage(procurementsQuery.error, t("common:common.error.loadFailed"))} />}
 
@@ -240,6 +308,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           memberLabels={memberLabels}
           suppliers={suppliers}
           categories={categories}
+          procurementTags={procurementTags}
           open={createOpen}
           onOpenChange={setCreateOpen}
         />
@@ -285,16 +354,18 @@ interface CreateProcurementDialogProps {
   readonly memberLabels: ReadonlyMap<string, string>;
   readonly suppliers: readonly { readonly id: string; readonly name: string }[];
   readonly categories: readonly { readonly id: string; readonly name: string }[];
+  readonly procurementTags: readonly ProjectTag[];
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
 
-function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, categories, open, onOpenChange }: CreateProcurementDialogProps) {
+function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, categories, procurementTags, open, onOpenChange }: CreateProcurementDialogProps) {
   const { t } = useTranslation(["projects", "common"]);
   const createProcurement = useCreateProcurement();
   const [itemName, setItemName] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<ProcurementStatus>("requested");
   const [priority, setPriority] = useState<ProcurementPriority>("medium");
   const [dueDate, setDueDate] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -303,11 +374,14 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
   const [supplierId, setSupplierId] = useState("__none__");
   const [categoryId, setCategoryId] = useState("__none__");
   const [assigneeMemberId, setAssigneeMemberId] = useState("__none__");
+  const [tags, setTags] = useState<readonly string[]>([]);
+  const tagSuggestions = useMemo(() => procurementTags.map(tag => tag.name), [procurementTags]);
 
   const reset = () => {
     setItemName("");
     setTitle("");
     setDescription("");
+    setStatus("requested");
     setPriority("medium");
     setDueDate("");
     setQuantity("");
@@ -316,6 +390,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
     setSupplierId("__none__");
     setCategoryId("__none__");
     setAssigneeMemberId("__none__");
+    setTags([]);
   };
 
   const submit = (event: React.FormEvent) => {
@@ -324,6 +399,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
       return;
     const body: CreateProcurementInput = {
       itemName: itemName.trim(),
+      status,
       priority,
       ...(title.trim() ? { title: title.trim() } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
@@ -334,6 +410,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
       ...(supplierId !== "__none__" ? { supplierId } : {}),
       ...(categoryId !== "__none__" ? { categoryId } : {}),
       ...(assigneeMemberId !== "__none__" ? { assigneeMemberId } : {}),
+      ...(tags.length > 0 ? { tags } : {}),
     };
     createProcurement.mutate({ projectId, ...body }, {
       onSuccess: () => {
@@ -377,7 +454,22 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label>{t("procurement.field.status")}</Label>
+              <Select value={status} onValueChange={v => v !== null && setStatus(v as ProcurementStatus)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v: string) => t(`procurement.status.${v}` as const)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {PROCUREMENT_STATUSES.map(s => (
+                    <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label>{t("procurement.field.priority")}</Label>
               <Select value={priority} onValueChange={v => v !== null && setPriority(v as ProcurementPriority)}>
@@ -464,6 +556,15 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t("procurement.field.tags")}</Label>
+            <ProjectTagsCombobox
+              value={tags}
+              onChange={setTags}
+              suggestions={tagSuggestions}
+            />
           </div>
 
           <DialogFooter>
