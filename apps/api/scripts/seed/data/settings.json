@@ -1,0 +1,6 @@
+[
+  { "key": "app.display_name", "value": "Fleet Manager (Demo)" },
+  { "key": "app.support_email", "value": "support@seed.local" },
+  { "key": "procurement.default_currency", "value": "USD" },
+  { "key": "maintenance.reminder_lead_days", "value": "30" }
+]

@@ -1,0 +1,115 @@
+[
+  {
+    "key": "refit-aurora",
+    "name": "Aurora Dry-Dock Refit 2026",
+    "description": "Scheduled five-year dry-dock refit and class renewal for MV Aurora.",
+    "creator": "pm-mercer",
+    "tags": ["refit", "dry-dock", "2026"],
+    "cover": "project-1.jpg",
+    "bindShip": "aurora",
+    "members": [
+      { "user": "eng-lin", "role": "member" },
+      { "user": "eng-voss", "role": "member" },
+      { "user": "surveyor-petrov", "role": "member" }
+    ],
+    "categories": ["Deck Equipment", "Electronics", "Engine Parts"]
+  },
+  {
+    "key": "newbuild-vantage",
+    "name": "Vantage Newbuild Delivery",
+    "description": "Final outfitting and owner handover for the Feadship F45 Vantage.",
+    "creator": "pm-diaz",
+    "tags": ["newbuild", "delivery"],
+    "cover": "project-2.jpg",
+    "bindShip": "vantage",
+    "members": [
+      { "user": "eng-okafor", "role": "member" },
+      { "user": "ops-murphy", "role": "member" }
+    ],
+    "categories": ["Interior", "Electronics", "Safety Gear"]
+  },
+  {
+    "key": "survey-leviathan",
+    "name": "Leviathan Annual Survey",
+    "description": "Annual classification survey and certificate renewal.",
+    "creator": "pm-mercer",
+    "tags": ["survey", "class-renewal"],
+    "cover": "project-3.jpg",
+    "bindShip": "leviathan",
+    "members": [
+      { "user": "surveyor-singh", "role": "member" },
+      { "user": "eng-lin", "role": "member" }
+    ],
+    "categories": ["Safety Gear", "Engine Parts"]
+  },
+  {
+    "key": "engine-overhaul-calypso",
+    "name": "Calypso Engine Overhaul",
+    "description": "Major overhaul of both main engines at the 8000-hour interval.",
+    "creator": "pm-diaz",
+    "tags": ["engine", "overhaul"],
+    "cover": "project-4.jpg",
+    "bindShip": "calypso",
+    "members": [
+      { "user": "eng-voss", "role": "member" },
+      { "user": "eng-okafor", "role": "member" }
+    ],
+    "categories": ["Engine Parts", "Provisions"]
+  },
+  {
+    "key": "electronics-bluewater",
+    "name": "Bluewater Electronics Upgrade",
+    "description": "Bridge electronics modernisation and ECDIS replacement.",
+    "creator": "pm-mercer",
+    "tags": ["electronics", "upgrade"],
+    "cover": null,
+    "bindShip": "bluewater",
+    "members": [
+      { "user": "eng-lin", "role": "member" },
+      { "user": "ops-murphy", "role": "member" }
+    ],
+    "categories": ["Electronics"]
+  },
+  {
+    "key": "interior-serenity",
+    "name": "Serenity Interior Refresh",
+    "description": "Guest cabin and salon interior refresh ahead of the charter season.",
+    "creator": "pm-diaz",
+    "tags": ["refit", "interior"],
+    "cover": null,
+    "bindShip": "serenity",
+    "members": [
+      { "user": "crew-haddad", "role": "member" },
+      { "user": "crew-schmidt", "role": "member" }
+    ],
+    "categories": ["Interior", "Provisions"]
+  },
+  {
+    "key": "hull-nordwind",
+    "name": "Nordwind Hull Maintenance",
+    "description": "Hull recoating and anode replacement.",
+    "creator": "pm-mercer",
+    "tags": ["hull", "dry-dock"],
+    "cover": null,
+    "bindShip": "nordwind",
+    "members": [
+      { "user": "eng-okafor", "role": "member" }
+    ],
+    "categories": ["Deck Equipment", "Paint & Coatings"]
+  },
+  {
+    "key": "fleet-safety-program",
+    "name": "Fleet Safety Program 2026",
+    "description": "Cross-fleet safety equipment audit and crew drills (no single vessel).",
+    "creator": "ops-murphy",
+    "tags": ["safety", "audit"],
+    "cover": null,
+    "bindShip": null,
+    "members": [
+      { "user": "surveyor-petrov", "role": "member" },
+      { "user": "surveyor-singh", "role": "member" },
+      { "user": "crew-larsson", "role": "member" }
+    ],
+    "categories": ["Safety Gear"]
+  }
+]

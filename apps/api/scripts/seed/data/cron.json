@@ -1,0 +1,41 @@
+{
+  "_comment": "Cron jobs (seed-owned, name prefixed 'seed:' so reset can match them). logs add example run history per job.",
+  "jobs": [
+    {
+      "key": "nightly-backup",
+      "name": "seed: Nightly database backup",
+      "cron": "0 2 * * *",
+      "taskType": "backup",
+      "taskConfig": { "target": "local", "retentionDays": 14 },
+      "enabled": true,
+      "maxConsecutiveFailures": 3,
+      "logs": [
+        { "status": "success", "durationMs": 1820, "result": "Backup written: 1 file" },
+        { "status": "success", "durationMs": 1760, "result": "Backup written: 1 file" },
+        { "status": "failed", "durationMs": 240, "error": "Disk quota exceeded" }
+      ]
+    },
+    {
+      "key": "audit-prune",
+      "name": "seed: Weekly audit log prune",
+      "cron": "0 3 * * 0",
+      "taskType": "http-request",
+      "taskConfig": { "url": "http://localhost/internal/audit/prune", "method": "POST" },
+      "enabled": true,
+      "maxConsecutiveFailures": 5,
+      "logs": [
+        { "status": "success", "durationMs": 95, "result": "Pruned 0 rows" }
+      ]
+    },
+    {
+      "key": "cert-reminder",
+      "name": "seed: Certificate expiry reminder",
+      "cron": "0 8 * * 1",
+      "taskType": "http-request",
+      "taskConfig": { "url": "http://localhost/internal/certs/check", "method": "GET" },
+      "enabled": false,
+      "maxConsecutiveFailures": 3,
+      "logs": []
+    }
+  ]
+}

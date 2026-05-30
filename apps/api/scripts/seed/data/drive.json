@@ -1,0 +1,43 @@
+{
+  "_comment": "Drive seed. teamDirectories create shared spaces with members. entries are folders/files; parent references another entry key within the same owner. file entries reference an asset under assets/attachments; text entries inline content. versions adds extra uploaded versions to a file entry.",
+  "teamDirectories": [
+    {
+      "key": "td-engineering",
+      "name": "Engineering Shared Drive",
+      "description": "Drawings, manuals, and service records shared by the engineering team.",
+      "createdBy": "eng-lin",
+      "members": [
+        { "user": "eng-voss", "role": "editor" },
+        { "user": "eng-okafor", "role": "editor" },
+        { "user": "pm-mercer", "role": "viewer" }
+      ]
+    },
+    {
+      "key": "td-operations",
+      "name": "Operations Drive",
+      "description": "Procurement docs, schedules, and crew paperwork.",
+      "createdBy": "ops-murphy",
+      "members": [
+        { "user": "sup-nguyen", "role": "editor" },
+        { "user": "pm-diaz", "role": "viewer" }
+      ]
+    }
+  ],
+  "entries": [
+    { "key": "eng-manuals", "ownerType": "team_directory", "owner": "td-engineering", "createdBy": "eng-lin", "type": "folder", "name": "Manuals", "parent": null },
+    { "key": "eng-engine-manual", "ownerType": "team_directory", "owner": "td-engineering", "createdBy": "eng-lin", "type": "file", "name": "engine-manual.pdf", "parent": "eng-manuals", "asset": "maintenance-checklist.pdf" },
+    { "key": "eng-records", "ownerType": "team_directory", "owner": "td-engineering", "createdBy": "eng-voss", "type": "folder", "name": "Service Records", "parent": null },
+    { "key": "eng-inspection", "ownerType": "team_directory", "owner": "td-engineering", "createdBy": "eng-voss", "type": "file", "name": "hull-inspection.txt", "parent": "eng-records", "asset": "inspection-report.txt", "versions": ["spare-parts-quote.txt"] },
+    { "key": "eng-notes", "ownerType": "team_directory", "owner": "td-engineering", "createdBy": "eng-okafor", "type": "text", "name": "handover-notes.md", "parent": "eng-records", "content": "# Handover Notes\n\nWatch handover items and outstanding jobs." },
+    { "key": "ops-procurement", "ownerType": "team_directory", "owner": "td-operations", "createdBy": "ops-murphy", "type": "folder", "name": "Procurement", "parent": null },
+    { "key": "ops-quote", "ownerType": "team_directory", "owner": "td-operations", "createdBy": "sup-nguyen", "type": "file", "name": "spare-parts-quote.txt", "parent": "ops-procurement", "asset": "spare-parts-quote.txt" },
+    { "key": "admin-personal-folder", "ownerType": "user", "owner": "admin", "createdBy": "admin", "type": "folder", "name": "My Documents", "parent": null },
+    { "key": "admin-personal-photo", "ownerType": "user", "owner": "admin", "createdBy": "admin", "type": "file", "name": "equipment-photo.jpg", "parent": "admin-personal-folder", "asset": "equipment-photo.jpg" },
+    { "key": "admin-personal-note", "ownerType": "user", "owner": "admin", "createdBy": "admin", "type": "text", "name": "todo.md", "parent": null, "content": "# Admin TODO\n\n- Review fleet safety program\n- Approve Q2 procurement" }
+  ],
+  "shares": [
+    { "entry": "eng-engine-manual", "by": "eng-lin", "type": "direct", "permission": "view", "with": "pm-mercer" },
+    { "entry": "eng-inspection", "by": "eng-voss", "type": "public_link", "permission": "download" },
+    { "entry": "ops-quote", "by": "ops-murphy", "type": "direct", "permission": "edit", "with": "sup-nguyen" }
+  ]
+}

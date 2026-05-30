@@ -1,0 +1,17 @@
+[
+  { "key": "admin", "username": "seed-admin", "name": "Alice Admin", "email": "admin@seed.local", "role": "admin" },
+  { "key": "pm-mercer", "username": "seed-pm-mercer", "name": "Bob Mercer", "email": "bob.mercer@seed.local", "role": "user" },
+  { "key": "pm-diaz", "username": "seed-pm-diaz", "name": "Carol Diaz", "email": "carol.diaz@seed.local", "role": "user" },
+  { "key": "eng-lin", "username": "seed-eng-lin", "name": "David Lin", "email": "david.lin@seed.local", "role": "user" },
+  { "key": "eng-voss", "username": "seed-eng-voss", "name": "Erin Voss", "email": "erin.voss@seed.local", "role": "user" },
+  { "key": "eng-okafor", "username": "seed-eng-okafor", "name": "Frank Okafor", "email": "frank.okafor@seed.local", "role": "user" },
+  { "key": "sup-nguyen", "username": "seed-sup-nguyen", "name": "Grace Nguyen", "email": "grace.nguyen@seed.local", "role": "user" },
+  { "key": "sup-rossi", "username": "seed-sup-rossi", "name": "Henry Rossi", "email": "henry.rossi@seed.local", "role": "user" },
+  { "key": "crew-haddad", "username": "seed-crew-haddad", "name": "Iris Haddad", "email": "iris.haddad@seed.local", "role": "user" },
+  { "key": "crew-schmidt", "username": "seed-crew-schmidt", "name": "Jack Schmidt", "email": "jack.schmidt@seed.local", "role": "user" },
+  { "key": "crew-larsson", "username": "seed-crew-larsson", "name": "Kira Larsson", "email": "kira.larsson@seed.local", "role": "user" },
+  { "key": "crew-tanaka", "username": "seed-crew-tanaka", "name": "Leo Tanaka", "email": "leo.tanaka@seed.local", "role": "user" },
+  { "key": "surveyor-petrov", "username": "seed-surveyor-petrov", "name": "Mia Petrov", "email": "mia.petrov@seed.local", "role": "user" },
+  { "key": "surveyor-singh", "username": "seed-surveyor-singh", "name": "Noah Singh", "email": "noah.singh@seed.local", "role": "user" },
+  { "key": "ops-murphy", "username": "seed-ops-murphy", "name": "Olivia Murphy", "email": "olivia.murphy@seed.local", "role": "user" }
+]

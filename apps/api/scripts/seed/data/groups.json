@@ -1,0 +1,20 @@
+[
+  {
+    "key": "engineering",
+    "name": "Engineering Team",
+    "description": "Marine and systems engineers across the fleet.",
+    "members": ["eng-lin", "eng-voss", "eng-okafor", "pm-mercer"]
+  },
+  {
+    "key": "surveyors",
+    "name": "Class Surveyors",
+    "description": "Classification society surveyors and auditors.",
+    "members": ["surveyor-petrov", "surveyor-singh"]
+  },
+  {
+    "key": "operations",
+    "name": "Fleet Operations",
+    "description": "Operations, procurement, and crew coordination.",
+    "members": ["ops-murphy", "sup-nguyen", "sup-rossi", "pm-diaz"]
+  }
+]

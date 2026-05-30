@@ -1,0 +1,121 @@
+{
+  "_comment": "Issue templates expanded per project by the importer. Each project receives one issue per template (so every project covers all five statuses). dueOffsetDays is relative to 2026-01-01; negative = past. attachment references a file under assets/attachments. comments[].internal marks internal notes; comments[].by is a member slot index (0=assignee/creator, rotates).",
+  "templates": [
+    {
+      "key": "hull-recoat",
+      "title": "Inspect and recoat hull below waterline",
+      "status": "todo",
+      "priority": "high",
+      "tags": ["hull", "dry-dock"],
+      "description": "Grit-blast and apply anti-fouling per the coating spec. Confirm anode condition during the same docking.",
+      "assign": false,
+      "dueOffsetDays": 210,
+      "attachment": "inspection-report.txt",
+      "comments": [
+        { "text": "Logged from the pre-docking walk-through. Confirm scope before we release to the yard." },
+        { "text": "Awaiting paint lead time from Nordic Coatings before scheduling.", "internal": true }
+      ]
+    },
+    {
+      "key": "radar-replace",
+      "title": "Replace bridge navigation radar",
+      "status": "working",
+      "priority": "urgent",
+      "tags": ["navigation", "electrical"],
+      "description": "Swap the bridge radar unit and verify integration with the ECDIS and AIS.",
+      "assign": true,
+      "dueOffsetDays": 150,
+      "attachment": "spare-parts-quote.txt",
+      "comments": [
+        { "text": "Crew assigned and old unit removed. New unit on site." },
+        { "text": "Holding at ~60% — waiting on the integration cable from RadarTech." },
+        { "text": "Subcontractor confirmed for the commissioning step.", "internal": true }
+      ]
+    },
+    {
+      "key": "safety-audit",
+      "title": "Annual safety equipment audit",
+      "status": "review",
+      "priority": "medium",
+      "tags": ["safety", "class-survey"],
+      "description": "Audit liferafts, EPIRBs, fire systems, and lifejackets; compile the class submission.",
+      "assign": true,
+      "dueOffsetDays": 30,
+      "attachment": "maintenance-checklist.pdf",
+      "comments": [
+        { "text": "Audit walkthrough complete; findings compiled for review." },
+        { "text": "Please review the checklist before I submit to class." }
+      ]
+    },
+    {
+      "key": "engine-overhaul",
+      "title": "Overhaul main engine top end",
+      "status": "done",
+      "priority": "high",
+      "tags": ["engine", "routine"],
+      "description": "Top-end overhaul at the scheduled running-hour interval. Replace injectors and gaskets.",
+      "assign": true,
+      "dueOffsetDays": -20,
+      "attachment": null,
+      "comments": [
+        { "text": "Overhaul completed and area cleaned up." },
+        { "text": "Sea trial passed; signed off by the chief engineer." },
+        { "text": "Records filed with class.", "internal": false }
+      ]
+    },
+    {
+      "key": "anode-replace",
+      "title": "Replace sacrificial anodes",
+      "status": "done",
+      "priority": "low",
+      "tags": ["hull", "routine"],
+      "description": "Replace consumed sacrificial anodes across the hull and running gear.",
+      "assign": true,
+      "dueOffsetDays": -45,
+      "attachment": null,
+      "comments": [
+        { "text": "All anodes replaced; old ones logged." }
+      ]
+    },
+    {
+      "key": "ecdis-charts",
+      "title": "Update ECDIS charts and licences",
+      "status": "todo",
+      "priority": "medium",
+      "tags": ["navigation", "routine"],
+      "description": "Apply the latest ENC update and renew chart licences.",
+      "assign": false,
+      "dueOffsetDays": 120,
+      "attachment": null,
+      "comments": []
+    },
+    {
+      "key": "hvac-repair",
+      "title": "Repair HVAC compressor",
+      "status": "working",
+      "priority": "high",
+      "tags": ["hvac"],
+      "description": "Diagnose and repair the failing AC compressor serving the guest cabins.",
+      "assign": true,
+      "dueOffsetDays": 90,
+      "attachment": null,
+      "comments": [
+        { "text": "Compressor isolated; ordering a replacement seal kit." }
+      ]
+    },
+    {
+      "key": "superseded-job",
+      "title": "Service tender crane hydraulics",
+      "status": "cancel",
+      "priority": "low",
+      "tags": ["deck"],
+      "description": "Routine service of the tender crane hydraulic system.",
+      "assign": false,
+      "dueOffsetDays": null,
+      "attachment": null,
+      "comments": [
+        { "text": "Cancelled — folded into the broader deck-equipment work order." }
+      ]
+    }
+  ]
+}

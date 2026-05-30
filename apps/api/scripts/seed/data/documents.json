@@ -1,0 +1,88 @@
+[
+  {
+    "key": "handbook",
+    "title": "Fleet Operations Handbook",
+    "creator": "admin",
+    "tags": ["handbook", "reference"],
+    "content": "# Fleet Operations Handbook\n\nStandard operating procedures for the fleet.\n\n## Contents\n1. Safety management\n2. Maintenance planning\n3. Procurement workflow\n4. Class compliance",
+    "parent": null,
+    "pinnedBy": ["admin", "ops-murphy"],
+    "attachment": "maintenance-checklist.pdf",
+    "shares": [
+      { "kind": "grant", "with": "eng-lin", "permission": "viewer" },
+      { "kind": "link" }
+    ]
+  },
+  {
+    "key": "refit-procedure",
+    "title": "Dry-Dock Refit Procedure",
+    "creator": "pm-mercer",
+    "tags": ["procedure", "dry-dock"],
+    "content": "## Refit Procedure\n\n1. Pre-docking survey\n2. Hull works and recoat\n3. Engine and systems service\n4. Class renewal and sea trial",
+    "parent": "handbook",
+    "pinnedBy": ["pm-mercer"],
+    "attachment": null,
+    "shares": [
+      { "kind": "link" }
+    ]
+  },
+  {
+    "key": "safety-manual",
+    "title": "Safety Management Manual",
+    "creator": "surveyor-petrov",
+    "tags": ["safety", "reference"],
+    "content": "# Safety Management Manual\n\nISM-aligned procedures, drills, and emergency response.",
+    "parent": "handbook",
+    "pinnedBy": [],
+    "attachment": null,
+    "shares": [
+      { "kind": "grant", "with": "surveyor-singh", "permission": "editor" }
+    ]
+  },
+  {
+    "key": "emergency-plan",
+    "title": "Emergency Response Plan",
+    "creator": "surveyor-petrov",
+    "tags": ["safety"],
+    "content": "## Emergency Response\n\nMuster lists, fire/flood/abandon-ship procedures, contact tree.",
+    "parent": "safety-manual",
+    "pinnedBy": [],
+    "attachment": null,
+    "shares": []
+  },
+  {
+    "key": "maintenance-schedule",
+    "title": "Maintenance Schedule 2026",
+    "creator": "eng-lin",
+    "tags": ["procedure", "reference"],
+    "content": "# Maintenance Schedule 2026\n\nPlanned maintenance intervals by system and vessel.",
+    "parent": null,
+    "pinnedBy": ["eng-lin"],
+    "attachment": null,
+    "shares": []
+  },
+  {
+    "key": "crew-onboarding",
+    "title": "Crew Onboarding Guide",
+    "creator": "ops-murphy",
+    "tags": ["handbook"],
+    "content": "# Crew Onboarding\n\nJoining formalities, safety familiarisation, and watch routines.",
+    "parent": null,
+    "pinnedBy": [],
+    "attachment": null,
+    "shares": [
+      { "kind": "link" }
+    ]
+  },
+  {
+    "key": "bunkering-checklist",
+    "title": "Bunkering Checklist",
+    "creator": "eng-voss",
+    "tags": ["procedure", "safety"],
+    "content": "## Bunkering Checklist\n\nPre-, during-, and post-bunkering checks with spill prevention.",
+    "parent": "maintenance-schedule",
+    "pinnedBy": [],
+    "attachment": null,
+    "shares": []
+  }
+]
