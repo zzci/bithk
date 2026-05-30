@@ -170,11 +170,13 @@ describe("projectIssuesTab", () => {
   });
 
   it("lays out the tag filter on the left and search + create grouped on the right of one toolbar row", async () => {
-    routeFetch([issue({ tags: [{ id: "t1", name: "electrical" }] })], tagList("electrical"));
+    const restore = withWideContainer();
+    routeFetch([issue({ tags: [{ id: "t1", name: "electrical" }] })], tags("electrical"));
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     await screen.findByText("Fix leak");
 
-    const tagFilter = screen.getByRole("group", { name: "Filter by tag" });
+    // Tag vocabulary loads asynchronously; wait for the filter group + its label.
+    const tagFilter = await screen.findByRole("group", { name: "Filter by tag" });
     // The tag filter shows a visible label so users know what the chips do.
     expect(within(tagFilter).getByText("Filter by tag")).toBeInTheDocument();
     const search = screen.getByPlaceholderText("Search work orders...");
@@ -189,6 +191,7 @@ describe("projectIssuesTab", () => {
     const toolbar = rightGroup.parentElement!;
     expect(toolbar).toContainElement(tagFilter);
     expect(tagFilter.nextElementSibling).toBe(rightGroup);
+    restore();
   });
 
   it("no longer renders the status-filter chip row", async () => {
