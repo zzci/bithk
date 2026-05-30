@@ -164,6 +164,8 @@ const MANUFACTURERS = ["MAN Energy Solutions", "Caterpillar", "Wärtsilä", "Fur
 const PROJECT_KINDS = ["Dry-Dock Refit", "Newbuild", "Annual Survey", "Engine Overhaul", "Class Renewal", "Interior Refit", "Electronics Upgrade", "Hull Maintenance", "Sea Trial Prep", "Warranty Works"] as const;
 const CATEGORY_NAMES = ["Deck Equipment", "Electronics", "Safety Gear", "Engine Parts", "Interior", "Provisions", "Paint & Coatings", "Electrical"] as const;
 const ISSUE_TITLES = ["Inspect and recoat hull below waterline", "Replace bridge navigation radar", "Annual safety equipment audit", "Overhaul main engine", "Service bow thruster", "Renew class certificates", "Calibrate bridge sensors", "Replace emergency fire pump", "Test steering gear", "Update ECDIS charts", "Inspect lifeboats and davits", "Clean and gauge fuel tanks", "Repair HVAC compressor", "Replace sacrificial anodes", "Survey ballast water tanks", "Polish stainless rails and fittings", "Replace anchor windlass motor", "Service tender crane hydraulics", "Recalibrate autopilot gyro", "Renew firefighting foam stock"] as const;
+// Tag vocabulary for issues (source_type='issue'); each work order gets 1–3.
+const ISSUE_TAGS = ["hull", "engine", "electrical", "navigation", "safety", "deck", "hvac", "class-survey", "warranty", "urgent", "dry-dock", "routine"] as const;
 type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
 type IssuePriority = "low" | "medium" | "high" | "urgent";
 
@@ -576,6 +578,7 @@ async function seedIssues(db: AppDatabase, projectPool: SeededProject[]): Promis
       creatorId: project.creatorId,
       priority: pick(profile.priorities),
       status: profile.status,
+      tags: sample(ISSUE_TAGS, randInt(1, 3)),
       ...(assignedMember ? { assigneeMemberId: assignedMember.memberId } : {}),
       ...(dueDate ? { dueDate } : {}),
     });
@@ -712,7 +715,7 @@ async function main(): Promise<void> {
     console.log(`  contacts:     ${counts.contacts}`);
     console.log(`  ships:        ${counts.ships} (+ base projects, ${counts.equipment} equipment)`);
     console.log(`  projects:     ${counts.projects} standalone`);
-    console.log(`  issues:       ${counts.issues} (across todo/working/done/cancel, ${counts.comments} comments)`);
+    console.log(`  issues:       ${counts.issues} (across todo/working/review/done/cancel, ${counts.comments} comments)`);
     console.log(`  procurements: ${counts.procurements} (${COUNTS.procurementsPerProject} per project, all projects)`);
     console.log(`  documents:    ${counts.documents}`);
     console.log(`  cover images: ${counts.covers} (ships + standalone projects; some left unset)`);
