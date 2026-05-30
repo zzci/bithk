@@ -448,6 +448,96 @@ describe("tags + list filters", () => {
   });
 });
 
+describe("comments (procurement.view / procurement.comment gate)", () => {
+  test("a member with procurement.view can read comments but gets 403 on POST", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const viewer = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMemberWithCaps(project.id, viewer, ["procurement.view"]);
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+    const viewerCookie = await cookieForUser(viewer);
+
+    // Read is allowed (procurement.view)
+    const listed = await app.request(`${base}/comments`, { headers: { Cookie: viewerCookie } });
+    expect(listed.status).toBe(200);
+
+    // Post is denied (lacks procurement.comment) → 403
+    const posted = await app.request(`${base}/comments`, jsonReq("POST", viewerCookie, { content: "hello" }));
+    expect(posted.status).toBe(403);
+  });
+
+  test("a member with procurement.comment can post comments", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const commenter = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMemberWithCaps(project.id, commenter, ["procurement.view", "procurement.comment"]);
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+    const commenterCookie = await cookieForUser(commenter);
+
+    const posted = await app.request(`${base}/comments`, jsonReq("POST", commenterCookie, { content: "looks good" }));
+    expect(posted.status).toBe(201);
+    const body = await posted.json() as { data: { content: string } };
+    expect(body.data.content).toBe("looks good");
+
+    // Can also read
+    const listed = await app.request(`${base}/comments`, { headers: { Cookie: commenterCookie } });
+    expect(listed.status).toBe(200);
+  });
+
+  test("a member with neither procurement.view nor procurement.comment is fail-closed 404 on comments", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const guest = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    // No capabilities at all
+    await addMemberWithCaps(project.id, guest, []);
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+    const guestCookie = await cookieForUser(guest);
+
+    const listed = await app.request(`${base}/comments`, { headers: { Cookie: guestCookie } });
+    expect(listed.status).toBe(404);
+
+    const posted = await app.request(`${base}/comments`, jsonReq("POST", guestCookie, { content: "hello" }));
+    expect(posted.status).toBe(404);
+  });
+
+  test("an app admin bypasses all capability checks and can post comments", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const admin = await seedUser("admin");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+    const adminCookie = await cookieForUser(admin);
+
+    const posted = await app.request(`${base}/comments`, jsonReq("POST", adminCookie, { content: "admin comment" }));
+    expect(posted.status).toBe(201);
+  });
+
+  test("Commenter preset (procurement.view + procurement.comment) allows read and post", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const commenter = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    // Commenter preset caps
+    await addMemberWithCaps(project.id, commenter, ["procurement.view", "procurement.comment"]);
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "Widget", creatorId: owner });
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+    const cookie = await cookieForUser(commenter);
+
+    const listed = await app.request(`${base}/comments`, { headers: { Cookie: cookie } });
+    expect(listed.status).toBe(200);
+
+    const posted = await app.request(`${base}/comments`, jsonReq("POST", cookie, { content: "ordered" }));
+    expect(posted.status).toBe(201);
+  });
+});
+
 interface ProcurementResponse {
   data: {
     itemName: string;
