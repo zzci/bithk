@@ -29,20 +29,12 @@
     "defaults": {
       "title": "Project Defaults",
       "description": "Values applied to new projects when the creator does not set them explicitly.",
-      "statusLabel": "Default status",
-      "statusUnset": "Not set",
-      "statusHint": "Applied when a project is created without a status. Falls back to Active when unset.",
-      "status_active": "Active",
-      "status_archived": "Archived",
-      "clear": "Clear",
       "coverLabel": "Default cover",
       "coverUpload": "Upload cover",
       "coverReplace": "Replace cover",
       "coverRemove": "Remove cover",
       "coverHint": "The cover image applied to new projects. Upload an image, or leave it unset for no default cover.",
       "toast": {
-        "statusSaved": "Default status saved.",
-        "statusCleared": "Default status cleared.",
         "coverSaved": "Default cover saved.",
         "coverCleared": "Default cover cleared."
       }

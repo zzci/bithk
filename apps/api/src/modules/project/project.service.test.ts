@@ -207,8 +207,9 @@ describe("softDeleteProject", () => {
 describe("listProjects", () => {
   test("paginates, filters by status, excludes soft-deleted", async () => {
     const creator = await seedUser("Alice");
-    await createProject(db, { name: "A", status: "active", creatorId: creator });
-    await createProject(db, { name: "B", status: "archived", creatorId: creator });
+    await createProject(db, { name: "A", creatorId: creator });
+    const toArchive = await createProject(db, { name: "B", creatorId: creator });
+    await updateProject(db, toArchive.shortId, { status: "archived" });
     const deleted = await createProject(db, { name: "C", creatorId: creator });
     await softDeleteProject(db, deleted.shortId);
 
@@ -222,8 +223,9 @@ describe("listProjects", () => {
 
   test("excludeArchived hides archived projects unless status is explicit", async () => {
     const creator = await seedUser("Alice");
-    await createProject(db, { name: "Live", status: "active", creatorId: creator });
-    await createProject(db, { name: "Old", status: "archived", creatorId: creator });
+    await createProject(db, { name: "Live", creatorId: creator });
+    const old = await createProject(db, { name: "Old", creatorId: creator });
+    await updateProject(db, old.shortId, { status: "archived" });
 
     // Default chip ("All"): archived hidden.
     const visible = await listProjects(db, { excludeArchived: true });
@@ -397,26 +399,14 @@ describe("global procurement categories", () => {
 });
 
 describe("project defaults on create", () => {
-  test("applies the default status when the payload omits it", async () => {
+  test("always creates the project active, ignoring any stale default-status setting", async () => {
     const creator = await seedUser("Alice");
+    // A leftover setting from before the default-status feature was removed must
+    // have no effect: new projects are always created active.
     await setSetting(db, "project.defaults.status", "archived");
 
-    const defaulted = await createProject(db, { name: "Defaulted", creatorId: creator });
-    expect(defaulted.status).toBe("archived");
-
-    // An explicit status in the payload overrides the default.
-    const explicit = await createProject(db, { name: "Explicit", status: "active", creatorId: creator });
-    expect(explicit.status).toBe("active");
-  });
-
-  test("falls back to active when the default status is unset or invalid", async () => {
-    const creator = await seedUser("Alice");
-    const none = await createProject(db, { name: "None", creatorId: creator });
-    expect(none.status).toBe("active");
-
-    await setSetting(db, "project.defaults.status", "bogus");
-    const invalid = await createProject(db, { name: "Invalid", creatorId: creator });
-    expect(invalid.status).toBe("active");
+    const created = await createProject(db, { name: "Always", creatorId: creator });
+    expect(created.status).toBe("active");
   });
 
   test("applies the default cover reference when the payload omits it", async () => {

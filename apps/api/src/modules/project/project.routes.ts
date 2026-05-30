@@ -54,7 +54,6 @@ const tagsShape = { tags: z.array(z.string().min(1).max(50)).max(50).optional() 
 const createProjectSchema = z.object({
   code: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(255),
-  status: z.enum(PROJECT_STATUSES).optional(),
   description: z.string().max(2000).nullable().optional(),
   ...tagsShape,
 });

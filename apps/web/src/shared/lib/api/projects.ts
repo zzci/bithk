@@ -216,7 +216,6 @@ export interface CreateProjectInput {
   readonly name: string;
   readonly code?: string | null;
   readonly description?: string | null;
-  readonly status?: ProjectStatus;
   readonly tags?: readonly string[];
 }
 

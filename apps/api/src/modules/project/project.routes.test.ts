@@ -14,7 +14,7 @@ import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { createRole, listRoles } from "./project.roles";
 import { projectRoutes } from "./project.routes";
-import { addMember, createProject } from "./project.service";
+import { addMember, createProject, updateProject } from "./project.service";
 // Registers the session-cookie auth provider that `authRequired` resolves
 // through — without it the middleware throws.
 import "@/modules/account";
@@ -230,6 +230,17 @@ describe("POST /projects (admin only)", () => {
     const res = await app.request("/projects", jsonReq("POST", cookie, { name: "" }));
     expect(res.status).toBe(422);
   });
+
+  test("ignores a status in the body — a created project is always active", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    // The create schema has no `status` field, so an attempt to seed an archived
+    // project is stripped and the project is persisted active.
+    const res = await app.request("/projects", jsonReq("POST", cookie, { name: "Sneaky", status: "archived" }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { data: { status: string } };
+    expect(body.data.status).toBe("active");
+  });
 });
 
 describe("GET /projects (list scoping)", () => {
@@ -253,8 +264,9 @@ describe("GET /projects (list scoping)", () => {
   test("archived projects are hidden unless explicitly filtered", async () => {
     const app = buildApp(db);
     const admin = await sessionFor("admin");
-    await createProject(db, { name: "Live", status: "active", creatorId: admin.userId });
-    await createProject(db, { name: "Old", status: "archived", creatorId: admin.userId });
+    await createProject(db, { name: "Live", creatorId: admin.userId });
+    const old = await createProject(db, { name: "Old", creatorId: admin.userId });
+    await updateProject(db, old.shortId, { status: "archived" });
 
     const def = await app.request("/projects", { headers: { Cookie: admin.cookie } });
     expect((await def.json() as { data: { name: string }[] }).data.map(p => p.name)).toEqual(["Live"]);
