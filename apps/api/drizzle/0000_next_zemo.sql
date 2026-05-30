@@ -165,7 +165,6 @@ CREATE INDEX `idx_cron_jobs_enabled` ON `cron_jobs` (`enabled`);--> statement-br
 CREATE TABLE `document_details` (
 	`item_id` text PRIMARY KEY NOT NULL,
 	`content` text,
-	`tags` text DEFAULT '[]' NOT NULL,
 	`parent_id` text,
 	`comments_locked` integer DEFAULT false NOT NULL,
 	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
@@ -183,6 +182,14 @@ CREATE TABLE `document_pins` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_document_pins_user` ON `document_pins` (`user_id`);--> statement-breakpoint
+CREATE TABLE `document_tags` (
+	`item_id` text NOT NULL,
+	`tag_id` text NOT NULL,
+	PRIMARY KEY(`item_id`, `tag_id`),
+	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `drive_entries` (
 	`id` text PRIMARY KEY NOT NULL,
 	`owner_type` text NOT NULL,
@@ -287,6 +294,14 @@ CREATE TABLE `issue_details` (
 );
 --> statement-breakpoint
 CREATE INDEX `issue_project_idx` ON `issue_details` (`project_id`);--> statement-breakpoint
+CREATE TABLE `issue_tags` (
+	`item_id` text NOT NULL,
+	`tag_id` text NOT NULL,
+	PRIMARY KEY(`item_id`, `tag_id`),
+	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `issue_references` (
 	`id` text PRIMARY KEY NOT NULL,
 	`item_id` text NOT NULL,
@@ -361,6 +376,9 @@ CREATE TABLE `procurement_details` (
 	`quantity` integer,
 	`amount` integer,
 	`currency` text,
+	`description` text,
+	`priority` text DEFAULT 'medium' NOT NULL,
+	`due_date` text,
 	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`supplier_id`) REFERENCES `contacts`(`id`) ON UPDATE no action ON DELETE set null,
@@ -369,6 +387,14 @@ CREATE TABLE `procurement_details` (
 );
 --> statement-breakpoint
 CREATE INDEX `procurement_project_idx` ON `procurement_details` (`project_id`);--> statement-breakpoint
+CREATE TABLE `procurement_tags` (
+	`item_id` text NOT NULL,
+	`tag_id` text NOT NULL,
+	PRIMARY KEY(`item_id`, `tag_id`),
+	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `global_procurement_categories` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -449,14 +475,6 @@ CREATE UNIQUE INDEX `projects_short_id_idx` ON `projects` (`short_id`);--> state
 CREATE UNIQUE INDEX `projects_code_idx` ON `projects` (`code`);--> statement-breakpoint
 CREATE INDEX `projects_status_idx` ON `projects` (`status`,`deleted_at`);--> statement-breakpoint
 CREATE INDEX `projects_ship_idx` ON `projects` (`ship_id`);--> statement-breakpoint
-CREATE TABLE `tags` (
-	`id` text PRIMARY KEY NOT NULL,
-	`name` text NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `tags_name_idx` ON `tags` (`name`);--> statement-breakpoint
 CREATE TABLE `settings` (
 	`key` text PRIMARY KEY NOT NULL,
 	`value` text NOT NULL,
@@ -556,4 +574,13 @@ CREATE TABLE `ships` (
 CREATE UNIQUE INDEX `ships_short_id_idx` ON `ships` (`short_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `ships_code_idx` ON `ships` (`code`);--> statement-breakpoint
 CREATE INDEX `ships_status_idx` ON `ships` (`status`,`deleted_at`);--> statement-breakpoint
-CREATE INDEX `ships_base_project_idx` ON `ships` (`base_project_id`);
+CREATE INDEX `ships_base_project_idx` ON `ships` (`base_project_id`);--> statement-breakpoint
+CREATE TABLE `tags` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`source_type` text NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `tags_source_name_idx` ON `tags` (`source_type`,`name`);

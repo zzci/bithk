@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1779936287653,
-      "tag": "0000_uneven_swarm",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1779980745354,
-      "tag": "0001_skinny_the_twelve",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1780011605437,
-      "tag": "0002_messy_unicorn",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1780160182240,
-      "tag": "0003_normalize_issue_status",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1780162539824,
-      "tag": "0004_thin_siren",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1780168201229,
-      "tag": "0005_closed_warstar",
+      "when": 1780177177632,
+      "tag": "0000_next_zemo",
       "breakpoints": true
     }
   ]
