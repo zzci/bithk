@@ -283,7 +283,9 @@
       "notSet": "未设置",
       "noDescription": "暂无描述。",
       "descriptionPlaceholder": "添加描述...",
-      "loadFailed": "加载采购失败"
+      "loadFailed": "加载采购失败",
+      "procurementDetails": "采购细节",
+      "resizeDrawer": "调整采购抽屉大小"
     }
   },
   "members": {

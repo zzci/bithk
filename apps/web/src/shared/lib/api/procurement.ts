@@ -35,6 +35,13 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "cancelled",
 ];
 
+// Tag reference carried on procurement rows and detail (name resolved by the
+// API). Mirrors `IssueTagRef` (source_type='procurement').
+export interface ProcurementTagRef {
+  readonly id: string;
+  readonly name: string;
+}
+
 // Issue-parity priority levels, mirroring `issue_details.priority` exactly.
 export type ProcurementPriority = "low" | "medium" | "high" | "urgent";
 
@@ -63,12 +70,11 @@ export interface ProcurementRow {
   readonly priority: ProcurementPriority;
   readonly dueDate: string | null;
   readonly creatorId: string;
+  // Assigned tags (source_type='procurement'), resolved by the API.
+  readonly tags: readonly ProcurementTagRef[];
   // Pin state from the shared item base; mirrors ProjectIssueRow.
   readonly pinned: boolean;
   readonly pinnedAt: string | null;
-  // Tags assigned to this procurement (source_type='procurement'), resolved by
-  // the API. Mirrors ProjectIssueRow.tags.
-  readonly tags: readonly { readonly id: string; readonly name: string }[];
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly version: number;

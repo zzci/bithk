@@ -283,7 +283,9 @@
       "notSet": "Not set",
       "noDescription": "No description yet.",
       "descriptionPlaceholder": "Add a description...",
-      "loadFailed": "Failed to load procurement"
+      "loadFailed": "Failed to load procurement",
+      "procurementDetails": "Procurement details",
+      "resizeDrawer": "Resize procurement drawer"
     }
   },
   "members": {

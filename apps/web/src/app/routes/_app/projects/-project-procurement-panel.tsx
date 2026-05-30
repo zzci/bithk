@@ -11,6 +11,7 @@ import type { ProcurementPriority, ProcurementStatus, UpdateProcurementInput } f
 import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import {
   ArrowLeft,
+  ChevronDown,
   Maximize2,
   Paperclip,
   Pencil,
@@ -46,13 +47,17 @@ import {
   PROCUREMENT_STATUSES,
   useChangeProcurementStatus,
   useProcurement,
+  useProcurementTags,
   useUpdateProcurement,
 } from "@/shared/lib/api/procurement";
 import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
+import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
+import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 // ── Helpers ──
 
@@ -101,6 +106,7 @@ export function ProjectProcurementPanel({
   const changeStatus = useChangeProcurementStatus();
   const suppliersQuery = useContacts();
   const categoriesQuery = useProcurementCategories(projectId);
+  const procurementTagsQuery = useProcurementTags();
   const procurement = procurementQuery.data ?? null;
 
   const [error, setError] = useState<string | null>(null);
@@ -257,6 +263,10 @@ export function ProjectProcurementPanel({
     ? categories.find(c => c.id === procurement.categoryId)?.name ?? procurement.categoryId
     : null;
 
+  const procurementTags = procurement.tags ?? [];
+  const tagVocabulary = (procurementTagsQuery.data ?? []).map(tag => tag.name);
+  const currentTagNames = procurementTags.map(tag => tag.name);
+
   return (
     <div
       ref={panelRef}
@@ -343,7 +353,7 @@ export function ProjectProcurementPanel({
             ? (
                 <Select value={procurement.status} onValueChange={v => v !== null && changeProcurementStatus(v as ProcurementStatus)}>
                   <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3" aria-label={t("procurement.changeStatus")}>
-                    <Badge variant="secondary" className="cursor-pointer">
+                    <Badge variant="secondary" className={cn("cursor-pointer", PROCUREMENT_STATUS_BADGE[procurement.status])}>
                       {t(`procurement.status.${procurement.status}` as const)}
                     </Badge>
                   </SelectTrigger>
@@ -354,7 +364,7 @@ export function ProjectProcurementPanel({
                   </SelectContent>
                 </Select>
               )
-            : <Badge variant="secondary">{t(`procurement.status.${procurement.status}` as const)}</Badge>}
+            : <Badge variant="secondary" className={PROCUREMENT_STATUS_BADGE[procurement.status]}>{t(`procurement.status.${procurement.status}` as const)}</Badge>}
 
           {/* Priority */}
           {canEdit
@@ -431,13 +441,13 @@ export function ProjectProcurementPanel({
                       type="button"
                       className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary"
                       onClick={() => dueDateInputRef.current?.showPicker()}
+                      aria-label={t("procurement.field.dueDate")}
+                      title={t("procurement.field.dueDate")}
                     >
-                      {procurement.dueDate ?? (
-                        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                          {t("procurement.detail.notSet")}
-                          <Pencil className="size-2.5" />
-                        </span>
-                      )}
+                      {procurement.dueDate
+                        ? <span>{procurement.dueDate}</span>
+                        : <span className="text-muted-foreground">{t("procurement.detail.notSet")}</span>}
+                      <ChevronDown className="size-3" />
                     </button>
                     <input
                       ref={dueDateInputRef}
@@ -451,113 +461,6 @@ export function ProjectProcurementPanel({
                 )
               : <span className="text-foreground">{procurement.dueDate ?? "—"}</span>}
           </span>
-
-          <span className="mx-1 text-muted-foreground/50">·</span>
-
-          {/* Supplier — contact picker */}
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span>
-              {t("procurement.field.supplier")}
-              :
-            </span>
-            {canEdit
-              ? (
-                  <Select
-                    value={procurement.supplierId ?? NONE}
-                    onValueChange={(v) => {
-                      if (v === null)
-                        return;
-                      patch({ supplierId: v === NONE ? null : v });
-                    }}
-                  >
-                    <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-xs text-foreground hover:text-primary [&>svg:last-child]:size-3">
-                      <SelectValue>
-                        {(v: string) => (v === NONE ? <span className="text-muted-foreground">{t("procurement.none")}</span> : suppliers.find(s => s.id === v)?.name ?? v)}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>{t("procurement.none")}</SelectItem>
-                      {suppliers.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )
-              : <span className="text-foreground">{supplierName ?? t("procurement.none")}</span>}
-          </span>
-
-          <span className="mx-1 text-muted-foreground/50">·</span>
-
-          {/* Category */}
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span>
-              {t("procurement.field.category")}
-              :
-            </span>
-            {canEdit
-              ? (
-                  <Select
-                    value={procurement.categoryId ?? NONE}
-                    onValueChange={(v) => {
-                      if (v === null)
-                        return;
-                      patch({ categoryId: v === NONE ? null : v });
-                    }}
-                  >
-                    <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-xs text-foreground hover:text-primary [&>svg:last-child]:size-3">
-                      <SelectValue>
-                        {(v: string) => (v === NONE ? <span className="text-muted-foreground">{t("procurement.none")}</span> : categories.find(c => c.id === v)?.name ?? v)}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>{t("procurement.none")}</SelectItem>
-                      {categories.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )
-              : <span className="text-foreground">{categoryName ?? t("procurement.none")}</span>}
-          </span>
-
-          <span className="mx-1 text-muted-foreground/50">·</span>
-
-          {/* Quantity */}
-          <InlineMetaField
-            label={t("procurement.field.quantity")}
-            display={procurement.quantity === null ? null : String(procurement.quantity)}
-            initial={procurement.quantity === null ? "" : String(procurement.quantity)}
-            canEdit={canEdit}
-            type="number"
-            notSetLabel={t("procurement.detail.notSet")}
-            onCommit={raw => commitNumber(raw, procurement.quantity, next => patch({ quantity: next }))}
-          />
-
-          <span className="mx-1 text-muted-foreground/50">·</span>
-
-          {/* Amount */}
-          <InlineMetaField
-            label={t("procurement.field.amount")}
-            display={procurement.amount === null ? null : String(procurement.amount)}
-            initial={procurement.amount === null ? "" : String(procurement.amount)}
-            canEdit={canEdit}
-            type="number"
-            notSetLabel={t("procurement.detail.notSet")}
-            onCommit={raw => commitNumber(raw, procurement.amount, next => patch({ amount: next }))}
-          />
-
-          <span className="mx-1 text-muted-foreground/50">·</span>
-
-          {/* Currency */}
-          <InlineMetaField
-            label={t("procurement.field.currency")}
-            display={procurement.currency}
-            initial={procurement.currency ?? ""}
-            canEdit={canEdit}
-            maxLength={10}
-            notSetLabel={t("procurement.detail.notSet")}
-            onCommit={raw => commitText(raw, procurement.currency, next => patch({ currency: next }))}
-          />
 
           <div className="ml-auto inline-flex items-center gap-0.5">
             {canUploadAttachment && (
@@ -591,8 +494,130 @@ export function ProjectProcurementPanel({
           />
         </div>
 
+        {/* Tags — view / add / remove, mirroring the issue panel. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {canEdit
+            ? (
+                <ProjectTagsCombobox
+                  value={currentTagNames}
+                  suggestions={tagVocabulary}
+                  onChange={next => patch({ tags: [...next] })}
+                />
+              )
+            : procurementTags.map(tag => (
+                <Badge key={tag.id} variant="secondary" className="gap-1 text-xs font-normal">
+                  {tag.name}
+                </Badge>
+              ))}
+        </div>
+
+        {/* Procurement details — procurement-specific fields presented as a clean
+            table, distinct from the generic meta row shared with issues. Inline
+            edit is preserved for the editable fields. */}
+        <section className="mt-1">
+          <h2 className="mb-1.5 text-xs font-medium text-muted-foreground">
+            {t("procurement.detail.procurementDetails")}
+          </h2>
+          <div className="overflow-hidden rounded-md border border-border/60">
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-border/60">
+                <ProcurementDetailRow label={t("procurement.field.itemName")}>
+                  <span className="text-foreground">{procurement.itemName}</span>
+                </ProcurementDetailRow>
+
+                <ProcurementDetailRow label={t("procurement.field.supplier")}>
+                  {canEdit
+                    ? (
+                        <Select
+                          value={procurement.supplierId ?? NONE}
+                          onValueChange={(v) => {
+                            if (v === null)
+                              return;
+                            patch({ supplierId: v === NONE ? null : v });
+                          }}
+                        >
+                          <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-sm text-foreground hover:text-primary [&>svg:last-child]:size-3">
+                            <SelectValue>
+                              {(v: string) => (v === NONE ? <span className="text-muted-foreground">{t("procurement.none")}</span> : suppliers.find(s => s.id === v)?.name ?? v)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NONE}>{t("procurement.none")}</SelectItem>
+                            {suppliers.map(s => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )
+                    : <span className="text-foreground">{supplierName ?? t("procurement.none")}</span>}
+                </ProcurementDetailRow>
+
+                <ProcurementDetailRow label={t("procurement.field.category")}>
+                  {canEdit
+                    ? (
+                        <Select
+                          value={procurement.categoryId ?? NONE}
+                          onValueChange={(v) => {
+                            if (v === null)
+                              return;
+                            patch({ categoryId: v === NONE ? null : v });
+                          }}
+                        >
+                          <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-sm text-foreground hover:text-primary [&>svg:last-child]:size-3">
+                            <SelectValue>
+                              {(v: string) => (v === NONE ? <span className="text-muted-foreground">{t("procurement.none")}</span> : categories.find(c => c.id === v)?.name ?? v)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NONE}>{t("procurement.none")}</SelectItem>
+                            {categories.map(c => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )
+                    : <span className="text-foreground">{categoryName ?? t("procurement.none")}</span>}
+                </ProcurementDetailRow>
+
+                <ProcurementDetailRow label={t("procurement.field.quantity")}>
+                  <InlineValue
+                    display={procurement.quantity === null ? null : String(procurement.quantity)}
+                    initial={procurement.quantity === null ? "" : String(procurement.quantity)}
+                    canEdit={canEdit}
+                    type="number"
+                    notSetLabel={t("procurement.detail.notSet")}
+                    onCommit={raw => commitNumber(raw, procurement.quantity, next => patch({ quantity: next }))}
+                  />
+                </ProcurementDetailRow>
+
+                <ProcurementDetailRow label={t("procurement.field.amount")}>
+                  <InlineValue
+                    display={procurement.amount === null ? null : String(procurement.amount)}
+                    initial={procurement.amount === null ? "" : String(procurement.amount)}
+                    canEdit={canEdit}
+                    type="number"
+                    notSetLabel={t("procurement.detail.notSet")}
+                    onCommit={raw => commitNumber(raw, procurement.amount, next => patch({ amount: next }))}
+                  />
+                </ProcurementDetailRow>
+
+                <ProcurementDetailRow label={t("procurement.field.currency")}>
+                  <InlineValue
+                    display={procurement.currency}
+                    initial={procurement.currency ?? ""}
+                    canEdit={canEdit}
+                    maxLength={10}
+                    notSetLabel={t("procurement.detail.notSet")}
+                    onCommit={raw => commitText(raw, procurement.currency, next => patch({ currency: next }))}
+                  />
+                </ProcurementDetailRow>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         {/* Description */}
-        <div>
+        <div className="rounded-md bg-muted/40 p-3">
           {editingDesc && canEdit
             ? (
                 <div key="description-edit" className="space-y-2">
@@ -623,13 +648,13 @@ export function ProjectProcurementPanel({
                     <button
                       type="button"
                       onClick={startEditDesc}
-                      className="w-full rounded-md border border-dashed bg-muted/30 px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
+                      className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
                     >
                       {t("procurement.detail.noDescription")}
                     </button>
                   )
                 : (
-                    <div className="rounded-md border border-dashed bg-muted/30 px-2 py-1 text-sm italic text-muted-foreground leading-snug">
+                    <div className="rounded-md border border-dashed bg-transparent px-2 py-1 text-sm italic text-muted-foreground leading-snug">
                       {t("procurement.detail.noDescription")}
                     </div>
                   )}
@@ -661,8 +686,12 @@ export function ProjectProcurementPanel({
           i18nNs="issues"
           userMap={userMap}
           commentsEnableReply
+          commentsEnableAttachments
+          commentsStickyComposer
+          currentUserId={user?.id}
           sectionSpacingClassName="mt-4"
           canDeleteAttachment={att => !!isAdmin || procurement.creatorId === user?.id || att.uploadedBy === user?.id}
+          canDeleteCommentAttachment={att => !!isAdmin || att.uploadedBy === user?.id}
           canDeleteComment={c => !!isAdmin || c.authorId === user?.id}
         />
       </div>
@@ -670,10 +699,27 @@ export function ProjectProcurementPanel({
   );
 }
 
-// ── Inline meta field ──
+// ── Procurement-details table primitives ──
 
-interface InlineMetaFieldProps {
+interface ProcurementDetailRowProps {
   readonly label: string;
+  readonly children: React.ReactNode;
+}
+
+// One label/value row of the 采购细节 (procurement-details) table. The label is
+// a row header for assistive-tech table semantics.
+function ProcurementDetailRow({ label, children }: ProcurementDetailRowProps) {
+  return (
+    <tr>
+      <th scope="row" className="w-32 px-3 py-2 text-left align-top text-xs font-normal text-muted-foreground">
+        {label}
+      </th>
+      <td className="px-3 py-2 align-top">{children}</td>
+    </tr>
+  );
+}
+
+interface InlineValueProps {
   /** Formatted current value, or null when unset (shows the "not set" affordance). */
   readonly display: string | null;
   /** Initial input value when entering edit mode. */
@@ -685,54 +731,49 @@ interface InlineMetaFieldProps {
   readonly onCommit: (raw: string) => void;
 }
 
-// Inline "label: value" meta cell matching the issue panel's due-date affordance:
-// a click reveals a borderless inline input that commits on blur/Enter. The
-// input is uncontrolled and seeded from `initial`; a successful patch refreshes
-// `initial`, so the next edit starts from the committed value.
-function InlineMetaField({ label, display, initial, canEdit, type = "text", maxLength, notSetLabel, onCommit }: InlineMetaFieldProps) {
+// Value-only inline edit cell for the procurement-details table (the row header
+// already carries the label). A click reveals a borderless input that commits on
+// blur/Enter. The input is uncontrolled and seeded from `initial`; a successful
+// patch refreshes `initial`, so the next edit starts from the committed value.
+function InlineValue({ display, initial, canEdit, type = "text", maxLength, notSetLabel, onCommit }: InlineValueProps) {
   const [editing, setEditing] = useState(false);
 
+  if (!canEdit)
+    return <span className="text-foreground">{display ?? "—"}</span>;
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type={type}
+        min={type === "number" ? "0" : undefined}
+        maxLength={maxLength}
+        defaultValue={initial}
+        className="h-5 w-24 border-b border-primary bg-transparent text-sm text-foreground outline-none"
+        onBlur={(e) => {
+          onCommit(e.currentTarget.value);
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter")
+            e.currentTarget.blur();
+        }}
+      />
+    );
+  }
+
   return (
-    <span className="inline-flex items-center gap-1 text-muted-foreground">
-      <span>
-        {label}
-        :
-      </span>
-      {canEdit
-        ? editing
-          ? (
-              <input
-                autoFocus
-                type={type}
-                min={type === "number" ? "0" : undefined}
-                maxLength={maxLength}
-                defaultValue={initial}
-                className="h-5 w-20 border-b border-primary bg-transparent text-xs text-foreground outline-none"
-                onBlur={(e) => {
-                  onCommit(e.currentTarget.value);
-                  setEditing(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter")
-                    e.currentTarget.blur();
-                }}
-              />
-            )
-          : (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary"
-                onClick={() => setEditing(true)}
-              >
-                {display ?? (
-                  <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-                    {notSetLabel}
-                    <Pencil className="size-2.5" />
-                  </span>
-                )}
-              </button>
-            )
-        : <span className="text-foreground">{display ?? "—"}</span>}
-    </span>
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 text-sm text-foreground hover:text-primary"
+      onClick={() => setEditing(true)}
+    >
+      {display ?? (
+        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+          {notSetLabel}
+          <Pencil className="size-2.5" />
+        </span>
+      )}
+    </button>
   );
 }
