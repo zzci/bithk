@@ -38,3 +38,4 @@
 | [PLAN-034](PLAN-034.md) | Immutable lowercase project code placement | Done | 2026-05-28 |
 | [PLAN-035](PLAN-035.md) | Procurement detail parity with issue details | Completed | 2026-05-29 |
 | [PLAN-036](PLAN-036.md) | Route project detail tabs by URL | Completed | 2026-05-30 |
+| [PLAN-037](PLAN-037.md) | Procurement module parity with the issue module | Implementing | 2026-05-30 |
