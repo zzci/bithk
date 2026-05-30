@@ -94,6 +94,7 @@ const SCHEMA_DDL: readonly string[] = [
     name TEXT NOT NULL,
     capabilities TEXT NOT NULL DEFAULT '[]',
     is_system INTEGER NOT NULL DEFAULT 0,
+    kind TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -178,7 +179,7 @@ async function seedUser(name: string, role: "admin" | "user" = "user"): Promise<
 /** Resolve the seeded baseline "Member" role id for a project. */
 async function memberRoleId(projectId: string): Promise<string> {
   const roles = await listRoles(db, projectId);
-  return roles.find(r => r.name === "Member")!.id;
+  return roles.find(r => r.name === "Reader")!.id;
 }
 
 beforeEach(() => {

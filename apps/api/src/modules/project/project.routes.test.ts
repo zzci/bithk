@@ -131,7 +131,7 @@ async function cookieForUser(userId: string): Promise<string> {
 
 async function memberRoleId(projectId: string): Promise<string> {
   const roles = await listRoles(db, projectId);
-  return roles.find(r => r.name === "Member")!.id;
+  return roles.find(r => r.name === "Reader")!.id;
 }
 
 function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
@@ -447,7 +447,7 @@ describe("roles (roles.manage gate)", () => {
     expect(role.capabilities).toEqual(["issue.manage"]);
 
     const list = await app.request(`/projects/${project.shortId}/roles`, { headers: { Cookie: cookie } });
-    expect((await list.json() as { data: unknown[] }).data.length).toBe(3); // pm + member + QA
+    expect((await list.json() as { data: unknown[] }).data.length).toBe(6); // owner + guest + reader + commenter + writer + QA
 
     // A non-member is fail-closed at the project gate.
     const outside = await app.request(`/projects/${project.shortId}/roles`, { headers: { Cookie: outsider.cookie } });
@@ -490,22 +490,33 @@ describe("roles (roles.manage gate)", () => {
     expect(res.status).toBe(404);
   });
 
-  test("a system role cannot be deleted (403); an in-use role cannot (422); an unused role can", async () => {
+  test("a system role cannot be deleted (403); an in-use custom role is deleted and holders demoted to Guest", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const bob = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
     const cookie = await cookieForUser(owner);
-    const pmRole = (await listRoles(db, project.id)).find(r => r.isSystem === 1)!;
+    const pmRole = (await listRoles(db, project.id)).find(r => r.kind === "owner")!;
+    const guestRole = (await listRoles(db, project.id)).find(r => r.kind === "guest")!;
 
+    // System roles (owner and guest) cannot be deleted.
     const sys = await app.request(`/projects/${project.shortId}/roles/${pmRole.id}`, jsonReq("DELETE", cookie));
     expect(sys.status).toBe(403);
+    const sysGuest = await app.request(`/projects/${project.shortId}/roles/${guestRole.id}`, jsonReq("DELETE", cookie));
+    expect(sysGuest.status).toBe(403);
 
+    // An in-use custom role is deleted and holders are reassigned to Guest.
     const inUse = await createRole(db, project.id, { name: "Busy", capabilities: [] });
-    await addMember(db, project.id, { roleId: inUse.id, userId: bob });
+    const bobMember = await addMember(db, project.id, { roleId: inUse.id, userId: bob });
     const busy = await app.request(`/projects/${project.shortId}/roles/${inUse.id}`, jsonReq("DELETE", cookie));
-    expect(busy.status).toBe(422);
+    expect(busy.status).toBe(200);
+    // Verify Bob was reassigned to the Guest role.
+    const membersRes = await app.request(`/projects/${project.shortId}/members`, { headers: { Cookie: cookie } });
+    const membersBody = await membersRes.json() as { data: { id: string; roleId: string }[] };
+    const bobRow = membersBody.data.find(m => m.id === bobMember.id)!;
+    expect(bobRow.roleId).toBe(guestRole.id);
 
+    // A free custom role is also deleted cleanly.
     const free = await createRole(db, project.id, { name: "Free", capabilities: [] });
     const ok = await app.request(`/projects/${project.shortId}/roles/${free.id}`, jsonReq("DELETE", cookie));
     expect(ok.status).toBe(200);

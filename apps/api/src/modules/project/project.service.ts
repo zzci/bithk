@@ -253,14 +253,14 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     updatedAt: now,
   }).run();
 
-  const { pmRoleId } = seedDefaultRoles(tx, id, now);
+  const { ownerRoleId } = seedDefaultRoles(tx, id, now);
 
   tx.insert(projectMembers).values({
     id: nanoid(),
     projectId: id,
     userId: input.creatorId,
     displayName: null,
-    roleId: pmRoleId,
+    roleId: ownerRoleId,
     title: null,
     createdAt: now,
     updatedAt: now,

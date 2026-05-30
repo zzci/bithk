@@ -87,7 +87,7 @@ async function cookieForUser(userId: string): Promise<string> {
 
 async function memberRoleId(projectId: string): Promise<string> {
   const roles = await listRoles(db, projectId);
-  return roles.find(r => r.name === "Member")!.id;
+  return roles.find(r => r.name === "Reader")!.id;
 }
 
 async function addMemberWithCaps(projectId: string, userId: string, caps: string[]): Promise<void> {
@@ -251,7 +251,9 @@ describe("pinned-list (GET /projects/:projectId/pinned-items)", () => {
     const ownerCookie = await cookieForUser(owner);
     const plain = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: plain });
+    // Use Guest role (no caps) to test fail-closed procurement visibility.
+    const guestRole = (await listRoles(db, project.id)).find(r => r.kind === "guest")!;
+    await addMember(db, project.id, { roleId: guestRole.id, userId: plain });
     const issue = await createIssue(db, { title: "Fix pump", projectId: project.id, creatorId: owner });
     const proc = await createProcurement(db, { projectId: project.id, itemName: "Steel", creatorId: owner });
 

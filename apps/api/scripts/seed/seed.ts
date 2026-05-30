@@ -258,12 +258,12 @@ async function importProjects(db: AppDatabase, config: Config): Promise<void> {
       tags: p.tags ?? [],
     });
 
-    // The creator is auto-added with the system PM role; the non-system
-    // "Member" role is used for added members.
+    // The creator is auto-added with the Owner (system) role; the "Reader"
+    // preset is used for added members (read-only access by default).
     const roles = await listRoles(db, project.id);
-    const memberRole = roles.find(r => r.isSystem === 0);
+    const memberRole = roles.find(r => r.name === "Reader" && r.isSystem === 0);
     if (!memberRole)
-      throw new Error(`No member role on project ${p.key}`);
+      throw new Error(`No Reader role on project ${p.key}`);
 
     const members: { memberId: string; userId: string }[] = [];
     for (const m of p.members ?? []) {

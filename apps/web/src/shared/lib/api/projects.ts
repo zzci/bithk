@@ -30,13 +30,18 @@ interface ApiListEnvelope<T> {
 export type ProjectStatus = "active" | "archived";
 
 export const PROJECT_CAPABILITIES = [
-  "project.manage",
+  "issue.view",
+  "issue.comment",
+  "issue.manage",
+  "procurement.view",
+  "procurement.comment",
+  "procurement.manage",
+  "files.view",
+  "files.manage",
+  "categories.manage",
   "members.manage",
   "roles.manage",
-  "categories.manage",
-  "procurement.view",
-  "procurement.manage",
-  "issue.manage",
+  "project.manage",
 ] as const;
 export type ProjectCapability = typeof PROJECT_CAPABILITIES[number];
 
@@ -78,6 +83,7 @@ export interface ProjectRoleView {
   readonly name: string;
   readonly capabilities: readonly ProjectCapability[];
   readonly isSystem: boolean;
+  readonly kind?: "owner" | "guest" | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

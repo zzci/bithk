@@ -50,7 +50,7 @@ async function seedUser(name: string): Promise<string> {
 async function memberRoleId(projectInternalId: string): Promise<string> {
   const { projectRoles } = await import("@/modules/project/schema");
   const roles = await db.select().from(projectRoles).where(eq(projectRoles.projectId, projectInternalId)).all();
-  return roles.find(r => r.name === "Member")!.id;
+  return roles.find(r => r.name === "Reader")!.id;
 }
 
 beforeEach(async () => {

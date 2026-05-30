@@ -329,6 +329,7 @@
     "add": "添加角色",
     "empty": "尚未定义角色。",
     "owner": "项目所有者",
+    "guest": "访客",
     "system": "系统",
     "noCapabilities": "无权限",
     "createTitle": "创建角色",
@@ -344,13 +345,18 @@
     }
   },
   "capability": {
-    "project.manage": "管理项目",
+    "issue.view": "查看工单",
+    "issue.comment": "评论工单",
+    "issue.manage": "管理工单",
+    "procurement.view": "查看采购",
+    "procurement.comment": "评论采购",
+    "procurement.manage": "管理采购",
+    "files.view": "查看文件",
+    "files.manage": "管理文件",
+    "categories.manage": "管理分类",
     "members.manage": "管理成员",
     "roles.manage": "管理角色",
-    "categories.manage": "管理分类",
-    "procurement.view": "查看采购",
-    "procurement.manage": "管理采购",
-    "issue.manage": "管理工单"
+    "project.manage": "管理项目"
   },
   "capabilityGroup": {
     "project": "项目",
@@ -358,7 +364,8 @@
     "roles": "角色",
     "categories": "分类",
     "procurement": "采购",
-    "issue": "工单"
+    "issue": "工单",
+    "files": "文件"
   },
   "categories": {
     "add": "添加分类",

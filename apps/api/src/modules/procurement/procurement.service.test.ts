@@ -14,7 +14,7 @@ import * as contactService from "@/modules/contact/contact.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { createCategory } from "@/modules/project/project.categories";
-import { createRole, listRoles } from "@/modules/project/project.roles";
+import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject, getMemberCapabilities, hasCapability } from "@/modules/project/project.service";
 import { listResourceIdsByAnyTag, listTagsWithUsage } from "@/modules/tag/tag.service";
 import {
@@ -55,7 +55,7 @@ async function seedGlobalContact(ownerId: string, name = "Supplier Co") {
 
 async function memberRoleId(projectId: string): Promise<string> {
   const roles = await listRoles(db, projectId);
-  return roles.find(r => r.name === "Member")!.id;
+  return roles.find(r => r.name === "Reader")!.id;
 }
 
 beforeEach(async () => {
@@ -382,19 +382,20 @@ describe("cancellation (procurement is non-deletable)", () => {
 });
 
 describe("capability gating (procurement.view)", () => {
-  test("pm and a role-granted member can view; a plain member and an outsider cannot", async () => {
+  test("pm and role-granted members can view; a Guest member and outsider cannot", async () => {
     const creator = await seedUser("Alice"); // pm (all capabilities)
-    const granted = await seedUser("Carol");
-    const plain = await seedUser("Bob");
+    const reader = await seedUser("Carol"); // Reader role — has procurement.view
+    const guest = await seedUser("Bob"); // Guest role — no caps at all
     const outsider = await seedUser("Eve");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    const viewer = await createRole(db, project.id, { name: "Procurement Viewer", capabilities: ["procurement.view"] });
-    await addMember(db, project.id, { roleId: viewer.id, userId: granted });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: plain });
+    const roles = await listRoles(db, project.id);
+    const guestRole = roles.find(r => r.kind === "guest")!;
+    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: reader });
+    await addMember(db, project.id, { roleId: guestRole.id, userId: guest });
 
     expect(await hasCapability(db, project.id, creator, "procurement.view")).toBe(true);
-    expect(await hasCapability(db, project.id, granted, "procurement.view")).toBe(true);
-    expect(await hasCapability(db, project.id, plain, "procurement.view")).toBe(false);
+    expect(await hasCapability(db, project.id, reader, "procurement.view")).toBe(true);
+    expect(await hasCapability(db, project.id, guest, "procurement.view")).toBe(false);
     expect(await getMemberCapabilities(db, project.id, outsider)).toBeNull();
   });
 });

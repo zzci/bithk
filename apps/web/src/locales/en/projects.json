@@ -329,6 +329,7 @@
     "add": "Add role",
     "empty": "No roles defined.",
     "owner": "Project Owner",
+    "guest": "Guest",
     "system": "System",
     "noCapabilities": "No capabilities",
     "createTitle": "Create role",
@@ -344,13 +345,18 @@
     }
   },
   "capability": {
-    "project.manage": "Manage project",
+    "issue.view": "View work orders",
+    "issue.comment": "Comment on work orders",
+    "issue.manage": "Manage work orders",
+    "procurement.view": "View procurement",
+    "procurement.comment": "Comment on procurement",
+    "procurement.manage": "Manage procurement",
+    "files.view": "View files",
+    "files.manage": "Manage files",
+    "categories.manage": "Manage categories",
     "members.manage": "Manage members",
     "roles.manage": "Manage roles",
-    "categories.manage": "Manage categories",
-    "procurement.view": "View procurement",
-    "procurement.manage": "Manage procurement",
-    "issue.manage": "Manage work orders"
+    "project.manage": "Manage project"
   },
   "capabilityGroup": {
     "project": "Project",
@@ -358,7 +364,8 @@
     "roles": "Roles",
     "categories": "Categories",
     "procurement": "Procurement",
-    "issue": "Work orders"
+    "issue": "Work orders",
+    "files": "Files"
   },
   "categories": {
     "add": "Add category",
