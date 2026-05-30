@@ -15,7 +15,8 @@ import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { policyMiddleware } from "@/modules/policy";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
-import { createProject } from "@/modules/project/project.service";
+import { listRoles } from "@/modules/project/project.roles";
+import { addMember, createProject } from "@/modules/project/project.service";
 import { driveRoutes } from "./drive.routes";
 import {
   createDriveFolder,
@@ -418,5 +419,83 @@ describe("drive routes owner scope", () => {
     const listPath = `/drive/entries?ownerType=project&ownerId=${project.shortId}`;
     expect((await app.request(listPath, { headers: { "x-uid": pmId } })).status).toBe(200);
     expect((await app.request(listPath, { headers: { "x-uid": strangerId } })).status).toBe(403);
+  });
+
+  test("Reader (files.view) can list project files but cannot create", async () => {
+    const ownerId = await seedUser("Owner");
+    const readerId = await seedUser("Reader");
+    const project = await createProject(db, { name: "ReadOnly", creatorId: ownerId });
+    const roles = await listRoles(db, project.id);
+    const readerRoleId = roles.find(r => r.name === "Reader")!.id;
+    await addMember(db, project.id, { roleId: readerRoleId, userId: readerId });
+
+    const app = buildApp();
+    const listPath = `/drive/entries?ownerType=project&ownerId=${project.shortId}`;
+
+    expect((await app.request(listPath, { headers: { "x-uid": readerId } })).status).toBe(200);
+
+    const createRes = await app.request("/drive/folders", {
+      method: "POST",
+      headers: { "x-uid": readerId, "content-type": "application/json" },
+      body: JSON.stringify({ name: "Forbidden", ownerType: "project", ownerId: project.shortId }),
+    });
+    expect(createRes.status).toBe(403);
+  });
+
+  test("Guest (no capabilities) cannot list project files", async () => {
+    const ownerId = await seedUser("Owner");
+    const guestId = await seedUser("Guest");
+    const project = await createProject(db, { name: "GuestProject", creatorId: ownerId });
+    const roles = await listRoles(db, project.id);
+    const guestRoleId = roles.find(r => r.name === "Guest")!.id;
+    await addMember(db, project.id, { roleId: guestRoleId, userId: guestId });
+
+    const app = buildApp();
+    const listPath = `/drive/entries?ownerType=project&ownerId=${project.shortId}`;
+
+    expect((await app.request(listPath, { headers: { "x-uid": guestId } })).status).toBe(403);
+  });
+
+  test("Writer (files.manage) can create project files", async () => {
+    const ownerId = await seedUser("Owner");
+    const writerId = await seedUser("Writer");
+    const project = await createProject(db, { name: "WriteProject", creatorId: ownerId });
+    const roles = await listRoles(db, project.id);
+    const writerRoleId = roles.find(r => r.name === "Writer")!.id;
+    await addMember(db, project.id, { roleId: writerRoleId, userId: writerId });
+
+    const app = buildApp();
+    const createRes = await app.request("/drive/folders", {
+      method: "POST",
+      headers: { "x-uid": writerId, "content-type": "application/json" },
+      body: JSON.stringify({ name: "WriterFolder", ownerType: "project", ownerId: project.shortId }),
+    });
+    expect(createRes.status).toBe(201);
+  });
+
+  test("personal and team-directory paths are unaffected by project capability gates", async () => {
+    const userId = await seedUser("User");
+    const editorId = await seedUser("Editor");
+    const dir = await createTeamDirectory(db, { name: "Team", createdBy: userId });
+    await addTeamMember(db, dir.id, userId, { userId: editorId, role: "editor" });
+
+    const app = buildApp();
+
+    // Personal drive: any authenticated user can list and create their own files
+    expect((await app.request("/drive/entries", { headers: { "x-uid": userId } })).status).toBe(200);
+    const personalCreate = await app.request("/drive/folders", {
+      method: "POST",
+      headers: { "x-uid": userId, "content-type": "application/json" },
+      body: JSON.stringify({ name: "MyFolder" }),
+    });
+    expect(personalCreate.status).toBe(201);
+
+    // Team directory: editor can create, viewer is separate concern (already tested above)
+    const tdCreate = await app.request("/drive/folders", {
+      method: "POST",
+      headers: { "x-uid": editorId, "content-type": "application/json" },
+      body: JSON.stringify({ name: "TdFolder", ownerType: "team_directory", ownerId: dir.id }),
+    });
+    expect(tdCreate.status).toBe(201);
   });
 });

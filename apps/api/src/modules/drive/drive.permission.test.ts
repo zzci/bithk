@@ -148,13 +148,24 @@ describe("resolveEntryCapabilities — team directory roles", () => {
 });
 
 describe("resolveEntryCapabilities — project roles", () => {
-  async function projectEntry(role: "pm" | "member" | "none") {
+  type ProjectRoleName = "pm" | "writer" | "reader" | "guest" | "none";
+
+  async function projectEntry(role: ProjectRoleName) {
     const creator = await seedUser("Creator");
     const actor = await seedUser("Actor");
     const project = await createProject(db, { name: `proj-${nanoid()}`, creatorId: creator });
     if (role !== "none") {
       const roles = await listRoles(db, project.id);
-      const roleId = roles.find(r => r.name === (role === "pm" ? "Project Owner" : "Reader"))!.id;
+      let roleName: string;
+      if (role === "pm")
+        roleName = "Project Owner";
+      else if (role === "writer")
+        roleName = "Writer";
+      else if (role === "reader")
+        roleName = "Reader";
+      else
+        roleName = "Guest";
+      const roleId = roles.find(r => r.name === roleName)!.id;
       await addMember(db, project.id, { roleId, userId: actor });
     }
     const folder = await createDriveFolder(db, { ownerType: "project", ownerId: project.id, createdBy: creator, name: "files" });
@@ -162,17 +173,30 @@ describe("resolveEntryCapabilities — project roles", () => {
     return { row, actor };
   }
 
-  test("project pm gets the full set", async () => {
+  test("project Owner (files.manage) gets the full set", async () => {
     const { row, actor } = await projectEntry("pm");
     const caps = await resolveEntryCapabilities(db, row, { id: actor, role: "user" });
     expect([...caps].sort()).toEqual(["delete", "download", "read", "share", "update"]);
   });
 
-  test("project internal member gets editor-equivalent (full) caps", async () => {
-    const { row, actor } = await projectEntry("member");
+  test("Writer role (files.manage) gets the full set", async () => {
+    const { row, actor } = await projectEntry("writer");
     const caps = await resolveEntryCapabilities(db, row, { id: actor, role: "user" });
-    expect(caps.has("update")).toBe(true);
-    expect(caps.has("delete")).toBe(true);
+    expect([...caps].sort()).toEqual(["delete", "download", "read", "share", "update"]);
+  });
+
+  test("Reader role (files.view only) gets read + download only", async () => {
+    const { row, actor } = await projectEntry("reader");
+    const caps = await resolveEntryCapabilities(db, row, { id: actor, role: "user" });
+    expect([...caps].sort()).toEqual(["download", "read"]);
+    expect(caps.has("update")).toBe(false);
+    expect(caps.has("delete")).toBe(false);
+  });
+
+  test("Guest role (no capabilities) gets nothing", async () => {
+    const { row, actor } = await projectEntry("guest");
+    const caps = await resolveEntryCapabilities(db, row, { id: actor, role: "user" });
+    expect(caps.size).toBe(0);
   });
 
   test("a non-member gets nothing (fail-closed)", async () => {

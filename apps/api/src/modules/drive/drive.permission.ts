@@ -4,7 +4,7 @@ import type { AppDatabase } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { and, eq } from "drizzle-orm";
 import { defineResource } from "@/modules/policy";
-import { isMember as isProjectMember } from "@/modules/project/project.service";
+import { getMemberCapabilities } from "@/modules/project/project.service";
 import { shares } from "@/modules/share/schema";
 import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { getDirectoryRole } from "./drive.team-directory.service";
@@ -83,10 +83,18 @@ export async function resolveEntryCapabilities(
     }
   }
   else if (entry.ownerType === "project") {
-    // Any project member gets full file management (editor-equivalent); the
-    // project file root is protected at the route layer, not here.
-    if (await isProjectMember(db, entry.ownerId, actor.id))
-      addAll(caps);
+    // Gate on project capabilities: files.manage → full management;
+    // files.view → read + download only. Non-members get nothing (fail-closed).
+    const projectCaps = await getMemberCapabilities(db, entry.ownerId, actor.id);
+    if (projectCaps !== null) {
+      if (projectCaps.has("files.manage")) {
+        addAll(caps);
+      }
+      else if (projectCaps.has("files.view")) {
+        caps.add("read");
+        caps.add("download");
+      }
+    }
   }
 
   const share = await db

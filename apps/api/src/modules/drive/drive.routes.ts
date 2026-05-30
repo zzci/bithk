@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
 import { policyContext } from "@/modules/policy";
-import { isMember, resolveProjectId } from "@/modules/project/project.service";
+import { hasCapability, isMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
@@ -602,8 +602,12 @@ async function resolveListOwner(
       throw new AppError("ownerId is required for project listing", 400, "VALIDATION_ERROR");
     const projectId = await resolveProjectOwnerId(c, ownerId);
     // App admins bypass project membership (consistent with project routes).
-    if (user.role !== "admin" && !(await isMember(c.get("db"), projectId, user.id)))
-      throw new ForbiddenError("You do not have access to this project");
+    if (user.role !== "admin") {
+      if (!(await isMember(c.get("db"), projectId, user.id)))
+        throw new ForbiddenError("You do not have access to this project");
+      if (!(await hasCapability(c.get("db"), projectId, user.id, "files.view")))
+        throw new ForbiddenError("files.view capability required to list project files");
+    }
     return { ownerType: "project", ownerId: projectId };
   }
 
@@ -637,10 +641,14 @@ async function resolveCreateOwner(
   if (ownerType === "project") {
     if (!ownerId)
       throw new AppError("ownerId is required for project creation", 400, "VALIDATION_ERROR");
-    // pm and member both hold full management capabilities; app admins bypass.
+    // files.manage capability required; app admins bypass.
     const projectId = await resolveProjectOwnerId(c, ownerId);
-    if (user.role !== "admin" && !(await isMember(c.get("db"), projectId, user.id)))
-      throw new ForbiddenError("Project membership required to create in this project");
+    if (user.role !== "admin") {
+      if (!(await isMember(c.get("db"), projectId, user.id)))
+        throw new ForbiddenError("Project membership required to create in this project");
+      if (!(await hasCapability(c.get("db"), projectId, user.id, "files.manage")))
+        throw new ForbiddenError("files.manage capability required to create project files");
+    }
     return { ownerType: "project", ownerId: projectId };
   }
 
@@ -680,10 +688,14 @@ async function resolveUploadOwner(c: Context<AppEnv>, form: FormData): Promise<D
   if (ownerTypeRaw === "project") {
     if (typeof ownerIdRaw !== "string" || !ownerIdRaw)
       throw new AppError("ownerId is required for project uploads", 400, "VALIDATION_ERROR");
-    // pm and member both hold full management capabilities; app admins bypass.
+    // files.manage capability required; app admins bypass.
     const projectId = await resolveProjectOwnerId(c, ownerIdRaw);
-    if (user.role !== "admin" && !(await isMember(c.get("db"), projectId, user.id)))
-      throw new ForbiddenError("Project membership required to upload to this project");
+    if (user.role !== "admin") {
+      if (!(await isMember(c.get("db"), projectId, user.id)))
+        throw new ForbiddenError("Project membership required to upload to this project");
+      if (!(await hasCapability(c.get("db"), projectId, user.id, "files.manage")))
+        throw new ForbiddenError("files.manage capability required to upload to this project");
+    }
     return { ownerType: "project", ownerId: projectId };
   }
 
