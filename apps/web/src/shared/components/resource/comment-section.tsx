@@ -19,6 +19,7 @@ import { MarkdownEditor } from "@/shared/components/editor";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
+import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import { errorMessage } from "@/shared/lib/errors";
 import { http } from "@/shared/lib/http";
 import { displayName } from "@/shared/lib/users";
@@ -115,6 +116,9 @@ export function ResourceCommentSection({
   const [replyTarget, setReplyTarget] = useState<ResourceComment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ResourceComment | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const composerFileInputRef = useRef<HTMLInputElement>(null);
+  const limits = useUploadLimits();
   const composerRef = useRef<HTMLDivElement>(null);
   const commentNodesRef = useRef(new Map<string, HTMLDivElement>());
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -135,20 +139,58 @@ export function ResourceCommentSection({
   const visibleComments = hiddenCount > 0 ? allComments.slice(hiddenCount) : allComments;
 
   const submit = useMutation({
-    mutationFn: async (input: { content: string; replyToId: string | null }) => {
-      await http(`/${resource}/${resourceId}/comments`, {
+    mutationFn: async (input: { content: string; replyToId: string | null; files: File[] }) => {
+      const payload: Record<string, unknown> = enableReply
+        ? { content: input.content, replyToId: input.replyToId }
+        : { content: input.content };
+      if (enableAttachments && input.files.length > 0)
+        payload.hasAttachments = true;
+      const res = await http<{ data: ResourceComment }>(`/${resource}/${resourceId}/comments`, {
         method: "POST",
-        body: JSON.stringify(enableReply ? input : { content: input.content }),
+        body: JSON.stringify(payload),
       });
+      for (const file of input.files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        await http(`/${resource}/${resourceId}/comments/${res.data.id}/attachments`, { method: "POST", body: fd });
+      }
     },
     onSuccess: () => {
       setNewComment("");
       setReplyTarget(null);
+      setPendingFiles([]);
       setEditorKey(k => k + 1);
-      void qc.invalidateQueries({ queryKey: commentsQueryKey(resource, resourceId) });
     },
     onError: err => setError(errorMessage(err, t("common.error.operationFailed"))),
+    // Invalidate on settle (not only success): a created comment must still
+    // appear even if an attachment upload fails partway through.
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: commentsQueryKey(resource, resourceId) });
+    },
   });
+
+  const handlePickPending = (files: FileList | null) => {
+    if (!files || files.length === 0)
+      return;
+    setError(null);
+    const selected = Array.from(files);
+    const v = validateAttachmentSelection(selected, pendingFiles.length, limits.maxFileSize, limits.maxAttachmentsPerResource);
+    if (v === "limit") {
+      setError(t("attachments.limitReached"));
+      if (composerFileInputRef.current)
+        composerFileInputRef.current.value = "";
+      return;
+    }
+    if (v === "size") {
+      setError(t("attachments.fileTooLarge"));
+      if (composerFileInputRef.current)
+        composerFileInputRef.current.value = "";
+      return;
+    }
+    setPendingFiles(prev => [...prev, ...selected]);
+    if (composerFileInputRef.current)
+      composerFileInputRef.current.value = "";
+  };
 
   const remove = useMutation({
     mutationFn: async (c: ResourceComment) => {
@@ -220,15 +262,59 @@ export function ResourceCommentSection({
         placeholder={t("comments.placeholder")}
         minHeight={60}
       />
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          disabled={submit.isPending || !newComment.trim()}
-          onClick={() => submit.mutate({ content: newComment.trim(), replyToId: replyTarget?.id ?? null })}
-        >
-          <Send className="size-3.5 mr-1.5" />
-          {t("comments.send")}
-        </Button>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {enableAttachments && pendingFiles.length > 0 && (
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {pendingFiles.map((file, i) => (
+                <span
+                  key={`${file.name}-${file.size}-${file.lastModified}`}
+                  className="inline-flex max-w-[180px] items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                >
+                  <span className="truncate">{file.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="size-4"
+                    onClick={() => setPendingFiles(f => f.filter((_, j) => j !== i))}
+                    title={t("common.delete")}
+                  >
+                    <X className="size-3" />
+                  </Button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {enableAttachments && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title={t("attachments.upload")}
+                onClick={() => composerFileInputRef.current?.click()}
+              >
+                <Paperclip className="size-4" />
+              </Button>
+              <input
+                ref={composerFileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={e => handlePickPending(e.target.files)}
+              />
+            </>
+          )}
+          <Button
+            size="sm"
+            disabled={submit.isPending || (!newComment.trim() && pendingFiles.length === 0)}
+            onClick={() => submit.mutate({ content: newComment.trim(), replyToId: replyTarget?.id ?? null, files: pendingFiles })}
+          >
+            <Send className="size-3.5 mr-1.5" />
+            {t("comments.send")}
+          </Button>
+        </div>
       </div>
     </>
   );
@@ -340,13 +426,15 @@ export function ResourceCommentSection({
                               : <span>{t("comments.replyMissing")}</span>}
                           </Button>
                         )}
-                        <div className="rounded-md bg-muted/40 px-3 py-2">
-                          <MarkdownEditor
-                            defaultValue={comment.content}
-                            readOnly
-                            className="text-sm"
-                          />
-                        </div>
+                        {comment.content.trim() && (
+                          <div className="rounded-md bg-muted/40 px-3 py-2">
+                            <MarkdownEditor
+                              defaultValue={comment.content}
+                              readOnly
+                              className="text-sm"
+                            />
+                          </div>
+                        )}
                         {enableAttachments && (
                           <CommentAttachments
                             resource={resource}

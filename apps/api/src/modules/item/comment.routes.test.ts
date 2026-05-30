@@ -189,3 +189,31 @@ describe("shared comment routes — existence-leak hardening", () => {
     });
   }
 });
+
+describe("shared comment routes — empty-content guard", () => {
+  const base = () => `/issues/${externalId}/comments`;
+
+  test("attachment-only comment (empty content + hasAttachments) is accepted", async () => {
+    const res = await req(buildApp(), "POST", base(), "member", { content: "", hasAttachments: true });
+    expect(res.status).toBe(201);
+    const body = await res.json() as { success: boolean; data: { content: string } };
+    expect(body.success).toBe(true);
+    expect(body.data.content).toBe("");
+  });
+
+  test("fully-empty comment (empty content, no attachment) is rejected with 422", async () => {
+    const res = await req(buildApp(), "POST", base(), "member", { content: "" });
+    expect(res.status).toBe(422);
+    expect((await res.json() as { success: boolean }).success).toBe(false);
+  });
+
+  test("missing content field (no attachment) is rejected with 422", async () => {
+    const res = await req(buildApp(), "POST", base(), "member", {});
+    expect(res.status).toBe(422);
+  });
+
+  test("whitespace-only content (no attachment) is rejected with 422", async () => {
+    const res = await req(buildApp(), "POST", base(), "member", { content: "   " });
+    expect(res.status).toBe(422);
+  });
+});
