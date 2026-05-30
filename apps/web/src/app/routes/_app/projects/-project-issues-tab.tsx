@@ -32,6 +32,7 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -50,11 +51,12 @@ import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useToggleIssuePin } from "@/shared/lib/api/pins";
-import { useCreateProjectIssue, useProjectIssues } from "@/shared/lib/api/projects";
+import { useCreateProjectIssue, useIssueTags, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
+import { ProjectTagFilter } from "./-project-tag-filter";
 
 // Priority signal icons (ascending bars), tinted by severity — shared by the
 // row indicator and the create dialog selector.
@@ -99,8 +101,6 @@ const AVATAR_COLORS = [
   "bg-fuchsia-500",
   "bg-pink-500",
 ] as const;
-
-type StatusFilter = IssueStatus | "all";
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -250,11 +250,17 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   const [createOpen, setCreateOpen] = useState(false);
   const [createStatus, setCreateStatus] = useState<IssueStatus>("todo");
   const [search, setSearch] = useState("");
-  // Selected status; "all" shows every populated section.
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // Selected tag ids; empty means no tag filter. An issue matches the union of
+  // the selected tags.
+  const [selectedTagIds, setSelectedTagIds] = useState<readonly string[]>([]);
   // Per-status collapse of the section's rows (header stays visible).
   const [collapsed, setCollapsed] = useState<Partial<Record<IssueStatus, boolean>>>({});
   const debouncedSearch = useDebounce(search, 300);
+
+  const issueTagsQuery = useIssueTags();
+  const issueTags = issueTagsQuery.data ?? [];
+  const toggleTag = (tagId: string) =>
+    setSelectedTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]));
 
   // The drawer is a nested route; read the active issueId (if any) so the open
   // row stays highlighted while its drawer overlays the list.
@@ -262,11 +268,12 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   const activeIssueId = activeParams.issueId;
 
   const q = debouncedSearch || undefined;
-  const todoQuery = useProjectIssues(projectId, { status: "todo", q });
-  const workingQuery = useProjectIssues(projectId, { status: "working", q });
-  const reviewQuery = useProjectIssues(projectId, { status: "review", q });
-  const doneQuery = useProjectIssues(projectId, { status: "done", q });
-  const cancelQuery = useProjectIssues(projectId, { status: "cancel", q });
+  const tagIds = selectedTagIds.length > 0 ? selectedTagIds : undefined;
+  const todoQuery = useProjectIssues(projectId, { status: "todo", q, tagIds });
+  const workingQuery = useProjectIssues(projectId, { status: "working", q, tagIds });
+  const reviewQuery = useProjectIssues(projectId, { status: "review", q, tagIds });
+  const doneQuery = useProjectIssues(projectId, { status: "done", q, tagIds });
+  const cancelQuery = useProjectIssues(projectId, { status: "cancel", q, tagIds });
 
   const queryByStatus: Record<IssueStatus, ReturnType<typeof useProjectIssues>> = {
     todo: todoQuery,
@@ -286,9 +293,8 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   const isInitialLoading = groups.every(g => g.isLoading);
   const hasAnyIssue = totalAll > 0;
 
-  const visibleStatuses: readonly IssueStatus[] = statusFilter === "all"
-    ? ISSUE_STATUSES.filter(s => countOf(s) > 0)
-    : [statusFilter];
+  // No status filter: always show every populated status group.
+  const visibleStatuses: readonly IssueStatus[] = ISSUE_STATUSES.filter(s => countOf(s) > 0);
 
   const assigneeLabel = (issue: ProjectIssueRow) =>
     issue.assigneeMemberId
@@ -327,33 +333,19 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
         </Button>
       </div>
 
-      {/* Status filter row — clickable chips that select the active status. */}
-      <div role="group" aria-label={t("issues.statusFilter")} className="flex flex-wrap items-center gap-1.5">
-        <Button
-          type="button"
-          size="sm"
-          variant={statusFilter === "all" ? "secondary" : "ghost"}
-          aria-pressed={statusFilter === "all"}
-          onClick={() => setStatusFilter("all")}
-        >
-          {t("issues.allStatuses")}
-          <span className="ml-1 text-xs text-muted-foreground">{totalAll}</span>
-        </Button>
-        {ISSUE_STATUSES.map(s => (
-          <Button
-            key={s}
-            type="button"
-            size="sm"
-            variant={statusFilter === s ? "secondary" : "ghost"}
-            aria-pressed={statusFilter === s}
-            onClick={() => setStatusFilter(s)}
-          >
-            <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[s])} />
-            {t(`issues.group.${s}` as const)}
-            <span className="ml-1 text-xs text-muted-foreground">{countOf(s)}</span>
-          </Button>
-        ))}
-      </div>
+      {/* Tag filter bar — responsive multi-select chips with a searchable
+          "More" combobox. Union semantics: selecting tags narrows the list to
+          issues carrying any selected tag. */}
+      {issueTags.length > 0 && (
+        <div role="group" aria-label={t("issues.tagFilter")}>
+          <ProjectTagFilter
+            multiple
+            tags={issueTags}
+            selectedTagIds={selectedTagIds}
+            onToggle={toggleTag}
+          />
+        </div>
+      )}
 
       {loadError && <ErrorBanner message={errorMessage(loadError, t("common:common.error.loadFailed"))} />}
 
@@ -372,13 +364,8 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                       const isCollapsed = collapsed[status] ?? false;
                       return (
                         <section key={status} aria-label={label}>
-                          {/* Full-width section bar: collapse chevron + status filter + quick-create. */}
-                          <div
-                            className={cn(
-                              "flex w-full items-center gap-1 rounded-lg bg-muted/50 px-1.5 py-1 transition-colors",
-                              statusFilter === status && "ring-1 ring-inset ring-primary/30",
-                            )}
-                          >
+                          {/* Full-width section bar: collapse chevron + status label + quick-create. */}
+                          <div className="flex w-full items-center gap-1 rounded-lg bg-muted/50 px-1.5 py-1">
                             <Button
                               type="button"
                               variant="ghost"
@@ -390,17 +377,11 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                             >
                               <ChevronRight aria-hidden="true" className={cn("size-4 transition-transform", !isCollapsed && "rotate-90")} />
                             </Button>
-                            <button
-                              type="button"
-                              aria-pressed={statusFilter === status}
-                              aria-label={label}
-                              onClick={() => setStatusFilter(status)}
-                              className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
+                            <div className="flex min-w-0 flex-1 items-center gap-2 py-0.5">
                               <StatusIcon status={status} label={label} />
                               <span className="text-sm font-medium">{label}</span>
                               <span className="text-xs text-muted-foreground">{count}</span>
-                            </button>
+                            </div>
                             <Button
                               type="button"
                               variant="ghost"
@@ -436,6 +417,15 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                             <StatusIcon status={issue.status} label={label} />
                                             <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{issue.id}</span>
                                             <span className="min-w-0 flex-1 truncate text-sm">{issue.title}</span>
+                                            {issue.tags.length > 0 && (
+                                              <div className="hidden shrink-0 items-center gap-1 sm:flex">
+                                                {issue.tags.slice(0, 3).map(tag => (
+                                                  <Badge key={tag.id} variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                                                    {tag.name}
+                                                  </Badge>
+                                                ))}
+                                              </div>
+                                            )}
                                             <div className="ml-auto flex shrink-0 items-center gap-3 text-xs">
                                               <PrioritySignal priority={issue.priority} label={priorityLabel} />
                                               {issue.dueDate && <DueLabel value={issue.dueDate} />}
