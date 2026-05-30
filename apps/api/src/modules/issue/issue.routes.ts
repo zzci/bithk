@@ -14,7 +14,7 @@ import {
 } from "@/modules/file";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
-import { isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
+import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
@@ -84,8 +84,9 @@ function parseTagIds(raw: string[] | undefined): string[] {
 
 /**
  * Resolve a project's internal id from its short id and assert the actor is a
- * member. Fail-closed: a missing project and a non-member both surface as 404
- * so project membership and project-issue existence are never leaked.
+ * member with `issue.view`. Fail-closed: a missing project, a non-member, and
+ * a member without `issue.view` all surface as 404 so project membership and
+ * project-issue existence are never leaked.
  */
 async function requireProjectMember(c: Context<AppEnv>, shortId: string): Promise<string> {
   const db = c.get("db");
@@ -96,7 +97,9 @@ async function requireProjectMember(c: Context<AppEnv>, shortId: string): Promis
   // App admins bypass project membership entirely (view/manage every project).
   if (user.role === "admin")
     return projectId;
-  if (!await isProjectMember(db, projectId, user.id))
+  const caps = await getMemberCapabilities(db, projectId, user.id);
+  // Non-members (caps===null) or members without issue.view both get 404.
+  if (!caps || !caps.has("issue.view"))
     throw new NotFoundError("Project", shortId);
   return projectId;
 }
@@ -151,13 +154,19 @@ export function issueRoutes() {
   });
 
   // ─── Create ────────────────────────────────────────────────────────
-  // Member-gated; the assignee (if any) must be a member of this project —
-  // `createIssue` validates it via the project module.
+  // Requires issue.view (via requireProjectMember) + issue.manage.
+  // A viewer who lacks issue.manage gets 403; a non-viewer/non-member gets 404.
   router.post("/projects/:projectId/issues", async (c) => {
     const shortId = c.req.param("projectId");
     const projectId = await requireProjectMember(c, shortId);
     const db = c.get("db");
     const actor = c.get("user")!;
+    // App admins bypass capability checks.
+    if (actor.role !== "admin") {
+      const caps = await getMemberCapabilities(db, projectId, actor.id);
+      if (!caps?.has("issue.manage"))
+        throw new ForbiddenError();
+    }
     const body = createSchema.parse(await c.req.json());
 
     const issue = await createIssue(db, {
@@ -432,9 +441,11 @@ export function issueRoutes() {
       const access = await resolveProjectIssueAccess(db, subject.item, projectId, user.id);
       const isAdmin = user.role === "admin";
       const canRead = isAdmin || access.canRead;
+      // canPost requires issue.comment (decoupled from canRead).
+      const canPost = isAdmin || access.canComment;
       return {
         canRead,
-        canPost: canRead,
+        canPost,
         includeInternal: canRead,
         canDelete: authorId => isAdmin || authorId === user.id,
       };

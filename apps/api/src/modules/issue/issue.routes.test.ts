@@ -123,9 +123,32 @@ async function cookieForUser(userId: string): Promise<string> {
   return `session_id=${sessionId}`;
 }
 
-async function memberRoleId(projectId: string): Promise<string> {
+async function roleId(projectId: string, name: string): Promise<string> {
   const roles = await listRoles(db, projectId);
-  return roles.find(r => r.name === "Reader")!.id;
+  const role = roles.find(r => r.name === name);
+  if (!role)
+    throw new Error(`Role "${name}" not found for project ${projectId}`);
+  return role.id;
+}
+
+/** Reader: issue.view + procurement.view + files.view */
+async function readerRoleId(projectId: string): Promise<string> {
+  return roleId(projectId, "Reader");
+}
+
+/** Commenter: Reader + issue.comment + procurement.comment */
+async function commenterRoleId(projectId: string): Promise<string> {
+  return roleId(projectId, "Commenter");
+}
+
+/** Writer: Commenter + issue.manage + procurement.manage + files.manage + categories.manage */
+async function writerRoleId(projectId: string): Promise<string> {
+  return roleId(projectId, "Writer");
+}
+
+/** Guest: no caps */
+async function guestRoleId(projectId: string): Promise<string> {
+  return roleId(projectId, "Guest");
 }
 
 function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
@@ -207,7 +230,7 @@ describe("POST issues (create)", () => {
     const bob = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
     const other = await createProject(db, { name: "Other", creatorId: owner });
-    const foreign = await addMember(db, other.id, { roleId: await memberRoleId(other.id), userId: bob });
+    const foreign = await addMember(db, other.id, { roleId: await readerRoleId(other.id), userId: bob });
     const res = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", await cookieForUser(owner), { title: "X", assigneeMemberId: foreign.id }));
     expect(res.status).toBe(404);
   });
@@ -217,7 +240,7 @@ describe("POST issues (create)", () => {
     const owner = await seedUser("user");
     const bob = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    const member = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    const member = await addMember(db, project.id, { roleId: await readerRoleId(project.id), userId: bob });
 
     const res = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", await cookieForUser(owner), { title: "Assigned order", assigneeMemberId: member.id }));
     expect(res.status).toBe(201);
@@ -289,7 +312,7 @@ describe("PATCH issue (field-level permissions)", () => {
     const owner = await seedUser("user");
     const bob = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    const member = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    const member = await addMember(db, project.id, { roleId: await readerRoleId(project.id), userId: bob });
     const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id, assigneeMemberId: member.id });
     const cookie = await cookieForUser(bob);
 
@@ -306,7 +329,7 @@ describe("PATCH issue (field-level permissions)", () => {
     const owner = await seedUser("user");
     const bob = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    await addMember(db, project.id, { roleId: await readerRoleId(project.id), userId: bob });
     const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
     const res = await app.request(`/projects/${project.shortId}/issues/${issue.id}`, jsonReq("PATCH", await cookieForUser(bob), { status: "done" }));
     expect(res.status).toBe(403);
@@ -320,7 +343,7 @@ describe("DELETE issue", () => {
     const bob = await seedUser("user");
     const admin = await seedUser("admin");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    await addMember(db, project.id, { roleId: await readerRoleId(project.id), userId: bob });
     const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
 
     const denied = await app.request(`/projects/${project.shortId}/issues/${issue.id}`, jsonReq("DELETE", await cookieForUser(bob)));
@@ -339,12 +362,13 @@ describe("DELETE issue", () => {
 // Under the project-scoped model the same surfaces must remain reachable through
 // `/projects/:projectId/issues/:id/...`, gated by project membership.
 describe("detail comments + attachments (project-scoped path)", () => {
-  test("a member posts/lists comments and lists attachments through the project-scoped path", async () => {
+  test("a commenter posts/lists comments and lists attachments through the project-scoped path", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const bob = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
+    // Commenter has issue.view + issue.comment — can read and post comments.
+    await addMember(db, project.id, { roleId: await commenterRoleId(project.id), userId: bob });
     const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
     const base = `/projects/${project.shortId}/issues/${issue.id}`;
     const cookie = await cookieForUser(bob);
@@ -371,6 +395,98 @@ describe("detail comments + attachments (project-scoped path)", () => {
     const project = await createProject(db, { name: "P", creatorId: owner });
     const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
     const res = await app.request(`/projects/${project.shortId}/issues/${issue.id}/comments`, { headers: { Cookie: await cookieForUser(outsider) } });
+    expect(res.status).toBe(404);
+  });
+
+  test("a reader (issue.view only) can list comments but cannot post (403)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await readerRoleId(project.id), userId: bob });
+    const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
+    const base = `/projects/${project.shortId}/issues/${issue.id}`;
+    const cookie = await cookieForUser(bob);
+
+    // Reader can read comments.
+    const listed = await app.request(`${base}/comments`, { headers: { Cookie: cookie } });
+    expect(listed.status).toBe(200);
+
+    // Reader cannot post comments — lacks issue.comment.
+    const posted = await app.request(`${base}/comments`, jsonReq("POST", cookie, { content: "reader comment" }));
+    expect(posted.status).toBe(403);
+  });
+});
+
+describe("capability gates (issue.view / issue.manage / issue.comment)", () => {
+  test("a Guest member (no caps) gets 404 on issue list", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await guestRoleId(project.id), userId: bob });
+    const res = await app.request(`/projects/${project.shortId}/issues`, { headers: { Cookie: await cookieForUser(bob) } });
+    expect(res.status).toBe(404);
+  });
+
+  test("a Reader (issue.view) can list and read issues", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await readerRoleId(project.id), userId: bob });
+    await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
+    const res = await app.request(`/projects/${project.shortId}/issues`, { headers: { Cookie: await cookieForUser(bob) } });
+    expect(res.status).toBe(200);
+    expect((await res.json() as { meta: { total: number } }).meta.total).toBe(1);
+  });
+
+  test("a Reader cannot create issues (403)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await readerRoleId(project.id), userId: bob });
+    const res = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", await cookieForUser(bob), { title: "New issue" }));
+    expect(res.status).toBe(403);
+  });
+
+  test("a Writer (issue.manage) can create issues (201)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await writerRoleId(project.id), userId: bob });
+    const res = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", await cookieForUser(bob), { title: "Writer creates" }));
+    expect(res.status).toBe(201);
+  });
+
+  test("a Commenter (issue.comment but not issue.manage) can post comments but not create issues", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await commenterRoleId(project.id), userId: bob });
+    const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
+    const cookie = await cookieForUser(bob);
+
+    // Cannot create issues.
+    const createRes = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", cookie, { title: "X" }));
+    expect(createRes.status).toBe(403);
+
+    // Can post comments.
+    const commentRes = await app.request(`/projects/${project.shortId}/issues/${issue.id}/comments`, jsonReq("POST", cookie, { content: "hello" }));
+    expect(commentRes.status).toBe(201);
+  });
+
+  test("a Guest member cannot read issue detail (404)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMember(db, project.id, { roleId: await guestRoleId(project.id), userId: bob });
+    const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
+    const res = await app.request(`/projects/${project.shortId}/issues/${issue.id}`, { headers: { Cookie: await cookieForUser(bob) } });
     expect(res.status).toBe(404);
   });
 });
