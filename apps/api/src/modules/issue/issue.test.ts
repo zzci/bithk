@@ -33,6 +33,18 @@ let sqlite: Database;
 // Bootstrap the full schema directly from the definitions so the suite is
 // runnable without applying migrations, mirroring `project.service.test.ts`.
 const SCHEMA_DDL: readonly string[] = [
+  `CREATE TABLE IF NOT EXISTS tags (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS issue_tags (
+    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (item_id, tag_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     oauth_sub TEXT NOT NULL,

@@ -2,7 +2,7 @@ import { sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Domains that own a tag vocabulary. The discriminator scopes uniqueness so
 // each domain keeps an independent namespace within one shared table.
-export const TAG_SOURCE_TYPES = ["project", "contact", "document"] as const;
+export const TAG_SOURCE_TYPES = ["project", "contact", "document", "issue"] as const;
 export type TagSourceType = typeof TAG_SOURCE_TYPES[number];
 
 // Central, type-scoped tag vocabulary. Owned here (not by the project module)
