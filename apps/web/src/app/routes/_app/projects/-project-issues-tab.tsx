@@ -66,22 +66,24 @@ const PRIORITY_META: Record<IssuePriority, { readonly Icon: typeof SignalLow; re
 };
 
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
-const ISSUE_STATUSES: readonly IssueStatus[] = ["open", "in_progress", "done", "cancelled"];
+const ISSUE_STATUSES: readonly IssueStatus[] = ["todo", "working", "review", "done", "cancel"];
 
 // Status icon tints, aligned with the global status color tokens.
 const STATUS_ICON_TINT: Record<IssueStatus, string> = {
-  open: "text-muted-foreground",
-  in_progress: "text-info",
+  todo: "text-muted-foreground",
+  working: "text-info",
+  review: "text-primary",
   done: "text-success",
-  cancelled: "text-muted-foreground/60",
+  cancel: "text-muted-foreground/60",
 };
 
 // Small status dot used by the filter chips + create dialog selector.
 const STATUS_DOT: Record<IssueStatus, string> = {
-  open: "bg-warning",
-  in_progress: "bg-info",
+  todo: "bg-warning",
+  working: "bg-info",
+  review: "bg-primary",
   done: "bg-success",
-  cancelled: "bg-muted-foreground",
+  cancel: "bg-muted-foreground",
 };
 
 // Distinct avatar background palette (deterministic per member id).
@@ -117,7 +119,8 @@ function avatarColor(id: string): string {
 }
 
 // Status glyphs drawn inline so they read identically across lucide versions:
-// empty circle (todo), half-filled (in progress), check (done), slash (cancelled).
+// empty circle (todo), half-filled (working), center dot (review), check (done),
+// slash (cancel).
 function StatusIcon({ status, label }: { readonly status: IssueStatus; readonly label: string }) {
   const tint = STATUS_ICON_TINT[status];
   return (
@@ -132,10 +135,13 @@ function StatusIcon({ status, label }: { readonly status: IssueStatus; readonly 
         : (
             <>
               <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.6" />
-              {status === "in_progress" && (
+              {status === "working" && (
                 <path d="M8 8 V2 A6 6 0 0 1 8 14 Z" fill="currentColor" />
               )}
-              {status === "cancelled" && (
+              {status === "review" && (
+                <circle cx="8" cy="8" r="2.5" fill="currentColor" />
+              )}
+              {status === "cancel" && (
                 <line x1="5" y1="5" x2="11" y2="11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
               )}
             </>
@@ -242,7 +248,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   const canPin = (issue: ProjectIssueRow) => canManage || issue.creatorId === currentUserId;
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [createStatus, setCreateStatus] = useState<IssueStatus>("open");
+  const [createStatus, setCreateStatus] = useState<IssueStatus>("todo");
   const [search, setSearch] = useState("");
   // Selected status; "all" shows every populated section.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -256,16 +262,18 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   const activeIssueId = activeParams.issueId;
 
   const q = debouncedSearch || undefined;
-  const openQuery = useProjectIssues(projectId, { status: "open", q });
-  const inProgressQuery = useProjectIssues(projectId, { status: "in_progress", q });
+  const todoQuery = useProjectIssues(projectId, { status: "todo", q });
+  const workingQuery = useProjectIssues(projectId, { status: "working", q });
+  const reviewQuery = useProjectIssues(projectId, { status: "review", q });
   const doneQuery = useProjectIssues(projectId, { status: "done", q });
-  const cancelledQuery = useProjectIssues(projectId, { status: "cancelled", q });
+  const cancelQuery = useProjectIssues(projectId, { status: "cancel", q });
 
   const queryByStatus: Record<IssueStatus, ReturnType<typeof useProjectIssues>> = {
-    open: openQuery,
-    in_progress: inProgressQuery,
+    todo: todoQuery,
+    working: workingQuery,
+    review: reviewQuery,
     done: doneQuery,
-    cancelled: cancelledQuery,
+    cancel: cancelQuery,
   };
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
@@ -313,7 +321,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
             className="pl-8"
           />
         </div>
-        <Button onClick={() => openCreate("open")}>
+        <Button onClick={() => openCreate("todo")}>
           <Plus aria-hidden="true" />
           {t("issues.create")}
         </Button>

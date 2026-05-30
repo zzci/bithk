@@ -74,7 +74,7 @@ function pin(overrides: Partial<PinnedItem> = {}): PinnedItem {
     shortId: "i1",
     type: "issue",
     title: "Pinned order",
-    status: "open",
+    status: "todo",
     pinnedAt: "2026-05-24T00:00:00.000Z",
     ...overrides,
   };
@@ -107,7 +107,7 @@ describe("projectOverviewTab", () => {
   it("renders a mixed pinned list with kind badges", async () => {
     routeFetch({
       pinned: [
-        pin({ id: "it1", type: "issue", title: "Fix pump", status: "open" }),
+        pin({ id: "it1", type: "issue", title: "Fix pump", status: "todo" }),
         pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft", pinnedAt: "2026-05-23T00:00:00.000Z" }),
       ],
     });
@@ -136,7 +136,7 @@ describe("projectOverviewTab", () => {
 
   it("no longer renders the work order and procurement summary metrics", async () => {
     routeFetch({
-      issues: [{ id: "i1", title: "Fix leak", status: "open", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }],
+      issues: [{ id: "i1", title: "Fix leak", status: "todo", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }],
       procurements: [{ id: "pr1", itemName: "Buy steel", status: "draft", updatedAt: "2026-05-24T00:00:00.000Z" }],
     });
     renderWithProviders(
@@ -160,7 +160,7 @@ describe("projectOverviewTab", () => {
   it("switches to the issues tab from the latest work orders 'View all'", async () => {
     const user = userEvent.setup();
     const onOpenTab = vi.fn();
-    routeFetch({ issues: [{ id: "i1", title: "Fix leak", status: "open", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }] });
+    routeFetch({ issues: [{ id: "i1", title: "Fix leak", status: "todo", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }] });
     renderWithProviders(
       <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
     );
@@ -193,7 +193,7 @@ describe("projectOverviewTab", () => {
   it("navigates from a pinned work order row to the issues tab", async () => {
     const user = userEvent.setup();
     const onOpenTab = vi.fn();
-    routeFetch({ pinned: [pin({ id: "it1", type: "issue", title: "Fix pump", status: "open" })] });
+    routeFetch({ pinned: [pin({ id: "it1", type: "issue", title: "Fix pump", status: "todo" })] });
     renderWithProviders(
       <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
     );
@@ -224,7 +224,7 @@ describe("projectOverviewTab", () => {
   it("navigates from a latest work order row to the issues tab", async () => {
     const user = userEvent.setup();
     const onOpenTab = vi.fn();
-    routeFetch({ issues: [{ id: "i1", title: "Fix leak", status: "open", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }] });
+    routeFetch({ issues: [{ id: "i1", title: "Fix leak", status: "todo", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }] });
     renderWithProviders(
       <ProjectOverviewTab project={project()} userNames={new Map()} caps={procCaps} onOpenTab={onOpenTab} />,
     );

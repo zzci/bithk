@@ -63,6 +63,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Issue status enum normalized to `todo / working / review / done / cancel`
+  (REFACTOR-008): replaces the former `open / in_progress / done / cancelled`
+  across the API (`IssueStatus`, the create/update zod enums, `createIssue`
+  default `todo`) and the web (types, status colors, the work-order list groups
+  + the new `review` group, the detail status select, ship maintenance-order
+  badges, and en/zh labels). A data migration
+  (`0003_normalize_issue_status.sql`, `type='issue'` scoped so procurement keeps
+  its own `cancelled`) rewrites existing rows on startup: open→todo,
+  in_progress→working, cancelled→cancel.
+
 - Project code is now lowercase and immutable after creation (UI-021 /
   PLAN-034): the backend generates/normalizes the code in lowercase and the
   update API no longer accepts `code`. The editable code field was removed from

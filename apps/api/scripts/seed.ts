@@ -164,7 +164,7 @@ const MANUFACTURERS = ["MAN Energy Solutions", "Caterpillar", "Wärtsilä", "Fur
 const PROJECT_KINDS = ["Dry-Dock Refit", "Newbuild", "Annual Survey", "Engine Overhaul", "Class Renewal", "Interior Refit", "Electronics Upgrade", "Hull Maintenance", "Sea Trial Prep", "Warranty Works"] as const;
 const CATEGORY_NAMES = ["Deck Equipment", "Electronics", "Safety Gear", "Engine Parts", "Interior", "Provisions", "Paint & Coatings", "Electrical"] as const;
 const ISSUE_TITLES = ["Inspect and recoat hull below waterline", "Replace bridge navigation radar", "Annual safety equipment audit", "Overhaul main engine", "Service bow thruster", "Renew class certificates", "Calibrate bridge sensors", "Replace emergency fire pump", "Test steering gear", "Update ECDIS charts", "Inspect lifeboats and davits", "Clean and gauge fuel tanks", "Repair HVAC compressor", "Replace sacrificial anodes", "Survey ballast water tanks", "Polish stainless rails and fittings", "Replace anchor windlass motor", "Service tender crane hydraulics", "Recalibrate autopilot gyro", "Renew firefighting foam stock"] as const;
-type IssueStatus = "open" | "in_progress" | "done" | "cancelled";
+type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
 type IssuePriority = "low" | "medium" | "high" | "urgent";
 
 // Work-order content is generated per status so each lane reads differently:
@@ -185,7 +185,7 @@ interface IssueStatusProfile {
 
 const ISSUE_PROFILES: readonly IssueStatusProfile[] = [
   {
-    status: "open",
+    status: "todo",
     weight: 11,
     priorities: ["medium", "high", "urgent"],
     describe: t => `${t}. Raised during the latest inspection round; scope and parts to be confirmed before scheduling.`,
@@ -199,7 +199,7 @@ const ISSUE_PROFILES: readonly IssueStatusProfile[] = [
     ],
   },
   {
-    status: "in_progress",
+    status: "working",
     weight: 12,
     priorities: ["medium", "high", "urgent"],
     describe: t => `${t}. Work order released and underway — current status tracked in the comments below.`,
@@ -228,7 +228,7 @@ const ISSUE_PROFILES: readonly IssueStatusProfile[] = [
     ],
   },
   {
-    status: "cancelled",
+    status: "cancel",
     weight: 5,
     priorities: ["low", "medium"],
     describe: t => `${t}. Raised but later cancelled — reason recorded in the comments.`,
@@ -542,7 +542,7 @@ async function resolveShipInternalId(db: AppDatabase, shortId: string): Promise<
 
 async function seedIssues(db: AppDatabase, projectPool: SeededProject[]): Promise<{ issues: number; comments: number }> {
   // Expand profiles into a status plan totalling COUNTS.issues, padding any
-  // rounding gap with `open` so the count stays exact.
+  // rounding gap with `todo` so the count stays exact.
   const totalWeight = ISSUE_PROFILES.reduce((s, p) => s + p.weight, 0);
   const plan: IssueStatusProfile[] = [];
   for (const profile of ISSUE_PROFILES) {
@@ -712,7 +712,7 @@ async function main(): Promise<void> {
     console.log(`  contacts:     ${counts.contacts}`);
     console.log(`  ships:        ${counts.ships} (+ base projects, ${counts.equipment} equipment)`);
     console.log(`  projects:     ${counts.projects} standalone`);
-    console.log(`  issues:       ${counts.issues} (across open/in_progress/done/cancelled, ${counts.comments} comments)`);
+    console.log(`  issues:       ${counts.issues} (across todo/working/done/cancel, ${counts.comments} comments)`);
     console.log(`  procurements: ${counts.procurements} (${COUNTS.procurementsPerProject} per project, all projects)`);
     console.log(`  documents:    ${counts.documents}`);
     console.log(`  cover images: ${counts.covers} (ships + standalone projects; some left unset)`);

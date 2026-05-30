@@ -285,7 +285,7 @@ export const fixtureShipOrders: Record<string, readonly ShipMaintenanceOrderView
     {
       id: "issue-atlas-lube",
       title: "Renew main-engine lube oil",
-      status: "in_progress",
+      status: "working",
       projectId: "proj-atlas-refit",
       templateRefId: "tpl-atlas-lube",
       referenceId: "ref-atlas-lube",
@@ -293,7 +293,7 @@ export const fixtureShipOrders: Record<string, readonly ShipMaintenanceOrderView
     {
       id: "issue-atlas-lifeboat",
       title: "Complete lifeboat monthly drill",
-      status: "open",
+      status: "todo",
       projectId: "proj-atlas-refit",
       templateRefId: "tpl-atlas-safety",
       referenceId: "ref-atlas-lifeboat",
@@ -304,7 +304,7 @@ export const fixtureShipOrders: Record<string, readonly ShipMaintenanceOrderView
     {
       id: "issue-cascade-bwms",
       title: "Close BWMS commissioning issue",
-      status: "open",
+      status: "todo",
       projectId: "proj-cascade-trial",
       templateRefId: "tpl-cascade-commissioning",
       referenceId: "ref-cascade-bwms",

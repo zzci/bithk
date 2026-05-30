@@ -56,3 +56,4 @@
 | [UI-021](UI-021.md) | Immutable lowercase project code, moved to settings sidebar bottom | [PLAN-034](../plan/PLAN-034.md) | Done | 2026-05-28 |
 | [FEAT-016](FEAT-016.md) | Procurement detail experience with issue-detail parity | [PLAN-035](../plan/PLAN-035.md) | Completed | 2026-05-29 |
 | [REFACTOR-007](REFACTOR-007.md) | Route project detail tabs by URL | [PLAN-036](../plan/PLAN-036.md) | Completed | 2026-05-30 |
+| [REFACTOR-008](REFACTOR-008.md) | Normalize the issue status enum end-to-end | - | Completed | 2026-05-30 |

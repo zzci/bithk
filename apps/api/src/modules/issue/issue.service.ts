@@ -11,7 +11,7 @@ import { projectMembers, projects } from "@/modules/project/schema";
 import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 
-export type IssueStatus = "open" | "in_progress" | "done" | "cancelled";
+export type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
 export type IssuePriority = "low" | "medium" | "high" | "urgent";
 
 // Backslash is the ESCAPE char, so it must be escaped first; every LIKE built
@@ -150,7 +150,7 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
       shortId,
       type: "issue",
       title: input.title,
-      status: input.status ?? "open",
+      status: input.status ?? "todo",
       creatorId: input.creatorId,
       version: 1,
       deletedAt: null,

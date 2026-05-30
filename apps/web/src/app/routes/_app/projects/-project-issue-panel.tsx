@@ -69,7 +69,7 @@ export function priorityKey(p: string) {
   return map[p] ?? p;
 }
 
-const STATUSES = ["open", "in_progress", "done", "cancelled"] as const;
+const STATUSES = ["todo", "working", "review", "done", "cancel"] as const;
 const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 
 // ── ProjectIssuePanel ──

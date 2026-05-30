@@ -110,10 +110,11 @@ function preview(value: string | null): string {
 }
 
 const STATUS_VARIANTS: Record<string, "default" | "outline" | "secondary"> = {
-  open: "outline",
-  in_progress: "default",
+  todo: "outline",
+  working: "default",
+  review: "default",
   done: "secondary",
-  cancelled: "secondary",
+  cancel: "secondary",
 };
 
 export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps) {

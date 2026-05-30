@@ -22,6 +22,13 @@
       "when": 1780011605437,
       "tag": "0002_messy_unicorn",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1780160182240,
+      "tag": "0003_normalize_issue_status",
+      "breakpoints": true
     }
   ]
 }

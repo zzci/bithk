@@ -35,7 +35,7 @@ describe("usePinnedItems", () => {
   });
 
   it("fetches the pinned-items list and unwraps the envelope", async () => {
-    const items = [{ id: "x1", shortId: "i1", type: "issue", title: "Fix", status: "open", pinnedAt: "2026-05-24T00:00:00.000Z" }];
+    const items = [{ id: "x1", shortId: "i1", type: "issue", title: "Fix", status: "todo", pinnedAt: "2026-05-24T00:00:00.000Z" }];
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: items }));
     const { result } = renderHook(() => usePinnedItems("p1"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

@@ -191,7 +191,7 @@ describe("createIssue", () => {
     const issue = await createIssue(db, { title: "Test task", creatorId: creator, projectId: project.id });
     expect(issue.id).toHaveLength(8); // short_id
     expect(issue.title).toBe("Test task");
-    expect(issue.status).toBe("open");
+    expect(issue.status).toBe("todo");
     expect(issue.priority).toBe("medium");
     expect(issue.creatorId).toBe(creator);
     expect(issue.assigneeId).toBeNull();
@@ -287,8 +287,8 @@ describe("updateIssue", () => {
     const project = await createProject(db, { name: "P", creatorId: creator });
     const issue = await createIssue(db, { title: "T", creatorId: creator, projectId: project.id });
     expect(issue.version).toBe(1);
-    const updated = await updateIssue(db, issue.id, { status: "in_progress" });
-    expect(updated?.status).toBe("in_progress");
+    const updated = await updateIssue(db, issue.id, { status: "working" });
+    expect(updated?.status).toBe("working");
     expect(updated!.version).toBeGreaterThan(1);
   });
 
@@ -382,10 +382,10 @@ describe("listByProject", () => {
   test("filters by status / priority / title", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    await createIssue(db, { title: "Fix the bug", creatorId: creator, projectId: project.id, status: "open", priority: "high" });
+    await createIssue(db, { title: "Fix the bug", creatorId: creator, projectId: project.id, status: "todo", priority: "high" });
     await createIssue(db, { title: "Add feature", creatorId: creator, projectId: project.id, status: "done", priority: "low" });
 
-    expect((await listByProject(db, { projectId: project.id, status: "open" })).data.map(d => d.title)).toEqual(["Fix the bug"]);
+    expect((await listByProject(db, { projectId: project.id, status: "todo" })).data.map(d => d.title)).toEqual(["Fix the bug"]);
     expect((await listByProject(db, { projectId: project.id, priority: "low" })).data.map(d => d.title)).toEqual(["Add feature"]);
     expect((await listByProject(db, { projectId: project.id, q: "bug" })).data.map(d => d.title)).toEqual(["Fix the bug"]);
   });

@@ -40,7 +40,7 @@ interface ShipOverviewTabProps {
   readonly canManage: boolean;
 }
 
-const ACTIVE_ORDER_STATUSES = new Set(["open", "in_progress"]);
+const ACTIVE_ORDER_STATUSES = new Set(["todo", "working", "review"]);
 
 const PROJECT_STATUS_BADGE: Record<"active" | "archived", string> = {
   active: "bg-success/10 text-success",

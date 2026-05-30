@@ -180,16 +180,18 @@
     "createTitle": "Create work order",
     "createDescription": "Add a new work order to this project.",
     "status": {
-      "open": "Open",
-      "in_progress": "In Progress",
+      "todo": "To Do",
+      "working": "In Progress",
+      "review": "In Review",
       "done": "Done",
-      "cancelled": "Cancelled"
+      "cancel": "Cancelled"
     },
     "group": {
-      "open": "Todo",
-      "in_progress": "In Progress",
-      "done": "Completed",
-      "cancelled": "Cancelled"
+      "todo": "To Do",
+      "working": "In Progress",
+      "review": "In Review",
+      "done": "Done",
+      "cancel": "Cancelled"
     },
     "priority": {
       "low": "Low",

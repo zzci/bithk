@@ -180,16 +180,18 @@
     "createTitle": "创建工单",
     "createDescription": "为该项目添加一个新工单。",
     "status": {
-      "open": "待处理",
-      "in_progress": "进行中",
+      "todo": "待办",
+      "working": "进行中",
+      "review": "待审",
       "done": "已完成",
-      "cancelled": "已取消"
+      "cancel": "已取消"
     },
     "group": {
-      "open": "待办",
-      "in_progress": "进行中",
+      "todo": "待办",
+      "working": "进行中",
+      "review": "待审",
       "done": "已完成",
-      "cancelled": "取消"
+      "cancel": "已取消"
     },
     "priority": {
       "low": "低",

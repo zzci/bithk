@@ -189,7 +189,7 @@ describe("POST issues (create)", () => {
     expect(res.status).toBe(201);
     const body = await res.json() as { data: { title: string; status: string } };
     expect(body.data.title).toBe("Fix it");
-    expect(body.data.status).toBe("open");
+    expect(body.data.status).toBe("todo");
   });
 
   test("a non-member cannot create (fail-closed 404)", async () => {
@@ -293,9 +293,9 @@ describe("PATCH issue (field-level permissions)", () => {
     const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id, assigneeMemberId: member.id });
     const cookie = await cookieForUser(bob);
 
-    const statusOk = await app.request(`/projects/${project.shortId}/issues/${issue.id}`, jsonReq("PATCH", cookie, { status: "in_progress" }));
+    const statusOk = await app.request(`/projects/${project.shortId}/issues/${issue.id}`, jsonReq("PATCH", cookie, { status: "working" }));
     expect(statusOk.status).toBe(200);
-    expect((await statusOk.json() as { data: { status: string } }).data.status).toBe("in_progress");
+    expect((await statusOk.json() as { data: { status: string } }).data.status).toBe("working");
 
     const titleDenied = await app.request(`/projects/${project.shortId}/issues/${issue.id}`, jsonReq("PATCH", cookie, { title: "hijack" }));
     expect(titleDenied.status).toBe(403);

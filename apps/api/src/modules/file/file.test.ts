@@ -507,7 +507,7 @@ describe("item_attachment permission hook integration", () => {
     const item = await createItem(db, {
       type: "issue",
       title: "Carrier",
-      status: "open",
+      status: "todo",
       creatorId: userId,
     });
     const up = await uploadAndReference(db, testConfig, {

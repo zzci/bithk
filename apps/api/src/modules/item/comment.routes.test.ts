@@ -104,7 +104,7 @@ beforeEach(async () => {
     name: "Member",
     email: "member@test.com",
   }).run();
-  const item = await createItem(db, { type: "issue", title: "Subject", status: "open", creatorId: MEMBER.id });
+  const item = await createItem(db, { type: "issue", title: "Subject", status: "todo", creatorId: MEMBER.id });
   itemId = item.id;
   externalId = nanoid();
 });

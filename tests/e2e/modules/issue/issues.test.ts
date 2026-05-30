@@ -29,7 +29,7 @@ describe("/api/projects/:projectId/issues CRUD + comments", () => {
       body: { title: "e2e-issue", description: "fixture" },
     });
     expect(created.data.title).toBe("e2e-issue");
-    expect(created.data.status).toBe("open");
+    expect(created.data.status).toBe("todo");
     const id = created.data.id;
 
     // List.
@@ -43,10 +43,10 @@ describe("/api/projects/:projectId/issues CRUD + comments", () => {
     // Patch: change priority + status.
     const patched = await admin.json<{ data: Issue }>(`${base}/${id}`, {
       method: "PATCH",
-      body: { priority: "high", status: "in_progress" },
+      body: { priority: "high", status: "working" },
     });
     expect(patched.data.priority).toBe("high");
-    expect(patched.data.status).toBe("in_progress");
+    expect(patched.data.status).toBe("working");
 
     // Delete → the issue is gone (fail-closed 404).
     await admin.raw(`${base}/${id}`, { method: "DELETE" });

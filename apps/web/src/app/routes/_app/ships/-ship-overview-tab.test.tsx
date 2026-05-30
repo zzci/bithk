@@ -37,7 +37,7 @@ function routeFetch() {
     if (path === "/ships/s1/maintenance-templates")
       return jsonResponse({ success: true, data: [{ id: "tpl1", name: "Quarterly" }] });
     if (path === "/ships/s1/maintenance-orders")
-      return jsonResponse({ success: true, data: [{ id: "wo1", title: "Hull survey", status: "open", projectId: "p1", templateRefId: "tpl1", referenceId: "r1" }] });
+      return jsonResponse({ success: true, data: [{ id: "wo1", title: "Hull survey", status: "todo", projectId: "p1", templateRefId: "tpl1", referenceId: "r1" }] });
     return new Response("not found", { status: 404 });
   });
 }

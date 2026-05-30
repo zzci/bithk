@@ -35,7 +35,7 @@ import { mountIssueReferenceRoutes, referenceInputSchema } from "./references.ro
 const createSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional(),
-  status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
+  status: z.enum(["todo", "working", "review", "done", "cancel"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   assigneeMemberId: z.string().min(1).optional(),
   dueDate: z.string().max(30).optional(),
@@ -46,7 +46,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(2000).nullable().optional(),
-  status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
+  status: z.enum(["todo", "working", "review", "done", "cancel"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   assigneeMemberId: z.string().min(1).nullable().optional(),
   dueDate: z.string().max(30).nullable().optional(),

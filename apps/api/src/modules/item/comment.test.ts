@@ -66,7 +66,7 @@ async function makeItem() {
   const item = await createItem(db, {
     type: "issue",
     title: "Carrier item",
-    status: "open",
+    status: "todo",
     creatorId: userId,
   });
   return { userId, item };

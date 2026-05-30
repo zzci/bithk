@@ -26,7 +26,7 @@ const template = {
 const order = {
   id: "wo1",
   title: "Quarterly check work order",
-  status: "open",
+  status: "todo",
   projectId: "internal-project",
   templateRefId: "tpl1",
   referenceId: "ref1",
@@ -73,7 +73,7 @@ describe("shipMaintenanceTab", () => {
     expect(screen.getByRole("button", { name: /Templates 1/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Work orders 1/ }));
     expect(screen.getByText("Quarterly check work order")).toBeInTheDocument();
-    expect(screen.getByText("Open")).toBeInTheDocument();
+    expect(screen.getByText("To Do")).toBeInTheDocument();
   });
 
   it("does not call the global template API for non-admin users", async () => {

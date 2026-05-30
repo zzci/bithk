@@ -36,7 +36,7 @@ function issue(overrides: Partial<ProjectIssueRow> = {}): ProjectIssueRow {
     projectId: "p1",
     title: "Fix leak",
     description: null,
-    status: "open",
+    status: "todo",
     priority: "high",
     assigneeId: null,
     assigneeMemberId: null,
@@ -91,8 +91,8 @@ describe("projectIssuesTab", () => {
     routeFetch([issue()]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     expect(await screen.findByText("Fix leak")).toBeInTheDocument();
-    // `open` is grouped under the product label "Todo".
-    expect(screen.getByRole("region", { name: "Todo" })).toBeInTheDocument();
+    // `todo` is grouped under the product label "To Do".
+    expect(screen.getByRole("region", { name: "To Do" })).toBeInTheDocument();
     // Short id is shown; priority + assignee are icon/avatar with accessible titles.
     expect(screen.getByText("i1")).toBeInTheDocument();
     expect(screen.getByTitle("High")).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe("projectIssuesTab", () => {
   it("filters the list when a top status filter chip is clicked", async () => {
     const user = userEvent.setup();
     routeFetch([
-      issue({ id: "i1", title: "Fix leak", status: "open" }),
+      issue({ id: "i1", title: "Fix leak", status: "todo" }),
       issue({ id: "i2", title: "Close report", status: "done" }),
     ]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
@@ -154,26 +154,26 @@ describe("projectIssuesTab", () => {
     expect(screen.getByText("Close report")).toBeInTheDocument();
 
     const filterGroup = screen.getByRole("group", { name: "Filter by status" });
-    await user.click(within(filterGroup).getByRole("button", { name: /Completed/ }));
+    await user.click(within(filterGroup).getByRole("button", { name: /Done/ }));
 
     expect(screen.getByText("Close report")).toBeInTheDocument();
     expect(screen.queryByText("Fix leak")).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Todo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "To Do" })).not.toBeInTheDocument();
   });
 
   it("filters by status when a section header is clicked", async () => {
     const user = userEvent.setup();
     routeFetch([
-      issue({ id: "i1", title: "Fix leak", status: "open" }),
-      issue({ id: "i2", title: "Mid task", status: "in_progress" }),
+      issue({ id: "i1", title: "Fix leak", status: "todo" }),
+      issue({ id: "i2", title: "Mid task", status: "working" }),
     ]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     await screen.findByText("Fix leak");
     expect(screen.getByRole("region", { name: "In Progress" })).toBeInTheDocument();
 
-    const todoRegion = screen.getByRole("region", { name: "Todo" });
+    const todoRegion = screen.getByRole("region", { name: "To Do" });
     // The section header's filter control carries the exact status label.
-    await user.click(within(todoRegion).getByRole("button", { name: "Todo" }));
+    await user.click(within(todoRegion).getByRole("button", { name: "To Do" }));
 
     expect(screen.getByText("Fix leak")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "In Progress" })).not.toBeInTheDocument();
@@ -182,11 +182,11 @@ describe("projectIssuesTab", () => {
 
   it("collapses a section's rows while keeping its header visible", async () => {
     const user = userEvent.setup();
-    routeFetch([issue({ status: "open", title: "Fix leak" })]);
+    routeFetch([issue({ status: "todo", title: "Fix leak" })]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     await screen.findByText("Fix leak");
 
-    const todoRegion = screen.getByRole("region", { name: "Todo" });
+    const todoRegion = screen.getByRole("region", { name: "To Do" });
     const chevron = within(todoRegion).getByRole("button", { name: "Toggle section" });
     expect(chevron).toHaveAttribute("aria-expanded", "true");
 
@@ -194,18 +194,18 @@ describe("projectIssuesTab", () => {
     expect(chevron).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Fix leak")).not.toBeInTheDocument();
     // Header stays so the section can be reopened.
-    expect(screen.getByRole("region", { name: "Todo" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "To Do" })).toBeInTheDocument();
   });
 
   it("renders a separate status section with its own count for populated statuses only", async () => {
     routeFetch([
-      issue({ id: "i1", title: "Fix leak", status: "open" }),
-      issue({ id: "i2", title: "Align shaft", status: "open" }),
-      issue({ id: "i3", title: "Close report", status: "in_progress" }),
+      issue({ id: "i1", title: "Fix leak", status: "todo" }),
+      issue({ id: "i2", title: "Align shaft", status: "todo" }),
+      issue({ id: "i3", title: "Close report", status: "working" }),
     ]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
 
-    const openGroup = await screen.findByRole("region", { name: "Todo" });
+    const openGroup = await screen.findByRole("region", { name: "To Do" });
     expect(within(openGroup).getByText("2")).toBeInTheDocument();
     expect(within(openGroup).getByText("Fix leak")).toBeInTheDocument();
     expect(within(openGroup).getByText("Align shaft")).toBeInTheDocument();
@@ -214,7 +214,7 @@ describe("projectIssuesTab", () => {
     expect(within(inProgressGroup).getByText("1")).toBeInTheDocument();
     expect(within(inProgressGroup).getByText("Close report")).toBeInTheDocument();
 
-    expect(screen.queryByRole("region", { name: "Completed" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Done" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Cancelled" })).not.toBeInTheDocument();
   });
 
@@ -240,7 +240,7 @@ describe("projectIssuesTab", () => {
 
     await user.type(within(dialog).getByPlaceholderText("Title"), "Replace pump seal");
 
-    await user.click(within(dialog).getByRole("button", { name: /Todo/ }));
+    await user.click(within(dialog).getByRole("button", { name: /To Do/ }));
     await user.click(await screen.findByRole("menuitemradio", { name: "In Progress" }));
 
     await user.click(within(dialog).getByRole("button", { name: /Medium/ }));
@@ -260,7 +260,7 @@ describe("projectIssuesTab", () => {
       const body = JSON.parse(String(post![1]!.body)) as Record<string, unknown>;
       expect(body).toMatchObject({
         title: "Replace pump seal",
-        status: "in_progress",
+        status: "working",
         priority: "high",
         assigneeMemberId: "m1",
         dueDate: "2099-06-15",
@@ -276,12 +276,12 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     await screen.findByText("Done thing");
 
-    const doneRegion = screen.getByRole("region", { name: "Completed" });
-    await user.click(within(doneRegion).getByRole("button", { name: "New Completed work order" }));
+    const doneRegion = screen.getByRole("region", { name: "Done" });
+    await user.click(within(doneRegion).getByRole("button", { name: "New Done work order" }));
 
     const dialog = await screen.findByRole("dialog");
     // Status pill is pre-set to the section's status.
-    expect(within(dialog).getByRole("button", { name: /Completed/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Done/ })).toBeInTheDocument();
 
     await user.type(within(dialog).getByPlaceholderText("Title"), "Another done item");
     await user.click(within(dialog).getByRole("button", { name: "Create work order" }));

@@ -14,8 +14,9 @@ export const RECORD_STATUS_BADGE: Record<"active" | "archived", string> = {
 
 /** Issue / maintenance-order status chip. */
 export const ISSUE_STATUS_BADGE: Record<IssueStatus, string> = {
-  open: "bg-warning/10 text-warning",
-  in_progress: "bg-info/10 text-info",
+  todo: "bg-warning/10 text-warning",
+  working: "bg-info/10 text-info",
+  review: "bg-primary/10 text-primary",
   done: "bg-success/10 text-success",
-  cancelled: "bg-muted text-muted-foreground",
+  cancel: "bg-muted text-muted-foreground",
 };

@@ -91,7 +91,7 @@ export interface ProcurementCategoryView {
   readonly updatedAt: string;
 }
 
-export type IssueStatus = "open" | "in_progress" | "done" | "cancelled";
+export type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
 export type IssuePriority = "low" | "medium" | "high" | "urgent";
 
 export interface ProjectIssueRow {

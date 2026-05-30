@@ -84,7 +84,7 @@ function ShipDetailPage() {
     projects: projects?.length,
   };
 
-  const activeOrderCount = orders?.filter(order => order.status === "open" || order.status === "in_progress").length;
+  const activeOrderCount = orders?.filter(order => order.status === "todo" || order.status === "working" || order.status === "review").length;
   const retiredEquipmentCount = equipment?.filter(row => row.status === "retired").length;
   const categoryCount = templates === undefined ? undefined : new Set(templates.map(template => template.category?.trim()).filter(Boolean)).size;
 

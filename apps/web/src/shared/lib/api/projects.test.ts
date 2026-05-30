@@ -104,13 +104,13 @@ describe("useProjectIssues", () => {
   it("includes only the filters that are set", async () => {
     fetchMock.mockResolvedValue(jsonResponse(listEnvelope));
     const { result } = renderHook(
-      () => useProjectIssues("p1", { q: "leak", status: "open", priority: "high" }),
+      () => useProjectIssues("p1", { q: "leak", status: "todo", priority: "high" }),
       { wrapper: makeWrapper() },
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const url = calledUrl();
     expect(url).toContain("q=leak");
-    expect(url).toContain("status=open");
+    expect(url).toContain("status=todo");
     expect(url).toContain("priority=high");
   });
 
