@@ -27,6 +27,7 @@ import {
   SignalHigh,
   SignalLow,
   SignalMedium,
+  Tags,
   User,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";

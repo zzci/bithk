@@ -174,7 +174,9 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
     await screen.findByText("Fix leak");
 
-    const tagFilter = screen.getByRole("group", { name: "Filter by tags" });
+    const tagFilter = screen.getByRole("group", { name: "Filter by tag" });
+    // The tag filter shows a visible label so users know what the chips do.
+    expect(within(tagFilter).getByText("Filter by tag")).toBeInTheDocument();
     const search = screen.getByPlaceholderText("Search work orders...");
     const create = screen.getByRole("button", { name: "Create work order" });
 
