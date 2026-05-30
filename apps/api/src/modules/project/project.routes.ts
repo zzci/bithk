@@ -401,8 +401,6 @@ export function projectRoutes() {
       throw new NotFoundError("Project role", c.req.param("roleId"));
     if (result === "system")
       throw new ForbiddenError("System roles cannot be deleted");
-    if (result === "in_use")
-      throw new ValidationError("Role is still assigned to members", { roleId: "Role in use" });
     return c.json({ success: true, data: null });
   });
 

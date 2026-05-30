@@ -128,11 +128,6 @@ async function cookieForUser(userId: string): Promise<string> {
   return `session_id=${sessionId}`;
 }
 
-async function memberRoleId(projectId: string): Promise<string> {
-  const roles = await listRoles(db, projectId);
-  return roles.find(r => r.name === "Member")!.id;
-}
-
 /** Add a user as a member holding a custom role with the given capabilities. */
 async function addMemberWithCaps(projectId: string, userId: string, caps: string[]): Promise<void> {
   const role = await createRole(db, projectId, { name: `role-${nanoid()}`, capabilities: caps });
@@ -170,12 +165,14 @@ describe("visibility gating (procurement.view)", () => {
     expect(res.status).toBe(401);
   });
 
-  test("the pm (all caps) lists; a plain member without procurement.view is fail-closed 404", async () => {
+  test("the pm (all caps) lists; a Guest member without procurement.view is fail-closed 404", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const plain = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: plain });
+    // Use the Guest role (no capabilities) to test fail-closed behavior.
+    const guestRole = (await listRoles(db, project.id)).find(r => r.kind === "guest")!;
+    await addMember(db, project.id, { roleId: guestRole.id, userId: plain });
 
     const pmRes = await app.request(`/projects/${project.shortId}/procurements`, { headers: { Cookie: await cookieForUser(owner) } });
     expect(pmRes.status).toBe(200);

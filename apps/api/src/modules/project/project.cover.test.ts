@@ -141,9 +141,9 @@ describe("project cover", () => {
     // The creator is seeded as the Project Owner member → has project.manage.
     expect(await projectCoverPermissionHook.canDelete(db, { id: creator, role: "user" }, ref)).toBe(true);
 
-    // A plain member (Member role) holds no manage capability.
+    // A plain reader (Reader role) holds no manage capability.
     const memberUser = await seedUser("user");
-    const memberRole = (await listRoles(db, project.id)).find(r => r.name === "Member")!;
+    const memberRole = (await listRoles(db, project.id)).find(r => r.name === "Reader")!;
     await addMember(db, project.id, { roleId: memberRole.id, userId: memberUser });
     expect(await projectCoverPermissionHook.canDelete(db, { id: memberUser, role: "user" }, ref)).toBe(false);
     expect(await projectCoverPermissionHook.canRead(db, { id: memberUser, role: "user" }, ref)).toBe(true);

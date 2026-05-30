@@ -10,14 +10,25 @@ export type ProjectStatus = typeof PROJECT_STATUSES[number];
 
 // Per-project capabilities. Roles are user-defined (see `project_roles`); each
 // role grants a subset of these. Route gates check capabilities, not role names.
+// Grouped by module (issue / procurement / files / project-admin) so the
+// Roles UI can render them under their respective headings automatically.
 export const PROJECT_CAPABILITIES = [
-  "project.manage", // edit metadata, archive, delete the project
+  // Issue module
+  "issue.view", // read issue list, detail, and comments
+  "issue.comment", // post comments on issues
+  "issue.manage", // create / edit / delete / pin / attach any issue
+  // Procurement module
+  "procurement.view", // read procurement list and detail
+  "procurement.comment", // post comments on procurement
+  "procurement.manage", // create / edit / delete / transition procurement
+  // Files module (project-scoped drive entries)
+  "files.view", // list and download project-owned drive entries
+  "files.manage", // create / upload / edit / trash / delete project-owned entries
+  // Project-level admin caps
+  "categories.manage", // maintain procurement categories
   "members.manage", // add / edit / remove members, assign roles
   "roles.manage", // create / edit / delete roles
-  "categories.manage", // maintain procurement categories
-  "procurement.view", // read procurement
-  "procurement.manage", // create / edit / delete / transition procurement
-  "issue.manage", // edit any issue in the project (beyond own)
+  "project.manage", // edit metadata, archive, delete the project
 ] as const;
 export type ProjectCapability = typeof PROJECT_CAPABILITIES[number];
 
@@ -47,14 +58,18 @@ export const projects = sqliteTable("projects", {
 ]);
 
 // User-defined roles, per project. Capabilities are a JSON string[] validated
-// against PROJECT_CAPABILITIES. The seeded "Project Owner" role is `isSystem`
-// (undeletable, capabilities locked to the full set) to prevent lock-out.
+// against PROJECT_CAPABILITIES. Two implicit system roles are always seeded:
+//   kind='owner' (isSystem=1) — all capabilities, undeletable; holds the creator.
+//   kind='guest' (isSystem=1) — no capabilities, undeletable; delete-fallback target.
+// Editable preset roles (Reader / Commenter / Writer) have kind=null and isSystem=0.
 export const projectRoles = sqliteTable("project_roles", {
   id: text("id").primaryKey(), // nanoid
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   capabilities: text("capabilities").notNull().default("[]"), // JSON string[]
   isSystem: integer("is_system").notNull().default(0),
+  // 'owner' | 'guest' | null (null = custom / editable preset)
+  kind: text("kind", { enum: ["owner", "guest"] }),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, t => [index("project_roles_project_idx").on(t.projectId)]);

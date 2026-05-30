@@ -95,7 +95,7 @@ async function cookieForUser(userId: string): Promise<string> {
 
 async function memberRoleId(projectInternalId: string): Promise<string> {
   const roles = await db.select().from(projectRoles).where(eq(projectRoles.projectId, projectInternalId)).all();
-  return roles.find(r => r.name === "Member")!.id;
+  return roles.find(r => r.name === "Reader")!.id;
 }
 
 function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {

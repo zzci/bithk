@@ -15,7 +15,7 @@ import {
   listGlobalCategories,
   updateGlobalCategory,
 } from "./project.global-categories";
-import { createRole, listRoles, parseCapabilities } from "./project.roles";
+import { createRole, deleteRole, listRoles, parseCapabilities, resolveGuestRole } from "./project.roles";
 import {
   addMember,
   createProject,
@@ -55,10 +55,10 @@ async function seedUser(name: string): Promise<string> {
   return id;
 }
 
-/** Resolve the seeded baseline "Member" role id for a project. */
+/** Resolve the seeded "Reader" preset role id for a project. */
 async function memberRoleId(projectId: string): Promise<string> {
   const roles = await listRoles(db, projectId);
-  return roles.find(r => r.name === "Member")!.id;
+  return roles.find(r => r.name === "Reader")!.id;
 }
 
 beforeEach(async () => {
@@ -87,9 +87,13 @@ describe("createProject", () => {
     expect(project.code).toContain("p-");
 
     const roles = await listRoles(db, project.id);
-    expect(roles.map(r => r.name).sort()).toEqual(["Member", "Project Owner"]);
-    const pmRole = roles.find(r => r.isSystem === 1)!;
+    expect(roles.map(r => r.name).sort()).toEqual(["Commenter", "Guest", "Project Owner", "Reader", "Writer"]);
+    const pmRole = roles.find(r => r.name === "Project Owner")!;
     expect(parseCapabilities(pmRole.capabilities)).toContain("project.manage");
+    expect(pmRole.kind).toBe("owner");
+    const guestRole = roles.find(r => r.name === "Guest")!;
+    expect(guestRole.kind).toBe("guest");
+    expect(parseCapabilities(guestRole.capabilities)).toEqual([]);
 
     const members = await listMembers(db, project.id);
     expect(members).toHaveLength(1);
@@ -296,15 +300,16 @@ describe("access helpers", () => {
     const outsider = await seedUser("Eve");
     const project = await createProject(db, { name: "P", creatorId: creator });
 
-    // Baseline Member role has no capabilities.
+    // Reader role has view capabilities but no manage caps.
     await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
-    // A custom role granting procurement visibility.
-    const viewer = await createRole(db, project.id, { name: "Procurement Viewer", capabilities: ["procurement.view"] });
-    await addMember(db, project.id, { roleId: viewer.id, userId: carol });
+    // A custom role granting procurement management.
+    const manager = await createRole(db, project.id, { name: "Procurement Manager", capabilities: ["procurement.view", "procurement.manage"] });
+    await addMember(db, project.id, { roleId: manager.id, userId: carol });
 
     expect((await getMemberCapabilities(db, project.id, creator))?.has("project.manage")).toBe(true);
-    expect(await hasCapability(db, project.id, bob, "procurement.view")).toBe(false);
-    expect(await hasCapability(db, project.id, carol, "procurement.view")).toBe(true);
+    expect(await hasCapability(db, project.id, bob, "issue.view")).toBe(true);
+    expect(await hasCapability(db, project.id, bob, "issue.manage")).toBe(false);
+    expect(await hasCapability(db, project.id, carol, "procurement.manage")).toBe(true);
     expect(await getMemberCapabilities(db, project.id, outsider)).toBeNull();
   });
 
@@ -321,6 +326,81 @@ describe("access helpers", () => {
 
     expect(await resolveAssignableMember(db, projectB.id, member.id)).toBeNull();
     expect(await resolveAssignableMember(db, projectA.id, "missing")).toBeNull();
+  });
+});
+
+describe("roles engine", () => {
+  test("seedDefaultRoles produces Owner(kind=owner,12caps)+Guest(kind=guest,empty)+Reader+Commenter+Writer", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const roles = await listRoles(db, project.id);
+    expect(roles).toHaveLength(5);
+
+    const owner = roles.find(r => r.name === "Project Owner")!;
+    expect(owner.isSystem).toBe(1);
+    expect(owner.kind).toBe("owner");
+    expect(parseCapabilities(owner.capabilities)).toHaveLength(12);
+    expect(parseCapabilities(owner.capabilities)).toContain("issue.view");
+    expect(parseCapabilities(owner.capabilities)).toContain("project.manage");
+
+    const guest = roles.find(r => r.name === "Guest")!;
+    expect(guest.isSystem).toBe(1);
+    expect(guest.kind).toBe("guest");
+    expect(parseCapabilities(guest.capabilities)).toEqual([]);
+
+    const reader = roles.find(r => r.name === "Reader")!;
+    expect(reader.isSystem).toBe(0);
+    expect(reader.kind).toBeNull();
+    const readerCaps = parseCapabilities(reader.capabilities);
+    expect(readerCaps.sort()).toEqual(["files.view", "issue.view", "procurement.view"]);
+
+    const commenter = roles.find(r => r.name === "Commenter")!;
+    const commenterCaps = parseCapabilities(commenter.capabilities);
+    expect(commenterCaps).toContain("issue.comment");
+    expect(commenterCaps).toContain("procurement.comment");
+
+    const writer = roles.find(r => r.name === "Writer")!;
+    const writerCaps = parseCapabilities(writer.capabilities);
+    expect(writerCaps).toContain("files.manage");
+    expect(writerCaps).toContain("categories.manage");
+  });
+
+  test("resolveGuestRole returns the project's Guest role", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const guest = await resolveGuestRole(db, project.id);
+    expect(guest).toBeDefined();
+    expect(guest!.kind).toBe("guest");
+    expect(parseCapabilities(guest!.capabilities)).toEqual([]);
+  });
+
+  test("deleteRole reassigns holders to Guest and succeeds (no 'in_use' error)", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const reader = (await listRoles(db, project.id)).find(r => r.name === "Reader")!;
+    const guest = (await listRoles(db, project.id)).find(r => r.name === "Guest")!;
+
+    const member = await addMember(db, project.id, { roleId: reader.id, userId: bob });
+
+    // Deleting an in-use custom role should succeed, not return "in_use"
+    const result = await deleteRole(db, project.id, reader.id);
+    expect(result).toBe("deleted");
+
+    // Bob should now be on the Guest role
+    const members = await listMembers(db, project.id);
+    const bobMember = members.find(m => m.id === member.id)!;
+    expect(bobMember.roleId).toBe(guest.id);
+  });
+
+  test("deleteRole refuses a system role", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const owner = (await listRoles(db, project.id)).find(r => r.kind === "owner")!;
+    const guestRole = (await listRoles(db, project.id)).find(r => r.kind === "guest")!;
+
+    expect(await deleteRole(db, project.id, owner.id)).toBe("system");
+    expect(await deleteRole(db, project.id, guestRole.id)).toBe("system");
   });
 });
 
