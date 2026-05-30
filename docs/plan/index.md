@@ -40,3 +40,4 @@
 | [PLAN-036](PLAN-036.md) | Route project detail tabs by URL | Completed | 2026-05-30 |
 | [PLAN-037](PLAN-037.md) | Procurement module parity with the issue module | Implementing | 2026-05-30 |
 | [PLAN-041](PLAN-041.md) | Full-feature static seed dataset + importer | Completed | 2026-05-30 |
+| [PLAN-042](PLAN-042.md) | GitHub-style project role permissions (per-module) | Implementing | 2026-05-30 |
