@@ -324,7 +324,11 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
             keeping search + create right-aligned. */}
         {issueTags.length > 0
           ? (
-              <div role="group" aria-label={t("issues.tagFilter")}>
+              <div role="group" aria-label={t("issues.tagFilter")} className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Tags aria-hidden="true" className="size-3.5" />
+                  {t("issues.tagFilter")}
+                </span>
                 <ProjectTagFilter
                   multiple
                   tags={issueTags}

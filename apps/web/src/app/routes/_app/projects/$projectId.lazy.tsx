@@ -108,7 +108,7 @@ function ProjectDetailLayout() {
         {t("detail.back")}
       </Button>
 
-      {/* Compact header — title + status, then creator/updated meta, then tags. */}
+      {/* Compact header — title + status, then creator/updated/tags inline on one meta row. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
@@ -126,14 +126,14 @@ function ProjectDetailLayout() {
               <Clock className="size-3.5 shrink-0" aria-hidden="true" />
               {formatDate(project.updatedAt)}
             </span>
+            {project.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {project.tags.map(tag => (
+                  <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+                ))}
+              </div>
+            )}
           </div>
-          {project.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {project.tags.map(tag => (
-                <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-              ))}
-            </div>
-          )}
         </div>
         {caps.canOpenSettings && (
           <div className="flex shrink-0 items-center gap-2">
