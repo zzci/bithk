@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { PinnedItem } from "@/shared/lib/api/pins";
 import type { ProjectView } from "@/shared/lib/api/projects";
-import { ClipboardList, Clock, Package, Pin, User } from "lucide-react";
+import { ClipboardList, Package, Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -30,12 +30,11 @@ export type ProjectTab = "issues" | "procurement";
 
 interface ProjectOverviewTabProps {
   readonly project: ProjectView;
-  readonly userNames: ReadonlyMap<string, string>;
   readonly caps: ProjectCapabilityInfo;
   readonly onOpenTab: (tab: ProjectTab) => void;
 }
 
-export function ProjectOverviewTab({ project, userNames, caps, onOpenTab }: ProjectOverviewTabProps) {
+export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverviewTabProps) {
   const { t } = useTranslation("projects");
 
   const latestIssuesQuery = useProjectIssues(project.id, { limit: 5 });
@@ -45,12 +44,7 @@ export function ProjectOverviewTab({ project, userNames, caps, onOpenTab }: Proj
 
   return (
     <div className="space-y-6">
-      <ProjectInfoCard
-        creatorName={userNames.get(project.creatorId) ?? project.creatorId}
-        updatedAt={project.updatedAt}
-        tags={project.tags}
-        description={project.description}
-      />
+      <ProjectInfoCard description={project.description} />
 
       <ProjectPinnedCard projectId={project.id} caps={caps} onOpenTab={onOpenTab} />
 
@@ -110,47 +104,19 @@ export function ProjectOverviewTab({ project, userNames, caps, onOpenTab }: Proj
 }
 
 interface ProjectInfoCardProps {
-  readonly creatorName: string;
-  readonly updatedAt: string;
-  readonly tags: ProjectView["tags"];
   readonly description: string | null;
 }
 
-function ProjectInfoCard({ creatorName, updatedAt, tags, description }: ProjectInfoCardProps) {
+function ProjectInfoCard({ description }: ProjectInfoCardProps) {
   const { t } = useTranslation("projects");
 
   return (
     <Card size="sm">
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <User className="size-3.5 shrink-0" aria-hidden="true" />
-            {t("overview.creator")}
-            {": "}
-            {creatorName}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Clock className="size-3.5 shrink-0" aria-hidden="true" />
-            {t("overview.updatedAt")}
-            {": "}
-            {formatDate(updatedAt)}
-          </span>
-        </div>
-
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {tags.map(tag => (
-              <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
-            ))}
-          </div>
-        )}
-
-        <div className="flex flex-col gap-1.5 border-t pt-4">
-          <span className="text-sm font-medium text-muted-foreground">{t("overview.description")}</span>
-          <p className="max-w-prose text-sm leading-relaxed break-words whitespace-pre-wrap">
-            {description || <span className="text-muted-foreground">{t("overview.noDescription")}</span>}
-          </p>
-        </div>
+      <CardContent className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-muted-foreground">{t("overview.description")}</span>
+        <p className="max-w-prose text-sm leading-relaxed break-words whitespace-pre-wrap">
+          {description || <span className="text-muted-foreground">{t("overview.noDescription")}</span>}
+        </p>
       </CardContent>
     </Card>
   );

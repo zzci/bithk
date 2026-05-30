@@ -3,17 +3,15 @@ import type { ProjectDetailTab } from "./-project-tabs";
 import { createLazyFileRoute, Outlet, useLocation, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  Copy,
+  Clock,
   Settings,
-  Trash2,
+  User,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
   Tabs,
@@ -22,12 +20,11 @@ import {
 } from "@/shared/components/ui/tabs";
 import { useProcurements } from "@/shared/lib/api/procurement";
 import {
-  useDeleteProject,
   useProject,
   useProjectIssues,
   useProjectMembers,
 } from "@/shared/lib/api/projects";
-import { errorMessage } from "@/shared/lib/errors";
+import { formatDate } from "@/shared/lib/format";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
 import { activeProjectTab, PROJECT_TAB_TO } from "./-project-tabs";
@@ -47,8 +44,6 @@ function ProjectDetailLayout() {
   const projectQuery = useProject(projectId);
   const membersQuery = useProjectMembers(projectId);
   const usersQuery = useVisibleUsers();
-
-  const deleteProject = useDeleteProject();
 
   // Members still feed the assignee pickers in the issue/procurement tabs, but
   // those tabs fetch their own copy now; the layout only needs them for caps.
@@ -74,7 +69,6 @@ function ProjectDetailLayout() {
   };
 
   const [settingsOpen, setSettingsOpen] = useState(settingsParam ?? false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Deep link from the project list (`?settings=true`) clears once the dialog
   // closes, keeping the current tab route in place.
@@ -100,31 +94,6 @@ function ProjectDetailLayout() {
     );
   }
 
-  const handleDelete = () => {
-    deleteProject.mutate(project.id, {
-      onSuccess: () => {
-        toast.success(t("toast.projectDeleted"));
-        setDeleteOpen(false);
-        void navigate({ to: "/projects" });
-      },
-      onError: (err) => {
-        toast.error(errorMessage(err, t("common:common.error.deleteFailed")));
-      },
-    });
-  };
-
-  const handleCopyCode = async () => {
-    if (!project.code)
-      return;
-    try {
-      await navigator.clipboard.writeText(project.code);
-      toast.success(t("detail.codeCopied"));
-    }
-    catch {
-      toast.error(t("detail.copyFailed"));
-    }
-  };
-
   const tabCount = (n: number | undefined) => (n === undefined ? "" : ` ${n}`);
 
   return (
@@ -139,41 +108,39 @@ function ProjectDetailLayout() {
         {t("detail.back")}
       </Button>
 
-      {/* Compact title row — replaces the old hero card. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <h1 className="truncate text-2xl font-semibold">{project.name}</h1>
-          <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
-            {t(`status.${project.status}` as const)}
-          </Badge>
-          {project.code && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 font-mono text-xs text-muted-foreground"
-              aria-label={t("detail.copyCode")}
-              onClick={() => void handleCopyCode()}
-            >
-              {project.code}
-              <Copy aria-hidden="true" className="size-3" />
-            </Button>
+      {/* Compact header — title + status, then creator/updated meta, then tags. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="truncate text-2xl font-semibold">{project.name}</h1>
+            <Badge variant="secondary" className={`text-xs ${RECORD_STATUS_BADGE[project.status]}`}>
+              {t(`status.${project.status}` as const)}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <User className="size-3.5 shrink-0" aria-hidden="true" />
+              {userNames.get(project.creatorId) ?? project.creatorId}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="size-3.5 shrink-0" aria-hidden="true" />
+              {formatDate(project.updatedAt)}
+            </span>
+          </div>
+          {project.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {project.tags.map(tag => (
+                <Badge key={tag.id} variant="secondary" className="text-xs">{tag.name}</Badge>
+              ))}
+            </div>
           )}
         </div>
-        {(caps.canOpenSettings || caps.canManageProject) && (
+        {caps.canOpenSettings && (
           <div className="flex shrink-0 items-center gap-2">
-            {caps.canOpenSettings && (
-              <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-                <Settings aria-hidden="true" />
-                {t("detail.settings")}
-              </Button>
-            )}
-            {caps.canManageProject && (
-              <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
-                <Trash2 className="text-destructive" aria-hidden="true" />
-                {t("common:common.delete")}
-              </Button>
-            )}
+            <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+              <Settings aria-hidden="true" />
+              {t("detail.settings")}
+            </Button>
           </div>
         )}
       </div>
@@ -215,15 +182,6 @@ function ProjectDetailLayout() {
           caps={caps}
         />
       )}
-
-      <ConfirmDeleteDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        title={t("delete.title")}
-        description={t("delete.confirm", { name: project.name })}
-        pending={deleteProject.isPending}
-        onConfirm={handleDelete}
-      />
     </div>
   );
 }
