@@ -1,23 +1,38 @@
 node_modules/
 dist/
-data/
-data-docker/
+
+# Environment — keep example/template files tracked
 .env
 .env.*
 !.env.example
 !.env.*.example
+
+# Databases / local stores (any package)
 *.db
 *.sqlite
 *.log
+
+# Generated TypeScript (keep the committed TanStack route tree)
+*.gen.ts
+!apps/web/src/app/routeTree.gen.ts
+
+# Caches (tool-generated, can appear in any package)
 .vite/
 .turbo/
 coverage/
 .tanstack/
 .code-review-graph/
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Tooling / secrets
 .claude/
-*.gen.ts
-!apps/web/src/app/routeTree.gen.ts
 .secret/
 
-# Local backup dir (not part of the template)
+# Root-level local-only dirs (anchored so they never match nested paths
+# such as apps/api/scripts/seed/payload)
+/data/
+/data-docker/
 /backup/
