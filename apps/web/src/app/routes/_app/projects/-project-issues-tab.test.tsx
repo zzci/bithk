@@ -197,6 +197,36 @@ describe("projectIssuesTab", () => {
     expect(within(row).getByText("electrical")).toBeInTheDocument();
   });
 
+  // A stale-cache / contract-violating row genuinely lacks the `tags` key.
+  function taglessIssue(overrides: Partial<ProjectIssueRow> = {}): ProjectIssueRow {
+    const { tags: _tags, ...rest } = issue(overrides);
+    return rest as unknown as ProjectIssueRow;
+  }
+
+  it("renders a row without throwing when its tags are missing", async () => {
+    // Reproduces the prod crash: a row whose `tags` is undefined must not throw
+    // at `tags.length` / `tags.slice`.
+    routeFetch([taglessIssue()]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    const row = await screen.findByRole("button", { name: /Fix leak/ });
+    expect(within(row).getByText("Fix leak")).toBeInTheDocument();
+    // No tag chip is rendered for the tag-less row.
+    expect(within(row).queryByText("electrical")).not.toBeInTheDocument();
+  });
+
+  it("renders a mixed list of tag-less and tagged rows without throwing", async () => {
+    routeFetch([
+      taglessIssue({ id: "i1", title: "Fix leak", status: "todo" }),
+      issue({ id: "i2", title: "Wire panel", status: "todo", tags: [{ id: "t1", name: "electrical" }] }),
+    ]);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    const taggedRow = await screen.findByRole("button", { name: /Wire panel/ });
+    expect(within(taggedRow).getByText("electrical")).toBeInTheDocument();
+    // The tag-less row renders alongside it, with no chip of its own.
+    const taglessRow = screen.getByRole("button", { name: /Fix leak/ });
+    expect(within(taglessRow).queryByText("electrical")).not.toBeInTheDocument();
+  });
+
   it("toggles a tag in the multi-select bar and threads tagIds into every status query", async () => {
     const user = userEvent.setup();
     const restore = withWideContainer();

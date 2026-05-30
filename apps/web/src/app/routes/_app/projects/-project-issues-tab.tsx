@@ -401,6 +401,8 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                   <ul className="mt-0.5">
                                     {groupIssues.map((issue) => {
                                       const priorityLabel = t(`issues.priority.${issue.priority}` as const);
+                                      // Defensive: a contract-violating / stale-cache row may lack `tags`.
+                                      const issueTags = issue.tags ?? [];
                                       return (
                                         <li
                                           key={issue.id}
@@ -417,9 +419,9 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                             <StatusIcon status={issue.status} label={label} />
                                             <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{issue.id}</span>
                                             <span className="min-w-0 flex-1 truncate text-sm">{issue.title}</span>
-                                            {issue.tags.length > 0 && (
+                                            {issueTags.length > 0 && (
                                               <div className="hidden shrink-0 items-center gap-1 sm:flex">
-                                                {issue.tags.slice(0, 3).map(tag => (
+                                                {issueTags.slice(0, 3).map(tag => (
                                                   <Badge key={tag.id} variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
                                                     {tag.name}
                                                   </Badge>
