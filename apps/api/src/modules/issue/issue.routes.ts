@@ -39,6 +39,8 @@ const createSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   assigneeMemberId: z.string().min(1).optional(),
   dueDate: z.string().max(30).optional(),
+  // Optional tag names (source_type='issue') synced with the issue.
+  tags: z.array(z.string().min(1).max(50)).max(50).optional(),
   // Optional generic references inserted alongside the issue (additive).
   references: z.array(referenceInputSchema).max(50).optional(),
 });
@@ -50,6 +52,8 @@ const updateSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   assigneeMemberId: z.string().min(1).nullable().optional(),
   dueDate: z.string().max(30).nullable().optional(),
+  // Replacement tag set (source_type='issue'); omit to leave tags unchanged.
+  tags: z.array(z.string().min(1).max(50)).max(50).optional(),
 }).refine(d => Object.values(d).some(v => v !== undefined), {
   message: "At least one field must be provided",
 });
@@ -59,6 +63,23 @@ function auditMeta(c: Context) {
     ip: getClientIp(c),
     userAgent: c.req.header("user-agent") ?? "unknown",
   };
+}
+
+// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
+// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
+// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
+function parseTagIds(raw: string[] | undefined): string[] {
+  if (!raw || raw.length === 0)
+    return [];
+  const out = new Set<string>();
+  for (const part of raw) {
+    for (const value of part.split(",")) {
+      const trimmed = value.trim();
+      if (trimmed)
+        out.add(trimmed);
+    }
+  }
+  return [...out].slice(0, 50);
 }
 
 /**
@@ -117,10 +138,11 @@ export function issueRoutes() {
     const q = c.req.query("q");
     const status = c.req.query("status");
     const priority = c.req.query("priority");
+    const tagIds = parseTagIds(c.req.queries("tagIds"));
     const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
     const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
 
-    const result = await listByProject(db, { projectId, q, status, priority, page, limit });
+    const result = await listByProject(db, { projectId, q, status, priority, tagIds, page, limit });
     return c.json({
       success: true,
       data: result.data,

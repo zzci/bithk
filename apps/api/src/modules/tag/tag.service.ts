@@ -314,3 +314,31 @@ export async function listResourceIdsByTag(
   // A bound resource column is always a text id column, so values are strings.
   return rows.map(r => r.resourceId as string);
 }
+
+/**
+ * Resource ids carrying ANY of the given tags (OR / union), each resolved by
+ * tag id OR name. Blank/unresolvable values are ignored; the result is
+ * de-duplicated. Returns an empty array when nothing resolves (an empty input
+ * therefore applies no filter at the caller).
+ */
+export async function listResourceIdsByAnyTag(
+  db: AppDatabase,
+  binding: ResourceTagBinding,
+  tagIdsOrNames: readonly string[],
+): Promise<string[]> {
+  const resolved: string[] = [];
+  for (const value of tagIdsOrNames) {
+    const tagId = await resolveTagIdByIdOrName(db, binding.sourceType, value);
+    if (tagId)
+      resolved.push(tagId);
+  }
+  if (resolved.length === 0)
+    return [];
+  const rows = await db
+    .select({ resourceId: binding.resourceColumn })
+    .from(binding.table)
+    .where(inArray(binding.tagColumn, resolved))
+    .all();
+  // A bound resource column is always a text id column, so values are strings.
+  return [...new Set(rows.map(r => r.resourceId as string))];
+}

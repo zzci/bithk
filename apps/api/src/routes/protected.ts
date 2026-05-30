@@ -11,6 +11,7 @@ import { documentTags } from "@/modules/document/schema";
 import { driveRoutes } from "@/modules/drive";
 import { fileRoutes } from "@/modules/file";
 import { issueRoutes } from "@/modules/issue";
+import { issueTagBinding } from "@/modules/issue/issue.service";
 // Importing `itemRoutes` also runs the `item` module's load-time side effects
 // (backup contribution + the `item_attachment` file permission hooks).
 import { itemRoutes } from "@/modules/item";
@@ -33,6 +34,7 @@ import { registerTagSource, tagRoutes } from "@/modules/tag";
 registerTagSource({ sourceType: "project", table: projectTags, resourceColumn: projectTags.projectId, tagColumn: projectTags.tagId });
 registerTagSource({ sourceType: "contact", table: contactTags, resourceColumn: contactTags.contactId, tagColumn: contactTags.tagId });
 registerTagSource({ sourceType: "document", table: documentTags, resourceColumn: documentTags.itemId, tagColumn: documentTags.tagId });
+registerTagSource(issueTagBinding);
 
 export function protectedRoutes() {
   const app = new Hono<AppEnv>();

@@ -1,17 +1,30 @@
 import type { AppDatabase } from "@/db";
 import type { AddReferenceInput } from "@/modules/issue/references.service";
+import type { ResourceTagBinding } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { issueReferences } from "@/modules/issue/references.schema";
 import { buildReferenceRows } from "@/modules/issue/references.service";
-import { issueDetails } from "@/modules/issue/schema";
+import { issueDetails, issueTags } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { getMemberCapabilities, resolveAssignableMember } from "@/modules/project/project.service";
 import { projectMembers, projects } from "@/modules/project/schema";
+import { listResourceIdsByAnyTag, listResourceTagViews, loadResourceTagsByResource, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 
 export type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
+
+// The issue domain's tag assignment binding (source_type='issue'). Built here
+// from the local join table so the issue service can sync/read tags directly,
+// and exported so `routes/protected.ts` registers the same binding for the
+// shared `GET /tags?type=issue` vocabulary route.
+export const issueTagBinding: ResourceTagBinding = {
+  sourceType: "issue",
+  table: issueTags,
+  resourceColumn: issueTags.itemId,
+  tagColumn: issueTags.tagId,
+};
 export type IssuePriority = "low" | "medium" | "high" | "urgent";
 
 // Backslash is the ESCAPE char, so it must be escaped first; every LIKE built
@@ -45,6 +58,8 @@ export interface IssueRow {
   // project overview Pin area; `pinnedAt` is set when pinned, NULL otherwise.
   readonly pinned: boolean;
   readonly pinnedAt: string | null;
+  // Tags assigned to this issue (source_type='issue'), ordered by name.
+  readonly tags: { readonly id: string; readonly name: string }[];
 }
 
 // Crockford base32 → ms decode for the ULID timestamp prefix that lives on
@@ -84,9 +99,11 @@ async function composeIssue(
   db: AppDatabase,
   item: typeof items.$inferSelect,
   details?: typeof issueDetails.$inferSelect | undefined,
+  tags?: readonly { id: string; name: string }[] | undefined,
 ): Promise<IssueRow> {
   const d = details ?? await db.select().from(issueDetails).where(eq(issueDetails.itemId, item.id)).get();
   const assigneeId = await getAssigneeId(db, item.id);
+  const tagList = tags ?? await listResourceTagViews(db, issueTagBinding, item.id);
   return {
     id: item.shortId,
     title: item.title,
@@ -103,6 +120,7 @@ async function composeIssue(
     version: item.version,
     pinned: item.pinned,
     pinnedAt: item.pinnedAt,
+    tags: tagList.map(t => ({ id: t.id, name: t.name })),
   };
 }
 
@@ -123,6 +141,8 @@ export interface CreateIssueInput {
   // Optional generic references inserted in the same transaction. Additive —
   // omitting it leaves the create path's behavior unchanged.
   readonly references?: readonly AddReferenceInput[] | undefined;
+  // Optional tag names (source_type='issue') synced in the same transaction.
+  readonly tags?: readonly string[] | undefined;
 }
 
 export async function createIssue(db: AppDatabase, input: CreateIssueInput): Promise<IssueRow> {
@@ -201,6 +221,10 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
       for (const row of buildReferenceRows(id, input.references, now))
         tx.insert(issueReferences).values(row).run();
     }
+
+    // Optional tag assignment (source_type='issue'), synced inside the same tx.
+    if (input.tags)
+      syncResourceTagsTx(tx, issueTagBinding, id, input.tags, now);
   });
 
   const item = (await db.select().from(items).where(eq(items.id, id)).get())!;
@@ -224,6 +248,8 @@ export interface UpdateIssueInput {
   readonly dueDate?: string | null | undefined;
   // Reassignment target (`project_members.id`); null clears the assignment.
   readonly assigneeMemberId?: string | null | undefined;
+  // Replacement tag set (source_type='issue'); omit to leave tags unchanged.
+  readonly tags?: readonly string[] | undefined;
 }
 
 export async function updateIssue(db: AppDatabase, shortId: string, input: UpdateIssueInput): Promise<IssueRow | undefined> {
@@ -271,6 +297,10 @@ export async function updateIssue(db: AppDatabase, shortId: string, input: Updat
     if (Object.keys(detailsPatch).length > 0) {
       tx.update(issueDetails).set(detailsPatch).where(eq(issueDetails.itemId, item.id)).run();
     }
+
+    // Replace the issue's tag set when `tags` is provided (omit = unchanged).
+    if (input.tags !== undefined)
+      syncResourceTagsTx(tx, issueTagBinding, item.id, input.tags, now);
 
     // Resync the `item#assignee@user` tuple from the (internal) member's user
     // id whenever the member changes.
@@ -330,6 +360,9 @@ export interface ListByProjectParams {
   readonly q?: string | undefined;
   readonly status?: string | undefined;
   readonly priority?: string | undefined;
+  // Multi-tag filter (source_type='issue'). OR / union semantics: an issue
+  // matches if it carries ANY of these tags. Empty/omitted = no tag filter.
+  readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -365,14 +398,24 @@ export async function listByProject(
     conditions.push(eq(items.status, params.status));
   if (params.q)
     conditions.push(sql`${items.title} LIKE ${`%${escapeLike(params.q)}%`} ESCAPE '\\'`);
+
+  // Multi-tag filter: union of the item ids carrying any of the selected tags.
+  if (params.tagIds && params.tagIds.length > 0) {
+    const tagItemIds = await listResourceIdsByAnyTag(db, issueTagBinding, params.tagIds);
+    if (tagItemIds.length === 0)
+      return { data: [], total: 0 };
+    conditions.push(inArray(items.id, tagItemIds));
+  }
+
   const where = and(...conditions);
 
   const totalRow = await db.select({ value: count() }).from(items).where(where).get();
   const total = totalRow?.value ?? 0;
   const rows = await db.select().from(items).where(where).orderBy(desc(items.id)).limit(limit).offset((page - 1) * limit).all();
+  const tagMap = await loadResourceTagsByResource(db, issueTagBinding, rows.map(r => r.id));
   const data: IssueRow[] = [];
   for (const r of rows)
-    data.push(await composeIssue(db, r));
+    data.push(await composeIssue(db, r, undefined, tagMap.get(r.id) ?? []));
   return { data, total };
 }
 
