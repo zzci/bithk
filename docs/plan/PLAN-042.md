@@ -234,14 +234,17 @@ which stay 403.
 - **Capability rename:** any stored role capability `procurement.view` →
   `project.view`. `parseCapabilities` already drops unknown strings, so a stale
   `procurement.view` would otherwise silently vanish — migrate it explicitly.
-- **'Member' → 'Guest' (the key mapping).** The current empty-caps `Member`
-  role *is* the no-permission state, so it becomes the implicit **Guest**:
-  set `isSystem=1`, `kind='guest'`, keep capabilities empty (display name via
-  i18n "Guest"). **Member is NOT the read-only role** — read-only is the new,
-  separate, editable **Reader** preset (`project.view`). This keeps a clean
-  split: Guest = no access fallback; Reader = read-only.
-  - Backfill safety: for any project lacking a `kind='guest'` row (e.g. its
-    Member was renamed/deleted), insert an empty-caps system Guest role so the
+- **'Member' → 'Reader' (L1-decided mapping).** Convert each project's existing
+  empty-caps `Member` role into the **Reader** preset: add `project.view`,
+  rename to "Reader", keep it editable (`kind=null`). Existing members thereby
+  **keep read access** — they are not downgraded to no-permission. Member is the
+  *read-only* tier going forward, not the fallback.
+- **Seed the implicit Guest SEPARATELY (not a renamed Member).** Guest is a new
+  implicit-system role (`isSystem=1`, `kind='guest'`, empty caps), sitting
+  **below Reader** (Reader has `project.view` and can view; Guest has nothing and
+  cannot even view). It is reserved purely as the delete-fallback / no-permission
+  state and is never auto-assigned except by the role-deletion flow (§3.3).
+  - Backfill: insert one Guest row for every existing project so the
     deletion-fallback target always exists.
   - Mark the existing `Project Owner` row `kind='owner'`.
 - **Seed change:** `seedDefaultRoles` (`project.roles.ts:56`) seeds the two
@@ -356,8 +359,10 @@ A separate CHORE may follow to regenerate API docs / reseed (mirrors CHORE-002/0
 6. **Delete-fallback:** deleting a custom role reassigns every holder to Guest in
    one transaction and succeeds (no "in use" error); no member is left dangling.
    (route + service tests)
-7. 'Member' no longer exists as a distinct empty role — it is migrated to Guest;
-   read-only is the separate Reader preset. (migration test)
+7. Existing 'Member' is migrated to **Reader** (gains `project.view`) so current
+   members keep read access; **Guest** is a separate implicit fallback (empty,
+   below Reader) that is never auto-assigned except by role deletion.
+   (migration test)
 8. Roles UI shows new capabilities grouped correctly; Owner + Guest render locked;
    presets seed on new projects; delete copy states the demotion. (web tests)
 9. `bun run check` green.

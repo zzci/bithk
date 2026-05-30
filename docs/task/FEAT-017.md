@@ -19,7 +19,8 @@ routes honor view + comment capabilities (today they gate on bare membership).
   implicit system roles (Owner + Guest) plus Reader/Commenter/Writer presets;
   change `deleteRole` to auto-demote a deleted custom role's members to Guest
   (drop the "in use" rejection); update gates in issue, comment, procurement,
-  and drive routes; data migration for the cap rename + Member→Guest.
+  and drive routes; data migration for the cap rename + Member→Reader (Guest
+  seeded separately as the implicit fallback).
 - Frontend: mirror capabilities, derive view/comment/files flags, gate write
   affordances, add a role preset quick-fill, i18n.
 
@@ -34,6 +35,8 @@ routes honor view + comment capabilities (today they gate on bare membership).
 - 2026-05-30: Investigation + proposal written (PLAN-042). Awaiting L1/user
   approval before any implementation.
 - 2026-05-30: Extended per L1 — two implicit system roles (Owner + Guest) and a
-  delete-fallback that auto-demotes a deleted custom role's members to Guest;
-  'Member' maps to Guest, read-only is the separate Reader preset. Still
-  analysis-only, awaiting approval.
+  delete-fallback that auto-demotes a deleted custom role's members to Guest.
+  Mapping corrected per L1: existing 'Member' → **Reader** (keeps read access);
+  **Guest** is a separate empty/no-permission implicit fallback below Reader,
+  never auto-assigned except by role deletion. Still analysis-only, awaiting
+  approval.
