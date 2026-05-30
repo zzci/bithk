@@ -117,7 +117,8 @@
       "general": "General",
       "members": "Members",
       "roles": "Roles",
-      "categories": "Categories"
+      "categories": "Procurement Categories",
+      "danger": "Danger zone"
     },
     "projectId": "Project ID: "
   },

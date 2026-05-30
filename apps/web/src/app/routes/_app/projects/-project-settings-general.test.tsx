@@ -1,17 +1,9 @@
 import type { ProjectView } from "@/shared/lib/api/projects";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
 import { ProjectSettingsGeneral } from "./-project-settings-general";
-
-// The Danger zone delete action navigates away on success. Stub useNavigate so
-// the test does not depend on a live router and can assert the destination.
-const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }));
-vi.mock("@tanstack/react-router", async importOriginal => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  useNavigate: () => navigateMock,
-}));
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -36,7 +28,6 @@ function routeAware(mutationResponse: () => Response) {
 
 beforeEach(() => {
   fetchMock.mockReset();
-  navigateMock.mockReset();
   // Default: tags resolve to an empty vocabulary; no mutation is expected.
   routeAware(() => jsonResponse({ success: true, data: [] }));
   globalThis.fetch = fetchMock;
@@ -136,51 +127,5 @@ describe("projectSettingsGeneral", () => {
     renderWithProviders(<ProjectSettingsGeneral project={project()} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Failed to save")).toBeInTheDocument();
-  });
-
-  it("archives an active project after confirming in the Danger zone", async () => {
-    const user = userEvent.setup();
-    routeAware(() => jsonResponse({ success: true, data: project({ status: "archived" }) }));
-    renderWithProviders(<ProjectSettingsGeneral project={project()} />);
-
-    expect(screen.getByText("Danger zone")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Archive" }));
-
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText("Archive project?")).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Archive" }));
-
-    await waitFor(() => {
-      const patch = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "PATCH");
-      expect(patch).toBeTruthy();
-      expect(String(patch![0])).toBe("/api/projects/p1");
-      const body = JSON.parse(String(patch![1]?.body));
-      expect(body.status).toBe("archived");
-    });
-  });
-
-  it("offers a Restore action for an archived project", () => {
-    renderWithProviders(<ProjectSettingsGeneral project={project({ status: "archived" })} />);
-    expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
-  });
-
-  it("deletes the project and navigates away after confirming", async () => {
-    const user = userEvent.setup();
-    routeAware(() => jsonResponse({ success: true, data: null }));
-    renderWithProviders(<ProjectSettingsGeneral project={project()} />);
-
-    await user.click(screen.getByRole("button", { name: "Delete project" }));
-
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText("Delete project?")).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Delete project" }));
-
-    await waitFor(() => {
-      const del = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "DELETE");
-      expect(del).toBeTruthy();
-      expect(String(del![0])).toBe("/api/projects/p1");
-    });
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: "/projects" }));
   });
 });
