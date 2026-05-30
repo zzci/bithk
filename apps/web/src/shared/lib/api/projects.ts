@@ -513,7 +513,9 @@ export function useProjectIssues(projectId: string | undefined, query: ProjectIs
     queryKey: projectKeys.issues(projectId ?? "", qs),
     queryFn: async () => {
       const res = await http<ApiListEnvelope<ProjectIssueRow>>(`/projects/${encodeURIComponent(projectId!)}/issues?${qs}`);
-      return { data: res.data, meta: res.meta };
+      // Normalize at the boundary: coerce `tags` to an array so a contract-
+      // violating or stale-cache row can never reach the UI without one.
+      return { data: res.data.map(r => ({ ...r, tags: r.tags ?? [] })), meta: res.meta };
     },
     enabled: !!projectId,
     staleTime: 5_000,
