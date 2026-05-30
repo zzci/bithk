@@ -42,6 +42,7 @@ export interface UpdateProjectIssueInput {
   readonly priority?: IssuePriority;
   readonly assigneeMemberId?: string | null;
   readonly dueDate?: string | null;
+  readonly tags?: readonly string[];
 }
 
 export function useUpdateProjectIssue(): UseMutationResult<ProjectIssueRow, Error, { projectId: string; issueId: string } & UpdateProjectIssueInput> {

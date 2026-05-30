@@ -1,5 +1,6 @@
 import type { ProjectIssueRow, ProjectMemberView } from "@/shared/lib/api/projects";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared/stores/auth";
 import { renderWithProviders } from "@/test/utils";
@@ -47,11 +48,13 @@ function issue(overrides: Partial<ProjectIssueRow> = {}): ProjectIssueRow {
   };
 }
 
-function routeFetch(row: ProjectIssueRow) {
+function routeFetch(row: ProjectIssueRow, tagVocab: ReadonlyArray<{ id: string; name: string }> = []) {
   fetchMock.mockImplementation(async (url) => {
     const path = String(url);
     if (/\/issues\/i1$/.test(path))
       return jsonResponse({ success: true, data: row });
+    if (path.includes("/tags"))
+      return jsonResponse({ success: true, data: tagVocab });
     // attachments, comments, limits — all empty.
     return jsonResponse({ success: true, data: [] });
   });
@@ -97,5 +100,107 @@ describe("projectIssuePanel due date control", () => {
     expect(trigger).toBeInTheDocument();
     expect(trigger.textContent).toContain("2026-06-15");
     expect(trigger.querySelector("svg")).not.toBeNull();
+  });
+});
+
+describe("projectIssuePanel description surface", () => {
+  it("renders the description block on a muted surface in readonly mode", async () => {
+    routeFetch(issue({ description: "Check the keel" }));
+    renderWithProviders(
+      <ProjectIssuePanel
+        projectId="p1"
+        issueId="i1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("Inspect hull");
+    expect(document.querySelector(".bg-muted\\/40")).not.toBeNull();
+  });
+
+  it("keeps the muted surface after entering edit mode", async () => {
+    const user = userEvent.setup();
+    routeFetch(issue({ description: "Check the keel" }));
+    renderWithProviders(
+      <ProjectIssuePanel
+        projectId="p1"
+        issueId="i1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("Inspect hull");
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    // Edit branch (Cancel/Save) is active and still sits on the muted surface.
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(document.querySelector(".bg-muted\\/40")).not.toBeNull();
+  });
+});
+
+describe("projectIssuePanel tags", () => {
+  it("renders the current issue tags", async () => {
+    routeFetch(issue({ tags: [{ id: "t1", name: "hull" }] }), [{ id: "t1", name: "hull" }]);
+    renderWithProviders(
+      <ProjectIssuePanel
+        projectId="p1"
+        issueId="i1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    expect((await screen.findAllByText("hull")).length).toBeGreaterThan(0);
+  });
+
+  it("persists a newly added tag via a PATCH to the issue", async () => {
+    const user = userEvent.setup();
+    routeFetch(issue({ tags: [] }), [{ id: "t1", name: "hull" }]);
+    renderWithProviders(
+      <ProjectIssuePanel
+        projectId="p1"
+        issueId="i1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("Inspect hull");
+    await user.click(screen.getByText("Tags"));
+    await user.click(await screen.findByRole("option", { name: "hull" }));
+
+    await waitFor(() => {
+      const patched = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+      expect(patched).toBeDefined();
+      const body = JSON.parse(String(patched?.[1]?.body)) as { tags?: string[] };
+      expect(body.tags).toContain("hull");
+    });
+  });
+
+  it("hides the tag editor for a read-only viewer but still shows chips", async () => {
+    useAuthStore.setState({ user: { id: "u2", role: "member" } as never, loading: false });
+    routeFetch(issue({ creatorId: "u1", tags: [{ id: "t1", name: "hull" }] }), [{ id: "t1", name: "hull" }]);
+    renderWithProviders(
+      <ProjectIssuePanel
+        projectId="p1"
+        issueId="i1"
+        members={noMembers}
+        userNames={userNames}
+        canManage={false}
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText("hull")).toBeInTheDocument();
+    expect(screen.queryByText("Tags")).not.toBeInTheDocument();
   });
 });

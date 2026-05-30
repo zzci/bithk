@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { useIssueTags } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
@@ -53,6 +54,7 @@ import {
   useProjectIssue,
   useUpdateProjectIssue,
 } from "./-project-issue-hooks";
+import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 // ── Helpers ──
 
@@ -102,6 +104,7 @@ export function ProjectIssuePanel({
   const isAdmin = user?.role === "admin";
 
   const issueQuery = useProjectIssue(projectId, issueId);
+  const issueTagsQuery = useIssueTags();
   const updateIssue = useUpdateProjectIssue();
   const deleteIssue = useDeleteProjectIssue();
   const issue: ProjectIssueRow | null = issueQuery.data ?? null;
@@ -251,6 +254,10 @@ export function ProjectIssuePanel({
   const assigneeLabel = issue.assigneeMemberId
     ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId
     : null;
+
+  const issueTags = issue.tags ?? [];
+  const tagVocabulary = (issueTagsQuery.data ?? []).map(tag => tag.name);
+  const currentTagNames = issueTags.map(tag => tag.name);
 
   return (
     <div
@@ -490,8 +497,25 @@ export function ProjectIssuePanel({
           />
         </div>
 
+        {/* Tags */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {permissions.canEditAll
+            ? (
+                <ProjectTagsCombobox
+                  value={currentTagNames}
+                  suggestions={tagVocabulary}
+                  onChange={next => patch({ tags: [...next] })}
+                />
+              )
+            : issueTags.map(tag => (
+                <Badge key={tag.id} variant="secondary" className="gap-1 text-xs font-normal">
+                  {tag.name}
+                </Badge>
+              ))}
+        </div>
+
         {/* Description */}
-        <div>
+        <div className="rounded-md bg-muted/40 p-3">
           {editingDesc && permissions.canEditAll
             ? (
                 <div key="description-edit" className="space-y-2">
@@ -522,13 +546,13 @@ export function ProjectIssuePanel({
                     <button
                       type="button"
                       onClick={startEditDesc}
-                      className="w-full rounded-md border border-dashed bg-muted/30 px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
+                      className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
                     >
                       {t("field.noDescription")}
                     </button>
                   )
                 : (
-                    <div className="rounded-md border border-dashed bg-muted/30 px-2 py-1 text-sm italic text-muted-foreground leading-snug">
+                    <div className="rounded-md border border-dashed bg-transparent px-2 py-1 text-sm italic text-muted-foreground leading-snug">
                       {t("field.noDescription")}
                     </div>
                   )}
