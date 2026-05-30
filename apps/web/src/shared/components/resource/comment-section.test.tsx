@@ -78,6 +78,19 @@ function renderSection(currentUserId: string) {
   );
 }
 
+function renderComposer(stickyComposer: boolean) {
+  return renderWithProviders(
+    <ResourceCommentSection
+      resource={RESOURCE}
+      resourceId={RESOURCE_ID}
+      userMap={userMap}
+      i18nNs="issues"
+      canDelete={() => false}
+      stickyComposer={stickyComposer}
+    />,
+  );
+}
+
 describe("resourceCommentSection attachments", () => {
   beforeEach(() => {
     mocks.http.mockReset();
@@ -117,5 +130,44 @@ describe("resourceCommentSection attachments", () => {
         { method: "DELETE" },
       );
     });
+  });
+});
+
+describe("resourceCommentSection composer surface + sticky", () => {
+  beforeEach(() => {
+    mocks.http.mockReset();
+    routeHttp();
+  });
+
+  it("renders the composer input box without a filled background", async () => {
+    renderComposer(false);
+    const send = await screen.findByRole("button", { name: "Send" });
+    const container = send.closest("div.space-y-2");
+    expect(container).not.toBeNull();
+    // ITEM 3: the composer/input box no longer carries the muted fill.
+    expect(container?.className).not.toContain("bg-muted/40");
+  });
+
+  it("keeps the composer at the top and non-sticky by default", async () => {
+    renderComposer(false);
+    const send = await screen.findByRole("button", { name: "Send" });
+    // No sticky wrapper exists when the opt-in flag is off.
+    expect(document.querySelector(".sticky")).toBeNull();
+    // Composer precedes the comment list (existing top layout preserved).
+    const firstComment = await screen.findByText("mine");
+    expect(send.compareDocumentPosition(firstComment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("pins the composer to the bottom inside a solid sticky bar when opted in", async () => {
+    renderComposer(true);
+    const send = await screen.findByRole("button", { name: "Send" });
+    const sticky = document.querySelector(".sticky");
+    expect(sticky).not.toBeNull();
+    expect(sticky?.className).toContain("bottom-0");
+    expect(sticky?.className).toContain("bg-background");
+    // Composer sits inside the sticky bar, below the comment list.
+    expect(sticky?.contains(send)).toBe(true);
+    const firstComment = await screen.findByText("mine");
+    expect(firstComment.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

@@ -46,6 +46,7 @@ export function ResourceFooterSections({
   currentUserId,
   canDeleteCommentAttachment,
   commentsHeaderAction,
+  commentsStickyComposer = false,
   sectionSpacingClassName = "mt-6",
 }: {
   readonly resource: string;
@@ -64,6 +65,8 @@ export function ResourceFooterSections({
   readonly canDeleteCommentAttachment?: ((att: ResourceAttachment) => boolean) | undefined;
   /** Rendered next to the comments section label (e.g. a lock toggle). */
   readonly commentsHeaderAction?: React.ReactNode;
+  /** Opt-in: pin the comment composer to the bottom of the scroll container. */
+  readonly commentsStickyComposer?: boolean;
   /** Tailwind class applied to each <section> (e.g. "mt-6" or "mt-4"). */
   readonly sectionSpacingClassName?: string;
 }) {
@@ -104,6 +107,7 @@ export function ResourceFooterSections({
           currentUserId={currentUserId}
           canDeleteAttachment={canDeleteCommentAttachment}
           canDelete={canDeleteComment}
+          stickyComposer={commentsStickyComposer}
         />
       </section>
     </>
