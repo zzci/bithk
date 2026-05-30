@@ -29,20 +29,12 @@
     "defaults": {
       "title": "项目默认值",
       "description": "创建项目时，若创建者未显式设置，则套用以下默认值。",
-      "statusLabel": "默认状态",
-      "statusUnset": "未设置",
-      "statusHint": "创建项目时若未指定状态则套用。未设置时回退为「进行中」。",
-      "status_active": "进行中",
-      "status_archived": "已归档",
-      "clear": "清除",
       "coverLabel": "默认封面",
       "coverUpload": "上传封面",
       "coverReplace": "替换封面",
       "coverRemove": "移除封面",
       "coverHint": "套用到新项目的封面图片。上传一张图片，或留空表示无默认封面。",
       "toast": {
-        "statusSaved": "默认状态已保存。",
-        "statusCleared": "默认状态已清除。",
         "coverSaved": "默认封面已保存。",
         "coverCleared": "默认封面已清除。"
       }

@@ -16,10 +16,9 @@ import {
 import { nanoid, ulid } from "@/shared/lib/id";
 import { seedProjectCategoriesTx } from "./project.global-categories";
 import { parseCapabilities, seedDefaultRoles } from "./project.roles";
-import { PROJECT_STATUSES, projectMembers, projectRoles, projects, projectTags } from "./schema";
+import { projectMembers, projectRoles, projects, projectTags } from "./schema";
 
-/** Settings keys backing the admin "Project Defaults" section. */
-export const PROJECT_DEFAULT_STATUS_KEY = "project.defaults.status";
+/** Settings key backing the admin "Project Defaults" cover picker. */
 export const PROJECT_DEFAULT_COVER_KEY = "project.defaults.coverReferenceId";
 
 /** Project assignment binding, passed to the shared tag helpers. */
@@ -212,7 +211,6 @@ function syncTagsTx(tx: AppTransaction, projectId: string, names: readonly strin
 export interface CreateProjectInput {
   readonly code?: string | undefined;
   readonly name: string;
-  readonly status?: ProjectStatus | undefined;
   readonly description?: string | null | undefined;
   readonly tags?: readonly string[] | undefined;
   readonly creatorId: string;
@@ -244,7 +242,8 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     shortId,
     code,
     name: input.name,
-    status: input.status ?? "active",
+    // New projects are always created active; archiving is a later PATCH.
+    status: "active",
     description: input.description ?? null,
     shipId: input.shipId ?? null,
     coverReferenceId: input.coverReferenceId ?? null,
@@ -278,15 +277,6 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
 }
 
 /**
- * Resolve the default project status from settings, falling back to "active"
- * when the setting is unset or holds an unknown status.
- */
-async function resolveDefaultStatus(db: AppDatabase): Promise<ProjectStatus> {
-  const raw = await getSetting(db, PROJECT_DEFAULT_STATUS_KEY);
-  return raw && (PROJECT_STATUSES as readonly string[]).includes(raw) ? raw as ProjectStatus : "active";
-}
-
-/**
  * Resolve the default cover reference id from settings. Returns null when unset
  * or when the configured reference no longer exists, so a dangling default can
  * never block project creation (the FK would otherwise reject the insert).
@@ -306,14 +296,14 @@ async function resolveDefaultCoverReferenceId(db: AppDatabase): Promise<string |
  * are synchronous — keep the callback sync so COMMIT/ROLLBACK semantics hold.
  */
 export async function createProject(db: AppDatabase, input: CreateProjectInput): Promise<ProjectRow> {
-  // Apply the admin "Project Defaults" for fields the payload omits. Explicit
-  // values in `input` always win; settings resolve async, before the sync tx.
-  const status = input.status ?? await resolveDefaultStatus(db);
+  // Apply the admin "Project Defaults" cover for projects that omit one. The
+  // status is always "active" (set in createProjectTx); settings resolve async,
+  // before the sync tx.
   const coverReferenceId = input.coverReferenceId ?? await resolveDefaultCoverReferenceId(db);
 
   let id = "";
   db.transaction((tx) => {
-    id = createProjectTx(tx, { ...input, status, coverReferenceId }).id;
+    id = createProjectTx(tx, { ...input, coverReferenceId }).id;
   });
 
   return (await db.select().from(projects).where(eq(projects.id, id)).get())!;
