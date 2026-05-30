@@ -58,3 +58,4 @@
 | [REFACTOR-007](REFACTOR-007.md) | Route project detail tabs by URL | [PLAN-036](../plan/PLAN-036.md) | Completed | 2026-05-30 |
 | [REFACTOR-008](REFACTOR-008.md) | Normalize the issue status enum end-to-end | - | Completed | 2026-05-30 |
 | [CHORE-003](CHORE-003.md) | Full-feature static seed dataset | [PLAN-041](../plan/PLAN-041.md) | Done | 2026-05-30 |
+| [FEAT-017](FEAT-017.md) | GitHub-style project role permissions (read/comment/write) | [PLAN-042](../plan/PLAN-042.md) | Proposed | 2026-05-30 |
