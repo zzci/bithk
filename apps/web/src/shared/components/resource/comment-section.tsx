@@ -8,8 +8,10 @@
 //   - `locked`: replaces the composer with a notice and rejects new
 //     comments. Used by docs comment moderation.
 
+import type { ResourceAttachment } from "./attachment-section";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronUp, CornerUpLeft, Lock, Send, X } from "lucide-react";
+import { ChevronUp, CornerUpLeft, Lock, Paperclip, Send, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +23,10 @@ import { errorMessage } from "@/shared/lib/errors";
 import { http } from "@/shared/lib/http";
 import { displayName } from "@/shared/lib/users";
 import { cn } from "@/shared/lib/utils";
+
+import { ResourceAttachmentSection } from "./attachment-section";
+import { validateAttachmentSelection } from "./attachment-upload";
+import { useResourceAttachmentUpload } from "./use-attachment-upload";
 
 export interface ResourceComment {
   readonly id: string;
@@ -74,6 +80,12 @@ export interface ResourceCommentSectionProps {
   readonly locked?: boolean;
   /** Show a reply button + clickable replyTo badges. */
   readonly enableReply?: boolean;
+  /** List + upload + delete per-comment attachments. Off by default. */
+  readonly enableAttachments?: boolean;
+  /** Current actor id — gates the per-comment upload control to the author. */
+  readonly currentUserId?: string | undefined;
+  /** Delete predicate for comment attachments (mirrors the backend rule). */
+  readonly canDeleteAttachment?: ((att: ResourceAttachment) => boolean) | undefined;
 }
 
 export function ResourceCommentSection({
@@ -84,6 +96,9 @@ export function ResourceCommentSection({
   i18nNs,
   locked = false,
   enableReply = false,
+  enableAttachments = false,
+  currentUserId,
+  canDeleteAttachment,
 }: ResourceCommentSectionProps) {
   const { t } = useTranslation(i18nNs);
   const qc = useQueryClient();
@@ -173,7 +188,7 @@ export function ResourceCommentSection({
 
       {canCompose
         ? (
-            <div ref={composerRef} className="mb-4 space-y-2">
+            <div ref={composerRef} className="mb-4 space-y-2 rounded-md bg-muted/40 p-3">
               {enableReply && replyTarget && (
                 <div className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
                   <span className="inline-flex min-w-0 items-center gap-1">
@@ -317,6 +332,16 @@ export function ResourceCommentSection({
                             className="text-sm"
                           />
                         </div>
+                        {enableAttachments && (
+                          <CommentAttachments
+                            resource={resource}
+                            resourceId={resourceId}
+                            comment={comment}
+                            i18nNs={i18nNs}
+                            canUpload={!!currentUserId && comment.authorId === currentUserId}
+                            canDeleteAttachment={canDeleteAttachment}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -334,6 +359,89 @@ export function ResourceCommentSection({
         description={t("comments.deleteConfirm")}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
       />
+    </div>
+  );
+}
+
+// Per-comment attachment block. Lives in its own component so the upload
+// hook runs once per comment (hooks can't run in the comment-map loop).
+// Resolves under `${resource}/${resourceId}/comments/{commentId}/attachments`,
+// matching the backend's `item_comment_attachment` routes.
+function CommentAttachments({
+  resource,
+  resourceId,
+  comment,
+  i18nNs,
+  canUpload,
+  canDeleteAttachment,
+}: {
+  readonly resource: string;
+  readonly resourceId: string;
+  readonly comment: ResourceComment;
+  readonly i18nNs: string;
+  readonly canUpload: boolean;
+  readonly canDeleteAttachment?: ((att: ResourceAttachment) => boolean) | undefined;
+}) {
+  const { t } = useTranslation(i18nNs);
+  const [error, setError] = useState<string | null>(null);
+  const commentResource = `${resource}/${resourceId}/comments`;
+
+  const { upload, fileInputRef, limits, attachmentCount } = useResourceAttachmentUpload({
+    resource: commentResource,
+    resourceId: comment.id,
+    onError: err => setError(errorMessage(err, t("common.error.uploadFailed"))),
+  });
+
+  const handleUpload = (files: FileList | null) => {
+    if (!files || files.length === 0 || upload.isPending)
+      return;
+    setError(null);
+    const selected = Array.from(files);
+    const validation = validateAttachmentSelection(selected, attachmentCount, limits.maxFileSize, limits.maxAttachmentsPerResource);
+    if (validation === "limit") {
+      setError(t("attachments.limitReached"));
+      if (fileInputRef.current)
+        fileInputRef.current.value = "";
+      return;
+    }
+    if (validation === "size") {
+      setError(t("attachments.fileTooLarge"));
+      if (fileInputRef.current)
+        fileInputRef.current.value = "";
+      return;
+    }
+    upload.mutate(selected);
+  };
+
+  return (
+    <div className="mt-1.5 space-y-1.5">
+      <ErrorBanner message={error} />
+      <ResourceAttachmentSection
+        resource={commentResource}
+        resourceId={comment.id}
+        i18nNs={i18nNs}
+        canDelete={canDeleteAttachment ?? (() => false)}
+      />
+      {canUpload && (
+        <div>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            onClick={() => fileInputRef.current?.click()}
+            title={t("attachments.upload")}
+          >
+            <Paperclip className="size-3" />
+            {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={e => handleUpload(e.target.files)}
+          />
+        </div>
+      )}
     </div>
   );
 }

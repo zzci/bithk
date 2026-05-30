@@ -42,6 +42,9 @@ export function ResourceFooterSections({
   canDeleteComment,
   commentsLocked = false,
   commentsEnableReply = false,
+  commentsEnableAttachments = false,
+  currentUserId,
+  canDeleteCommentAttachment,
   commentsHeaderAction,
   sectionSpacingClassName = "mt-6",
 }: {
@@ -53,6 +56,12 @@ export function ResourceFooterSections({
   readonly canDeleteComment: (c: ResourceComment) => boolean;
   readonly commentsLocked?: boolean;
   readonly commentsEnableReply?: boolean;
+  /** Enable per-comment attachment list + upload + delete. */
+  readonly commentsEnableAttachments?: boolean;
+  /** Current actor id — gates per-comment upload to the comment author. */
+  readonly currentUserId?: string | undefined;
+  /** Delete predicate for per-comment attachments. */
+  readonly canDeleteCommentAttachment?: ((att: ResourceAttachment) => boolean) | undefined;
   /** Rendered next to the comments section label (e.g. a lock toggle). */
   readonly commentsHeaderAction?: React.ReactNode;
   /** Tailwind class applied to each <section> (e.g. "mt-6" or "mt-4"). */
@@ -91,6 +100,9 @@ export function ResourceFooterSections({
           i18nNs={i18nNs}
           locked={commentsLocked}
           enableReply={commentsEnableReply}
+          enableAttachments={commentsEnableAttachments}
+          currentUserId={currentUserId}
+          canDeleteAttachment={canDeleteCommentAttachment}
           canDelete={canDeleteComment}
         />
       </section>

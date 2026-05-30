@@ -559,8 +559,11 @@ export function ProjectIssuePanel({
           i18nNs="issues"
           userMap={userMap}
           commentsEnableReply
+          commentsEnableAttachments
+          currentUserId={user?.id}
           sectionSpacingClassName="mt-4"
           canDeleteAttachment={att => !!isAdmin || issue.creatorId === user?.id || att.uploadedBy === user?.id}
+          canDeleteCommentAttachment={att => !!isAdmin || att.uploadedBy === user?.id}
           canDeleteComment={c => !!isAdmin || c.authorId === user?.id}
         />
       </div>
