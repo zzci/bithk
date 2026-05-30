@@ -55,7 +55,8 @@ describe("projectSettingsDialog", () => {
     expect(screen.getByRole("tab", { name: "General" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Members" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Roles" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Categories" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Procurement Categories" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Danger zone" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Contacts" })).not.toBeInTheDocument();
   });
 
@@ -64,10 +65,11 @@ describe("projectSettingsDialog", () => {
     renderWithProviders(
       <ProjectSettingsDialog open onOpenChange={vi.fn()} project={project} members={[]} userNames={new Map()} caps={caps} />,
     );
-    expect(screen.getByRole("tab", { name: "Categories" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Procurement Categories" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "General" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Roles" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Danger zone" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Contacts" })).not.toBeInTheDocument();
   });
 
@@ -79,6 +81,7 @@ describe("projectSettingsDialog", () => {
     // Members and roles are now independently gated sections.
     expect(screen.getByRole("tab", { name: "Roles" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Danger zone" })).not.toBeInTheDocument();
     // The roles-only viewer lands on the roles section by default.
     expect(screen.getByRole("button", { name: "Add role" })).toBeInTheDocument();
   });
@@ -90,6 +93,7 @@ describe("projectSettingsDialog", () => {
     );
     expect(screen.getByRole("tab", { name: "Members" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Roles" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Danger zone" })).not.toBeInTheDocument();
   });
 
   it("renders the dialog title and description", () => {
@@ -104,20 +108,13 @@ describe("projectSettingsDialog", () => {
   it("pins a labeled, copyable project id to the sidebar", () => {
     const caps = computeCapabilities(undefined, true);
     renderWithProviders(
-      <ProjectSettingsDialog open onOpenChange={vi.fn()} project={{ ...project, code: "BRG" }} members={[]} userNames={new Map()} caps={caps} />,
+      <ProjectSettingsDialog open onOpenChange={vi.fn()} project={project} members={[]} userNames={new Map()} caps={caps} />,
     );
     const copy = screen.getByRole("button", { name: "Copy project ID" });
     expect(copy).toBeInTheDocument();
-    // The lowercase id is prefixed by the localized "Project ID:" label.
+    // The canonical short id (project.id, no 'p-' prefix) is prefixed by the
+    // localized "Project ID:" label.
     expect(copy).toHaveTextContent("Project ID:");
-    expect(copy).toHaveTextContent("brg");
-  });
-
-  it("omits the code control when the project has no code", () => {
-    const caps = computeCapabilities(undefined, true);
-    renderWithProviders(
-      <ProjectSettingsDialog open onOpenChange={vi.fn()} project={project} members={[]} userNames={new Map()} caps={caps} />,
-    );
-    expect(screen.queryByRole("button", { name: "Copy project ID" })).not.toBeInTheDocument();
+    expect(copy).toHaveTextContent("p1");
   });
 });

@@ -6,7 +6,7 @@
 
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
-import { Copy, FolderTree, Settings, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, Copy, FolderTree, Settings, ShieldCheck, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -18,17 +18,19 @@ import {
 } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
 import { ProjectSettingsCategories } from "./-project-settings-categories";
+import { ProjectSettingsDanger } from "./-project-settings-danger";
 import { ProjectSettingsGeneral } from "./-project-settings-general";
 import { ProjectSettingsMembers } from "./-project-settings-members";
 import { ProjectSettingsRoles } from "./-project-settings-roles";
 
-type SettingsSection = "general" | "members" | "roles" | "categories";
+type SettingsSection = "general" | "members" | "roles" | "categories" | "danger";
 
 const SECTION_ICON: Record<SettingsSection, typeof Settings> = {
   general: Settings,
   members: Users,
   roles: ShieldCheck,
   categories: FolderTree,
+  danger: AlertTriangle,
 };
 
 interface ProjectSettingsDialogProps {
@@ -55,6 +57,7 @@ export function ProjectSettingsDialog({
     caps.canManageMembers ? "members" : null,
     caps.canManageRoles ? "roles" : null,
     caps.canManageCategories ? "categories" : null,
+    caps.canManageProject ? "danger" : null,
   ].filter((value): value is SettingsSection => value !== null), [caps]);
 
   const [active, setActive] = useState<SettingsSection>(sections[0] ?? "general");
@@ -69,12 +72,11 @@ export function ProjectSettingsDialog({
 
   const label = (section: SettingsSection) => t(`settings.tabs.${section}` as const);
 
-  const code = project.code?.toLowerCase();
+  // Surface the canonical short id used in the project URL (no 'p-' prefix),
+  // not the legacy display code. project.id always exists.
   const handleCopyCode = async () => {
-    if (!project.code)
-      return;
     try {
-      await navigator.clipboard.writeText(project.code);
+      await navigator.clipboard.writeText(project.id);
       toast.success(t("detail.codeCopied"));
     }
     catch {
@@ -112,7 +114,7 @@ export function ProjectSettingsDialog({
                 );
               })}
             </nav>
-            {code && (
+            {project.id && (
               <Button
                 type="button"
                 variant="ghost"
@@ -123,7 +125,7 @@ export function ProjectSettingsDialog({
               >
                 <span className="truncate">
                   {t("settings.projectId")}
-                  <span className="font-mono">{code}</span>
+                  <span className="font-mono">{project.id}</span>
                 </span>
                 <Copy aria-hidden="true" className="size-3 shrink-0" />
               </Button>
@@ -153,6 +155,8 @@ export function ProjectSettingsDialog({
               {active === "categories" && (
                 <ProjectSettingsCategories projectId={project.id} canManage={caps.canManageCategories} />
               )}
+
+              {active === "danger" && <ProjectSettingsDanger project={project} />}
             </div>
           </section>
         </div>

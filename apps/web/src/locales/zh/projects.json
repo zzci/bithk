@@ -117,7 +117,8 @@
       "general": "常规",
       "members": "成员",
       "roles": "角色",
-      "categories": "分类"
+      "categories": "采购分类",
+      "danger": "危险操作"
     },
     "projectId": "项目ID："
   },
