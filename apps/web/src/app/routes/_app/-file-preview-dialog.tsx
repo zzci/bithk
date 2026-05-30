@@ -52,6 +52,7 @@ import { MarkdownEditor } from "@/shared/components/editor";
 import { Button } from "@/shared/components/ui/button";
 import { downloadDriveEntry, useUploadVersion } from "@/shared/lib/api/drive";
 import { httpRaw } from "@/shared/lib/http";
+import { retypeBlobToMime } from "@/shared/lib/preview-blob";
 import { cn } from "@/shared/lib/utils";
 
 import { DriveVersionHistoryDialog } from "./-drive-version-history-dialog";
