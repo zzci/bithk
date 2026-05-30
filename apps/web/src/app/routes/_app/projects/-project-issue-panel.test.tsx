@@ -30,7 +30,7 @@ function issue(overrides: Partial<ProjectIssueRow> = {}): ProjectIssueRow {
     id: "i1",
     title: "Inspect hull",
     description: null,
-    status: "open",
+    status: "todo",
     priority: "medium",
     creatorId: "u1",
     assigneeId: null,
