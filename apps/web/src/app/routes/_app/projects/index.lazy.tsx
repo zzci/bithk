@@ -35,7 +35,7 @@ export const Route = createLazyFileRoute("/_app/projects/")({
   component: ProjectsListPage,
 });
 
-function ProjectsListPage() {
+export function ProjectsListPage() {
   const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
@@ -275,22 +275,28 @@ function ProjectsGrid({
               </div>
             </div>
           </CardHeader>
-          {project.tags.length > 0 && (
-            <CardContent>
-              <div className="flex flex-wrap gap-1">
-                {project.tags.slice(0, 3).map(tag => (
-                  <Badge key={tag.id} variant="secondary" className="text-[10px] font-medium">
-                    {tag.name}
-                  </Badge>
-                ))}
-                {project.tags.length > 3 && (
-                  <span className="self-center text-[10px] font-medium text-muted-foreground">
-                    {t("list.moreTags", { count: project.tags.length - 3 })}
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          )}
+          <CardContent className="flex flex-col gap-3">
+            {project.description?.trim() && (
+              <p className="line-clamp-2 text-sm text-muted-foreground">
+                {project.description}
+              </p>
+            )}
+            {/* Always render the tag row so cards without tags reserve the same
+                bottom space (min-h-5 matches the Badge height), keeping card
+                heights and action alignment stable across the grid. */}
+            <div className="flex min-h-5 flex-wrap items-center gap-1">
+              {project.tags.slice(0, 3).map(tag => (
+                <Badge key={tag.id} variant="secondary" className="text-[10px] font-medium">
+                  {tag.name}
+                </Badge>
+              ))}
+              {project.tags.length > 3 && (
+                <span className="self-center text-[10px] font-medium text-muted-foreground">
+                  {t("list.moreTags", { count: project.tags.length - 3 })}
+                </span>
+              )}
+            </div>
+          </CardContent>
         </Card>
       ))}
     </div>

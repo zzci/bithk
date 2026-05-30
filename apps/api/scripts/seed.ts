@@ -24,7 +24,7 @@
 import type { AppDatabase } from "@/db";
 import { resolve } from "node:path";
 import process from "node:process";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, isNull, sql } from "drizzle-orm";
 import { loadConfigStrict } from "@/config";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
@@ -37,9 +37,9 @@ import { createComment } from "@/modules/item/comment.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { createProcurement } from "@/modules/procurement/procurement.service";
-import { createCategory } from "@/modules/project/project.categories";
+import { createCategory, listCategories } from "@/modules/project/project.categories";
 import { listRoles } from "@/modules/project/project.roles";
-import { addMember, createProject, setProjectCover } from "@/modules/project/project.service";
+import { addMember, createProject, listMembers, setProjectCover } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
 import { settings } from "@/modules/settings/schema";
 import { ships } from "@/modules/ship/schema";
@@ -58,7 +58,9 @@ const COUNTS = {
   contacts: 30,
   projects: 10,
   issues: 40,
-  procurements: 20,
+  // Procurement is seeded per project (every project, including ship base
+  // projects, gets this many) rather than as a flat total.
+  procurementsPerProject: 10,
   documents: 20,
 } as const;
 
@@ -603,22 +605,52 @@ async function seedIssues(db: AppDatabase, projectPool: SeededProject[]): Promis
   return { issues: plan.length, comments };
 }
 
-async function seedProcurements(db: AppDatabase, projectPool: SeededProject[], supplierIds: string[]): Promise<number> {
-  for (let i = 0; i < COUNTS.procurements; i++) {
-    const project = pick(projectPool);
-    await createProcurement(db, {
-      projectId: project.id,
-      itemName: pick(PROCUREMENT_ITEMS),
-      creatorId: project.creatorId,
-      ...(supplierIds.length > 0 && chance(0.8) ? { supplierId: pick(supplierIds) } : {}),
-      ...(project.categoryIds.length > 0 ? { categoryId: pick(project.categoryIds) } : {}),
-      quantity: randInt(1, 500),
-      amount: randInt(500, 80_000),
-      currency: pick(CURRENCIES),
-      status: pick(PROCUREMENT_STATUSES),
-    });
+/**
+ * Seed procurement for EVERY project — standalone projects and ship base
+ * projects alike — so any project opened in the UI shows orders. Each project
+ * gets `procurementsPerProject` rows cycling through all statuses; base
+ * projects (created by `createShip` without categories) get a couple of
+ * categories first so the orders can be categorised.
+ */
+async function seedProcurements(db: AppDatabase, supplierIds: string[]): Promise<number> {
+  // Only seed-owned projects (standalone + ship base projects, all created by
+  // seed users). Never touch a real project a human created — its procurement
+  // would carry a non-seed creator and `--fresh` could not clean it up.
+  const allProjects = (await db
+    .select({ id: projects.id, creatorId: projects.creatorId })
+    .from(projects)
+    .where(isNull(projects.deletedAt))
+    .all())
+    .filter(p => SEED_USER_IDS.includes(p.creatorId));
+
+  let total = 0;
+  for (const project of allProjects) {
+    let categories = await listCategories(db, project.id);
+    if (categories.length === 0) {
+      for (const catName of sample(CATEGORY_NAMES, 2))
+        await createCategory(db, project.id, { name: catName, code: catName.slice(0, 4).toUpperCase() });
+      categories = await listCategories(db, project.id);
+    }
+    const assignableMembers = (await listMembers(db, project.id)).filter(m => m.userId);
+
+    for (let i = 0; i < COUNTS.procurementsPerProject; i++) {
+      await createProcurement(db, {
+        projectId: project.id,
+        itemName: PROCUREMENT_ITEMS[i % PROCUREMENT_ITEMS.length]!,
+        creatorId: project.creatorId,
+        ...(supplierIds.length > 0 && chance(0.85) ? { supplierId: pick(supplierIds) } : {}),
+        ...(categories.length > 0 ? { categoryId: pick(categories).id } : {}),
+        ...(assignableMembers.length > 0 && chance(0.5) ? { assigneeMemberId: pick(assignableMembers).id } : {}),
+        quantity: randInt(1, 500),
+        amount: randInt(500, 80_000),
+        currency: pick(CURRENCIES),
+        // Cycle statuses so every project shows a spread across the board.
+        status: PROCUREMENT_STATUSES[i % PROCUREMENT_STATUSES.length]!,
+      });
+      total++;
+    }
   }
-  return COUNTS.procurements;
+  return total;
 }
 
 async function seedDocuments(db: AppDatabase): Promise<number> {
@@ -643,7 +675,7 @@ async function seedContent(db: AppDatabase): Promise<SeedCounts> {
   const { shipsCreated, equipment } = await seedShips(db);
   const projectPool = await seedProjects(db, shipsCreated.map(s => s.shortId));
   const { issues, comments } = await seedIssues(db, projectPool);
-  const procurements = await seedProcurements(db, projectPool, supplierIds);
+  const procurements = await seedProcurements(db, supplierIds);
   const documents = await seedDocuments(db);
   const covers = await seedCovers(db, shipsCreated, projectPool);
 
@@ -681,7 +713,7 @@ async function main(): Promise<void> {
     console.log(`  ships:        ${counts.ships} (+ base projects, ${counts.equipment} equipment)`);
     console.log(`  projects:     ${counts.projects} standalone`);
     console.log(`  issues:       ${counts.issues} (across open/in_progress/done/cancelled, ${counts.comments} comments)`);
-    console.log(`  procurements: ${counts.procurements}`);
+    console.log(`  procurements: ${counts.procurements} (${COUNTS.procurementsPerProject} per project, all projects)`);
     console.log(`  documents:    ${counts.documents}`);
     console.log(`  cover images: ${counts.covers} (ships + standalone projects; some left unset)`);
     console.log(`\nAdmin demo account: username "${SEED_USERS[0]!.username}" (oauth_sub "seed|${SEED_USERS[0]!.username}", ${SEED_USERS[0]!.email}).`);
