@@ -150,7 +150,7 @@ describe("projectProcurementTab", () => {
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
-    const rowEl = (await screen.findByText("Cement")).closest("tr")!;
+    const rowEl = await screen.findByRole("button", { name: "Cement" });
     await user.click(rowEl);
     expect(navigateMock).toHaveBeenCalledWith({
       to: "/projects/$projectId/procurements/$procurementId",
@@ -164,9 +164,7 @@ describe("projectProcurementTab", () => {
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
-    const rowEl = (await screen.findByText("Cement")).closest("tr")! as HTMLElement;
-    expect(rowEl).toHaveAttribute("role", "button");
-    expect(rowEl).toHaveAttribute("tabindex", "0");
+    const rowEl = await screen.findByRole("button", { name: "Cement" });
     rowEl.focus();
     await user.keyboard("{Enter}");
     expect(navigateMock).toHaveBeenCalledWith({
