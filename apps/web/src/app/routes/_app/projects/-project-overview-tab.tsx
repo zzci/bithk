@@ -271,19 +271,23 @@ interface ActivityRowProps {
   readonly onClick: () => void;
 }
 
+// Single-line variant for the latest-activity lists: title, status badge, and
+// date share one horizontal row. Distinct from ROW_BUTTON_CLASS so the pinned
+// card keeps its two-line rhythm.
+const ACTIVITY_ROW_CLASS
+  = "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 function ActivityRow({ title, date, badge, onClick }: ActivityRowProps) {
   return (
     <li>
       <button
         type="button"
-        className={ROW_BUTTON_CLASS}
+        className={ACTIVITY_ROW_CLASS}
         onClick={onClick}
       >
-        <span className="w-full truncate text-sm font-medium text-foreground">{title}</span>
-        <RowMeta>
-          {badge}
-          <span className="ml-auto shrink-0">{date}</span>
-        </RowMeta>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
+        {badge}
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{date}</span>
       </button>
     </li>
   );
