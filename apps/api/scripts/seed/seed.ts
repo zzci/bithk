@@ -58,7 +58,7 @@ import "@/modules/document/document.share-adapter";
 import "@/modules/drive/drive.share-adapter";
 
 const SEED_DIR = import.meta.dir;
-const DATA_DIR = resolve(SEED_DIR, "data");
+const DATA_DIR = resolve(SEED_DIR, "payload");
 const COVERS_DIR = resolve(SEED_DIR, "assets/covers");
 const ATTACH_DIR = resolve(SEED_DIR, "assets/attachments");
 
