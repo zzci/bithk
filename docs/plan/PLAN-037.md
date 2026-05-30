@@ -1,224 +1,210 @@
 # PLAN-037 — Procurement module parity with the issue module
 
-- Status: Draft (analysis — awaiting approval)
+- Status: Approved — implementing
 - Date: 2026-05-30
 - Owner: BKD L2 dispatch `c2w9dmlg`
 - Campaign: `l1-xlhyvzyz-procrefactor-20260530184509`
 - Related: PLAN-035 (procurement detail parity, Completed), PLAN-023/031 (tag
-  model + abstraction), PLAN-024/026 (status-grouped work-order list),
-  decision 002 (procurement free-transition status)
-
-> **This is a proposal only.** No implementation has started. Dispatch of
-> implementation subtasks (L3) is blocked until L1/user approves.
+  model + abstraction), decision 002 (procurement free-transition status),
+  concurrent issue-panel campaign L2-E `m2c3lt5j` (panel tag UI + description bg)
 
 ## 1. Goal
 
-Bring the procurement module to **full feature parity with the issue (工单)
-module** by reusing the issue UI/interaction surface (status-grouped list, tag
-system + multi-tag filter, search, inline-settable detail fields, comments +
-per-comment attachments), while **preserving and extending** procurement's
-own field set (supplier / category / quantity / amount / currency) and its
-own status vocabulary. Issue behaviour is the baseline; procurement only
-**adds** its specials on top — it never loses what PLAN-035 already gave it.
+Bring procurement to **feature parity with the issue (工单) module** by reusing
+the issue UI/interaction surface (tags + multi-tag filter, search, inline detail
+fields, comments + per-comment attachments, full drawer/fullscreen panel),
+while **redesigning** procurement's own list, replacing its status vocabulary,
+and adding a procurement-specific **采购细节** table region. Issue behaviour is
+the baseline; procurement adds its specials on top and keeps PLAN-035 fields.
 
 ## 2. Current surface — issue module (baseline)
 
 Backend (`apps/api/src/modules/issue/`):
 
-- **schema.ts**: `issue_details` (description, priority, dueDate, projectId,
-  assigneeMemberId) + `issue_tags` join (source_type=`issue`).
-- **list** (`listByProject`): filters `q` (title LIKE), `status`, `priority`,
-  `tagIds` (multi-tag **OR/union** via `listResourceIdsByAnyTag`), paginated.
-- **create/update**: accept `tags: string[]` synced through the generic
-  `syncResourceTagsTx(issueTagBinding, …)`; status lives on `items.status`,
-  changed inline through the PATCH route.
-- **status enum**: `todo | working | review | done | cancel` (5).
-- **attachments**: dedicated item-level routes (`POST/GET/DELETE …/attachments`)
-  **and** per-comment attachments via `mountItemCommentRoutes`.
-- **references.*.ts**: generic issue references (maintenance_template / url /
-  document) + ship maintenance-order rollup. **Issue-specific.**
-- soft-delete (`DELETE` route), pin/unpin.
+- `issue_details` + `issue_tags` join (source_type=`issue`).
+- `listByProject` filters `q`, `status`, `priority`, `tagIds` (multi-tag
+  **OR/union**), paginated.
+- create/update accept `tags: string[]` via generic
+  `syncResourceTagsTx(issueTagBinding, …)`; status on `items.status`.
+- status enum `todo|working|review|done|cancel`; comments + per-comment
+  attachments via `mountItemCommentRoutes`; references (issue-specific).
 
 Frontend (`apps/web/src/app/routes/_app/projects/`):
 
-- **-project-issues-tab.tsx** (705 lines): **status-grouped collapsible
-  sections** (5), per-section quick-create, `ProjectTagFilter` multi-select,
-  debounced search, row → detail drawer, hover pin toggle, `CreateIssueDialog`.
-- **-project-issue-panel.tsx** (581 lines): inline-editable title / status /
-  priority / assignee / **due-date (button + hidden native picker, ChevronDown
-  glyph)**; markdown description editor; `ResourceFooterSections` with
-  `commentsEnableAttachments` **on**; delete affordance.
-  - **In-flight (concurrent campaign L2-E `m2c3lt5j`)**: this panel is gaining
-    (a) a **description region background** (rounded `bg-muted/40`, matching the
-    comments surface) and (b) a **panel-level tag view/add/remove UI** (the
-    panel previously had no tag editing). These land on the issue panel before
-    procurement mirrors it — **procurement's target surface includes both.**
-- **-project-issue-hooks.ts** + `shared/lib/api/projects.ts`: query/mutation
-  hooks (`useProjectIssues`, `useProjectIssue`, create/update/delete,
-  `useIssueTags`).
+- **-project-issue-panel.tsx**: inline title/status/priority/assignee/due-date;
+  markdown description; `ResourceFooterSections` with `commentsEnableAttachments`
+  on; **drawer with drag-resize + fullscreen/expand (⤢) control + close/back**.
+  - **In-flight (L2-E `m2c3lt5j`)**: adds (a) a description-region background
+    (rounded `bg-muted/40`, matching comments) and (b) a **panel-level tag
+    view/add/remove UI** (panel previously had no tag editing). Procurement's
+    target panel surface **includes both** — mirror the FINAL MERGED impl.
+- Tag list filter: shared `-project-tag-filter.tsx` (multi-select).
 - Status colour tokens: `shared/lib/status-colors.ts` `ISSUE_STATUS_BADGE`.
 
 ## 3. Current surface — procurement module
 
 Backend (`apps/api/src/modules/procurement/`):
 
-- **schema.ts**: `procurement_details` already carries the PLAN-035 issue-parity
-  fields (description, priority, dueDate, assigneeMemberId) **plus** the
-  procurement specials: `supplierId` (→ global contact, SET NULL),
-  `categoryId` (→ `procurement_categories`, SET NULL), `itemName` (NOT NULL),
-  `quantity` (int), `amount` (int, minor currency unit), `currency` (text ≤10).
-- **status enum**: `draft | requested | ordered | received | closed |
-  cancelled` (6), **free-transition** (decision 002), changed through a
-  **dedicated** `POST …/procurements/:id/status` route with its own audit event.
-- **list** (`listByProject`): filters `status`, `categoryId` only — **no `q`,
-  no `priority` filter, no `tagIds`**.
-- comments + attachments via `mountItemCommentRoutes` (parity), pin/unpin.
-- **non-deletable** by design (retire via `cancelled`; no DELETE route).
-- **no tags, no references.**
+- `procurement_details`: PLAN-035 parity fields (description, priority, dueDate,
+  assigneeMemberId) + specials `supplierId`(→contact), `categoryId`
+  (→procurement_categories), `itemName`(NOT NULL), `quantity`(int),
+  `amount`(int minor-unit), `currency`(text≤10).
+- status enum **`draft|requested|ordered|received|closed|cancelled`** (6),
+  free-transition (decision 002), dedicated `POST …/status` route with audit.
+- `listByProject` filters `status`, `categoryId` only — **no `q`/`priority`/
+  `tagIds`**.
+- comments + attachments via shared `mountItemCommentRoutes`; non-deletable;
+  **no tags, no references**.
 
 Frontend:
 
-- **-project-procurement-tab.tsx** (481 lines): **flat paginated table**
-  (name / status / amount / category / supplier / assignee), single-select
-  status + category dropdowns, page buttons, `CreateProcurementDialog`. **No
-  tag filter, no search, no status grouping.**
-- **-project-procurement-panel.tsx** (738 lines): inline-editable itemName /
-  status (dedicated endpoint) / priority / assignee / due-date (Pencil glyph,
-  not ChevronDown) / supplier / category / quantity / amount / currency
-  (`InlineMetaField`); markdown description; `ResourceFooterSections` **without**
-  `commentsEnableAttachments`. **No tags.** Badges use `variant="secondary"`,
-  **not** the shared status colour tokens.
-- `shared/lib/api/procurement.ts`: `useProcurements`, `useProcurement`, create,
-  update, `useChangeProcurementStatus` (dedicated). No tag hook.
+- **-project-procurement-tab.tsx**: flat paginated table, single-select status +
+  category dropdowns. No tag filter, no search, no priority filter.
+- **-project-procurement-panel.tsx**: inline itemName/status(dedicated
+  endpoint)/priority/assignee/due-date/supplier/category/quantity/amount/
+  currency; markdown description; `ResourceFooterSections` **without**
+  `commentsEnableAttachments`; badges `variant="secondary"` (not shared tokens);
+  drawer back/maximize/close present. **No tags.**
 
-## 4. Reuse / abstraction map (shared base = `items`)
+## 4. Decisions (from L1 approval, 2026-05-30)
 
-Both sub-types sit on the shared `items` base and already share substantial
-machinery. **Prefer reuse; the only net-new backend table is the tag join.**
+- **Q1 status**: REPLACE the 6-status vocabulary with **7 user-defined
+  statuses** (see §6). The list is a **redesign using a toolbar STATUS FILTER**
+  (plus category, search, priority, multi-tag filters) — **NOT** issue-style
+  status-grouped collapsible sections (too many statuses; grouping unreasonable).
+  Flat list filtered by status.
+- **Q2 references**: **OUT of scope** for procurement.
+- **Q3 attachments**: **reuse the shared item comment/attachment path**; **no**
+  dedicated procurement attachment routes.
+- **Tags**: implement the full procurement tag feature (panel view/add/remove +
+  list multi-tag filter), **mirroring the issue tag UX's FINAL MERGED impl**
+  (L2-E `m2c3lt5j`). F2 stays gated on L2-E merged to avoid duplication/rework.
+- **Panel**: **preserve the issue panel's full UI** — drawer drag-resize and the
+  fullscreen/expand (⤢) control must remain intact — **then ADD** a dedicated
+  **采购细节** region rendered as a **table** presenting procurement-specific
+  fields. First-class part of F2.
+- Dev-stage: breaking changes acceptable (reseed OK).
+
+## 5. Reuse / abstraction map (shared base = `items`)
 
 | Concern | Status | Strategy |
 | --- | --- | --- |
-| Tag vocabulary + assignment (`tag.service.ts`, `ResourceTagBinding`, `syncResourceTagsTx`, `listResourceIdsByAnyTag`) | **Already fully generic** | Add `procurementTagBinding`; mirror `issueTagBinding` exactly. Zero changes to `tag.service.ts`. |
-| Comments + item/comment attachments (`mountItemCommentRoutes`, `ResourceFooterSections`, `comment-section.tsx`) | **Already shared** | Flip `commentsEnableAttachments` on; add the comment-attachment delete gate. |
-| Markdown editor, Select/Badge/Button/Dialog, `buildMemberLabelMap`, pins API, `useResourceAttachmentUpload` | **Already shared** | No change. |
-| `ProjectTagFilter` (multi-select, list) | Shared, issue-only consumer | Reuse verbatim for procurement (type-param already supported). |
-| **Panel-level tag view/add/remove UI** | Landing on issue panel via L2-E `m2c3lt5j` | Mirror the **final** issue-panel tag-editing component for procurement (same control, `type='procurement'`). Coordinate so F2 copies the merged pattern, not a pre-edit snapshot. |
-| **Description region background** (rounded `bg-muted/40`) | Landing on issue panel via L2-E `m2c3lt5j` | Mirror the same description surface treatment on the procurement panel. |
-| Status colour tokens (`status-colors.ts`) | Issue-only (`ISSUE_STATUS_BADGE`) | **Extract** a `PROCUREMENT_STATUS_BADGE` map alongside it (parallel to decision 005 token policy). |
-| Status-grouped collapsible list UI | Issue-only (tab) | **Generalise** the grouping shell or copy-and-type for the 6 procurement statuses. (See open question Q1.) |
-| Pin toggle, priority-variant map | Duplicated per module | Optional small abstraction; low priority, defer unless cheap. |
-| Generic references / maintenance orders | Issue-only | **Out of scope** for procurement (no business need). See Q2. |
+| Tag vocabulary + assignment (`tag.service.ts`, `ResourceTagBinding`) | Fully generic | Add `procurementTagBinding`; `registerTagSource(procurementTagBinding)` in `routes/protected.ts`; add `procurement` to `TAG_SOURCE_TYPES`. `GET /tags?type=procurement` then works via existing `tagRoutes`. Zero `tag.service.ts` change. |
+| Comments + item/comment attachments (`mountItemCommentRoutes`, `ResourceFooterSections`) | Shared | Flip `commentsEnableAttachments` on + comment-attachment delete gate. No dedicated routes (Q3). |
+| Panel-level tag view/add/remove UI | Landing via L2-E `m2c3lt5j` | Mirror the FINAL merged issue-panel component, `type='procurement'`. F2 gated on L2-E merged. |
+| Description-region background (rounded `bg-muted/40`) | Landing via L2-E `m2c3lt5j` | Mirror the same treatment on the procurement panel. |
+| Drawer drag-resize + fullscreen/expand (⤢) | Existing on both panels | **Preserve** — do not regress during the F2 redesign. |
+| `ProjectTagFilter` (multi-select list filter) | Shared, issue-only consumer | Reuse verbatim, `type='procurement'`. |
+| Status colour tokens (`status-colors.ts`) | Issue-only | Add `PROCUREMENT_STATUS_BADGE` (7 statuses) alongside, per decision 005 token policy. |
+| MarkdownEditor, Select/Badge/Button/Dialog, member/pin helpers, `useResourceAttachmentUpload` | Shared | No change. |
+| Generic references / maintenance orders | Issue-only | OUT of scope (Q2). |
 
-## 5. Procurement-specific fields and type differences
+## 6. Procurement status: 7-status set + migration mapping
 
-All already exist in `procurement_details` (PLAN-035 + original). Parity work
-does **not** add business fields; it surfaces tags + filters + status UI.
+**New vocabulary** (English keys in DB/code, zh+en i18n labels):
 
-| Field | Type | vs issue |
+| Key | zh | en |
 | --- | --- | --- |
-| `itemName` | text NOT NULL | Issue has none; procurement's primary label. `title` is optional and defaults to `itemName`. |
-| `supplierId` | text → `contacts.id`, SET NULL | Global (not project-scoped) reference; issue has none. |
-| `categoryId` | text → `procurement_categories.id`, SET NULL | Project-scoped; issue has none. |
-| `quantity` | integer, ≥0, nullable | Numeric inline field; issue has none. |
-| `amount` | integer (minor currency unit), ≥0, nullable | Numeric inline field; issue has none. |
-| `currency` | text ≤10, nullable | Free text inline; issue has none. |
-| description / priority / dueDate / assigneeMemberId | same types as issue | Already at parity (PLAN-035). |
+| `requested` | 已申请 | Requested |
+| `ordered` | 已下单 | Ordered |
+| `confirmed` | 已确认 | Confirmed |
+| `in_transit` | 物流中 | In transit |
+| `received` | 已收货 | Received |
+| `accepted` | 已验收 | Accepted |
+| `cancelled` | 取消 | Cancelled |
 
-## 6. Procurement status set + migration scoping
+- Semantics stay **free-transition** (decision 002 — any→any, corrections are
+  routine); only the vocabulary changes. The dedicated `POST …/status` route,
+  its audit event, and the enum validation at both layers are retained.
+  Decision 002's enum list and the "free transitions (lock-in)" tests in
+  `procurement.service.test.ts` / `procurement.routes.test.ts` MUST be updated
+  to the new 7 values in the same change.
+- Default status for new rows: **`requested`** (was `draft`).
 
-- **Keep** the 6-status free-transition vocabulary (`draft | requested |
-  ordered | received | closed | cancelled`) and the dedicated status endpoint
-  with its audit event — decision 002 governs this and must not be silently
-  reverted. Parity does **not** mean adopting the issue 5-status enum.
-- **Migration-scoping pattern** (mirror migration 0003): `items.status` is the
-  single shared column for both sub-types. Any data migration touching status
-  MUST be scoped `WHERE type = 'procurement'` so issue rows are untouched, just
-  as 0003 scoped `WHERE type = 'issue'`. No status data migration is expected
-  for this campaign (the enum is unchanged); the new tag join is the only DDL.
-- The list/grouping UI groups by these 6 statuses; status colour tokens
-  (`PROCUREMENT_STATUS_BADGE`) are defined for all 6.
+**Migration (new number, scoped `WHERE type = 'procurement'`)** — mirrors
+migration 0003's `type='issue'` scoping so issue rows on the shared
+`items.status` column are untouched. Mapping of existing → new:
+
+| old | new |
+| --- | --- |
+| `draft` | `requested` |
+| `requested` | `requested` |
+| `ordered` | `ordered` |
+| `received` | `received` |
+| `closed` | `accepted` |
+| `cancelled` | `cancelled` |
+
+`confirmed` / `in_transit` / `accepted` are NEW targets (no legacy rows map to
+`confirmed`/`in_transit`; `accepted` receives former `closed`). **Confirmed.**
 
 ## 7. Gaps to close (parity backlog)
 
-1. **Procurement tags + multi-tag OR filter** — backend join table + binding +
-   `tagIds`/`q`/`priority` list filters + `tags` on create/update + frontend
-   filter. (mirrors issue tag work, commit d82e77a / 96f942a)
-2. **List search (`q`)** — title/itemName LIKE; fold into the list change.
-3. **Status-grouped collapsible list** — replace the flat table with the issue
-   tab's grouped shell over the 6 procurement statuses, keeping the existing
-   category filter. (Q1)
-4. **Per-comment attachments** — enable `commentsEnableAttachments` + delete
-   gate, matching the issue panel.
-5. **Shared status colour tokens** for procurement badges.
-6. **Due-date control alignment** (ChevronDown glyph) — cosmetic.
-7. Verify item-level attachment parity (issue has dedicated `…/attachments`
-   routes; procurement currently only the comment-route path) — confirm whether
-   procurement needs the dedicated routes or the shared footer already covers
-   it. (Q3)
+1. 7-status vocabulary swap + scoped data migration (above).
+2. Procurement tags + multi-tag OR filter (backend join + binding + list
+   `tagIds`; create/update `tags`; `GET /tags?type=procurement`).
+3. List `q` (title/itemName LIKE) + `priority` filters.
+4. **List redesign**: toolbar status FILTER + category + search + priority +
+   multi-tag filter; flat (NOT grouped).
+5. Per-comment attachments enabled (reuse shared path).
+6. Shared `PROCUREMENT_STATUS_BADGE` tokens.
+7. Panel: mirror final issue panel tag UI + description-region bg; **preserve
+   drawer drag-resize + fullscreen**; **add 采购细节 table region**.
+8. due-date control alignment (cosmetic).
 
-## 8. Proposed L3 breakdown + dependency DAG
+## 8. L3 breakdown + dependency DAG
 
-All L3 run in **isolated worktrees** (L1 rule). Quality gate `bun run check`.
+All L3 run in **isolated worktrees** (L1 rule). Gate `bun run check`. The
+migration number is assigned at dispatch (next free = **0005**; B1 rechecks
+`apps/api/drizzle/` immediately before merge in case a concurrent campaign took
+it).
 
 | L3 | Title | Mode | Files (owned) | Deps |
 | --- | --- | --- | --- | --- |
-| **B1** | Procurement tags + list filters (backend) | worktree | `modules/procurement/{schema,procurement.service,procurement.routes}.ts`, `modules/tag/schema.ts` (add `procurement` source type), `routes/protected.ts` (register `GET /tags?type=procurement`), new migration `0005_*` + `meta/_journal.json`, procurement tests | — |
-| **F1** | Procurement tab: status grouping + tag filter + search | worktree | `-project-procurement-tab.tsx`, `shared/lib/api/procurement.ts` (add tag hook, `q`/`tagIds` params) | B1 |
-| **F2** | Procurement panel: panel-level tag view/add/remove, per-comment attachments, status tokens, due-date glyph, description-region background | worktree | `-project-procurement-panel.tsx`, `shared/lib/status-colors.ts` (add `PROCUREMENT_STATUS_BADGE`) | B1, **L2-E `m2c3lt5j` merged** |
+| **B1** | Procurement 7-status + tags + list filters (backend) | worktree | `modules/procurement/{schema,procurement.service,procurement.routes}.ts`, `modules/tag/schema.ts` (+`procurement` source), `routes/protected.ts` (registerTagSource), new migration `00NN_*` + `meta/_journal.json`, procurement tests, `docs/decisions/002-*.md` (enum update) | — |
+| **F1** | Procurement tab redesign: status/category/search/priority/tag filters | worktree | `-project-procurement-tab.tsx`, `shared/lib/api/procurement.ts` (tag hook + `q`/`tagIds`/`priority` params), procurement i18n (7 status + filter labels, zh+en) | B1 |
+| **F2** | Procurement panel: tag UI mirror + comment attachments + status tokens + description bg + **采购细节 table** + preserve drawer/fullscreen | worktree | `-project-procurement-panel.tsx`, `shared/lib/status-colors.ts` (`PROCUREMENT_STATUS_BADGE`), panel-scoped i18n (采购细节 field labels) | B1, **L2-E `m2c3lt5j` merged** |
 
-- **Edge B1 → {F1, F2}**: the frontend needs the tag vocabulary/filter API and
-  the `tags` create/update contract before wiring UI.
-- **F1 ∥ F2**: different files (tab vs panel), safe to parallelise after B1.
-- Grouping-shell generalisation (Q1) is contained in F1; if it touches the
-  issue tab's shared shell, F1 must be serialised and reviewed for issue
-  regressions (currently scoped to copy-and-type to avoid that).
+- **B1 → {F1, F2}**: frontend needs the tag API + 7-status contract first.
+- **F2 also gates on L2-E `m2c3lt5j` merged** so it copies the final issue-panel
+  tag UI + description-bg pattern, not a stale snapshot.
+- **File ownership**: F1 owns the tab + `api/procurement.ts` + status/filter
+  i18n; F2 owns the panel + `status-colors.ts` + 采购细节 i18n. To keep them
+  conflict-free, L2 branches **F2 from main after F1 has merged** (F2 is gated
+  on L2-E anyway, which lands later) so F2 sees F1's merged i18n/api and mirrors
+  the redesigned tab; this preserves the "parallel-eligible after B1" intent
+  while avoiding `api/procurement.ts` + i18n overlap.
 
 ## 9. Risks
 
-- **Migration sequence collision**: next number is `0005`. Concurrent campaigns
-  that also add migrations + `meta/_journal.json` will conflict. Mitigation: L2
-  assigns the migration number at dispatch time, B1 is the only campaign L3 that
-  writes a migration, and L2 re-checks the number against `apps/api/drizzle/`
-  immediately before merge.
-- **Shared seed file**: a concurrent seed campaign (`wcupr8z3`) holds an
-  uncommitted edit to `apps/api/scripts/seed.ts` on the main tree. No campaign
-  L3 should touch `seed.ts`; if procurement-tag seed data is wanted, defer and
-  coordinate with that campaign.
-- **Concurrent issue-panel campaign (L2-E `m2c3lt5j`)**: it is adding
-  panel-level tag editing + a description-region background to the issue panel
-  that procurement must mirror. F2 should **gate on that work merging first** so
-  it copies the final pattern, not a stale snapshot, avoiding a second-pass
-  rework. No file conflict (different panel files), pure ordering dependency.
-- **PLAN-035 / zrk82evn regression**: description/priority/dueDate/cancelled,
-  clickable rows and the category filter are already shipped. The tab refactor
-  (table → grouped) must preserve the category filter and all PLAN-035 fields.
-- **decision 002**: do not convert procurement status into a directed state
-  machine or fold it into the issue enum.
-- **`exactOptionalPropertyTypes`** strictness — mirror the issue routes' exact
-  `| undefined` optional shapes in new procurement schema fields.
+- **Migration-number collision**: next is `0005`; concurrent campaigns may take
+  it. B1 is the only campaign L3 writing a migration; L2 rechecks the number
+  against `apps/api/drizzle/` (+ `meta/_journal.json`) immediately before B1's
+  merge and rebases the file name if needed.
+- **Concurrent seed campaign `wcupr8z3`** holds an uncommitted `seed.ts` edit on
+  main; no L3 touches `seed.ts`. If 7-status/tag seed data is wanted, defer and
+  coordinate.
+- **L2-E `m2c3lt5j`** mutates `-project-issue-panel.tsx` (different file from the
+  procurement panel — no conflict); F2 only needs it MERGED to mirror the final
+  pattern. Pure ordering dependency.
+- **PLAN-035 / zrk82evn**: preserve all parity fields + the category filter
+  through the tab redesign; do not regress clickable rows.
+- **decision 002**: keep free-transition semantics; only the vocabulary changes.
+- `exactOptionalPropertyTypes` strictness — mirror issue routes' exact optional
+  shapes.
 
-## 10. Open questions for L1/user (blockers for some L3)
+## 10. Acceptance criteria
 
-- **Q1**: Adopt the issue **status-grouped collapsible list** for procurement
-  (grouping by the 6 statuses), replacing the flat table? Proposed: yes (it is
-  the core of the requested parity), keeping the category filter as a secondary
-  control. Confirm whether the existing single-select status dropdown is
-  dropped in favour of grouping (mirrors the issue campaign which removed status
-  chips).
-- **Q2**: Include the generic **references / maintenance-order** section for
-  procurement? Proposed: **no** (issue-specific, no procurement need).
-- **Q3**: Does procurement need the **dedicated item-level attachment routes**
-  the issue module has, or is the shared comment-footer attachment path
-  sufficient? Proposed: confirm parity via the shared footer; add dedicated
-  routes only if a gap is found.
-
-## 11. Acceptance criteria (eventual, post-approval)
-
-- Procurement list groups by its 6 statuses with collapsible sections, a
-  multi-tag OR filter, and search — matching issue UX, category filter retained.
-- Procurement detail supports inline tag editing and per-comment attachments;
-  badges use shared status tokens.
+- Procurement uses the 7-status vocabulary (English keys, zh+en labels), default
+  `requested`; scoped migration remaps old→new per §6; decision 002 + lock-in
+  tests updated; free-transition preserved.
+- Procurement list is a redesigned flat list with toolbar status + category +
+  search + priority + multi-tag (OR) filters; no grouping.
 - Backend exposes procurement tags (create/update/list `tagIds`+`q`+`priority`)
-  and `GET /tags?type=procurement`, mirroring the issue tag contract.
-- decision 002 status semantics and all PLAN-035 fields preserved.
+  and `GET /tags?type=procurement`.
+- Procurement panel: mirrors the final issue panel tag view/add/remove +
+  description-region bg, enables per-comment attachments, uses shared status
+  tokens, **preserves drawer drag-resize + fullscreen**, and adds a first-class
+  **采购细节** table region for itemName/supplier/category/quantity/amount+
+  currency.
+- No references section; attachments reuse the shared item path.
 - `bun run check` green; new backend behaviour covered by tests.
