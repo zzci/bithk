@@ -17,6 +17,7 @@ import { issueTagBinding } from "@/modules/issue/issue.service";
 import { itemRoutes } from "@/modules/item";
 import { policyRoutes } from "@/modules/policy";
 import { procurementRoutes } from "@/modules/procurement";
+import { procurementTagBinding } from "@/modules/procurement/procurement.service";
 import { projectRoutes } from "@/modules/project";
 import { projectTags } from "@/modules/project/schema";
 import { searchRoutes } from "@/modules/search";
@@ -35,6 +36,7 @@ registerTagSource({ sourceType: "project", table: projectTags, resourceColumn: p
 registerTagSource({ sourceType: "contact", table: contactTags, resourceColumn: contactTags.contactId, tagColumn: contactTags.tagId });
 registerTagSource({ sourceType: "document", table: documentTags, resourceColumn: documentTags.itemId, tagColumn: documentTags.tagId });
 registerTagSource(issueTagBinding);
+registerTagSource(procurementTagBinding);
 
 export function protectedRoutes() {
   const app = new Hono<AppEnv>();

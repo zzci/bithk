@@ -36,6 +36,13 @@
       "when": 1780162539824,
       "tag": "0004_thin_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780168201229,
+      "tag": "0005_closed_warstar",
+      "breakpoints": true
     }
   ]
 }

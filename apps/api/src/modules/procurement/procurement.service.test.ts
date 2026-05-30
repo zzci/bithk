@@ -16,11 +16,13 @@ import { relationTuples } from "@/modules/policy/schema";
 import { createCategory } from "@/modules/project/project.categories";
 import { createRole, listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject, getMemberCapabilities, hasCapability } from "@/modules/project/project.service";
+import { listResourceIdsByAnyTag, listTagsWithUsage } from "@/modules/tag/tag.service";
 import {
   changeStatus,
   createProcurement,
   getProcurementByShortId,
   listByProject,
+  procurementTagBinding,
   updateProcurement,
 } from "./procurement.service";
 
@@ -71,7 +73,7 @@ afterEach(() => {
 });
 
 describe("createProcurement", () => {
-  test("writes item + details + owner tuple, defaults status to draft", async () => {
+  test("writes item + details + owner tuple, defaults status to requested", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "Bridge", creatorId: creator });
 
@@ -87,7 +89,7 @@ describe("createProcurement", () => {
     expect(row.id).toHaveLength(8);
     expect(row.title).toBe("Steel beams"); // title falls back to itemName
     expect(row.itemName).toBe("Steel beams");
-    expect(row.status).toBe("draft");
+    expect(row.status).toBe("requested");
     expect(row.projectId).toBe(project.shortId); // response exposes the project short_id, not the ULID
     expect(row.quantity).toBe(10);
     expect(row.amount).toBe(50000);
@@ -208,17 +210,17 @@ describe("changeStatus", () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
     const row = await createProcurement(db, { projectId: project.id, itemName: "Valves", creatorId: creator });
-    expect(row.status).toBe("draft");
+    expect(row.status).toBe("requested");
 
     const updated = await changeStatus(
       db,
       logger,
       row.id,
-      "requested",
+      "ordered",
       { id: creator, name: "Alice" },
       { ip: "127.0.0.1", userAgent: "test" },
     );
-    expect(updated?.status).toBe("requested");
+    expect(updated?.status).toBe("ordered");
     expect(updated!.version).toBeGreaterThan(1);
 
     const events = await db.select().from(auditEvents).where(
@@ -227,8 +229,8 @@ describe("changeStatus", () => {
     expect(events).toHaveLength(1);
     expect(events[0]!.resourceId).toBe(row.id);
     const detail = JSON.parse(events[0]!.detail!) as { from: string; to: string };
-    expect(detail.from).toBe("draft");
-    expect(detail.to).toBe("requested");
+    expect(detail.from).toBe("requested");
+    expect(detail.to).toBe("ordered");
   });
 
   test("returns undefined for an unknown procurement", async () => {
@@ -407,17 +409,18 @@ describe("status free transitions (lock-in)", () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
     const row = await createProcurement(db, { projectId: project.id, itemName: "Valves", creatorId: creator });
-    expect(row.status).toBe("draft");
+    expect(row.status).toBe("requested");
 
     // A deliberately non-linear tour: forward, backward, skip-ahead, and both
-    // into and back OUT of the terminal-looking "closed" state.
+    // into and back OUT of the terminal-looking "accepted" / "cancelled" states.
     const tour: ProcurementStatus[] = [
-      "requested",
       "ordered",
-      "draft", // backward
-      "closed", // skip ahead to the terminal-looking state
-      "received", // OUT of closed — proves it is not terminal
-      "ordered", // backward again
+      "confirmed",
+      "requested", // backward
+      "accepted", // skip ahead to a terminal-looking state
+      "in_transit", // OUT of accepted — proves it is not terminal
+      "cancelled", // into the other terminal-looking state
+      "ordered", // OUT of cancelled — proves it is not terminal either
     ];
 
     let previous = row.status;
@@ -445,12 +448,13 @@ describe("status free transitions (lock-in)", () => {
       .map(e => JSON.parse(e.detail!) as { from: string; to: string })
       .map(d => `${d.from}->${d.to}`);
     expect(pairs).toEqual([
-      "draft->requested",
       "requested->ordered",
-      "ordered->draft",
-      "draft->closed",
-      "closed->received",
-      "received->ordered",
+      "ordered->confirmed",
+      "confirmed->requested",
+      "requested->accepted",
+      "accepted->in_transit",
+      "in_transit->cancelled",
+      "cancelled->ordered",
     ]);
   });
 
@@ -470,6 +474,101 @@ describe("status free transitions (lock-in)", () => {
 
     // The rejected change leaves the stored status untouched.
     const after = await getProcurementByShortId(db, row.id);
-    expect(after?.status).toBe("draft");
+    expect(after?.status).toBe("requested");
+  });
+});
+
+describe("procurement tags (source_type='procurement')", () => {
+  test("creates with tags, embeds them in rows + detail, and filters OR/union", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+
+    const a = await createProcurement(db, { projectId: project.id, itemName: "A", creatorId: creator, tags: ["alpha"] });
+    await createProcurement(db, { projectId: project.id, itemName: "B", creatorId: creator, tags: ["beta", "alpha"] });
+    await createProcurement(db, { projectId: project.id, itemName: "C", creatorId: creator, tags: ["gamma"] });
+
+    // create response and detail both carry the assigned tags
+    expect(a.tags.map(t => t.name)).toEqual(["alpha"]);
+    expect((await getProcurementByShortId(db, a.id))!.tags.map(t => t.name)).toEqual(["alpha"]);
+
+    // every list row carries its tags (ordered by name)
+    const all = await listByProject(db, project.id);
+    expect(all.total).toBe(3);
+    expect(all.data.find(r => r.itemName === "B")!.tags.map(t => t.name).sort()).toEqual(["alpha", "beta"]);
+
+    // 0 tags → no filter
+    expect((await listByProject(db, project.id, { tagIds: [] })).total).toBe(3);
+
+    // 1 tag → just that procurement
+    expect((await listByProject(db, project.id, { tagIds: ["gamma"] })).data.map(r => r.itemName)).toEqual(["C"]);
+
+    // many tags → OR / union: alpha∪gamma = A,B,C (AND would be empty)
+    expect((await listByProject(db, project.id, { tagIds: ["alpha", "gamma"] })).data.map(r => r.itemName).sort())
+      .toEqual(["A", "B", "C"]);
+
+    // AND-not-applied: alpha∪beta = A (alpha) and B (both); not just B
+    expect((await listByProject(db, project.id, { tagIds: ["alpha", "beta"] })).data.map(r => r.itemName).sort())
+      .toEqual(["A", "B"]);
+
+    // the binding's union helper resolves names within the procurement scope
+    const union = await listResourceIdsByAnyTag(db, procurementTagBinding, ["alpha"]);
+    expect(union).toHaveLength(2);
+  });
+
+  test("lists the procurement tag vocabulary with usage counts (GET /tags?type=procurement)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    await createProcurement(db, { projectId: project.id, itemName: "A", creatorId: creator, tags: ["alpha"] });
+    await createProcurement(db, { projectId: project.id, itemName: "B", creatorId: creator, tags: ["alpha", "beta"] });
+
+    const vocab = await listTagsWithUsage(db, "procurement", { table: procurementTagBinding.table, tagId: procurementTagBinding.tagColumn });
+    // most-used first, then by name: alpha(2) before beta(1)
+    expect(vocab.map(v => [v.name, v.usageCount])).toEqual([["alpha", 2], ["beta", 1]]);
+  });
+
+  test("update replaces the tag set; omitting tags leaves them unchanged; [] clears", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const a = await createProcurement(db, { projectId: project.id, itemName: "A", creatorId: creator, tags: ["alpha"] });
+
+    await updateProcurement(db, a.id, { tags: ["beta", "gamma"] });
+    expect((await getProcurementByShortId(db, a.id))!.tags.map(t => t.name).sort()).toEqual(["beta", "gamma"]);
+
+    // a non-tag update must not touch tags
+    await updateProcurement(db, a.id, { itemName: "A2" });
+    const after = await getProcurementByShortId(db, a.id);
+    expect(after!.itemName).toBe("A2");
+    expect(after!.tags.map(t => t.name).sort()).toEqual(["beta", "gamma"]);
+
+    // clearing with an empty array removes all tags
+    await updateProcurement(db, a.id, { tags: [] });
+    expect((await getProcurementByShortId(db, a.id))!.tags).toEqual([]);
+  });
+});
+
+describe("listByProject filters (q + priority)", () => {
+  test("q matches the title OR the item name (case-insensitive LIKE)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    await createProcurement(db, { projectId: project.id, itemName: "Steel beams", title: "Q1 order", creatorId: creator });
+    await createProcurement(db, { projectId: project.id, itemName: "Copper wire", title: "Cable batch", creatorId: creator });
+
+    // matches on item_name
+    expect((await listByProject(db, project.id, { q: "steel" })).data.map(r => r.itemName)).toEqual(["Steel beams"]);
+    // matches on title
+    expect((await listByProject(db, project.id, { q: "cable" })).data.map(r => r.itemName)).toEqual(["Copper wire"]);
+    // no match
+    expect((await listByProject(db, project.id, { q: "zzz" })).total).toBe(0);
+  });
+
+  test("filters by priority and ignores the __all__ sentinel", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    await createProcurement(db, { projectId: project.id, itemName: "Urgent", priority: "urgent", creatorId: creator });
+    await createProcurement(db, { projectId: project.id, itemName: "Low", priority: "low", creatorId: creator });
+
+    expect((await listByProject(db, project.id, { priority: "urgent" })).data.map(r => r.itemName)).toEqual(["Urgent"]);
+    // __all__ applies no priority filter
+    expect((await listByProject(db, project.id, { priority: "__all__" })).total).toBe(2);
   });
 });

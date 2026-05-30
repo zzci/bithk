@@ -33,6 +33,8 @@ const createSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().max(30).nullable().optional(),
+  // Optional tag names (source_type='procurement') synced with the procurement.
+  tags: z.array(z.string().min(1).max(50)).max(50).optional(),
 });
 
 const updateSchema = z.object({
@@ -49,6 +51,8 @@ const updateSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().max(30).nullable().optional(),
+  // Replacement tag set (source_type='procurement'); omit to leave tags unchanged.
+  tags: z.array(z.string().min(1).max(50)).max(50).optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), {
   message: "At least one field must be provided",
 });
@@ -56,6 +60,23 @@ const updateSchema = z.object({
 const statusSchema = z.object({
   status: z.enum(PROCUREMENT_STATUSES),
 });
+
+// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
+// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
+// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
+function parseTagIds(raw: string[] | undefined): string[] {
+  if (!raw || raw.length === 0)
+    return [];
+  const out = new Set<string>();
+  for (const part of raw) {
+    for (const value of part.split(",")) {
+      const trimmed = value.trim();
+      if (trimmed)
+        out.add(trimmed);
+    }
+  }
+  return [...out].slice(0, 50);
+}
 
 function actorId(c: Context<AppEnv>): string {
   return c.get("user")!.id;
@@ -119,11 +140,14 @@ export function procurementRoutes() {
   router.get("/projects/:projectId/procurements", async (c) => {
     const projectId = await requireProcurementAccess(c, c.req.param("projectId"));
     const db = c.get("db");
+    const q = c.req.query("q");
     const status = c.req.query("status");
+    const priority = c.req.query("priority");
     const categoryId = c.req.query("categoryId");
+    const tagIds = parseTagIds(c.req.queries("tagIds"));
     const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
     const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
-    const result = await listByProject(db, projectId, { status, categoryId, page, limit });
+    const result = await listByProject(db, projectId, { q, status, priority, categoryId, tagIds, page, limit });
     return c.json({
       success: true,
       data: result.data,

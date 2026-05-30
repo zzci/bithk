@@ -9,17 +9,23 @@
 ## Context
 
 Procurement records carry a `status` drawn from
-`PROCUREMENT_STATUSES = ["draft", "requested", "ordered", "received", "closed"]`.
+`PROCUREMENT_STATUSES = ["requested", "ordered", "confirmed", "in_transit", "received", "accepted", "cancelled"]`.
 Reviewers asked whether `changeStatus` should enforce a directed state machine
-(e.g. only `draft -> requested -> ordered -> received -> closed`, no going
-back, `closed` terminal).
+(e.g. only `requested -> ordered -> confirmed -> in_transit -> received ->
+accepted`, no going back, `accepted`/`cancelled` terminal).
+
+PLAN-037 replaced the earlier 6-status set
+(`draft|requested|ordered|received|closed|cancelled`) with the 7-status
+vocabulary above for issue-module parity (migration `0005`, scoped to
+`type='procurement'`: `draft -> requested`, `closed -> accepted`). This change
+only swaps the vocabulary — the free-transition decision below is unchanged.
 
 ## Decision
 
 Procurement status is an **intentional free-transition manual tracker**: any
 status may move to any other status, including moving backward and moving back
-**out of** `closed`. It is **not** a state machine and no transition graph is
-enforced.
+**out of** `accepted` or `cancelled`. It is **not** a state machine and no
+transition graph is enforced.
 
 Guard rails that DO apply:
 
@@ -35,8 +41,8 @@ Guard rails that DO apply:
 ## Rationale
 
 Construction procurement tracking is operator-driven and corrections are
-routine (a record is reopened after a mistaken close, an order reverts to
-`draft` for re-spec, etc.). A rigid graph would force awkward workarounds
+routine (a record is reopened after a mistaken `accepted`, an order reverts to
+`requested` for re-spec, etc.). A rigid graph would force awkward workarounds
 without adding integrity value, because the audit trail already records who
 changed what, when, and from/to. Validity is bounded by the enum; ordering is a
 human workflow concern, not a data-integrity invariant.
