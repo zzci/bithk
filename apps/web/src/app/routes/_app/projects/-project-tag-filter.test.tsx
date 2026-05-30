@@ -97,3 +97,48 @@ describe("projectTagFilter", () => {
     expect(onSelect).toHaveBeenCalledWith("t2");
   });
 });
+
+describe("projectTagFilter (multi-select)", () => {
+  it("reflects the selected ids as pressed chips", () => {
+    const restore = withWideContainer();
+    try {
+      renderWithProviders(
+        <ProjectTagFilter multiple tags={tags("alpha", "beta")} selectedTagIds={["t1"]} onToggle={() => {}} />,
+      );
+      expect(screen.getByRole("button", { name: "alpha" })).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByRole("button", { name: "beta" })).toHaveAttribute("aria-pressed", "true");
+    }
+    finally {
+      restore();
+    }
+  });
+
+  it("calls onToggle when an inline chip is clicked", async () => {
+    const restore = withWideContainer();
+    const onToggle = vi.fn();
+    try {
+      renderWithProviders(
+        <ProjectTagFilter multiple tags={tags("alpha", "beta")} selectedTagIds={[]} onToggle={onToggle} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "beta" }));
+      expect(onToggle).toHaveBeenCalledWith("t1");
+    }
+    finally {
+      restore();
+    }
+  });
+
+  it("toggles an overflow tag through the searchable More combobox", async () => {
+    // Default jsdom clientWidth (0) forces all-but-one tag into the overflow.
+    const onToggle = vi.fn();
+    renderWithProviders(
+      <ProjectTagFilter multiple tags={tags("alpha", "beta", "gamma")} selectedTagIds={[]} onToggle={onToggle} />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: "More tags" }));
+    const search = await screen.findByPlaceholderText("Search tags");
+    await userEvent.type(search, "gamma");
+    await userEvent.click(await screen.findByRole("option", { name: "gamma" }));
+    expect(onToggle).toHaveBeenCalledWith("t2");
+  });
+});

@@ -94,6 +94,12 @@ export interface ProcurementCategoryView {
 export type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
 export type IssuePriority = "low" | "medium" | "high" | "urgent";
 
+// Tag reference carried on issue list rows and detail (name resolved by the API).
+export interface IssueTagRef {
+  readonly id: string;
+  readonly name: string;
+}
+
 export interface ProjectIssueRow {
   readonly id: string;
   readonly title: string;
@@ -105,6 +111,7 @@ export interface ProjectIssueRow {
   readonly assigneeMemberId: string | null;
   readonly projectId: string;
   readonly dueDate: string | null;
+  readonly tags: readonly IssueTagRef[];
   // Pin state from the shared item base. `pinnedAt` is the ISO stamp when pinned,
   // NULL otherwise; both surface the project overview Pin area.
   readonly pinned: boolean;
@@ -133,7 +140,10 @@ export const projectKeys = {
   issues: (id: string, query: string) => ["projects", id, "issues", query] as const,
 };
 
-export const tagKeys = { all: ["tags"] as const };
+export const tagKeys = {
+  all: ["tags"] as const,
+  issue: ["tags", "issue"] as const,
+};
 
 // ── Tags ──
 
@@ -141,6 +151,16 @@ export function useTags() {
   return useQuery<readonly ProjectTag[]>({
     queryKey: tagKeys.all,
     queryFn: () => http<ApiEnvelope<readonly ProjectTag[]>>("/tags").then(r => r.data),
+    staleTime: 30_000,
+  });
+}
+
+// Selectable issue-tag vocabulary (type=issue), usage-count ordered. Drives the
+// issues list multi-select tag filter.
+export function useIssueTags() {
+  return useQuery<readonly ProjectTag[]>({
+    queryKey: tagKeys.issue,
+    queryFn: () => http<ApiEnvelope<readonly ProjectTag[]>>("/tags?type=issue").then(r => r.data),
     staleTime: 30_000,
   });
 }
@@ -457,6 +477,8 @@ export interface ProjectIssuesQuery {
   readonly q?: string | undefined;
   readonly status?: IssueStatus | undefined;
   readonly priority?: IssuePriority | undefined;
+  // Union (OR) filter: an issue matches when it carries ANY of these tag ids.
+  readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -474,6 +496,12 @@ function issuesQueryString(query: ProjectIssuesQuery): string {
     params.set("status", query.status);
   if (query.priority)
     params.set("priority", query.priority);
+  // Repeatable tagId params; sorted so the cache key stays stable regardless of
+  // selection order (the backend union semantics are order-independent).
+  if (query.tagIds && query.tagIds.length > 0) {
+    for (const tagId of [...query.tagIds].sort())
+      params.append("tagIds", tagId);
+  }
   params.set("page", String(query.page ?? 1));
   params.set("limit", String(query.limit ?? 20));
   return params.toString();

@@ -37,6 +37,7 @@ function issue(overrides: Partial<ProjectIssueRow> = {}): ProjectIssueRow {
     assigneeMemberId: null,
     projectId: "p1",
     dueDate: null,
+    tags: [],
     pinned: false,
     pinnedAt: null,
     createdAt: "2026-05-23T00:00:00.000Z",

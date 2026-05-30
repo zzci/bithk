@@ -30,6 +30,15 @@ The parsed set is de-duplicated and capped (50) because it is untrusted input.
 - AND ("must carry all selected tags") is intentionally **not** implemented.
 - An empty / omitted `tagIds` applies no tag filter.
 
+## Migration note: document_details schema drift
+
+Migration 0004 (`issue_tags`) also caught up a pre-existing schema drift:
+`ALTER TABLE document_details DROP COLUMN tags` — the TS column was removed in
+commit fda01e4 without a migration, so 0004 syncs the DB to the code.
+
+Kept intentionally per the L1 decision; document campaign 3b3ctbz5 was notified
+not to re-generate it.
+
 ## Sunset
 
 Revisit by **2026-11-30**. If users expect AND semantics, add an explicit
