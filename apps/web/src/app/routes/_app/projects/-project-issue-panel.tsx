@@ -82,8 +82,10 @@ interface ProjectIssuePanelProps {
   readonly issueId: string;
   readonly members: readonly ProjectMemberView[];
   readonly userNames: ReadonlyMap<string, string>;
-  /** True when the caller is a pm or app admin (can edit every field). */
+  /** True when the caller has `issue.manage` (can create/edit/delete/pin). */
   readonly canManage: boolean;
+  /** True when the caller has `issue.comment` (can post comments). */
+  readonly canComment?: boolean;
   readonly variant: "drawer" | "fullscreen";
   readonly onClose: (opts?: { deleted?: boolean }) => void;
   readonly onMaximize?: () => void;
@@ -95,6 +97,7 @@ export function ProjectIssuePanel({
   members,
   userNames,
   canManage,
+  canComment = true,
   variant,
   onClose,
   onMaximize,
@@ -583,6 +586,7 @@ export function ProjectIssuePanel({
           resourceId={issue.id}
           i18nNs="issues"
           userMap={userMap}
+          commentsLocked={!canComment}
           commentsEnableReply
           commentsEnableAttachments
           commentsStickyComposer

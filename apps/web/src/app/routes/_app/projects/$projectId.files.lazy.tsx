@@ -1,9 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 // Files tab route: the project-scoped drive surface.
 
-import { createLazyFileRoute, useParams } from "@tanstack/react-router";
+import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useProject } from "@/shared/lib/api/projects";
 import { FileBrowser } from "../-file-browser";
+import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/files")({
   component: ProjectFilesRoute,
@@ -11,10 +13,19 @@ export const Route = createLazyFileRoute("/_app/projects/$projectId/files")({
 
 function ProjectFilesRoute() {
   const { projectId } = useParams({ from: "/_app/projects/$projectId/files" });
+  const navigate = useNavigate();
   const projectQuery = useProject(projectId);
   const project = projectQuery.data;
+  const caps = useProjectCapabilities(project);
 
-  if (!project)
+  // Once the project (and thus caps) resolves, bounce viewers without access
+  // back to the overview rather than rendering a tab they cannot see.
+  useEffect(() => {
+    if (project && !caps.canViewFiles)
+      void navigate({ to: "/projects/$projectId", params: { projectId }, replace: true });
+  }, [project, caps.canViewFiles, navigate, projectId]);
+
+  if (!project || !caps.canViewFiles)
     return null;
 
   return (
@@ -25,7 +36,7 @@ function ProjectFilesRoute() {
       <FileBrowser
         ownerType="project"
         ownerId={project.id}
-        canManage
+        canManage={caps.canManageFiles}
         rootLabel={project.name}
         showTitle={false}
         showSearch={false}

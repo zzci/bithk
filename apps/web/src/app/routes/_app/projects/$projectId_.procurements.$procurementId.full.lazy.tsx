@@ -41,7 +41,8 @@ function ProjectProcurementFullscreenPage() {
         procurementId={procurementId}
         members={members}
         userNames={userNames}
-        canManage={caps.has("procurement.manage")}
+        canManage={caps.canManageProcurement}
+        canComment={caps.canCommentProcurement}
         variant="fullscreen"
         onClose={goBack}
       />

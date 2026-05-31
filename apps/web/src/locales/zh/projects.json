@@ -333,6 +333,7 @@
     "guest": "访客",
     "system": "系统",
     "noCapabilities": "无权限",
+    "guestFallbackNote": "被删除角色的成员将回退到此角色。",
     "createTitle": "创建角色",
     "editTitle": "编辑角色",
     "dialogDescription": "选择该角色授予的权限。",
@@ -340,9 +341,15 @@
       "name": "名称",
       "capabilities": "权限"
     },
+    "presets": {
+      "label": "快速填充预设",
+      "reader": "只读",
+      "commenter": "评论者",
+      "writer": "读写"
+    },
     "delete": {
       "title": "删除角色",
-      "confirm": "确定要删除角色“{{name}}”吗？此操作无法撤销。"
+      "confirm": "确定要删除角色“{{name}}”吗？持有此角色的成员将被移至访客角色。此操作无法撤销。"
     }
   },
   "capability": {

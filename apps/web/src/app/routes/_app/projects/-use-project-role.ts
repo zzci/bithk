@@ -11,12 +11,22 @@ import { useAuthStore } from "@/shared/stores/auth";
 
 export interface ProjectCapabilityInfo {
   readonly has: (cap: ProjectCapability) => boolean;
+  // ── Issue module ──
+  readonly canViewIssues: boolean;
+  readonly canCommentIssues: boolean;
+  readonly canManageIssues: boolean;
+  // ── Procurement module ──
+  readonly canViewProcurement: boolean;
+  readonly canCommentProcurement: boolean;
+  readonly canManageProcurement: boolean;
+  // ── Files module ──
+  readonly canViewFiles: boolean;
+  readonly canManageFiles: boolean;
+  // ── Project admin ──
   readonly canManageProject: boolean;
   readonly canManageMembers: boolean;
   readonly canManageRoles: boolean;
   readonly canManageCategories: boolean;
-  readonly canViewProcurement: boolean;
-  readonly canManageProcurement: boolean;
   /** Any management capability → the project settings dialog is reachable. */
   readonly canOpenSettings: boolean;
 }
@@ -38,12 +48,18 @@ export function computeCapabilities(
   const canManageCategories = has("categories.manage");
   return {
     has,
+    canViewIssues: has("issue.view"),
+    canCommentIssues: has("issue.comment"),
+    canManageIssues: has("issue.manage"),
+    canViewProcurement: has("procurement.view"),
+    canCommentProcurement: has("procurement.comment"),
+    canManageProcurement: has("procurement.manage"),
+    canViewFiles: has("files.view"),
+    canManageFiles: has("files.manage"),
     canManageProject,
     canManageMembers,
     canManageRoles,
     canManageCategories,
-    canViewProcurement: has("procurement.view"),
-    canManageProcurement: has("procurement.manage"),
     canOpenSettings: canManageProject || canManageMembers || canManageRoles || canManageCategories,
   };
 }
