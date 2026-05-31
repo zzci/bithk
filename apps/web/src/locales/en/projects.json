@@ -155,7 +155,6 @@
     "loading": "Loading work orders...",
     "searchPlaceholder": "Search work orders...",
     "tagFilter": "Filter by tag",
-    "createInStatus": "New {{status}} work order",
     "toggleSection": "Toggle section",
     "allPriorities": "All priorities",
     "viewMode": "Work order view mode",
