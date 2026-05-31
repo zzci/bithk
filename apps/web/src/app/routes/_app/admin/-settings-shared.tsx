@@ -136,7 +136,7 @@ export function SettingsCard({
       <div className="flex items-center justify-between">
         <h3 className="font-semibold capitalize">{title}</h3>
         {onDeleted && (
-          <Button variant="ghost" size="sm" className="text-destructive" onClick={onDeleted}>
+          <Button variant="ghost" className="text-destructive" onClick={onDeleted}>
             <Trash2 className="mr-1 size-3" />
             {t("common.delete")}
           </Button>
@@ -160,7 +160,7 @@ export function SettingsCard({
       </div>
 
       <div className="flex justify-end">
-        <Button size="sm" disabled={saving} onClick={() => void handleSave()}>
+        <Button disabled={saving} onClick={() => void handleSave()}>
           <Save className="mr-1 size-3" />
           {saving ? t("settings:saving") : t("common.save")}
         </Button>

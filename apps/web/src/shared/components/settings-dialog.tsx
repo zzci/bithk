@@ -238,9 +238,8 @@ function TotpTab() {
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={resetAdd}>{t("totp:cancel")}</Button>
+          <Button variant="outline" onClick={resetAdd}>{t("totp:cancel")}</Button>
           <Button
-            size="sm"
             onClick={() => void handleCreate()}
             disabled={!deviceName.trim() || submitting}
             aria-busy={submitting}
@@ -288,7 +287,7 @@ function TotpTab() {
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           {t("totp:title")}
         </div>
-        <Button variant="outline" size="sm" onClick={() => setAddStep("name")}>
+        <Button variant="outline" onClick={() => setAddStep("name")}>
           <Plus className="mr-1 size-3.5" />
           {t("totp:addDevice")}
         </Button>
@@ -410,9 +409,8 @@ function TotpVerifyStep({
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={onCancel}>{t("totp:cancel")}</Button>
+        <Button variant="outline" onClick={onCancel}>{t("totp:cancel")}</Button>
         <Button
-          size="sm"
           onClick={onVerify}
           disabled={code.length !== 6 || submitting}
           aria-busy={submitting}

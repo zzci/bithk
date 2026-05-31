@@ -228,12 +228,11 @@ function CronPage() {
           <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => void fetchJobs()} disabled={loading}>
+          <Button variant="outline" onClick={() => void fetchJobs()} disabled={loading}>
             <RefreshCw className={`mr-1 size-3 ${loading ? "animate-spin" : ""}`} />
             {t("refresh")}
           </Button>
           <Button
-            size="sm"
             onClick={() => {
               resetForm();
               setCreateOpen(true);

@@ -174,7 +174,7 @@ function AuditPage() {
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
           <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExport} disabled={events.length === 0}>
+        <Button variant="outline" onClick={handleExport} disabled={events.length === 0}>
           <Download className="mr-1 size-3" />
           {t("export")}
         </Button>
@@ -340,7 +340,7 @@ function AuditPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon-sm" onClick={() => setDetailEvent(event)}>
+                        <Button variant="ghost" size="icon" onClick={() => setDetailEvent(event)}>
                           <Eye className="size-4" />
                         </Button>
                       </TableCell>
@@ -356,7 +356,7 @@ function AuditPage() {
             {t("totalCount", { count: total })}
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
               {t("common.prev")}
             </Button>
             <span className="flex items-center px-2 text-sm">
@@ -366,7 +366,7 @@ function AuditPage() {
               {" "}
               {totalPages}
             </span>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
               {t("common.next")}
             </Button>
           </div>

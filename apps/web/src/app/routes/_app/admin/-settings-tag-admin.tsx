@@ -50,7 +50,7 @@ export function TagAdminSection() {
           <h2 className="text-lg font-semibold">{t("settings:projectDefaults.tags.title")}</h2>
           <p className="text-sm text-muted-foreground">{t("settings:projectDefaults.tags.description")}</p>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
           {t("settings:projectDefaults.tags.add")}
         </Button>
@@ -76,10 +76,10 @@ export function TagAdminSection() {
                     <TableCell className="text-sm text-muted-foreground">{tag.usageCount}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setEditTarget(tag)}>
+                        <Button variant="ghost" onClick={() => setEditTarget(tag)}>
                           {t("common:common.edit")}
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(tag)}>
+                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(tag)}>
                           {t("common:common.delete")}
                         </Button>
                       </div>

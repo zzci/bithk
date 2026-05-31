@@ -56,7 +56,7 @@ export function GlobalCategoriesSection() {
           <h2 className="text-lg font-semibold">{t("settings:projectDefaults.categories.title")}</h2>
           <p className="text-sm text-muted-foreground">{t("settings:projectDefaults.categories.description")}</p>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
           {t("settings:projectDefaults.categories.add")}
         </Button>
@@ -84,10 +84,10 @@ export function GlobalCategoriesSection() {
                     <TableCell className="text-sm text-muted-foreground">{category.description ?? "—"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setEditTarget(category)}>
+                        <Button variant="ghost" onClick={() => setEditTarget(category)}>
                           {t("common:common.edit")}
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(category)}>
+                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(category)}>
                           {t("common:common.delete")}
                         </Button>
                       </div>

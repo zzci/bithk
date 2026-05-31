@@ -291,7 +291,7 @@ export function ResourceCommentSection({
             <>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 title={t("attachments.upload")}
                 onClick={() => composerFileInputRef.current?.click()}
               >
@@ -307,7 +307,6 @@ export function ResourceCommentSection({
             </>
           )}
           <Button
-            size="sm"
             disabled={submit.isPending || (!newComment.trim() && pendingFiles.length === 0)}
             onClick={() => submit.mutate({ content: newComment.trim(), replyToId: replyTarget?.id ?? null, files: pendingFiles })}
           >
