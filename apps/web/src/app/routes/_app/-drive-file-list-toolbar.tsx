@@ -85,23 +85,23 @@ export function BatchControls({
         {t("browser.selectedCount", { count })}
       </span>
       {capabilities.batchDownload && (
-        <Button variant="ghost" size="icon" className="size-9" onClick={onBatchDownload} aria-label={t("browser.action.download")}>
+        <Button variant="ghost" size="icon" onClick={onBatchDownload} aria-label={t("browser.action.download")}>
           <Download className="size-4" />
         </Button>
       )}
       {capabilities.batchRestore && hasRestore && (
-        <Button variant="ghost" size="icon" className="size-9" onClick={onBatchRestore} aria-label={t("browser.action.restore")}>
+        <Button variant="ghost" size="icon" onClick={onBatchRestore} aria-label={t("browser.action.restore")}>
           <RotateCcw className="size-4" />
         </Button>
       )}
-      <Button variant="ghost" size="icon" className="size-9" onClick={onCancel} aria-label={t("common.cancel")}>
+      <Button variant="ghost" size="icon" onClick={onCancel} aria-label={t("common.cancel")}>
         <X className="size-4" />
       </Button>
       {capabilities.batchDelete && (
         <Button
           variant="ghost"
           size="icon"
-          className="size-9 text-destructive hover:text-destructive"
+          className="text-destructive hover:text-destructive"
           onClick={onBatchDelete}
           aria-label={t("browser.deleteSelected")}
         >

@@ -266,8 +266,8 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
         <div className="flex items-center justify-between px-3 py-2">
           <span className="text-xs text-muted-foreground">{t("procurement.total", { count: meta.total })}</span>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-            <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
+            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
+            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
           </div>
         </div>
       )}
