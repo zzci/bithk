@@ -312,9 +312,18 @@ export function ProjectProcurementPanel({
               )
             : (
                 <h1
-                  className={`truncate text-base font-semibold tracking-tight ${canEdit ? "cursor-pointer hover:text-primary" : ""}`}
+                  className={`truncate text-base font-semibold tracking-tight ${canEdit ? "cursor-pointer rounded-sm hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}
                   onClick={() => canEdit && startEditTitle()}
                   title={canEdit ? t("procurement.detail.clickToEditTitle") : procurement.itemName}
+                  tabIndex={canEdit ? 0 : undefined}
+                  onKeyDown={canEdit
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          startEditTitle();
+                        }
+                      }
+                    : undefined}
                 >
                   {procurement.itemName}
                 </h1>
@@ -441,8 +450,22 @@ export function ProjectProcurementPanel({
                   <span className="relative inline-flex items-center">
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary"
-                      onClick={() => dueDateInputRef.current?.showPicker()}
+                      className="inline-flex items-center gap-1 rounded text-xs text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => {
+                        const input = dueDateInputRef.current;
+                        if (!input)
+                          return;
+                        if (typeof input.showPicker === "function") {
+                          try {
+                            input.showPicker();
+                            return;
+                          }
+                          catch {
+                            // showPicker can throw if not allowed; fall through to focus.
+                          }
+                        }
+                        input.focus();
+                      }}
                       aria-label={t("procurement.field.dueDate")}
                       title={t("procurement.field.dueDate")}
                     >
@@ -466,25 +489,29 @@ export function ProjectProcurementPanel({
 
           <div className="ml-auto inline-flex items-center gap-0.5">
             {canUploadAttachment && (
-              <button
+              <Button
                 type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground"
                 onClick={() => fileInputRef.current?.click()}
                 title={t("issues:attachments.upload")}
               >
                 <Paperclip className="size-3" />
                 {upload.isPending ? t("issues:attachments.uploading") : t("issues:attachments.upload")}
-              </button>
+              </Button>
             )}
             {canEdit && !editingDesc && (
-              <button
+              <Button
                 type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground"
                 onClick={startEditDesc}
               >
                 <Pencil className="size-3" />
                 {t("common:common.edit")}
-              </button>
+              </Button>
             )}
           </div>
           <input
@@ -650,15 +677,15 @@ export function ProjectProcurementPanel({
                     <button
                       type="button"
                       onClick={startEditDesc}
-                      className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
+                      className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {t("procurement.detail.noDescription")}
                     </button>
                   )
                 : (
-                    <div className="rounded-md border border-dashed bg-transparent px-2 py-1 text-sm italic text-muted-foreground leading-snug">
+                    <p className="text-sm italic text-muted-foreground leading-snug">
                       {t("procurement.detail.noDescription")}
-                    </div>
+                    </p>
                   )}
         </div>
 
@@ -768,7 +795,7 @@ function InlineValue({ display, initial, canEdit, type = "text", maxLength, notS
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1 text-sm text-foreground hover:text-primary"
+      className="inline-flex items-center gap-1 rounded text-sm text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => setEditing(true)}
     >
       {display ?? (
