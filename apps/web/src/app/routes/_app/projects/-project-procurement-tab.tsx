@@ -66,12 +66,12 @@ import { ProjectTagsCombobox } from "./-project-tags-combobox";
 // Shared grid template so the header row and every data row align on the same
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
-// mobile. Columns: priority | id | itemName+title | status | amount(right) |
-// category | supplier.
+// mobile. Columns: id | itemName+title | status | amount(right) |
+// category | supplier | priority(last).
 const PROCUREMENT_GRID = [
-  "grid grid-cols-[auto_4.5rem_minmax(0,1fr)_6rem_6.5rem] items-center gap-3",
-  "sm:grid-cols-[auto_4.5rem_minmax(0,1fr)_6rem_6.5rem_8rem]",
-  "md:grid-cols-[auto_4.5rem_minmax(0,1fr)_6rem_6.5rem_8rem_9rem]",
+  "grid grid-cols-[4.5rem_minmax(0,1fr)_6rem_6.5rem_auto] items-center gap-3",
+  "sm:grid-cols-[4.5rem_minmax(0,1fr)_6rem_6.5rem_8rem_auto]",
+  "md:grid-cols-[4.5rem_minmax(0,1fr)_6rem_6.5rem_8rem_9rem_auto]",
 ].join(" ");
 
 interface ProjectProcurementTabProps {
@@ -217,18 +217,18 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
         : rows.length === 0
           ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("procurement.empty")}</p>
           : (
-              <div className="overflow-hidden rounded-md border border-border">
+              <div className="overflow-hidden">
                 {/* Header row — shares PROCUREMENT_GRID so its labels sit over the
                     same column tracks as every data row below. */}
                 <div className="flex items-stretch border-b border-border bg-muted/40">
                   <div className={cn(PROCUREMENT_GRID, "min-w-0 flex-1 px-3 py-2 text-xs font-medium text-muted-foreground")}>
-                    <span><span className="sr-only">{t("procurement.col.priority")}</span></span>
                     <span className="truncate">{t("procurement.col.id")}</span>
                     <span className="truncate">{t("procurement.col.itemName")}</span>
                     <span className="truncate">{t("procurement.col.status")}</span>
                     <span className="truncate text-right">{t("procurement.col.amount")}</span>
                     <span className="hidden truncate sm:block">{t("procurement.col.category")}</span>
                     <span className="hidden truncate md:block">{t("procurement.col.supplier")}</span>
+                    <span><span className="sr-only">{t("procurement.col.priority")}</span></span>
                   </div>
                   {canManage && <div className="w-9 shrink-0" aria-hidden="true" />}
                 </div>
@@ -241,7 +241,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                         className={cn(PROCUREMENT_GRID, "min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
                         onClick={() => openProcurement(row.id)}
                       >
-                        <PrioritySignal priority={row.priority} label={t(`procurement.priority.${row.priority}` as const)} />
                         <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">{row.id}</span>
                         <span className="flex min-w-0 items-baseline gap-2">
                           <span className="min-w-0 truncate text-sm font-medium">{row.itemName}</span>
@@ -251,9 +250,10 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                         <span className="truncate text-right text-xs tabular-nums text-muted-foreground">{formatAmount(row)}</span>
                         <span className="hidden truncate text-xs text-muted-foreground sm:block">{categoryName(row.categoryId)}</span>
                         <span className="hidden truncate text-xs text-muted-foreground md:block">{supplierName(row.supplierId)}</span>
+                        <PrioritySignal priority={row.priority} label={t(`procurement.priority.${row.priority}` as const)} />
                       </button>
                       {canManage && (
-                        <div className="flex w-9 shrink-0 items-center justify-center">
+                        <div className={cn("flex w-9 shrink-0 items-center justify-center transition-opacity", row.pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100")}>
                           <ProcurementPinToggle projectId={projectId} row={row} />
                         </div>
                       )}
