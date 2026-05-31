@@ -48,3 +48,9 @@ the issue / comment / drive routes honor the new view + comment capabilities
   real (7 issue-tab tests needed `canManage`) and were fixed (9cc35f4).
   Outstanding: L1 to confirm Member→Reader (vs →Guest) mapping — 1-line flip if
   changed.
+- 2026-05-31: **F2** (b7ef6f1, merged a0cbe65) — replaced the role editor's
+  per-capability Switch grid with a **per-module 3-tier RADIO selector** (Issue:
+  None/View/Comment/Manage; Procurement: same; Files: None/View/Manage), per L1's
+  "3-tier radio role editor" spec; admin caps stay independent toggles; new
+  `radio-group.tsx` on `@base-ui` (no Radix). Verified on main: `bun run check`
+  EXIT=0 — 1191 API + 544 web + 13 shared pass.
