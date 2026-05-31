@@ -386,7 +386,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                       const isCollapsed = collapsed[status] ?? false;
                       return (
                         <section key={status} aria-label={label}>
-                          {/* Full-width section bar: collapse chevron + status label + quick-create. */}
+                          {/* Full-width section bar: collapse chevron + status label. */}
                           <div className="flex w-full items-center gap-1 rounded-lg bg-muted/50 px-1.5 py-1">
                             <Button
                               type="button"
@@ -404,18 +404,6 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                               <span className="text-sm font-medium">{label}</span>
                               <span className="text-xs text-muted-foreground">{count}</span>
                             </div>
-                            {canManage && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={t("issues.createInStatus", { status: label })}
-                                className="size-6 text-muted-foreground"
-                                onClick={() => openCreate(status)}
-                              >
-                                <Plus aria-hidden="true" className="size-4" />
-                              </Button>
-                            )}
                           </div>
 
                           {!isCollapsed && (

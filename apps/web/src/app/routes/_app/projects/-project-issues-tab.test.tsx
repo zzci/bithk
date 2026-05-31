@@ -401,30 +401,6 @@ describe("projectIssuesTab", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   }, 15000);
 
-  it("opens the composer pre-set to a status via the section quick-create", async () => {
-    const user = userEvent.setup();
-    routeFetch([issue({ id: "i9", title: "Done thing", status: "done" })]);
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
-    await screen.findByText("Done thing");
-
-    const doneRegion = screen.getByRole("region", { name: "Done" });
-    await user.click(within(doneRegion).getByRole("button", { name: "New Done work order" }));
-
-    const dialog = await screen.findByRole("dialog");
-    // Status pill is pre-set to the section's status.
-    expect(within(dialog).getByRole("button", { name: /Done/ })).toBeInTheDocument();
-
-    await user.type(within(dialog).getByPlaceholderText("Title"), "Another done item");
-    await user.click(within(dialog).getByRole("button", { name: "Create work order" }));
-
-    await waitFor(() => {
-      const post = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "POST");
-      expect(post).toBeDefined();
-      const body = JSON.parse(String(post![1]!.body)) as Record<string, unknown>;
-      expect(body).toMatchObject({ title: "Another done item", status: "done" });
-    });
-  }, 15000);
-
   it("opens the native date picker when the due-date pill is clicked", async () => {
     const user = userEvent.setup();
     const showPicker = vi.fn();
