@@ -150,6 +150,7 @@
   },
   "issues": {
     "create": "Create work order",
+    "createButton": "New",
     "empty": "No work orders found.",
     "loading": "Loading work orders...",
     "searchPlaceholder": "Search work orders...",
@@ -210,6 +211,7 @@
   },
   "procurement": {
     "create": "Create procurement",
+    "createButton": "New",
     "empty": "No procurement records found.",
     "loading": "Loading procurement...",
     "searchPlaceholder": "Search procurement...",

@@ -111,7 +111,7 @@ describe("projectProcurementTab", () => {
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
     await screen.findByText("No procurement records found.");
-    expect(screen.queryByRole("button", { name: /Create procurement/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
   });
 
   it("shows the create button to managers", async () => {
@@ -119,7 +119,7 @@ describe("projectProcurementTab", () => {
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
     );
-    expect(await screen.findByRole("button", { name: /Create procurement/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "New" })).toBeInTheDocument();
   });
 
   it("does not render the procurement pipeline summary cards", async () => {

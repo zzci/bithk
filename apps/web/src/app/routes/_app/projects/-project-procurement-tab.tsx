@@ -207,7 +207,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           {canManage && (
             <Button onClick={() => setCreateOpen(true)}>
               <Plus className="mr-1 size-4" />
-              {t("procurement.create")}
+              {t("procurement.createButton")}
             </Button>
           )}
         </div>

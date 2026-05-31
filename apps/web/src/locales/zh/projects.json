@@ -150,6 +150,7 @@
   },
   "issues": {
     "create": "创建工单",
+    "createButton": "新建",
     "empty": "未找到工单。",
     "loading": "正在加载工单...",
     "searchPlaceholder": "搜索工单...",
@@ -210,6 +211,7 @@
   },
   "procurement": {
     "create": "创建采购",
+    "createButton": "新建",
     "empty": "未找到采购记录。",
     "loading": "正在加载采购...",
     "searchPlaceholder": "搜索采购...",
