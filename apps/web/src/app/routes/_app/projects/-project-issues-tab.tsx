@@ -18,21 +18,18 @@ import type {
 } from "@/shared/lib/api/projects";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
-  AlertTriangle,
   ChevronRight,
   Pin,
   PinOff,
   Plus,
   Search,
-  SignalHigh,
-  SignalLow,
-  SignalMedium,
   Tags,
   User,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-signal";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -58,15 +55,6 @@ import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
 import { ProjectTagFilter } from "./-project-tag-filter";
-
-// Priority signal icons (ascending bars), tinted by severity — shared by the
-// row indicator and the create dialog selector.
-const PRIORITY_META: Record<IssuePriority, { readonly Icon: typeof SignalLow; readonly tone: string }> = {
-  low: { Icon: SignalLow, tone: "text-muted-foreground" },
-  medium: { Icon: SignalMedium, tone: "text-muted-foreground" },
-  high: { Icon: SignalHigh, tone: "text-warning" },
-  urgent: { Icon: AlertTriangle, tone: "text-destructive" },
-};
 
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
 const ISSUE_STATUSES: readonly IssueStatus[] = ["todo", "working", "review", "done", "cancel"];
@@ -159,21 +147,6 @@ function StatusIcon({ status, label }: { readonly status: IssueStatus; readonly 
           )}
     </svg>
   );
-}
-
-function PrioritySignal({ priority, label }: { readonly priority: IssuePriority; readonly label: string }) {
-  const { Icon, tone } = PRIORITY_META[priority];
-  return (
-    <span className="inline-flex shrink-0" title={label} aria-label={label}>
-      <Icon aria-hidden="true" className={cn("size-3.5", tone)} />
-    </span>
-  );
-}
-
-/** Bare priority icon for the create dialog's pill/selector (no title wrapper). */
-function PriorityGlyph({ priority }: { readonly priority: IssuePriority }) {
-  const { Icon, tone } = PRIORITY_META[priority];
-  return <Icon aria-hidden="true" className={cn("size-4", tone)} />;
 }
 
 function MemberAvatar({ id, label }: { readonly id: string | null; readonly label: string }) {

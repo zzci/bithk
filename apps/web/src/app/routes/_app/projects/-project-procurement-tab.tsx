@@ -16,6 +16,7 @@ import { ChevronDown, Pin, PinOff, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { PrioritySignal } from "@/shared/components/priority-signal";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -65,11 +66,12 @@ import { ProjectTagsCombobox } from "./-project-tags-combobox";
 // Shared grid template so the header row and every data row align on the same
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
-// mobile. Columns: itemName | status | amount(right) | category | supplier.
+// mobile. Columns: priority | id | itemName+title | status | amount(right) |
+// category | supplier.
 const PROCUREMENT_GRID = [
-  "grid grid-cols-[minmax(0,1fr)_6rem_6.5rem] items-center gap-3",
-  "sm:grid-cols-[minmax(0,1fr)_6rem_6.5rem_8rem]",
-  "md:grid-cols-[minmax(0,1fr)_6rem_6.5rem_8rem_9rem]",
+  "grid grid-cols-[auto_4.5rem_minmax(0,1fr)_6rem_6.5rem] items-center gap-3",
+  "sm:grid-cols-[auto_4.5rem_minmax(0,1fr)_6rem_6.5rem_8rem]",
+  "md:grid-cols-[auto_4.5rem_minmax(0,1fr)_6rem_6.5rem_8rem_9rem]",
 ].join(" ");
 
 interface ProjectProcurementTabProps {
@@ -220,6 +222,8 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                     same column tracks as every data row below. */}
                 <div className="flex items-stretch border-b border-border bg-muted/40">
                   <div className={cn(PROCUREMENT_GRID, "min-w-0 flex-1 px-3 py-2 text-xs font-medium text-muted-foreground")}>
+                    <span><span className="sr-only">{t("procurement.col.priority")}</span></span>
+                    <span className="truncate">{t("procurement.col.id")}</span>
                     <span className="truncate">{t("procurement.col.itemName")}</span>
                     <span className="truncate">{t("procurement.col.status")}</span>
                     <span className="truncate text-right">{t("procurement.col.amount")}</span>
@@ -237,7 +241,12 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                         className={cn(PROCUREMENT_GRID, "min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
                         onClick={() => openProcurement(row.id)}
                       >
-                        <span className="min-w-0 truncate text-sm font-medium">{row.itemName}</span>
+                        <PrioritySignal priority={row.priority} label={t(`procurement.priority.${row.priority}` as const)} />
+                        <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">{row.id}</span>
+                        <span className="flex min-w-0 items-baseline gap-2">
+                          <span className="min-w-0 truncate text-sm font-medium">{row.itemName}</span>
+                          {row.title && <span className="min-w-0 truncate text-xs text-muted-foreground">{row.title}</span>}
+                        </span>
                         <Badge variant="secondary" className={cn("w-fit max-w-full truncate", PROCUREMENT_STATUS_BADGE[row.status])}>{t(`procurement.status.${row.status}` as const)}</Badge>
                         <span className="truncate text-right text-xs tabular-nums text-muted-foreground">{formatAmount(row)}</span>
                         <span className="hidden truncate text-xs text-muted-foreground sm:block">{categoryName(row.categoryId)}</span>
