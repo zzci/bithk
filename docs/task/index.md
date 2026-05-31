@@ -59,3 +59,4 @@
 | [REFACTOR-008](REFACTOR-008.md) | Normalize the issue status enum end-to-end | - | Completed | 2026-05-30 |
 | [CHORE-003](CHORE-003.md) | Full-feature static seed dataset | [PLAN-041](../plan/PLAN-041.md) | Done | 2026-05-30 |
 | [FEAT-017](FEAT-017.md) | GitHub-style project role permissions (per-module) | [PLAN-042](../plan/PLAN-042.md) | Completed | 2026-05-31 |
+| [REFACTOR-009](REFACTOR-009.md) | Unify tags into the central tag module | [PLAN-043](../plan/PLAN-043.md) | In Progress | 2026-05-31 |
