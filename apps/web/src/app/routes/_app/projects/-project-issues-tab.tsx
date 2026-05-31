@@ -89,6 +89,16 @@ const STATUS_DOT: Record<IssueStatus, string> = {
   cancel: "bg-muted-foreground",
 };
 
+// One shared grid template for every row in a status group so cells line up
+// vertically across rows. Tracks (left to right):
+//   [status+id] [title 1fr] [tags (sm+)] [priority] [due (md+)] [assignee]
+// Hidden cells use display:none and drop out of grid flow, so the count of
+// visible cells matches the track count at each breakpoint. The title (1fr)
+// absorbs all slack, keeping the trailing meta columns right-aligned across
+// rows regardless of id/tag width.
+const ROW_GRID_CLASS
+  = "grid grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] md:grid-cols-[auto_minmax(0,1fr)_auto_auto_5rem_auto]";
+
 // Distinct avatar background palette (deterministic per member id).
 const AVATAR_COLORS = [
   "bg-rose-500",
@@ -421,32 +431,38 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                         <li
                                           key={issue.id}
                                           className={cn(
-                                            "group flex items-center rounded-md transition-colors hover:bg-muted/50",
+                                            "group flex items-center rounded-md border-b border-border/40 transition-colors last:border-b-0 hover:bg-muted/50",
                                             activeIssueId === issue.id && "bg-muted/60",
                                           )}
                                         >
                                           <button
                                             type="button"
-                                            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            className={cn(
+                                              ROW_GRID_CLASS,
+                                              "min-w-0 flex-1 items-center gap-x-3 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                            )}
                                             onClick={() => openIssue(issue.id)}
                                           >
-                                            <StatusIcon status={issue.status} label={label} />
-                                            <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{issue.id}</span>
-                                            <span className="min-w-0 flex-1 truncate text-sm">{issue.title}</span>
-                                            {issueTags.length > 0 && (
-                                              <div className="hidden shrink-0 items-center gap-1 sm:flex">
-                                                {issueTags.slice(0, 3).map(tag => (
-                                                  <Badge key={tag.id} variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
-                                                    {tag.name}
-                                                  </Badge>
-                                                ))}
-                                              </div>
-                                            )}
-                                            <div className="ml-auto flex shrink-0 items-center gap-3 text-xs">
-                                              <PrioritySignal priority={issue.priority} label={priorityLabel} />
-                                              {issue.dueDate && <DueLabel value={issue.dueDate} />}
-                                              <MemberAvatar id={issue.assigneeMemberId} label={assigneeLabel(issue)} />
+                                            {/* status + id share the leading column */}
+                                            <span className="flex items-center gap-2.5">
+                                              <StatusIcon status={issue.status} label={label} />
+                                              <span className="font-mono text-xs text-muted-foreground tabular-nums">{issue.id}</span>
+                                            </span>
+                                            <span className="min-w-0 truncate text-sm">{issue.title}</span>
+                                            {/* tags column — always rendered (empty when none) so every row keeps the shared template */}
+                                            <div className="hidden items-center gap-1 sm:flex">
+                                              {issueTags.slice(0, 3).map(tag => (
+                                                <Badge key={tag.id} variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                                                  {tag.name}
+                                                </Badge>
+                                              ))}
                                             </div>
+                                            <PrioritySignal priority={issue.priority} label={priorityLabel} />
+                                            {/* due column — md+ only, always rendered to preserve its grid track */}
+                                            <div className="hidden justify-end text-xs md:flex">
+                                              {issue.dueDate && <DueLabel value={issue.dueDate} />}
+                                            </div>
+                                            <MemberAvatar id={issue.assigneeMemberId} label={assigneeLabel(issue)} />
                                           </button>
                                           {canPin(issue) && (
                                             <div
