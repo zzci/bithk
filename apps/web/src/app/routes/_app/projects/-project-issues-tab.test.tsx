@@ -161,7 +161,7 @@ describe("projectIssuesTab", () => {
 
   it("keeps search and create as the primary top toolbar actions, with no priority filter", async () => {
     routeFetch([]);
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("No work orders found.");
     expect(screen.getByPlaceholderText("Search work orders...")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create work order" })).toBeInTheDocument();
@@ -172,7 +172,7 @@ describe("projectIssuesTab", () => {
   it("lays out the tag filter on the left and search + create grouped on the right of one toolbar row", async () => {
     const restore = withWideContainer();
     routeFetch([issue({ tags: [{ id: "t1", name: "electrical" }] })], tags("electrical"));
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Fix leak");
 
     // Tag vocabulary loads asynchronously; wait for the filter group + its label.
@@ -297,7 +297,7 @@ describe("projectIssuesTab", () => {
       [issue({ id: "i1", title: "Fix leak", status: "todo", tags: [{ id: "t3", name: "gamma" }] })],
       tags("alpha", "beta", "gamma"),
     );
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Fix leak");
 
     const more = screen.getByRole("combobox", { name: "More tags" });
@@ -362,7 +362,7 @@ describe("projectIssuesTab", () => {
     const user = userEvent.setup();
     routeFetch([]);
     renderWithProviders(
-      <ProjectIssuesTab projectId="p1" members={[member()]} userNames={new Map([["u1", "Alice"]])} />,
+      <ProjectIssuesTab projectId="p1" members={[member()]} userNames={new Map([["u1", "Alice"]])} canManage />,
     );
     await screen.findByText("No work orders found.");
 
@@ -404,7 +404,7 @@ describe("projectIssuesTab", () => {
   it("opens the composer pre-set to a status via the section quick-create", async () => {
     const user = userEvent.setup();
     routeFetch([issue({ id: "i9", title: "Done thing", status: "done" })]);
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Done thing");
 
     const doneRegion = screen.getByRole("region", { name: "Done" });
@@ -432,7 +432,7 @@ describe("projectIssuesTab", () => {
     (HTMLInputElement.prototype as { showPicker?: (() => void) | undefined }).showPicker = showPicker;
     try {
       routeFetch([]);
-      renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+      renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
       await screen.findByText("No work orders found.");
       await user.click(screen.getByRole("button", { name: "Create work order" }));
       const dialog = await screen.findByRole("dialog");
@@ -448,7 +448,7 @@ describe("projectIssuesTab", () => {
   it("shows a roomy multi-line description field in the create dialog", async () => {
     const user = userEvent.setup();
     routeFetch([]);
-    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("No work orders found.");
     await user.click(screen.getByRole("button", { name: "Create work order" }));
     const description = await screen.findByLabelText("Description");
