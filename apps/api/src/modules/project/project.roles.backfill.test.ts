@@ -13,7 +13,7 @@ import {
   READER_CAPS,
   WRITER_CAPS,
 } from "./project.roles";
-import { projectMembers, projectRoles, projects } from "./schema";
+import { PROJECT_CAPABILITIES, projectMembers, projectRoles, projects } from "./schema";
 
 const nanoid8 = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -135,6 +135,7 @@ async function insertLegacyProject(): Promise<{
 
 /**
  * Insert a new-style project (already has Owner+Guest+Reader+Commenter+Writer).
+ * Owner has kind='owner' and the full 12-cap set — fully correct.
  */
 async function insertNewStyleProject(): Promise<{ projectId: string }> {
   const projectId = nanoid8();
@@ -157,7 +158,174 @@ async function insertNewStyleProject(): Promise<{ projectId: string }> {
       id: nanoid8(),
       projectId,
       name: "Project Owner",
+      capabilities: JSON.stringify([...PROJECT_CAPABILITIES]),
+      isSystem: 1,
+      kind: "owner",
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Guest",
       capabilities: "[]",
+      isSystem: 1,
+      kind: "guest",
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Reader",
+      capabilities: JSON.stringify([...READER_CAPS]),
+      isSystem: 0,
+      kind: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Commenter",
+      capabilities: JSON.stringify([...COMMENTER_CAPS]),
+      isSystem: 0,
+      kind: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Writer",
+      capabilities: JSON.stringify([...WRITER_CAPS]),
+      isSystem: 0,
+      kind: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]).run();
+
+  return { projectId };
+}
+
+/**
+ * Insert a project whose Owner already has kind='owner' but only the old 7-cap set.
+ * Guest, Reader, Commenter, Writer are already present.
+ * Represents the real-world "already-backfilled-but-wrong-caps" state.
+ */
+async function insertPartiallyBackfilledProject(): Promise<{
+  projectId: string;
+  ownerRoleId: string;
+}> {
+  const projectId = nanoid8();
+  const ownerRoleId = nanoid8();
+  const now = new Date().toISOString();
+  const userId = await seedUser();
+
+  const OLD_7_CAPS = [
+    "project.manage",
+    "members.manage",
+    "roles.manage",
+    "categories.manage",
+    "procurement.view",
+    "procurement.manage",
+    "issue.manage",
+  ];
+
+  await db.insert(projects).values({
+    id: projectId,
+    shortId: nanoid8(),
+    code: `P-${nanoid8()}`,
+    name: "Partially Backfilled Project",
+    status: "active",
+    creatorId: userId,
+    version: 1,
+    updatedAt: now,
+  }).run();
+
+  await db.insert(projectRoles).values([
+    {
+      id: ownerRoleId,
+      projectId,
+      name: "Project Owner",
+      capabilities: JSON.stringify(OLD_7_CAPS),
+      isSystem: 1,
+      kind: "owner",
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Guest",
+      capabilities: "[]",
+      isSystem: 1,
+      kind: "guest",
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Reader",
+      capabilities: JSON.stringify([...READER_CAPS]),
+      isSystem: 0,
+      kind: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Commenter",
+      capabilities: JSON.stringify([...COMMENTER_CAPS]),
+      isSystem: 0,
+      kind: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Writer",
+      capabilities: JSON.stringify([...WRITER_CAPS]),
+      isSystem: 0,
+      kind: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]).run();
+
+  return { projectId, ownerRoleId };
+}
+
+/**
+ * Insert a fully-correct new-style project: Owner kind='owner' with all 12 caps,
+ * Guest present, Reader/Commenter/Writer presets present.
+ */
+async function insertFullyCorrectProject(): Promise<{ projectId: string }> {
+  const projectId = nanoid8();
+  const now = new Date().toISOString();
+  const userId = await seedUser();
+
+  await db.insert(projects).values({
+    id: projectId,
+    shortId: nanoid8(),
+    code: `P-${nanoid8()}`,
+    name: "Fully Correct Project",
+    status: "active",
+    creatorId: userId,
+    version: 1,
+    updatedAt: now,
+  }).run();
+
+  await db.insert(projectRoles).values([
+    {
+      id: nanoid8(),
+      projectId,
+      name: "Project Owner",
+      capabilities: JSON.stringify([...PROJECT_CAPABILITIES]),
       isSystem: 1,
       kind: "owner",
       createdAt: now,
@@ -325,5 +493,57 @@ describe("backfillProjectRoles", () => {
     expect(result.projectsScanned).toBe(0);
     expect(result.projectsTouched).toBe(0);
     expect(result.rolesInserted).toBe(0);
+  });
+
+  test("owner with old 7 caps gets upgraded to full 12 PROJECT_CAPABILITIES", async () => {
+    const { ownerRoleId } = await insertPartiallyBackfilledProject();
+
+    const result = await backfillProjectRoles(db);
+
+    expect(result.projectsScanned).toBe(1);
+    expect(result.projectsTouched).toBe(1);
+    expect(result.rolesInserted).toBe(0);
+
+    const ownerRow = await db
+      .select()
+      .from(projectRoles)
+      .where(eq(projectRoles.id, ownerRoleId))
+      .get();
+
+    expect(ownerRow).toBeDefined();
+    expect(ownerRow!.kind).toBe("owner");
+
+    const caps = JSON.parse(ownerRow!.capabilities) as string[];
+    // Assert each of the 5 previously-missing caps is now present
+    expect(caps).toContain("issue.view");
+    expect(caps).toContain("issue.comment");
+    expect(caps).toContain("procurement.comment");
+    expect(caps).toContain("files.view");
+    expect(caps).toContain("files.manage");
+    // Assert all 12 caps are present
+    expect(caps.sort()).toEqual([...PROJECT_CAPABILITIES].sort());
+  });
+
+  test("fully-correct project is idempotent: backfill makes no changes", async () => {
+    await insertFullyCorrectProject();
+
+    const result = await backfillProjectRoles(db);
+
+    expect(result.projectsScanned).toBe(1);
+    expect(result.projectsTouched).toBe(0);
+    expect(result.rolesInserted).toBe(0);
+  });
+
+  test("idempotent second run after partial backfill: 0 touched and 0 owner-cap changes", async () => {
+    await insertPartiallyBackfilledProject();
+
+    // First run fixes the owner caps
+    const result1 = await backfillProjectRoles(db);
+    expect(result1.projectsTouched).toBe(1);
+
+    // Second run must be a true no-op
+    const result2 = await backfillProjectRoles(db);
+    expect(result2.projectsTouched).toBe(0);
+    expect(result2.rolesInserted).toBe(0);
   });
 });
