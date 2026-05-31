@@ -93,6 +93,7 @@ apps/api/src/modules/
   ship/            # thin aggregate over project, issue, and drive
   settings/
   system/
+  tag/             # central tag vocabulary + the shared tags_refs assignment table
 ```
 
 | Module | Responsibility | Details |
@@ -111,6 +112,7 @@ apps/api/src/modules/
 | `ship` | Ship aggregate: core ship records, equipment, maintenance templates, project-backed work orders, and base-project files. | - |
 | `settings` | Runtime key/value settings store. | [settings.md](modules/settings.md) |
 | `system` | Health probes, build version, Prometheus metrics, upload limits. | [system.md](modules/system.md) |
+| `tag` | Central tag vocabulary plus the shared `tags_refs` assignment table; owns all tag storage so no other module needs a tag join table. | - |
 
 ## Ship Module
 
@@ -133,6 +135,26 @@ issues remain readable.
 Ship files reuse drive's existing `project` owner type with
 `ownerType=project&ownerId=<baseProjectId>`. The ship module does not add a
 ship-specific file store or change drive behavior.
+
+## Tag Module
+
+Tags are owned centrally by the `tag` module. **Modules MUST NOT own their own
+tag table.** All tag storage and assignment go through the tag module: it owns
+both the tag vocabulary (the `tags` table, keyed by `type` —
+`project | contact | document | issue | procurement`) and the assignment
+storage.
+
+Assignments live in one generic many-to-many table, `tags_refs(resource_id,
+tag_id)`, with PK `(resource_id, tag_id)`, an index on `tag_id` for reverse
+lookup, `tag_id` FK -> `tags.id` `ON DELETE CASCADE`, and no FK on `resource_id`
+(it points at projects / contacts / items generically; the source type is
+derived from the joined tag row). There are no per-domain tag join tables.
+
+A source registry lets the tag module validate `type` without importing any
+domain schema, so the dependency only ever points from domains into the tag
+module. Because `resource_id` has no FK cascade, each domain removes its
+`tags_refs` rows at the application level when a resource is deleted. See
+[decision 006](decisions/006-unify-tags-into-tag-module.md).
 
 ## Request Flow
 

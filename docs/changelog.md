@@ -73,6 +73,20 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Tags unified into the central tag module (REFACTOR-009 / PLAN-043): no module
+  owns a tag join table anymore. `tags.source_type` was renamed to `tags.type`
+  (`sourceType` -> `type`, `TAG_SOURCE_TYPES` -> `TAG_TYPES`, `TagSourceType` ->
+  `TagType`; values unchanged: `project / contact / document / issue /
+  procurement`), and a single generic `tags_refs(resource_id, tag_id)` table in
+  the tag module now backs every domain — PK `(resource_id, tag_id)`, index on
+  `tag_id`, `tag_id` FK -> `tags.id` `ON DELETE CASCADE`, no FK on `resource_id`
+  (the source type is derived from the joined tag row). `ResourceTagBinding`
+  collapses to `{ type }` over the shared table behind the source registry, so
+  the tag module still imports no domain schema. Each domain cleans up its
+  `tags_refs` rows on resource delete at the application level. Breaking schema
+  change (dev stage, no data migration; DB reset). Recorded as
+  [decision 006](decisions/006-unify-tags-into-tag-module.md).
+
 - Issue status enum normalized to `todo / working / review / done / cancel`
   (REFACTOR-008): replaces the former `open / in_progress / done / cancelled`
   across the API (`IssueStatus`, the create/update zod enums, `createIssue`
@@ -178,6 +192,11 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   `settings` search param.
 
 ### Removed
+
+- The five per-domain tag join tables `project_tags`, `contact_tags`,
+  `issue_tags`, `document_tags`, and `procurement_tags` (REFACTOR-009 /
+  PLAN-043): all tag assignments now live in the single `tags_refs` table owned
+  by the tag module. No data migration; the dev DB is reset.
 
 - The legacy `document_details.tags` JSON column (REFACTOR-005 / PLAN-031):
   document tags now live solely in the `document_tags` join over the shared
