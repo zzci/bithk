@@ -38,7 +38,7 @@ export function ViewModeToggle({
 }) {
   const { t } = useTranslation("drive");
   return (
-    <div className="mr-1 flex items-center gap-1 rounded-md border bg-background p-0.5">
+    <div className="mr-1 flex h-8 items-center gap-1 rounded-md border bg-background px-0.5">
       <Button
         variant="ghost"
         size="icon"
