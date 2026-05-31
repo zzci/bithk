@@ -190,7 +190,7 @@ export function CommandPalette({
           />
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             onClick={() => onOpenChange(false)}
             aria-label={t("common:search.close")}
             className="-mr-1 text-muted-foreground"

@@ -149,8 +149,7 @@ export function ResourceAttachmentSection({
                   <div className="pointer-events-none flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
                     <Button
                       variant="ghost"
-                      size="icon-sm"
-                      className="size-7"
+                      size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDownload(att);
@@ -162,8 +161,8 @@ export function ResourceAttachmentSection({
                     {canDelete(att) && (
                       <Button
                         variant="ghost"
-                        size="icon-sm"
-                        className="size-7 hover:bg-destructive/10 hover:text-destructive"
+                        size="icon"
+                        className="hover:bg-destructive/10 hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeleteTarget(att);
@@ -243,10 +242,10 @@ function ResourceAttachmentPreviewDialog({
             </DialogDescription>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button variant="ghost" size="icon-sm" onClick={onDownload} title={t("attachments.download")}>
+            <Button variant="ghost" size="icon" onClick={onDownload} title={t("attachments.download")}>
               <Download className="size-4" />
             </Button>
-            <Button variant="ghost" size="icon-sm" onClick={onClose} title={t("common.close")}>
+            <Button variant="ghost" size="icon" onClick={onClose} title={t("common.close")}>
               <X className="size-4" />
             </Button>
           </div>

@@ -89,7 +89,7 @@ function CollapseToggle() {
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             className="text-sidebar-foreground/70 hover:text-sidebar-foreground"
             aria-label={label}
             aria-expanded={open}

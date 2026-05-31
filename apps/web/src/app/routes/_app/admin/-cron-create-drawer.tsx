@@ -111,7 +111,7 @@ export function CreateJobDrawer({
             <h2 className="text-base font-semibold tracking-tight">{t("createJob")}</h2>
             <p className="text-xs text-muted-foreground">{t("drawer.subtitle")}</p>
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t("common.close", { ns: "common" })}>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label={t("common.close", { ns: "common" })}>
             <X className="size-4" />
           </Button>
         </div>

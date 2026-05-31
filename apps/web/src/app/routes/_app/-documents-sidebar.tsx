@@ -161,7 +161,7 @@ export function DocumentsSidebar({
       <div className="flex h-[45px] shrink-0 items-center gap-1 border-b border-border px-4">
         <h2 className="flex-1 truncate text-base font-semibold tracking-tight">{t("page.title")}</h2>
         <Button
-          size="icon-sm"
+          size="icon"
           variant="ghost"
           onClick={() => setSearchOpen(true)}
           title={t("searchPlaceholder")}
@@ -169,7 +169,7 @@ export function DocumentsSidebar({
           <Search className="size-4" />
         </Button>
         <Button
-          size="icon-sm"
+          size="icon"
           variant="ghost"
           onClick={onCreate}
           title={t("create")}

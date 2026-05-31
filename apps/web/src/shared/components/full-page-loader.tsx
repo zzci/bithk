@@ -38,7 +38,7 @@ export function FullPageLoader({ onRetry }: FullPageLoaderProps) {
           <span className="text-xs text-muted-foreground">
             {t("common.stillLoading")}
           </span>
-          <Button variant="outline" size="sm" onClick={handleRetry}>
+          <Button variant="outline" onClick={handleRetry}>
             {t("common.retry")}
           </Button>
         </div>

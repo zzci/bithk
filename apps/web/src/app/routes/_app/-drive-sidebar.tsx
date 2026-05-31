@@ -142,7 +142,7 @@ export function DriveSidebar({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={(
-              <Button variant="default" size="icon-sm" disabled={!user} aria-label={t("browser.create")} />
+              <Button variant="default" size="icon" disabled={!user} aria-label={t("browser.create")} />
             )}
           >
             <Plus className="size-4" />
@@ -280,7 +280,7 @@ export function DriveSidebar({
                       render={(
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon-xs"
                           aria-label={t("team.col.actions")}
                           className="absolute top-1/2 right-2 size-6 -translate-y-1/2 opacity-0 transition-opacity group-hover/dir:opacity-100 data-[popup-open]:opacity-100"
                         />

@@ -48,7 +48,7 @@ export interface ItemActionsContext {
   readonly getCustomActions?: ((item: DisplayItem) => FileListAction[]) | undefined;
 }
 
-const actionButtonClass = "size-7 rounded-full text-muted-foreground hover:text-foreground";
+const actionButtonClass = "size-8 rounded-full text-muted-foreground hover:text-foreground";
 
 export function ItemMenu({ item, ctx }: { readonly item: DisplayItem; readonly ctx: ItemActionsContext }) {
   const { t } = useTranslation("drive");
@@ -78,7 +78,7 @@ export function ItemMenu({ item, ctx }: { readonly item: DisplayItem; readonly c
           <Button
             data-drive-action
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             aria-label={t("browser.action.more")}
             onClick={e => e.stopPropagation()}
           />
