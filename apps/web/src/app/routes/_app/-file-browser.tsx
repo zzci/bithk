@@ -86,7 +86,6 @@ export function FileBrowser({
   const [dialog, setDialog] = useState<DialogState>(null);
   const [dragDepth, setDragDepth] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchScope, setSearchScope] = useState<"current" | "drive">("current");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -95,7 +94,7 @@ export function FileBrowser({
 
   const entriesQuery = useDriveEntries(parentEntryId, "normal", owner);
   const searchEntriesQuery = useDriveSearchEntries(searchQuery, owner);
-  const useDriveSearch = searchScope === "drive" && searchQuery.trim().length > 0;
+  const useDriveSearch = searchQuery.trim().length > 0;
   const activeQuery = useDriveSearch ? searchEntriesQuery : entriesQuery;
   const entries = useMemo(() => activeQuery.data ?? [], [activeQuery.data]);
 
@@ -316,8 +315,6 @@ export function FileBrowser({
         showSearch={showSearch}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
-        searchScope={searchScope}
-        onSearchScopeChange={setSearchScope}
         banner={error ? <ErrorBanner message={error.message} className="mx-4 mb-2" /> : undefined}
       />
 

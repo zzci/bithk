@@ -41,10 +41,6 @@
     "collapse": "收起",
     "expand": "展开",
     "searchPlaceholder": "搜索文件",
-    "search": {
-      "current": "Current folder",
-      "drive": "All drive"
-    },
     "breadcrumbRoot": "根目录",
     "dropHere": "拖放文件以上传",
     "selectAll": "全选",
