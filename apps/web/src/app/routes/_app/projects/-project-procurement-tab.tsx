@@ -62,15 +62,6 @@ import { buildMemberLabelMap } from "./-member-helpers";
 import { ProjectTagFilter } from "./-project-tag-filter";
 import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
-// Shared grid template so the header row and every data row align on the same
-// column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
-// secondary columns appear progressively at sm/md to keep rows single-line on
-// mobile. Columns: itemName | status | amount(right) | category | supplier.
-const PROCUREMENT_GRID
-  = "grid grid-cols-[minmax(0,1fr)_6rem_6.5rem] items-center gap-3"
-  + " sm:grid-cols-[minmax(0,1fr)_6rem_6.5rem_8rem]"
-  + " md:grid-cols-[minmax(0,1fr)_6rem_6.5rem_8rem_9rem]";
-
 interface ProjectProcurementTabProps {
   readonly projectId: string;
   readonly members: readonly ProjectMemberView[];
@@ -214,43 +205,31 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
         : rows.length === 0
           ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("procurement.empty")}</p>
           : (
-              <div className="overflow-hidden rounded-md border border-border">
-                {/* Header row — shares PROCUREMENT_GRID so its labels sit over the
-                    same column tracks as every data row below. */}
-                <div className="flex items-stretch border-b border-border bg-muted/40">
-                  <div className={cn(PROCUREMENT_GRID, "min-w-0 flex-1 px-3 py-2 text-xs font-medium text-muted-foreground")}>
-                    <span className="truncate">{t("procurement.field.itemName")}</span>
-                    <span className="truncate">{t("procurement.field.status")}</span>
-                    <span className="truncate text-right">{t("procurement.field.amount")}</span>
-                    <span className="hidden truncate sm:block">{t("procurement.field.category")}</span>
-                    <span className="hidden truncate md:block">{t("procurement.field.supplier")}</span>
-                  </div>
-                  {canManage && <div className="w-9 shrink-0" aria-hidden="true" />}
-                </div>
-                <ul>
-                  {rows.map(row => (
-                    <li key={row.id} className="group flex items-stretch border-t border-border odd:bg-muted/20 transition-colors hover:bg-muted/50">
-                      <button
-                        type="button"
-                        aria-label={row.itemName}
-                        className={cn(PROCUREMENT_GRID, "min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
-                        onClick={() => openProcurement(row.id)}
-                      >
-                        <span className="min-w-0 truncate text-sm font-medium">{row.itemName}</span>
-                        <Badge variant="secondary" className={cn("w-fit max-w-full truncate", PROCUREMENT_STATUS_BADGE[row.status])}>{t(`procurement.status.${row.status}` as const)}</Badge>
-                        <span className="truncate text-right text-xs tabular-nums text-muted-foreground">{formatAmount(row)}</span>
-                        <span className="hidden truncate text-xs text-muted-foreground sm:block">{categoryName(row.categoryId)}</span>
-                        <span className="hidden truncate text-xs text-muted-foreground md:block">{supplierName(row.supplierId)}</span>
-                      </button>
-                      {canManage && (
-                        <div className="flex w-9 shrink-0 items-center justify-center">
-                          <ProcurementPinToggle projectId={projectId} row={row} />
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ul>
+                {rows.map(row => (
+                  <li key={row.id} className="group flex items-center rounded-md transition-colors hover:bg-muted/50">
+                    <button
+                      type="button"
+                      aria-label={row.itemName}
+                      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => openProcurement(row.id)}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{row.itemName}</span>
+                      <Badge variant="secondary" className={cn("shrink-0", PROCUREMENT_STATUS_BADGE[row.status])}>{t(`procurement.status.${row.status}` as const)}</Badge>
+                      <div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+                        <span className="tabular-nums">{formatAmount(row)}</span>
+                        <span className="hidden truncate sm:inline">{categoryName(row.categoryId)}</span>
+                        <span className="hidden truncate md:inline">{supplierName(row.supplierId)}</span>
+                      </div>
+                    </button>
+                    {canManage && (
+                      <div className="shrink-0 pr-1 transition-opacity">
+                        <ProcurementPinToggle projectId={projectId} row={row} />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
             )}
       {totalPages > 1 && meta && (
         <div className="flex items-center justify-between px-3 py-2">
