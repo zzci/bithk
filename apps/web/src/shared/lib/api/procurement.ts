@@ -36,7 +36,7 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
 ];
 
 // Tag reference carried on procurement rows and detail (name resolved by the
-// API). Mirrors `IssueTagRef` (source_type='procurement').
+// API). Mirrors `IssueTagRef` (type='procurement').
 export interface ProcurementTagRef {
   readonly id: string;
   readonly name: string;
@@ -70,7 +70,7 @@ export interface ProcurementRow {
   readonly priority: ProcurementPriority;
   readonly dueDate: string | null;
   readonly creatorId: string;
-  // Assigned tags (source_type='procurement'), resolved by the API.
+  // Assigned tags (type='procurement'), resolved by the API.
   readonly tags: readonly ProcurementTagRef[];
   // Pin state from the shared item base; mirrors ProjectIssueRow.
   readonly pinned: boolean;
@@ -205,7 +205,7 @@ export interface CreateProcurementInput {
   readonly description?: string;
   readonly priority?: ProcurementPriority;
   readonly dueDate?: string;
-  // Optional tag names (source_type='procurement') synced with the procurement.
+  // Optional tag names (type='procurement') synced with the procurement.
   readonly tags?: readonly string[];
 }
 
@@ -236,7 +236,7 @@ export interface UpdateProcurementInput {
   readonly description?: string | null;
   readonly priority?: ProcurementPriority;
   readonly dueDate?: string | null;
-  // Replacement tag set (source_type='procurement'); omit to leave tags unchanged.
+  // Replacement tag set (type='procurement'); omit to leave tags unchanged.
   readonly tags?: readonly string[];
 }
 
