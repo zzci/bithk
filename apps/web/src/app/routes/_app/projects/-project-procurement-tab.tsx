@@ -66,10 +66,11 @@ import { ProjectTagsCombobox } from "./-project-tags-combobox";
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
 // mobile. Columns: itemName | status | amount(right) | category | supplier.
-const PROCUREMENT_GRID
-  = "grid grid-cols-[minmax(0,1fr)_6rem_6.5rem] items-center gap-3"
-  + " sm:grid-cols-[minmax(0,1fr)_6rem_6.5rem_8rem]"
-  + " md:grid-cols-[minmax(0,1fr)_6rem_6.5rem_8rem_9rem]";
+const PROCUREMENT_GRID = [
+  "grid grid-cols-[minmax(0,1fr)_6rem_6.5rem] items-center gap-3",
+  "sm:grid-cols-[minmax(0,1fr)_6rem_6.5rem_8rem]",
+  "md:grid-cols-[minmax(0,1fr)_6rem_6.5rem_8rem_9rem]",
+].join(" ");
 
 interface ProjectProcurementTabProps {
   readonly projectId: string;
