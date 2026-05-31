@@ -79,8 +79,10 @@ interface ProjectProcurementPanelProps {
   readonly procurementId: string;
   readonly members: readonly ProjectMemberView[];
   readonly userNames: ReadonlyMap<string, string>;
-  /** True when the caller is a procurement manager or app admin. */
+  /** True when the caller has `procurement.manage`. */
   readonly canManage: boolean;
+  /** True when the caller has `procurement.comment` (can post comments). */
+  readonly canComment?: boolean;
   readonly variant: "drawer" | "fullscreen";
   readonly onClose: () => void;
   readonly onMaximize?: () => void;
@@ -92,6 +94,7 @@ export function ProjectProcurementPanel({
   members,
   userNames,
   canManage,
+  canComment = true,
   variant,
   onClose,
   onMaximize,
@@ -685,6 +688,7 @@ export function ProjectProcurementPanel({
           resourceId={procurement.id}
           i18nNs="issues"
           userMap={userMap}
+          commentsLocked={!canComment}
           commentsEnableReply
           commentsEnableAttachments
           commentsStickyComposer

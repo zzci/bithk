@@ -51,6 +51,29 @@ const CAPABILITY_GROUPS: ReadonlyArray<readonly [string, readonly ProjectCapabil
   return order.map(module => [module, byModule.get(module)!] as const);
 })();
 
+// Preset capability sets for Reader / Commenter / Writer quick-fill buttons.
+const PRESET_READER: readonly ProjectCapability[] = ["issue.view", "procurement.view", "files.view"];
+const PRESET_COMMENTER: readonly ProjectCapability[] = [
+  ...PRESET_READER,
+  "issue.comment",
+  "procurement.comment",
+];
+const PRESET_WRITER: readonly ProjectCapability[] = [
+  ...PRESET_COMMENTER,
+  "issue.manage",
+  "procurement.manage",
+  "files.manage",
+  "categories.manage",
+];
+
+/** Resolve the display label for a system role based on its `kind` field. */
+function systemRoleLabel(role: ProjectRoleView, ownerLabel: string, guestLabel: string): string {
+  if (role.kind === "guest")
+    return guestLabel;
+  // kind==="owner" or legacy system roles with no kind
+  return ownerLabel;
+}
+
 interface ProjectSettingsRolesProps {
   readonly projectId: string;
   readonly canManage: boolean;
@@ -88,9 +111,17 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{role.isSystem ? t("roles.owner") : role.name}</span>
+                      <span className="font-medium">
+                        {role.isSystem
+                          ? systemRoleLabel(role, t("roles.owner"), t("roles.guest"))
+                          : role.name}
+                      </span>
                       {role.isSystem && <Badge variant="outline" className="text-xs">{t("roles.system")}</Badge>}
                     </div>
+                    {/* Guest system role: show the fallback explanation. */}
+                    {role.isSystem && role.kind === "guest" && (
+                      <p className="text-xs text-muted-foreground">{t("roles.guestFallbackNote")}</p>
+                    )}
                     {/* The system owner role holds every capability and is
                         capability-locked; the badge list is noise, so we omit it
                         and only show capabilities for custom roles. */}
@@ -186,6 +217,10 @@ function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogPro
     );
   };
 
+  const applyPreset = (preset: readonly ProjectCapability[]) => {
+    setCapabilities(preset);
+  };
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim() || pending)
@@ -224,6 +259,22 @@ function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogPro
           <div className="space-y-1.5">
             <Label htmlFor="role-name">{t("roles.field.name")}</Label>
             <Input id="role-name" autoFocus required value={name} onChange={e => setName(e.target.value)} />
+          </div>
+
+          {/* Preset quick-fill buttons: Reader / Commenter / Writer. */}
+          <div className="space-y-1.5">
+            <Label>{t("roles.presets.label")}</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset(PRESET_READER)}>
+                {t("roles.presets.reader")}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset(PRESET_COMMENTER)}>
+                {t("roles.presets.commenter")}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset(PRESET_WRITER)}>
+                {t("roles.presets.writer")}
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">

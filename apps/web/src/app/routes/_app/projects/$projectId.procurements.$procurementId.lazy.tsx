@@ -123,7 +123,8 @@ function ProjectProcurementDrawer() {
           procurementId={procurementId}
           members={members}
           userNames={userNames}
-          canManage={caps.has("procurement.manage")}
+          canManage={caps.canManageProcurement}
+          canComment={caps.canCommentProcurement}
           variant="drawer"
           onClose={close}
           onMaximize={() => void navigate({

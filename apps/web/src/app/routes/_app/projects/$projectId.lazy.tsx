@@ -51,7 +51,7 @@ function ProjectDetailLayout() {
   const project = projectQuery.data;
   const caps = useProjectCapabilities(project);
 
-  const issuesCountQuery = useProjectIssues(projectId, { limit: 1 });
+  const issuesCountQuery = useProjectIssues(caps.canViewIssues ? projectId : undefined, { limit: 1 });
   const procurementCountQuery = useProcurements(projectId, { limit: 1 }, caps.canViewProcurement);
   const issuesCount = issuesCountQuery.data?.meta.total;
   const procurementCount = procurementCountQuery.data?.meta.total;
@@ -151,19 +151,23 @@ function ProjectDetailLayout() {
           <TabsTrigger value="overview" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
             {t("tabs.overview")}
           </TabsTrigger>
-          <TabsTrigger value="issues" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
-            {t("tabs.issues")}
-            {tabCount(issuesCount)}
-          </TabsTrigger>
+          {caps.canViewIssues && (
+            <TabsTrigger value="issues" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
+              {t("tabs.issues")}
+              {tabCount(issuesCount)}
+            </TabsTrigger>
+          )}
           {caps.canViewProcurement && (
             <TabsTrigger value="procurement" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
               {t("tabs.procurement")}
               {tabCount(procurementCount)}
             </TabsTrigger>
           )}
-          <TabsTrigger value="files" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
-            {t("tabs.files")}
-          </TabsTrigger>
+          {caps.canViewFiles && (
+            <TabsTrigger value="files" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
+              {t("tabs.files")}
+            </TabsTrigger>
+          )}
         </TabsList>
       </Tabs>
 

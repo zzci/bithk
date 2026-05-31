@@ -122,7 +122,8 @@ function ProjectIssueDrawer() {
           issueId={issueId}
           members={members}
           userNames={userNames}
-          canManage={caps.has("issue.manage")}
+          canManage={caps.canManageIssues}
+          canComment={caps.canCommentIssues}
           variant="drawer"
           onClose={close}
           onMaximize={() => void navigate({

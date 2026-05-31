@@ -333,6 +333,7 @@
     "guest": "Guest",
     "system": "System",
     "noCapabilities": "No capabilities",
+    "guestFallbackNote": "Members of a deleted role fall back to this role.",
     "createTitle": "Create role",
     "editTitle": "Edit role",
     "dialogDescription": "Choose the capabilities this role grants.",
@@ -340,9 +341,15 @@
       "name": "Name",
       "capabilities": "Capabilities"
     },
+    "presets": {
+      "label": "Quick-fill preset",
+      "reader": "Reader",
+      "commenter": "Commenter",
+      "writer": "Writer"
+    },
     "delete": {
       "title": "Delete role",
-      "confirm": "Are you sure you want to delete the role \"{{name}}\"? This action cannot be undone."
+      "confirm": "Are you sure you want to delete the role \"{{name}}\"? Members holding this role will be moved to Guest. This action cannot be undone."
     }
   },
   "capability": {

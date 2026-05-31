@@ -350,10 +350,12 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
               className="pl-8"
             />
           </div>
-          <Button onClick={() => openCreate("todo")}>
-            <Plus aria-hidden="true" />
-            {t("issues.create")}
-          </Button>
+          {canManage && (
+            <Button onClick={() => openCreate("todo")}>
+              <Plus aria-hidden="true" />
+              {t("issues.create")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -392,16 +394,18 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                               <span className="text-sm font-medium">{label}</span>
                               <span className="text-xs text-muted-foreground">{count}</span>
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={t("issues.createInStatus", { status: label })}
-                              className="size-6 text-muted-foreground"
-                              onClick={() => openCreate(status)}
-                            >
-                              <Plus aria-hidden="true" className="size-4" />
-                            </Button>
+                            {canManage && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("issues.createInStatus", { status: label })}
+                                className="size-6 text-muted-foreground"
+                                onClick={() => openCreate(status)}
+                              >
+                                <Plus aria-hidden="true" className="size-4" />
+                              </Button>
+                            )}
                           </div>
 
                           {!isCollapsed && (
@@ -466,15 +470,17 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                   </div>
                 )}
 
-      <CreateIssueDialog
-        key={createStatus}
-        projectId={projectId}
-        members={members}
-        memberLabels={memberLabels}
-        initialStatus={createStatus}
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-      />
+      {canManage && (
+        <CreateIssueDialog
+          key={createStatus}
+          projectId={projectId}
+          members={members}
+          memberLabels={memberLabels}
+          initialStatus={createStatus}
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+        />
+      )}
     </div>
   );
 }
