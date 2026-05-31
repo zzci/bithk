@@ -153,7 +153,7 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
     <div className="space-y-4">
       {canManage && (
         <div className="flex justify-end">
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 size-4" />
             {t("roles.add")}
           </Button>
@@ -196,10 +196,10 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
                   </div>
                   {canManage && !role.isSystem && (
                     <div className="flex shrink-0 gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => setEditTarget(role)}>
+                      <Button variant="ghost" onClick={() => setEditTarget(role)}>
                         {t("common:common.edit")}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(role)}>
+                      <Button variant="ghost" onClick={() => setDeleteTarget(role)}>
                         {t("common:common.delete")}
                       </Button>
                     </div>
@@ -335,13 +335,13 @@ function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogPro
           <div className="space-y-1.5">
             <Label>{t("roles.presets.label")}</Label>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset(PRESET_READER)}>
+              <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_READER)}>
                 {t("roles.presets.reader")}
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset(PRESET_COMMENTER)}>
+              <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_COMMENTER)}>
                 {t("roles.presets.commenter")}
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset(PRESET_WRITER)}>
+              <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_WRITER)}>
                 {t("roles.presets.writer")}
               </Button>
             </div>

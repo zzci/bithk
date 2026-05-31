@@ -87,7 +87,7 @@ export function ProjectSettingsMembers({ projectId, members, userNames, canManag
     <div className="space-y-4">
       {canManage && (
         <div className="flex justify-end">
-          <Button size="sm" onClick={() => setAddOpen(true)}>
+          <Button onClick={() => setAddOpen(true)}>
             <Plus className="mr-1 size-4" />
             {t("members.add")}
           </Button>
@@ -122,10 +122,10 @@ export function ProjectSettingsMembers({ projectId, members, userNames, canManag
                     {canManage && (
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => setEditTarget(member)}>
+                          <Button variant="ghost" onClick={() => setEditTarget(member)}>
                             {t("common:common.edit")}
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(member)}>
+                          <Button variant="ghost" onClick={() => setDeleteTarget(member)}>
                             {t("common:common.delete")}
                           </Button>
                         </div>

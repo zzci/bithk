@@ -114,7 +114,6 @@ export function ProjectsListPage() {
           ].map(opt => (
             <Button
               key={opt.key}
-              size="sm"
               variant={filter === opt.key ? "default" : "outline"}
               className="h-8 shrink-0 rounded-full"
               aria-pressed={filter === opt.key}
@@ -160,8 +159,8 @@ export function ProjectsListPage() {
         <div className="flex items-center justify-between pt-2">
           <span className="text-xs text-muted-foreground">{t("list.total", { count: meta.total })}</span>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-            <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
+            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
+            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
           </div>
         </div>
       )}
@@ -262,7 +261,7 @@ function ProjectsGrid({
                 {isAdmin && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={t("list.openSettings")}
                     onClick={(event) => {
                       event.stopPropagation();
