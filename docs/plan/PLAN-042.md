@@ -1,6 +1,6 @@
 # PLAN-042 — GitHub-style project role permissions (read / comment / write)
 
-- Status: Approved — implementing (per-module model). L1 PROCEED 2026-05-30.
+- Status: Completed (2026-05-31) — per-module model, all lanes merged, check green.
 - Task: [FEAT-017](../task/FEAT-017.md)
 - Campaign: l1-xlhyvzyz-roleperm-20260530223736
 - Date: 2026-05-30

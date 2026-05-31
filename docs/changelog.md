@@ -13,6 +13,20 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Per-module project role permissions (FEAT-017 / PLAN-042): project roles now
+  carry 12 per-module capabilities — `issue.view/comment/manage`,
+  `procurement.view/comment/manage`, `files.view/manage`, plus the project-level
+  `categories.manage`, `members.manage`, `roles.manage`, `project.manage`. Two
+  implicit, undeletable system roles bracket every project: **Owner** (all caps)
+  and **Guest** (empty / no-permission fallback). Deleting a custom role now
+  auto-reassigns its members to Guest instead of erroring. Seeded editable
+  presets **Reader** (all `*.view`), **Commenter** (+`*.comment`), and **Writer**
+  (+`*.manage` + `categories.manage`) give GitHub-style read / comment /
+  read-write tiers; custom roles may mix per-module freely. Issue, procurement
+  comment, and project-file drive routes are now gated on the matching
+  capability (non-members still blocked); the Roles UI gains per-module
+  capability groups, a preset quick-fill, and locked Owner/Guest rendering.
+
 - Project and ship cover images (FEAT-011 / FEAT-012 / FEAT-013): upload,
   replace, and remove a cover through the file module (`POST`/`DELETE
   /api/projects/:id/cover-image` and `/api/ships/:shortId/cover-image`), stored

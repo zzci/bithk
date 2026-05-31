@@ -1,6 +1,6 @@
 # FEAT-017 — GitHub-style project role permissions (read / comment / write)
 
-- Status: In Progress (L1 PROCEED 2026-05-30 — per-module model)
+- Status: Completed (2026-05-31 — all lanes merged to main, `bun run check` green)
 - Plan: [PLAN-042](../plan/PLAN-042.md)
 - Campaign: l1-xlhyvzyz-roleperm-20260530223736
 - Owner: L2 dispatch
@@ -41,3 +41,10 @@ the issue / comment / drive routes honor the new view + comment capabilities
   PLAN-042 rewritten accordingly. Implementing via DAG B1 → B2‖B3‖B4 → F1,
   each L3 worktree-only. Flag: Member→Reader vs →Guest contradiction in the
   PROCEED message resolved to Reader (see PLAN-042 §5); awaiting L1 confirm.
+- 2026-05-31: **DONE.** All 5 lanes merged to main (B1 4e4d66d, B2 712176c,
+  B3 af098bd, B4 c5f8305, F1 177558b + test-fix 9cc35f4). Verified on main:
+  `bun run check` EXIT=0 — 1191 API + 535 web + 13 shared tests pass. F1 had
+  reported its web-test failures as "environment issues"; on main they were
+  real (7 issue-tab tests needed `canManage`) and were fixed (9cc35f4).
+  Outstanding: L1 to confirm Member→Reader (vs →Guest) mapping — 1-line flip if
+  changed.
