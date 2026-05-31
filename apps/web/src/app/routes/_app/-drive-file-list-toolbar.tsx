@@ -125,14 +125,12 @@ export function FileToolbar({
   showTitle,
   showSearch,
   searchQuery,
-  searchScope,
   filterBar,
   capabilities,
   hasRestore,
   onNavigateToBreadcrumb,
   onRefresh,
   onSearchQueryChange,
-  onSearchScopeChange,
   onViewModeChange,
   onCancelSelection,
   onBatchDownload,
@@ -202,26 +200,6 @@ export function FileToolbar({
         <div className="flex min-h-10 w-max min-w-full items-center gap-3">
           <div className="flex shrink-0 items-center gap-2">
             {variant === "full" && filterBar}
-            {showSearch && variant === "full" && onSearchScopeChange && (
-              <div className="flex items-center rounded-md border bg-background p-0.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn("h-8 px-3 text-xs", (searchScope ?? "current") === "current" && "bg-accent")}
-                  onClick={() => onSearchScopeChange("current")}
-                >
-                  {t("browser.search.current")}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn("h-8 px-3 text-xs", searchScope === "drive" && "bg-accent")}
-                  onClick={() => onSearchScopeChange("drive")}
-                >
-                  {t("browser.search.drive")}
-                </Button>
-              </div>
-            )}
           </div>
 
           <div className="ml-auto flex min-h-9 shrink-0 items-center justify-end gap-1">

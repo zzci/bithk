@@ -108,8 +108,6 @@ export interface DriveFileListSurfaceProps {
   readonly showSearch?: boolean | undefined;
   readonly searchQuery?: string | undefined;
   readonly onSearchQueryChange?: ((query: string) => void) | undefined;
-  readonly searchScope?: "current" | "drive" | undefined;
-  readonly onSearchScopeChange?: ((scope: "current" | "drive") => void) | undefined;
   /**
    * Namespace for the collection toolbar's `titleKey` / `emptyTitleKey` /
    * `emptyDescKey` only. Defaults to `"drive"`; the share lists pass
@@ -169,14 +167,12 @@ export interface FileToolbarProps {
   readonly showTitle: boolean;
   readonly showSearch: boolean;
   readonly searchQuery: string;
-  readonly searchScope?: "current" | "drive" | undefined;
   readonly filterBar: ReactNode;
   readonly capabilities: Required<DriveFileListCapabilities>;
   readonly hasRestore: boolean;
   readonly onNavigateToBreadcrumb: (index: number) => void;
   readonly onRefresh: () => void;
   readonly onSearchQueryChange: (query: string) => void;
-  readonly onSearchScopeChange?: ((scope: "current" | "drive") => void) | undefined;
   readonly onViewModeChange: (mode: "grid" | "list") => void;
   readonly onCancelSelection: () => void;
   readonly onBatchDownload: () => void;

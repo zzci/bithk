@@ -59,8 +59,6 @@ export function DriveFileListSurface({
   showSearch = true,
   searchQuery: controlledSearchQuery,
   onSearchQueryChange,
-  searchScope,
-  onSearchScopeChange,
   i18nNs = "drive",
 }: DriveFileListSurfaceProps) {
   const { t } = useTranslation(["drive", i18nNs]);
@@ -269,14 +267,12 @@ export function DriveFileListSurface({
               showTitle={showTitle}
               showSearch={showSearch}
               searchQuery={searchQuery}
-              searchScope={searchScope}
               filterBar={filterBar}
               capabilities={resolvedCapabilities}
               hasRestore={Boolean(actions.onBatchRestore)}
               onNavigateToBreadcrumb={toolbar.onNavigateToBreadcrumb}
               onRefresh={actions.onRefresh}
               onSearchQueryChange={setSearchQuery}
-              onSearchScopeChange={onSearchScopeChange}
               onViewModeChange={setViewMode}
               onCancelSelection={() => handleSelectionModeChange(false)}
               onBatchDownload={handleBatchDownload}

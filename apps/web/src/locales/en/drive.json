@@ -41,10 +41,6 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "searchPlaceholder": "Search files",
-    "search": {
-      "current": "Current folder",
-      "drive": "All drive"
-    },
     "breadcrumbRoot": "Root",
     "dropHere": "Drop files to upload",
     "selectAll": "Select all",
