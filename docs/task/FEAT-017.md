@@ -54,3 +54,21 @@ the issue / comment / drive routes honor the new view + comment capabilities
   "3-tier radio role editor" spec; admin caps stay independent toggles; new
   `radio-group.tsx` on `@base-ui` (no Radix). Verified on main: `bun run check`
   EXIT=0 — 1191 API + 544 web + 13 shared pass.
+- 2026-05-31: **Confirmed Member→Reader** (L1) — no flip.
+- 2026-05-31: **Backfill fix (critical).** B1's migration only added the `kind`
+  column — it did NOT backfill the 30 existing projects (verified on the live DB:
+  all 60 roles `kind=NULL`, no Guest, no presets, Member not→Reader). Added an
+  idempotent boot-time `backfillProjectRoles(db)` in `project.roles.ts`, wired
+  into `bootstrap()` after `createDb` (runs on server boot / migrate-on-boot, not
+  in unit tests): per project it sets the Owner role `kind='owner'` **and
+  normalizes its caps to the full 12-cap set**, inserts a Guest role if missing,
+  renames the empty `Member` role → `Reader` (preserving member assignments) with
+  the `*.view` caps, and inserts any missing Reader/Commenter/Writer presets.
+  Self-healing (no whole-project skip sentinel) so a partially-migrated project
+  converges on the next boot. Merges: backfill eec1cb7, owner-cap self-heal
+  0ffa44e (→ main 35d7726). Verified LIVE on the real dev DB (`data/db/app.db`)
+  after dev-server restart: boot logged `scanned=30 touched=30 inserted=90` then
+  `touched=30 inserted=0` (owner-cap upgrade) then steady `touched=0 inserted=0`
+  (idempotent); sqlite shows 30 owner + 30 guest roles, every Owner on the full
+  12-cap set, 0 orphan `kind=NULL` system roles, every project has all 3 presets.
+  `bun run check` EXIT=0 (1199 API + 544 web + 13 shared). Agent worktrees cleaned.
