@@ -73,6 +73,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Unified all interactive buttons onto one app-wide sizing standard: non-icon
+  buttons use the `Button` default size (`h-8`) and icon-only buttons use
+  `size="icon"` (`size-8`), replacing scattered `size="sm"` / `size="lg"` /
+  `size="icon-sm"` / `size="icon-lg"` variants and ad-hoc `h-7` / `h-9` / `h-10`
+  / `size-7` / `size-9` height overrides; a bounded `xs` / `icon-xs` (`size-6`)
+  exception remains for tiny inline affordances. Form fields (`Input`,
+  `SelectTrigger`) and `Badge` components are out of scope. The project
+  tag-filter is capped to 7 inline tags. Recorded as
+  [decision 007](decisions/007-button-sizing-standard.md).
+
 - Tags unified into the central tag module (REFACTOR-009 / PLAN-043): no module
   owns a tag join table anymore. `tags.source_type` was renamed to `tags.type`
   (`sourceType` -> `type`, `TAG_SOURCE_TYPES` -> `TAG_TYPES`, `TagSourceType` ->
