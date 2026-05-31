@@ -12,7 +12,7 @@ import type {
 } from "@/shared/lib/api/procurement";
 import type { ProjectMemberView, ProjectTag } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
-import { Pin, PinOff, Plus, Search } from "lucide-react";
+import { ChevronDown, Pin, PinOff, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -26,6 +26,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -126,69 +133,33 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-1 flex-wrap items-center gap-2">
-          <Select
+          <ToolbarFilter
             value={statusFilter}
-            onValueChange={(v) => {
-              if (v === null)
-                return;
+            allLabel={t("procurement.allStatuses")}
+            options={PROCUREMENT_STATUSES.map(s => ({ value: s, label: t(`procurement.status.${s}` as const) }))}
+            onChange={(v) => {
               setStatusFilter(v);
               setPage(1);
             }}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue>
-                {(v: string) => (v === "__all__" ? t("procurement.allStatuses") : t(`procurement.status.${v}` as const))}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{t("procurement.allStatuses")}</SelectItem>
-              {PROCUREMENT_STATUSES.map(s => (
-                <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
+          />
+          <ToolbarFilter
             value={priorityFilter}
-            onValueChange={(v) => {
-              if (v === null)
-                return;
+            allLabel={t("procurement.allPriorities")}
+            options={PROCUREMENT_PRIORITIES.map(p => ({ value: p, label: t(`procurement.priority.${p}` as const) }))}
+            onChange={(v) => {
               setPriorityFilter(v);
               setPage(1);
             }}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue>
-                {(v: string) => (v === "__all__" ? t("procurement.allPriorities") : t(`procurement.priority.${v}` as const))}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{t("procurement.allPriorities")}</SelectItem>
-              {PROCUREMENT_PRIORITIES.map(p => (
-                <SelectItem key={p} value={p}>{t(`procurement.priority.${p}` as const)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
+          />
+          <ToolbarFilter
             value={categoryFilter}
-            onValueChange={(v) => {
-              if (v === null)
-                return;
+            allLabel={t("procurement.allCategories")}
+            options={categories.map(c => ({ value: c.id, label: c.name }))}
+            onChange={(v) => {
               setCategoryFilter(v);
               setPage(1);
             }}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue>
-                {(v: string) => (v === "__all__" ? t("procurement.allCategories") : categoryNames.get(v) ?? v)}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{t("procurement.allCategories")}</SelectItem>
-              {categories.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <div className="relative max-w-xs flex-1">
@@ -283,6 +254,37 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
         />
       )}
     </div>
+  );
+}
+
+interface ToolbarFilterProps {
+  readonly value: string;
+  readonly allLabel: string;
+  readonly options: readonly { readonly value: string; readonly label: string }[];
+  readonly onChange: (value: string) => void;
+}
+
+/**
+ * Text-label dropdown filter for the procurement toolbar — mirrors the issues
+ * tab's DropdownMenu radio pattern. `__all__` is the "show everything" sentinel.
+ */
+function ToolbarFilter({ value, allLabel, options, onChange }: ToolbarFilterProps) {
+  const current = value === "__all__" ? allLabel : options.find(o => o.value === value)?.label ?? allLabel;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button type="button" variant="outline" className="w-44 justify-between font-normal" />}>
+        <span className="truncate">{current}</span>
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0 opacity-50" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuRadioGroup value={value} onValueChange={v => v !== null && onChange(v)}>
+          <DropdownMenuRadioItem value="__all__">{allLabel}</DropdownMenuRadioItem>
+          {options.map(o => (
+            <DropdownMenuRadioItem key={o.value} value={o.value}>{o.label}</DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

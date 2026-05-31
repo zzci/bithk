@@ -224,8 +224,8 @@ describe("projectProcurementTab", () => {
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
     await screen.findByText("Cement");
-    await user.click(screen.getByText("All statuses"));
-    await user.click(await screen.findByRole("option", { name: "Cancelled" }));
+    await user.click(screen.getByRole("button", { name: "All statuses" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Cancelled" }));
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((c) => {
         const u = String(c[0]);
