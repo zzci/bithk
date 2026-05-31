@@ -304,9 +304,18 @@ export function ProjectIssuePanel({
               )
             : (
                 <h1
-                  className={`truncate text-base font-semibold tracking-tight ${permissions.canEditAll ? "cursor-pointer hover:text-primary" : ""}`}
+                  className={`truncate text-base font-semibold tracking-tight ${permissions.canEditAll ? "cursor-pointer rounded-sm hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}
                   onClick={() => permissions.canEditAll && startEditTitle()}
                   title={permissions.canEditAll ? t("clickToEditTitle") : issue.title}
+                  tabIndex={permissions.canEditAll ? 0 : undefined}
+                  onKeyDown={permissions.canEditAll
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          startEditTitle();
+                        }
+                      }
+                    : undefined}
                 >
                   {issue.title}
                 </h1>
@@ -444,8 +453,22 @@ export function ProjectIssuePanel({
                   <span className="relative inline-flex items-center">
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary"
-                      onClick={() => dueDateInputRef.current?.showPicker()}
+                      className="inline-flex items-center gap-1 rounded text-xs text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => {
+                        const input = dueDateInputRef.current;
+                        if (!input)
+                          return;
+                        if (typeof input.showPicker === "function") {
+                          try {
+                            input.showPicker();
+                            return;
+                          }
+                          catch {
+                            // showPicker can throw if not allowed; fall through to focus.
+                          }
+                        }
+                        input.focus();
+                      }}
                       aria-label={t("field.dueDate")}
                       title={t("field.dueDate")}
                     >
@@ -469,25 +492,29 @@ export function ProjectIssuePanel({
 
           <div className="ml-auto inline-flex items-center gap-0.5">
             {canUploadAttachment && (
-              <button
+              <Button
                 type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground"
                 onClick={() => fileInputRef.current?.click()}
                 title={t("attachments.upload")}
               >
                 <Paperclip className="size-3" />
                 {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
-              </button>
+              </Button>
             )}
             {permissions.canEditAll && !editingDesc && (
-              <button
+              <Button
                 type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground"
                 onClick={startEditDesc}
               >
                 <Pencil className="size-3" />
                 {t("common.edit")}
-              </button>
+              </Button>
             )}
           </div>
           <input
@@ -548,15 +575,15 @@ export function ProjectIssuePanel({
                     <button
                       type="button"
                       onClick={startEditDesc}
-                      className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors"
+                      className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {t("field.noDescription")}
                     </button>
                   )
                 : (
-                    <div className="rounded-md border border-dashed bg-transparent px-2 py-1 text-sm italic text-muted-foreground leading-snug">
+                    <p className="text-sm italic text-muted-foreground leading-snug">
                       {t("field.noDescription")}
-                    </div>
+                    </p>
                   )}
         </div>
 
