@@ -126,19 +126,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-1 flex-wrap items-center gap-2">
-          <div className="relative max-w-xs flex-1">
-            <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder={t("procurement.searchPlaceholder")}
-              aria-label={t("procurement.searchPlaceholder")}
-              className="pl-8"
-            />
-          </div>
           <Select
             value={statusFilter}
             onValueChange={(v) => {
@@ -203,12 +190,27 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
             </SelectContent>
           </Select>
         </div>
-        {canManage && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 size-4" />
-            {t("procurement.create")}
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="relative max-w-xs flex-1">
+            <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder={t("procurement.searchPlaceholder")}
+              aria-label={t("procurement.searchPlaceholder")}
+              className="pl-8"
+            />
+          </div>
+          {canManage && (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1 size-4" />
+              {t("procurement.create")}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tag filter bar — responsive multi-select chips. Union semantics:
