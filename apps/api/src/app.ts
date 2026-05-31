@@ -13,6 +13,7 @@ import { startAuditRetentionSweep } from "./modules/audit";
 import { initCronActions, startCron } from "./modules/cron";
 import { initFileModule, startFileGcSweep } from "./modules/file";
 import { getAllRouteBindings, policyMiddleware } from "./modules/policy";
+import { backfillProjectRoles } from "./modules/project/project.roles";
 import { protectedRoutes, publicRoutes } from "./routes";
 import { getAuthConfig, seedSettingsFromEnv } from "./shared/lib/app-config";
 import { createLogger } from "./shared/lib/logger";
@@ -48,6 +49,8 @@ export async function bootstrap(): Promise<BootstrapResult> {
   const config = await loadConfig();
   const logger = createLogger(config);
   const db = await createDb(config.DB_PATH);
+  const backfill = await backfillProjectRoles(db);
+  logger.info(`backfillProjectRoles: scanned=${backfill.projectsScanned} touched=${backfill.projectsTouched} inserted=${backfill.rolesInserted}`);
   const app = await buildFullApp({ config, db, logger });
   logDefaultAdmins(await getAuthConfig(db, config), logger);
   logger.info("system fully operational");
