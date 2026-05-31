@@ -156,6 +156,15 @@ module. Because `resource_id` has no FK cascade, each domain removes its
 `tags_refs` rows at the application level when a resource is deleted. See
 [decision 006](decisions/006-unify-tags-into-tag-module.md).
 
+## UI Conventions
+
+- **Button sizing.** Interactive buttons follow one app-wide standard: non-icon
+  buttons use the `Button` default size (`h-8`) and icon-only buttons use
+  `size="icon"` (`size-8`); `size`/height overrides are avoided on the common
+  case so new buttons inherit the right size by default. The size tokens in
+  `apps/web/src/shared/components/ui/button.tsx` are the source of truth. See
+  [decision 007](decisions/007-button-sizing-standard.md).
+
 ## Request Flow
 
 ```text
