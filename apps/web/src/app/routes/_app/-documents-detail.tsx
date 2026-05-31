@@ -265,10 +265,10 @@ export function DocumentDetail({
           {editing
             ? (
                 <>
-                  <Button variant="outline" size="sm" onClick={handleCancel} disabled={updateMutation.isPending}>
+                  <Button variant="outline" onClick={handleCancel} disabled={updateMutation.isPending}>
                     {t("common.cancel")}
                   </Button>
-                  <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
+                  <Button onClick={handleSave} disabled={updateMutation.isPending}>
                     {t("common.save")}
                   </Button>
                 </>
@@ -287,7 +287,7 @@ export function DocumentDetail({
                       render={(
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           aria-label={t("attachments.upload")}
                           onClick={() => fileInputRef.current?.click()}
                           disabled={uploadMutation.isPending}
@@ -301,7 +301,7 @@ export function DocumentDetail({
                   <Tooltip>
                     <TooltipTrigger
                       render={(
-                        <Button variant="ghost" size="icon-sm" aria-label={t("share")} onClick={handleShare} />
+                        <Button variant="ghost" size="icon" aria-label={t("share")} onClick={handleShare} />
                       )}
                     >
                       <Share2 className="size-4" />
@@ -311,7 +311,7 @@ export function DocumentDetail({
                   <Tooltip>
                     <TooltipTrigger
                       render={(
-                        <Button variant="ghost" size="icon-sm" aria-label={t("common.edit")} onClick={() => setEditing(true)} />
+                        <Button variant="ghost" size="icon" aria-label={t("common.edit")} onClick={() => setEditing(true)} />
                       )}
                     >
                       <Pencil className="size-4" />
@@ -323,7 +323,7 @@ export function DocumentDetail({
                       render={(
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           aria-label={t("common.delete")}
                           onClick={() => setDeleteOpen(true)}
                         />

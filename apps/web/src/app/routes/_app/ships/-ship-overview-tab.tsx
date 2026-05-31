@@ -112,7 +112,7 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
         <Card
           title={t("overview.archive")}
           action={canManage && (
-            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
               <Pencil className="mr-1 size-4" />
               {t("common:common.edit")}
             </Button>

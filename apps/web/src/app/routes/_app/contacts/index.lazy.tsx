@@ -302,7 +302,7 @@ export function ContactsListPage() {
                             {contact.canManage && (
                               <div className="flex justify-end gap-1">
                                 <Button
-                                  size="icon-sm"
+                                  size="icon"
                                   variant="ghost"
                                   aria-label={t("actions.share", { name: contact.name })}
                                   onClick={() => setShareTarget(contact)}
@@ -310,7 +310,7 @@ export function ContactsListPage() {
                                   <Share2 data-icon="inline" />
                                 </Button>
                                 <Button
-                                  size="icon-sm"
+                                  size="icon"
                                   variant="ghost"
                                   aria-label={t("actions.edit", { name: contact.name })}
                                   onClick={() => setEditTarget(contact)}
@@ -318,7 +318,7 @@ export function ContactsListPage() {
                                   <Edit3 data-icon="inline" />
                                 </Button>
                                 <Button
-                                  size="icon-sm"
+                                  size="icon"
                                   variant="ghost"
                                   aria-label={t("actions.delete", { name: contact.name })}
                                   onClick={() => setDeleteTarget(contact)}
@@ -416,7 +416,6 @@ function FilterChips<T extends string>({
         <Button
           key={option}
           type="button"
-          size="sm"
           variant={value === option ? "default" : "outline"}
           className="rounded-full"
           aria-label={`${label(option)} ${count(option)}`}

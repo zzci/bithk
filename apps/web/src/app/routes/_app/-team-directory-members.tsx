@@ -133,7 +133,7 @@ export function TeamDirectoryMembersPanel({ directoryId, open, onOpenChange }: M
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   title={t("drive:team.members.remove")}
                   disabled={removeMember.isPending}
                   onClick={() => removeMember.mutate({ directoryId, memberId: member.id })}

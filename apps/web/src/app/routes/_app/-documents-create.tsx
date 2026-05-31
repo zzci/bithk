@@ -17,7 +17,7 @@ export function EmptyState({ onCreate }: { readonly onCreate: () => void }) {
     <div className="flex h-full flex-col items-center justify-center text-center">
       <FileText className="mb-3 size-10 text-muted-foreground/40" />
       <p className="text-sm text-muted-foreground">{t("selectToView")}</p>
-      <Button size="sm" variant="ghost" className="mt-3 text-xs" onClick={onCreate}>
+      <Button variant="ghost" className="mt-3 text-xs" onClick={onCreate}>
         <Plus className="size-3.5" />
         {t("create")}
       </Button>
@@ -71,14 +71,12 @@ export function CreateForm({
         <div className="flex shrink-0 items-center gap-1">
           <Button
             variant="outline"
-            size="sm"
             onClick={onCancel}
             disabled={createMutation.isPending}
           >
             {t("common.cancel")}
           </Button>
           <Button
-            size="sm"
             onClick={handleSave}
             disabled={createMutation.isPending || !draft.title.trim()}
           >

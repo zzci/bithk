@@ -211,13 +211,13 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
 
         <div className="flex flex-wrap items-center gap-2">
           {section === "templates" && canManage && (
-            <Button size="sm" onClick={openCreateTemplate}>
+            <Button onClick={openCreateTemplate}>
               <Plus className="mr-1 size-4" />
               {t("maintenance.template.create")}
             </Button>
           )}
           {section === "workOrders" && canManage && (
-            <Button size="sm" onClick={() => setWorkOrderOpen(true)} disabled={!ship.baseProjectId || templates.length === 0}>
+            <Button onClick={() => setWorkOrderOpen(true)} disabled={!ship.baseProjectId || templates.length === 0}>
               <FileText className="mr-1 size-4" />
               {t("maintenance.workOrder.create")}
             </Button>
@@ -276,10 +276,10 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
                             </div>
                             {canManage && (
                               <div className="flex shrink-0 gap-1">
-                                <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.edit")} onClick={() => openEditTemplate(template)}>
+                                <Button variant="ghost" size="icon" aria-label={t("maintenance.template.edit")} onClick={() => openEditTemplate(template)}>
                                   <Pencil className="size-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon-sm" aria-label={t("maintenance.template.delete")} onClick={() => setDeleteTemplateTarget(template)}>
+                                <Button variant="ghost" size="icon" aria-label={t("maintenance.template.delete")} onClick={() => setDeleteTemplateTarget(template)}>
                                   <Trash2 className="size-4 text-destructive" />
                                 </Button>
                               </div>
@@ -331,7 +331,7 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(order)}>
+                            <Button variant="ghost" onClick={() => setSelectedOrder(order)}>
                               {t("maintenance.workOrder.view")}
                             </Button>
                           </TableCell>
@@ -345,7 +345,7 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-medium">{selectedOrder.title}</h3>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(null)}>{t("common:common.close")}</Button>
+                <Button variant="ghost" onClick={() => setSelectedOrder(null)}>{t("common:common.close")}</Button>
               </div>
               {selectedReferencesQuery.error && <ErrorBanner message={errorMessage(selectedReferencesQuery.error, t("common:common.error.loadFailed"))} />}
               {selectedReferencesQuery.isLoading

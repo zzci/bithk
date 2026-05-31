@@ -410,7 +410,6 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 onClick={() => (kind === "markdown" ? setMarkdownEditing(true) : setTextEditing(true))}
               >
                 <Pencil className="size-4" />
@@ -422,7 +421,6 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                 <Button
                   type="button"
                   variant="default"
-                  size="sm"
                   disabled={!dirty || saving || loading}
                   onClick={() => void handleSave()}
                 >
@@ -432,7 +430,6 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   disabled={saving || loading}
                   onClick={handleCancelEdit}
                 >
@@ -627,7 +624,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                 <p className="text-xs text-muted-foreground">{t("preview.unsupportedDescription")}</p>
               </div>
               {file && (
-                <Button type="button" variant="outline" size="sm" onClick={onDownload ?? (() => void downloadDriveEntry(entry))}>
+                <Button type="button" variant="outline" onClick={onDownload ?? (() => void downloadDriveEntry(entry))}>
                   <Download className="size-4" />
                   {t("preview.download")}
                 </Button>
