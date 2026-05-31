@@ -364,10 +364,10 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                             <Button
                               type="button"
                               variant="ghost"
-                              size="icon-sm"
+                              size="icon-xs"
                               aria-expanded={!isCollapsed}
                               aria-label={t("issues.toggleSection")}
-                              className="size-6 text-muted-foreground"
+                              className="text-muted-foreground"
                               onClick={() => toggleCollapse(status)}
                             >
                               <ChevronRight aria-hidden="true" className={cn("size-4 transition-transform", !isCollapsed && "rotate-90")} />
@@ -475,8 +475,7 @@ function IssuePinToggle({ projectId, issue }: IssuePinToggleProps) {
     <Button
       type="button"
       variant="ghost"
-      size="icon-sm"
-      className="size-7"
+      size="icon"
       aria-pressed={issue.pinned}
       aria-label={t(issue.pinned ? "overview.unpinAction" : "overview.pinAction")}
       disabled={togglePin.isPending}
@@ -565,7 +564,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
 
   // Rounded pill shared by the inline metadata controls. Border style is added
   // per-control to reflect a set (solid) vs empty (dashed) state.
-  const pillBase = "h-7 gap-1.5 rounded-full px-2.5 text-xs font-normal";
+  const pillBase = "gap-1.5 rounded-full px-2.5 text-xs font-normal";
   const assigned = assigneeMemberId !== "__none__";
   const assigneeLabel = assigned
     ? memberLabels.get(assigneeMemberId) ?? assigneeMemberId
