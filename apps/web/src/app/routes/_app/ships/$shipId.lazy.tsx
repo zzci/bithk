@@ -65,7 +65,7 @@ function ShipDetailPage() {
   if (shipQuery.error || !ship) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/ships" })}>
+        <Button variant="ghost" onClick={() => void navigate({ to: "/ships" })}>
           <ArrowLeft className="mr-1 size-4" />
           {t("detail.back")}
         </Button>
@@ -155,7 +155,7 @@ function ShipDetailPage() {
               </p>
             </div>
             {isAdmin && (
-              <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+              <Button variant="outline" onClick={() => setDeleteOpen(true)}>
                 <Trash2 className="mr-1 size-4 text-destructive" />
                 {t("common:common.delete")}
               </Button>

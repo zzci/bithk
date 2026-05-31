@@ -76,7 +76,6 @@ export function DriveVersionHistoryDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   disabled={switchVersion.isPending}
                   onClick={() => {
                     const options = onSwitched ? { onSuccess: onSwitched } : undefined;

@@ -107,9 +107,8 @@ export function ShipsListPage() {
             return (
               <Button
                 key={opt.key}
-                size="sm"
                 variant={status === opt.key ? "default" : "outline"}
-                className="h-8 rounded-full"
+                className="rounded-full"
                 aria-pressed={status === opt.key}
                 aria-label={count === undefined ? opt.label : `${opt.label} ${count}`}
                 onClick={() => {
@@ -159,8 +158,8 @@ export function ShipsListPage() {
         <div className="flex items-center justify-between pt-2">
           <span className="text-xs text-muted-foreground">{t("list.total", { count: meta.total })}</span>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-            <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
+            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
+            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
           </div>
         </div>
       )}

@@ -164,7 +164,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-medium text-muted-foreground">{t("equipment.title")}</h2>
         {canManage && (
-          <Button size="sm" onClick={openCreate}>
+          <Button onClick={openCreate}>
             <Plus className="mr-1 size-4" />
             {t("equipment.create")}
           </Button>
@@ -177,9 +177,8 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
             {[{ key: CATEGORY_ALL, label: t("equipment.filterAll") }, ...categories.map(c => ({ key: c, label: c }))].map(opt => (
               <Button
                 key={opt.key}
-                size="sm"
                 variant={category === opt.key ? "default" : "outline"}
-                className="h-7 rounded-full"
+                className="rounded-full"
                 aria-pressed={category === opt.key}
                 onClick={() => setCategory(opt.key)}
               >
@@ -231,7 +230,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                           <p className="font-medium">{t("equipment.empty")}</p>
                           <p className="max-w-sm text-xs text-muted-foreground">{t("equipment.emptyHint")}</p>
                           {canManage && (
-                            <Button size="sm" onClick={openCreate}>
+                            <Button onClick={openCreate}>
                               <Plus className="mr-1 size-4" />
                               {t("equipment.create")}
                             </Button>
@@ -267,10 +266,10 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                         {canManage && (
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="icon-sm" aria-label={t("equipment.edit")} onClick={() => openEdit(row)}>
+                              <Button variant="ghost" size="icon" aria-label={t("equipment.edit")} onClick={() => openEdit(row)}>
                                 <Pencil className="size-4" />
                               </Button>
-                              <Button variant="ghost" size="icon-sm" aria-label={t("equipment.delete")} onClick={() => setDeleteTarget(row)}>
+                              <Button variant="ghost" size="icon" aria-label={t("equipment.delete")} onClick={() => setDeleteTarget(row)}>
                                 <Trash2 className="size-4 text-destructive" />
                               </Button>
                             </div>

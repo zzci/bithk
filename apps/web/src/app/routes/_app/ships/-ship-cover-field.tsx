@@ -35,12 +35,12 @@ export function ShipCoverField({ ship }: { readonly ship: ShipView }) {
         <CoverImage src={ship.coverImageUrl} kind="ship" className="h-24 w-40 shrink-0 rounded-lg border" />
         <div className="flex flex-col gap-2">
           <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
-          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => inputRef.current?.click()}>
+          <Button type="button" variant="outline" disabled={pending} onClick={() => inputRef.current?.click()}>
             <Upload aria-hidden="true" />
             {ship.coverImageUrl ? t("cover.replace") : t("cover.upload")}
           </Button>
           {ship.coverImageUrl && (
-            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => removeCover.mutate(ship.id)}>
+            <Button type="button" variant="outline" disabled={pending} onClick={() => removeCover.mutate(ship.id)}>
               <Trash2 className="text-destructive" aria-hidden="true" />
               {t("cover.remove")}
             </Button>

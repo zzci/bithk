@@ -112,14 +112,13 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
                     <div className="flex items-center gap-1 border-t border-dashed pt-2">
                       <Button
                         variant="ghost"
-                        size="sm"
                         onClick={() => void navigate({ to: "/projects/$projectId", params: { projectId: project.id } })}
                       >
                         <ExternalLink className="mr-1 size-4" />
                         {t("projects.open")}
                       </Button>
                       {canManage && !project.isBase && (
-                        <Button variant="ghost" size="sm" onClick={() => setUnbindTarget(project)}>
+                        <Button variant="ghost" onClick={() => setUnbindTarget(project)}>
                           <Link2Off className="mr-1 size-4 text-destructive" />
                           {t("projects.unbind")}
                         </Button>
