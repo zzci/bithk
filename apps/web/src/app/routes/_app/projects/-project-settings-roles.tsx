@@ -1,6 +1,6 @@
 // Roles settings section: list project roles, create/edit/delete custom roles
-// with capability checkboxes. System roles (`isSystem`) are read-only and
-// cannot be deleted.
+// with per-module radio tier selectors + admin capability toggles.
+// System roles (`isSystem`) are read-only and cannot be deleted.
 
 import type { ProjectCapability, ProjectRoleView } from "@/shared/lib/api/projects";
 import { Plus } from "lucide-react";
@@ -21,9 +21,9 @@ import {
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import { Switch } from "@/shared/components/ui/switch";
 import {
-  PROJECT_CAPABILITIES,
   useCreateProjectRole,
   useDeleteProjectRole,
   useProjectRoles,
@@ -31,40 +31,99 @@ import {
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 
-// Capabilities grouped by their module prefix (the segment before the ".").
-// Derived from PROJECT_CAPABILITIES so new capabilities slot into their module
-// automatically; the stored payload stays a flat capabilities[] regardless.
-const CAPABILITY_GROUPS: ReadonlyArray<readonly [string, readonly ProjectCapability[]]> = (() => {
-  const order: string[] = [];
-  const byModule = new Map<string, ProjectCapability[]>();
-  for (const cap of PROJECT_CAPABILITIES) {
-    const module = cap.split(".")[0] ?? cap;
-    const existing = byModule.get(module);
-    if (existing) {
-      existing.push(cap);
-    }
-    else {
-      byModule.set(module, [cap]);
-      order.push(module);
-    }
-  }
-  return order.map(module => [module, byModule.get(module)!] as const);
-})();
+// ---------------------------------------------------------------------------
+// Module tier definitions
+// Each tier is cumulative: selecting a tier replaces that module's caps with
+// the full cumulative set for that tier.
+// ---------------------------------------------------------------------------
 
-// Preset capability sets for Reader / Commenter / Writer quick-fill buttons.
-const PRESET_READER: readonly ProjectCapability[] = ["issue.view", "procurement.view", "files.view"];
-const PRESET_COMMENTER: readonly ProjectCapability[] = [
-  ...PRESET_READER,
-  "issue.comment",
-  "procurement.comment",
-];
-const PRESET_WRITER: readonly ProjectCapability[] = [
-  ...PRESET_COMMENTER,
-  "issue.manage",
-  "procurement.manage",
-  "files.manage",
+type IssueTier = "none" | "view" | "comment" | "manage";
+type ProcurementTier = "none" | "view" | "comment" | "manage";
+type FilesTier = "none" | "view" | "manage";
+
+const ISSUE_TIERS: Record<IssueTier, readonly ProjectCapability[]> = {
+  none: [],
+  view: ["issue.view"],
+  comment: ["issue.view", "issue.comment"],
+  manage: ["issue.view", "issue.comment", "issue.manage"],
+};
+
+const PROCUREMENT_TIERS: Record<ProcurementTier, readonly ProjectCapability[]> = {
+  none: [],
+  view: ["procurement.view"],
+  comment: ["procurement.view", "procurement.comment"],
+  manage: ["procurement.view", "procurement.comment", "procurement.manage"],
+};
+
+const FILES_TIERS: Record<FilesTier, readonly ProjectCapability[]> = {
+  none: [],
+  view: ["files.view"],
+  manage: ["files.view", "files.manage"],
+};
+
+// Administration caps are independent toggles (not tiered).
+const ADMIN_CAPS: readonly ProjectCapability[] = [
   "categories.manage",
+  "members.manage",
+  "roles.manage",
+  "project.manage",
 ];
+
+// ---------------------------------------------------------------------------
+// Derive tier from stored caps
+// Picks the highest tier whose full cumulative cap set is fully satisfied.
+// For a malformed/non-hierarchical stored combo (e.g. issue.manage without
+// issue.view), we pick the highest tier whose identifier cap is present and
+// normalize to its cumulative set on next save.
+// ---------------------------------------------------------------------------
+
+function deriveIssueTier(caps: readonly ProjectCapability[]): IssueTier {
+  if (caps.includes("issue.manage"))
+    return "manage";
+  if (caps.includes("issue.comment"))
+    return "comment";
+  if (caps.includes("issue.view"))
+    return "view";
+  return "none";
+}
+
+function deriveProcurementTier(caps: readonly ProjectCapability[]): ProcurementTier {
+  if (caps.includes("procurement.manage"))
+    return "manage";
+  if (caps.includes("procurement.comment"))
+    return "comment";
+  if (caps.includes("procurement.view"))
+    return "view";
+  return "none";
+}
+
+function deriveFilesTier(caps: readonly ProjectCapability[]): FilesTier {
+  if (caps.includes("files.manage"))
+    return "manage";
+  if (caps.includes("files.view"))
+    return "view";
+  return "none";
+}
+
+// Build the flat capabilities[] from the three module tiers + admin toggles.
+function buildCapabilities(
+  issueTier: IssueTier,
+  procurementTier: ProcurementTier,
+  filesTier: FilesTier,
+  adminCaps: readonly ProjectCapability[],
+): readonly ProjectCapability[] {
+  return [
+    ...ISSUE_TIERS[issueTier],
+    ...PROCUREMENT_TIERS[procurementTier],
+    ...FILES_TIERS[filesTier],
+    ...adminCaps,
+  ];
+}
+
+// Preset quick-fill: Reader=all View, Commenter=all Comment + Files View, Writer=all Manage + categories.manage.
+const PRESET_READER = { issue: "view" as IssueTier, procurement: "view" as ProcurementTier, files: "view" as FilesTier, admin: [] as ProjectCapability[] };
+const PRESET_COMMENTER = { issue: "comment" as IssueTier, procurement: "comment" as ProcurementTier, files: "view" as FilesTier, admin: [] as ProjectCapability[] };
+const PRESET_WRITER = { issue: "manage" as IssueTier, procurement: "manage" as ProcurementTier, files: "manage" as FilesTier, admin: ["categories.manage"] as ProjectCapability[] };
 
 /** Resolve the display label for a system role based on its `kind` field. */
 function systemRoleLabel(role: ProjectRoleView, ownerLabel: string, guestLabel: string): string {
@@ -206,25 +265,36 @@ function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogPro
   const updateRole = useUpdateProjectRole();
 
   const [name, setName] = useState(role?.name ?? "");
-  const [capabilities, setCapabilities] = useState<readonly ProjectCapability[]>(role?.capabilities ?? []);
+
+  // Derive initial module tiers and admin caps from the stored flat capabilities[].
+  const [issueTier, setIssueTier] = useState<IssueTier>(() => deriveIssueTier(role?.capabilities ?? []));
+  const [procurementTier, setProcurementTier] = useState<ProcurementTier>(() => deriveProcurementTier(role?.capabilities ?? []));
+  const [filesTier, setFilesTier] = useState<FilesTier>(() => deriveFilesTier(role?.capabilities ?? []));
+  const [adminCaps, setAdminCaps] = useState<readonly ProjectCapability[]>(() =>
+    (role?.capabilities ?? []).filter(c => ADMIN_CAPS.includes(c)),
+  );
 
   const pending = createRole.isPending || updateRole.isPending;
   const error = createRole.error ?? updateRole.error;
 
-  const toggle = (cap: ProjectCapability) => {
-    setCapabilities(prev =>
+  const toggleAdmin = (cap: ProjectCapability) => {
+    setAdminCaps(prev =>
       prev.includes(cap) ? prev.filter(c => c !== cap) : [...prev, cap],
     );
   };
 
-  const applyPreset = (preset: readonly ProjectCapability[]) => {
-    setCapabilities(preset);
+  const applyPreset = (preset: typeof PRESET_READER) => {
+    setIssueTier(preset.issue);
+    setProcurementTier(preset.procurement);
+    setFilesTier(preset.files);
+    setAdminCaps(preset.admin);
   };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim() || pending)
       return;
+    const capabilities = buildCapabilities(issueTier, procurementTier, filesTier, adminCaps);
     if (mode === "create") {
       createRole.mutate({ projectId, name: name.trim(), capabilities }, {
         onSuccess: () => {
@@ -277,25 +347,81 @@ function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogPro
             </div>
           </div>
 
+          {/* Per-module 3-tier radio selectors */}
           <div className="space-y-2">
             <Label>{t("roles.field.capabilities")}</Label>
             <div className="space-y-4 rounded-md border p-3">
-              {CAPABILITY_GROUPS.map(([module, caps]) => (
-                <fieldset key={module} className="space-y-2">
-                  <legend className="text-xs font-medium text-muted-foreground">
-                    {t(`capabilityGroup.${module}` as const)}
-                  </legend>
-                  {caps.map(cap => (
-                    <div key={cap} className="flex items-center justify-between gap-2">
-                      <Label htmlFor={`cap-${cap}`} className="text-sm font-normal">{t(`capability.${cap}` as const)}</Label>
-                      <Switch
-                        id={`cap-${cap}`}
-                        checked={capabilities.includes(cap)}
-                        onCheckedChange={() => toggle(cap)}
-                      />
-                    </div>
+
+              {/* Issue module */}
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-medium text-muted-foreground">
+                  {t("capabilityGroup.issue")}
+                </legend>
+                <RadioGroup
+                  value={issueTier}
+                  onValueChange={val => setIssueTier(val as IssueTier)}
+                  className="flex flex-wrap gap-x-4 gap-y-1"
+                >
+                  {(["none", "view", "comment", "manage"] as const).map(tier => (
+                    <RadioGroupItem key={tier} value={tier}>
+                      <span className="text-sm">{t(`roles.tier.${tier}`)}</span>
+                    </RadioGroupItem>
                   ))}
-                </fieldset>
+                </RadioGroup>
+              </fieldset>
+
+              {/* Procurement module */}
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-medium text-muted-foreground">
+                  {t("capabilityGroup.procurement")}
+                </legend>
+                <RadioGroup
+                  value={procurementTier}
+                  onValueChange={val => setProcurementTier(val as ProcurementTier)}
+                  className="flex flex-wrap gap-x-4 gap-y-1"
+                >
+                  {(["none", "view", "comment", "manage"] as const).map(tier => (
+                    <RadioGroupItem key={tier} value={tier}>
+                      <span className="text-sm">{t(`roles.tier.${tier}`)}</span>
+                    </RadioGroupItem>
+                  ))}
+                </RadioGroup>
+              </fieldset>
+
+              {/* Files module — no comment tier */}
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-medium text-muted-foreground">
+                  {t("capabilityGroup.files")}
+                </legend>
+                <RadioGroup
+                  value={filesTier}
+                  onValueChange={val => setFilesTier(val as FilesTier)}
+                  className="flex flex-wrap gap-x-4 gap-y-1"
+                >
+                  {(["none", "view", "manage"] as const).map(tier => (
+                    <RadioGroupItem key={tier} value={tier}>
+                      <span className="text-sm">{t(`roles.tier.${tier}`)}</span>
+                    </RadioGroupItem>
+                  ))}
+                </RadioGroup>
+              </fieldset>
+
+            </div>
+          </div>
+
+          {/* Administration caps: independent toggles (not tiered) */}
+          <div className="space-y-2">
+            <Label>{t("roles.administration")}</Label>
+            <div className="space-y-2 rounded-md border p-3">
+              {ADMIN_CAPS.map(cap => (
+                <div key={cap} className="flex items-center justify-between gap-2">
+                  <Label htmlFor={`cap-${cap}`} className="text-sm font-normal">{t(`capability.${cap}` as const)}</Label>
+                  <Switch
+                    id={`cap-${cap}`}
+                    checked={adminCaps.includes(cap)}
+                    onCheckedChange={() => toggleAdmin(cap)}
+                  />
+                </div>
               ))}
             </div>
           </div>

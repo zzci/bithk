@@ -352,7 +352,14 @@
     "delete": {
       "title": "Delete role",
       "confirm": "Are you sure you want to delete the role \"{{name}}\"? Members holding this role will be moved to Guest. This action cannot be undone."
-    }
+    },
+    "tier": {
+      "none": "None",
+      "view": "View",
+      "comment": "Comment",
+      "manage": "Manage"
+    },
+    "administration": "Administration"
   },
   "capability": {
     "issue.view": "View work orders",

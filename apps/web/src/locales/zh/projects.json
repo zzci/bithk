@@ -352,7 +352,14 @@
     "delete": {
       "title": "删除角色",
       "confirm": "确定要删除角色“{{name}}”吗？持有此角色的成员将被移至访客角色。此操作无法撤销。"
-    }
+    },
+    "tier": {
+      "none": "无",
+      "view": "查看",
+      "comment": "评论",
+      "manage": "管理"
+    },
+    "administration": "项目管理"
   },
   "capability": {
     "issue.view": "查看工单",
