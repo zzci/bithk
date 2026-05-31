@@ -2,7 +2,7 @@ import type { ProjectCapability } from "./schema";
 import type { AppDatabase, AppTransaction } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "@/shared/lib/id";
-import { PROJECT_CAPABILITIES, projectMembers, projectRoles } from "./schema";
+import { PROJECT_CAPABILITIES, projectMembers, projectRoles, projects } from "./schema";
 
 export type ProjectRoleRow = typeof projectRoles.$inferSelect;
 
@@ -64,9 +64,9 @@ export interface SeededRoles {
   readonly readerRoleId: string;
 }
 
-const READER_CAPS: readonly ProjectCapability[] = ["issue.view", "procurement.view", "files.view"];
-const COMMENTER_CAPS: readonly ProjectCapability[] = [...READER_CAPS, "issue.comment", "procurement.comment"];
-const WRITER_CAPS: readonly ProjectCapability[] = [...COMMENTER_CAPS, "issue.manage", "procurement.manage", "files.manage", "categories.manage"];
+export const READER_CAPS: readonly ProjectCapability[] = ["issue.view", "procurement.view", "files.view"];
+export const COMMENTER_CAPS: readonly ProjectCapability[] = [...READER_CAPS, "issue.comment", "procurement.comment"];
+export const WRITER_CAPS: readonly ProjectCapability[] = [...COMMENTER_CAPS, "issue.manage", "procurement.manage", "files.manage", "categories.manage"];
 
 export function seedDefaultRoles(tx: AppTransaction, projectId: string, now: string): SeededRoles {
   const ownerRoleId = nanoid();
@@ -225,4 +225,130 @@ export async function deleteRole(db: AppDatabase, projectId: string, roleId: str
     tx.delete(projectRoles).where(eq(projectRoles.id, roleId)).run();
   });
   return "deleted";
+}
+
+// ─── Boot-time backfill ─────────────────────────────────────────────────────
+//
+// Idempotent: safe to call on every server boot. Handles projects that were
+// created before B1 landed (kind column + Guest role + Reader/Commenter/Writer
+// presets). A "new-style" project (already has kind='guest') is untouched.
+//
+// Per-project mutations (in a single transaction each):
+//   1. Owner kind: set kind='owner' on the legacy system owner row
+//      (isSystem=1, kind IS NULL). Already-correct rows are skipped.
+//   2. Guest: insert a kind='guest' system role if none exists.
+//   3. Member→Reader: rename the "Member" role (isSystem=0, kind IS NULL)
+//      to "Reader" and set its caps to READER_CAPS, preserving its id so
+//      existing member assignments remain valid.
+//   4. Presets: insert any missing Reader/Commenter/Writer by name among
+//      kind=null roles. Step 3 may have already produced "Reader", so we
+//      check by name to avoid duplicates.
+
+export interface BackfillResult {
+  readonly projectsScanned: number;
+  readonly projectsTouched: number;
+  readonly rolesInserted: number;
+}
+
+export async function backfillProjectRoles(db: AppDatabase): Promise<BackfillResult> {
+  const allProjects = await db.select({ id: projects.id }).from(projects).all();
+  let touched = 0;
+  let rolesInserted = 0;
+
+  for (const proj of allProjects) {
+    const projectId = proj.id;
+    const roles = await db
+      .select()
+      .from(projectRoles)
+      .where(eq(projectRoles.projectId, projectId))
+      .all();
+
+    // Detect legacy shape: no kind='guest' role present.
+    const hasGuest = roles.some(r => r.kind === "guest");
+    if (hasGuest) {
+      // Already backfilled (or new-style). Skip.
+      continue;
+    }
+
+    // This project needs backfill.
+    touched++;
+    const now = new Date().toISOString();
+
+    db.transaction((tx) => {
+      // 1. Owner kind: mark legacy system owner (isSystem=1, kind IS NULL).
+      const legacyOwner = roles.find(r => r.isSystem === 1 && r.kind == null);
+      if (legacyOwner) {
+        tx.update(projectRoles)
+          .set({ kind: "owner", updatedAt: now })
+          .where(eq(projectRoles.id, legacyOwner.id))
+          .run();
+      }
+
+      // 2. Guest: insert kind='guest' system role.
+      const guestId = nanoid();
+      tx.insert(projectRoles).values({
+        id: guestId,
+        projectId,
+        name: "Guest",
+        capabilities: "[]",
+        isSystem: 1,
+        kind: "guest",
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+      rolesInserted++;
+
+      // 3. Member → Reader: rename "Member" (isSystem=0, kind=null) to "Reader"
+      //    and set caps. Preserves the row id, keeping member assignments intact.
+      const memberRole = roles.find(
+        r => r.name === "Member" && r.isSystem === 0 && r.kind == null,
+      );
+      if (memberRole) {
+        tx.update(projectRoles)
+          .set({
+            name: "Reader",
+            capabilities: JSON.stringify([...READER_CAPS]),
+            updatedAt: now,
+          })
+          .where(eq(projectRoles.id, memberRole.id))
+          .run();
+      }
+
+      // 4. Presets: insert missing Reader / Commenter / Writer by name.
+      //    After step 3, a "Reader" row may already exist (either renamed or
+      //    previously seeded). Check current names to avoid duplicates.
+      const existingNames = new Set(roles.map(r => r.name));
+      // If step 3 just renamed Member→Reader, treat "Reader" as present.
+      if (memberRole)
+        existingNames.add("Reader");
+
+      const presets: Array<{ name: string; caps: readonly ProjectCapability[] }> = [
+        { name: "Reader", caps: READER_CAPS },
+        { name: "Commenter", caps: COMMENTER_CAPS },
+        { name: "Writer", caps: WRITER_CAPS },
+      ];
+
+      for (const preset of presets) {
+        if (!existingNames.has(preset.name)) {
+          tx.insert(projectRoles).values({
+            id: nanoid(),
+            projectId,
+            name: preset.name,
+            capabilities: JSON.stringify([...preset.caps]),
+            isSystem: 0,
+            kind: null,
+            createdAt: now,
+            updatedAt: now,
+          }).run();
+          rolesInserted++;
+        }
+      }
+    });
+  }
+
+  return {
+    projectsScanned: allProjects.length,
+    projectsTouched: touched,
+    rolesInserted,
+  };
 }
