@@ -56,7 +56,7 @@ export function ProjectSettingsCategories({ projectId, canManage }: ProjectSetti
     <div className="space-y-4">
       {canManage && (
         <div className="flex justify-end">
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 size-4" />
             {t("categories.add")}
           </Button>
@@ -86,10 +86,10 @@ export function ProjectSettingsCategories({ projectId, canManage }: ProjectSetti
                     {canManage && (
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => setEditTarget(category)}>
+                          <Button variant="ghost" onClick={() => setEditTarget(category)}>
                             {t("common:common.edit")}
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(category)}>
+                          <Button variant="ghost" onClick={() => setDeleteTarget(category)}>
                             {t("common:common.delete")}
                           </Button>
                         </div>

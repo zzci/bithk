@@ -63,7 +63,7 @@ export function ProjectTagsCombobox({ value, onChange, suggestions }: ProjectTag
         onValueChange={next => onChange(next)}
         onInputValueChange={setQuery}
       >
-        <ComboboxTrigger className="inline-flex h-7 items-center gap-1.5 rounded-md border border-dashed border-input px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+        <ComboboxTrigger className="inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-input px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <TagIcon className="size-3.5" aria-hidden="true" />
           {t("field.tags")}
         </ComboboxTrigger>

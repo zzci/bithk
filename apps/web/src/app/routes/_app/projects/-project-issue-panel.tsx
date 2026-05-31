@@ -274,7 +274,6 @@ export function ProjectIssuePanel({
         {variant === "fullscreen" && (
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => onClose()}
             className="-ml-1 gap-1 text-muted-foreground hover:text-foreground"
           >
@@ -317,7 +316,7 @@ export function ProjectIssuePanel({
           {permissions.canDelete && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               onClick={() => setDeleteOpen(true)}
               title={t("common.delete")}
             >
@@ -327,7 +326,7 @@ export function ProjectIssuePanel({
           {variant === "drawer" && onMaximize && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               onClick={onMaximize}
               title={t("openFullPage")}
             >
@@ -337,7 +336,7 @@ export function ProjectIssuePanel({
           {variant === "drawer" && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               onClick={() => onClose()}
               title={t("common.close")}
             >
@@ -529,10 +528,10 @@ export function ProjectIssuePanel({
                     minHeight={160}
                   />
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={cancelDesc}>
+                    <Button variant="ghost" onClick={cancelDesc}>
                       {t("common.cancel")}
                     </Button>
-                    <Button size="sm" onClick={saveDesc}>
+                    <Button onClick={saveDesc}>
                       {t("common.save")}
                     </Button>
                   </div>

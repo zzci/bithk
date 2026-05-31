@@ -85,7 +85,7 @@ function ProjectDetailLayout() {
   if (projectQuery.error || !project) {
     return (
       <div className="flex flex-col gap-4">
-        <Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/projects" })}>
+        <Button variant="ghost" onClick={() => void navigate({ to: "/projects" })}>
           <ArrowLeft aria-hidden="true" />
           {t("detail.back")}
         </Button>
@@ -100,7 +100,6 @@ function ProjectDetailLayout() {
     <div className="space-y-5">
       <Button
         variant="ghost"
-        size="sm"
         className="-ml-2 h-8 px-2 text-muted-foreground"
         onClick={() => void navigate({ to: "/projects" })}
       >
@@ -137,7 +136,7 @@ function ProjectDetailLayout() {
         </div>
         {caps.canOpenSettings && (
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
               <Settings aria-hidden="true" />
               {t("detail.settings")}
             </Button>

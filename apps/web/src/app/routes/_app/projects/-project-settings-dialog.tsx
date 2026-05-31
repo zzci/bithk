@@ -118,8 +118,7 @@ export function ProjectSettingsDialog({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="mt-auto h-7 justify-start gap-1.5 px-2 text-xs text-muted-foreground"
+                className="mt-auto justify-start gap-1.5 px-2 text-xs text-muted-foreground"
                 aria-label={t("detail.copyCode")}
                 onClick={() => void handleCopyCode()}
               >

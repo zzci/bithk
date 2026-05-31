@@ -282,7 +282,6 @@ export function ProjectProcurementPanel({
         {variant === "fullscreen" && (
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => onClose()}
             className="-ml-1 gap-1 text-muted-foreground hover:text-foreground"
           >
@@ -325,7 +324,7 @@ export function ProjectProcurementPanel({
           {variant === "drawer" && onMaximize && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               onClick={onMaximize}
               title={t("procurement.detail.openFullPage")}
             >
@@ -335,7 +334,7 @@ export function ProjectProcurementPanel({
           {variant === "drawer" && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               onClick={() => onClose()}
               title={t("common:common.close")}
             >
@@ -631,10 +630,10 @@ export function ProjectProcurementPanel({
                     minHeight={160}
                   />
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={cancelDesc}>
+                    <Button variant="ghost" onClick={cancelDesc}>
                       {t("common:common.cancel")}
                     </Button>
-                    <Button size="sm" onClick={saveDesc}>
+                    <Button onClick={saveDesc}>
                       {t("common:common.save")}
                     </Button>
                   </div>
