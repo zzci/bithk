@@ -62,7 +62,6 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
             <ActivityRow
               key={issue.id}
               title={issue.title}
-              date={formatDate(issue.updatedAt)}
               onClick={() => onOpenTab("issues")}
               badge={(
                 <Badge variant="secondary" className={cn("shrink-0", ISSUE_STATUS_BADGE[issue.status])}>
@@ -87,7 +86,6 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
               <ActivityRow
                 key={p.id}
                 title={p.itemName}
-                date={formatDate(p.updatedAt)}
                 onClick={() => onOpenTab("procurement")}
                 badge={(
                   <Badge variant="outline" className="shrink-0">
@@ -266,18 +264,17 @@ function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, is
 
 interface ActivityRowProps {
   readonly title: string;
-  readonly date: string;
   readonly badge: ReactNode;
   readonly onClick: () => void;
 }
 
-// Single-line variant for the latest-activity lists: title, status badge, and
-// date share one horizontal row. Distinct from ROW_BUTTON_CLASS so the pinned
+// Single-line variant for the latest-activity lists: title and status badge
+// share one horizontal row. Distinct from ROW_BUTTON_CLASS so the pinned
 // card keeps its two-line rhythm.
 const ACTIVITY_ROW_CLASS
   = "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-function ActivityRow({ title, date, badge, onClick }: ActivityRowProps) {
+function ActivityRow({ title, badge, onClick }: ActivityRowProps) {
   return (
     <li>
       <button
@@ -286,8 +283,7 @@ function ActivityRow({ title, date, badge, onClick }: ActivityRowProps) {
         onClick={onClick}
       >
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
-        {badge}
-        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{date}</span>
+        <span className="ml-auto shrink-0">{badge}</span>
       </button>
     </li>
   );

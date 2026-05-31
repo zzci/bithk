@@ -146,7 +146,7 @@ function ProjectDetailLayout() {
 
       {/* Tabs promoted to the page's primary navigation; each tab is a route. */}
       <Tabs value={tab} onValueChange={v => v !== null && goToTab(v as ProjectDetailTab)}>
-        <TabsList variant="line" className="h-auto gap-6 overflow-x-auto border-b text-base">
+        <TabsList variant="line" className="h-auto gap-6 overflow-x-auto text-base">
           <TabsTrigger value="overview" className="px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground">
             {t("tabs.overview")}
           </TabsTrigger>
