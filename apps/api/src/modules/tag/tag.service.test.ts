@@ -6,7 +6,8 @@ import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
-import { contacts, contactTags } from "@/modules/contact/schema";
+import { contacts } from "@/modules/contact/schema";
+import { tagsRefs } from "./schema";
 import {
   createTag,
   deleteTag,
@@ -23,12 +24,8 @@ import {
 } from "./tag.service";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
-const contactJoin = { table: contactTags, tagId: contactTags.tagId };
 const contactBinding: ResourceTagBinding = {
-  sourceType: "contact",
-  table: contactTags,
-  resourceColumn: contactTags.contactId,
-  tagColumn: contactTags.tagId,
+  type: "contact",
 };
 
 let db: AppDatabase;
@@ -41,7 +38,7 @@ async function seedContact(id: string): Promise<string> {
 }
 
 async function link(contactId: string, tagId: string): Promise<void> {
-  await db.insert(contactTags).values({ contactId, tagId }).run();
+  await db.insert(tagsRefs).values({ resourceId: contactId, tagId }).run();
 }
 
 beforeEach(async () => {
@@ -111,7 +108,7 @@ describe("listTagsWithUsage", () => {
     await link(c2, popular.id);
     await link(c1, rare.id);
 
-    const list = await listTagsWithUsage(db, "contact", contactJoin);
+    const list = await listTagsWithUsage(db, "contact");
     expect(list.map(t => [t.name, t.usageCount])).toEqual([
       ["popular", 2],
       ["rare", 1],
@@ -127,15 +124,15 @@ describe("renameTag", () => {
     const c1 = await seedContact("c1");
     await link(c1, a.id);
 
-    const renamed = await renameTag(db, "contact", a.id, "Gamma", contactJoin);
+    const renamed = await renameTag(db, "contact", a.id, "Gamma");
     expect(renamed).toEqual({ id: a.id, name: "Gamma", usageCount: 1 });
-    expect(renameTag(db, "contact", a.id, "Beta", contactJoin)).rejects.toThrow();
-    expect(await renameTag(db, "contact", "missing", "X", contactJoin)).toBeUndefined();
+    expect(renameTag(db, "contact", a.id, "Beta")).rejects.toThrow();
+    expect(await renameTag(db, "contact", "missing", "X")).toBeUndefined();
   });
 
   test("does not rename a tag belonging to a different source type", async () => {
     const projectTag = await createTag(db, "project", "Shared");
-    expect(await renameTag(db, "contact", projectTag.id, "Renamed", contactJoin)).toBeUndefined();
+    expect(await renameTag(db, "contact", projectTag.id, "Renamed")).toBeUndefined();
   });
 });
 
@@ -149,7 +146,7 @@ describe("deleteTag", () => {
     expect(await deleteTag(db, "project", tag.id)).toBe(false);
 
     expect(await deleteTag(db, "contact", tag.id)).toBe(true);
-    const links = await db.select().from(contactTags).all();
+    const links = await db.select().from(tagsRefs).all();
     expect(links).toHaveLength(0);
     expect(await deleteTag(db, "contact", tag.id)).toBe(false);
   });

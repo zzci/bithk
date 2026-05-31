@@ -4,7 +4,7 @@ import type { ResourceTagBinding } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { issueReferences } from "@/modules/issue/references.schema";
 import { buildReferenceRows } from "@/modules/issue/references.service";
-import { issueDetails, issueTags } from "@/modules/issue/schema";
+import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { getMemberCapabilities, resolveAssignableMember } from "@/modules/project/project.service";
@@ -15,15 +15,11 @@ import { nanoid, ulid } from "@/shared/lib/id";
 
 export type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
 
-// The issue domain's tag assignment binding (source_type='issue'). Built here
-// from the local join table so the issue service can sync/read tags directly,
-// and exported so `routes/protected.ts` registers the same binding for the
-// shared `GET /tags?type=issue` vocabulary route.
+// The issue domain's tag binding (tag type='issue'). Resources are keyed by the
+// issue's `items.id`. Exported so `routes/protected.ts` registers the same type
+// for the shared `GET /tags?type=issue` vocabulary route.
 export const issueTagBinding: ResourceTagBinding = {
-  sourceType: "issue",
-  table: issueTags,
-  resourceColumn: issueTags.itemId,
-  tagColumn: issueTags.tagId,
+  type: "issue",
 };
 export type IssuePriority = "low" | "medium" | "high" | "urgent";
 
@@ -58,7 +54,7 @@ export interface IssueRow {
   // project overview Pin area; `pinnedAt` is set when pinned, NULL otherwise.
   readonly pinned: boolean;
   readonly pinnedAt: string | null;
-  // Tags assigned to this issue (source_type='issue'), ordered by name.
+  // Tags assigned to this issue (tag type 'issue'), ordered by name.
   readonly tags: { readonly id: string; readonly name: string }[];
 }
 
@@ -141,7 +137,7 @@ export interface CreateIssueInput {
   // Optional generic references inserted in the same transaction. Additive —
   // omitting it leaves the create path's behavior unchanged.
   readonly references?: readonly AddReferenceInput[] | undefined;
-  // Optional tag names (source_type='issue') synced in the same transaction.
+  // Optional tag names (tag type 'issue') synced in the same transaction.
   readonly tags?: readonly string[] | undefined;
 }
 
@@ -222,7 +218,7 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
         tx.insert(issueReferences).values(row).run();
     }
 
-    // Optional tag assignment (source_type='issue'), synced inside the same tx.
+    // Optional tag assignment (tag type 'issue'), synced inside the same tx.
     if (input.tags)
       syncResourceTagsTx(tx, issueTagBinding, id, input.tags, now);
   });
@@ -248,7 +244,7 @@ export interface UpdateIssueInput {
   readonly dueDate?: string | null | undefined;
   // Reassignment target (`project_members.id`); null clears the assignment.
   readonly assigneeMemberId?: string | null | undefined;
-  // Replacement tag set (source_type='issue'); omit to leave tags unchanged.
+  // Replacement tag set (tag type 'issue'); omit to leave tags unchanged.
   readonly tags?: readonly string[] | undefined;
 }
 
@@ -360,7 +356,7 @@ export interface ListByProjectParams {
   readonly q?: string | undefined;
   readonly status?: string | undefined;
   readonly priority?: string | undefined;
-  // Multi-tag filter (source_type='issue'). OR / union semantics: an issue
+  // Multi-tag filter (tag type 'issue'). OR / union semantics: an issue
   // matches if it carries ANY of these tags. Empty/omitted = no tag filter.
   readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;

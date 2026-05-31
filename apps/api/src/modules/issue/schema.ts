@@ -1,7 +1,6 @@
-import { index, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { items } from "@/modules/item/schema";
 import { projectMembers, projects } from "@/modules/project/schema";
-import { tags } from "@/modules/tag/schema";
 
 // Generic issue references (additive, separate table). Re-exported here so the
 // aggregated `db/schema.ts` picks it up via its single `export *` per module.
@@ -41,11 +40,5 @@ export const issueDetails = sqliteTable("issue_details", {
   index("issue_project_idx").on(t.projectId),
 ]);
 
-// Issue ⇄ global tag assignment (source_type='issue'). Mirrors `project_tags`:
-// a composite-PK join from an issue's `items.id` to the shared, type-scoped
-// tag vocabulary. Both sides cascade so deleting an issue or a tag unlinks the
-// assignment automatically.
-export const issueTags = sqliteTable("issue_tags", {
-  itemId: text("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
-  tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
-}, t => [primaryKey({ columns: [t.itemId, t.tagId] })]);
+// Issue tag assignments live in the shared `tags_refs` join (tag module),
+// keyed by `resource_id = items.id`, scoped to tag `type` 'issue'.

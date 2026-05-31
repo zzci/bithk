@@ -39,7 +39,7 @@ const createSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   assigneeMemberId: z.string().min(1).optional(),
   dueDate: z.string().max(30).optional(),
-  // Optional tag names (source_type='issue') synced with the issue.
+  // Optional tag names (tag type 'issue') synced with the issue.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
   // Optional generic references inserted alongside the issue (additive).
   references: z.array(referenceInputSchema).max(50).optional(),
@@ -52,7 +52,7 @@ const updateSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   assigneeMemberId: z.string().min(1).nullable().optional(),
   dueDate: z.string().max(30).nullable().optional(),
-  // Replacement tag set (source_type='issue'); omit to leave tags unchanged.
+  // Replacement tag set (tag type 'issue'); omit to leave tags unchanged.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
 }).refine(d => Object.values(d).some(v => v !== undefined), {
   message: "At least one field must be provided",

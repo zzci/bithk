@@ -4,10 +4,8 @@ import { accountRoutes } from "@/modules/account";
 import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
 import { contactRoutes } from "@/modules/contact";
-import { contactTags } from "@/modules/contact/schema";
 import { cronRoutes } from "@/modules/cron";
 import { documentRoutes } from "@/modules/document";
-import { documentTags } from "@/modules/document/schema";
 import { driveRoutes } from "@/modules/drive";
 import { fileRoutes } from "@/modules/file";
 import { issueRoutes } from "@/modules/issue";
@@ -19,22 +17,21 @@ import { policyRoutes } from "@/modules/policy";
 import { procurementRoutes } from "@/modules/procurement";
 import { procurementTagBinding } from "@/modules/procurement/procurement.service";
 import { projectRoutes } from "@/modules/project";
-import { projectTags } from "@/modules/project/schema";
 import { searchRoutes } from "@/modules/search";
 import { settingsRoutes } from "@/modules/settings";
 import { shareRoutes } from "@/modules/share";
 import { shipRoutes } from "@/modules/ship";
 import { maintenanceTemplateRoutes } from "@/modules/ship/ship.maintenance-template.service";
 // Importing the tag module registers the `tags` backup contribution and exposes
-// `tagRoutes` (the shared typed-tag vocabulary). The domain join tables are
-// wired into the tag registry here so the module never imports a domain schema.
+// `tagRoutes` (the shared typed-tag vocabulary). Each domain's `{ type }` binding
+// is wired into the tag registry here so the module never imports a domain schema.
 import { registerTagSource, tagRoutes } from "@/modules/tag";
 
-// Register each domain's tag assignment binding as a load-time side effect, so
-// the shared `/tags` routes can resolve a join table by source type at boot.
-registerTagSource({ sourceType: "project", table: projectTags, resourceColumn: projectTags.projectId, tagColumn: projectTags.tagId });
-registerTagSource({ sourceType: "contact", table: contactTags, resourceColumn: contactTags.contactId, tagColumn: contactTags.tagId });
-registerTagSource({ sourceType: "document", table: documentTags, resourceColumn: documentTags.itemId, tagColumn: documentTags.tagId });
+// Register each domain's tag binding as a load-time side effect, so
+// the shared `/tags` routes know which types exist at boot.
+registerTagSource({ type: "project" });
+registerTagSource({ type: "contact" });
+registerTagSource({ type: "document" });
 registerTagSource(issueTagBinding);
 registerTagSource(procurementTagBinding);
 

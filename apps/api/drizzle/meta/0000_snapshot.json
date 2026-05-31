@@ -1,68 +1,9 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fadad616-43c7-4407-a04d-b5eec05e5271",
+  "id": "a99a1578-7c51-4e09-85c9-15ccf921b98c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "contact_tags": {
-      "name": "contact_tags",
-      "columns": {
-        "contact_id": {
-          "name": "contact_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tag_id": {
-          "name": "tag_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "contact_tags_contact_id_contacts_id_fk": {
-          "name": "contact_tags_contact_id_contacts_id_fk",
-          "tableFrom": "contact_tags",
-          "tableTo": "contacts",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "contact_tags_tag_id_tags_id_fk": {
-          "name": "contact_tags_tag_id_tags_id_fk",
-          "tableFrom": "contact_tags",
-          "tableTo": "tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "contact_tags_contact_id_tag_id_pk": {
-          "columns": [
-            "contact_id",
-            "tag_id"
-          ],
-          "name": "contact_tags_contact_id_tag_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "contacts": {
       "name": "contacts",
       "columns": {
@@ -1234,65 +1175,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "document_tags": {
-      "name": "document_tags",
-      "columns": {
-        "item_id": {
-          "name": "item_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tag_id": {
-          "name": "tag_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "document_tags_item_id_items_id_fk": {
-          "name": "document_tags_item_id_items_id_fk",
-          "tableFrom": "document_tags",
-          "tableTo": "items",
-          "columnsFrom": [
-            "item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "document_tags_tag_id_tags_id_fk": {
-          "name": "document_tags_tag_id_tags_id_fk",
-          "tableFrom": "document_tags",
-          "tableTo": "tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "document_tags_item_id_tag_id_pk": {
-          "columns": [
-            "item_id",
-            "tag_id"
-          ],
-          "name": "document_tags_item_id_tag_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "drive_entries": {
       "name": "drive_entries",
       "columns": {
@@ -2069,65 +1951,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "issue_tags": {
-      "name": "issue_tags",
-      "columns": {
-        "item_id": {
-          "name": "item_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tag_id": {
-          "name": "tag_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "issue_tags_item_id_items_id_fk": {
-          "name": "issue_tags_item_id_items_id_fk",
-          "tableFrom": "issue_tags",
-          "tableTo": "items",
-          "columnsFrom": [
-            "item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "issue_tags_tag_id_tags_id_fk": {
-          "name": "issue_tags_tag_id_tags_id_fk",
-          "tableFrom": "issue_tags",
-          "tableTo": "tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "issue_tags_item_id_tag_id_pk": {
-          "columns": [
-            "item_id",
-            "tag_id"
-          ],
-          "name": "issue_tags_item_id_tag_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "issue_references": {
       "name": "issue_references",
       "columns": {
@@ -2763,65 +2586,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "procurement_tags": {
-      "name": "procurement_tags",
-      "columns": {
-        "item_id": {
-          "name": "item_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tag_id": {
-          "name": "tag_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "procurement_tags_item_id_items_id_fk": {
-          "name": "procurement_tags_item_id_items_id_fk",
-          "tableFrom": "procurement_tags",
-          "tableTo": "items",
-          "columnsFrom": [
-            "item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "procurement_tags_tag_id_tags_id_fk": {
-          "name": "procurement_tags_tag_id_tags_id_fk",
-          "tableFrom": "procurement_tags",
-          "tableTo": "tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "procurement_tags_item_id_tag_id_pk": {
-          "columns": [
-            "item_id",
-            "tag_id"
-          ],
-          "name": "procurement_tags_item_id_tag_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "global_procurement_categories": {
       "name": "global_procurement_categories",
       "columns": {
@@ -3124,6 +2888,13 @@
           "autoincrement": false,
           "default": 0
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -3164,65 +2935,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "project_tags": {
-      "name": "project_tags",
-      "columns": {
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tag_id": {
-          "name": "tag_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "project_tags_project_id_projects_id_fk": {
-          "name": "project_tags_project_id_projects_id_fk",
-          "tableFrom": "project_tags",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_tags_tag_id_tags_id_fk": {
-          "name": "project_tags_tag_id_tags_id_fk",
-          "tableFrom": "project_tags",
-          "tableTo": "tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "project_tags_project_id_tag_id_pk": {
-          "columns": [
-            "project_id",
-            "tag_id"
-          ],
-          "name": "project_tags_project_id_tag_id_pk"
-        }
-      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -4121,8 +3833,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "source_type": {
-          "name": "source_type",
+        "type": {
+          "name": "type",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -4144,10 +3856,10 @@
         }
       },
       "indexes": {
-        "tags_source_name_idx": {
-          "name": "tags_source_name_idx",
+        "tags_type_name_idx": {
+          "name": "tags_type_name_idx",
           "columns": [
-            "source_type",
+            "type",
             "name"
           ],
           "isUnique": true
@@ -4155,6 +3867,60 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "tags_refs": {
+      "name": "tags_refs",
+      "columns": {
+        "resource_id": {
+          "name": "resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tag_id": {
+          "name": "tag_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "tags_refs_tag_id_idx": {
+          "name": "tags_refs_tag_id_idx",
+          "columns": [
+            "tag_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tags_refs_tag_id_tags_id_fk": {
+          "name": "tags_refs_tag_id_tags_id_fk",
+          "tableFrom": "tags_refs",
+          "tableTo": "tags",
+          "columnsFrom": [
+            "tag_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "tags_refs_resource_id_tag_id_pk": {
+          "columns": [
+            "resource_id",
+            "tag_id"
+          ],
+          "name": "tags_refs_resource_id_tag_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     }

@@ -479,7 +479,7 @@ describe("status free transitions (lock-in)", () => {
   });
 });
 
-describe("procurement tags (source_type='procurement')", () => {
+describe("procurement tags (tag type='procurement')", () => {
   test("creates with tags, embeds them in rows + detail, and filters OR/union", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
@@ -522,7 +522,7 @@ describe("procurement tags (source_type='procurement')", () => {
     await createProcurement(db, { projectId: project.id, itemName: "A", creatorId: creator, tags: ["alpha"] });
     await createProcurement(db, { projectId: project.id, itemName: "B", creatorId: creator, tags: ["alpha", "beta"] });
 
-    const vocab = await listTagsWithUsage(db, "procurement", { table: procurementTagBinding.table, tagId: procurementTagBinding.tagColumn });
+    const vocab = await listTagsWithUsage(db, "procurement");
     // most-used first, then by name: alpha(2) before beta(1)
     expect(vocab.map(v => [v.name, v.usageCount])).toEqual([["alpha", 2], ["beta", 1]]);
   });

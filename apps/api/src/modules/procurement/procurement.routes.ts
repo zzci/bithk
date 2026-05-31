@@ -33,7 +33,7 @@ const createSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().max(30).nullable().optional(),
-  // Optional tag names (source_type='procurement') synced with the procurement.
+  // Optional tag names (tag type 'procurement') synced with the procurement.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
 });
 
@@ -51,7 +51,7 @@ const updateSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().max(30).nullable().optional(),
-  // Replacement tag set (source_type='procurement'); omit to leave tags unchanged.
+  // Replacement tag set (tag type 'procurement'); omit to leave tags unchanged.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), {
   message: "At least one field must be provided",

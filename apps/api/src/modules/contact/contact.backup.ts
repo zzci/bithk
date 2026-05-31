@@ -1,12 +1,12 @@
 import type { BackupContribution } from "@/modules/backup/registry";
-import { contacts, contactTags } from "./schema";
+import { contacts } from "./schema";
 
 export const contactBackupContribution: BackupContribution = {
   name: "contacts",
-  // contacts must precede contact_tags because contact_tags.contact_id → contacts.id.
-  tables: [contacts, contactTags],
-  // contact_tags.tag_id → tags.id; the `tags` table is owned by the dedicated
-  // tags contribution. contacts.owner_id is plain text (no FK), and
-  // owner/viewer relation tuples are exported by the policies contribution.
+  tables: [contacts],
+  // Contact tag assignments live in the shared `tags_refs` table, owned by the
+  // `tags` backup contribution — listed as a dep so a contacts-only export still
+  // carries the vocabulary and its assignment links. contacts.owner_id is plain
+  // text (no FK), and owner/viewer relation tuples come from the policies module.
   deps: ["tags"],
 };

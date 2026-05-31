@@ -1,11 +1,3 @@
-CREATE TABLE `contact_tags` (
-	`contact_id` text NOT NULL,
-	`tag_id` text NOT NULL,
-	PRIMARY KEY(`contact_id`, `tag_id`),
-	FOREIGN KEY (`contact_id`) REFERENCES `contacts`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
 CREATE TABLE `contacts` (
 	`id` text PRIMARY KEY NOT NULL,
 	`owner_id` text NOT NULL,
@@ -182,14 +174,6 @@ CREATE TABLE `document_pins` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_document_pins_user` ON `document_pins` (`user_id`);--> statement-breakpoint
-CREATE TABLE `document_tags` (
-	`item_id` text NOT NULL,
-	`tag_id` text NOT NULL,
-	PRIMARY KEY(`item_id`, `tag_id`),
-	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
 CREATE TABLE `drive_entries` (
 	`id` text PRIMARY KEY NOT NULL,
 	`owner_type` text NOT NULL,
@@ -294,14 +278,6 @@ CREATE TABLE `issue_details` (
 );
 --> statement-breakpoint
 CREATE INDEX `issue_project_idx` ON `issue_details` (`project_id`);--> statement-breakpoint
-CREATE TABLE `issue_tags` (
-	`item_id` text NOT NULL,
-	`tag_id` text NOT NULL,
-	PRIMARY KEY(`item_id`, `tag_id`),
-	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
 CREATE TABLE `issue_references` (
 	`id` text PRIMARY KEY NOT NULL,
 	`item_id` text NOT NULL,
@@ -387,14 +363,6 @@ CREATE TABLE `procurement_details` (
 );
 --> statement-breakpoint
 CREATE INDEX `procurement_project_idx` ON `procurement_details` (`project_id`);--> statement-breakpoint
-CREATE TABLE `procurement_tags` (
-	`item_id` text NOT NULL,
-	`tag_id` text NOT NULL,
-	PRIMARY KEY(`item_id`, `tag_id`),
-	FOREIGN KEY (`item_id`) REFERENCES `items`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
 CREATE TABLE `global_procurement_categories` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -439,20 +407,13 @@ CREATE TABLE `project_roles` (
 	`name` text NOT NULL,
 	`capabilities` text DEFAULT '[]' NOT NULL,
 	`is_system` integer DEFAULT 0 NOT NULL,
+	`kind` text,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `project_roles_project_idx` ON `project_roles` (`project_id`);--> statement-breakpoint
-CREATE TABLE `project_tags` (
-	`project_id` text NOT NULL,
-	`tag_id` text NOT NULL,
-	PRIMARY KEY(`project_id`, `tag_id`),
-	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
 CREATE TABLE `projects` (
 	`id` text PRIMARY KEY NOT NULL,
 	`short_id` text NOT NULL,
@@ -578,9 +539,17 @@ CREATE INDEX `ships_base_project_idx` ON `ships` (`base_project_id`);--> stateme
 CREATE TABLE `tags` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
-	`source_type` text NOT NULL,
+	`type` text NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `tags_source_name_idx` ON `tags` (`source_type`,`name`);
+CREATE UNIQUE INDEX `tags_type_name_idx` ON `tags` (`type`,`name`);--> statement-breakpoint
+CREATE TABLE `tags_refs` (
+	`resource_id` text NOT NULL,
+	`tag_id` text NOT NULL,
+	PRIMARY KEY(`resource_id`, `tag_id`),
+	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `tags_refs_tag_id_idx` ON `tags_refs` (`tag_id`);

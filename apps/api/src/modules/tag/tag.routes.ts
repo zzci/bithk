@@ -3,14 +3,14 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { NotFoundError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
-import { TAG_SOURCE_TYPES } from "./schema";
-import { getTagBinding } from "./tag.registry";
+import { TAG_TYPES } from "./schema";
 import { createTag, deleteTag, listTagsWithUsage, renameTag } from "./tag.service";
 
-// `/tags` manages all registered typed vocabularies (project/contact/document);
-// each domain's join table (resolved from the registry) supplies the assignment
-// count. `type` defaults to project so existing project-only callers are unchanged.
-const tagTypeSchema = z.enum(TAG_SOURCE_TYPES).default("project");
+// `/tags` manages all typed vocabularies (project/contact/document/issue/
+// procurement) over the shared `tags` table; the generic `tags_refs` join
+// supplies the assignment count. `type` defaults to project so existing
+// project-only callers are unchanged.
+const tagTypeSchema = z.enum(TAG_TYPES).default("project");
 const tagNameSchema = z.object({ name: z.string().min(1).max(50), type: tagTypeSchema });
 
 export function tagRoutes() {
@@ -22,8 +22,7 @@ export function tagRoutes() {
   router.get("/tags", async (c) => {
     const db = c.get("db");
     const type = tagTypeSchema.parse(c.req.query("type"));
-    const binding = getTagBinding(type);
-    return c.json({ success: true, data: await listTagsWithUsage(db, type, { table: binding.table, tagId: binding.tagColumn }) });
+    return c.json({ success: true, data: await listTagsWithUsage(db, type) });
   });
 
   // ─── Tag admin (admin only) ────────────────────────────────────────
@@ -37,8 +36,7 @@ export function tagRoutes() {
     const db = c.get("db");
     const id = c.req.param("id");
     const body = tagNameSchema.parse(await c.req.json());
-    const binding = getTagBinding(body.type);
-    const tag = await renameTag(db, body.type, id, body.name, { table: binding.table, tagId: binding.tagColumn });
+    const tag = await renameTag(db, body.type, id, body.name);
     if (!tag)
       throw new NotFoundError("Tag", id);
     return c.json({ success: true, data: tag });

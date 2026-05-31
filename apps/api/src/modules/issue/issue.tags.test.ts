@@ -23,11 +23,11 @@ describe("listResourceIdsByAnyTag (issue binding)", () => {
   it("returns the union of item ids carrying any of the given tags", async () => {
     const { sqlite, db } = await bootDb();
     sqlite.run(
-      "INSERT INTO tags (id,name,source_type,created_at,updated_at) VALUES "
+      "INSERT INTO tags (id,name,type,created_at,updated_at) VALUES "
       + "('t1','alpha','issue','n','n'),('t2','beta','issue','n','n'),('t3','gamma','issue','n','n')",
     );
     // i1->t1 ; i2->t1,t2 ; i3->t3
-    sqlite.run("INSERT INTO issue_tags (item_id,tag_id) VALUES ('i1','t1'),('i2','t1'),('i2','t2'),('i3','t3')");
+    sqlite.run("INSERT INTO tags_refs (resource_id,tag_id) VALUES ('i1','t1'),('i2','t1'),('i2','t2'),('i3','t3')");
 
     // many tags by id → union (i1 has only t1, i2 has both): OR not AND
     const union = await listResourceIdsByAnyTag(db, issueTagBinding, ["t1", "t2"]);
@@ -46,12 +46,12 @@ describe("listResourceIdsByAnyTag (issue binding)", () => {
   it("lists the issue tag vocabulary with usage counts (GET /tags?type=issue)", async () => {
     const { sqlite, db } = await bootDb();
     sqlite.run(
-      "INSERT INTO tags (id,name,source_type,created_at,updated_at) VALUES "
+      "INSERT INTO tags (id,name,type,created_at,updated_at) VALUES "
       + "('t1','alpha','issue','n','n'),('t2','beta','issue','n','n')",
     );
-    sqlite.run("INSERT INTO issue_tags (item_id,tag_id) VALUES ('i1','t1'),('i2','t1')");
+    sqlite.run("INSERT INTO tags_refs (resource_id,tag_id) VALUES ('i1','t1'),('i2','t1')");
 
-    const vocab = await listTagsWithUsage(db, "issue", { table: issueTagBinding.table, tagId: issueTagBinding.tagColumn });
+    const vocab = await listTagsWithUsage(db, "issue");
     // most-used first, then by name: alpha(2) before beta(0)
     expect(vocab.map(v => [v.name, v.usageCount])).toEqual([["alpha", 2], ["beta", 0]]);
   });
