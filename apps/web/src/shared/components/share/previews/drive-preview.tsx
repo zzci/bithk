@@ -342,11 +342,11 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
                       {entry.type === "file" && (
                         <div className="flex shrink-0 items-center gap-1">
                           {previewable(entry) && (
-                            <Button type="button" variant="ghost" size="icon-sm" aria-label={t("public.preview")} onClick={() => setPreviewItem(entry)}>
+                            <Button type="button" variant="ghost" size="icon" aria-label={t("public.preview")} onClick={() => setPreviewItem(entry)}>
                               <Eye className="size-4" />
                             </Button>
                           )}
-                          <Button type="button" variant="ghost" size="icon-sm" aria-label={t("public.download")} onClick={() => void downloadPublicShareChild(token, entry.id, entry.name, pwd)}>
+                          <Button type="button" variant="ghost" size="icon" aria-label={t("public.download")} onClick={() => void downloadPublicShareChild(token, entry.id, entry.name, pwd)}>
                             <Download className="size-4" />
                           </Button>
                         </div>
