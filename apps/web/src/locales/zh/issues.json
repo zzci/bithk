@@ -48,6 +48,7 @@
   "updatedAt": "更新时间",
   "openFullPage": "打开全屏",
   "backToList": "返回事项列表",
+  "detailTitle": "事项详情",
   "resizeDrawer": "调整事项抽屉大小",
   "clickToEditTitle": "点击编辑标题",
   "comments": {
