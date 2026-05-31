@@ -246,7 +246,7 @@ function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, is
           {title}
         </CardTitle>
         <CardAction>
-          <Button variant="link" size="sm" className="h-auto p-0" onClick={onViewAll}>
+          <Button variant="link" className="h-auto p-0" onClick={onViewAll}>
             {t("overview.viewAll")}
           </Button>
         </CardAction>

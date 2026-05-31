@@ -107,7 +107,6 @@ export function ProjectsListPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="shrink-0 text-sm text-muted-foreground">{t("list.filterByTag")}</span>
           {[
             { key: "__active__", label: t("status.active"), count: activeCount },
             { key: "__archived__", label: t("status.archived"), count: archivedCount },
@@ -128,6 +127,7 @@ export function ProjectsListPage() {
               )}
             </Button>
           ))}
+          <span className="shrink-0 text-sm text-muted-foreground">{t("list.filterByTag")}</span>
           <ProjectTagFilter
             tags={tags}
             selectedTagId={tags.some(tag => tag.id === filter) ? filter : null}
@@ -237,22 +237,24 @@ function ProjectsGrid({
         <Card
           key={project.id}
           size="sm"
-          role="button"
-          tabIndex={0}
-          className="cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={() => openProject(project.id)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              openProject(project.id);
-            }
-          }}
+          className="relative cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20 focus-within:ring-2 focus-within:ring-ring"
         >
           <CoverImage src={project.coverImageUrl} kind="project" seed={project.id} className="h-28 w-full" />
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
-              <CardTitle className="line-clamp-2 min-w-0">{project.name}</CardTitle>
-              <div className="flex shrink-0 items-center gap-1">
+              {/* The title is the single navigable control; its ::after overlay
+                  stretches over the whole card so clicking anywhere (except the
+                  Settings button, raised with z-10) opens the project. */}
+              <CardTitle className="min-w-0">
+                <button
+                  type="button"
+                  className="line-clamp-2 text-left after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none"
+                  onClick={() => openProject(project.id)}
+                >
+                  {project.name}
+                </button>
+              </CardTitle>
+              <div className="relative z-10 flex shrink-0 items-center gap-1">
                 {project.status === "archived" && (
                   <Badge variant="secondary" className="text-[10px] tracking-wide uppercase">
                     {t("status.archived")}
@@ -263,10 +265,7 @@ function ProjectsGrid({
                     variant="ghost"
                     size="icon"
                     aria-label={t("list.openSettings")}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openSettings(project.id);
-                    }}
+                    onClick={() => openSettings(project.id)}
                   >
                     <Settings aria-hidden="true" />
                   </Button>

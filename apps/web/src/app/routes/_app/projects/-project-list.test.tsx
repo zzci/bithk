@@ -77,7 +77,7 @@ describe("projectsListPage", () => {
     renderWithProviders(<ProjectsListPage />);
 
     await waitFor(() => expect(screen.getByText("No Desc")).toBeInTheDocument());
-    const blankCard = screen.getByText("Blank Desc").closest("[role=\"button\"]");
+    const blankCard = screen.getByText("Blank Desc").closest("[data-slot=\"card\"]");
     expect(blankCard).not.toBeNull();
     // A whitespace-only description must not render a paragraph node.
     expect(blankCard!.querySelector("p")).toBeNull();
@@ -88,7 +88,7 @@ describe("projectsListPage", () => {
     renderWithProviders(<ProjectsListPage />);
 
     await waitFor(() => expect(screen.getByText("Atlas Refit")).toBeInTheDocument());
-    const card = screen.getByText("Atlas Refit").closest("[role=\"button\"]");
+    const card = screen.getByText("Atlas Refit").closest("[data-slot=\"card\"]");
     expect(card).not.toBeNull();
     // The placeholder tag row is always present so card heights stay aligned.
     expect(card!.querySelector("div.min-h-5")).not.toBeNull();
@@ -99,7 +99,7 @@ describe("projectsListPage", () => {
     renderWithProviders(<ProjectsListPage />);
 
     await waitFor(() => expect(screen.getByText("Atlas Refit")).toBeInTheDocument());
-    const card = screen.getByText("Atlas Refit").closest("[role=\"button\"]");
+    const card = screen.getByText("Atlas Refit").closest("[data-slot=\"card\"]");
     expect(card).not.toBeNull();
 
     const description = screen.getByText("Flagship refit programme");
