@@ -220,11 +220,11 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                     same column tracks as every data row below. */}
                 <div className="flex items-stretch border-b border-border bg-muted/40">
                   <div className={cn(PROCUREMENT_GRID, "min-w-0 flex-1 px-3 py-2 text-xs font-medium text-muted-foreground")}>
-                    <span className="truncate">{t("procurement.field.itemName")}</span>
-                    <span className="truncate">{t("procurement.field.status")}</span>
-                    <span className="truncate text-right">{t("procurement.field.amount")}</span>
-                    <span className="hidden truncate sm:block">{t("procurement.field.category")}</span>
-                    <span className="hidden truncate md:block">{t("procurement.field.supplier")}</span>
+                    <span className="truncate">{t("procurement.col.itemName")}</span>
+                    <span className="truncate">{t("procurement.col.status")}</span>
+                    <span className="truncate text-right">{t("procurement.col.amount")}</span>
+                    <span className="hidden truncate sm:block">{t("procurement.col.category")}</span>
+                    <span className="hidden truncate md:block">{t("procurement.col.supplier")}</span>
                   </div>
                   {canManage && <div className="w-9 shrink-0" aria-hidden="true" />}
                 </div>
