@@ -83,9 +83,8 @@ export function DriveFilterBar({
         render={(
           <Button
             variant="outline"
-            size="sm"
             className={cn(
-              "h-9 shrink-0 rounded-md px-4 text-sm font-medium whitespace-nowrap",
+              "shrink-0 whitespace-nowrap",
               value !== "all" && "bg-accent",
             )}
           />

@@ -42,7 +42,7 @@ export function ViewModeToggle({
       <Button
         variant="ghost"
         size="icon"
-        className={cn("size-8", viewMode === "grid" && "bg-accent")}
+        className={cn("size-7", viewMode === "grid" && "bg-accent")}
         onClick={() => onViewModeChange("grid")}
         aria-label={t("browser.viewGrid")}
       >
@@ -51,7 +51,7 @@ export function ViewModeToggle({
       <Button
         variant="ghost"
         size="icon"
-        className={cn("size-8", viewMode === "list" && "bg-accent")}
+        className={cn("size-7", viewMode === "list" && "bg-accent")}
         onClick={() => onViewModeChange("list")}
         aria-label={t("browser.viewList")}
       >
