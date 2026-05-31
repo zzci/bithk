@@ -222,6 +222,8 @@
     "none": "无",
     "mixedCurrencies": "多币种",
     "col": {
+      "priority": "优先级",
+      "id": "编号",
       "itemName": "物品",
       "status": "状态",
       "amount": "金额",

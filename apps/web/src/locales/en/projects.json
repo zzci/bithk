@@ -222,6 +222,8 @@
     "none": "None",
     "mixedCurrencies": "Mixed",
     "col": {
+      "priority": "Priority",
+      "id": "No.",
       "itemName": "Item",
       "status": "Status",
       "amount": "Amount",
