@@ -79,13 +79,13 @@ const STATUS_DOT: Record<IssueStatus, string> = {
 
 // One shared grid template for every row in a status group so cells line up
 // vertically across rows. Tracks (left to right):
-//   [status+id] [title 1fr] [tags (sm+)] [priority] [due (md+)] [assignee]
+//   [status+id] [title 1fr] [tags (sm+)] [due (md+)] [assignee] [priority]
 // Hidden cells use display:none and drop out of grid flow, so the count of
 // visible cells matches the track count at each breakpoint. The title (1fr)
 // absorbs all slack, keeping the trailing meta columns right-aligned across
 // rows regardless of id/tag width.
 const ROW_GRID_CLASS
-  = "grid grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] md:grid-cols-[auto_minmax(0,1fr)_auto_auto_5rem_auto]";
+  = "grid grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] md:grid-cols-[auto_minmax(0,1fr)_auto_5rem_auto_auto]";
 
 // Distinct avatar background palette (deterministic per member id).
 const AVATAR_COLORS = [
@@ -418,12 +418,12 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                                 </Badge>
                                               ))}
                                             </div>
-                                            <PrioritySignal priority={issue.priority} label={priorityLabel} />
                                             {/* due column — md+ only, always rendered to preserve its grid track */}
                                             <div className="hidden justify-end text-xs md:flex">
                                               {issue.dueDate && <DueLabel value={issue.dueDate} />}
                                             </div>
                                             <MemberAvatar id={issue.assigneeMemberId} label={assigneeLabel(issue)} />
+                                            <PrioritySignal priority={issue.priority} label={priorityLabel} />
                                           </button>
                                           {canPin(issue) && (
                                             <div
