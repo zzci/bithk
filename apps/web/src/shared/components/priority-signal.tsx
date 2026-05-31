@@ -1,10 +1,9 @@
 // Shared source of truth for priority visuals across issues and procurement.
 // Both IssuePriority and ProcurementPriority are exactly this four-level union,
 // so a local `Priority` type keeps this module free of cross-feature imports.
-// Each level is distinguished by BOTH icon and color (scheme A) so adjacent
+// Each level is a solid filled circle colored per level (scheme A) so adjacent
 // levels — notably low (gray) vs medium (blue) — are never ambiguous.
 
-import { AlertTriangle, SignalHigh, SignalLow, SignalMedium } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
 type Priority = "low" | "medium" | "high" | "urgent";
@@ -12,24 +11,24 @@ type Priority = "low" | "medium" | "high" | "urgent";
 // Kept module-private: exporting a non-component from this file would trip
 // react-refresh/only-export-components, and the two consumers need only the
 // components below. It remains the single source of truth for priority visuals.
-const PRIORITY_META: Record<Priority, { readonly Icon: typeof SignalLow; readonly tone: string }> = {
-  low: { Icon: SignalLow, tone: "text-muted-foreground" },
-  medium: { Icon: SignalMedium, tone: "text-info" },
-  high: { Icon: SignalHigh, tone: "text-warning" },
-  urgent: { Icon: AlertTriangle, tone: "text-destructive" },
+const PRIORITY_META: Record<Priority, string> = {
+  low: "bg-muted-foreground",
+  medium: "bg-info",
+  high: "bg-warning",
+  urgent: "bg-destructive",
 };
 
 export function PrioritySignal({ priority, label }: { readonly priority: Priority; readonly label: string }) {
-  const { Icon, tone } = PRIORITY_META[priority];
   return (
-    <span className="inline-flex shrink-0" title={label} aria-label={label}>
-      <Icon aria-hidden="true" className={cn("size-3.5", tone)} />
-    </span>
+    <span
+      title={label}
+      aria-label={label}
+      className={cn("inline-block size-2.5 shrink-0 rounded-full", PRIORITY_META[priority])}
+    />
   );
 }
 
-/** Bare priority icon for the create dialog's pill/selector (no title wrapper). */
+/** Bare priority dot for the create dialog's pill/selector (no title wrapper). */
 export function PriorityGlyph({ priority }: { readonly priority: Priority }) {
-  const { Icon, tone } = PRIORITY_META[priority];
-  return <Icon aria-hidden="true" className={cn("size-4", tone)} />;
+  return <span aria-hidden="true" className={cn("inline-block size-2.5 rounded-full", PRIORITY_META[priority])} />;
 }
