@@ -4,10 +4,11 @@
 // size — the right pane scrolls internally so switching sections never resizes
 // (or "jumps") the modal.
 
+import type { KeyboardEvent } from "react";
 import type { ProjectCapabilityInfo } from "./-use-project-role";
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
 import { AlertTriangle, Copy, FolderTree, Settings, ShieldCheck, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
@@ -72,6 +73,51 @@ export function ProjectSettingsDialog({
 
   const label = (section: SettingsSection) => t(`settings.tabs.${section}` as const);
 
+  // Stable ids tie each tab to the shared panel (aria-controls) and let the
+  // panel point back to the active tab (aria-labelledby).
+  const baseId = useId();
+  const tabId = (section: SettingsSection) => `${baseId}-tab-${section}`;
+  const panelId = `${baseId}-panel`;
+
+  // Roving-tabindex focus targets keyed by section so Arrow/Home/End can move
+  // focus to the newly activated tab.
+  const tabsRef = useRef(new Map<SettingsSection, HTMLButtonElement>());
+
+  const moveActive = (section: SettingsSection) => {
+    setActive(section);
+    tabsRef.current.get(section)?.focus();
+  };
+
+  // Vertical tablist: Up/Down cycle through tabs, Home/End jump to the edges.
+  // Activation follows focus (only the active tab stays in the Tab sequence).
+  const handleTablistKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const count = sections.length;
+    if (count === 0)
+      return;
+    const current = Math.max(0, sections.indexOf(active));
+    let nextIndex: number;
+    switch (event.key) {
+      case "ArrowDown":
+        nextIndex = (current + 1) % count;
+        break;
+      case "ArrowUp":
+        nextIndex = (current - 1 + count) % count;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = count - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const next = sections[nextIndex];
+    if (next)
+      moveActive(next);
+  };
+
   // Surface the canonical short id used in the project URL (no 'p-' prefix),
   // not the legacy display code. project.id always exists.
   const handleCopyCode = async () => {
@@ -90,19 +136,34 @@ export function ProjectSettingsDialog({
         <div className="grid h-full min-h-0 grid-cols-[13rem_1fr]">
           <aside className="flex min-h-0 flex-col border-r bg-muted/30 p-3">
             <DialogTitle className="px-2 pt-1 pb-3 text-sm font-semibold">{t("settings.title")}</DialogTitle>
-            <nav role="tablist" aria-orientation="vertical" className="flex flex-col gap-1">
+            <nav
+              role="tablist"
+              aria-orientation="vertical"
+              aria-label={t("settings.title")}
+              className="flex flex-col gap-1"
+              onKeyDown={handleTablistKeyDown}
+            >
               {sections.map((section) => {
                 const Icon = SECTION_ICON[section];
                 const selected = active === section;
                 return (
                   <button
                     key={section}
+                    ref={(el) => {
+                      if (el)
+                        tabsRef.current.set(section, el);
+                      else
+                        tabsRef.current.delete(section);
+                    }}
                     type="button"
                     role="tab"
+                    id={tabId(section)}
+                    aria-controls={panelId}
                     aria-selected={selected}
+                    tabIndex={selected ? 0 : -1}
                     onClick={() => setActive(section)}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                       selected
                         ? "bg-accent font-medium text-accent-foreground"
                         : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -131,7 +192,13 @@ export function ProjectSettingsDialog({
             )}
           </aside>
 
-          <section role="tabpanel" className="flex h-full min-h-0 flex-col">
+          <section
+            role="tabpanel"
+            id={panelId}
+            aria-labelledby={tabId(active)}
+            tabIndex={0}
+            className="flex h-full min-h-0 flex-col outline-none"
+          >
             <header className="flex h-12 shrink-0 items-center border-b px-5">
               <h2 className="text-sm font-semibold">{label(active)}</h2>
             </header>
