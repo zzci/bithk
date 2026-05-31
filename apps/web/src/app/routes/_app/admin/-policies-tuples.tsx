@@ -128,7 +128,6 @@ export function TupleManager() {
                           <EditTupleDialog tuple={tuple} />
                           <Button
                             variant="ghost"
-                            size="sm"
                             className="text-destructive hover:text-destructive"
                             onClick={() => deleteMutation.mutate(tuple.id)}
                             disabled={deleteMutation.isPending}
@@ -147,7 +146,7 @@ export function TupleManager() {
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">{t("totalTuples", { count: total })}</p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
               {t("common.prev")}
             </Button>
             <span className="flex items-center text-sm px-2">
@@ -157,7 +156,7 @@ export function TupleManager() {
               {" "}
               {totalPages}
             </span>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
               {t("common.next")}
             </Button>
           </div>
@@ -358,7 +357,7 @@ function EditTupleDialog({ tuple }: { readonly tuple: RelationTuple }) {
           setRelation(tuple.relation);
       }}
     >
-      <DialogTrigger render={<Button variant="ghost" size="sm">{t("common.edit")}</Button>} />
+      <DialogTrigger render={<Button variant="ghost">{t("common.edit")}</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("editTupleTitle")}</DialogTitle>

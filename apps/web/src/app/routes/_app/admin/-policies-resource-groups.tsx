@@ -94,7 +94,7 @@ export function ResourceGroupManager() {
                           >
                             <Button
                               variant="ghost"
-                              size="icon-sm"
+                              size="icon"
                               aria-label={t("common.edit")}
                               onClick={() => setEditGroup(group)}
                             >
@@ -102,7 +102,7 @@ export function ResourceGroupManager() {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon-sm"
+                              size="icon"
                               aria-label={t("common.delete")}
                               className="text-destructive hover:text-destructive"
                               onClick={() => setDeleteConfirm(group)}
@@ -266,7 +266,7 @@ function CreateResourceGroupDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm">{t("createResourceGroup")}</Button>} />
+      <DialogTrigger render={<Button>{t("createResourceGroup")}</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("createResourceGroupTitle")}</DialogTitle>
@@ -334,7 +334,6 @@ function ResourceGroupMemberList({ groupId }: { readonly groupId: string }) {
                     </div>
                     <Button
                       variant="ghost"
-                      size="sm"
                       className="text-destructive hover:text-destructive"
                       onClick={() => removeMutation.mutate(member.tupleId)}
                       disabled={removeMutation.isPending}

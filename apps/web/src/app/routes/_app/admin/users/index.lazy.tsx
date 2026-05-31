@@ -284,7 +284,6 @@ function UsersTab() {
                         <div className="flex gap-1">
                           <Button
                             variant="ghost"
-                            size="sm"
                             disabled={isSelf(user.id)}
                             onClick={() => setRoleConfirm(user)}
                           >
@@ -292,7 +291,6 @@ function UsersTab() {
                           </Button>
                           <Button
                             variant="ghost"
-                            size="sm"
                             disabled={isSelf(user.id)}
                             onClick={() => void toggleStatus(user)}
                           >
@@ -310,7 +308,6 @@ function UsersTab() {
         <div className="flex items-center justify-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             disabled={page <= 1}
             onClick={() => setPage(p => p - 1)}
           >
@@ -323,7 +320,6 @@ function UsersTab() {
           </span>
           <Button
             variant="outline"
-            size="sm"
             disabled={page >= meta.totalPages}
             onClick={() => setPage(p => p + 1)}
           >

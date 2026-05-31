@@ -85,14 +85,13 @@ function ErrorPage() {
             <div className="flex justify-center gap-2">
               <Link
                 to="/"
-                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
               >
                 {t("home")}
               </Link>
               {canGoBack && (
                 <Button
                   variant="default"
-                  size="lg"
                   onClick={() => window.history.back()}
                   className="px-4 font-medium"
                 >

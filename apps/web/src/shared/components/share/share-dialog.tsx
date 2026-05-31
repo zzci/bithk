@@ -347,7 +347,7 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
                       <SelectItem value="edit">{t("share:permission.edit")}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label={t("share:action.remove")} onClick={() => togglePendingUser(user.id)}>
+                  <Button type="button" variant="ghost" size="icon" aria-label={t("share:action.remove")} onClick={() => togglePendingUser(user.id)}>
                     <X className="size-4" />
                   </Button>
                 </div>
@@ -385,7 +385,6 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
                         className={isPublicAccess ? "rounded-full px-4" : "invisible rounded-full px-4"}
                         aria-expanded={publicSettingsOpen}
                         disabled={!isPublicAccess || savingChanges}
@@ -405,7 +404,7 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
                 <div className="absolute top-[76px] right-0 z-20 w-[360px] max-w-[calc(100vw-3rem)] rounded-xl border bg-popover p-4 shadow-lg">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <p className="text-sm font-medium">{t("share:publicLinkOptions")}</p>
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label={t("common:common.close")} onClick={closePublicSettings}>
+                    <Button type="button" variant="ghost" size="icon" aria-label={t("common:common.close")} onClick={closePublicSettings}>
                       <X className="size-4" />
                     </Button>
                   </div>
@@ -450,7 +449,6 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
                       <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
                         className={publicShare?.hasPassword ? "" : "invisible"}
                         disabled={!publicShare?.hasPassword || savingPublicSettings}
                         onClick={() => void updatePublicLinkSettings(true)}
@@ -459,10 +457,10 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
                       </Button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button type="button" variant="ghost" size="sm" disabled={savingPublicSettings} onClick={closePublicSettings}>
+                      <Button type="button" variant="ghost" disabled={savingPublicSettings} onClick={closePublicSettings}>
                         {t("common:common.close")}
                       </Button>
-                      <Button type="button" size="sm" disabled={savingPublicSettings || !publicShare} onClick={() => void updatePublicLinkSettings()}>
+                      <Button type="button" disabled={savingPublicSettings || !publicShare} onClick={() => void updatePublicLinkSettings()}>
                         {savingPublicSettings && <Loader2 className="size-4 animate-spin" />}
                         {t("share:action.update")}
                       </Button>
@@ -556,7 +554,7 @@ function DirectShareRow({
           <SelectItem value="edit">{t("share:permission.edit")}</SelectItem>
         </SelectContent>
       </Select>
-      <Button type="button" variant="ghost" size="icon-sm" aria-label={t("share:action.revoke")} disabled={disabled} onClick={onRemove}>
+      <Button type="button" variant="ghost" size="icon" aria-label={t("share:action.revoke")} disabled={disabled} onClick={onRemove}>
         <X className="size-4" />
       </Button>
     </div>

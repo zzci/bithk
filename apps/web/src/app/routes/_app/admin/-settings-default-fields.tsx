@@ -72,12 +72,12 @@ function DefaultCoverField() {
         <CoverImage src={url} kind="project" className="h-24 w-40 shrink-0 rounded-lg border" />
         <div className="flex flex-col gap-2">
           <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
-          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => inputRef.current?.click()}>
+          <Button type="button" variant="outline" disabled={pending} onClick={() => inputRef.current?.click()}>
             <Upload aria-hidden="true" />
             {hasCover ? t("settings:projectDefaults.defaults.coverReplace") : t("settings:projectDefaults.defaults.coverUpload")}
           </Button>
           {hasCover && (
-            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onRemove}>
+            <Button type="button" variant="outline" disabled={pending} onClick={onRemove}>
               <Trash2 className="text-destructive" aria-hidden="true" />
               {t("settings:projectDefaults.defaults.coverRemove")}
             </Button>

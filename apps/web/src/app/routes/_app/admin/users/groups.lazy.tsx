@@ -234,7 +234,7 @@ function GroupsTab() {
               </div>
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger render={(
-                  <Button size="sm">
+                  <Button>
                     <Plus className="mr-1 size-4" />
                     {t("create")}
                   </Button>
@@ -312,7 +312,7 @@ function GroupsTab() {
                                   render={(
                                     <Button
                                       variant="ghost"
-                                      size="icon-sm"
+                                      size="icon"
                                       aria-label={t("common.edit")}
                                       onClick={() => setEditGroup(group)}
                                     >
@@ -340,7 +340,7 @@ function GroupsTab() {
                               </Dialog>
                               <Button
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon"
                                 aria-label={t("common.delete")}
                                 className="text-destructive hover:text-destructive"
                                 onClick={() => setDeleteConfirm(group)}
@@ -378,7 +378,7 @@ function GroupsTab() {
                   }}
                 >
                   <DialogTrigger render={(
-                    <Button size="sm">
+                    <Button>
                       <UserPlus className="mr-1 size-4" />
                       {t("addMember")}
                     </Button>
@@ -443,7 +443,6 @@ function GroupsTab() {
                             </div>
                             <Button
                               variant="ghost"
-                              size="sm"
                               onClick={() => void removeMember(member.id)}
                               className="shrink-0 text-destructive hover:text-destructive"
                             >

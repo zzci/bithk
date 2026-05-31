@@ -74,7 +74,7 @@ export function WebhookSettingsTab() {
           <h2 className="text-lg font-semibold">{t("settings:webhook.title")}</h2>
           <p className="text-sm text-muted-foreground">{t("settings:webhook.description")}</p>
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
+        <Button onClick={() => setAddOpen(true)}>
           <Plus className="mr-1 size-3" />
           {t("settings:webhook.add")}
         </Button>
@@ -110,7 +110,7 @@ export function WebhookSettingsTab() {
                             : <Badge variant="outline">{t("settings:webhook.noSecret")}</Badge>}
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon-sm" onClick={() => void handleDelete(wh.name)}>
+                          <Button variant="ghost" size="icon" onClick={() => void handleDelete(wh.name)}>
                             <Trash2 className="size-4" />
                           </Button>
                         </TableCell>

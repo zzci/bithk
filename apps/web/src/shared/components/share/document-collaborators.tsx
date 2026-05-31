@@ -145,7 +145,7 @@ export function DocumentCollaboratorSection({ docId }: { readonly docId: string 
               <SelectItem value="editor">{t("editor")}</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" disabled={!targetId || addShare.isPending} onClick={() => addShare.mutate()}>
+          <Button disabled={!targetId || addShare.isPending} onClick={() => addShare.mutate()}>
             {t("addShare")}
           </Button>
         </div>
@@ -182,7 +182,7 @@ export function DocumentCollaboratorSection({ docId }: { readonly docId: string 
                     ? (
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           disabled
                           title={t("inheritedNotRemovable")}
                           className="opacity-50 cursor-not-allowed"
@@ -191,7 +191,7 @@ export function DocumentCollaboratorSection({ docId }: { readonly docId: string 
                         </Button>
                       )
                     : (
-                        <Button variant="ghost" size="icon-sm" onClick={() => removeShare.mutate(share.id)}>
+                        <Button variant="ghost" size="icon" onClick={() => removeShare.mutate(share.id)}>
                           <X className="size-4 text-destructive" />
                         </Button>
                       )}
