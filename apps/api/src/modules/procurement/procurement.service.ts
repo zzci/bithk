@@ -13,17 +13,13 @@ import { projects } from "@/modules/project/schema";
 import { listResourceIdsByAnyTag, listResourceTagViews, loadResourceTagsByResource, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
-import { PROCUREMENT_STATUSES, procurementDetails, procurementTags } from "./schema";
+import { PROCUREMENT_STATUSES, procurementDetails } from "./schema";
 
-// The procurement domain's tag assignment binding (source_type='procurement').
-// Built here from the local join table so the procurement service can sync/read
-// tags directly, and exported so `routes/protected.ts` registers the same
-// binding for the shared `GET /tags?type=procurement` vocabulary route.
+// The procurement domain's tag binding (tag type='procurement'). Resources are
+// keyed by the procurement's `items.id`. Exported so `routes/protected.ts`
+// registers the same type for the shared `GET /tags?type=procurement` route.
 export const procurementTagBinding: ResourceTagBinding = {
-  sourceType: "procurement",
-  table: procurementTags,
-  resourceColumn: procurementTags.itemId,
-  tagColumn: procurementTags.tagId,
+  type: "procurement",
 };
 
 // Backslash is the ESCAPE char, so it must be escaped first; every LIKE built
@@ -87,7 +83,7 @@ export interface ProcurementRow {
   // the project overview Pin area; `pinnedAt` is set when pinned, NULL otherwise.
   readonly pinned: boolean;
   readonly pinnedAt: string | null;
-  // Tags assigned to this procurement (source_type='procurement'), ordered by name.
+  // Tags assigned to this procurement (tag type 'procurement'), ordered by name.
   readonly tags: { readonly id: string; readonly name: string }[];
 }
 
@@ -161,7 +157,7 @@ export interface CreateProcurementInput {
   readonly priority?: ProcurementPriority | undefined;
   readonly dueDate?: string | null | undefined;
   readonly creatorId: string;
-  // Optional tag names (source_type='procurement') synced with the procurement.
+  // Optional tag names (tag type 'procurement') synced with the procurement.
   readonly tags?: readonly string[] | undefined;
 }
 
@@ -230,7 +226,7 @@ export async function createProcurement(db: AppDatabase, input: CreateProcuremen
       createdAt: now,
     }).run();
 
-    // Optional tag assignment (source_type='procurement'), synced inside the same tx.
+    // Optional tag assignment (tag type 'procurement'), synced inside the same tx.
     if (input.tags)
       syncResourceTagsTx(tx, procurementTagBinding, id, input.tags, now);
   });
@@ -265,7 +261,7 @@ export interface UpdateProcurementInput {
   readonly description?: string | null | undefined;
   readonly priority?: ProcurementPriority | undefined;
   readonly dueDate?: string | null | undefined;
-  // Replacement tag set (source_type='procurement'); omit to leave tags unchanged.
+  // Replacement tag set (tag type 'procurement'); omit to leave tags unchanged.
   readonly tags?: readonly string[] | undefined;
 }
 
@@ -398,7 +394,7 @@ export interface ListProcurementParams {
   readonly status?: string | undefined;
   readonly priority?: string | undefined;
   readonly categoryId?: string | undefined;
-  // Multi-tag filter (source_type='procurement'). OR / union semantics: a
+  // Multi-tag filter (tag type 'procurement'). OR / union semantics: a
   // procurement matches if it carries ANY of these tags. Empty/omitted = no filter.
   readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;

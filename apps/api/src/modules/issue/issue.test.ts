@@ -36,14 +36,14 @@ const SCHEMA_DDL: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS tags (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    source_type TEXT NOT NULL,
+    type TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
-  `CREATE TABLE IF NOT EXISTS issue_tags (
-    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  `CREATE TABLE IF NOT EXISTS tags_refs (
+    resource_id TEXT NOT NULL,
     tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (item_id, tag_id)
+    PRIMARY KEY (resource_id, tag_id)
   )`,
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,

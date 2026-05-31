@@ -6,7 +6,7 @@ import { createTuple, deleteTupleByKey, deleteTuplesForEntity } from "@/modules/
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
 import { shares } from "@/modules/share/schema";
-import { listResourceIdsByTag, listResourceTagViews, syncResourceTagsTx } from "@/modules/tag/tag.service";
+import { deleteResourceTags, listResourceIdsByTag, listResourceTagViews, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import {
@@ -14,13 +14,11 @@ import {
   canSeeConfidentialFields,
   resolveContactCapabilities,
 } from "./contact.permission";
-import { contacts, contactTags } from "./schema";
+import { contacts } from "./schema";
 
+/** Contact tag binding (tag type='contact'), passed to the shared tag helpers. */
 const CONTACT_TAG_BINDING = {
-  sourceType: "contact",
-  table: contactTags,
-  resourceColumn: contactTags.contactId,
-  tagColumn: contactTags.tagId,
+  type: "contact",
 } as const;
 
 export type ContactRow = typeof contacts.$inferSelect;
@@ -227,6 +225,9 @@ async function deleteContact(
   if (result.changes === 0)
     throw new NotFoundError("Contact", id);
 
+  // `tags_refs.resource_id` has no FK, so the contact hard-delete cannot cascade
+  // its tag links — drop them app-level (replaces the old per-domain join cascade).
+  await deleteResourceTags(db, id);
   await deleteTuplesForEntity(db, "contact", id);
   await deleteContactShares(db, id);
 }

@@ -11,8 +11,8 @@ import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createTuple } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check } from "@/modules/policy/zanzibar.engine";
+import { tagsRefs } from "@/modules/tag/schema";
 import * as contactService from "./contact.service";
-import { contactTags } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -204,7 +204,7 @@ describe("contact service", () => {
       .toMatchObject({ statusCode: 404 });
   });
 
-  test("delete removes the row, contact tags, and policy tuples", async () => {
+  test("delete removes the row, tag links, and policy tuples", async () => {
     const owner = await seedUser("owner-a");
     const viewer = await seedUser("viewer-a");
     const view = await contactService.create(db, actor(owner), { name: "Deleted Co", tags: ["supplier"] });
@@ -213,7 +213,7 @@ describe("contact service", () => {
     await contactService.delete(db, actor(owner), view.id);
 
     await expect(contactService.resolve(db, view.id)).rejects.toMatchObject({ statusCode: 404 });
-    expect(await db.select().from(contactTags).where(eq(contactTags.contactId, view.id)).all()).toEqual([]);
+    expect(await db.select().from(tagsRefs).where(eq(tagsRefs.resourceId, view.id)).all()).toEqual([]);
     expect(await db.select().from(relationTuples).where(and(
       eq(relationTuples.namespace, "contact"),
       eq(relationTuples.objectId, view.id),

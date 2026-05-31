@@ -11,10 +11,7 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
-import { contactTags } from "@/modules/contact/schema";
-import { documentTags } from "@/modules/document/schema";
 import { createProject } from "@/modules/project/project.service";
-import { projectTags } from "@/modules/project/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { registerTagSource } from "./tag.registry";
 import { tagRoutes } from "./tag.routes";
@@ -22,12 +19,12 @@ import { tagRoutes } from "./tag.routes";
 // through — without it the middleware throws.
 import "@/modules/account";
 
-// Wire the domain join tables into the tag registry so `/tags` resolves a
-// binding per source type. Mirrors the load-time registration in
-// `routes/protected.ts`; idempotent so re-running the suite is safe.
-registerTagSource({ sourceType: "project", table: projectTags, resourceColumn: projectTags.projectId, tagColumn: projectTags.tagId });
-registerTagSource({ sourceType: "contact", table: contactTags, resourceColumn: contactTags.contactId, tagColumn: contactTags.tagId });
-registerTagSource({ sourceType: "document", table: documentTags, resourceColumn: documentTags.itemId, tagColumn: documentTags.tagId });
+// Wire the tag types into the registry so `/tags` resolves a binding per type.
+// Mirrors the load-time registration in `routes/protected.ts`; idempotent so
+// re-running the suite is safe.
+registerTagSource({ type: "project" });
+registerTagSource({ type: "contact" });
+registerTagSource({ type: "document" });
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 

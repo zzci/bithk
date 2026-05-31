@@ -1,5 +1,4 @@
-import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { tags } from "@/modules/tag/schema";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const CONTACT_STATUSES = ["active", "inactive"] as const;
 export type ContactStatus = typeof CONTACT_STATUSES[number];
@@ -24,7 +23,5 @@ export const contacts = sqliteTable("contacts", {
   updatedAt: text("updated_at").notNull(),
 }, t => [index("contacts_owner_idx").on(t.ownerId)]);
 
-export const contactTags = sqliteTable("contact_tags", {
-  contactId: text("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
-  tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
-}, t => [primaryKey({ columns: [t.contactId, t.tagId] })]);
+// Contact tag assignments live in the shared `tags_refs` join (tag module),
+// keyed by `resource_id = contacts.id`, scoped to tag `type` 'contact'.

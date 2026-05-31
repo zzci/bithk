@@ -1,1 +1,0 @@
-ALTER TABLE `project_roles` ADD `kind` text;

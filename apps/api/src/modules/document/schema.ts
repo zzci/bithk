@@ -2,7 +2,6 @@ import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 import { items } from "@/modules/item/schema";
-import { tags } from "@/modules/tag/schema";
 
 // `document` is a Tier-C sub-type of the `item` base. The base owns the
 // universal columns (title / status / creator / version / soft-delete /
@@ -57,11 +56,6 @@ export const documentPins = sqliteTable("document_pins", {
   index("idx_document_pins_user").on(t.userId),
 ]);
 
-// Attaches document items to the global typed tag vocabulary (source_type
-// 'document'). This join is the sole authoritative tag store for documents.
-// `item_id` → items.id (the document base row), `tag_id` → tags.id; both
-// cascade on delete.
-export const documentTags = sqliteTable("document_tags", {
-  itemId: text("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
-  tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
-}, t => [primaryKey({ columns: [t.itemId, t.tagId] })]);
+// Document tag assignments live in the shared `tags_refs` join (tag module),
+// keyed by `resource_id = items.id` (the document base row), scoped to tag
+// `type` 'document'. It is the sole authoritative tag store for documents.

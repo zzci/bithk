@@ -16,17 +16,14 @@ import {
 import { nanoid, ulid } from "@/shared/lib/id";
 import { seedProjectCategoriesTx } from "./project.global-categories";
 import { parseCapabilities, seedDefaultRoles } from "./project.roles";
-import { projectMembers, projectRoles, projects, projectTags } from "./schema";
+import { projectMembers, projectRoles, projects } from "./schema";
 
 /** Settings key backing the admin "Project Defaults" cover picker. */
 export const PROJECT_DEFAULT_COVER_KEY = "project.defaults.coverReferenceId";
 
-/** Project assignment binding, passed to the shared tag helpers. */
+/** Project tag binding (tag type='project'), passed to the shared tag helpers. */
 const PROJECT_TAG_BINDING = {
-  sourceType: "project",
-  table: projectTags,
-  resourceColumn: projectTags.projectId,
-  tagColumn: projectTags.tagId,
+  type: "project",
 } as const;
 
 /** owner_type discriminator for a project's cover image file reference. */
@@ -122,9 +119,9 @@ export function composeMember(row: ProjectMemberRow): ProjectMemberView {
 }
 
 // ─── Tags ───────────────────────────────────────────────────────────────
-// The vocabulary lives in the shared `tags` table scoped to source_type
+// The vocabulary lives in the shared `tags` table scoped to tag type
 // 'project'; the tag module owns the CRUD (/tags routes) and the assignment
-// helpers below. Project code only binds its join table via PROJECT_TAG_BINDING.
+// helpers below. Project code only passes the type via PROJECT_TAG_BINDING.
 
 /** Load tags for a set of internal project ids, grouped by project id. */
 async function loadTagsByProject(db: AppDatabase, projectIds: readonly string[]): Promise<Map<string, ProjectTagView[]>> {
@@ -200,7 +197,7 @@ async function loadCoverUrlForProject(db: AppDatabase, row: ProjectRow): Promise
 
 /**
  * Replace a project's tags with the given names. Delegates to the shared tag
- * helper, bound to `project_tags`. Runs synchronously inside a tx.
+ * helper (tag type 'project'). Runs synchronously inside a tx.
  */
 function syncTagsTx(tx: AppTransaction, projectId: string, names: readonly string[], now: string): void {
   syncResourceTagsTx(tx, PROJECT_TAG_BINDING, projectId, names, now);

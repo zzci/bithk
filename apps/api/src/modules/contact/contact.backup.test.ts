@@ -8,10 +8,10 @@ import { createDb } from "@/db";
 import { streamJsonBackup } from "@/modules/backup/export.service";
 import { __resetBackupRegistryForTests, getDataModules, registerBackupContribution } from "@/modules/backup/registry";
 import { importJsonBackup, validateBackupData } from "@/modules/backup/restore.service";
-import { tags } from "@/modules/tag/schema";
+import { tags, tagsRefs } from "@/modules/tag/schema";
 import { tagBackupContribution } from "@/modules/tag/tag.backup";
 import { contactBackupContribution } from "./contact.backup";
-import { contacts, contactTags } from "./schema";
+import { contacts } from "./schema";
 
 let sourceDb: AppDatabase;
 let restoredDb: AppDatabase;
@@ -37,7 +37,10 @@ describe("contact backup contribution", () => {
   test("registers the contacts module with FK-safe tables and deps", () => {
     const mod = getDataModules().contacts;
     expect(mod?.name).toBe("contacts");
-    expect(mod?.tables.map(table => getTableName(table))).toEqual(["contacts", "contact_tags"]);
+    // Tag links now live in the shared `tags_refs` table (the `tags` module),
+    // so the contacts contribution carries only the `contacts` table; `tags` is
+    // listed as a dep so a contacts-only export still pulls the links in.
+    expect(mod?.tables.map(table => getTableName(table))).toEqual(["contacts"]);
     expect(mod?.deps).toEqual(["tags"]);
   });
 
@@ -47,7 +50,7 @@ describe("contact backup contribution", () => {
     await import(`./index.ts?backup-registration=${Date.now()}`);
 
     const mod = getDataModules().contacts;
-    expect(mod?.tables.map(table => getTableName(table))).toEqual(["contacts", "contact_tags"]);
+    expect(mod?.tables.map(table => getTableName(table))).toEqual(["contacts"]);
   });
 
   test("exports and restores contacts with tag links", async () => {
@@ -55,7 +58,7 @@ describe("contact backup contribution", () => {
     await sourceDb.insert(tags).values({
       id: "tag_supplier",
       name: "supplier",
-      sourceType: "contact",
+      type: "contact",
       createdAt: now,
       updatedAt: now,
     }).run();
@@ -75,8 +78,8 @@ describe("contact backup contribution", () => {
       createdAt: now,
       updatedAt: now,
     }).run();
-    await sourceDb.insert(contactTags).values({
-      contactId: "contact_supplier",
+    await sourceDb.insert(tagsRefs).values({
+      resourceId: "contact_supplier",
       tagId: "tag_supplier",
     }).run();
 
@@ -84,7 +87,8 @@ describe("contact backup contribution", () => {
     const parsed = validateBackupData(JSON.parse(await readStreamToString(body)));
     expect(modules).toEqual(["tags", "contacts"]);
     expect(parsed.tables.contacts).toHaveLength(1);
-    expect(parsed.tables.contact_tags).toHaveLength(1);
+    // The assignment link is exported under the shared `tags_refs` table.
+    expect(parsed.tables.tags_refs).toHaveLength(1);
 
     const result = await importJsonBackup(restoredDb, parsed);
     expect(result.rowsImported).toBeGreaterThanOrEqual(3);
@@ -112,10 +116,10 @@ describe("contact backup contribution", () => {
     expect(restoredTags).toEqual([{ id: "tag_supplier", name: "supplier" }]);
 
     const restoredLinks = await restoredDb
-      .select({ contactId: contactTags.contactId, tagId: contactTags.tagId })
-      .from(contactTags)
+      .select({ resourceId: tagsRefs.resourceId, tagId: tagsRefs.tagId })
+      .from(tagsRefs)
       .all();
-    expect(restoredLinks).toEqual([{ contactId: "contact_supplier", tagId: "tag_supplier" }]);
+    expect(restoredLinks).toEqual([{ resourceId: "contact_supplier", tagId: "tag_supplier" }]);
   });
 });
 

@@ -3,23 +3,20 @@ import type { PolicyContext } from "@/modules/policy";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { groups } from "@/modules/account/groups/schema";
 import { documentAccess } from "@/modules/document/document.permission";
-import { documentDetails, documentPins, documentTags } from "@/modules/document/schema";
+import { documentDetails, documentPins } from "@/modules/document/schema";
 import { items } from "@/modules/item/schema";
 import { NOOP_POLICY_LOGGER } from "@/modules/policy";
 import { relationTuples } from "@/modules/policy/schema";
 import { listUserResources } from "@/modules/policy/zanzibar.engine";
 import { deleteSharesForResource } from "@/modules/share";
-import { tags } from "@/modules/tag/schema";
+import { tags, tagsRefs } from "@/modules/tag/schema";
 import { listResourceIdsByTag, listResourceTagNames, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { nanoid, ulid } from "@/shared/lib/id";
 
-// Document assignment join binding for the shared tag helpers. Scopes every
-// helper call to source_type 'document' and the `document_tags` join.
+// Document tag binding for the shared tag helpers. Scopes every helper call to
+// tag type 'document'; resources are keyed by the document's `items.id`.
 const DOCUMENT_TAG_BINDING = {
-  sourceType: "document",
-  table: documentTags,
-  resourceColumn: documentTags.itemId,
-  tagColumn: documentTags.tagId,
+  type: "document",
 } as const;
 
 // Escape the LIKE wildcards (`%`, `_`) *and* the escape character itself
@@ -91,8 +88,8 @@ async function composeDocument(
     id: item.shortId,
     title: item.title,
     content: d?.content ?? null,
-    // Tags are now sourced from the `document_tags` join over the global typed
-    // vocabulary. The response keeps the legacy JSON-string shape so the
+    // Tags are now sourced from the shared `tags_refs` join over the global
+    // typed vocabulary. The response keeps the legacy JSON-string shape so the
     // frontend contract is unchanged.
     tags: JSON.stringify(await listResourceTagNames(db, DOCUMENT_TAG_BINDING, item.id)),
     parentId: await getParentShortId(db, d?.parentId ?? null),
@@ -141,7 +138,7 @@ export async function createDocument(db: AppDatabase, input: CreateDocumentInput
       updatedAt: now,
     }).run();
 
-    // Tags live in the `document_tags` join (written below), never on
+    // Tags live in the shared `tags_refs` join (written below), never on
     // `document_details`, so no tag field is set here.
     tx.insert(documentDetails).values({
       itemId: id,
@@ -279,9 +276,9 @@ export async function updateDocument(
       tx.update(documentDetails).set(detailsPatch).where(eq(documentDetails.itemId, item.id)).run();
     }
 
-    // Tags are stored in `document_tags` (global typed vocabulary), rewritten
-    // here in the same transaction so the version bump above stays atomic with
-    // the tag change.
+    // Tags are stored in the shared `tags_refs` join (global typed vocabulary),
+    // rewritten here in the same transaction so the version bump above stays
+    // atomic with the tag change.
     if (input.tags !== undefined)
       syncResourceTagsTx(tx, DOCUMENT_TAG_BINDING, item.id, input.tags, now);
 
@@ -779,12 +776,12 @@ export async function listAllTags(db: AppDatabase): Promise<readonly string[]> {
   if (tagCache && tagCache.db === db && Date.now() - tagCache.loadedAt < TAG_CACHE_TTL_MS)
     return tagCache.tags;
   // Distinct document tag names actually in use, read from the global typed
-  // vocabulary via the `document_tags` join.
+  // vocabulary via the shared `tags_refs` join.
   const rows = await db
     .select({ name: tags.name })
     .from(tags)
-    .innerJoin(documentTags, eq(documentTags.tagId, tags.id))
-    .where(eq(tags.sourceType, "document"))
+    .innerJoin(tagsRefs, eq(tagsRefs.tagId, tags.id))
+    .where(eq(tags.type, "document"))
     .groupBy(tags.name)
     .orderBy(tags.name)
     .all();
