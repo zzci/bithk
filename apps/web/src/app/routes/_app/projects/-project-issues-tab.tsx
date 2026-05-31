@@ -353,7 +353,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
           {canManage && (
             <Button onClick={() => openCreate("todo")}>
               <Plus aria-hidden="true" />
-              {t("issues.create")}
+              {t("issues.createButton")}
             </Button>
           )}
         </div>

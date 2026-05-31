@@ -33,6 +33,7 @@
     "newMarkdownFile": "New Markdown file",
     "importFromDrive": "Import from Drive",
     "create": "Create",
+    "createButton": "New",
     "refresh": "Refresh",
     "uploadProgress": "Uploading {{done}}/{{total}}",
     "uploadComplete": "Upload complete",

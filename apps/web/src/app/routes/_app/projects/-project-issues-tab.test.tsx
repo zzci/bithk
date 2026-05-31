@@ -164,7 +164,7 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("No work orders found.");
     expect(screen.getByPlaceholderText("Search work orders...")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create work order" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Priority" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "All priorities" })).not.toBeInTheDocument();
   });
@@ -180,7 +180,7 @@ describe("projectIssuesTab", () => {
     // The tag filter shows a visible label so users know what the chips do.
     expect(within(tagFilter).getByText("Filter by tag")).toBeInTheDocument();
     const search = screen.getByPlaceholderText("Search work orders...");
-    const create = screen.getByRole("button", { name: "Create work order" });
+    const create = screen.getByRole("button", { name: "New" });
 
     // Search + create share a right-side group that excludes the tag filter.
     const rightGroup = create.parentElement!;
@@ -366,7 +366,7 @@ describe("projectIssuesTab", () => {
     );
     await screen.findByText("No work orders found.");
 
-    await user.click(screen.getByRole("button", { name: "Create work order" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
 
     await user.type(within(dialog).getByPlaceholderText("Title"), "Replace pump seal");
@@ -434,7 +434,7 @@ describe("projectIssuesTab", () => {
       routeFetch([]);
       renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
       await screen.findByText("No work orders found.");
-      await user.click(screen.getByRole("button", { name: "Create work order" }));
+      await user.click(screen.getByRole("button", { name: "New" }));
       const dialog = await screen.findByRole("dialog");
 
       await user.click(within(dialog).getByRole("button", { name: "Due date" }));
@@ -450,7 +450,7 @@ describe("projectIssuesTab", () => {
     routeFetch([]);
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("No work orders found.");
-    await user.click(screen.getByRole("button", { name: "Create work order" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     const description = await screen.findByLabelText("Description");
     expect(description.tagName).toBe("TEXTAREA");
     expect(Number(description.getAttribute("rows"))).toBeGreaterThanOrEqual(4);

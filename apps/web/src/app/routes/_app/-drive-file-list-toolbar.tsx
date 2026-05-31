@@ -246,10 +246,11 @@ export function FileToolbar({
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={(
-                            <Button variant="default" size="icon" className="size-9" aria-label={t("browser.create")} />
+                            <Button variant="default" aria-label={t("browser.createButton")} />
                           )}
                         >
-                          <Plus className="size-4" />
+                          <Plus className="mr-1 size-4" />
+                          {t("browser.createButton")}
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="min-w-40">
                           {onCreateFolder && (

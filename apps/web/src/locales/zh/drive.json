@@ -33,6 +33,7 @@
     "newMarkdownFile": "新建 Markdown 文件",
     "importFromDrive": "从网盘导入",
     "create": "创建",
+    "createButton": "新建",
     "refresh": "刷新",
     "uploadProgress": "上传中 {{done}}/{{total}}",
     "uploadComplete": "上传完成",
