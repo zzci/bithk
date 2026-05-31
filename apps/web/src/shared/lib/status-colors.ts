@@ -23,14 +23,19 @@ export const ISSUE_STATUS_BADGE: Record<IssueStatus, string> = {
 };
 
 // Procurement order status chip (7-status vocabulary). Maps the lifecycle to
-// the same semantic tokens as the issue badge: pending (warning) → in-flight
-// (info) → confirmed (primary) → arrived/closed (success) → cancelled (muted).
+// the same semantic-token hue families as the issue badge: pending (warning) →
+// in-flight (info) → confirmed (primary) → arrived/closed (success) → cancelled
+// (muted). Each phase has two lifecycle states, so the later state of a phase
+// uses the SOLID token (filled chip) while the earlier uses the tinted token
+// (pale chip) — keeping every state on its phase hue yet visually distinct:
+// ordered (info tint) vs in_transit (info solid); received (success tint) vs
+// accepted (success solid).
 export const PROCUREMENT_STATUS_BADGE: Record<ProcurementStatus, string> = {
   requested: "bg-warning/10 text-warning",
   ordered: "bg-info/10 text-info",
   confirmed: "bg-primary/10 text-primary",
-  in_transit: "bg-info/10 text-info",
+  in_transit: "bg-info text-info-foreground",
   received: "bg-success/10 text-success",
-  accepted: "bg-success/10 text-success",
+  accepted: "bg-success text-success-foreground",
   cancelled: "bg-muted text-muted-foreground",
 };

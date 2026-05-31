@@ -1,13 +1,13 @@
 // Issues (work orders) tab: a Linear-style status-grouped list. Search and
-// create are the primary top actions; a clickable status-filter chip row and
-// clickable section headers both select the active status. Each status renders
-// as a collapsible full-width section bar (chevron + label + count + a "+"
-// quick-create that pre-sets that status); rows are compact single-line buttons
-// showing a status icon, the short id, the title, a priority signal, a relative
-// due date (overdue accented), and a colored assignee avatar. Only fields the
-// issue model actually exposes are shown — no fabricated tags or sub-issue
-// progress. A pin toggle is kept as an isolated row affordance for the project
-// pinned-home surface. The detail view (drawer / fullscreen) opens on row click.
+// create are the primary top actions. Each status renders as a collapsible
+// full-width section bar (chevron + status icon + label + count) that toggles
+// its rows open/closed; there is no separate status-filter chip row. Rows are
+// compact single-line buttons showing a status icon, the short id, the title,
+// a priority signal, a relative due date (overdue accented), and a colored
+// assignee avatar. Only fields the issue model actually exposes are shown — no
+// fabricated tags or sub-issue progress. A pin toggle is kept as an isolated
+// row affordance for the project pinned-home surface. The detail view (drawer /
+// fullscreen) opens on row click.
 
 import type {
   CreateProjectIssueInput,
@@ -61,7 +61,7 @@ const ISSUE_STATUSES: readonly IssueStatus[] = ["todo", "working", "review", "do
 
 // Status icon tints, aligned with the global status color tokens.
 const STATUS_ICON_TINT: Record<IssueStatus, string> = {
-  todo: "text-muted-foreground",
+  todo: "text-warning",
   working: "text-info",
   review: "text-primary",
   done: "text-success",
@@ -87,18 +87,20 @@ const STATUS_DOT: Record<IssueStatus, string> = {
 const ROW_GRID_CLASS
   = "grid grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] md:grid-cols-[auto_minmax(0,1fr)_auto_5rem_auto_auto]";
 
-// Distinct avatar background palette (deterministic per member id).
+// Distinct avatar background palette (deterministic per member id). Uses the
+// -700 shade across all hues so white initials clear the 4.5:1 AA contrast
+// ratio even at the 10px avatar size (the -500 shades failed for amber/sky/teal).
 const AVATAR_COLORS = [
-  "bg-rose-500",
-  "bg-orange-500",
-  "bg-amber-500",
-  "bg-emerald-500",
-  "bg-teal-500",
-  "bg-sky-500",
-  "bg-indigo-500",
-  "bg-violet-500",
-  "bg-fuchsia-500",
-  "bg-pink-500",
+  "bg-rose-700",
+  "bg-orange-700",
+  "bg-amber-700",
+  "bg-emerald-700",
+  "bg-teal-700",
+  "bg-sky-700",
+  "bg-indigo-700",
+  "bg-violet-700",
+  "bg-fuchsia-700",
+  "bg-pink-700",
 ] as const;
 
 function initialsOf(name: string): string {

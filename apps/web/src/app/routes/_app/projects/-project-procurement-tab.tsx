@@ -189,7 +189,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           </div>
           {canManage && (
             <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-1 size-4" />
+              <Plus aria-hidden="true" />
               {t("procurement.createButton")}
             </Button>
           )}
@@ -234,7 +234,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                 </div>
                 <ul>
                   {rows.map(row => (
-                    <li key={row.id} className="group flex items-stretch border-t border-border odd:bg-muted/20 transition-colors hover:bg-muted/50">
+                    <li key={row.id} className="group flex items-stretch border-b border-border/40 transition-colors last:border-b-0 hover:bg-muted/50">
                       <button
                         type="button"
                         aria-label={row.itemName}
