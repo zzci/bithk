@@ -87,6 +87,55 @@ export function parseNumberOrNull(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const CURRENT_YEAR = new Date().getUTCFullYear();
+
+interface FieldRange {
+  readonly min: number;
+  readonly max: number;
+  /** When true the value must be strictly greater than `min` (e.g. dimensions > 0). */
+  readonly exclusiveMin?: boolean;
+}
+
+/**
+ * Sane ranges for the numeric particulars. Build year is bounded to a plausible
+ * window; the physical dimensions and tonnage must be strictly positive with a
+ * generous upper bound so impossible values (negatives, zero, absurd magnitudes)
+ * are rejected before they reach the API.
+ */
+export type ShipNumberField = "buildYear" | "lengthOverall" | "beam" | "draft" | "grossTonnage";
+
+export const SHIP_NUMBER_FIELD_RANGES: Record<ShipNumberField, FieldRange> = {
+  buildYear: { min: 1900, max: CURRENT_YEAR + 1 },
+  lengthOverall: { min: 0, max: 600, exclusiveMin: true },
+  beam: { min: 0, max: 100, exclusiveMin: true },
+  draft: { min: 0, max: 50, exclusiveMin: true },
+  grossTonnage: { min: 0, max: 1_000_000, exclusiveMin: true },
+};
+
+/**
+ * Validate a single numeric field's raw input. Blank is allowed (the fields are
+ * optional); a non-blank value must parse to a finite number inside the field's
+ * sane range.
+ */
+export function isNumberFieldValid(field: ShipNumberField, raw: string): boolean {
+  const t = raw.trim();
+  if (t.length === 0)
+    return true;
+  const n = Number(t);
+  if (!Number.isFinite(n))
+    return false;
+  const { min, max, exclusiveMin } = SHIP_NUMBER_FIELD_RANGES[field];
+  if (exclusiveMin ? n <= min : n < min)
+    return false;
+  return n <= max;
+}
+
+/** The numeric fields whose current value is out of range (empty result == valid). */
+export function shipFormNumberErrors(state: ShipFormState): ShipNumberField[] {
+  return (Object.keys(SHIP_NUMBER_FIELD_RANGES) as ShipNumberField[])
+    .filter(field => !isNumberFieldValid(field, state[field]));
+}
+
 /** The descriptive (non-core) ship columns, normalized for a PATCH body. */
 function descriptiveFields(state: ShipFormState): Omit<UpdateShipInput, "name" | "code" | "status"> {
   return {

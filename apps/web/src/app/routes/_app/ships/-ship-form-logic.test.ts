@@ -2,11 +2,15 @@ import type { ShipView } from "@/shared/lib/api/ships";
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_SHIP_FORM,
+  isNumberFieldValid,
   parseNumberOrNull,
   shipFormFromView,
+  shipFormNumberErrors,
   shipFormToCreate,
   shipFormToUpdate,
 } from "./-ship-form-logic";
+
+const CURRENT_YEAR = new Date().getUTCFullYear();
 
 function ship(overrides: Partial<ShipView> = {}): ShipView {
   return {
@@ -48,6 +52,56 @@ describe("parseNumberOrNull", () => {
     expect(parseNumberOrNull("40.5")).toBe(40.5);
     expect(parseNumberOrNull(" 12 ")).toBe(12);
     expect(parseNumberOrNull("-3")).toBe(-3);
+  });
+});
+
+describe("isNumberFieldValid", () => {
+  it("treats blank as valid (fields are optional)", () => {
+    expect(isNumberFieldValid("buildYear", "")).toBe(true);
+    expect(isNumberFieldValid("lengthOverall", "  ")).toBe(true);
+  });
+
+  it("rejects non-numeric input", () => {
+    expect(isNumberFieldValid("grossTonnage", "abc")).toBe(false);
+  });
+
+  it("rejects negatives and zero for strictly-positive dimensions", () => {
+    expect(isNumberFieldValid("lengthOverall", "-1")).toBe(false);
+    expect(isNumberFieldValid("lengthOverall", "0")).toBe(false);
+    expect(isNumberFieldValid("grossTonnage", "0")).toBe(false);
+    expect(isNumberFieldValid("beam", "8")).toBe(true);
+  });
+
+  it("bounds build year to a plausible window", () => {
+    expect(isNumberFieldValid("buildYear", "1899")).toBe(false);
+    expect(isNumberFieldValid("buildYear", "1900")).toBe(true);
+    expect(isNumberFieldValid("buildYear", String(CURRENT_YEAR + 1))).toBe(true);
+    expect(isNumberFieldValid("buildYear", String(CURRENT_YEAR + 2))).toBe(false);
+  });
+
+  it("rejects values above the upper bound", () => {
+    expect(isNumberFieldValid("lengthOverall", "10000")).toBe(false);
+    expect(isNumberFieldValid("grossTonnage", "2000000")).toBe(false);
+  });
+});
+
+describe("shipFormNumberErrors", () => {
+  it("is empty for a valid form", () => {
+    expect(shipFormNumberErrors(EMPTY_SHIP_FORM)).toEqual([]);
+    expect(shipFormNumberErrors({ ...EMPTY_SHIP_FORM, buildYear: "2024", lengthOverall: "40.5" })).toEqual([]);
+  });
+
+  it("lists each out-of-range numeric field", () => {
+    const errors = shipFormNumberErrors({
+      ...EMPTY_SHIP_FORM,
+      buildYear: "1800",
+      lengthOverall: "-5",
+      grossTonnage: "0",
+    });
+    expect(errors).toContain("buildYear");
+    expect(errors).toContain("lengthOverall");
+    expect(errors).toContain("grossTonnage");
+    expect(errors).not.toContain("beam");
   });
 });
 
