@@ -27,7 +27,7 @@
   },
   "browser": {
     "upload": "上传",
-    "uploadFolder": "Upload folder",
+    "uploadFolder": "上传文件夹",
     "newFolder": "新建文件夹",
     "newTextFile": "新建文本文件",
     "newMarkdownFile": "新建 Markdown 文件",
@@ -96,7 +96,7 @@
       "copyLink": "复制链接",
       "rename": "重命名",
       "move": "移动",
-      "versions": "Version history",
+      "versions": "版本历史",
       "favorite": "收藏",
       "unfavorite": "取消收藏",
       "trash": "移到回收站",
@@ -200,11 +200,11 @@
     }
   },
   "versions": {
-    "title": "Version history",
-    "description": "Versions for {{name}}.",
-    "empty": "No versions yet",
-    "current": "Current",
-    "switch": "Make current"
+    "title": "版本历史",
+    "description": "{{name}} 的版本。",
+    "empty": "暂无版本",
+    "current": "当前版本",
+    "switch": "设为当前版本"
   },
   "picker": {
     "title": "选择文件",
