@@ -63,7 +63,7 @@ function listPayload() {
 
 describe("shipsListPage", () => {
   it("renders the heading and a ship card with its status badge", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(listPayload()));
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
     renderWithProviders(<ShipsListPage />);
     expect(screen.getByRole("heading", { name: "Ships" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
@@ -73,7 +73,7 @@ describe("shipsListPage", () => {
   });
 
   it("hides the create entry for non-admins", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(listPayload()));
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Create ship" })).not.toBeInTheDocument();
@@ -81,36 +81,48 @@ describe("shipsListPage", () => {
 
   it("shows the admin create entry", async () => {
     useAuthStore.setState({ user: { id: "u1", role: "admin" } as never });
-    fetchMock.mockResolvedValue(jsonResponse(listPayload()));
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Create ship" })).toBeInTheDocument();
   });
 
   it("renders the status filter chips with fleet counts", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(listPayload()));
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /All 1/ })).toBeInTheDocument();
+    // The KPI count comes from a dedicated count query that resolves
+    // independently of the list, so wait for it to land on the chip.
+    await waitFor(() => expect(screen.getByRole("button", { name: /All 1/ })).toBeInTheDocument());
   });
 
-  it("filters the loaded ships by the search box", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(listPayload()));
+  it("searches the whole fleet through the server", async () => {
+    // Server-side search: the list endpoint applies `q`, so an empty result
+    // for an unmatched term must come from the API, not a client page filter.
+    fetchMock.mockImplementation((input) => {
+      const q = new URL(String(input), "http://test").searchParams.get("q");
+      if (q === "zzz")
+        return Promise.resolve(jsonResponse({ success: true, data: [], meta: { total: 0, page: 1, limit: 20 } }));
+      return Promise.resolve(jsonResponse(listPayload()));
+    });
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
 
     const searchBox = screen.getByPlaceholderText("Search name, hull number, or IMO");
     await userEvent.type(searchBox, "zzz");
-    expect(screen.queryByText("Serenity")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Serenity")).not.toBeInTheDocument());
     expect(screen.getByText("No ships match your search.")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("q=zzz"))).toBe(true),
+    );
 
     await userEvent.clear(searchBox);
     await userEvent.type(searchBox, "seren");
-    expect(screen.getByText("Serenity")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
   });
 
   it("refetches with a status filter when a status chip is selected", async () => {
-    fetchMock.mockResolvedValue(jsonResponse(listPayload()));
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
 
