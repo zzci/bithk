@@ -28,7 +28,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { SHIP_STATUSES } from "@/shared/lib/api/ships";
-import { EMPTY_SHIP_FORM, shipFormFromView } from "./-ship-form-logic";
+import { EMPTY_SHIP_FORM, SHIP_NUMBER_FIELD_RANGES, shipFormFromView, shipFormNumberErrors } from "./-ship-form-logic";
 
 // Descriptive (edit-only) fields, rendered from a config so the markup stays
 // flat. `kind` drives the input type; the label comes from `ships:field.*`.
@@ -85,9 +85,11 @@ export function ShipFormDialog({
   const set = <K extends keyof ShipFormState>(key: K, value: ShipFormState[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
+  const numberErrors = shipFormNumberErrors(form);
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.name.trim() || pending)
+    if (!form.name.trim() || pending || numberErrors.length > 0)
       return;
     onSubmit(form);
   };
@@ -128,9 +130,9 @@ export function ShipFormDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label>{t("field.status")}</Label>
+            <Label htmlFor="ship-status">{t("field.status")}</Label>
             <Select value={form.status} onValueChange={v => v !== null && set("status", v as ShipStatus)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="ship-status" className="w-full">
                 <SelectValue>
                   {(v: string) => t(`status.${v}` as const)}
                 </SelectValue>
@@ -156,18 +158,26 @@ export function ShipFormDialog({
                     />
                   </div>
                 ))}
-                {NUMBER_FIELDS.map(key => (
-                  <div key={key} className="space-y-1.5">
-                    <Label htmlFor={`ship-${key}`}>{t(`field.${key}` as const)}</Label>
-                    <Input
-                      id={`ship-${key}`}
-                      type="number"
-                      inputMode="decimal"
-                      value={form[key]}
-                      onChange={e => set(key, e.target.value)}
-                    />
-                  </div>
-                ))}
+                {NUMBER_FIELDS.map((key) => {
+                  const range = SHIP_NUMBER_FIELD_RANGES[key];
+                  const invalid = numberErrors.includes(key);
+                  return (
+                    <div key={key} className="space-y-1.5">
+                      <Label htmlFor={`ship-${key}`}>{t(`field.${key}` as const)}</Label>
+                      <Input
+                        id={`ship-${key}`}
+                        type="number"
+                        inputMode="decimal"
+                        min={range.min}
+                        max={range.max}
+                        step={key === "buildYear" ? 1 : "any"}
+                        aria-invalid={invalid || undefined}
+                        value={form[key]}
+                        onChange={e => set(key, e.target.value)}
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="space-y-1.5">
@@ -186,7 +196,7 @@ export function ShipFormDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
             </Button>
-            <Button type="submit" disabled={pending || !form.name.trim()}>
+            <Button type="submit" disabled={pending || !form.name.trim() || numberErrors.length > 0}>
               {mode === "create" ? t("form.submitCreate") : t("form.submitSave")}
             </Button>
           </DialogFooter>

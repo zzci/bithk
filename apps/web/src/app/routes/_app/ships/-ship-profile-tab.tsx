@@ -71,7 +71,7 @@ export function ShipProfileTab({ ship }: ShipProfileTabProps) {
 function ProfileSection({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return (
     <div className="border-t border-dashed py-4 first:border-t-0 first:pt-0 last:pb-0">
-      <h3 className="mb-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
+      <h3 className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{children}</dl>
     </div>
   );
