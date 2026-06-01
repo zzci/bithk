@@ -173,6 +173,58 @@ describe("members", () => {
   });
 });
 
+describe("member authz guards (02-F3/F4)", () => {
+  test("addMember rejects a non-existent userId (F4)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const roleId = await memberRoleId(project.id);
+    expect(addMember(db, project.id, { roleId, userId: "ghost" })).rejects.toThrow();
+  });
+
+  test("addMember rejects a duplicate real member (F4)", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const roleId = await memberRoleId(project.id);
+    await addMember(db, project.id, { roleId, userId: bob });
+    expect(addMember(db, project.id, { roleId, userId: bob })).rejects.toThrow();
+  });
+
+  test("updateMember rejects promoting a virtual member onto a non-existent user (F4)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const roleId = await memberRoleId(project.id);
+    const virtual = await addMember(db, project.id, { roleId, displayName: "Ext" });
+    expect(updateMember(db, project.id, virtual.id, { userId: "ghost" })).rejects.toThrow();
+  });
+
+  test("removeMember refuses to remove the last owner (F3)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const ownerMember = (await listMembers(db, project.id)).find(m => m.userId === creator)!;
+    expect(removeMember(db, project.id, ownerMember.id)).rejects.toThrow();
+  });
+
+  test("updateMember refuses to demote the last owner (F3)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const ownerMember = (await listMembers(db, project.id)).find(m => m.userId === creator)!;
+    const readerId = await memberRoleId(project.id);
+    expect(updateMember(db, project.id, ownerMember.id, { roleId: readerId })).rejects.toThrow();
+  });
+
+  test("an owner can be removed once a second owner exists (F3)", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const ownerRole = (await listRoles(db, project.id)).find(r => r.kind === "owner")!;
+    // A second owner makes the first one removable without leaving the project ownerless.
+    await addMember(db, project.id, { roleId: ownerRole.id, userId: bob });
+    const ownerMember = (await listMembers(db, project.id)).find(m => m.userId === creator)!;
+    expect(await removeMember(db, project.id, ownerMember.id)).toBe(true);
+  });
+});
+
 describe("updateProject", () => {
   test("bumps version and applies the patch", async () => {
     const creator = await seedUser("Alice");
