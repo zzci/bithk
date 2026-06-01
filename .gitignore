@@ -36,3 +36,6 @@ playwright-report/
 /data/
 /data-docker/
 /backup/
+
+# Root-level process core dump (anchored; never match nested paths)
+/core
