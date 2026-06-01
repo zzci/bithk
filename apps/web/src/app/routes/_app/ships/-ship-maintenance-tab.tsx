@@ -2,7 +2,7 @@ import type { IssuePriority } from "@/shared/lib/api/projects";
 import type { MaintenanceTemplateInput, MaintenanceTemplateView, ShipMaintenanceOrderView, ShipView } from "@/shared/lib/api/ships";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileText, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -34,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useCreateProjectIssue } from "@/shared/lib/api/projects";
 import {
@@ -50,6 +51,7 @@ import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { MaintenanceTemplateReference } from "./-maintenance-template-reference";
+import { ISSUE_STATUS_BADGE } from "./-ship-colors";
 
 interface ShipMaintenanceTabProps {
   readonly ship: ShipView;
@@ -109,14 +111,6 @@ function preview(value: string | null): string {
   return value.replace(/\s+/g, " ").slice(0, 140);
 }
 
-const STATUS_VARIANTS: Record<string, "default" | "outline" | "secondary"> = {
-  todo: "outline",
-  working: "default",
-  review: "default",
-  done: "secondary",
-  cancel: "secondary",
-};
-
 export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps) {
   const { t } = useTranslation(["ships", "projects", "common"]);
   const queryClient = useQueryClient();
@@ -144,7 +138,7 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
 
   const selectedReferencesQuery = useIssueReferences(selectedOrder?.id);
   const selectedReference = selectedOrder
-    ? selectedReferencesQuery.data?.find(ref => ref.id === selectedOrder.referenceId || ref.refId === selectedOrder.templateRefId)
+    ? selectedReferencesQuery.data?.find(ref => ref.id === selectedOrder.referenceId)
     : undefined;
 
   const openCreateTemplate = () => {
@@ -185,40 +179,31 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-lg border bg-muted/30 p-1">
-          {MAINTENANCE_SECTIONS.map((item) => {
-            const active = section === item;
-            const count = item === "templates" ? templates.length : orders.length;
-            const label = item === "templates" ? t("maintenance.template.shortTitle") : t("maintenance.workOrder.shortTitle");
-            return (
-              <button
-                key={item}
-                type="button"
-                className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm text-muted-foreground transition-colors",
-                  active && "bg-background text-foreground shadow-sm",
-                )}
-                aria-pressed={active}
-                aria-label={`${label} ${count}`}
-                onClick={() => setSection(item)}
-              >
-                {label}
-                <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums">{count}</span>
-              </button>
-            );
-          })}
-        </div>
+        <Tabs value={section} onValueChange={value => value !== null && setSection(value as MaintenanceSection)}>
+          <TabsList variant="line">
+            {MAINTENANCE_SECTIONS.map((item) => {
+              const count = item === "templates" ? templates.length : orders.length;
+              const label = item === "templates" ? t("maintenance.template.shortTitle") : t("maintenance.workOrder.shortTitle");
+              return (
+                <TabsTrigger key={item} value={item} aria-label={`${label} ${count}`}>
+                  {label}
+                  <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums">{count}</span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </Tabs>
 
         <div className="flex flex-wrap items-center gap-2">
           {section === "templates" && canManage && (
             <Button onClick={openCreateTemplate}>
-              <Plus className="mr-1 size-4" />
+              <Plus aria-hidden />
               {t("maintenance.template.create")}
             </Button>
           )}
           {section === "workOrders" && canManage && (
             <Button onClick={() => setWorkOrderOpen(true)} disabled={!ship.baseProjectId || templates.length === 0}>
-              <FileText className="mr-1 size-4" />
+              <FileText aria-hidden />
               {t("maintenance.workOrder.create")}
             </Button>
           )}
@@ -306,27 +291,28 @@ export function ShipMaintenanceTab({ ship, canManage }: ShipMaintenanceTabProps)
       {section === "workOrders" && (
         <section className="space-y-4">
           {!ship.baseProjectId && <p className="text-sm text-muted-foreground">{t("maintenance.workOrder.noBaseProject")}</p>}
+          {canManage && templates.length === 0 && <p className="text-sm text-muted-foreground">{t("maintenance.template.empty")}</p>}
           <div className="overflow-x-auto rounded-md border">
             <Table>
-              <TableHeader>
-                <TableRow>
+              <TableHeader className="[&_tr]:border-0">
+                <TableRow className="border-0">
                   <TableHead>{t("maintenance.workOrder.field.title")}</TableHead>
                   <TableHead>{t("maintenance.workOrder.field.template")}</TableHead>
                   <TableHead>{t("maintenance.workOrder.field.status")}</TableHead>
                   <TableHead className="w-24">{t("maintenance.workOrder.field.detail")}</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className="[&_tr]:border-0">
                 {ordersQuery.isLoading
                   ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("maintenance.workOrder.loading")}</TableCell></TableRow>
                   : orders.length === 0
                     ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("maintenance.workOrder.empty")}</TableCell></TableRow>
                     : orders.map(order => (
-                        <TableRow key={`${order.id}-${order.referenceId}`}>
+                        <TableRow key={`${order.id}-${order.referenceId}`} className="border-0">
                           <TableCell className="font-medium">{order.title}</TableCell>
                           <TableCell>{templatesById.get(order.templateRefId)?.name ?? t("maintenance.reference.missingShort")}</TableCell>
                           <TableCell>
-                            <Badge variant={STATUS_VARIANTS[order.status] ?? "outline"} className="text-xs">
+                            <Badge variant="secondary" className={cn("text-xs", ISSUE_STATUS_BADGE[order.status])}>
                               {t(`projects:issues.status.${order.status}` as const)}
                             </Badge>
                           </TableCell>
@@ -514,11 +500,17 @@ function WorkOrderDialog({
 }) {
   const { t } = useTranslation(["ships", "projects", "common"]);
   const [form, setForm] = useState<WorkOrderForm>({ templateId: "", title: "", description: "", priority: "medium" });
+  const seededRef = useRef(false);
 
-  /* eslint-disable react/set-state-in-effect -- reseed the form whenever the dialog opens. */
+  /* eslint-disable react/set-state-in-effect -- seed the form once per dialog open; later templates changes must not clobber the in-progress title/templateId. */
   useEffect(() => {
-    if (!open)
+    if (!open) {
+      seededRef.current = false;
       return;
+    }
+    if (seededRef.current)
+      return;
+    seededRef.current = true;
     const first = templates[0];
     setForm({
       templateId: first?.id ?? "",

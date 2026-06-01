@@ -3,6 +3,37 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+// Explicit allow-list of rendered elements. `react-markdown` does not enable
+// `rehype-raw`, so embedded HTML is already inert; restricting to this set is a
+// second, explicit guard so user-authored template markdown can only produce
+// safe block/inline formatting (no raw passthrough, no scriptable elements).
+const ALLOWED_MARKDOWN_ELEMENTS = [
+  "p",
+  "br",
+  "hr",
+  "strong",
+  "em",
+  "del",
+  "blockquote",
+  "code",
+  "pre",
+  "ul",
+  "ol",
+  "li",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "th",
+  "td",
+] as const;
+
 function parseList(value: string | null): readonly string[] | null {
   if (!value)
     return [];
@@ -33,7 +64,13 @@ function TemplateBlock({ title, value }: { readonly title: string; readonly valu
             )
         : (
             <div className="prose prose-sm max-w-none text-sm dark:prose-invert">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{value ?? ""}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                allowedElements={[...ALLOWED_MARKDOWN_ELEMENTS]}
+                unwrapDisallowed
+              >
+                {value ?? ""}
+              </ReactMarkdown>
             </div>
           )}
     </section>
