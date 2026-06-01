@@ -4,6 +4,7 @@ import type { AppDatabase, AppTransaction } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
 import type { ResourceTagUsageView } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { users } from "@/modules/account/users/schema";
 import { getReferenceById, releaseReference, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
 import { deleteSetting, getSetting, setSetting } from "@/modules/settings/settings.service";
@@ -13,9 +14,10 @@ import {
   loadResourceTagsByResource,
   syncResourceTagsTx,
 } from "@/modules/tag/tag.service";
+import { AppError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { seedProjectCategoriesTx } from "./project.global-categories";
-import { parseCapabilities, seedDefaultRoles } from "./project.roles";
+import { parseCapabilities, resolveRole, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects } from "./schema";
 
 /** Settings key backing the admin "Project Defaults" cover picker. */
@@ -574,7 +576,47 @@ export interface AddMemberInput {
   readonly title?: string | null | undefined;
 }
 
+/**
+ * Count the members of a project that hold the `kind='owner'` role. Used to
+ * enforce the "at least one owner must remain" invariant before a demotion or
+ * removal that targets an owner.
+ */
+async function countOwnerMembers(db: AppDatabase, projectId: string): Promise<number> {
+  const row = await db.select({ value: count() })
+    .from(projectMembers)
+    .innerJoin(projectRoles, eq(projectRoles.id, projectMembers.roleId))
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectRoles.kind, "owner")))
+    .get();
+  return row?.value ?? 0;
+}
+
+/**
+ * Validate a real (`userId`-bearing) member assignment: the user must exist and
+ * must not already be a member of the project. Fail-closed with a clean 4xx
+ * instead of letting the FK / unique-index violation bubble to a 500.
+ * `excludeMemberId` is skipped from the duplicate check so a no-op update of an
+ * existing member's own row is allowed.
+ */
+async function assertAssignableUser(
+  db: AppDatabase,
+  projectId: string,
+  userId: string,
+  excludeMemberId?: string,
+): Promise<void> {
+  const exists = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).get();
+  if (!exists)
+    throw new NotFoundError("User", userId);
+  const conflict = await db.select({ id: projectMembers.id })
+    .from(projectMembers)
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
+    .get();
+  if (conflict && conflict.id !== excludeMemberId)
+    throw new AppError("User is already a member of this project", 409, "CONFLICT");
+}
+
 export async function addMember(db: AppDatabase, projectId: string, input: AddMemberInput): Promise<ProjectMemberRow> {
+  if (input.userId != null && input.userId !== "")
+    await assertAssignableUser(db, projectId, input.userId);
   const id = nanoid();
   const now = new Date().toISOString();
   await db.insert(projectMembers).values({
@@ -613,6 +655,22 @@ export async function updateMember(
   if (!existing)
     return undefined;
 
+  // Promotion / re-point to a real user: the user must exist and not already be
+  // a member (its own row excepted) — fail-closed with a clean 4xx (F4).
+  if (input.userId != null && input.userId !== "")
+    await assertAssignableUser(db, projectId, input.userId, memberId);
+
+  // Last-owner guard (F3): changing the sole owner's role to a non-owner role
+  // would leave the project with no owner. Block it.
+  if (input.roleId !== undefined && input.roleId !== existing.roleId) {
+    const currentRole = await resolveRole(db, projectId, existing.roleId);
+    if (currentRole?.kind === "owner") {
+      const nextRole = await resolveRole(db, projectId, input.roleId);
+      if (nextRole?.kind !== "owner" && await countOwnerMembers(db, projectId) <= 1)
+        throw new ValidationError("Cannot demote the last owner", { roleId: "At least one owner must remain" });
+    }
+  }
+
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { updatedAt: now };
   if (input.roleId !== undefined)
@@ -629,6 +687,18 @@ export async function updateMember(
 }
 
 export async function removeMember(db: AppDatabase, projectId: string, memberId: string): Promise<boolean> {
+  const existing = await db.select().from(projectMembers).where(
+    and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)),
+  ).get();
+  if (!existing)
+    return false;
+
+  // Last-owner guard (F3): refuse to remove the only member holding the owner
+  // role, which would lock ordinary administration out of the project.
+  const role = await resolveRole(db, projectId, existing.roleId);
+  if (role?.kind === "owner" && await countOwnerMembers(db, projectId) <= 1)
+    throw new ValidationError("Cannot remove the last owner", { memberId: "At least one owner must remain" });
+
   const result = await db.delete(projectMembers)
     .where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)))
     .run() as unknown as { changes: number };
