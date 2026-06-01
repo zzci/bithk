@@ -80,6 +80,50 @@ describe("shipEquipmentTab", () => {
     expect(screen.getByText("No equipment matches the filters.")).toBeInTheDocument();
   });
 
+  it("resets the category filter when its category disappears", async () => {
+    const base = equipmentList()[0];
+    let rows = [
+      { ...base, id: "eq1", name: "Generator", category: "Power" },
+      { ...base, id: "eq2", name: "Pump", category: "Engine" },
+    ];
+    fetchMock.mockImplementation(async (input, init) => {
+      const path = String(input).replace("/api", "");
+      const method = init?.method ?? "GET";
+      if (method === "GET" && path === "/ships/s1/equipment")
+        return jsonResponse({ success: true, data: rows });
+      if (method === "DELETE" && path === "/ships/s1/equipment/eq2") {
+        rows = rows.filter(row => row.id !== "eq2");
+        return jsonResponse({ success: true, data: null });
+      }
+      return new Response("not found", { status: 404 });
+    });
+
+    renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);
+    await waitFor(() => expect(screen.getByText("Pump")).toBeInTheDocument());
+
+    // Narrow to the "Engine" category — only the Pump row remains.
+    await userEvent.click(screen.getByRole("button", { name: "Engine" }));
+    expect(screen.queryByText("Generator")).not.toBeInTheDocument();
+
+    // Delete the only Engine equipment; its category vanishes on refetch.
+    await userEvent.click(screen.getByRole("button", { name: "Delete equipment" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Delete equipment" }).at(-1)!);
+
+    // Filter falls back to All, so the surviving Generator is visible again.
+    await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Engine" })).not.toBeInTheDocument();
+  });
+
+  it("associates the status select with its label in the dialog", async () => {
+    routeFetch();
+    renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);
+    await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Status")).toBeInTheDocument();
+  });
+
   it("creates, edits, and deletes equipment through the scoped API", async () => {
     routeFetch();
     renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);
