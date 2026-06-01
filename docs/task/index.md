@@ -64,7 +64,7 @@
 | [FIX-009](FIX-009.md) | Issue-list / project-list performance (audit B) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
 | [FIX-010](FIX-010.md) | Data-integrity / transaction correctness (audit C) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
 | [FIX-011](FIX-011.md) | Detail-drawer accessibility (audit D) | [PLAN-044](../plan/PLAN-044.md) | Completed | 2026-06-01 |
-| [FIX-012](FIX-012.md) | A11y / button-standard sweep (audit E) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
+| [FIX-012](FIX-012.md) | A11y / button-standard sweep (audit E) | [PLAN-044](../plan/PLAN-044.md) | In Progress | 2026-06-01 |
 | [FIX-013](FIX-013.md) | List-search correctness + UX polish (audit F) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
 | [FIX-014](FIX-014.md) | i18n parity + CI guard (audit G) | [PLAN-044](../plan/PLAN-044.md) | In Progress | 2026-06-01 |
 | [FIX-015](FIX-015.md) | Dead code + test gaps (audit H) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
