@@ -1,4 +1,5 @@
 import type { AppDatabase } from "@/db";
+import type { FileServiceConfig } from "@/modules/file";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -25,6 +26,14 @@ import {
 } from "./ship.service";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
+
+// softDeleteShip only touches the file service when the ship has a cover image;
+// these ships have none, so this stub is never exercised.
+const fileConfig: FileServiceConfig = {
+  FILE_GC_MODE: "sync",
+  FILE_PRESIGN_ENABLED: false,
+  FILE_PRESIGN_TTL_SECONDS: 300,
+};
 
 let db: AppDatabase;
 let dbPath: string;
@@ -133,7 +142,7 @@ describe("softDeleteShip", () => {
     const ship = await createShip(db, { name: "P", creatorId: creator });
     const baseProjectId = ship.baseProjectId!;
 
-    await softDeleteShip(db, ship.shortId);
+    await softDeleteShip(db, fileConfig, ship.shortId);
 
     expect(await getShipByShortId(db, ship.shortId)).toBeUndefined();
     expect(await resolveShipId(db, ship.shortId)).toBeNull();
@@ -151,7 +160,7 @@ describe("listShips", () => {
     await createShip(db, { name: "A", status: "active", creatorId: creator });
     await createShip(db, { name: "B", status: "archived", creatorId: creator });
     const gone = await createShip(db, { name: "C", creatorId: creator });
-    await softDeleteShip(db, gone.shortId);
+    await softDeleteShip(db, fileConfig, gone.shortId);
 
     const all = await listShips(db, {});
     expect(all.total).toBe(2);

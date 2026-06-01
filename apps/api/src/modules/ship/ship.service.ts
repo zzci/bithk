@@ -260,14 +260,16 @@ export async function listShips(db: AppDatabase, params: ListShipParams = {}): P
     )!);
   }
   if (params.memberUserId !== undefined) {
-    const memberProjectIds = await db
-      .select({ projectId: projectMembers.projectId })
-      .from(projectMembers)
-      .where(eq(projectMembers.userId, params.memberUserId))
-      .all();
-    if (memberProjectIds.length === 0)
-      return { data: [], total: 0 };
-    conditions.push(inArray(ships.baseProjectId, memberProjectIds.map(r => r.projectId)));
+    // Restrict to ships whose base project the user belongs to via an IN
+    // subquery (SQL-level join on ships.baseProjectId), instead of loading
+    // every membership row into app memory. An empty membership set yields no
+    // matches naturally.
+    conditions.push(inArray(
+      ships.baseProjectId,
+      db.select({ projectId: projectMembers.projectId })
+        .from(projectMembers)
+        .where(eq(projectMembers.userId, params.memberUserId)),
+    ));
   }
   const where = and(...conditions);
 
@@ -348,21 +350,25 @@ export async function updateShip(db: AppDatabase, shortId: string, input: Update
  * Soft-delete a ship (stamp `deleted_at`). To preserve project data (per
  * PLAN-011 Risk), every project linked to this ship — base project included —
  * is unbound (`projects.ship_id = null`) and the ship's `base_project_id` is
- * cleared. `ship_equipment` and ship-level `maintenance_templates` are left in
+ * cleared. The cover image reference is released so its file ref-count is not
+ * leaked. `ship_equipment` and ship-level `maintenance_templates` are left in
  * place; they become unreachable with their soft-deleted ship.
  */
-export async function softDeleteShip(db: AppDatabase, shortId: string): Promise<void> {
+export async function softDeleteShip(db: AppDatabase, config: FileServiceConfig, shortId: string): Promise<void> {
   const ship = await db.select().from(ships).where(eq(ships.shortId, shortId)).get();
   if (!ship || ship.deletedAt)
     return;
   const now = new Date().toISOString();
+  const previousCover = ship.coverReferenceId;
   db.transaction((tx) => {
     tx.update(projects).set({ shipId: null }).where(eq(projects.shipId, ship.id)).run();
     tx.update(ships)
-      .set({ baseProjectId: null, deletedAt: now, updatedAt: now, version: sql`${ships.version} + 1` })
+      .set({ baseProjectId: null, coverReferenceId: null, deletedAt: now, updatedAt: now, version: sql`${ships.version} + 1` })
       .where(eq(ships.id, ship.id))
       .run();
   });
+  if (previousCover)
+    await releaseReference(db, config, { referenceId: previousCover });
 }
 
 // ─── Cover image ──────────────────────────────────────────────────────────
@@ -397,10 +403,20 @@ export async function setShipCover(
   });
 
   const now = new Date().toISOString();
-  await db.update(ships)
-    .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${ships.version} + 1` })
-    .where(eq(ships.id, shipInternalId))
-    .run();
+  // Repoint to the new reference; if that write fails, release the freshly
+  // uploaded reference so it is not orphaned (uploaded + referenced but no
+  // ship points to it). The previous reference is only released once the
+  // repoint has committed.
+  try {
+    await db.update(ships)
+      .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${ships.version} + 1` })
+      .where(eq(ships.id, shipInternalId))
+      .run();
+  }
+  catch (err) {
+    await releaseReference(db, config, { referenceId: reference.id });
+    throw err;
+  }
 
   const previous = ship.coverReferenceId;
   if (previous && previous !== reference.id)
@@ -462,12 +478,13 @@ export async function listShipProjects(db: AppDatabase, shipInternalId: string, 
   return rows.map(r => ({ ...composeProject(r), isBase: r.id === baseProjectId }));
 }
 
-export type BindResult = "not_found" | "is_base" | "ok";
+export type BindResult = "not_found" | "is_base" | "bound_elsewhere" | "ok";
 
 /**
  * Bind an existing project to a ship (set `projects.ship_id`). Refuses to bind
- * a project that is already serving as another ship's base project, which would
- * sever that ship's permission anchor.
+ * a project that is already bound to a different ship — whether as that ship's
+ * base project (which would sever its permission anchor) or merely as an extra
+ * — so binding never silently steals a project from another ship.
  */
 export async function bindProject(db: AppDatabase, shipInternalId: string, projectShortId: string): Promise<BindResult> {
   const project = await db.select({ id: projects.id, shipId: projects.shipId }).from(projects).where(
@@ -477,11 +494,14 @@ export async function bindProject(db: AppDatabase, shipInternalId: string, proje
     return "not_found";
   if (project.shipId === shipInternalId)
     return "ok"; // already bound to this ship (idempotent)
-  const owningBase = await db.select({ id: ships.id }).from(ships).where(
-    and(eq(ships.baseProjectId, project.id), isNull(ships.deletedAt)),
-  ).get();
-  if (owningBase)
-    return "is_base";
+  if (project.shipId !== null) {
+    // Bound to another ship. Distinguish a base project (clearer message) from
+    // an extra binding; either way we refuse rather than steal it.
+    const owningBase = await db.select({ id: ships.id }).from(ships).where(
+      and(eq(ships.baseProjectId, project.id), isNull(ships.deletedAt)),
+    ).get();
+    return owningBase ? "is_base" : "bound_elsewhere";
+  }
   await db.update(projects).set({ shipId: shipInternalId }).where(eq(projects.id, project.id)).run();
   return "ok";
 }

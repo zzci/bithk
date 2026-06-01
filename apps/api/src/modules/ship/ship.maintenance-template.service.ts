@@ -195,8 +195,11 @@ export async function deleteShipTemplate(db: AppDatabase, shipInternalId: string
 
 // ─── Route schemas (Hono routers in ship.routes.ts import these) ────────────
 
+// B7: short label fields share a 255-char cap across the ship module
+// (matches `category` in the equipment schema and the ship name/model caps);
+// `checklist`/`precautions` are long free-form text and keep the 10000 cap.
 const templateFields = {
-  category: z.string().max(100).nullable().optional(),
+  category: z.string().max(255).nullable().optional(),
   checklist: z.string().max(10000).nullable().optional(),
   precautions: z.string().max(10000).nullable().optional(),
 };
@@ -221,6 +224,13 @@ export const createShipTemplateSchema = z.object({
 }).refine(
   v => v.fromGlobalId !== undefined || v.name !== undefined,
   { message: "name is required when fromGlobalId is not provided" },
+).refine(
+  // B5 / Design Constraint 3: `fromGlobalId` snapshots the global row's content
+  // wholesale, so mixing it with explicit content fields is contradictory.
+  // Reject it here (one or the other); the global snapshot wins by definition.
+  v => v.fromGlobalId === undefined
+    || (v.name === undefined && v.category === undefined && v.checklist === undefined && v.precautions === undefined),
+  { message: "Cannot combine fromGlobalId with name/category/checklist/precautions; the global template is copied as-is" },
 );
 
 // ─── Global knowledge-base router (admin only; mounted in protected.ts) ──────
