@@ -42,3 +42,4 @@
 | [PLAN-041](PLAN-041.md) | Full-feature static seed dataset + importer | Completed | 2026-05-30 |
 | [PLAN-042](PLAN-042.md) | GitHub-style project role permissions (per-module) | Completed | 2026-05-31 |
 | [PLAN-043](PLAN-043.md) | Unify tags into the central tag module | Implementing | 2026-05-31 |
+| [PLAN-044](PLAN-044.md) | Project module audit remediation (A–H) | Implementing | 2026-06-01 |

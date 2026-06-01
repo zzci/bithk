@@ -60,3 +60,11 @@
 | [CHORE-003](CHORE-003.md) | Full-feature static seed dataset | [PLAN-041](../plan/PLAN-041.md) | Done | 2026-05-30 |
 | [FEAT-017](FEAT-017.md) | GitHub-style project role permissions (per-module) | [PLAN-042](../plan/PLAN-042.md) | Completed | 2026-05-31 |
 | [REFACTOR-009](REFACTOR-009.md) | Unify tags into the central tag module | [PLAN-043](../plan/PLAN-043.md) | In Progress | 2026-05-31 |
+| [FIX-008](FIX-008.md) | Project role / authz hardening (audit A) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
+| [FIX-009](FIX-009.md) | Issue-list / project-list performance (audit B) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
+| [FIX-010](FIX-010.md) | Data-integrity / transaction correctness (audit C) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
+| [FIX-011](FIX-011.md) | Detail-drawer accessibility (audit D) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
+| [FIX-012](FIX-012.md) | A11y / button-standard sweep (audit E) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
+| [FIX-013](FIX-013.md) | List-search correctness + UX polish (audit F) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
+| [FIX-014](FIX-014.md) | i18n parity + CI guard (audit G) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
+| [FIX-015](FIX-015.md) | Dead code + test gaps (audit H) | [PLAN-044](../plan/PLAN-044.md) | Planned | 2026-06-01 |
