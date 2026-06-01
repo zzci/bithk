@@ -2,15 +2,16 @@
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Calendar, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Calendar, Loader2, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CoverImage } from "@/shared/components/cover-image";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { SHIP_STATUSES, useCreateShip, useShips } from "@/shared/lib/api/ships";
+import { useDebounce } from "@/shared/hooks/use-debounce";
+import { SHIP_STATUSES, useCreateShip, useShipCount, useShips } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ShipFormDialog } from "./-ship-form-dialog";
@@ -24,11 +25,6 @@ export const Route = createLazyFileRoute("/_app/ships/")({
 const STATUS_ALL = "__all__";
 const CURRENT_YEAR = new Date().getUTCFullYear();
 
-/** Fleet-wide count for a status, read from the list endpoint's meta. */
-function useStatusCount(status?: ShipStatus): number | undefined {
-  return useShips(status ? { status } : {}).data?.meta.total;
-}
-
 export function ShipsListPage() {
   const { t } = useTranslation(["ships", "common"]);
   const navigate = useNavigate();
@@ -39,30 +35,32 @@ export function ShipsListPage() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
 
+  // Server-side search reaches the whole fleet (name/code), so every match is
+  // reachable through pagination instead of only the currently loaded page.
+  const debouncedSearch = useDebounce(search, 300);
+
+  // A new search resets to the first page so results start from the top.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   const shipsQuery = useShips({
     status: status === STATUS_ALL ? undefined : (status as ShipStatus),
     page,
+    q: debouncedSearch,
   });
   const createShip = useCreateShip();
 
-  // Fleet KPIs: each is the `meta.total` of a status-scoped list query, so the
-  // numbers are accurate across pages rather than just the visible slice.
-  const totalCount = useStatusCount();
-  const activeCount = useStatusCount("active");
-  const archivedCount = useStatusCount("archived");
+  // Fleet KPIs from a dedicated status-keyed count query, stable across the
+  // main list's pagination and search.
+  const totalCount = useShipCount().data;
+  const activeCount = useShipCount("active").data;
+  const archivedCount = useShipCount("archived").data;
   const ships = useMemo(() => shipsQuery.data?.data ?? [], [shipsQuery.data]);
   const meta = shipsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
-
-  // Client-side refinement of the loaded page (no text-search API yet).
-  const visibleShips = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q)
-      return ships;
-    return ships.filter(s =>
-      [s.name, s.code, s.imoNumber].some(v => v?.toLowerCase().includes(q)),
-    );
-  }, [ships, search]);
+  const isRefetching = shipsQuery.isFetching && !shipsQuery.isLoading;
+  const isSearching = debouncedSearch.trim().length > 0;
 
   const handleCreate = (state: ShipFormState) => {
     createShip.mutate(shipFormToCreate(state), {
@@ -83,12 +81,17 @@ export function ShipsListPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{t("page.title")}</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            {t("page.title")}
+            {isRefetching && (
+              <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label={t("list.loading")} />
+            )}
+          </h1>
           <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
         </div>
         {isAdmin && (
           <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 size-4" />
+            <Plus aria-hidden="true" />
             {t("list.create")}
           </Button>
         )}
@@ -108,7 +111,7 @@ export function ShipsListPage() {
               <Button
                 key={opt.key}
                 variant={status === opt.key ? "default" : "outline"}
-                className="rounded-full"
+                className="h-8 shrink-0 rounded-full"
                 aria-pressed={status === opt.key}
                 aria-label={count === undefined ? opt.label : `${opt.label} ${count}`}
                 onClick={() => {
@@ -118,7 +121,7 @@ export function ShipsListPage() {
               >
                 {opt.label}
                 {count !== undefined && (
-                  <span className="ml-1 rounded-full bg-background/60 px-1.5 text-[11px] tabular-nums">{count}</span>
+                  <span className="ml-1 rounded-full bg-background/60 px-1.5 text-xs tabular-nums">{count}</span>
                 )}
               </Button>
             );
@@ -139,20 +142,21 @@ export function ShipsListPage() {
       {shipsQuery.isLoading
         ? <p className="text-sm text-muted-foreground">{t("list.loading")}</p>
         : ships.length === 0
-          ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
-          : visibleShips.length === 0
-            ? <p className="text-sm text-muted-foreground">{t("list.noMatches")}</p>
-            : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {visibleShips.map(ship => (
-                    <ShipCard
-                      key={ship.id}
-                      ship={ship}
-                      onOpen={() => void navigate({ to: "/ships/$shipId", params: { shipId: ship.id } })}
-                    />
-                  ))}
-                </div>
-              )}
+          ? <p className="text-sm text-muted-foreground">{isSearching ? t("list.noMatches") : t("list.empty")}</p>
+          : (
+              <div
+                className={`grid grid-cols-1 gap-4 transition-opacity sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4${isRefetching ? " opacity-60" : ""}`}
+                aria-busy={isRefetching}
+              >
+                {ships.map(ship => (
+                  <ShipCard
+                    key={ship.id}
+                    ship={ship}
+                    onOpen={() => void navigate({ to: "/ships/$shipId", params: { shipId: ship.id } })}
+                  />
+                ))}
+              </div>
+            )}
 
       {totalPages > 1 && meta && (
         <div className="flex items-center justify-between pt-2">
@@ -191,6 +195,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
       size="sm"
       role="button"
       tabIndex={0}
+      aria-label={ship.name}
       className="cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={onOpen}
       onKeyDown={(event) => {
@@ -216,7 +221,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-y py-2">
           {specs.map(spec => (
             <div key={spec.label} className="min-w-0">
-              <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{spec.label}</dt>
+              <dt className="text-xs tracking-wide text-muted-foreground uppercase">{spec.label}</dt>
               <dd className="truncate font-mono text-xs">
                 {spec.value ?? <span className="text-muted-foreground">{t("overview.notSet")}</span>}
               </dd>

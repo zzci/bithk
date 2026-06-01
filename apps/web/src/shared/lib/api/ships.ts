@@ -13,7 +13,7 @@
 
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { IssueStatus, ProjectView } from "./projects";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 interface ApiEnvelope<T> {
@@ -128,7 +128,9 @@ export interface ListMeta {
 export const shipKeys = {
   all: ["ships"] as const,
   lists: () => ["ships", "list"] as const,
-  list: (status: string, page: number) => ["ships", "list", status, page] as const,
+  list: (status: string, page: number, q?: string) =>
+    q ? ["ships", "list", status, page, q] as const : ["ships", "list", status, page] as const,
+  count: (status: string) => ["ships", "count", status] as const,
   detail: (id: string) => ["ships", "detail", id] as const,
   projects: (id: string) => ["ships", id, "projects"] as const,
   equipment: (id: string) => ["ships", id, "equipment"] as const,
@@ -144,6 +146,8 @@ export interface ShipsQuery {
   readonly status?: ShipStatus | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
+  /** Server-side name/code search; reaches the whole fleet, not just the page. */
+  readonly q?: string | undefined;
 }
 
 export interface ShipsListResult {
@@ -155,16 +159,43 @@ export function useShips(query: ShipsQuery = {}) {
   const status = query.status;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
+  const q = query.q?.trim() || undefined;
   return useQuery<ShipsListResult>({
-    queryKey: shipKeys.list(status ?? "all", page),
+    queryKey: shipKeys.list(status ?? "all", page, q),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
+      if (q)
+        params.set("q", q);
       params.set("page", String(page));
       params.set("limit", String(limit));
       const res = await http<ApiListEnvelope<ShipView>>(`/ships?${params.toString()}`);
       return { data: res.data, meta: res.meta };
+    },
+    // Keep the prior page/status/search results on screen while the next query
+    // loads so the list does not flash empty on filter or search changes.
+    placeholderData: keepPreviousData,
+    staleTime: 5_000,
+  });
+}
+
+/**
+ * Fleet-wide ship count for a status (omit for the whole fleet), read from the
+ * list endpoint's `meta.total` with a minimal payload. Keyed by status only, so
+ * the KPI numbers stay stable across pagination and search of the main list.
+ */
+export function useShipCount(status?: ShipStatus) {
+  return useQuery<number>({
+    queryKey: shipKeys.count(status ?? "all"),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (status)
+        params.set("status", status);
+      params.set("page", "1");
+      params.set("limit", "1");
+      const res = await http<ApiListEnvelope<ShipView>>(`/ships?${params.toString()}`);
+      return res.meta.total;
     },
     staleTime: 5_000,
   });
