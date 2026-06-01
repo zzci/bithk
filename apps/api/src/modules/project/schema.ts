@@ -45,7 +45,12 @@ export const projects = sqliteTable("projects", {
   // Optional cover image: a `file_references` row with owner_type
   // 'project_cover'. Nulled automatically when that reference is released.
   coverReferenceId: text("cover_reference_id").references((): AnySQLiteColumn => fileReferences.id, { onDelete: "set null" }),
-  creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // ON DELETE RESTRICT (not cascade): a user must not silently hard-delete every
+  // project they created — that DB cascade cannot reach `tags_refs` (no FK on
+  // `resource_id`), so it would permanently orphan tag links. Account deletion
+  // must route through a service that reassigns/soft-deletes owned projects and
+  // calls `deleteResourceTags`. See docs/decisions/008.
+  creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   version: integer("version").notNull().default(1),
   deletedAt: text("deleted_at"),
   updatedAt: text("updated_at").notNull(),

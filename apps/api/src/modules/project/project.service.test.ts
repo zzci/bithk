@@ -3,10 +3,15 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { fileReferences, files } from "@/modules/file/schema";
+import { issueDetails } from "@/modules/issue/schema";
+import { items } from "@/modules/item/schema";
+import { relationTuples } from "@/modules/policy/schema";
+import { procurementDetails } from "@/modules/procurement/schema";
 import { setSetting } from "@/modules/settings/settings.service";
 import { listCategories } from "./project.categories";
 import {
@@ -32,6 +37,7 @@ import {
   updateMember,
   updateProject,
 } from "./project.service";
+import { projectRoles } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -59,6 +65,40 @@ async function seedUser(name: string): Promise<string> {
 async function memberRoleId(projectId: string): Promise<string> {
   const roles = await listRoles(db, projectId);
   return roles.find(r => r.name === "Reader")!.id;
+}
+
+/**
+ * Seed a live issue / procurement child item under a project: the base `items`
+ * row, its `*_details` link, and an owner relation tuple. Returns the item id.
+ */
+async function seedChildItem(creator: string, projectId: string, type: "issue" | "procurement"): Promise<string> {
+  const itemId = nanoid();
+  const now = new Date().toISOString();
+  await db.insert(items).values({
+    id: itemId,
+    shortId: nanoid(),
+    type,
+    title: `${type} item`,
+    status: "todo",
+    creatorId: creator,
+    updatedAt: now,
+  }).run();
+  if (type === "issue")
+    await db.insert(issueDetails).values({ itemId, projectId }).run();
+  else
+    await db.insert(procurementDetails).values({ itemId, projectId, itemName: "Widget" }).run();
+  await db.insert(relationTuples).values({
+    id: nanoid(),
+    namespace: "item",
+    objectId: itemId,
+    relation: "owner",
+    subjectNamespace: "user",
+    subjectId: creator,
+    subjectRelation: null,
+    createdBy: creator,
+    createdAt: now,
+  }).run();
+  return itemId;
 }
 
 beforeEach(async () => {
@@ -258,6 +298,40 @@ describe("softDeleteProject", () => {
     expect(await resolveProjectId(db, project.shortId)).toBeNull();
     expect(await listMembers(db, project.id)).toHaveLength(1);
   });
+
+  test("cascades the soft-delete to the project's issue / procurement items and tears down their tuples", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const issueItemId = await seedChildItem(creator, project.id, "issue");
+    const procItemId = await seedChildItem(creator, project.id, "procurement");
+
+    // Live before the project delete.
+    expect((await db.select().from(items).where(eq(items.id, issueItemId)).get())!.deletedAt).toBeNull();
+    expect(await db.select().from(relationTuples).where(eq(relationTuples.objectId, issueItemId)).all()).toHaveLength(1);
+
+    await softDeleteProject(db, project.shortId);
+
+    // Both children are now soft-deleted in the same operation.
+    expect((await db.select().from(items).where(eq(items.id, issueItemId)).get())!.deletedAt).not.toBeNull();
+    expect((await db.select().from(items).where(eq(items.id, procItemId)).get())!.deletedAt).not.toBeNull();
+    // Their relation tuples are gone.
+    expect(await db.select().from(relationTuples).where(eq(relationTuples.objectId, issueItemId)).all()).toHaveLength(0);
+    expect(await db.select().from(relationTuples).where(eq(relationTuples.objectId, procItemId)).all()).toHaveLength(0);
+  });
+
+  test("re-soft-deleting an already-deleted project does not re-stamp child items", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const issueItemId = await seedChildItem(creator, project.id, "issue");
+
+    await softDeleteProject(db, project.shortId);
+    const firstStamp = (await db.select().from(items).where(eq(items.id, issueItemId)).get())!.deletedAt;
+
+    // A second call sees the project already soft-deleted and must not touch children again.
+    await softDeleteProject(db, project.shortId);
+    const secondStamp = (await db.select().from(items).where(eq(items.id, issueItemId)).get())!.deletedAt;
+    expect(secondStamp).toBe(firstStamp);
+  });
 });
 
 describe("listProjects", () => {
@@ -453,6 +527,29 @@ describe("roles engine", () => {
 
     expect(await deleteRole(db, project.id, owner.id)).toBe("system");
     expect(await deleteRole(db, project.id, guestRole.id)).toBe("system");
+  });
+
+  test("deleteRole degrades cleanly when the Guest role is missing", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const reader = (await listRoles(db, project.id)).find(r => r.name === "Reader")!;
+    const writer = (await listRoles(db, project.id)).find(r => r.name === "Writer")!;
+    const guest = (await resolveGuestRole(db, project.id))!;
+
+    // Simulate a corrupted project: drop the Guest role (the delete-fallback target).
+    await db.delete(projectRoles).where(eq(projectRoles.id, guest.id)).run();
+
+    // A held role can't be reassigned without Guest → blocks with a clean error
+    // (ValidationError → 422) instead of raising a raw FK constraint failure.
+    await addMember(db, project.id, { roleId: reader.id, userId: bob });
+    await expect(deleteRole(db, project.id, reader.id)).rejects.toMatchObject({ statusCode: 422 });
+    // The role and its holder are untouched.
+    expect((await listRoles(db, project.id)).some(r => r.id === reader.id)).toBe(true);
+
+    // An unheld role is still safe to delete directly.
+    expect(await deleteRole(db, project.id, writer.id)).toBe("deleted");
+    expect((await listRoles(db, project.id)).some(r => r.id === writer.id)).toBe(false);
   });
 });
 

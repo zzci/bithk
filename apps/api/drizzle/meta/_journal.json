@@ -8,6 +8,13 @@
       "when": 1780197077589,
       "tag": "0000_empty_oracle",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1780356746448,
+      "tag": "0001_hot_whistler",
+      "breakpoints": true
     }
   ]
 }

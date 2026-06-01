@@ -1,12 +1,16 @@
 import type { ProjectCapability, ProjectStatus } from "./schema";
 import type { Config } from "@/config";
-import type { AppDatabase, AppTransaction } from "@/db";
+import type { AppDatabase, AppTransaction, RunResult } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
 import type { ResourceTagUsageView } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { users } from "@/modules/account/users/schema";
 import { getReferenceById, releaseReference, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
+import { issueDetails } from "@/modules/issue/schema";
+import { items } from "@/modules/item/schema";
+import { relationTuples } from "@/modules/policy/schema";
+import { procurementDetails } from "@/modules/procurement/schema";
 import { deleteSetting, getSetting, setSetting } from "@/modules/settings/settings.service";
 import { ships } from "@/modules/ship/schema";
 import {
@@ -276,19 +280,6 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
 }
 
 /**
- * Resolve the default cover reference id from settings. Returns null when unset
- * or when the configured reference no longer exists, so a dangling default can
- * never block project creation (the FK would otherwise reject the insert).
- */
-async function resolveDefaultCoverReferenceId(db: AppDatabase): Promise<string | null> {
-  const refId = await getSetting(db, PROJECT_DEFAULT_COVER_KEY);
-  if (!refId)
-    return null;
-  const exists = await db.select({ id: fileReferences.id }).from(fileReferences).where(eq(fileReferences.id, refId)).get();
-  return exists ? refId : null;
-}
-
-/**
  * Create a project and, in the same synchronous transaction, seed its default
  * roles and add the creator as a "Project Owner" member. `code` is
  * auto-generated from the short id when not supplied. bun:sqlite transactions
@@ -296,12 +287,23 @@ async function resolveDefaultCoverReferenceId(db: AppDatabase): Promise<string |
  */
 export async function createProject(db: AppDatabase, input: CreateProjectInput): Promise<ProjectRow> {
   // Apply the admin "Project Defaults" cover for projects that omit one. The
-  // status is always "active" (set in createProjectTx); settings resolve async,
-  // before the sync tx.
-  const coverReferenceId = input.coverReferenceId ?? await resolveDefaultCoverReferenceId(db);
+  // setting read is async, so it happens before the sync tx; its existence is
+  // re-verified *inside* the tx (below) to close the TOCTOU against a concurrent
+  // default-cover removal that would otherwise make the insert FK reject.
+  const defaultCoverRefId = input.coverReferenceId === undefined
+    ? await getSetting(db, PROJECT_DEFAULT_COVER_KEY)
+    : null;
 
   let id = "";
   db.transaction((tx) => {
+    let coverReferenceId = input.coverReferenceId ?? null;
+    // Re-check the default-cover reference existence atomically with the insert.
+    // A dangling default is dropped to null so a concurrent removal can never
+    // block project creation; an explicit caller-supplied ref is trusted as-is.
+    if (coverReferenceId === null && defaultCoverRefId) {
+      const exists = tx.select({ id: fileReferences.id }).from(fileReferences).where(eq(fileReferences.id, defaultCoverRefId)).get();
+      coverReferenceId = exists ? defaultCoverRefId : null;
+    }
     id = createProjectTx(tx, { ...input, coverReferenceId }).id;
   });
 
@@ -424,19 +426,49 @@ export async function updateProject(db: AppDatabase, shortId: string, input: Upd
 }
 
 /**
- * Soft-delete a project (stamp `deleted_at`). Reads everywhere filter on
- * `deleted_at IS NULL`, so members / issues / procurement stay intact and
- * simply become invisible.
+ * Soft-delete a project and cascade the soft-delete to its child work items.
+ *
+ * In one transaction we stamp `deleted_at` on the project row and on every live
+ * issue / procurement item belonging to it (resolved via the `*_details`
+ * `project_id` link), tearing down each item's relation tuples — mirroring
+ * `softDeleteItem`. Without this, the children kept `deleted_at IS NULL` (still
+ * "live") and accumulated unbounded under a project that no list/detail read can
+ * reach (those resolve the parent first and filter `deleted_at IS NULL`). See
+ * docs/decisions/008 for the cascade contract. Members / roles / categories /
+ * tags are intentionally retained (the project row still exists); there is no
+ * project restore endpoint, so the cascade is one-way by design.
  */
 export async function softDeleteProject(db: AppDatabase, shortId: string): Promise<void> {
   const project = await db.select().from(projects).where(eq(projects.shortId, shortId)).get();
   if (!project)
     return;
   const now = new Date().toISOString();
-  await db.update(projects)
-    .set({ deletedAt: now, updatedAt: now, version: sql`${projects.version} + 1` })
-    .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
-    .run();
+  db.transaction((tx) => {
+    const updated = tx.update(projects)
+      .set({ deletedAt: now, updatedAt: now, version: sql`${projects.version} + 1` })
+      .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
+      .run() as unknown as RunResult;
+
+    // Already soft-deleted — don't re-stamp the children.
+    if (updated.changes === 0)
+      return;
+
+    const childItemIds = [
+      ...tx.select({ itemId: issueDetails.itemId }).from(issueDetails).where(eq(issueDetails.projectId, project.id)).all(),
+      ...tx.select({ itemId: procurementDetails.itemId }).from(procurementDetails).where(eq(procurementDetails.projectId, project.id)).all(),
+    ].map(r => r.itemId);
+
+    if (childItemIds.length === 0)
+      return;
+
+    tx.update(items)
+      .set({ deletedAt: now, updatedAt: now, version: sql`${items.version} + 1` })
+      .where(and(inArray(items.id, childItemIds), isNull(items.deletedAt)))
+      .run();
+    tx.delete(relationTuples)
+      .where(and(eq(relationTuples.namespace, "item"), inArray(relationTuples.objectId, childItemIds)))
+      .run();
+  });
 }
 
 // ─── Cover image ──────────────────────────────────────────────────────────
