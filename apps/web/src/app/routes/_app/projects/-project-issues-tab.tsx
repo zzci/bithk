@@ -357,7 +357,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                     {visibleStatuses.map((status) => {
                       const groupIssues = queryByStatus[status].data?.data ?? [];
                       const count = countOf(status);
-                      const label = t(`issues.group.${status}` as const);
+                      const label = t(`issues.status.${status}` as const);
                       const isCollapsed = collapsed[status] ?? false;
                       return (
                         <section key={status} aria-label={label}>
@@ -606,14 +606,14 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button type="button" variant="outline" className={cn(pillBase, "border-solid")} />}>
                 <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[status])} />
-                {t(`issues.group.${status}` as const)}
+                {t(`issues.status.${status}` as const)}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuRadioGroup value={status} onValueChange={v => setStatus(v as IssueStatus)}>
                   {ISSUE_STATUSES.map(s => (
                     <DropdownMenuRadioItem key={s} value={s}>
                       <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[s])} />
-                      {t(`issues.group.${s}` as const)}
+                      {t(`issues.status.${s}` as const)}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>

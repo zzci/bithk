@@ -368,17 +368,17 @@ export function ProjectIssuePanel({
                 <Select value={issue.status} onValueChange={v => v !== null && patch({ status: v as typeof issue.status })}>
                   <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
                     <Badge variant="secondary" className={cn("cursor-pointer", ISSUE_STATUS_BADGE[issue.status])}>
-                      {t(`projects:issues.group.${issue.status}` as const)}
+                      {t(`projects:issues.status.${issue.status}` as const)}
                     </Badge>
                   </SelectTrigger>
                   <SelectContent>
                     {STATUSES.map(s => (
-                      <SelectItem key={s} value={s}>{t(`projects:issues.group.${s}` as const)}</SelectItem>
+                      <SelectItem key={s} value={s}>{t(`projects:issues.status.${s}` as const)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )
-            : <Badge variant="secondary" className={ISSUE_STATUS_BADGE[issue.status]}>{t(`projects:issues.group.${issue.status}` as const)}</Badge>}
+            : <Badge variant="secondary" className={ISSUE_STATUS_BADGE[issue.status]}>{t(`projects:issues.status.${issue.status}` as const)}</Badge>}
 
           {/* Priority */}
           {permissions.canEditAll
