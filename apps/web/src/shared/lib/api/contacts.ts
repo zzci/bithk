@@ -180,6 +180,9 @@ export function useCreateContact(): UseMutationResult<ContactView, Error, Contac
     }).then(r => r.data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: contactKeys.all });
+      // A created contact may introduce new tag names into the vocabulary, which
+      // is a sibling of `["contacts"]` and so is not covered by `contactKeys.all`.
+      void queryClient.invalidateQueries({ queryKey: contactTagKeys.vocabulary });
     },
   });
 }
@@ -194,6 +197,8 @@ export function useUpdateContact(): UseMutationResult<ContactView, Error, { id: 
     onSuccess: (_data, { id }) => {
       void queryClient.invalidateQueries({ queryKey: contactKeys.all });
       void queryClient.invalidateQueries({ queryKey: contactKeys.detail(id) });
+      // An updated tag set may introduce new tag names into the sibling vocabulary.
+      void queryClient.invalidateQueries({ queryKey: contactTagKeys.vocabulary });
     },
   });
 }

@@ -128,6 +128,7 @@ export const shipKeys = {
   list: (status: string, tagId: string, page: number, q?: string) =>
     q ? ["ships", "list", status, tagId, page, q] as const : ["ships", "list", status, tagId, page] as const,
   tags: () => ["ships", "tags"] as const,
+  counts: () => ["ships", "count"] as const,
   count: (status: string) => ["ships", "count", status] as const,
   detail: (id: string) => ["ships", "detail", id] as const,
   projects: (id: string) => ["ships", id, "projects"] as const,
@@ -237,7 +238,12 @@ export function useCreateShip(): UseMutationResult<ShipView, Error, CreateShipIn
       method: "POST",
       body: JSON.stringify(payload),
     }).then(r => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: shipKeys.lists() }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.lists() });
+      // A created ship may carry new tag names and shifts the fleet KPI counts.
+      void queryClient.invalidateQueries({ queryKey: shipKeys.tags() });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.counts() });
+    },
   });
 }
 
@@ -272,6 +278,9 @@ export function useUpdateShip(): UseMutationResult<ShipView, Error, { id: string
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: shipKeys.detail(data.id) });
       void queryClient.invalidateQueries({ queryKey: shipKeys.lists() });
+      // An updated tag set may introduce new tag names; a status change shifts the KPI counts.
+      void queryClient.invalidateQueries({ queryKey: shipKeys.tags() });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.counts() });
     },
   });
 }
@@ -316,6 +325,8 @@ export function useDeleteShip(): UseMutationResult<null, Error, string> {
     onSuccess: (_data, id) => {
       queryClient.removeQueries({ queryKey: shipKeys.detail(id) });
       void queryClient.invalidateQueries({ queryKey: shipKeys.lists() });
+      // Removing a ship shifts the fleet KPI counts.
+      void queryClient.invalidateQueries({ queryKey: shipKeys.counts() });
     },
   });
 }
