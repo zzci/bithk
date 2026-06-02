@@ -93,12 +93,14 @@ export const execute: ActionExecutor = async (ctx, config) => {
     }
 
     if (code !== 0) {
+      // stderr goes to the process logger ONLY — it can carry internal
+      // paths / secrets, so it must not land in the thrown error, which is
+      // persisted to cron_job_logs.error and returned by the trigger API.
       ctx.logger.warn(
-        { command: cfg.command, exitCode: code, durationMs },
+        { command: cfg.command, exitCode: code, durationMs, stderr: stderr.text },
         "cron_shell_nonzero_exit",
       );
-      const stderrTag = stderr.text ? ` stderr: ${stderr.text}` : "";
-      throw new Error(`shell command exited ${code} (${durationMs}ms)${stderrTag}`);
+      throw new Error(`shell command exited ${code} (${durationMs}ms)`);
     }
 
     ctx.logger.debug(
