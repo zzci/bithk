@@ -230,6 +230,8 @@ export function useCreateDocument(): UseMutationResult<Document, Error, CreateDo
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: documentsKeys.tree() });
+      // A document created with a brand-new tag must refresh the tag filter vocab.
+      void qc.invalidateQueries({ queryKey: documentsKeys.tags() });
     },
   });
 }
