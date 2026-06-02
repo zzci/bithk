@@ -372,9 +372,9 @@ describe("projectIssuesTab", () => {
     await user.type(within(dialog).getByPlaceholderText("Issue title"), "Replace pump seal");
 
     await user.click(within(dialog).getByRole("button", { name: /To Do/ }));
-    await user.click(await screen.findByRole("menuitemradio", { name: "In Progress" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: /In Progress/ }));
 
-    await user.click(within(dialog).getByRole("button", { name: /Medium/ }));
+    await user.click(within(dialog).getByRole("button", { name: /Low/ }));
     await user.click(await screen.findByRole("menuitemradio", { name: "High" }));
 
     await user.click(within(dialog).getByRole("button", { name: /Assignee/ }));

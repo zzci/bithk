@@ -8,14 +8,11 @@
 
 import type { LucideIcon } from "lucide-react";
 
-import { Minus, Signal, SignalHigh, SignalLow, SignalMedium } from "lucide-react";
+import { Signal, SignalHigh, SignalLow, SignalMedium } from "lucide-react";
 
 import { cn } from "@/shared/lib/utils";
 
 type Priority = "low" | "medium" | "high" | "urgent";
-// Display-only sentinel for an absent priority. It is NOT part of the data model
-// and is never selectable — it only guards the runtime lookup for robustness.
-type PriorityDisplay = Priority | "none";
 
 interface PriorityVisual {
   readonly Icon: LucideIcon;
@@ -26,16 +23,15 @@ interface PriorityVisual {
 // Kept module-private: exporting a non-component from this file would trip
 // react-refresh/only-export-components, and the two consumers need only the
 // components below. It remains the single source of truth for priority visuals.
-const PRIORITY_META: Record<PriorityDisplay, PriorityVisual> = {
-  none: { Icon: Minus, icon: "text-muted-foreground", chip: "bg-muted-foreground/10" },
+const PRIORITY_META: Record<Priority, PriorityVisual> = {
   low: { Icon: SignalLow, icon: "text-muted-foreground", chip: "bg-muted-foreground/15" },
   medium: { Icon: SignalMedium, icon: "text-info", chip: "bg-info/15" },
   high: { Icon: SignalHigh, icon: "text-warning", chip: "bg-warning/15" },
   urgent: { Icon: Signal, icon: "text-destructive", chip: "bg-destructive/15" },
 };
 
-function PriorityChip({ priority }: { readonly priority: PriorityDisplay }) {
-  const { Icon, icon, chip } = PRIORITY_META[priority] ?? PRIORITY_META.none;
+function PriorityChip({ priority }: { readonly priority: Priority }) {
+  const { Icon, icon, chip } = PRIORITY_META[priority];
   return (
     <span className={cn("inline-flex size-5 shrink-0 items-center justify-center rounded-md", chip)}>
       <Icon aria-hidden="true" className={cn("size-3", icon)} />

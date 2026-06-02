@@ -28,7 +28,7 @@ export * from "./references.schema";
 export const issueDetails = sqliteTable("issue_details", {
   itemId: text("item_id").primaryKey().references(() => items.id, { onDelete: "cascade" }),
   description: text("description"),
-  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("medium"),
+  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("low"),
   dueDate: text("due_date"),
   // The owning project. Always set — an issue cannot exist outside a project.
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),

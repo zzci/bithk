@@ -76,15 +76,6 @@ const STATUS_ICON_TINT: Record<IssueStatus, string> = {
   cancel: "text-muted-foreground/60",
 };
 
-// Small status dot used by the create-dialog status selector.
-const STATUS_DOT: Record<IssueStatus, string> = {
-  todo: "bg-warning",
-  working: "bg-info",
-  review: "bg-primary",
-  done: "bg-success",
-  cancel: "bg-muted-foreground",
-};
-
 // One shared grid template for every row in a status group so cells line up
 // vertically across rows. Tracks (left to right):
 //   [status+id] [title 1fr] [tags (sm+)] [due (md+)] [assignee] [priority]
@@ -525,7 +516,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<IssueStatus>(initialStatus);
-  const [priority, setPriority] = useState<IssuePriority>("medium");
+  const [priority, setPriority] = useState<IssuePriority>("low");
   const [assigneeMemberId, setAssigneeMemberId] = useState("__none__");
   const [dueDate, setDueDate] = useState("");
   // When on, a successful create resets the form and keeps the dialog open so
@@ -557,7 +548,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
     setTitle("");
     setDescription("");
     setStatus(initialStatus);
-    setPriority("medium");
+    setPriority("low");
     setAssigneeMemberId("__none__");
     setDueDate("");
   };
@@ -660,14 +651,14 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
           <div className="flex flex-wrap items-center gap-2 pb-2">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button type="button" variant="outline" className={cn(pillBase, "border-solid")} />}>
-                <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[status])} />
+                <StatusIcon status={status} label={t(`issues.status.${status}` as const)} />
                 {t(`issues.status.${status}` as const)}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuRadioGroup value={status} onValueChange={v => setStatus(v as IssueStatus)}>
                   {ISSUE_STATUSES.map(s => (
                     <DropdownMenuRadioItem key={s} value={s}>
-                      <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT[s])} />
+                      <StatusIcon status={s} label={t(`issues.status.${s}` as const)} />
                       {t(`issues.status.${s}` as const)}
                     </DropdownMenuRadioItem>
                   ))}

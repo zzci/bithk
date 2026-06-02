@@ -107,7 +107,7 @@ describe("createProcurement", () => {
     expect(tuples[0]!.subjectId).toBe(creator);
   });
 
-  test("writes issue-parity fields and defaults priority to medium", async () => {
+  test("writes issue-parity fields and defaults priority to low", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
 
@@ -128,7 +128,7 @@ describe("createProcurement", () => {
       itemName: "Bolts",
       creatorId: creator,
     });
-    expect(defaults.priority).toBe("medium");
+    expect(defaults.priority).toBe("low");
     expect(defaults.description).toBeNull();
     expect(defaults.dueDate).toBeNull();
 
