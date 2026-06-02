@@ -24,7 +24,8 @@
     "smtp": "SMTP",
     "webhook": "Webhooks",
     "projectDefaults": "Project Defaults",
-    "contact": "Contacts"
+    "contact": "Contacts",
+    "ship": "Ship"
   },
   "projectDefaults": {
     "defaults": {
@@ -120,6 +121,28 @@
     "noSecret": "None",
     "eventsHint": "Comma-separated event types, or * for all events.",
     "allEventsPlaceholder": "* (all events)"
+  },
+  "worklistCategories": {
+    "title": "Worklist Categories",
+    "description": "The global category vocabulary suggested when classifying ship worklists.",
+    "add": "Add Category",
+    "addTitle": "Add Category",
+    "editTitle": "Edit Category",
+    "dialogDescription": "Worklist categories are suggested for the worklist category field; free text is still allowed.",
+    "fieldName": "Name",
+    "fieldDescription": "Description",
+    "colName": "Name",
+    "colDescription": "Description",
+    "empty": "No worklist categories yet.",
+    "delete": {
+      "title": "Delete category",
+      "confirm": "Delete \"{{name}}\"? It will no longer be suggested for worklists."
+    },
+    "toast": {
+      "created": "Category created.",
+      "updated": "Category updated.",
+      "deleted": "Category \"{{name}}\" deleted."
+    }
   },
   "contactCategories": {
     "title": "Contact Categories",

@@ -24,7 +24,8 @@
     "smtp": "SMTP",
     "webhook": "Webhook",
     "projectDefaults": "项目默认值",
-    "contact": "联系人"
+    "contact": "联系人",
+    "ship": "船舶"
   },
   "projectDefaults": {
     "defaults": {
@@ -120,6 +121,28 @@
     "noSecret": "无",
     "eventsHint": "以逗号分隔的事件类型，或 * 表示所有事件。",
     "allEventsPlaceholder": "*（所有事件）"
+  },
+  "worklistCategories": {
+    "title": "工作清单分类",
+    "description": "为船舶工作清单分类时建议使用的全局分类词汇表。",
+    "add": "添加分类",
+    "addTitle": "添加分类",
+    "editTitle": "编辑分类",
+    "dialogDescription": "工作清单分类用于在工作清单的分类字段中提供建议；仍允许自由输入。",
+    "fieldName": "名称",
+    "fieldDescription": "描述",
+    "colName": "名称",
+    "colDescription": "描述",
+    "empty": "暂无工作清单分类。",
+    "delete": {
+      "title": "删除分类",
+      "confirm": "删除「{{name}}」？将不再为工作清单提供该建议。"
+    },
+    "toast": {
+      "created": "分类已创建。",
+      "updated": "分类已更新。",
+      "deleted": "分类「{{name}}」已删除。"
+    }
   },
   "contactCategories": {
     "title": "联系人分类",

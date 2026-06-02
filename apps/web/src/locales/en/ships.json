@@ -170,6 +170,7 @@
     "copyFromGlobal": "Copy from global knowledge base",
     "copyPlaceholder": "Select a global worklist",
     "copy": "Copy worklist",
+    "categoryPlaceholder": "Select or type a category",
     "noChecklist": "No checklist provided.",
     "field": {
       "name": "Name",
