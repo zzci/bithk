@@ -128,16 +128,6 @@ function ContactPanelView({
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold break-words leading-tight">{contact.name}</h2>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <Badge variant="secondary" className={contact.visibility === "public" ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"}>
-              {t(`visibility.${contact.visibility}` as const)}
-            </Badge>
-            {contact.confidential && (
-              <Badge variant="secondary" className="bg-warning/10 text-warning">{t("field.confidential")}</Badge>
-            )}
-            {status && <Badge variant="outline">{status}</Badge>}
-            {categoryName && <Badge variant="outline">{categoryName}</Badge>}
-          </div>
         </div>
         <Button
           type="button"
@@ -165,14 +155,38 @@ function ContactPanelView({
         </PanelSection>
 
         <PanelSection title={t("drawer.classification")}>
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-4">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-4 @sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <dt className="text-xs font-medium text-muted-foreground">{t("field.visibility")}</dt>
+              <dd>
+                <Badge variant="secondary" className={contact.visibility === "public" ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"}>
+                  {t(`visibility.${contact.visibility}` as const)}
+                </Badge>
+              </dd>
+            </div>
+            <div className="space-y-1.5">
+              <dt className="text-xs font-medium text-muted-foreground">{t("field.confidential")}</dt>
+              <dd>
+                {contact.confidential
+                  ? <Badge variant="secondary" className="bg-warning/10 text-warning">{t("field.confidential")}</Badge>
+                  : <span className="text-sm text-muted-foreground">—</span>}
+              </dd>
+            </div>
+            <div className="space-y-1.5">
+              <dt className="text-xs font-medium text-muted-foreground">{t("field.status")}</dt>
+              <dd>
+                {status
+                  ? <Badge variant="outline">{status}</Badge>
+                  : <span className="text-sm text-muted-foreground">—</span>}
+              </dd>
+            </div>
             <div className="space-y-0.5">
               <dt className="text-xs font-medium text-muted-foreground">{t("field.category")}</dt>
               <dd className="text-sm">
                 {categoryName ?? <span className="text-muted-foreground">{t("category.none")}</span>}
               </dd>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 @sm:col-span-2">
               <dt className="text-xs font-medium text-muted-foreground">{t("field.tags")}</dt>
               <dd>
                 {contact.tags.length > 0
