@@ -26,7 +26,7 @@ from. Feature-local components living under `app/routes/**` are out of scope.
 | Component | Status |
 | --- | --- |
 | `ui/*`, `ResizableDrawer`, `ResourceFooterSections`, `CoverImage`, `PrioritySignal`, `ListFilter` | In use |
-| `DetailPanelHeader`, `CoverField`, `PaginationFooter`, `SearchInput`, `ListToolbar`, `SearchCreateBar`, `tag-utils` | Defined (PLAN-051); consumer migration pending — see [plan/PLAN-051.md](plan/PLAN-051.md) Migration Guide |
+| `DetailPanelHeader`, `CoverField`, `PaginationFooter`, `SearchInput`, `SearchCreateBar`, `tag-utils` | Defined (PLAN-051); consumer migration pending — see [plan/PLAN-051.md](plan/PLAN-051.md) Migration Guide |
 | `ToolbarFilter` | Defined (PLAN-051); largely superseded by `ListFilter` for new code — prefer `ListFilter` |
 
 ---
@@ -48,9 +48,10 @@ for server-side search).
 
 ### `SearchCreateBar`
 
-`shared/components/search-create-bar.tsx` — minimal toolbar for lists **without**
-chip filters: a full-width search box on the left, a create button on the right
-(e.g. contacts). Composes `SearchInput`.
+`shared/components/search-create-bar.tsx` — search + create cluster. The search
+box is **bounded** (`w-full sm:w-64`); pair it with `ListFilter` on the left of a
+`justify-between` row, or use it standalone for lists **without** chip filters
+(e.g. contacts). Create button sits to the right of search. Composes `SearchInput`.
 
 | Prop | Type | Notes |
 | --- | --- | --- |
@@ -58,31 +59,13 @@ chip filters: a full-width search box on the left, a create button on the right
 | `create` | `{ label?; onClick }?` | omit to hide the button; `label` defaults to `common.create` ("New" / "新建") |
 
 ```tsx
-<SearchCreateBar
-  search={{ value: search, onChange: v => { setSearch(v); setPage(1); }, placeholder: t("list.searchPlaceholder") }}
-  create={canManage ? { onClick: () => setCreateOpen(true) } : undefined}
-/>
-```
-
-### `ListToolbar`
-
-`shared/components/list-toolbar.tsx` — toolbar row with a left `filters` slot and
-a unified right-side search + create. For lists **with** filter controls (status
-chips, tag filter, type select). Composes `SearchInput`. The create button sits to
-the right of the search box.
-
-| Prop | Type | Notes |
-| --- | --- | --- |
-| `filters` | `ReactNode?` | left slot: status chips / tag filter / type select |
-| `search` | `{ value; onChange; placeholder; className? }` | |
-| `create` | `{ label?; onClick }?` | `label` defaults to `common.create` |
-
-```tsx
-<ListToolbar
-  filters={<>{statusChips}<ProjectTagFilter .../></>}
-  search={{ value: search, onChange: v => { setSearch(v); setPage(1); }, placeholder: t("list.searchPlaceholder") }}
-  create={isAdmin ? { onClick: () => setCreateOpen(true) } : undefined}
-/>
+<div className="flex items-center justify-between gap-3">
+  <ListFilter dimensions={[statusDimension, tagDimension]} />
+  <SearchCreateBar
+    search={{ value: search, onChange: v => { setSearch(v); setPage(1); }, placeholder: t("list.searchPlaceholder") }}
+    create={canManage ? { onClick: () => setCreateOpen(true) } : undefined}
+  />
+</div>
 ```
 
 ### `ListFilter` (preferred filter control)
@@ -99,15 +82,17 @@ multi-select via a discriminated union.
 | `dimensions` | `FilterDimension[]` | each: `key`, `label`, `mode` (`"single"`/`"multi"`), `options`, `value`, `onChange`, optional `resident`/`residentCount`, and (single) `defaultValue` |
 | `className` | `string?` | |
 
-This is the primary filter control and the usual occupant of `ListToolbar`'s
-`filters` slot:
+This is the primary filter control; place it on the left of a `justify-between`
+row and pair it with `SearchCreateBar` on the right:
 
 ```tsx
-<ListToolbar
-  filters={<ListFilter dimensions={[statusDimension, tagDimension]} />}
-  search={{ value: search, onChange: setSearch, placeholder: t("list.searchPlaceholder") }}
-  create={isAdmin ? { onClick: () => setCreateOpen(true) } : undefined}
-/>
+<div className="flex items-center justify-between gap-3">
+  <ListFilter dimensions={[statusDimension, tagDimension]} />
+  <SearchCreateBar
+    search={{ value: search, onChange: setSearch, placeholder: t("list.searchPlaceholder") }}
+    create={isAdmin ? { onClick: () => setCreateOpen(true) } : undefined}
+  />
+</div>
 ```
 
 ### `ToolbarFilter`

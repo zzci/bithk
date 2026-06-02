@@ -1,7 +1,8 @@
-// Minimal list toolbar for surfaces with no chip filters: a search box that
-// fills the available width on the left and a create button on the right (e.g.
-// the contacts list). For lists that also need filter controls, use ListToolbar
-// instead. Composes the shared SearchInput.
+// Search + create bar for list surfaces. The search box is BOUNDED
+// (w-full sm:w-64) rather than fill-width, so this bar can sit as the RIGHT
+// cluster of a `justify-between` row paired with a ListFilter on the left.
+// Used standalone for lists without chip filters (e.g. contacts), or as the
+// right side of a filter+search row. Composes the shared SearchInput.
 
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -34,7 +35,7 @@ export function SearchCreateBar({ search, create }: SearchCreateBarProps) {
         value={search.value}
         onChange={search.onChange}
         placeholder={search.placeholder}
-        className="flex-1"
+        className="w-full sm:w-64"
       />
       {create && (
         <Button onClick={create.onClick}>
