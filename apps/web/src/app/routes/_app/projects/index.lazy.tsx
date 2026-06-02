@@ -104,7 +104,6 @@ export function ProjectsListPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <span className="shrink-0 text-sm text-muted-foreground">{t("list.filterLabel")}</span>
           {[
             { key: "__active__", label: t("status.active"), count: activeCount },
             { key: "__archived__", label: t("status.archived"), count: archivedCount },

@@ -38,7 +38,6 @@
     "total_one": "{{count}} project",
     "total_other": "{{count}} projects",
     "filterByTag": "Filter by tag",
-    "filterLabel": "Filter:",
     "searchPlaceholder": "Search projects",
     "openSettings": "Project settings",
     "viewMode": "Project view mode",
