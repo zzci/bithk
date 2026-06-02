@@ -124,7 +124,7 @@ function ProjectInfoCard({ description }: ProjectInfoCardProps) {
 // rhythm (title first, then a wrapping metadata line) and intentional muted
 // loading/empty states instead of loose body text.
 const ROW_BUTTON_CLASS
-  = "group flex w-full flex-col items-start gap-1.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  = "group flex h-auto w-full flex-col items-start gap-1.5 rounded-md px-2 py-2 text-left font-normal transition-colors hover:bg-muted/40";
 
 function ListState({ children }: { readonly children: ReactNode }) {
   return (
@@ -192,8 +192,9 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
 
   return (
     <li>
-      <button
+      <Button
         type="button"
+        variant="ghost"
         disabled={!canOpen}
         className={cn(ROW_BUTTON_CLASS, "disabled:pointer-events-none disabled:opacity-60")}
         onClick={() => onOpenTab(target)}
@@ -219,7 +220,7 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
           </Badge>
           <span className="ml-auto shrink-0">{formatDate(item.pinnedAt)}</span>
         </RowMeta>
-      </button>
+      </Button>
     </li>
   );
 }
@@ -272,19 +273,20 @@ interface ActivityRowProps {
 // share one horizontal row. Distinct from ROW_BUTTON_CLASS so the pinned
 // card keeps its two-line rhythm.
 const ACTIVITY_ROW_CLASS
-  = "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  = "group flex h-auto w-full items-center gap-2 rounded-md px-2 py-1.5 text-left font-normal transition-colors hover:bg-muted/40";
 
 function ActivityRow({ title, badge, onClick }: ActivityRowProps) {
   return (
     <li>
-      <button
+      <Button
         type="button"
+        variant="ghost"
         className={ACTIVITY_ROW_CLASS}
         onClick={onClick}
       >
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
         <span className="ml-auto shrink-0">{badge}</span>
-      </button>
+      </Button>
     </li>
   );
 }

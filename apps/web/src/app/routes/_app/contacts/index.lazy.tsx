@@ -196,10 +196,11 @@ export function ContactsListPage() {
                     const status = contact.status ? t(`status.${contact.status}` as const) : null;
                     return (
                       <li key={contact.id} className="group flex items-stretch border-b border-border/40 transition-colors last:border-b-0 hover:bg-muted/50">
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           aria-label={contact.name}
-                          className={cn(CONTACT_GRID, "min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
+                          className={cn(CONTACT_GRID, "h-auto min-w-0 flex-1 shrink rounded-none px-3 py-2 text-left font-normal hover:bg-transparent")}
                           onClick={() => setDrawer({ mode: "view", contact })}
                         >
                           <span className="flex min-w-0 items-center gap-2">
@@ -250,7 +251,7 @@ export function ContactsListPage() {
                           <span className="truncate text-xs">
                             <ContactFieldValue value={status} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
                           </span>
-                        </button>
+                        </Button>
                         <div className="flex w-28 shrink-0 items-center justify-end gap-1 pr-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                           {contact.canManage && (
                             <>

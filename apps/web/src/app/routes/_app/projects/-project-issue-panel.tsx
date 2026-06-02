@@ -361,9 +361,10 @@ export function ProjectIssuePanel({
             {permissions.canEditAll
               ? (
                   <span className="relative inline-flex items-center">
-                    <button
+                    <Button
                       type="button"
-                      className="inline-flex items-center gap-1 rounded text-xs text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      variant="ghost"
+                      className="h-auto gap-1 rounded px-0 text-xs font-normal text-foreground hover:bg-transparent hover:text-primary"
                       onClick={() => {
                         const input = dueDateInputRef.current;
                         if (!input)
@@ -386,7 +387,7 @@ export function ProjectIssuePanel({
                         ? <span>{issue.dueDate}</span>
                         : <span className="text-muted-foreground">{t("notSet")}</span>}
                       <ChevronDown className="size-3" />
-                    </button>
+                    </Button>
                     <input
                       ref={dueDateInputRef}
                       type="date"
@@ -482,13 +483,14 @@ export function ProjectIssuePanel({
                 )
               : permissions.canEditAll
                 ? (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={startEditDesc}
-                      className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="h-auto w-full justify-start whitespace-normal rounded-md border border-dashed border-current bg-transparent px-2 py-1 text-left text-sm font-normal italic text-muted-foreground leading-snug transition-colors hover:bg-muted/50 hover:text-foreground"
                     >
                       {t("field.noDescription")}
-                    </button>
+                    </Button>
                   )
                 : (
                     <p className="text-sm italic text-muted-foreground leading-snug">

@@ -325,10 +325,11 @@ function TreeRow({
               </Button>
             )
           : <span className="size-4 shrink-0" />}
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => onSelect(node.id)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 truncate py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-auto min-w-0 flex-1 shrink justify-start gap-1.5 truncate px-0 py-1.5 text-left text-xs font-normal hover:bg-transparent"
         >
           {isFolder
             ? (isExpanded
@@ -336,7 +337,7 @@ function TreeRow({
                 : <FolderClosed className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />)
             : <FileText className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />}
           <span className="flex-1 truncate">{node.title}</span>
-        </button>
+        </Button>
         {/* Pinned indicator — always visible so the row's pin state reads
             at a glance, independent of the hover-revealed action menu. */}
         {node.pinned && (

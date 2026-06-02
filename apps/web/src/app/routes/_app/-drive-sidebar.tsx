@@ -216,19 +216,20 @@ export function DriveSidebar({
                 const isActive = activeView === item.view;
                 return (
                   <li key={item.view}>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => onSelect(item.view)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
                         NAV_ITEM_CLASS,
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        "h-auto justify-start font-normal",
                         isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/40",
                       )}
                     >
                       <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
                       <span className="flex-1 truncate">{t(item.labelKey)}</span>
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
@@ -262,19 +263,20 @@ export function DriveSidebar({
               const isActive = activeTeamDirId === directory.id;
               return (
                 <li key={directory.id} className="group/dir relative">
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => onSelectTeamDir(directory)}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
                       NAV_ITEM_CLASS,
-                      "pr-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "h-auto justify-start pr-8 font-normal",
                       isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/40",
                     )}
                   >
                     <FolderCog className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
                     <span className="flex-1 truncate">{directory.name}</span>
-                  </button>
+                  </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       render={(

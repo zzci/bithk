@@ -3,6 +3,7 @@ import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { FileText, Pin } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/shared/components/ui/button";
 import { useDocumentTree } from "@/shared/lib/api/documents";
 import { EmptyState } from "../-documents-create";
 
@@ -37,14 +38,15 @@ function DocumentsIndex() {
       <ul className="flex flex-col gap-1">
         {pinned.map(node => (
           <li key={node.id}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => void navigate({ to: "/documents/$docId", params: { docId: node.id } })}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-auto w-full justify-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-normal transition-colors hover:bg-accent/50"
             >
               <FileText className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
               <span className="min-w-0 flex-1 truncate">{node.title}</span>
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

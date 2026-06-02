@@ -2,6 +2,7 @@ import type { WheelEvent as ReactWheelEvent } from "react";
 import type { PdfModule } from "./-file-preview-types";
 
 import { useCallback, useMemo, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 
 export function PdfPreview({
   module: pdf,
@@ -53,10 +54,11 @@ export function PdfPreview({
           <aside className="w-36 shrink-0 overflow-auto bg-background p-2">
             <div className="space-y-2">
               {pageNumbers.map(page => (
-                <button
+                <Button
                   key={page}
                   type="button"
-                  className="flex w-full flex-col items-center gap-1 rounded-md bg-muted/30 p-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  variant="ghost"
+                  className="flex h-auto w-full flex-col items-center gap-1 rounded-md bg-muted/30 p-1 text-xs font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   onClick={() => scrollToPage(page)}
                 >
                   <Page
@@ -66,7 +68,7 @@ export function PdfPreview({
                     renderTextLayer={false}
                   />
                   <span>{page}</span>
-                </button>
+                </Button>
               ))}
             </div>
           </aside>

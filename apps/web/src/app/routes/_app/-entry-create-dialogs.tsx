@@ -283,53 +283,57 @@ function MoveForm({
       </DialogHeader>
 
       <nav aria-label={t("browser.dialog.moveTitle")} className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-        <button
+        <Button
           type="button"
-          className="rounded px-1 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          variant="ghost"
+          className="h-auto rounded px-1 font-normal hover:bg-transparent hover:text-foreground"
           onClick={() => setStack([])}
         >
           {t("browser.breadcrumbRoot")}
-        </button>
+        </Button>
         {stack.map((crumb, index) => (
           <span key={crumb.id ?? "root"} className="flex min-w-0 items-center gap-1">
             <ChevronRight className="size-3.5 shrink-0" />
-            <button
+            <Button
               type="button"
-              className="truncate rounded px-1 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              variant="ghost"
+              className="h-auto truncate rounded px-1 font-normal hover:bg-transparent hover:text-foreground"
               onClick={() => setStack(prev => prev.slice(0, index + 1))}
             >
               {crumb.name}
-            </button>
+            </Button>
           </span>
         ))}
       </nav>
 
       <div className="max-h-64 min-h-32 overflow-auto rounded-lg border border-border">
         {currentParentId !== null && (
-          <button
+          <Button
             type="button"
-            className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+            variant="ghost"
+            className="flex h-auto w-full justify-start gap-2 rounded-none border-x-0 border-t-0 border-b border-border px-3 py-2 text-left text-sm font-normal hover:bg-muted"
             onClick={() => setStack(prev => prev.slice(0, -1))}
           >
             <CornerLeftUp className="size-4 shrink-0 text-muted-foreground" />
             {t("browser.dialog.moveUp")}
-          </button>
+          </Button>
         )}
         {entriesQuery.isLoading
           ? <CenteredHint className="py-8">{t("common.loading")}</CenteredHint>
           : folders.length === 0
             ? <CenteredHint className="py-8">{t("browser.dialog.moveNoFolders")}</CenteredHint>
             : folders.map(folder => (
-                <button
+                <Button
                   key={folder.id}
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                  variant="ghost"
+                  className="flex h-auto w-full justify-start gap-2 rounded-none px-3 py-2 text-left text-sm font-normal hover:bg-muted"
                   onClick={() => setStack(prev => [...prev, { id: folder.id, name: folder.name }])}
                 >
                   <Folder className="size-4 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1 truncate">{folder.name}</span>
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                </button>
+                </Button>
               ))}
       </div>
 

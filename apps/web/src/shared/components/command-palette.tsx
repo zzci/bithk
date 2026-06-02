@@ -212,11 +212,12 @@ export function CommandPalette({
                       const isActive = flatCursor === activeIndex;
                       return (
                         <li key={action.key}>
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             data-active={isActive}
                             onClick={action.run}
-                            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[15px] transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground md:py-2 md:text-sm"
+                            className="h-auto w-full justify-start gap-2.5 rounded-none px-3 py-2.5 text-left text-[15px] font-normal transition-colors hover:bg-accent hover:text-accent-foreground data-[active=true]:bg-accent data-[active=true]:text-accent-foreground md:py-2 md:text-sm"
                           >
                             <action.icon className="size-4 shrink-0 text-muted-foreground md:size-3.5" strokeWidth={1.75} />
                             <span className="flex-1 truncate">{action.label}</span>
@@ -225,7 +226,7 @@ export function CommandPalette({
                                 {action.subtitle}
                               </span>
                             )}
-                          </button>
+                          </Button>
                         </li>
                       );
                     })}

@@ -393,11 +393,12 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                             activeIssueId === issue.id && "bg-muted/60",
                                           )}
                                         >
-                                          <button
+                                          <Button
                                             type="button"
+                                            variant="ghost"
                                             className={cn(
                                               ROW_GRID_CLASS,
-                                              "min-w-0 flex-1 items-center gap-x-3 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                              "h-auto min-w-0 flex-1 shrink items-center gap-x-3 rounded-md px-2 py-1.5 text-left font-normal hover:bg-transparent",
                                             )}
                                             onClick={() => openIssue(issue.id)}
                                           >
@@ -421,7 +422,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                             </div>
                                             <MemberAvatar id={issue.assigneeMemberId} label={assigneeLabel(issue)} />
                                             <PrioritySignal priority={issue.priority} label={priorityLabel} />
-                                          </button>
+                                          </Button>
                                           {canPin(issue) && (
                                             <div
                                               className={cn(

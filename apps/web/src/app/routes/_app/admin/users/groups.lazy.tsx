@@ -398,10 +398,11 @@ function GroupsTab() {
                       {searchResults.length > 0 && (
                         <div className="max-h-48 overflow-y-auto rounded-md border">
                           {searchResults.map(u => (
-                            <button
+                            <Button
                               key={u.id}
                               type="button"
-                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              variant="ghost"
+                              className="h-auto w-full justify-between rounded-none px-3 py-2 text-left text-sm font-normal transition-colors hover:bg-muted"
                               onClick={() => void addMember(u.id)}
                             >
                               <div>
@@ -409,7 +410,7 @@ function GroupsTab() {
                                 <div className="text-xs text-muted-foreground">{u.email}</div>
                               </div>
                               <Plus className="size-4 text-muted-foreground" />
-                            </button>
+                            </Button>
                           ))}
                         </div>
                       )}

@@ -147,7 +147,7 @@ export function ProjectSettingsDialog({
                 const Icon = SECTION_ICON[section];
                 const selected = active === section;
                 return (
-                  <button
+                  <Button
                     key={section}
                     ref={(el) => {
                       if (el)
@@ -156,6 +156,7 @@ export function ProjectSettingsDialog({
                         tabsRef.current.delete(section);
                     }}
                     type="button"
+                    variant="ghost"
                     role="tab"
                     id={tabId(section)}
                     aria-controls={panelId}
@@ -163,7 +164,7 @@ export function ProjectSettingsDialog({
                     tabIndex={selected ? 0 : -1}
                     onClick={() => setActive(section)}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                      "h-auto justify-start gap-2 rounded-md px-2 py-1.5 text-left text-sm font-normal transition-colors",
                       selected
                         ? "bg-accent font-medium text-accent-foreground"
                         : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -171,7 +172,7 @@ export function ProjectSettingsDialog({
                   >
                     <Icon className="size-4" aria-hidden="true" />
                     {label(section)}
-                  </button>
+                  </Button>
                 );
               })}
             </nav>
