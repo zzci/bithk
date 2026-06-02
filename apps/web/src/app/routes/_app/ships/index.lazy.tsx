@@ -2,22 +2,22 @@
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Calendar, Loader2, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
+import { Calendar, Loader2, MapPin, Ship as ShipIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CoverImage } from "@/shared/components/cover-image";
+import { ListFilter } from "@/shared/components/list-filter";
+import { PaginationFooter } from "@/shared/components/pagination-footer";
+import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import { Input } from "@/shared/components/ui/input";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { SHIP_STATUSES, useCreateShip, useShipCount, useShips, useShipTags } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToCreate } from "./-ship-form-logic";
-import { ShipTagFilter } from "./-ship-tag-filter";
 import { ShipStatusBadge } from "./-ship-visuals";
 
 export const Route = createLazyFileRoute("/_app/ships/")({
@@ -91,63 +91,52 @@ export function ShipsListPage() {
           </h1>
           <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
         </div>
-        {isAdmin && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus aria-hidden="true" />
-            {t("list.create")}
-          </Button>
-        )}
       </div>
 
       {shipsQuery.error && <ErrorBanner message={errorMessage(shipsQuery.error, t("common:common.error.loadFailed"))} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {SHIP_STATUSES.map((s) => {
-            const label = t(`status.${s}` as const);
-            const count = statusCounts[s];
-            return (
-              <Button
-                key={s}
-                variant={status === s ? "default" : "outline"}
-                className="h-8 shrink-0 rounded-full"
-                aria-pressed={status === s}
-                aria-label={count === undefined ? label : `${label} ${count}`}
-                onClick={() => {
-                  setStatus(s);
-                  setPage(1);
-                }}
-              >
-                {label}
-                {count !== undefined && (
-                  <span className="ml-1 rounded-full bg-background/60 px-1.5 text-xs tabular-nums">{count}</span>
-                )}
-              </Button>
-            );
-          })}
-          <ShipTagFilter
-            tags={shipTags}
-            selectedTagId={tagId}
-            onSelect={(id) => {
-              setTagId(id);
-              setPage(1);
-            }}
-            onClear={() => {
-              setTagId(null);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={t("list.searchPlaceholder")}
-            aria-label={t("list.searchPlaceholder")}
-            className="pl-8"
-          />
-        </div>
+        <ListFilter
+          dimensions={[
+            {
+              key: "status",
+              label: t("field.status"),
+              mode: "single",
+              resident: true,
+              defaultValue: "active",
+              value: status,
+              onChange: (value) => {
+                setStatus((value ?? "active") as ShipStatus);
+                setPage(1);
+              },
+              options: SHIP_STATUSES.map(s => ({
+                value: s,
+                label: t(`status.${s}` as const),
+                count: statusCounts[s],
+              })),
+            },
+            {
+              key: "tags",
+              label: t("field.tags"),
+              mode: "single",
+              residentCount: 5,
+              value: tagId,
+              onChange: (value) => {
+                setTagId(value);
+                setPage(1);
+              },
+              options: shipTags.map(tag => ({ value: tag.id, label: tag.name })),
+            },
+          ]}
+        />
+        <SearchCreateBar
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: t("list.searchPlaceholder"),
+          }}
+          {...(isAdmin ? { create: { label: t("list.create"), onClick: () => setCreateOpen(true) } } : {})}
+        />
       </div>
 
       {shipsQuery.isLoading
@@ -170,13 +159,13 @@ export function ShipsListPage() {
             )}
 
       {totalPages > 1 && meta && (
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-xs text-muted-foreground">{t("list.total", { count: meta.total })}</span>
-          <div className="flex gap-1">
-            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
-          </div>
-        </div>
+        <PaginationFooter
+          page={page}
+          totalPages={totalPages}
+          totalLabel={t("list.total", { count: meta.total })}
+          onPrev={() => setPage(p => p - 1)}
+          onNext={() => setPage(p => p + 1)}
+        />
       )}
 
       <ShipFormDialog
