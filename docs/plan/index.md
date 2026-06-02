@@ -50,3 +50,4 @@
 | [PLAN-049](PLAN-049.md) | Create-issue dialog staged-attachment list | Completed | 2026-06-02 |
 | [PLAN-050](PLAN-050.md) | Tag-filter pinned-chips + dropdown hybrid | Completed | 2026-06-02 |
 | [PLAN-051](PLAN-051.md) | Extract shared frontend components (lists, detail panels, form fields) | Implementing | 2026-06-02 |
+| [PLAN-052](PLAN-052.md) | Tag-filter responsive pinned-chip count | Completed | 2026-06-02 |

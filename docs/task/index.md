@@ -86,3 +86,6 @@
 | [REFACTOR-013](REFACTOR-013.md) | Consolidate tag utilities + reuse TagsInput in contact form | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
 | [REFACTOR-014](REFACTOR-014.md) | ResponsiveTableList for contacts + procurements (optional) | [PLAN-051](../plan/PLAN-051.md) | Pending | 2026-06-02 |
 | [REFACTOR-015](REFACTOR-015.md) | CardGridList for projects + ships (optional) | [PLAN-051](../plan/PLAN-051.md) | Pending | 2026-06-02 |
+| [FIX-028](FIX-028.md) | Tag-filter: responsive pinned-chip count | [PLAN-052](../plan/PLAN-052.md) | Completed | 2026-06-02 |
+| [FIX-029](FIX-029.md) | Issues tab: tag filter to front + remove label | [PLAN-052](../plan/PLAN-052.md) | Completed | 2026-06-02 |
+| [FIX-030](FIX-030.md) | Projects home: tag filter to front of filter row | [PLAN-052](../plan/PLAN-052.md) | Completed | 2026-06-02 |

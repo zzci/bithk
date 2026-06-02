@@ -175,10 +175,10 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Fix leak");
 
-    // Tag vocabulary loads asynchronously; wait for the filter group + its label.
+    // Tag vocabulary loads asynchronously; wait for the filter group. The
+    // visible label is gone — the group's aria-label carries the name instead.
     const tagFilter = await screen.findByRole("group", { name: "Filter by tag" });
-    // The tag filter shows a visible label so users know what the chips do.
-    expect(within(tagFilter).getByText("Filter by tag")).toBeInTheDocument();
+    expect(within(tagFilter).queryByText("Filter by tag")).not.toBeInTheDocument();
     const search = screen.getByPlaceholderText("Search work orders...");
     const create = screen.getByRole("button", { name: "New" });
 
