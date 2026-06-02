@@ -3,6 +3,17 @@ import type { ContactInput, ContactStatus, ContactView, ContactVisibility } from
 export const CONTACT_STATUSES: readonly ContactStatus[] = ["active", "inactive"];
 export const CONTACT_VISIBILITIES: readonly ContactVisibility[] = ["private", "public"];
 
+// Fields the backend nulls out for confidential public contacts the caller may
+// not manage. When every one is null on such a read the row is "masked".
+const SENSITIVE_FIELDS = ["contactPerson", "phone", "email", "address", "taxId", "note", "status"] as const;
+
+export function isMasked(contact: ContactView): boolean {
+  return contact.visibility === "public"
+    && contact.confidential
+    && !contact.canManage
+    && SENSITIVE_FIELDS.every(key => contact[key] === null);
+}
+
 export interface ContactFormState {
   readonly name: string;
   readonly contactPerson: string;
