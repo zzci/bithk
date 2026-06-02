@@ -23,14 +23,17 @@ ONE control:
   `{ key, label, mode: "single"|"multi", options: Array<{value,label,count?}>,
   value, onChange }`. Generic — not hardcoded to status or tags. Use a
   discriminated union on `mode` so single/multi value+onChange types are exact.
-- Renders a SINGLE 筛选 (Filter) trigger Button → dropdown/popover listing
-  options grouped by dimension (section labels + checkable/aria-checked state +
-  optional counts).
-- SELECTED options render to the RIGHT as removable × chips (one per selected
-  option). Removing a chip clears that selection. A single-select dimension's
-  default value may render non-removable / as active state.
-- NO pinned-outside common tags; only SELECTED items appear outside as chips.
-  This removes the ResizeObserver pinned-fit logic from this path.
+- Declarative RESIDENCY (常驻): a dimension may declare `resident: true` (whole
+  group inline as always-visible toggle chips) and/or `residentCount: N` (first N
+  options inline, remainder in dropdown). Resident toggles are click-to-filter,
+  highlighted when active (aria-pressed), ALWAYS shown — NO ResizeObserver / NO
+  width-fit math (flicker-free), NO ×.
+- A SINGLE 筛选 (Filter) trigger Button → dropdown listing only the NON-resident
+  remainder, grouped by dimension (section labels + aria-checked + optional
+  counts). Trigger hidden when no remainder.
+- Selecting a NON-resident option → removable × chip to the RIGHT. Resident
+  toggles convey state by highlight (no ×). Residency is DECLARATIVE config, not
+  measured — do NOT reintroduce `-project-tag-filter.fit.ts`.
 - Accessible: trigger = real Button; chip remove = real Button with aria-label;
   dropdown items proper roles/aria-checked.
 - i18n en/zh parity for new strings (筛选/Filter, dimension labels reuse existing
@@ -41,9 +44,13 @@ ONE control:
 `apps/web/src/app/routes/_app/projects/index.lazy.tsx`: replace
 [ProjectTagFilter + separate 正常/已归档 status chips] with the new component, two
 dimensions:
-- 状态 (status): single-select, 正常(active)/已归档(archived) + counts, default 正常.
-- 标签 (tags): multi-select, options = project tags.
-Behavior must match today; flicker/非常驻 bug GONE.
+- 状态 (status): single-select, `resident: true` (whole group inline toggles),
+  正常(active)/已归档(archived) + counts, default 正常.
+- 标签 (tags): single-select, `residentCount: 5` (top-5 most-used tags pinned
+  inline as toggle chips, always shown; rest in 筛选 dropdown; non-resident
+  selected → removable × chip).
+Behavior must match today; 常用标签常驻 restored; flicker/非常驻 bug GONE
+(declarative residency, not measured).
 
 ## Scope / Constraints
 
