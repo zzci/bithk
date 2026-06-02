@@ -75,6 +75,7 @@ const updateShipSchema = z.object({
 
 const listSchema = z.object({
   status: z.enum(SHIP_STATUSES).optional(),
+  q: z.string().max(200).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
@@ -87,7 +88,8 @@ const equipmentCoreShape = {
   model: z.string().max(255).nullable().optional(),
   serialNumber: z.string().max(255).nullable().optional(),
   location: z.string().max(255).nullable().optional(),
-  installedAt: z.string().max(50).nullable().optional(),
+  // B8: must be an ISO 8601 datetime (e.g. "2024-01-31T00:00:00Z"), not free text.
+  installedAt: z.string().datetime().nullable().optional(),
   status: z.enum(EQUIPMENT_STATUSES).optional(),
   note: z.string().max(2000).nullable().optional(),
 };
@@ -146,12 +148,12 @@ export function shipRoutes() {
     const user = c.get("user")!;
     const query = listSchema.parse({
       status: c.req.query("status"),
+      q: c.req.query("q") || undefined,
       page: c.req.query("page"),
       limit: c.req.query("limit"),
     });
     const result = await listShips(db, {
       ...query,
-      q: c.req.query("q") || undefined,
       memberUserId: user.role === "admin" ? undefined : user.id,
     });
     return c.json({
@@ -194,7 +196,7 @@ export function shipRoutes() {
     const shortId = c.req.param("shortId");
     if (!await getShipByShortId(db, shortId))
       throw new NotFoundError("Ship", shortId);
-    await softDeleteShip(db, shortId);
+    await softDeleteShip(db, c.get("config"), shortId);
     return c.json({ success: true, data: null });
   });
 
@@ -242,6 +244,8 @@ export function shipRoutes() {
       throw new NotFoundError("Project", body.projectShortId);
     if (result === "is_base")
       throw new ValidationError("Project is already a ship's base project", { projectShortId: "Cannot bind a base project" });
+    if (result === "bound_elsewhere")
+      throw new ValidationError("Project is already bound to another ship", { projectShortId: "Already bound to another ship" });
     return c.json({ success: true, data: await listShipProjects(db, ship.id, ship.baseProjectId) });
   });
 

@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowLeft, ChevronRight, ClipboardList, FolderKanban, MapPin, Package, Trash2, Wrench } from "lucide-react";
+import { ArrowLeft, ClipboardList, FolderKanban, MapPin, Package, Trash2, Wrench } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CoverImage } from "@/shared/components/cover-image";
@@ -23,7 +23,6 @@ import {
   useShipMaintenanceTemplates,
   useShipProjects,
 } from "@/shared/lib/api/ships";
-import { useAuthStore } from "@/shared/stores/auth";
 import { useProjectCapabilities } from "../projects/-use-project-role";
 import { StatTile } from "./-ship-stats";
 import { visibleShipTabs } from "./-ship-tabs";
@@ -37,23 +36,39 @@ function ShipDetailPage() {
   const { t } = useTranslation(["ships", "common"]);
   const { shipId } = useParams({ from: "/_app/ships/$shipId" });
   const navigate = useNavigate();
-  const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
   const shipQuery = useShip(shipId);
   const ship = shipQuery.data;
 
-  // Permissions are anchored on the base project: its detail payload carries
-  // the caller's effective capabilities, from which we derive `project.manage`.
+  // Single permission anchor for the whole detail page: a ship can be modified
+  // by an app-admin OR a holder of `project.manage` on its base project. The
+  // base project's detail payload carries those capabilities; when there is no
+  // base project, `useProjectCapabilities` still grants admins everything and
+  // denies everyone else — i.e. admin-only. The page delete, every tab gate,
+  // and the files tab all read this one `canManage`.
   const baseProjectQuery = useProject(ship?.baseProjectId ?? undefined);
   const caps = useProjectCapabilities(baseProjectQuery.data);
   const canManage = caps.canManageProject;
 
   // Hero metrics + tab counts. These reuse the same cached queries the tabs
-  // mount, so opening a tab is instant after the hero has warmed them.
-  const projects = useShipProjects(shipId).data;
-  const equipment = useShipEquipment(shipId).data;
-  const templates = useShipMaintenanceTemplates(shipId).data;
-  const orders = useShipMaintenanceOrders(shipId).data;
+  // mount, so opening a tab is instant after the hero has warmed them. We keep
+  // the query objects (not just `.data`) so a failed metric surfaces an error
+  // + retry instead of an indefinite "—".
+  const projectsQuery = useShipProjects(shipId);
+  const equipmentQuery = useShipEquipment(shipId);
+  const templatesQuery = useShipMaintenanceTemplates(shipId);
+  const ordersQuery = useShipMaintenanceOrders(shipId);
+  const projects = projectsQuery.data;
+  const equipment = equipmentQuery.data;
+  const templates = templatesQuery.data;
+  const orders = ordersQuery.data;
+
+  const heroQueries = [projectsQuery, equipmentQuery, templatesQuery, ordersQuery];
+  const heroError = heroQueries.some(q => q.isError);
+  const retryHeroMetrics = () => {
+    for (const q of heroQueries)
+      void q.refetch();
+  };
 
   const deleteShip = useDeleteShip();
   const [tab, setTab] = useState("overview");
@@ -66,7 +81,7 @@ function ShipDetailPage() {
     return (
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => void navigate({ to: "/ships" })}>
-          <ArrowLeft className="mr-1 size-4" />
+          <ArrowLeft aria-hidden="true" />
           {t("detail.back")}
         </Button>
         <ErrorBanner message={t("detail.notFound")} />
@@ -100,19 +115,15 @@ function ShipDetailPage() {
   const metric = (value: number | undefined) => (value === undefined ? "—" : value);
 
   return (
-    <div className="space-y-6">
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground" aria-label={t("detail.back")}>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 rounded-md px-1 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-          onClick={() => void navigate({ to: "/ships" })}
-        >
-          <ArrowLeft className="size-4" />
-          {t("page.title")}
-        </button>
-        <ChevronRight className="size-3.5" />
-        <span className="font-medium text-foreground">{ship.name}</span>
-      </nav>
+    <div className="space-y-5">
+      <Button
+        variant="ghost"
+        className="-ml-2 h-8 px-2 text-muted-foreground"
+        onClick={() => void navigate({ to: "/ships" })}
+      >
+        <ArrowLeft aria-hidden="true" />
+        {t("detail.back")}
+      </Button>
 
       <Card>
         <CoverImage src={ship.coverImageUrl} kind="ship" className="h-40 w-full" />
@@ -133,7 +144,7 @@ function ShipDetailPage() {
                   </span>
                 )}
               </div>
-              <h1 className="truncate text-2xl font-bold">{ship.name}</h1>
+              <h1 className="truncate text-2xl font-semibold">{ship.name}</h1>
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                 <span className="font-mono">{ship.code}</span>
                 {ship.imoNumber && (
@@ -154,13 +165,22 @@ function ShipDetailPage() {
                 )}
               </p>
             </div>
-            {isAdmin && (
+            {canManage && (
               <Button variant="outline" onClick={() => setDeleteOpen(true)}>
-                <Trash2 className="mr-1 size-4 text-destructive" />
+                <Trash2 className="text-destructive" aria-hidden="true" />
                 {t("common:common.delete")}
               </Button>
             )}
           </div>
+
+          {heroError && (
+            <div className="space-y-2">
+              <ErrorBanner message={t("common:common.error.loadFailed")} />
+              <Button variant="outline" size="sm" onClick={retryHeroMetrics}>
+                {t("common:common.retry")}
+              </Button>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <StatTile

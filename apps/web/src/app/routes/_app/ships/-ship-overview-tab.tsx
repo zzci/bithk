@@ -27,6 +27,7 @@ import {
   useUpdateShip,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
+import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { ISSUE_STATUS_BADGE } from "./-ship-colors";
 import { ShipCoverField } from "./-ship-cover-field";
@@ -41,11 +42,6 @@ interface ShipOverviewTabProps {
 }
 
 const ACTIVE_ORDER_STATUSES = new Set(["todo", "working", "review"]);
-
-const PROJECT_STATUS_BADGE: Record<"active" | "archived", string> = {
-  active: "bg-success/10 text-success",
-  archived: "bg-muted text-muted-foreground",
-};
 
 function Card({ title, action, children }: { readonly title: string; readonly action?: ReactNode; readonly children: ReactNode }) {
   return (
@@ -224,7 +220,7 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
                           {project.isBase && (
                             <Badge variant="secondary" className="bg-primary/10 font-medium text-primary">{t("projects.baseBadge")}</Badge>
                           )}
-                          <Badge variant="secondary" className={cn(PROJECT_STATUS_BADGE[project.status])}>
+                          <Badge variant="secondary" className={cn(RECORD_STATUS_BADGE[project.status])}>
                             {t(`projects:status.${project.status}` as const)}
                           </Badge>
                         </span>
@@ -277,7 +273,7 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
 function ArchiveSection({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return (
     <div className="space-y-2 pt-1">
-      <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
+      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">{children}</dl>
     </div>
   );

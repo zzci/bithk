@@ -7,9 +7,13 @@ import {
   useCreateShip,
   useCreateShipEquipment,
   useCreateShipMaintenanceTemplate,
+  useDeleteShip,
   useDeleteShipEquipment,
+  useDeleteShipMaintenanceTemplate,
   useGlobalMaintenanceTemplates,
   useIssueReferences,
+  useRemoveShipCover,
+  useSetShipCover,
   useShip,
   useShipEquipment,
   useShipMaintenanceOrders,
@@ -17,7 +21,9 @@ import {
   useShipProjects,
   useShips,
   useUnbindShipProject,
+  useUpdateShip,
   useUpdateShipEquipment,
+  useUpdateShipMaintenanceTemplate,
 } from "./ships";
 
 function jsonResponse(body: unknown) {
@@ -157,6 +163,76 @@ describe("useCreateShip", () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toBe("/api/ships");
     expect(init?.method).toBe("POST");
+  });
+});
+
+describe("ship mutation hooks", () => {
+  it("useUpdateShip patches /ships/:id and unwraps the envelope", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "s1", name: "Renamed" } }));
+    const { result } = renderHook(() => useUpdateShip(), { wrapper: makeWrapper() });
+    result.current.mutate({ id: "s1", name: "Renamed" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("/api/ships/s1");
+    expect(init?.method).toBe("PATCH");
+    // The id is stripped from the body; only the patch fields are sent.
+    expect(JSON.parse(init!.body as string)).toEqual({ name: "Renamed" });
+    expect(result.current.data?.name).toBe("Renamed");
+  });
+
+  it("useSetShipCover posts multipart form data to the cover-image route", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "s1", coverImageUrl: "/api/files/f/content" } }));
+    const { result } = renderHook(() => useSetShipCover(), { wrapper: makeWrapper() });
+    const file = new File(["x"], "cover.png", { type: "image/png" });
+    result.current.mutate({ id: "s1", file });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("/api/ships/s1/cover-image");
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBeInstanceOf(FormData);
+    expect((init!.body as FormData).get("file")).toBeInstanceOf(File);
+  });
+
+  it("useRemoveShipCover deletes the cover-image route", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "s1", coverImageUrl: null } }));
+    const { result } = renderHook(() => useRemoveShipCover(), { wrapper: makeWrapper() });
+    result.current.mutate("s1");
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("/api/ships/s1/cover-image");
+    expect(init?.method).toBe("DELETE");
+  });
+
+  it("useDeleteShip deletes /ships/:id", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: null }));
+    const { result } = renderHook(() => useDeleteShip(), { wrapper: makeWrapper() });
+    result.current.mutate("s1");
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("/api/ships/s1");
+    expect(init?.method).toBe("DELETE");
+  });
+
+  it("useUpdateShipMaintenanceTemplate patches the scoped template route", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "tpl1", name: "Renamed" } }));
+    const { result } = renderHook(() => useUpdateShipMaintenanceTemplate(), { wrapper: makeWrapper() });
+    result.current.mutate({ shipId: "s1", templateId: "tpl1", name: "Renamed" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("/api/ships/s1/maintenance-templates/tpl1");
+    expect(init?.method).toBe("PATCH");
+    // shipId and templateId are path params, not body fields.
+    expect(JSON.parse(init!.body as string)).toEqual({ name: "Renamed" });
+  });
+
+  it("useDeleteShipMaintenanceTemplate deletes the scoped template route", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: null }));
+    const { result } = renderHook(() => useDeleteShipMaintenanceTemplate(), { wrapper: makeWrapper() });
+    result.current.mutate({ shipId: "s1", templateId: "tpl1" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("/api/ships/s1/maintenance-templates/tpl1");
+    expect(init?.method).toBe("DELETE");
   });
 });
 

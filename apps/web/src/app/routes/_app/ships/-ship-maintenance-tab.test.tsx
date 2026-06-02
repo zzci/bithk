@@ -70,8 +70,8 @@ describe("shipMaintenanceTab", () => {
 
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
     expect(screen.getByText("Copy from global knowledge base")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Templates 1/ })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Work orders 1/ }));
+    expect(screen.getByRole("tab", { name: /Templates 1/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: /Work orders 1/ }));
     expect(screen.getByText("Quarterly check work order")).toBeInTheDocument();
     expect(screen.getByText("To Do")).toBeInTheDocument();
   });
@@ -109,7 +109,7 @@ describe("shipMaintenanceTab", () => {
     renderWithProviders(<ShipMaintenanceTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
-    await userEvent.click(screen.getByRole("button", { name: /Work orders 1/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /Work orders 1/ }));
     await waitFor(() => expect(screen.getByText("Quarterly check work order")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Open work order from template" }));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
@@ -131,7 +131,7 @@ describe("shipMaintenanceTab", () => {
     renderWithProviders(<ShipMaintenanceTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
-    await userEvent.click(screen.getByRole("button", { name: /Work orders 1/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /Work orders 1/ }));
     await waitFor(() => expect(screen.getByText("Quarterly check work order")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "View" }));
 

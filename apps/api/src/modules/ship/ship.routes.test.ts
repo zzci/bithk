@@ -270,6 +270,42 @@ describe("binding routes", () => {
     const res = await app.request(`/ships/${shipShortId}/projects`, { headers: { Cookie: outsider.cookie } });
     expect(res.status).toBe(404);
   });
+
+  // T4: bind error mappings at the route layer.
+  test("binding an unknown project → 404", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+    const res = await app.request(`/ships/${shipShortId}/projects`, jsonReq("POST", adminCookie, { projectShortId: "nope1234" }));
+    expect(res.status).toBe(404);
+  });
+
+  test("binding another ship's base project → 422 (is_base)", async () => {
+    const app = buildApp(db);
+    const a = await createShipAsAdmin(app, "ShipA");
+    // A second ship owned by the same admin; its base project is off-limits.
+    const bRes = await app.request("/ships", jsonReq("POST", a.adminCookie, { name: "ShipB" }));
+    const bBody = await bRes.json() as { data: { baseProjectId: string } };
+    const res = await app.request(`/ships/${a.shipShortId}/projects`, jsonReq("POST", a.adminCookie, { projectShortId: bBody.data.baseProjectId }));
+    expect(res.status).toBe(422);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
+  });
+
+  // T4 / B1 regression: a project already bound to ANOTHER ship as an extra is
+  // refused (mapped to a 422 ValidationError, never silently stolen).
+  test("binding a project already bound to another ship → 422 (bound_elsewhere)", async () => {
+    const app = buildApp(db);
+    const a = await createShipAsAdmin(app, "ShipA");
+    const b = await createShipAsAdmin(app, "ShipB");
+
+    // Bind a standalone project to ship B first.
+    const extra = await createProject(db, { name: "Refit", creatorId: a.adminId });
+    expect((await app.request(`/ships/${b.shipShortId}/projects`, jsonReq("POST", b.adminCookie, { projectShortId: extra.shortId }))).status).toBe(200);
+
+    // Ship A cannot steal it.
+    const res = await app.request(`/ships/${a.shipShortId}/projects`, jsonReq("POST", a.adminCookie, { projectShortId: extra.shortId }));
+    expect(res.status).toBe(422);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
+  });
 });
 
 async function res(r: Response): Promise<{ data: { isBase: boolean }[] }> {

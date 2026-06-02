@@ -40,6 +40,8 @@ import {
   useUpdateShipEquipment,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
+import { cn } from "@/shared/lib/utils";
+import { EQUIPMENT_STATUS_BADGE } from "./-ship-colors";
 
 interface ShipEquipmentTabProps {
   readonly ship: ShipView;
@@ -124,6 +126,13 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
     return [...set].sort();
   }, [equipment]);
 
+  /* eslint-disable react/set-state-in-effect -- reset the filter when its category disappears. */
+  useEffect(() => {
+    if (category !== CATEGORY_ALL && !categories.includes(category))
+      setCategory(CATEGORY_ALL);
+  }, [categories, category]);
+  /* eslint-enable react/set-state-in-effect */
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return equipment.filter((row) => {
@@ -165,7 +174,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
         <h2 className="text-sm font-medium text-muted-foreground">{t("equipment.title")}</h2>
         {canManage && (
           <Button onClick={openCreate}>
-            <Plus className="mr-1 size-4" />
+            <Plus aria-hidden="true" />
             {t("equipment.create")}
           </Button>
         )}
@@ -178,7 +187,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
               <Button
                 key={opt.key}
                 variant={category === opt.key ? "default" : "outline"}
-                className="rounded-full"
+                className="h-8 shrink-0 rounded-full"
                 aria-pressed={category === opt.key}
                 onClick={() => setCategory(opt.key)}
               >
@@ -204,7 +213,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
       {updateEquipment.error && <ErrorBanner message={errorMessage(updateEquipment.error, t("common:common.error.saveFailed"))} />}
       {deleteEquipment.error && <ErrorBanner message={errorMessage(deleteEquipment.error, t("common:common.error.deleteFailed"))} />}
 
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader className="[&_tr]:border-0">
             <TableRow className="border-0">
@@ -231,7 +240,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                           <p className="max-w-sm text-xs text-muted-foreground">{t("equipment.emptyHint")}</p>
                           {canManage && (
                             <Button onClick={openCreate}>
-                              <Plus className="mr-1 size-4" />
+                              <Plus aria-hidden="true" />
                               {t("equipment.create")}
                             </Button>
                           )}
@@ -254,7 +263,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                         <TableCell>{row.serialNumber || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
                         <TableCell>{row.location || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
                         <TableCell>
-                          <Badge variant={row.status === "active" ? "default" : "secondary"} className="text-xs">
+                          <Badge variant="secondary" className={cn("text-xs", EQUIPMENT_STATUS_BADGE[row.status])}>
                             {t(`equipment.status.${row.status}` as const)}
                           </Badge>
                         </TableCell>
@@ -374,9 +383,9 @@ function EquipmentDialog({
               </div>
             ))}
             <div className="space-y-1.5">
-              <Label>{t("equipment.field.status")}</Label>
+              <Label htmlFor="equipment-status">{t("equipment.field.status")}</Label>
               <Select value={form.status} onValueChange={v => v !== null && set("status", v as EquipmentStatus)}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="equipment-status" className="w-full">
                   <SelectValue>{(v: string) => t(`equipment.status.${v}` as const)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
