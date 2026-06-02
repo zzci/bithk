@@ -9,24 +9,11 @@ function tags(...names: string[]): ProjectTag[] {
   return names.map((name, i) => ({ id: `t${i}`, name, usageCount: names.length - i }));
 }
 
-// jsdom does no layout, so offsetWidth/clientWidth are 0 by default. Override
-// clientWidth on the container to simulate a wide row where everything fits.
-function withWideContainer(): () => void {
-  const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
-  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 1000 });
-  return () => {
-    if (original)
-      Object.defineProperty(HTMLElement.prototype, "clientWidth", original);
-    else
-      delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
-  };
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("projectTagFilter", () => {
+describe("projectTagFilter (single-select)", () => {
   it("renders nothing when there are no tags", () => {
     const { container } = renderWithProviders(
       <ProjectTagFilter tags={[]} selectedTagId={null} onSelect={() => {}} />,
@@ -34,102 +21,56 @@ describe("projectTagFilter", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders every tag inline when the row is wide enough", () => {
-    const restore = withWideContainer();
-    try {
-      renderWithProviders(
-        <ProjectTagFilter tags={tags("alpha", "beta", "gamma")} selectedTagId={null} onSelect={() => {}} />,
-      );
-      // Inline chips only (no overflow). The hidden measuring layer is aria-hidden,
-      // so accessible-name queries see just the visible chips.
-      expect(screen.getByRole("button", { name: "alpha" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "beta" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "gamma" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "More tags" })).not.toBeInTheDocument();
-    }
-    finally {
-      restore();
-    }
-  });
-
-  it("calls onSelect when an inline chip is clicked", async () => {
-    const restore = withWideContainer();
-    const onSelect = vi.fn();
-    try {
-      renderWithProviders(
-        <ProjectTagFilter tags={tags("alpha", "beta")} selectedTagId={null} onSelect={onSelect} />,
-      );
-      await userEvent.click(screen.getByRole("button", { name: "beta" }));
-      expect(onSelect).toHaveBeenCalledWith("t1");
-    }
-    finally {
-      restore();
-    }
-  });
-
-  it("marks the selected chip as pressed", () => {
-    const restore = withWideContainer();
-    try {
-      renderWithProviders(
-        <ProjectTagFilter tags={tags("alpha", "beta")} selectedTagId="t0" onSelect={() => {}} />,
-      );
-      expect(screen.getByRole("button", { name: "alpha" })).toHaveAttribute("aria-pressed", "true");
-      expect(screen.getByRole("button", { name: "beta" })).toHaveAttribute("aria-pressed", "false");
-    }
-    finally {
-      restore();
-    }
-  });
-
-  it("moves overflowing tags into a More dropdown and filters when one is picked", async () => {
-    // Default jsdom clientWidth (0) forces all-but-one tag into the overflow.
+  it("opens the selector, lists every tag, and selects one", async () => {
     const onSelect = vi.fn();
     renderWithProviders(
       <ProjectTagFilter tags={tags("alpha", "beta", "gamma")} selectedTagId={null} onSelect={onSelect} />,
     );
 
-    const more = screen.getByRole("button", { name: "More tags" });
-    expect(more).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More tags" }));
+    expect(await screen.findByRole("menuitem", { name: "alpha" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "beta" })).toBeInTheDocument();
 
-    await userEvent.click(more);
-    const item = await screen.findByRole("menuitem", { name: "gamma" });
-    await userEvent.click(item);
+    await userEvent.click(screen.getByRole("menuitem", { name: "gamma" }));
     expect(onSelect).toHaveBeenCalledWith("t2");
+  });
+
+  it("renders the selected tag as a non-removable chip when onClear is omitted", () => {
+    renderWithProviders(
+      <ProjectTagFilter tags={tags("alpha", "beta")} selectedTagId="t0" onSelect={() => {}} />,
+    );
+    // The chip shows the selected tag name; without onClear it carries no X.
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove tag alpha" })).not.toBeInTheDocument();
+  });
+
+  it("renders a removable selected chip and clears via the X when onClear is provided", async () => {
+    const onClear = vi.fn();
+    renderWithProviders(
+      <ProjectTagFilter tags={tags("alpha", "beta")} selectedTagId="t0" onSelect={() => {}} onClear={onClear} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove tag alpha" }));
+    expect(onClear).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("projectTagFilter (multi-select)", () => {
-  it("reflects the selected ids as pressed chips", () => {
-    const restore = withWideContainer();
-    try {
-      renderWithProviders(
-        <ProjectTagFilter multiple tags={tags("alpha", "beta")} selectedTagIds={["t1"]} onToggle={() => {}} />,
-      );
-      expect(screen.getByRole("button", { name: "alpha" })).toHaveAttribute("aria-pressed", "false");
-      expect(screen.getByRole("button", { name: "beta" })).toHaveAttribute("aria-pressed", "true");
-    }
-    finally {
-      restore();
-    }
-  });
-
-  it("calls onToggle when an inline chip is clicked", async () => {
-    const restore = withWideContainer();
+  it("lists every tag in the selector with a checkable state and toggles one", async () => {
     const onToggle = vi.fn();
-    try {
-      renderWithProviders(
-        <ProjectTagFilter multiple tags={tags("alpha", "beta")} selectedTagIds={[]} onToggle={onToggle} />,
-      );
-      await userEvent.click(screen.getByRole("button", { name: "beta" }));
-      expect(onToggle).toHaveBeenCalledWith("t1");
-    }
-    finally {
-      restore();
-    }
+    renderWithProviders(
+      <ProjectTagFilter multiple tags={tags("alpha", "beta", "gamma")} selectedTagIds={[]} onToggle={onToggle} />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: "More tags" }));
+    expect(await screen.findByRole("option", { name: "alpha" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "gamma" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("option", { name: "beta" }));
+    expect(onToggle).toHaveBeenCalledWith("t1");
   });
 
-  it("toggles an overflow tag through the searchable More combobox", async () => {
-    // Default jsdom clientWidth (0) forces all-but-one tag into the overflow.
+  it("filters the selector list by the search box", async () => {
     const onToggle = vi.fn();
     renderWithProviders(
       <ProjectTagFilter multiple tags={tags("alpha", "beta", "gamma")} selectedTagIds={[]} onToggle={onToggle} />,
@@ -140,5 +81,15 @@ describe("projectTagFilter (multi-select)", () => {
     await userEvent.type(search, "gamma");
     await userEvent.click(await screen.findByRole("option", { name: "gamma" }));
     expect(onToggle).toHaveBeenCalledWith("t2");
+  });
+
+  it("renders selected tags as removable chips and deselects via the X button", async () => {
+    const onToggle = vi.fn();
+    renderWithProviders(
+      <ProjectTagFilter multiple tags={tags("alpha", "beta")} selectedTagIds={["t1"]} onToggle={onToggle} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove tag beta" }));
+    expect(onToggle).toHaveBeenCalledWith("t1");
   });
 });
