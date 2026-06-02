@@ -78,4 +78,19 @@ describe("assertProductionNetworkGuards", () => {
   test("returns no warnings on a healthy production config", () => {
     expect(assertProductionNetworkGuards(baseProd(), true)).toEqual([]);
   });
+
+  test("warns when TRUST_PROXY is on without a proxy allow-list", () => {
+    const warnings = assertProductionNetworkGuards(
+      baseProd({ TRUST_PROXY: true, TRUSTED_PROXY_IPS: "" }),
+      true,
+    );
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toMatch(/TRUSTED_PROXY_IPS/);
+  });
+
+  test("does NOT warn when TRUST_PROXY has a valid allow-list", () => {
+    expect(
+      assertProductionNetworkGuards(baseProd({ TRUST_PROXY: true, TRUSTED_PROXY_IPS: "10.0.0.0/8" }), true),
+    ).toEqual([]);
+  });
 });
