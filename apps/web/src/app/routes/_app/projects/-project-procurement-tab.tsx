@@ -12,11 +12,14 @@ import type {
 } from "@/shared/lib/api/procurement";
 import type { ProjectMemberView, ProjectTag } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronDown, Pin, PinOff, Plus, Search } from "lucide-react";
+import { Pin, PinOff } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ListFilter } from "@/shared/components/list-filter";
+import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { PrioritySignal } from "@/shared/components/priority-signal";
+import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -27,13 +30,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -152,57 +148,57 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-1 flex-wrap items-center gap-2">
-          <ToolbarFilter
-            value={statusFilter}
-            allLabel={t("procurement.allStatuses")}
-            options={PROCUREMENT_STATUSES.map(s => ({ value: s, label: t(`procurement.status.${s}` as const) }))}
-            onChange={(v) => {
-              setStatusFilter(v);
-              setPage(1);
-            }}
-          />
-          <ToolbarFilter
-            value={priorityFilter}
-            allLabel={t("procurement.allPriorities")}
-            options={PROCUREMENT_PRIORITIES.map(p => ({ value: p, label: t(`procurement.priority.${p}` as const) }))}
-            onChange={(v) => {
-              setPriorityFilter(v);
-              setPage(1);
-            }}
-          />
-          <ToolbarFilter
-            value={effectiveCategory}
-            allLabel={t("procurement.allCategories")}
-            options={categories.map(c => ({ value: c.id, label: c.name }))}
-            onChange={(v) => {
-              setCategoryFilter(v);
-              setPage(1);
-            }}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <ListFilter
+            dimensions={[
+              {
+                key: "status",
+                label: t("procurement.allStatuses"),
+                mode: "single",
+                value: statusFilter === "__all__" ? null : statusFilter,
+                onChange: (value) => {
+                  setStatusFilter(value ?? "__all__");
+                  setPage(1);
+                },
+                options: PROCUREMENT_STATUSES.map(s => ({ value: s, label: t(`procurement.status.${s}` as const) })),
+              },
+              {
+                key: "priority",
+                label: t("procurement.allPriorities"),
+                mode: "single",
+                value: priorityFilter === "__all__" ? null : priorityFilter,
+                onChange: (value) => {
+                  setPriorityFilter(value ?? "__all__");
+                  setPage(1);
+                },
+                options: PROCUREMENT_PRIORITIES.map(p => ({ value: p, label: t(`procurement.priority.${p}` as const) })),
+              },
+              {
+                key: "category",
+                label: t("procurement.allCategories"),
+                mode: "single",
+                value: effectiveCategory === "__all__" ? null : effectiveCategory,
+                onChange: (value) => {
+                  setCategoryFilter(value ?? "__all__");
+                  setPage(1);
+                },
+                options: categories.map(c => ({ value: c.id, label: c.name })),
+              },
+            ]}
           />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="relative max-w-xs flex-1">
-            <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder={t("procurement.searchPlaceholder")}
-              aria-label={t("procurement.searchPlaceholder")}
-              className="pl-8"
-            />
-          </div>
-          {canManage && (
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus aria-hidden="true" />
-              {t("procurement.createButton")}
-            </Button>
-          )}
-        </div>
+        <SearchCreateBar
+          search={{
+            value: search,
+            onChange: (v) => {
+              setSearch(v);
+              setPage(1);
+            },
+            placeholder: t("procurement.searchPlaceholder"),
+          }}
+          {...(canManage ? { create: { label: t("procurement.createButton"), onClick: () => setCreateOpen(true) } } : {})}
+        />
       </div>
 
       {/* Tag filter bar — responsive multi-select chips. Union semantics:
@@ -272,13 +268,13 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
               </div>
             )}
       {totalPages > 1 && meta && (
-        <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs text-muted-foreground">{t("procurement.total", { count: meta.total })}</span>
-          <div className="flex gap-1">
-            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
-          </div>
-        </div>
+        <PaginationFooter
+          page={page}
+          totalPages={totalPages}
+          totalLabel={t("procurement.total", { count: meta.total })}
+          onPrev={() => setPage(p => p - 1)}
+          onNext={() => setPage(p => p + 1)}
+        />
       )}
 
       {canManage && (
@@ -294,37 +290,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
         />
       )}
     </div>
-  );
-}
-
-interface ToolbarFilterProps {
-  readonly value: string;
-  readonly allLabel: string;
-  readonly options: readonly { readonly value: string; readonly label: string }[];
-  readonly onChange: (value: string) => void;
-}
-
-/**
- * Text-label dropdown filter for the procurement toolbar — mirrors the issues
- * tab's DropdownMenu radio pattern. `__all__` is the "show everything" sentinel.
- */
-function ToolbarFilter({ value, allLabel, options, onChange }: ToolbarFilterProps) {
-  const current = value === "__all__" ? allLabel : options.find(o => o.value === value)?.label ?? allLabel;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button type="button" variant="outline" className="w-44 justify-between font-normal" />}>
-        <span className="truncate">{current}</span>
-        <ChevronDown aria-hidden="true" className="size-4 shrink-0 opacity-50" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuRadioGroup value={value} onValueChange={v => v !== null && onChange(v)}>
-          <DropdownMenuRadioItem value="__all__">{allLabel}</DropdownMenuRadioItem>
-          {options.map(o => (
-            <DropdownMenuRadioItem key={o.value} value={o.value}>{o.label}</DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
