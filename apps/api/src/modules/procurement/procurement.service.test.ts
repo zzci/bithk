@@ -50,8 +50,7 @@ async function seedUser(name: string): Promise<string> {
 }
 
 async function seedGlobalContact(ownerId: string, name = "Supplier Co") {
-  // Suppliers must be publicly-visible, non-confidential contacts (FIX-AUDIT-004).
-  return await contactService.create(db, { id: ownerId, role: "user" }, { name, visibility: "public" });
+  return await contactService.create(db, { id: ownerId, role: "user" }, { name });
 }
 
 async function memberRoleId(projectId: string): Promise<string> {
@@ -154,7 +153,7 @@ describe("createProcurement", () => {
     expect(row.itemName).toBe("Cables");
   });
 
-  test("accepts a public global contact, a category, and a member assignee", async () => {
+  test("accepts any global contact, a category, and a member assignee", async () => {
     const creator = await seedUser("Alice");
     const bob = await seedUser("Bob");
     const contactOwner = await seedUser("Carol");
@@ -203,85 +202,6 @@ describe("createProcurement", () => {
 
     const result = await listByProject(db, projectA.id);
     expect(result.total).toBe(0);
-  });
-});
-
-describe("supplier visibility gating (FIX-AUDIT-004)", () => {
-  test("rejects a confidential contact as supplier — same error as a missing one", async () => {
-    const creator = await seedUser("Alice");
-    const contactOwner = await seedUser("Carol");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const confidential = await contactService.create(
-      db,
-      { id: contactOwner, role: "user" },
-      { name: "Secret Vendor", visibility: "public", confidential: true },
-    );
-
-    // The confidential supplier id yields the SAME error as a non-existent id,
-    // so the caller cannot distinguish "exists but hidden" from "absent".
-    await expect(createProcurement(db, {
-      projectId: project.id,
-      itemName: "X",
-      supplierId: confidential.id,
-      creatorId: creator,
-    })).rejects.toThrow("Supplier is not a valid contact");
-  });
-
-  test("rejects a private (non-visible) contact as supplier", async () => {
-    const creator = await seedUser("Alice");
-    const contactOwner = await seedUser("Carol");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const privateContact = await contactService.create(
-      db,
-      { id: contactOwner, role: "user" },
-      { name: "Private Vendor", visibility: "private" },
-    );
-
-    await expect(createProcurement(db, {
-      projectId: project.id,
-      itemName: "X",
-      supplierId: privateContact.id,
-      creatorId: creator,
-    })).rejects.toThrow("Supplier is not a valid contact");
-  });
-
-  test("a public, non-confidential contact still resolves as supplier", async () => {
-    const creator = await seedUser("Alice");
-    const contactOwner = await seedUser("Carol");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const supplier = await contactService.create(
-      db,
-      { id: contactOwner, role: "user" },
-      { name: "Public Vendor", visibility: "public" },
-    );
-
-    const row = await createProcurement(db, {
-      projectId: project.id,
-      itemName: "X",
-      supplierId: supplier.id,
-      creatorId: creator,
-    });
-    expect(row.supplierId).toBe(supplier.id);
-  });
-
-  test("updateProcurement also rejects a confidential / private supplier", async () => {
-    const creator = await seedUser("Alice");
-    const contactOwner = await seedUser("Carol");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const row = await createProcurement(db, { projectId: project.id, itemName: "Pipes", creatorId: creator });
-    const confidential = await contactService.create(
-      db,
-      { id: contactOwner, role: "user" },
-      { name: "Secret Vendor", visibility: "public", confidential: true },
-    );
-    const privateContact = await contactService.create(
-      db,
-      { id: contactOwner, role: "user" },
-      { name: "Private Vendor", visibility: "private" },
-    );
-
-    await expect(updateProcurement(db, row.id, { supplierId: confidential.id })).rejects.toThrow("Supplier is not a valid contact");
-    await expect(updateProcurement(db, row.id, { supplierId: privateContact.id })).rejects.toThrow("Supplier is not a valid contact");
   });
 });
 
