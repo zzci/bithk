@@ -1,9 +1,61 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3e475629-de2f-48c3-8af4-437749daa375",
+  "id": "9a69f6c6-b652-4da4-9368-2a054dd8678d",
   "prevId": "0d8989bc-ff34-481e-9454-860d9a2197e9",
   "tables": {
+    "contact_categories": {
+      "name": "contact_categories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "contacts": {
       "name": "contacts",
       "columns": {
@@ -70,6 +122,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -118,7 +177,21 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "contacts_category_id_contact_categories_id_fk": {
+          "name": "contacts_category_id_contact_categories_id_fk",
+          "tableFrom": "contacts",
+          "tableTo": "contact_categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -2794,6 +2867,13 @@
           ],
           "isUnique": false
         },
+        "project_members_user_idx": {
+          "name": "project_members_user_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
         "project_members_project_user_idx": {
           "name": "project_members_project_user_idx",
           "columns": [
@@ -2801,13 +2881,6 @@
             "user_id"
           ],
           "isUnique": true
-        },
-        "project_members_user_idx": {
-          "name": "project_members_user_idx",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -3745,14 +3818,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "vessel_type": {
-          "name": "vessel_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'other'"
         }
       },
       "indexes": {
@@ -3782,14 +3847,6 @@
           "name": "ships_base_project_idx",
           "columns": [
             "base_project_id"
-          ],
-          "isUnique": false
-        },
-        "ships_vessel_type_idx": {
-          "name": "ships_vessel_type_idx",
-          "columns": [
-            "vessel_type",
-            "deleted_at"
           ],
           "isUnique": false
         }

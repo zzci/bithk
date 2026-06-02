@@ -1,4 +1,4 @@
-import type { ShipStatus, ShipVesselType } from "./schema";
+import type { ShipStatus } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
@@ -13,8 +13,19 @@ import {
   isMember,
 } from "@/modules/project/project.service";
 import { projectMembers, projects } from "@/modules/project/schema";
+import {
+  deleteResourceTags,
+  listResourceIdsByTag,
+  loadResourceTagsByResource,
+  syncResourceTagsTx,
+} from "@/modules/tag/tag.service";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { ships } from "./schema";
+
+/** Ship tag binding (tag type='ship'), passed to the shared tag helpers. */
+const SHIP_TAG_BINDING = {
+  type: "ship",
+} as const;
 
 /** owner_type discriminator for a ship's cover image file reference. */
 export const SHIP_COVER_OWNER_TYPE = "ship_cover";
@@ -43,7 +54,7 @@ export interface ShipView {
   readonly code: string;
   readonly name: string;
   readonly status: ShipStatus;
-  readonly vesselType: ShipVesselType;
+  readonly tags: readonly { id: string; name: string }[];
   readonly baseProjectId: string | null; // base project short_id (for files/drive)
   readonly model: string | null;
   readonly builder: string | null;
@@ -69,13 +80,18 @@ export interface ShipProjectView extends ProjectView {
   readonly isBase: boolean;
 }
 
-export function composeShip(row: ShipRow, baseProjectShortId: string | null, coverImageUrl: string | null = null): ShipView {
+export function composeShip(
+  row: ShipRow,
+  baseProjectShortId: string | null,
+  coverImageUrl: string | null = null,
+  tags: readonly { id: string; name: string }[] = [],
+): ShipView {
   return {
     id: row.shortId,
     code: row.code,
     name: row.name,
     status: row.status,
-    vesselType: row.vesselType,
+    tags,
     baseProjectId: baseProjectShortId,
     model: row.model,
     builder: row.builder,
@@ -133,13 +149,14 @@ async function loadProjectShortIds(db: AppDatabase, internalIds: readonly string
   return map;
 }
 
-/** Compose a single ship view, resolving its base project short id and cover. */
+/** Compose a single ship view, resolving its base project short id, cover, and tags. */
 export async function composeShipWithBase(db: AppDatabase, row: ShipRow): Promise<ShipView> {
   const coverUrl = await loadCoverUrlForShip(db, row);
+  const tags = (await loadResourceTagsByResource(db, SHIP_TAG_BINDING, [row.id])).get(row.id) ?? [];
   if (!row.baseProjectId)
-    return composeShip(row, null, coverUrl);
+    return composeShip(row, null, coverUrl, tags);
   const map = await loadProjectShortIds(db, [row.baseProjectId]);
-  return composeShip(row, map.get(row.baseProjectId) ?? null, coverUrl);
+  return composeShip(row, map.get(row.baseProjectId) ?? null, coverUrl, tags);
 }
 
 // ─── Ship CRUD ────────────────────────────────────────────────────────────
@@ -148,7 +165,7 @@ export interface CreateShipInput {
   readonly code?: string | undefined;
   readonly name: string;
   readonly status?: ShipStatus | undefined;
-  readonly vesselType?: ShipVesselType | undefined;
+  readonly tags?: readonly string[] | undefined;
   readonly model?: string | null | undefined;
   readonly builder?: string | null | undefined;
   readonly buildYear?: number | null | undefined;
@@ -186,7 +203,6 @@ export async function createShip(db: AppDatabase, input: CreateShipInput): Promi
       code,
       name: input.name,
       status: input.status ?? "active",
-      vesselType: input.vesselType ?? "other",
       baseProjectId: null,
       model: input.model ?? null,
       builder: input.builder ?? null,
@@ -215,6 +231,9 @@ export async function createShip(db: AppDatabase, input: CreateShipInput): Promi
     });
 
     tx.update(ships).set({ baseProjectId: project.id }).where(eq(ships.id, id)).run();
+
+    if (input.tags && input.tags.length > 0)
+      syncResourceTagsTx(tx, SHIP_TAG_BINDING, id, input.tags, now);
   });
 
   return (await db.select().from(ships).where(eq(ships.id, id)).get())!;
@@ -236,7 +255,7 @@ export async function resolveShipId(db: AppDatabase, shortId: string): Promise<s
 
 export interface ListShipParams {
   readonly status?: ShipStatus | undefined;
-  readonly type?: ShipVesselType | undefined;
+  readonly tagId?: string | undefined;
   readonly q?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
@@ -257,8 +276,12 @@ export async function listShips(db: AppDatabase, params: ListShipParams = {}): P
   const conditions = [isNull(ships.deletedAt)];
   if (params.status)
     conditions.push(eq(ships.status, params.status));
-  if (params.type)
-    conditions.push(eq(ships.vesselType, params.type));
+  if (params.tagId) {
+    const taggedIds = await listResourceIdsByTag(db, SHIP_TAG_BINDING, params.tagId);
+    if (taggedIds.length === 0)
+      return { data: [], total: 0 };
+    conditions.push(inArray(ships.id, taggedIds));
+  }
   if (params.q) {
     const pattern = `%${escapeLike(params.q)}%`;
     conditions.push(or(
@@ -288,10 +311,12 @@ export async function listShips(db: AppDatabase, params: ListShipParams = {}): P
   const shortIdMap = await loadProjectShortIds(db, baseIds);
   const coverRefIds = rows.map(r => r.coverReferenceId).filter((v): v is string => v !== null);
   const coverMap = await loadCoverUrlsByReference(db, coverRefIds);
+  const tagMap = await loadResourceTagsByResource(db, SHIP_TAG_BINDING, rows.map(r => r.id));
   const data = rows.map(r => composeShip(
     r,
     r.baseProjectId ? shortIdMap.get(r.baseProjectId) ?? null : null,
     r.coverReferenceId ? coverMap.get(r.coverReferenceId) ?? null : null,
+    tagMap.get(r.id) ?? [],
   ));
 
   return { data, total };
@@ -301,7 +326,7 @@ export interface UpdateShipInput {
   readonly code?: string | undefined;
   readonly name?: string | undefined;
   readonly status?: ShipStatus | undefined;
-  readonly vesselType?: ShipVesselType | undefined;
+  readonly tags?: readonly string[] | undefined;
   readonly model?: string | null | undefined;
   readonly builder?: string | null | undefined;
   readonly buildYear?: number | null | undefined;
@@ -322,7 +347,6 @@ const UPDATABLE_SHIP_KEYS = [
   "code",
   "name",
   "status",
-  "vesselType",
   "model",
   "builder",
   "buildYear",
@@ -351,7 +375,12 @@ export async function updateShip(db: AppDatabase, shortId: string, input: Update
       patch[key] = input[key];
   }
 
-  await db.update(ships).set(patch).where(eq(ships.id, ship.id)).run();
+  db.transaction((tx) => {
+    tx.update(ships).set(patch).where(eq(ships.id, ship.id)).run();
+    // Only replace tags when the caller supplied them (mirrors project update).
+    if (input.tags !== undefined)
+      syncResourceTagsTx(tx, SHIP_TAG_BINDING, ship.id, input.tags, now);
+  });
   return await db.select().from(ships).where(eq(ships.id, ship.id)).get();
 }
 
@@ -376,6 +405,8 @@ export async function softDeleteShip(db: AppDatabase, config: FileServiceConfig,
       .where(eq(ships.id, ship.id))
       .run();
   });
+  // Drop tag assignments (tags_refs has no FK, so clean them app-level).
+  await deleteResourceTags(db, ship.id);
   if (previousCover)
     await releaseReference(db, config, { referenceId: previousCover });
 }

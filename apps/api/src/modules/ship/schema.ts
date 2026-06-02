@@ -7,11 +7,6 @@ import { projects } from "@/modules/project/schema";
 export const SHIP_STATUSES = ["active", "archived"] as const;
 export type ShipStatus = typeof SHIP_STATUSES[number];
 
-// Vessel classification. `other` is the default so every ship carries a type
-// and the fleet list can filter by it without nullable handling.
-export const SHIP_VESSEL_TYPES = ["motor_yacht", "sailing_yacht", "catamaran", "work_boat", "cargo", "other"] as const;
-export type ShipVesselType = typeof SHIP_VESSEL_TYPES[number];
-
 export const EQUIPMENT_STATUSES = ["active", "retired"] as const;
 export type EquipmentStatus = typeof EQUIPMENT_STATUSES[number];
 
@@ -26,7 +21,6 @@ export const ships = sqliteTable("ships", {
   code: text("code").notNull(), // hull number, unique
   name: text("name").notNull(),
   status: text("status", { enum: SHIP_STATUSES }).notNull().default("active"),
-  vesselType: text("vessel_type", { enum: SHIP_VESSEL_TYPES }).notNull().default("other"),
   // Permission anchor + file carrier. Nullable circular FK (see header).
   // Explicit return type breaks the projects ↔ ships circular type inference.
   baseProjectId: text("base_project_id").references((): AnySQLiteColumn => projects.id, { onDelete: "set null" }),
@@ -56,7 +50,6 @@ export const ships = sqliteTable("ships", {
   uniqueIndex("ships_short_id_idx").on(t.shortId),
   uniqueIndex("ships_code_idx").on(t.code),
   index("ships_status_idx").on(t.status, t.deletedAt),
-  index("ships_vessel_type_idx").on(t.vesselType, t.deletedAt),
   index("ships_base_project_idx").on(t.baseProjectId),
 ]);
 
