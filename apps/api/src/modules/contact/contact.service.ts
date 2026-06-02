@@ -39,6 +39,7 @@ export interface ContactView {
   readonly address: string | null;
   readonly taxId: string | null;
   readonly note: string | null;
+  readonly categoryId: string | null;
   readonly status: ContactStatus | null;
   readonly visibility: ContactVisibility;
   readonly confidential: boolean;
@@ -56,6 +57,7 @@ export interface CreateContactInput {
   readonly address?: string | null | undefined;
   readonly taxId?: string | null | undefined;
   readonly note?: string | null | undefined;
+  readonly categoryId?: string | null | undefined;
   readonly status?: ContactStatus | undefined;
   readonly visibility?: ContactVisibility | undefined;
   readonly confidential?: boolean | undefined;
@@ -70,6 +72,7 @@ export interface UpdateContactInput {
   readonly address?: string | null | undefined;
   readonly taxId?: string | null | undefined;
   readonly note?: string | null | undefined;
+  readonly categoryId?: string | null | undefined;
   readonly status?: ContactStatus | undefined;
   readonly visibility?: ContactVisibility | undefined;
   readonly confidential?: boolean | undefined;
@@ -122,6 +125,7 @@ export async function create(
       address: input.address ?? null,
       taxId: input.taxId ?? null,
       note: input.note ?? null,
+      categoryId: input.categoryId ?? null,
       status: input.status ?? "active",
       visibility: input.visibility ?? "private",
       confidential: input.confidential ?? false,
@@ -244,6 +248,8 @@ export async function update(
       patch.taxId = input.taxId;
     if (input.note !== undefined)
       patch.note = input.note;
+    if (input.categoryId !== undefined)
+      patch.categoryId = input.categoryId;
     if (input.status !== undefined)
       patch.status = input.status;
     if (input.visibility !== undefined)
@@ -355,6 +361,7 @@ async function composeWithCapabilities(
     address: canSeeFields ? row.address : null,
     taxId: canSeeFields ? row.taxId : null,
     note: canSeeFields ? row.note : null,
+    categoryId: row.categoryId,
     status: canSeeFields ? row.status : null,
     visibility: row.visibility,
     confidential: row.confidential,

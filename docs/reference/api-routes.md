@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 211 routes total.
+> 215 routes total.
 
 | Method | Path |
 |---|---|
@@ -47,6 +47,10 @@
 | POST | `/api/backup/export-via-token` |
 | POST | `/api/backup/import` |
 | GET | `/api/backup/modules` |
+| GET | `/api/contact-categories` |
+| POST | `/api/contact-categories` |
+| DELETE | `/api/contact-categories/:id` |
+| PATCH | `/api/contact-categories/:id` |
 | GET | `/api/contacts` |
 | POST | `/api/contacts` |
 | DELETE | `/api/contacts/:id` |

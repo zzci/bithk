@@ -23,7 +23,8 @@
     "auth": "Authentication",
     "smtp": "SMTP",
     "webhook": "Webhooks",
-    "projectDefaults": "Project Defaults"
+    "projectDefaults": "Project Defaults",
+    "contact": "Contacts"
   },
   "projectDefaults": {
     "defaults": {
@@ -119,5 +120,29 @@
     "noSecret": "None",
     "eventsHint": "Comma-separated event types, or * for all events.",
     "allEventsPlaceholder": "* (all events)"
+  },
+  "contactCategories": {
+    "title": "Contact Categories",
+    "description": "The global category vocabulary used to classify contacts.",
+    "add": "Add Category",
+    "addTitle": "Add Category",
+    "editTitle": "Edit Category",
+    "dialogDescription": "Contact categories classify contacts across the workspace.",
+    "fieldName": "Name",
+    "fieldCode": "Code",
+    "fieldDescription": "Description",
+    "colName": "Name",
+    "colCode": "Code",
+    "colDescription": "Description",
+    "empty": "No contact categories yet.",
+    "delete": {
+      "title": "Delete category",
+      "confirm": "Delete \"{{name}}\"? Contacts will no longer use this category."
+    },
+    "toast": {
+      "created": "Category created.",
+      "updated": "Category updated.",
+      "deleted": "Category \"{{name}}\" deleted."
+    }
   }
 }

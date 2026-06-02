@@ -44,7 +44,12 @@
     "visibility": "Visibility",
     "confidential": "Confidential",
     "tags": "Tags",
-    "companyUnit": "Company / unit"
+    "companyUnit": "Company / unit",
+    "category": "Category"
+  },
+  "category": {
+    "none": "Uncategorized",
+    "placeholder": "Select a category"
   },
   "status": {
     "active": "Active",

@@ -37,10 +37,12 @@ describe("contact backup contribution", () => {
   test("registers the contacts module with FK-safe tables and deps", () => {
     const mod = getDataModules().contacts;
     expect(mod?.name).toBe("contacts");
-    // Tag links now live in the shared `tags_refs` table (the `tags` module),
-    // so the contacts contribution carries only the `contacts` table; `tags` is
-    // listed as a dep so a contacts-only export still pulls the links in.
-    expect(mod?.tables.map(table => getTableName(table))).toEqual(["contacts"]);
+    // `contact_categories` is the global vocabulary referenced by
+    // `contacts.category_id`; it is listed first so a restore inserts the
+    // referenced rows before the contacts that point at them. Tag links live in
+    // the shared `tags_refs` table (the `tags` module), listed as a dep so a
+    // contacts-only export still pulls the links in.
+    expect(mod?.tables.map(table => getTableName(table))).toEqual(["contact_categories", "contacts"]);
     expect(mod?.deps).toEqual(["tags"]);
   });
 
@@ -50,7 +52,7 @@ describe("contact backup contribution", () => {
     await import(`./index.ts?backup-registration=${Date.now()}`);
 
     const mod = getDataModules().contacts;
-    expect(mod?.tables.map(table => getTableName(table))).toEqual(["contacts"]);
+    expect(mod?.tables.map(table => getTableName(table))).toEqual(["contact_categories", "contacts"]);
   });
 
   test("exports and restores contacts with tag links", async () => {

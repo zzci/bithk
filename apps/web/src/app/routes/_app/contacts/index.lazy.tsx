@@ -26,6 +26,7 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { useDebounce } from "@/shared/hooks/use-debounce";
+import { useContactCategories } from "@/shared/lib/api/contact-categories";
 import { useContactsList, useCreateContact, useDeleteContact, useUpdateContact } from "@/shared/lib/api/contacts";
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
@@ -46,11 +47,11 @@ const ALL = "__all__";
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
 // mobile. Columns: name+badges | contactPerson | phone(sm) | email(md) |
-// tags(md) | status.
+// tags(md) | category(md) | status.
 const CONTACT_GRID = [
   "grid grid-cols-[minmax(0,1fr)_8rem_5rem] items-center gap-3",
   "sm:grid-cols-[minmax(0,1fr)_8rem_7rem_5rem]",
-  "md:grid-cols-[minmax(0,1fr)_8rem_7rem_9rem_8rem_5rem]",
+  "md:grid-cols-[minmax(0,1fr)_8rem_7rem_9rem_8rem_8rem_5rem]",
 ].join(" ");
 
 function isMasked(contact: ContactView): boolean {
@@ -112,6 +113,8 @@ export function ContactsListPage() {
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
+  const categoriesQuery = useContactCategories();
+  const categoryNameById = new Map((categoriesQuery.data ?? []).map(c => [c.id, c.name]));
 
   const rows = contactsQuery.data?.data ?? [];
   const meta = contactsQuery.data?.meta;
@@ -258,6 +261,7 @@ export function ContactsListPage() {
                     <span className="hidden truncate sm:block">{t("field.phone")}</span>
                     <span className="hidden truncate md:block">{t("field.email")}</span>
                     <span className="hidden truncate md:block">{t("field.tags")}</span>
+                    <span className="hidden truncate md:block">{t("field.category")}</span>
                     <span className="truncate">{t("field.status")}</span>
                   </div>
                   <div className="w-28 shrink-0">
@@ -315,6 +319,11 @@ export function ContactsListPage() {
                                   </>
                                 )
                               : <span className="text-muted-foreground">—</span>}
+                          </span>
+                          <span className="hidden truncate text-xs md:block">
+                            {contact.categoryId
+                              ? (categoryNameById.get(contact.categoryId) ?? contact.categoryId)
+                              : <span className="text-muted-foreground">{t("category.none")}</span>}
                           </span>
                           <span className="truncate text-xs">
                             <ContactFieldValue value={status} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />

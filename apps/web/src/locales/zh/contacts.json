@@ -44,7 +44,12 @@
     "visibility": "可见范围",
     "confidential": "保密",
     "tags": "标签",
-    "companyUnit": "公司 / 单位"
+    "companyUnit": "公司 / 单位",
+    "category": "分类"
+  },
+  "category": {
+    "none": "未分类",
+    "placeholder": "选择分类"
   },
   "status": {
     "active": "启用",
