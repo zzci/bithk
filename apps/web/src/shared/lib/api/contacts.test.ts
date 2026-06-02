@@ -6,6 +6,7 @@ import {
   contactKeys,
   useContact,
   useContacts,
+  useContactsList,
   useCreateContact,
   useDeleteContact,
   useGrantContact,
@@ -57,6 +58,10 @@ function ok(data: unknown) {
   return async () => jsonResponse({ success: true, data });
 }
 
+function okList(data: readonly unknown[], meta: { total: number; page: number; limit: number } = { total: data.length, page: 1, limit: data.length }) {
+  return async () => jsonResponse({ success: true, data, meta });
+}
+
 function urlOf(i = 0): string {
   return String(fetchMock.mock.calls[i]![0]);
 }
@@ -73,24 +78,76 @@ describe("contactKeys", () => {
   it("namespaces list and detail keys deterministically", () => {
     expect(contactKeys.list()).toEqual(["contacts", "list", "all"]);
     expect(contactKeys.list({ tag: "supplier" })).toEqual(["contacts", "list", "supplier"]);
+    expect(contactKeys.pagedList("page=1&limit=20")).toEqual(["contacts", "pagedList", "page=1&limit=20"]);
     expect(contactKeys.detail("c1")).toEqual(["contacts", "detail", "c1"]);
+  });
+
+  it("keeps contactKeys.all a prefix of pagedList so mutations invalidate it", () => {
+    const paged = contactKeys.pagedList("page=1&limit=20");
+    expect(paged.slice(0, contactKeys.all.length)).toEqual([...contactKeys.all]);
   });
 });
 
 describe("useContacts", () => {
-  it("requests the unfiltered contact list", async () => {
-    fetchMock.mockImplementation(ok([contact()]));
+  it("requests the unfiltered contact list and unwraps the enveloped data", async () => {
+    fetchMock.mockImplementation(okList([contact()]));
     const { result } = renderHook(() => useContacts(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(Array.isArray(result.current.data)).toBe(true);
     expect(result.current.data?.[0]?.name).toBe("Acme");
+    // No `page` param so the backend returns the full visible set.
     expect(urlOf()).toBe("/api/contacts");
   });
 
   it("encodes the tag filter into the query string", async () => {
-    fetchMock.mockImplementation(ok([]));
+    fetchMock.mockImplementation(okList([]));
     const { result } = renderHook(() => useContacts({ tag: "ship supplier" }), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(urlOf()).toBe("/api/contacts?tag=ship+supplier");
+  });
+});
+
+describe("useContactsList", () => {
+  it("returns the data array and pagination meta", async () => {
+    fetchMock.mockImplementation(okList([contact()], { total: 42, page: 2, limit: 10 }));
+    const { result } = renderHook(() => useContactsList({ page: 2, limit: 10 }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.data[0]?.name).toBe("Acme");
+    expect(result.current.data?.meta).toEqual({ total: 42, page: 2, limit: 10 });
+  });
+
+  it("serializes filter and pagination params into the query string", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(
+      () => useContactsList({ q: "acme co", status: "inactive", visibility: "public", confidential: true, page: 3, limit: 50 }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.get("q")).toBe("acme co");
+    expect(url.searchParams.get("status")).toBe("inactive");
+    expect(url.searchParams.get("visibility")).toBe("public");
+    expect(url.searchParams.get("confidential")).toBe("true");
+    expect(url.searchParams.get("page")).toBe("3");
+    expect(url.searchParams.get("limit")).toBe("50");
+  });
+
+  it("defaults page and limit and serializes confidential=false explicitly", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContactsList({ confidential: false }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.get("confidential")).toBe("false");
+    expect(url.searchParams.get("page")).toBe("1");
+    expect(url.searchParams.get("limit")).toBe("20");
+  });
+
+  it("keeps the tag filter working", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContactsList({ tag: "ship supplier" }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.get("tag")).toBe("ship supplier");
   });
 });
 
