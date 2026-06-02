@@ -1,3 +1,4 @@
+import type { Env } from "hono";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
@@ -86,9 +87,9 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
  * Build a Hono app that seeds `db` / `config` / `logger` into context, mounts
  * the supplied router factories at `/`, and wires the shared error handler.
  */
-export function mountRoutes(
+export function mountRoutes<E extends Env>(
   db: AppDatabase,
-  routers: ReadonlyArray<() => Hono<AppEnv>>,
+  routers: ReadonlyArray<() => Hono<E>>,
   config: Config = testConfig(),
 ): Hono<AppEnv> {
   const app = new Hono<AppEnv>();

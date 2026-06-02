@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { deleteUserSessions } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
@@ -82,13 +82,13 @@ function stripUserTables<T extends { tables: Record<string, unknown[]>; modules:
 }
 
 export function backupImportRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   router.use("*", authRequired);
 
   router.post("/backup/import", adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
 
     const formData = await c.req.formData();
 

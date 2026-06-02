@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import type { TaskConfig } from "./executor";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -93,7 +93,7 @@ function auditMeta(c: Context) {
 }
 
 export function cronRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   // Admin-only: operators that can edit schedules can also execute
   // arbitrary actions, so the gate matches the blast radius of the
@@ -103,7 +103,7 @@ export function cronRoutes() {
   router.use("*", authRequired);
   router.use("*", adminRequired);
 
-  async function findJob(c: Context<AppEnv>, identifier: string) {
+  async function findJob(c: Context<ProtectedEnv>, identifier: string) {
     const db = c.get("db");
     const byId = await db
       .select()
@@ -187,7 +187,7 @@ export function cronRoutes() {
   // POST /cron/jobs — create
   router.post("/cron/jobs", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = createJobSchema.parse(await c.req.json());
 
     if (!isValidCron(body.cron)) {
@@ -255,7 +255,7 @@ export function cronRoutes() {
   // DELETE /cron/jobs/:id — soft delete (also detaches from Baker)
   router.delete("/cron/jobs/:id", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const identifier = c.req.param("id");
     const row = await findJob(c, identifier);
     if (!row)
@@ -339,7 +339,7 @@ export function cronRoutes() {
   // POST /cron/jobs/:id/trigger — manual run (rejects when already running)
   router.post("/cron/jobs/:id/trigger", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const identifier = c.req.param("id");
     const row = await findJob(c, identifier);
     if (!row)
@@ -413,7 +413,7 @@ export function cronRoutes() {
   // POST /cron/jobs/:id/pause — disable + stop ticking
   router.post("/cron/jobs/:id/pause", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const identifier = c.req.param("id");
     const row = await findJob(c, identifier);
     if (!row)
@@ -445,7 +445,7 @@ export function cronRoutes() {
   // POST /cron/jobs/:id/resume — re-enable + re-sync into Baker
   router.post("/cron/jobs/:id/resume", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const identifier = c.req.param("id");
     const row = await findJob(c, identifier);
     if (!row)

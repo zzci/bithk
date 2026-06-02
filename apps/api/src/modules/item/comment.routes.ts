@@ -1,7 +1,7 @@
 import type { Context, Hono } from "hono";
 import type { AppDatabase } from "@/db";
 import type { ItemRow } from "@/modules/item/item.service";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
 import {
@@ -16,6 +16,7 @@ import {
 import { createComment, deleteComment, getCommentById, listComments } from "@/modules/item/comment.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { requireParam } from "@/shared/lib/route-params";
 
 const DEFAULT_COMMENT_MAX_LENGTH = 2000;
 
@@ -90,20 +91,20 @@ function auditMeta(c: Context) {
  * sub-types. The sub-type only wires `resolve` + `permissions`.
  */
 export function mountItemCommentRoutes<TResource>(
-  router: Hono<AppEnv>,
+  router: Hono<ProtectedEnv>,
   opts: MountItemCommentRoutesOptions<TResource>,
 ): void {
   const { routePrefix: prefix, resourceType } = opts;
   const commentSchema = buildCommentSchema(opts.maxCommentLength ?? DEFAULT_COMMENT_MAX_LENGTH);
 
   async function load(
-    c: Context<AppEnv>,
+    c: Context<ProtectedEnv>,
   ): Promise<{ db: AppDatabase; user: { id: string; role: string; name: string }; subject: CommentSubject<TResource>; perms: CommentPermissions }> {
     const db = c.get("db");
-    const user = c.get("user")!;
-    const subject = await opts.resolve(db, c.req.param("id")!);
+    const user = c.get("user");
+    const subject = await opts.resolve(db, requireParam(c, "id"));
     if (!subject)
-      throw new NotFoundError(resourceType, c.req.param("id")!);
+      throw new NotFoundError(resourceType, requireParam(c, "id"));
     const perms = await opts.permissions(db, user, subject);
     // Fail closed: an actor who cannot read the subject must not be able to
     // tell "exists but forbidden" apart from "does not exist". Mirror the
