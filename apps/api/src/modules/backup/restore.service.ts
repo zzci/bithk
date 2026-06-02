@@ -331,7 +331,15 @@ export async function importJsonBackup(db: AppDatabase, data: BackupData, logger
     // which is a process-level flag, this never leaks to other connections.
     tx.run(sql`PRAGMA defer_foreign_keys = 1`);
 
+    // Only clear tables the payload actually carries. A complete export
+    // emits a key for every table (even an empty `[]`), so a full restore
+    // still wipes-and-replaces everything. But a truncated / hand-edited
+    // upload that drops a table key entirely must leave that live table
+    // untouched — deleting it unconditionally would silently destroy data
+    // the backup never intended to replace.
     for (const table of deleteOrder) {
+      if (!Object.hasOwn(data.tables, getTableName(table)))
+        continue;
       tx.delete(table).run();
     }
 

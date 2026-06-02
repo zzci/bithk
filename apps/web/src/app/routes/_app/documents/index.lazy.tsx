@@ -25,6 +25,20 @@ function DocumentsIndex() {
     [treeQuery.data],
   );
 
+  // A failed tree load also yields an empty `pinned`; surface it as an
+  // error/retry before falling through to the create empty state so a load
+  // failure is not mistaken for "no documents yet".
+  if (treeQuery.isError) {
+    return (
+      <div className="mx-auto flex w-full max-w-[680px] flex-col items-center gap-3 px-6 py-16 text-center">
+        <p className="text-sm text-destructive">{t("common.error.loadFailed", { ns: "common" })}</p>
+        <Button variant="outline" size="sm" onClick={() => void treeQuery.refetch()}>
+          {t("common.retry", { ns: "common" })}
+        </Button>
+      </div>
+    );
+  }
+
   // No pins yet → keep the original prompt-to-create empty state.
   if (pinned.length === 0)
     return <EmptyState onCreate={() => void navigate({ to: "/documents/new" })} />;

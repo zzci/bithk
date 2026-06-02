@@ -116,15 +116,26 @@ describe("startAuditRetentionSweep", () => {
   let originalClearTimeout: typeof clearTimeout;
   let originalClearInterval: typeof clearInterval;
 
+  // Yield a single real macrotask. bun:sqlite is synchronous, so any
+  // fire-and-forget prune started by the captured callbacks resolves entirely
+  // on the microtask queue; one real timer boundary drains it deterministically
+  // — unlike a fixed sleep, this cannot under-wait on a loaded runner. Uses the
+  // captured `originalSetTimeout` so it bypasses the mocked global.
+  function drain(): Promise<void> {
+    return new Promise<void>(resolve => originalSetTimeout(resolve, 0));
+  }
+
   // Convenience: fire the boot setTimeout and drain microtasks so the
-  // setInterval registration runs synchronously.
+  // setInterval registration and the deferred prune run to completion. The boot
+  // callback dispatches its prune as a fire-and-forget `void run()`, so it can't
+  // be awaited directly — drain the event loop instead.
   async function fireBoot(): Promise<void> {
     if (!bootCaptured)
       return;
     const fn = bootCaptured.fn;
     bootCaptured = null;
     fn();
-    await Bun.sleep(10);
+    await drain();
   }
 
   beforeEach(() => {
@@ -174,7 +185,7 @@ describe("startAuditRetentionSweep", () => {
     const log = silentLogger();
 
     startAuditRetentionSweep(db, makeConfig(0), log);
-    await Bun.sleep(10);
+    await drain();
 
     expect(bootCaptured).toBeNull();
     expect(captured).toBeNull();
@@ -189,7 +200,7 @@ describe("startAuditRetentionSweep", () => {
 
     startAuditRetentionSweep(db, makeConfig(30), log);
     // Boot run is now deferred via setTimeout(... 30_000); not yet executed.
-    await Bun.sleep(10);
+    await drain();
     expect(bootCaptured?.ms).toBe(30_000);
     expect(captured).toBeNull();
 
@@ -234,10 +245,11 @@ describe("startAuditRetentionSweep", () => {
     await fireBoot();
     log.calls.length = 0;
 
-    // Insert a fresh expired event, then trigger the captured tick.
+    // Insert a fresh expired event, then trigger the captured tick and drain
+    // the event loop so the prune completes deterministically.
     insertEventAt(nanoid(), new Date(Date.now() - 90 * 86400_000).toISOString());
     captured!.fn();
-    await Bun.sleep(10);
+    await drain();
 
     expect((await db.select().from(auditEvents).all()).length).toBe(0);
     expect(log.calls.some(c => c.level === "info")).toBe(true);
@@ -249,10 +261,11 @@ describe("startAuditRetentionSweep", () => {
     await fireBoot();
 
     // Closing the DB makes the next prune call throw — exercises the
-    // error-handling branch on the next tick.
+    // error-handling branch on the next tick. Fire the captured tick and drain
+    // the event loop so the swallow-and-log path completes deterministically.
     db.close();
     captured!.fn();
-    await Bun.sleep(10);
+    await drain();
 
     expect(log.calls.some(c => c.level === "error")).toBe(true);
 

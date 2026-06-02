@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { BUILD_INFO } from "@/build-info";
@@ -7,7 +7,7 @@ import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { serviceTokenRequired } from "@/shared/middleware/service-token";
 
 export function systemRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   // Liveness — k8s livenessProbe / Docker HEALTHCHECK.
   router.get("/health", c => c.json({ status: "ok" }));

@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
@@ -26,14 +26,81 @@ function tokenBucketKey(token: string): string {
 
 const RE_TIMESTAMP_CHARS = /[:.]/g;
 
+// Secret-typed field names (drizzle property keys) that may appear in a
+// backup-exported row. Their values are redacted in the *token* export so a
+// leaked backup token cannot exfiltrate live credentials:
+//  - `taskConfig`  cron_jobs JSON blob (http-request Bearer headers / `secret` inputs)
+//  - `token` / `password`  public-share secret handle + argon2id hash (`shares`)
+//  - `secret`  TOTP device seed (`user_totp_devices`)
+//  - `accessToken` / `refreshToken`  session + TOTP-challenge OAuth material
+//  - `codeVerifier`  PKCE verifier HMAC
+// Matched at ANY nesting depth so secrets buried inside a decoded JSON blob are
+// caught too. None of these names collides with a benign exported column.
+const SECRET_FIELD_NAMES = new Set<string>([
+  "taskConfig",
+  "token",
+  "password",
+  "secret",
+  "accessToken",
+  "refreshToken",
+  "codeVerifier",
+]);
+const REDACTED = "[REDACTED]";
+
+function redactSecretFields(value: unknown): unknown {
+  if (Array.isArray(value))
+    return value.map(redactSecretFields);
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>))
+      out[k] = SECRET_FIELD_NAMES.has(k) ? REDACTED : redactSecretFields(v);
+    return out;
+  }
+  return value;
+}
+
+// `streamJsonBackup` enqueues each row as one complete chunk — `JSON.stringify(row)`,
+// optionally prefixed with a `,` separator — and emits the structural scaffolding
+// (`{...,"tables":{`, `"name":[`, `]`, `}}`) as its own chunks. A default stream
+// reader preserves those enqueue boundaries, so we redact one chunk at a time:
+// strip the optional leading separator, require a complete `{...}` object, redact,
+// and re-serialize. Non-object (structural) chunks pass through untouched.
+function redactBackupChunk(chunk: string): string {
+  const sep = chunk.startsWith(",") ? "," : "";
+  const body = sep ? chunk.slice(1) : chunk;
+  if (!body.startsWith("{") || !body.endsWith("}"))
+    return chunk;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  }
+  catch {
+    return chunk;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+    return chunk;
+  return sep + JSON.stringify(redactSecretFields(parsed));
+}
+
 export function backupExportRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   // Service-token export — for automated sidecar / cron jobs. Skips the
   // session-cookie + DEK-challenge dance (the sidecar has no master
   // password) and instead trusts a long-lived bearer issued out-of-band.
-  // The route is intentionally minimal: the caller picks all modules and
-  // the API streams everything currently in the running, unlocked DB.
+  //
+  // BLAST RADIUS: this bearer is a single static secret with NO per-request
+  // identity. Whoever holds it can call this route, so it is hardened two ways:
+  //   1. The export is REDACTED — secret-typed fields (cron task config,
+  //      share/session/TOTP/PKCE credentials; see `SECRET_FIELD_NAMES`) are
+  //      stripped, so a leaked token cannot exfiltrate live credentials.
+  //   2. The request MUST name an explicit module scope; an unscoped request
+  //      FAILS CLOSED (403). There is no implicit "export everything" default.
+  // The session-authed `/backup/export` below stays UNREDACTED — it is the
+  // restore-complete path, gated by an admin session + DEK challenge.
+  // REMAINING: binding the allowed module scope to the token itself (so the
+  // sidecar token cannot request modules it was never granted) needs a config
+  // schema change (per-token scope storage) and is out of this lane.
   router.post("/backup/export-via-token", serviceTokenRequired("backup"), async (c) => {
     const db = c.get("db");
     const config = c.get("config");
@@ -41,6 +108,40 @@ export function backupExportRoutes() {
     const authz = c.req.header("authorization") ?? "";
     const token = authz.startsWith("Bearer ") ? authz.slice(7) : "";
     const bucket = tokenBucketKey(token);
+
+    // Scope enforcement — FAIL CLOSED. The caller must name the modules to
+    // export; a missing/empty/invalid-JSON body is treated as "no scope" and
+    // rejected so a token can never trigger a blanket full-DB dump.
+    let requestedModules: string[] | undefined;
+    try {
+      const parsed = z.object({ modules: z.array(z.string()).min(1) }).safeParse(await c.req.json());
+      if (parsed.success)
+        requestedModules = parsed.data.modules;
+    }
+    catch {
+      // No body / non-JSON body → unscoped.
+    }
+    if (!requestedModules) {
+      await audit(db, c.get("logger"), {
+        actorId: "system",
+        actorName: "system:backup-sidecar",
+        action: "backup.export",
+        resourceType: "system",
+        resourceId: "database",
+        resourceName: "database-backup-export",
+        detail: { reason: "unscoped" },
+        ip: getClientIp(c),
+        userAgent: c.req.header("user-agent") ?? "service-token",
+        result: "failure",
+      });
+      return c.json({ success: false, error: { code: "SCOPE_REQUIRED", message: "A non-empty module scope is required for token export." } }, 403);
+    }
+
+    const known = new Set(getModuleNames());
+    const invalidModules = requestedModules.filter(m => !known.has(m));
+    if (invalidModules.length > 0) {
+      return c.json({ success: false, error: { code: "INVALID_MODULES", message: `Unknown modules: ${invalidModules.join(", ")}` } }, 400);
+    }
 
     // Already streaming for this token → reject loudly so a misbehaving
     // sidecar cannot run 10 exports in parallel and pin the WAL.
@@ -88,9 +189,12 @@ export function backupExportRoutes() {
       }
     }
 
-    backupExportInFlight.add(bucket);
-    const { modules, body } = streamJsonBackup(db, [...getModuleNames()]);
+    const { modules, body } = streamJsonBackup(db, requestedModules);
     const timestamp = new Date().toISOString().replace(RE_TIMESTAMP_CHARS, "-").slice(0, 19);
+    // Audit is critical for this data-exfiltrating action: a failed write
+    // re-throws. Mark in-flight only after it succeeds so a thrown audit
+    // never leaks the semaphore (the marker is released when the stream
+    // below drains, which would never start on a throw here).
     await audit(db, c.get("logger"), {
       actorId: "system",
       actorName: "system:backup-sidecar",
@@ -98,24 +202,28 @@ export function backupExportRoutes() {
       resourceType: "system",
       resourceId: "database",
       resourceName: "database-backup-export",
-      detail: { modules, via: "service-token" },
+      detail: { modules, via: "service-token", redacted: true },
       ip: getClientIp(c),
       userAgent: c.req.header("user-agent") ?? "service-token",
       result: "success",
-    });
+    }, { critical: true });
+    backupExportInFlight.add(bucket);
     backupExportLastSuccess.set(bucket, Date.now());
     // Clear the in-flight marker after the stream actually drains. We
     // wrap the underlying ReadableStream so a client disconnect mid-
-    // stream still releases the semaphore.
+    // stream still releases the semaphore — and redact secret-typed
+    // fields chunk-by-chunk as the rows stream out.
     const released = new ReadableStream({
       async start(controller) {
         const reader = body.getReader();
+        const dec = new TextDecoder();
+        const enc = new TextEncoder();
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done)
               break;
-            controller.enqueue(value);
+            controller.enqueue(enc.encode(redactBackupChunk(dec.decode(value))));
           }
           controller.close();
         }
@@ -156,7 +264,7 @@ export function backupExportRoutes() {
 
   router.post("/backup/export", adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
 
     const bodySchema = z.object({
       modules: z.array(z.string()).min(1),
@@ -186,7 +294,7 @@ export function backupExportRoutes() {
       ip: getClientIp(c),
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
-    });
+    }, { critical: true });
 
     return new Response(stream, {
       headers: {

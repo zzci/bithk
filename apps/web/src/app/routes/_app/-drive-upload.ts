@@ -11,9 +11,9 @@ import { create } from "zustand";
 import { driveKeys } from "@/shared/lib/api/drive";
 import { BASE_PATH } from "@/shared/lib/http";
 
-export type UploadStatus = "uploading" | "done" | "error";
+type UploadStatus = "uploading" | "done" | "error";
 
-export interface UploadTask {
+interface UploadTask {
   readonly id: string;
   readonly name: string;
   readonly size: number;
@@ -40,7 +40,7 @@ export const useDriveUploadStore = create<UploadState>(set => ({
   })),
 }));
 
-export interface UploadOwner {
+interface UploadOwner {
   readonly ownerType: DriveOwnerType;
   readonly ownerId: string;
   readonly parentEntryId: string | null;

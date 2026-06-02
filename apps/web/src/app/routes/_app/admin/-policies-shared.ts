@@ -25,7 +25,7 @@ export interface CheckResponse {
   data: { allowed: boolean; resolvedThrough: string[] };
 }
 
-export interface EntityOption {
+interface EntityOption {
   readonly id: string;
   readonly name: string;
 }
@@ -83,7 +83,7 @@ export interface ResourceGroupsResponse {
   data: ResourceGroup[];
 }
 
-export interface ResourceGroupMember {
+interface ResourceGroupMember {
   tupleId: string;
   namespace: string;
   objectId: string;

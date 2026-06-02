@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
@@ -7,6 +7,7 @@ import { setItemPinned } from "@/modules/item/item.service";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { NotFoundError } from "@/shared/lib/errors";
+import { parsePageQuery } from "@/shared/lib/pagination";
 import { authRequired } from "@/shared/middleware/auth";
 import {
   changeStatus,
@@ -17,6 +18,9 @@ import {
   updateProcurement,
 } from "./procurement.service";
 import { PROCUREMENT_STATUSES } from "./schema";
+
+// Shared priority levels for procurement create / update / list edges.
+const PROCUREMENT_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 
 const createSchema = z.object({
   itemName: z.string().min(1).max(500),
@@ -31,7 +35,7 @@ const createSchema = z.object({
   currency: z.string().max(10).nullable().optional(),
   // Issue-parity fields. Mirror `issue.routes.ts` create semantics.
   description: z.string().max(2000).nullable().optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  priority: z.enum(PROCUREMENT_PRIORITIES).optional(),
   dueDate: z.string().max(30).nullable().optional(),
   // Optional tag names (tag type 'procurement') synced with the procurement.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
@@ -49,7 +53,7 @@ const updateSchema = z.object({
   // Issue-parity fields. Mirror `issue.routes.ts` update semantics — a null
   // description / dueDate clears the stored value.
   description: z.string().max(2000).nullable().optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  priority: z.enum(PROCUREMENT_PRIORITIES).optional(),
   dueDate: z.string().max(30).nullable().optional(),
   // Replacement tag set (tag type 'procurement'); omit to leave tags unchanged.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
@@ -59,6 +63,16 @@ const updateSchema = z.object({
 
 const statusSchema = z.object({
   status: z.enum(PROCUREMENT_STATUSES),
+});
+
+// Bounded list-query schema for the list edge: caps `q` length and validates
+// status / priority against their enums (invalid → 422 instead of silently
+// dropped). `categoryId` is bounded; pagination uses `parsePageQuery`.
+const listQuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  status: z.enum(PROCUREMENT_STATUSES).optional(),
+  priority: z.enum(PROCUREMENT_PRIORITIES).optional(),
+  categoryId: z.string().max(100).optional(),
 });
 
 // Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
@@ -78,11 +92,11 @@ function parseTagIds(raw: string[] | undefined): string[] {
   return [...out].slice(0, 50);
 }
 
-function actorId(c: Context<AppEnv>): string {
-  return c.get("user")!.id;
+function actorId(c: Context<ProtectedEnv>): string {
+  return c.get("user").id;
 }
 
-function auditMeta(c: Context<AppEnv>) {
+function auditMeta(c: Context<ProtectedEnv>) {
   return {
     ip: getClientIp(c),
     userAgent: c.req.header("user-agent") ?? "unknown",
@@ -96,13 +110,13 @@ function auditMeta(c: Context<AppEnv>) {
  * project's existence nor its procurement list/detail leaks. `needManage`
  * additionally requires the `procurement.manage` capability for mutations.
  */
-async function requireProcurementAccess(c: Context<AppEnv>, projectShortId: string, needManage = false): Promise<string> {
+async function requireProcurementAccess(c: Context<ProtectedEnv>, projectShortId: string, needManage = false): Promise<string> {
   const db = c.get("db");
   const projectId = await resolveProjectId(db, projectShortId);
   if (!projectId)
     throw new NotFoundError("Project", projectShortId);
   // App admins bypass project membership and procurement capabilities entirely.
-  if (c.get("user")!.role === "admin")
+  if (c.get("user").role === "admin")
     return projectId;
   if (!await isProjectMember(db, projectId, actorId(c)))
     throw new NotFoundError("Project", projectShortId);
@@ -121,7 +135,7 @@ async function requireProcurementAccess(c: Context<AppEnv>, projectShortId: stri
  * the procurement belongs to that project. Returns the project ULID and the
  * procurement row. Fail-closed 404 on any mismatch.
  */
-async function requireProcurement(c: Context<AppEnv>, projectShortId: string, procurementShortId: string, needManage = false) {
+async function requireProcurement(c: Context<ProtectedEnv>, projectShortId: string, procurementShortId: string, needManage = false) {
   const projectId = await requireProcurementAccess(c, projectShortId, needManage);
   const db = c.get("db");
   const procurement = await getProcurementByShortId(db, procurementShortId);
@@ -133,20 +147,21 @@ async function requireProcurement(c: Context<AppEnv>, projectShortId: string, pr
 }
 
 export function procurementRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // ─── List ──────────────────────────────────────────────────────────
   router.get("/projects/:projectId/procurements", async (c) => {
     const projectId = await requireProcurementAccess(c, c.req.param("projectId"));
     const db = c.get("db");
-    const q = c.req.query("q");
-    const status = c.req.query("status");
-    const priority = c.req.query("priority");
-    const categoryId = c.req.query("categoryId");
+    const { q, status, priority, categoryId } = listQuerySchema.parse({
+      q: c.req.query("q") || undefined,
+      status: c.req.query("status") || undefined,
+      priority: c.req.query("priority") || undefined,
+      categoryId: c.req.query("categoryId") || undefined,
+    });
     const tagIds = parseTagIds(c.req.queries("tagIds"));
-    const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
-    const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
+    const { page, limit } = parsePageQuery(c, { limit: 20 });
     const result = await listByProject(db, projectId, { q, status, priority, categoryId, tagIds, page, limit });
     return c.json({
       success: true,
@@ -208,7 +223,7 @@ export function procurementRoutes() {
   router.post("/projects/:projectId/procurements/:id/status", async (c) => {
     const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"), true);
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = statusSchema.parse(await c.req.json());
     const updated = await changeStatus(
       db,

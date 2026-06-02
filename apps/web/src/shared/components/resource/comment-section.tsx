@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 // Generic comments UI for any resource exposing
 // `/api/{resource}/{id}/comments`. Supports two opt-in features:
 //
@@ -43,7 +42,7 @@ export interface ResourceUser {
   readonly name: string;
 }
 
-export function commentsQueryKey(resource: string, resourceId: string) {
+function commentsQueryKey(resource: string, resourceId: string) {
   return [resource, resourceId, "comments"] as const;
 }
 

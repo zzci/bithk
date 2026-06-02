@@ -408,14 +408,6 @@ export async function getReferenceById(db: AppDatabase, id: string): Promise<Fil
   return await db.select().from(fileReferences).where(eq(fileReferences.id, id)).get();
 }
 
-export async function listReferencesByOwner(
-  db: AppDatabase,
-  ownerType: string,
-  ownerId: string,
-): Promise<readonly FileReferenceRow[]> {
-  return await db.select().from(fileReferences).where(and(eq(fileReferences.ownerType, ownerType), eq(fileReferences.ownerId, ownerId))).orderBy(desc(fileReferences.createdAt), desc(fileReferences.id)).all();
-}
-
 /**
  * Reference row enriched with the underlying blob's `mimetype` and `size`.
  * The wire shape that issue / document attachment endpoints return — gives
@@ -568,11 +560,6 @@ export async function deleteUnreferencedFile(db: AppDatabase, file: FileRow): Pr
   // Reclaimed bytes leave the tracked quota usage.
   decrementUploadsUsed(file.size);
   return true;
-}
-
-export async function totalStoredBytes(db: AppDatabase): Promise<number> {
-  const row = await db.select({ value: sql<number>`COALESCE(SUM(${files.size}), 0)` }).from(files).get();
-  return Number(row?.value ?? 0);
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────

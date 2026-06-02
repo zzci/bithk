@@ -2,7 +2,7 @@ import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { CommentSubject } from "@/modules/item/comment.routes";
 import type { Logger } from "@/shared/lib/logger";
-import type { AppEnv, User } from "@/shared/lib/types";
+import type { ProtectedEnv, User } from "@/shared/lib/types";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -53,8 +53,8 @@ function config(): Config {
  * vs non-member without re-mounting. `permissions` mirrors the real sub-types:
  * `canRead` is the membership/visibility gate; a non-member reads false.
  */
-function buildApp(): Hono<AppEnv> {
-  const app = new Hono<AppEnv>();
+function buildApp(): Hono<ProtectedEnv> {
+  const app = new Hono<ProtectedEnv>();
   app.use("*", async (c, next) => {
     c.set("db", db);
     c.set("config", config());
@@ -116,7 +116,7 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-function req(app: Hono<AppEnv>, method: string, path: string, user: string, body?: unknown) {
+function req(app: Hono<ProtectedEnv>, method: string, path: string, user: string, body?: unknown) {
   const headers: Record<string, string> = { "x-test-user": user };
   if (body !== undefined)
     headers["content-type"] = "application/json";

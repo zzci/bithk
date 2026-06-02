@@ -1,10 +1,7 @@
 {
   "nav": "网盘",
   "page": {
-    "title": "网盘",
-    "team": {
-      "back": "返回目录列表"
-    }
+    "title": "网盘"
   },
   "sidebar": {
     "section": {
@@ -18,7 +15,6 @@
     "trash": "回收站",
     "sharedWithMe": "与我共享",
     "sharedByMe": "我的分享",
-    "teamDirectories": "团队目录",
     "empty": {
       "recent": "暂无最近文件",
       "favorites": "暂无收藏",
@@ -43,15 +39,11 @@
     "searchPlaceholder": "搜索文件",
     "breadcrumbRoot": "根目录",
     "dropHere": "拖放文件以上传",
-    "selectAll": "全选",
-    "selectEntry": "选择 {{name}}",
     "selectedCount": "已选择 {{count}} 项",
     "deleteSelected": "删除所选",
-    "clearSelection": "清除",
     "viewGrid": "网格视图",
     "viewList": "列表视图",
     "filter": {
-      "type": "按类型筛选",
       "typeLabel": "类型",
       "all": "全部",
       "folders": "文件夹",
@@ -68,11 +60,6 @@
       "source": "来源",
       "currentSource": "当前位置"
     },
-    "status": {
-      "label": "视图",
-      "files": "文件",
-      "trash": "回收站"
-    },
     "column": {
       "name": "名称",
       "owner": "所有者",
@@ -83,17 +70,14 @@
     "empty": {
       "folder": "暂无文件或文件夹",
       "folderDesc": "上传文件或新建文件夹以开始",
-      "trash": "回收站为空",
       "recentDesc": "你打开过的文件会显示在这里",
       "favoritesDesc": "收藏文件以便快速查找",
       "trashDesc": "删除的项目会先进入这里，之后才会被彻底移除"
     },
     "action": {
       "more": "更多操作",
-      "preview": "预览",
       "download": "下载",
       "share": "分享",
-      "copyLink": "复制链接",
       "rename": "重命名",
       "move": "移动",
       "versions": "版本历史",
@@ -131,13 +115,10 @@
   },
   "team": {
     "list": {
-      "title": "团队目录",
       "create": "新建目录"
     },
     "col": {
       "name": "名称",
-      "members": "成员",
-      "role": "角色",
       "actions": "操作"
     },
     "empty": "没有团队目录",
@@ -176,10 +157,8 @@
     }
   },
   "preview": {
-    "description": "文件预览",
     "loading": "正在加载预览…",
     "error": "无法加载此文件。",
-    "pdfTitle": "PDF 预览",
     "download": "下载",
     "unsupportedTitle": "无法预览",
     "unsupportedDescription": "此文件类型无法预览，请下载后查看。",
@@ -209,7 +188,6 @@
   "picker": {
     "title": "选择文件",
     "description": "浏览你的云盘并选择一个文件。",
-    "root": "我的云盘",
-    "empty": "此文件夹为空"
+    "root": "我的云盘"
   }
 }

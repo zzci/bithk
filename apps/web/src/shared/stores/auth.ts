@@ -29,7 +29,7 @@ interface User {
  * Returning this instead of probing `/account/me` separately keeps it to a
  * single request per mount.
  */
-export type FetchUserResult
+type FetchUserResult
   = | { readonly kind: "ok" }
     | { readonly kind: "unauthorized" }
     | { readonly kind: "networkError" };

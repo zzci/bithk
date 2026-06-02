@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 // Project work-order detail panel. A 1:1 port of the access issue panel
 // (`portal/issues/-issue-panel.tsx`), adapted only for project nesting:
 // assignment is member-based (`project_members.id`), reads/writes go through the
@@ -9,41 +8,37 @@
 import type { UpdateProjectIssueInput } from "./-project-issue-hooks";
 import type { ProjectIssueRow, ProjectMemberView } from "@/shared/lib/api/projects";
 import {
-  ChevronDown,
-  Paperclip,
-  Pencil,
-} from "lucide-react";
-import {
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { DetailDescription } from "@/shared/components/detail-description";
+import {
+  DetailMetaRow,
+  MetaActions,
+  MetaAssignee,
+  MetaDueDate,
+  MetaSelectBadge,
+  MetaSeparator,
+} from "@/shared/components/detail-meta-row";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
-import { MarkdownEditor } from "@/shared/components/editor";
+import { PRIORITY_BADGE_VARIANT } from "@/shared/components/priority-variant";
 import {
   ResourceFooterSections,
   useResourceAttachmentUpload,
   validateAttachmentSelection,
 } from "@/shared/components/resource";
+import { TagsCombobox } from "@/shared/components/tags-combobox";
 import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { useIssueTags } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
-import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
 import {
@@ -51,20 +46,13 @@ import {
   useProjectIssue,
   useUpdateProjectIssue,
 } from "./-project-issue-hooks";
-import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 // ── Helpers ──
 
-// Priority badge variants — kept in sync with the issues list so the same
-// priority reads identically across the tab and the detail panel.
-export const priorityVariants: Record<string, "default" | "outline" | "secondary" | "destructive"> = {
-  low: "secondary",
-  medium: "outline",
-  high: "default",
-  urgent: "destructive",
-};
-
-export function priorityKey(p: string) {
+// Priority label key — issue priorities map to the `priority{Level}` keys in the
+// issues namespace. The priority→Badge-variant map is shared with the
+// procurement panel via `PRIORITY_BADGE_VARIANT`.
+function priorityKey(p: string) {
   const map: Record<string, string> = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
   return map[p] ?? p;
 }
@@ -114,7 +102,6 @@ export function ProjectIssuePanel({
   const [descDraft, setDescDraft] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const dueDateInputRef = useRef<HTMLInputElement>(null);
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
   // ResourceFooterSections renders comment authors from a `{ id, name }` map.
@@ -232,9 +219,6 @@ export function ProjectIssuePanel({
     return <CenteredHint tone="destructive">{error ?? t("common.error.loadFailed")}</CenteredHint>;
 
   const creatorName = userNames.get(issue.creatorId) ?? issue.creatorId;
-  const assigneeLabel = issue.assigneeMemberId
-    ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId
-    : null;
 
   const issueTags = issue.tags ?? [];
   const tagVocabulary = (issueTagsQuery.data ?? []).map(tag => tag.name);
@@ -270,178 +254,71 @@ export function ProjectIssuePanel({
         <ErrorBanner message={error} />
 
         {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <DetailMetaRow>
           {/* Status — uses the project status colors + taxonomy labels so the
               detail badge matches the issues list and the rest of the app. */}
-          {permissions.canEditStatus
-            ? (
-                <Select value={issue.status} onValueChange={v => v !== null && patch({ status: v as typeof issue.status })}>
-                  <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
-                    <Badge variant="secondary" className={cn("cursor-pointer", ISSUE_STATUS_BADGE[issue.status])}>
-                      {t(`projects:issues.status.${issue.status}` as const)}
-                    </Badge>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map(s => (
-                      <SelectItem key={s} value={s}>{t(`projects:issues.status.${s}` as const)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )
-            : <Badge variant="secondary" className={ISSUE_STATUS_BADGE[issue.status]}>{t(`projects:issues.status.${issue.status}` as const)}</Badge>}
+          <MetaSelectBadge
+            canEdit={permissions.canEditStatus}
+            value={issue.status}
+            options={STATUSES}
+            renderLabel={s => t(`projects:issues.status.${s}` as const)}
+            variant="secondary"
+            badgeClassName={ISSUE_STATUS_BADGE[issue.status]}
+            onValueChange={v => patch({ status: v })}
+          />
 
           {/* Priority */}
-          {permissions.canEditAll
-            ? (
-                <Select value={issue.priority} onValueChange={v => v !== null && patch({ priority: v as typeof issue.priority })}>
-                  <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3">
-                    <Badge variant={priorityVariants[issue.priority]} className="cursor-pointer">
-                      {t(`priority${priorityKey(issue.priority)}`)}
-                    </Badge>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRIORITIES.map(p => (
-                      <SelectItem key={p} value={p}>{t(`priority${priorityKey(p)}`)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )
-            : <Badge variant={priorityVariants[issue.priority]}>{t(`priority${priorityKey(issue.priority)}`)}</Badge>}
+          <MetaSelectBadge
+            canEdit={permissions.canEditAll}
+            value={issue.priority}
+            options={PRIORITIES}
+            renderLabel={p => t(`priority${priorityKey(p)}`)}
+            variant={PRIORITY_BADGE_VARIANT[issue.priority]}
+            onValueChange={v => patch({ priority: v })}
+          />
 
-          <span className="mx-1 text-muted-foreground/50">·</span>
+          <MetaSeparator />
 
           {/* Assignee — project member picker */}
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span>
-              {t("field.assignee")}
-              :
-            </span>
-            {permissions.canEditAll
-              ? (
-                  <Select
-                    value={issue.assigneeMemberId ?? "__none__"}
-                    onValueChange={(v) => {
-                      if (v === null)
-                        return;
-                      patch({ assigneeMemberId: v === "__none__" ? null : v });
-                    }}
-                  >
-                    <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-xs text-foreground hover:text-primary [&>svg:last-child]:size-3">
-                      <SelectValue>
-                        {(v: string) => {
-                          if (v === "__none__")
-                            return <span className="text-muted-foreground">{t("unassigned")}</span>;
-                          return memberLabels.get(v) ?? v;
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">{t("unassigned")}</SelectItem>
-                      {members.map(m => (
-                        <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )
-              : (
-                  <span className="text-foreground">
-                    {assigneeLabel ?? t("unassigned")}
-                  </span>
-                )}
-          </span>
+          <MetaAssignee
+            label={t("field.assignee")}
+            unassignedLabel={t("unassigned")}
+            canEdit={permissions.canEditAll}
+            value={issue.assigneeMemberId}
+            members={members}
+            memberLabels={memberLabels}
+            onChange={next => patch({ assigneeMemberId: next })}
+          />
 
-          <span className="mx-1 text-muted-foreground/50">·</span>
+          <MetaSeparator />
 
           {/* Due date */}
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span>
-              {t("field.dueDate")}
-              :
-            </span>
-            {permissions.canEditAll
-              ? (
-                  <span className="relative inline-flex items-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-auto gap-1 rounded px-0 text-xs font-normal text-foreground hover:bg-transparent hover:text-primary"
-                      onClick={() => {
-                        const input = dueDateInputRef.current;
-                        if (!input)
-                          return;
-                        if (typeof input.showPicker === "function") {
-                          try {
-                            input.showPicker();
-                            return;
-                          }
-                          catch {
-                            // showPicker can throw if not allowed; fall through to focus.
-                          }
-                        }
-                        input.focus();
-                      }}
-                      aria-label={t("field.dueDate")}
-                      title={t("field.dueDate")}
-                    >
-                      {issue.dueDate
-                        ? <span>{issue.dueDate}</span>
-                        : <span className="text-muted-foreground">{t("notSet")}</span>}
-                      <ChevronDown className="size-3" />
-                    </Button>
-                    <input
-                      ref={dueDateInputRef}
-                      type="date"
-                      className="sr-only"
-                      tabIndex={-1}
-                      value={issue.dueDate ?? ""}
-                      onChange={e => patch({ dueDate: e.target.value || null })}
-                    />
-                  </span>
-                )
-              : <span className="text-foreground">{issue.dueDate ?? "—"}</span>}
-          </span>
-
-          <div className="ml-auto inline-flex items-center gap-0.5">
-            {canUploadAttachment && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="text-muted-foreground"
-                onClick={() => fileInputRef.current?.click()}
-                title={t("attachments.upload")}
-              >
-                <Paperclip className="size-3" />
-                {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
-              </Button>
-            )}
-            {permissions.canEditAll && !editingDesc && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="text-muted-foreground"
-                onClick={startEditDesc}
-              >
-                <Pencil className="size-3" />
-                {t("common.edit")}
-              </Button>
-            )}
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={e => handleUpload(e.target.files)}
+          <MetaDueDate
+            label={t("field.dueDate")}
+            notSetLabel={t("notSet")}
+            canEdit={permissions.canEditAll}
+            value={issue.dueDate}
+            onChange={next => patch({ dueDate: next })}
           />
-        </div>
+
+          <MetaActions
+            canUpload={canUploadAttachment}
+            uploadPending={upload.isPending}
+            uploadLabel={t("attachments.upload")}
+            uploadingLabel={t("attachments.uploading")}
+            showEdit={permissions.canEditAll && !editingDesc}
+            editLabel={t("common.edit")}
+            onEditClick={startEditDesc}
+            fileInputRef={fileInputRef}
+            onFilesSelected={handleUpload}
+          />
+        </DetailMetaRow>
 
         {/* Tags */}
         <div className="flex flex-wrap items-center gap-1.5">
           {permissions.canEditAll
             ? (
-                <ProjectTagsCombobox
+                <TagsCombobox
                   value={currentTagNames}
                   suggestions={tagVocabulary}
                   onChange={next => patch({ tags: [...next] })}
@@ -455,49 +332,20 @@ export function ProjectIssuePanel({
         </div>
 
         {/* Description */}
-        <div className="rounded-md bg-muted/40 p-3">
-          {editingDesc && permissions.canEditAll
-            ? (
-                <div key="description-edit" className="space-y-2">
-                  <MarkdownEditor
-                    value={descDraft}
-                    onChange={setDescDraft}
-                    placeholder={t("field.descriptionPlaceholder")}
-                    minHeight={160}
-                  />
-                  <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" onClick={cancelDesc}>
-                      {t("common.cancel")}
-                    </Button>
-                    <Button onClick={saveDesc}>
-                      {t("common.save")}
-                    </Button>
-                  </div>
-                </div>
-              )
-            : issue.description
-              ? (
-                  <div key="description-readonly" className="text-sm leading-relaxed">
-                    <MarkdownEditor value={issue.description} readOnly />
-                  </div>
-                )
-              : permissions.canEditAll
-                ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={startEditDesc}
-                      className="h-auto w-full justify-start whitespace-normal rounded-md border border-dashed border-current bg-transparent px-2 py-1 text-left text-sm font-normal italic text-muted-foreground leading-snug transition-colors hover:bg-muted/50 hover:text-foreground"
-                    >
-                      {t("field.noDescription")}
-                    </Button>
-                  )
-                : (
-                    <p className="text-sm italic text-muted-foreground leading-snug">
-                      {t("field.noDescription")}
-                    </p>
-                  )}
-        </div>
+        <DetailDescription
+          canEdit={permissions.canEditAll}
+          editing={editingDesc}
+          value={issue.description ?? null}
+          draft={descDraft}
+          placeholder={t("field.descriptionPlaceholder")}
+          noDescriptionLabel={t("field.noDescription")}
+          saveLabel={t("common.save")}
+          cancelLabel={t("common.cancel")}
+          onDraftChange={setDescDraft}
+          onStartEdit={startEditDesc}
+          onSave={saveDesc}
+          onCancel={cancelDesc}
+        />
 
         {/* Creator + timestamps — subtle footer-style strip above the
             attachments section, right-aligned and toned down so it

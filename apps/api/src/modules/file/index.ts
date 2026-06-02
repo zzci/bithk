@@ -17,12 +17,10 @@ export {
   getFileById,
   getReferenceById,
   listAttachmentsByOwner,
-  listReferencesByOwner,
   makeAttachmentView,
   releaseAllByOwner,
   releaseReference,
   releaseReferenceTx,
-  totalStoredBytes,
   uploadAndReference,
 } from "./file.service";
 export { startFileGcSweep, stopFileGcSweep } from "./gc";

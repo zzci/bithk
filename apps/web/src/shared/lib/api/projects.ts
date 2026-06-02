@@ -11,19 +11,9 @@
 // CSRF header on mutating methods stay consistent.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
-
-interface ApiListEnvelope<T> {
-  readonly success: boolean;
-  readonly data: readonly T[];
-  readonly meta: { readonly total: number; readonly page: number; readonly limit: number };
-}
 
 // ── Types ──
 
@@ -101,7 +91,7 @@ export type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
 export type IssuePriority = "low" | "medium" | "high" | "urgent";
 
 // Tag reference carried on issue list rows and detail (name resolved by the API).
-export interface IssueTagRef {
+interface IssueTagRef {
   readonly id: string;
   readonly name: string;
 }
@@ -127,7 +117,7 @@ export interface ProjectIssueRow {
   readonly version: number;
 }
 
-export interface ListMeta {
+interface ListMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;
@@ -542,7 +532,7 @@ export interface CreateProjectIssueInput {
   readonly references?: readonly IssueReferenceInput[];
 }
 
-export interface IssueReferenceInput {
+interface IssueReferenceInput {
   readonly refType: "worklist" | "url" | "document";
   readonly refId: string;
   readonly label?: string | null;

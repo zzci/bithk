@@ -1,10 +1,13 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { AppEnv } from "@/shared/lib/types";
+import type { RequestEnv } from "@/shared/lib/types";
 import { ZodError } from "zod";
 import { AppError } from "@/shared/lib/errors";
 
-export function errorHandler(err: Error, c: Context<AppEnv>) {
+// Generic over `E extends RequestEnv` so the same handler attaches to both the
+// `AppEnv` outer app and `ProtectedEnv` sub-apps (Hono's `Context` is invariant
+// in its env, so a fixed `Context<AppEnv>` signature would reject the latter).
+export function errorHandler<E extends RequestEnv>(err: Error, c: Context<E>) {
   if (err instanceof AppError) {
     return c.json(err.toJSON(), err.statusCode as ContentfulStatusCode);
   }

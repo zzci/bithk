@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { NotFoundError } from "@/shared/lib/errors";
@@ -14,9 +14,9 @@ import { listPinnedByProject } from "./item.service";
  * procurements only when their role grants `procurement.view`, mirroring the
  * procurement module's own gate.
  */
-async function resolvePinnedAccess(c: Context<AppEnv>, projectShortId: string): Promise<{ projectId: string; includeProcurements: boolean }> {
+async function resolvePinnedAccess(c: Context<ProtectedEnv>, projectShortId: string): Promise<{ projectId: string; includeProcurements: boolean }> {
   const db = c.get("db");
-  const user = c.get("user")!;
+  const user = c.get("user");
   const projectId = await resolveProjectId(db, projectShortId);
   if (!projectId)
     throw new NotFoundError("Project", projectShortId);
@@ -29,7 +29,7 @@ async function resolvePinnedAccess(c: Context<AppEnv>, projectShortId: string): 
 }
 
 export function itemRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // ─── Project Pin area ──────────────────────────────────────────────

@@ -11,6 +11,7 @@ import { listUserResources } from "@/modules/policy/zanzibar.engine";
 import { deleteSharesForResource } from "@/modules/share";
 import { tags, tagsRefs } from "@/modules/tag/schema";
 import { listResourceIdsByTag, listResourceTagNames, syncResourceTagsTx } from "@/modules/tag/tag.service";
+import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 
 // Document tag binding for the shared tag helpers. Scopes every helper call to
@@ -121,7 +122,7 @@ export async function createDocument(db: AppDatabase, input: CreateDocumentInput
   if (input.parentId) {
     const parentItem = await getItemByShortId(db, input.parentId);
     if (!parentItem)
-      throw new Error(`Parent document ${input.parentId} not found`);
+      throw new NotFoundError("Parent document", input.parentId);
     parentItemId = parentItem.id;
   }
 
@@ -233,7 +234,7 @@ export async function updateDocument(
     else {
       const parent = await getItemByShortId(db, input.parentId);
       if (!parent)
-        throw new Error(`Parent document ${input.parentId} not found`);
+        throw new NotFoundError("Parent document", input.parentId);
       parentItemIdSpec = parent.id;
     }
   }
@@ -706,7 +707,7 @@ export interface AddShareInput {
 export async function addDocumentShare(ctx: PolicyContext, input: AddShareInput) {
   const item = await getItemByShortId(ctx.db, input.documentId);
   if (!item)
-    throw new Error("Document not found");
+    throw new NotFoundError("Document");
 
   await ctx.db.delete(relationTuples).where(and(
     eq(relationTuples.namespace, "item"),

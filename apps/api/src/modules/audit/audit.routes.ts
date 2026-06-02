@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { NotFoundError } from "@/shared/lib/errors";
@@ -34,7 +34,7 @@ const auditQuerySchema = z.object({
 });
 
 export function auditRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   router.use("*", authRequired);
 

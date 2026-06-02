@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
@@ -74,12 +74,12 @@ const grantTargetSchema = z.object({
   message: "Provide exactly one of userId or groupId",
 });
 
-function actorOf(c: Context<AppEnv>) {
-  const user = c.get("user")!;
+function actorOf(c: Context<ProtectedEnv>) {
+  const user = c.get("user");
   return { id: user.id, role: user.role };
 }
 
-function auditMeta(c: Context<AppEnv>) {
+function auditMeta(c: Context<ProtectedEnv>) {
   return {
     ip: getClientIp(c),
     userAgent: c.req.header("user-agent") ?? "unknown",
@@ -95,7 +95,7 @@ function grantTarget(body: z.infer<typeof grantTargetSchema>): contactService.Co
 }
 
 export function contactRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // ─── Global contact categories (admin only) ────────────────────────
@@ -106,7 +106,7 @@ export function contactRoutes() {
   });
 
   router.post("/contact-categories", adminRequired, async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const db = c.get("db");
     const body = createContactCategorySchema.parse(await c.req.json());
     const category = await createContactCategory(db, body);
@@ -124,7 +124,7 @@ export function contactRoutes() {
   });
 
   router.patch("/contact-categories/:id", adminRequired, async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const db = c.get("db");
     const id = idSchema.parse(c.req.param("id"));
     const body = updateContactCategorySchema.parse(await c.req.json());
@@ -145,7 +145,7 @@ export function contactRoutes() {
   });
 
   router.delete("/contact-categories/:id", adminRequired, async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const db = c.get("db");
     const id = idSchema.parse(c.req.param("id"));
     const category = await resolveContactCategory(db, id);
@@ -195,7 +195,7 @@ export function contactRoutes() {
   });
 
   router.post("/contacts", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = contactBodySchema.parse(await c.req.json());
     const data = await contactService.create(c.get("db"), actorOf(c), body);
     await audit(c.get("db"), c.get("logger"), {
@@ -218,7 +218,7 @@ export function contactRoutes() {
   });
 
   router.patch("/contacts/:id", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = idSchema.parse(c.req.param("id"));
     const body = updateBodySchema.parse(await c.req.json());
     const data = await contactService.update(c.get("db"), actorOf(c), id, body);
@@ -236,7 +236,7 @@ export function contactRoutes() {
   });
 
   router.delete("/contacts/:id", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = idSchema.parse(c.req.param("id"));
     await contactService.delete(c.get("db"), actorOf(c), id);
     await audit(c.get("db"), c.get("logger"), {
@@ -253,7 +253,7 @@ export function contactRoutes() {
   });
 
   router.post("/contacts/:id/grant", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = idSchema.parse(c.req.param("id"));
     const body = grantTargetSchema.parse(await c.req.json());
     const target = grantTarget(body);
@@ -273,7 +273,7 @@ export function contactRoutes() {
   });
 
   router.post("/contacts/:id/revoke", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = idSchema.parse(c.req.param("id"));
     const body = grantTargetSchema.parse(await c.req.json());
     const target = grantTarget(body);

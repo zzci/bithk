@@ -1,5 +1,6 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Loader2, Mail, Plus, Shield, ShieldAlert, Smartphone, Trash2, User as UserIcon, UsersRound } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
@@ -129,31 +130,55 @@ interface SetupData {
   readonly qrCode: string;
 }
 
+// Query key for the signed-in user's TOTP devices. Shared by the list query
+// and the confirm/delete mutations so a single cache entry stays the source of
+// truth (no manual refetch wiring).
+const totpDevicesKey = ["account", "totp"] as const;
+
 function TotpTab() {
   const { t } = useTranslation(["common", "settings", "totp"]);
-  const [devices, setDevices] = useState<TotpDevice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [addStep, setAddStep] = useState<"idle" | "name" | "verify">("idle");
   const [deviceName, setDeviceName] = useState("");
   const [setup, setSetup] = useState<SetupData | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const fetchDevices = useCallback(async () => {
-    try {
+  const devicesQuery = useQuery({
+    queryKey: totpDevicesKey,
+    queryFn: async () => {
       const res = await http<{ success: boolean; data: TotpDevice[] }>("/account/me/totp");
-      setDevices(res.data);
-    }
-    catch { /* ignore */ }
-    finally {
-      setLoading(false);
-    }
-  }, []);
+      return res.data;
+    },
+  });
+  const devices = devicesQuery.data ?? [];
 
-  useEffect(() => {
-    void fetchDevices();
-  }, [fetchDevices]);
+  const createMutation = useMutation({
+    mutationFn: (name: string) =>
+      http<{ success: boolean; data: SetupData }>("/account/me/totp", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      }).then(res => res.data),
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: ({ id, code: value }: { id: string; code: string }) =>
+      http(`/account/me/totp/${id}/confirm`, {
+        method: "POST",
+        body: JSON.stringify({ code: value }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: totpDevicesKey });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => http(`/account/me/totp/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: totpDevicesKey });
+    },
+  });
 
   const resetAdd = () => {
     setAddStep("idle");
@@ -161,63 +186,48 @@ function TotpTab() {
     setSetup(null);
     setCode("");
     setError(null);
-    setSubmitting(false);
   };
 
-  const handleCreate = async () => {
-    if (!deviceName.trim())
+  const handleCreate = () => {
+    const name = deviceName.trim();
+    if (!name)
       return;
-    setSubmitting(true);
     setError(null);
-    try {
-      const res = await http<{ success: boolean; data: SetupData }>("/account/me/totp", {
-        method: "POST",
-        body: JSON.stringify({ name: deviceName.trim() }),
-      });
-      setSetup(res.data);
-      setAddStep("verify");
-    }
-    catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    }
-    finally {
-      setSubmitting(false);
-    }
+    createMutation.mutate(name, {
+      onSuccess: (data) => {
+        setSetup(data);
+        setAddStep("verify");
+      },
+      onError: (err) => {
+        setError(err instanceof Error ? err.message : "Failed");
+      },
+    });
   };
 
-  const handleVerify = async () => {
+  const handleVerify = () => {
     if (!setup || code.length !== 6)
       return;
-    setSubmitting(true);
     setError(null);
-    try {
-      await http(`/account/me/totp/${setup.id}/confirm`, {
-        method: "POST",
-        body: JSON.stringify({ code }),
-      });
-      resetAdd();
-      void fetchDevices();
-    }
-    catch {
-      setError(t("totp:verifyFailed"));
-      setCode("");
-    }
-    finally {
-      setSubmitting(false);
-    }
+    confirmMutation.mutate({ id: setup.id, code }, {
+      onSuccess: () => {
+        resetAdd();
+      },
+      onError: () => {
+        setError(t("totp:verifyFailed"));
+        setCode("");
+      },
+    });
   };
 
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  const confirmDelete = useCallback(async () => {
+  const confirmDelete = useCallback(() => {
     if (!deleteId)
       return;
-    await http(`/account/me/totp/${deleteId}`, { method: "DELETE" });
-    setDevices(prev => prev.filter(d => d.id !== deleteId));
-    setDeleteId(null);
-  }, [deleteId]);
+    deleteMutation.mutate(deleteId, {
+      onSuccess: () => setDeleteId(null),
+    });
+  }, [deleteId, deleteMutation]);
 
-  if (loading) {
+  if (devicesQuery.isPending) {
     return <div className="py-8 text-center text-sm text-muted-foreground">{t("common.loading")}</div>;
   }
 
@@ -241,11 +251,11 @@ function TotpTab() {
           <Button variant="outline" onClick={resetAdd}>{t("totp:cancel")}</Button>
           <Button
             onClick={() => void handleCreate()}
-            disabled={!deviceName.trim() || submitting}
-            aria-busy={submitting}
+            disabled={!deviceName.trim() || createMutation.isPending}
+            aria-busy={createMutation.isPending}
             className="min-w-[80px]"
           >
-            {submitting
+            {createMutation.isPending
               ? (
                   <>
                     <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -268,7 +278,7 @@ function TotpTab() {
         onVerify={() => void handleVerify()}
         onCancel={resetAdd}
         error={error}
-        submitting={submitting}
+        submitting={confirmMutation.isPending}
       />
     );
   }
