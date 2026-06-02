@@ -66,6 +66,7 @@
     "schedulePreset": "选择一个预设...",
     "scheduleCustomPlaceholder": "例如 0 0 3 * * * 或 @every_15m",
     "scheduleCustomHelp": "支持 5 段、6 段格式,@hourly/@daily/@weekly/@monthly/@yearly 以及 @every_N(s|m|h|d),详见 cron-format.ts。",
+    "supportedFormats": "支持的格式",
     "action": "动作",
     "actionPlaceholder": "选择一个动作...",
     "actionRequiredFields": "必填字段:{{fields}}",

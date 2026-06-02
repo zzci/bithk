@@ -66,6 +66,7 @@
     "schedulePreset": "Choose a preset…",
     "scheduleCustomPlaceholder": "e.g. 0 0 3 * * * or @every_15m",
     "scheduleCustomHelp": "Supports 5-field, 6-field, @hourly/@daily/@weekly/@monthly/@yearly and @every_N(s|m|h|d). See cron-format.ts.",
+    "supportedFormats": "Supported formats",
     "action": "Action",
     "actionPlaceholder": "Pick an action…",
     "actionRequiredFields": "Required: {{fields}}",
