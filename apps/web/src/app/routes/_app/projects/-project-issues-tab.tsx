@@ -35,6 +35,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-signal";
 import { validateAttachmentSelection } from "@/shared/components/resource";
+import { formatFileSize } from "@/shared/components/resource/attachment-section";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -549,6 +550,10 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
     setFiles(prev => [...prev, ...picked]);
   };
 
+  // Drop a single staged file before submit; in-memory only (the issue does
+  // not exist yet, so there is nothing to delete server-side).
+  const removeFile = (index: number) => setFiles(prev => prev.filter((_, i) => i !== index));
+
   // Open the native calendar on click; fall back to focus when showPicker is
   // unavailable (older browsers / programmatic-open restrictions).
   const openDuePicker = () => {
@@ -628,7 +633,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
       <DialogContent
         showCloseButton={false}
         className={cn(
-          "max-h-[calc(100svh-2rem)] gap-0 overflow-y-auto",
+          "max-h-[calc(100svh-2rem)] gap-0 overflow-y-auto pb-0",
           maximized ? "min-h-[80svh] sm:max-w-3xl" : "sm:max-w-xl",
         )}
       >
@@ -782,9 +787,35 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
             />
           </div>
 
+          {/* Staged attachments: visible before submit so files can be removed.
+              Cleared by reset() after a successful create. */}
+          {files.length > 0 && (
+            <ul className="space-y-1.5">
+              {files.map((file, index) => (
+                <li
+                  key={`${file.name}-${file.size}-${index}`}
+                  className="flex h-9 items-center gap-2 rounded-md border bg-card px-2.5"
+                >
+                  <Paperclip aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-[12px]">{file.name}</span>
+                  <span className="shrink-0 text-[12px] text-muted-foreground">{formatFileSize(file.size)}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("issues.composer.removeAttachment")}
+                    onClick={() => removeFile(index)}
+                  >
+                    <X aria-hidden="true" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {/* Sticky footer keeps the actions reachable when a long description
               scrolls the dialog body. Holds only the continue toggle + submit. */}
-          <div className="sticky bottom-0 -mx-4 -mb-4 flex items-center justify-end gap-3 rounded-b-xl border-t bg-popover px-4 py-2.5">
+          <div className="sticky bottom-0 -mx-4 flex items-center justify-end gap-3 rounded-b-xl border-t bg-popover px-4 py-2.5">
             {/* Functional: keep the dialog open and reset after each create. */}
             <div className="flex items-center gap-1.5">
               <Switch id="issue-keep-open" size="sm" checked={keepOpen} onCheckedChange={setKeepOpen} />

@@ -191,6 +191,7 @@
       "maximize": "最大化",
       "minimize": "还原",
       "attach": "添加附件",
+      "removeAttachment": "移除附件",
       "continueCreate": "继续创建",
       "submit": "创建 issue"
     },
