@@ -265,19 +265,20 @@ function TreeRow({
 }) {
   return (
     <li>
-      <button
+      <Button
         type="button"
+        variant="ghost"
         disabled={disabled}
         onClick={() => onSelect(node)}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+          "h-auto w-full justify-start gap-2 rounded-md py-1.5 pr-2 text-left font-normal transition-colors hover:bg-accent/40",
           node.id === activeId && "bg-accent/60 font-medium",
         )}
       >
         <FileText className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 truncate">{node.title}</span>
-      </button>
+      </Button>
       {node.children.length > 0 && (
         <ul className="flex flex-col gap-0.5">
           {node.children.map(child => (
@@ -346,11 +347,12 @@ function AttachmentList({
       <ul className="flex flex-col gap-1">
         {attachments.map(att => (
           <li key={att.id}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
               disabled={busyId === att.id}
               onClick={() => void open(att)}
-              className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="h-auto w-full justify-start gap-3 rounded-md px-2 py-2 text-left font-normal transition-colors hover:bg-accent/40"
             >
               <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 <FileText className="size-4" />
@@ -358,7 +360,7 @@ function AttachmentList({
               <span className="min-w-0 flex-1 truncate text-sm">{att.filename}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(att.size)}</span>
               {busyId === att.id && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

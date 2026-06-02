@@ -37,6 +37,7 @@ import {
 } from "@/shared/components/resource";
 import { TagsCombobox } from "@/shared/components/tags-combobox";
 import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
@@ -574,9 +575,10 @@ function InlineValue({ display, initial, canEdit, type = "text", maxLength, notS
   }
 
   return (
-    <button
+    <Button
       type="button"
-      className="inline-flex items-center gap-1 rounded text-sm text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      variant="ghost"
+      className="h-auto gap-1 rounded px-0 text-sm font-normal text-foreground hover:bg-transparent hover:text-primary"
       onClick={() => setEditing(true)}
     >
       {display ?? (
@@ -585,6 +587,6 @@ function InlineValue({ display, initial, canEdit, type = "text", maxLength, notS
           <Pencil className="size-2.5" />
         </span>
       )}
-    </button>
+    </Button>
   );
 }

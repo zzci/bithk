@@ -155,18 +155,19 @@ export function FileToolbar({
                   {folderPath.map((crumb, i) => (
                     <div key={crumb.id ?? "root"} className="flex min-w-0 items-center gap-2">
                       {i > 0 && <span className="text-muted-foreground/60">/</span>}
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => onNavigateToBreadcrumb(i)}
                         className={cn(
-                          "min-w-0 truncate transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          "h-auto min-w-0 truncate px-0 text-lg font-normal transition-colors hover:bg-transparent",
                           i === folderPath.length - 1
                             ? "font-medium text-foreground"
                             : "text-muted-foreground hover:text-foreground",
                         )}
                       >
                         {crumb.name}
-                      </button>
+                      </Button>
                     </div>
                   ))}
                   <Button

@@ -240,10 +240,11 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                 <ul>
                   {rows.map(row => (
                     <li key={row.id} className="group flex items-stretch border-b border-border/40 transition-colors last:border-b-0 hover:bg-muted/50">
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         aria-label={row.itemName}
-                        className={cn(PROCUREMENT_GRID, "min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
+                        className={cn(PROCUREMENT_GRID, "h-auto min-w-0 flex-1 shrink rounded-none px-3 py-2 text-left font-normal hover:bg-transparent")}
                         onClick={() => openProcurement(row.id)}
                       >
                         <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">{row.id}</span>
@@ -256,7 +257,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
                         <span className="hidden truncate text-xs text-muted-foreground sm:block">{categoryName(row.categoryId)}</span>
                         <span className="hidden truncate text-xs text-muted-foreground md:block">{supplierName(row.supplierId)}</span>
                         <PrioritySignal priority={row.priority} label={t(`procurement.priority.${row.priority}` as const)} />
-                      </button>
+                      </Button>
                       {canManage && (
                         <div className={cn("flex w-9 shrink-0 items-center justify-center transition-opacity", row.pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100")}>
                           <ProcurementPinToggle projectId={projectId} row={row} />

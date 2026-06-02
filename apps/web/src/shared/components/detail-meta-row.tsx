@@ -180,9 +180,10 @@ export function MetaDueDate({ label, notSetLabel, canEdit, value, onChange }: Me
       {canEdit
         ? (
             <span className="relative inline-flex items-center">
-              <button
+              <Button
                 type="button"
-                className="inline-flex items-center gap-1 rounded text-xs text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                variant="ghost"
+                className="h-auto gap-1 rounded px-0 text-xs font-normal text-foreground hover:bg-transparent hover:text-primary"
                 onClick={() => {
                   const input = dateInputRef.current;
                   if (!input)
@@ -205,7 +206,7 @@ export function MetaDueDate({ label, notSetLabel, canEdit, value, onChange }: Me
                   ? <span>{value}</span>
                   : <span className="text-muted-foreground">{notSetLabel}</span>}
                 <ChevronDown className="size-3" />
-              </button>
+              </Button>
               <input
                 ref={dateInputRef}
                 type="date"

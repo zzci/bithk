@@ -7,6 +7,7 @@ import type { DocumentTreeNode } from "@/shared/lib/api/documents";
 import { FileText, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -81,17 +82,18 @@ export function SearchDialog({
                   <ul>
                     {results.map(node => (
                       <li key={node.id}>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           onClick={() => onSelect(node.id)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="h-auto w-full justify-start gap-2 rounded-none px-3 py-2 text-left text-sm font-normal transition-colors hover:bg-accent hover:text-accent-foreground"
                         >
                           <FileText className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
                           <span className="flex-1 truncate">{node.title || t("untitledPlaceholder")}</span>
                           <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">
                             {formatShortDate(node.updatedAt)}
                           </span>
-                        </button>
+                        </Button>
                       </li>
                     ))}
                   </ul>

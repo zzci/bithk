@@ -274,14 +274,15 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
                 {filteredUsers.length > 0 && (
                   <div className="absolute top-11 right-0 left-0 z-30 max-h-56 overflow-auto rounded-md border bg-popover p-1 shadow-md">
                     {filteredUsers.map(user => (
-                      <button
+                      <Button
                         key={user.id}
                         type="button"
+                        variant="ghost"
                         onClick={() => {
                           togglePendingUser(user.id);
                           setRecipientQuery("");
                         }}
-                        className="flex w-full items-center gap-3 rounded px-3 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="h-auto w-full justify-start gap-3 rounded px-3 py-2 text-left font-normal hover:bg-accent"
                       >
                         <Avatar>
                           <AvatarFallback>{initials(userLabel(user))}</AvatarFallback>
@@ -291,7 +292,7 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
                           <span className="block truncate text-xs text-muted-foreground">{user.username}</span>
                         </span>
                         {pendingUserIds.includes(user.id) && <Check className="size-4 text-primary" />}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}

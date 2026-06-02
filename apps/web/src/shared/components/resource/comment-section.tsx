@@ -533,15 +533,16 @@ function CommentAttachments({
       />
       {canUpload && (
         <div>
-          <button
+          <Button
             type="button"
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            variant="ghost"
+            className="h-auto gap-1 rounded px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             onClick={() => fileInputRef.current?.click()}
             title={t("attachments.upload")}
           >
             <Paperclip className="size-3" />
             {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
-          </button>
+          </Button>
           <input
             ref={fileInputRef}
             type="file"

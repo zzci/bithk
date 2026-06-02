@@ -68,13 +68,14 @@ export function DetailDescription({
             )
           : canEdit
             ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={onStartEdit}
-                  className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-auto w-full justify-start whitespace-normal rounded-md border border-dashed border-current bg-transparent px-2 py-1 text-left text-sm font-normal italic text-muted-foreground leading-snug transition-colors hover:bg-muted/50 hover:text-foreground"
                 >
                   {noDescriptionLabel}
-                </button>
+                </Button>
               )
             : (
                 <p className="text-sm italic text-muted-foreground leading-snug">

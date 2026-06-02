@@ -177,10 +177,11 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
                 <ul className="space-y-2">
                   {projects.slice(0, 4).map(project => (
                     <li key={project.id}>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => void navigate({ to: "/projects/$projectId", params: { projectId: project.id } })}
-                        className="flex w-full flex-col gap-1.5 rounded-md border bg-muted/20 px-3 py-2 text-left hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                        className="flex h-auto w-full flex-col items-stretch gap-1.5 rounded-md border border-border bg-muted/20 px-3 py-2 text-left font-normal hover:border-border hover:bg-muted/40"
                       >
                         <span className="min-w-0 truncate text-sm font-medium">{project.name}</span>
                         <span className="flex flex-wrap items-center gap-1.5">
@@ -191,7 +192,7 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
                             {t(`projects:status.${project.status}` as const)}
                           </Badge>
                         </span>
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>

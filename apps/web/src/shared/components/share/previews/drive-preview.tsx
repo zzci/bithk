@@ -284,13 +284,14 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
           {breadcrumb.map((crumb, i, arr) => (
             <span key={crumb.id} className="flex items-center gap-1">
               {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground/60" />}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setParentId(i === 0 ? undefined : crumb.id)}
-                className={`rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${i === arr.length - 1 ? "font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                className={`h-auto rounded-sm px-0 font-normal hover:bg-transparent ${i === arr.length - 1 ? "font-medium" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {crumb.name}
-              </button>
+              </Button>
             </span>
           ))}
         </div>
@@ -323,22 +324,23 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
                       key={entry.id}
                       className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40"
                     >
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => {
                           if (entry.type === "folder")
                             setParentId(entry.id);
                           else if (previewable(entry))
                             setPreviewItem(entry);
                         }}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="h-auto min-w-0 flex-1 shrink justify-start gap-3 rounded-md px-0 text-left font-normal hover:bg-transparent"
                       >
                         {FILE_ICONS[entryFileType(entry)]("size-5 shrink-0")}
                         <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
                         {entry.type === "file" && (
                           <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(entry.size ?? 0)}</span>
                         )}
-                      </button>
+                      </Button>
                       {entry.type === "file" && (
                         <div className="flex shrink-0 items-center gap-1">
                           {previewable(entry) && (
