@@ -116,27 +116,29 @@ describe("contactsListPage", () => {
   });
 
   it("renders a single-row toolbar of status, category, and tag filters", async () => {
-    routeFetch([contact()]);
+    routeFetch([contact()], 1, { categories: [category()], tags: [tag()] });
 
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "All statuses" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "All categories" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tags" })).toBeInTheDocument();
+    // Status is a single-select dimension rendered as resident toggle chips.
+    expect(screen.getByRole("button", { name: "Active" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Inactive" })).toBeInTheDocument();
+    // Category + tags live behind the single "Filter" dropdown.
+    expect(screen.getByRole("button", { name: "Filter" })).toBeInTheDocument();
     // The visibility and confidentiality dropdowns are gone.
     expect(screen.queryByRole("button", { name: "All visibility" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "All confidentiality" })).not.toBeInTheDocument();
   });
 
-  it("drives the list query from the status filter dropdown", async () => {
+  it("drives the list query from the status filter chips", async () => {
     routeFetch([contact()]);
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "All statuses" }));
-    await user.click(await screen.findByRole("menuitemradio", { name: "Active" }));
+    // Status renders as resident toggle chips; activating "Active" filters.
+    await user.click(screen.getByRole("button", { name: "Active" }));
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(c => String(c[0]).includes("status=active"))).toBe(true);
@@ -149,8 +151,9 @@ describe("contactsListPage", () => {
 
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "All categories" }));
-    await user.click(await screen.findByRole("menuitemradio", { name: "Suppliers" }));
+    // Category is a single-select dimension behind the "Filter" dropdown.
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Suppliers" }));
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(c => String(c[0]).includes("categoryId=cat1"))).toBe(true);
@@ -163,13 +166,14 @@ describe("contactsListPage", () => {
 
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Tags" }));
+    // Tags is a multi-select dimension behind the "Filter" dropdown.
+    await user.click(screen.getByRole("button", { name: "Filter" }));
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "ship supplier" }));
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(c => String(c[0]).includes("tagIds=tag1"))).toBe(true);
     });
-    expect(screen.getByRole("button", { name: "Remove tag ship supplier" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove ship supplier" })).toBeInTheDocument();
   });
 
   it("debounces the search box into the q query param", async () => {

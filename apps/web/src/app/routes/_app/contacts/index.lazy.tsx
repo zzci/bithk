@@ -2,22 +2,17 @@
 import type { ContactFormState } from "./-contact-form-logic";
 import type { ContactStatus, ContactView } from "@/shared/lib/api/contacts";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { ChevronDown, Edit3, Plus, Search, Share2, Trash2 } from "lucide-react";
+import { Edit3, Share2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ListFilter } from "@/shared/components/list-filter";
+import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { ResizableDrawer } from "@/shared/components/resizable-drawer";
+import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import { Input } from "@/shared/components/ui/input";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
 import { useContactsList, useContactTags, useCreateContact, useDeleteContact, useUpdateContact } from "@/shared/lib/api/contacts";
@@ -26,7 +21,6 @@ import { cn } from "@/shared/lib/utils";
 import { contactFormToInput, isMasked } from "./-contact-form-logic";
 import { ContactFieldValue, ContactPanel } from "./-contact-panel";
 import { ContactShareDialog } from "./-contact-share-dialog";
-import { ContactTagFilter } from "./-contact-tag-filter";
 
 export const Route = createLazyFileRoute("/_app/contacts/")({
   component: ContactsListPage,
@@ -82,11 +76,6 @@ export function ContactsListPage() {
   const meta = contactsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
 
-  const toggleTag = (tagId: string) => {
-    setTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]));
-    setPage(1);
-  };
-
   const handleSubmit = (state: ContactFormState) => {
     if (drawer?.mode === "edit") {
       updateContact.mutate({ id: drawer.contact.id, ...contactFormToInput(state) }, {
@@ -118,48 +107,65 @@ export function ContactsListPage() {
 
       {contactsQuery.error && <ErrorBanner message={errorMessage(contactsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      {/* Single-row toolbar: status + category + tag dropdowns, then search and
-          create pushed to the trailing edge. Wraps on narrow viewports. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <ToolbarFilter
-          value={statusFilter}
-          allLabel={t("list.statusAll")}
-          options={[
-            { value: "active", label: t("status.active") },
-            { value: "inactive", label: t("status.inactive") },
-          ]}
-          onChange={(v) => {
-            setStatusFilter(v);
-            setPage(1);
-          }}
-        />
-        <ToolbarFilter
-          value={categoryFilter}
-          allLabel={t("list.categoryAll")}
-          options={categories.map(c => ({ value: c.id, label: c.name }))}
-          onChange={(v) => {
-            setCategoryFilter(v);
-            setPage(1);
-          }}
-        />
-        <ContactTagFilter tags={tagsQuery.data ?? []} selectedTagIds={tagIds} onToggle={toggleTag} />
-        <div className="relative ml-auto max-w-xs flex-1">
-          <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder={t("list.searchPlaceholder")}
-            aria-label={t("list.searchPlaceholder")}
-            className="pl-8"
+      {/* Single-row toolbar: ListFilter (status + category + tags) on the left,
+          bounded search + create on the right. Wraps on narrow viewports. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <ListFilter
+            dimensions={[
+              {
+                key: "status",
+                label: t("field.status"),
+                mode: "single",
+                resident: true,
+                defaultValue: ALL,
+                value: statusFilter,
+                onChange: (value) => {
+                  setStatusFilter(value ?? ALL);
+                  setPage(1);
+                },
+                options: [
+                  { value: "active", label: t("status.active") },
+                  { value: "inactive", label: t("status.inactive") },
+                ],
+              },
+              {
+                key: "category",
+                label: t("field.category"),
+                mode: "single",
+                defaultValue: ALL,
+                value: categoryFilter,
+                onChange: (value) => {
+                  setCategoryFilter(value ?? ALL);
+                  setPage(1);
+                },
+                options: categories.map(c => ({ value: c.id, label: c.name })),
+              },
+              {
+                key: "tags",
+                label: t("field.tags"),
+                mode: "multi",
+                value: tagIds,
+                onChange: (value) => {
+                  setTagIds(value);
+                  setPage(1);
+                },
+                options: (tagsQuery.data ?? []).map(tg => ({ value: tg.id, label: tg.name })),
+              },
+            ]}
           />
         </div>
-        <Button onClick={() => setDrawer({ mode: "create" })}>
-          <Plus aria-hidden="true" />
-          {t("list.create")}
-        </Button>
+        <SearchCreateBar
+          search={{
+            value: search,
+            onChange: (v) => {
+              setSearch(v);
+              setPage(1);
+            },
+            placeholder: t("list.searchPlaceholder"),
+          }}
+          create={{ label: t("list.create"), onClick: () => setDrawer({ mode: "create" }) }}
+        />
       </div>
 
       {contactsQuery.isLoading
@@ -286,13 +292,13 @@ export function ContactsListPage() {
             )}
 
       {totalPages > 1 && meta && (
-        <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs text-muted-foreground">{t("list.total", { count: meta.total })}</span>
-          <div className="flex gap-1">
-            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
-          </div>
-        </div>
+        <PaginationFooter
+          page={page}
+          totalPages={totalPages}
+          totalLabel={t("list.total", { count: meta.total })}
+          onPrev={() => setPage(p => p - 1)}
+          onNext={() => setPage(p => p + 1)}
+        />
       )}
 
       {drawer && (
@@ -360,35 +366,4 @@ function drawerAriaLabel(drawer: DrawerState, t: (key: string) => string): strin
   if (drawer.mode === "edit")
     return t("form.editTitle");
   return drawer.contact.name;
-}
-
-interface ToolbarFilterProps {
-  readonly value: string;
-  readonly allLabel: string;
-  readonly options: readonly { readonly value: string; readonly label: string }[];
-  readonly onChange: (value: string) => void;
-}
-
-/**
- * Text-label dropdown filter for the contacts toolbar — mirrors the procurement
- * tab's DropdownMenu radio pattern. `__all__` is the "show everything" sentinel.
- */
-function ToolbarFilter({ value, allLabel, options, onChange }: ToolbarFilterProps) {
-  const current = value === ALL ? allLabel : options.find(o => o.value === value)?.label ?? allLabel;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button type="button" variant="outline" className="w-44 justify-between font-normal" />}>
-        <span className="truncate">{current}</span>
-        <ChevronDown aria-hidden="true" className="size-4 shrink-0 opacity-50" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuRadioGroup value={value} onValueChange={v => v !== null && onChange(v)}>
-          <DropdownMenuRadioItem value={ALL}>{allLabel}</DropdownMenuRadioItem>
-          {options.map(o => (
-            <DropdownMenuRadioItem key={o.value} value={o.value}>{o.label}</DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 }
