@@ -148,7 +148,6 @@ New files:
 | `DetailPanelHeader` | `shared/components/detail-panel-header.tsx` | issue/procurement panel header block |
 | `CoverField` | `shared/components/cover-field.tsx` | `ProjectCoverField`, `ShipCoverField` |
 | `PaginationFooter` | `shared/components/pagination-footer.tsx` | inline prev/next footers (4 lists) |
-| `ToolbarFilter` | `shared/components/toolbar-filter.tsx` | local `ToolbarFilter` copies (procurement, contacts) |
 | `SearchInput` | `shared/components/search-input.tsx` | inline Search-icon+Input markup (4 toolbars) |
 | `addTag`/`removeTag` | `shared/lib/tag-utils.ts` | dup copies in project/contact form-logic |
 
@@ -243,12 +242,13 @@ Each list's `{totalPages > 1 && meta && (<div ...prev/next...>)}` becomes:
 Swap `totalLabel` per list (`list.total`, etc.). Prev/Next text comes from the
 shared component (`common.prev`/`common.next`).
 
-### 4. ToolbarFilter (REFACTOR-012)
+### 4. ToolbarFilter — REMOVED (superseded by ListFilter)
 
-In `-project-procurement-tab.tsx` and `contacts/index.lazy.tsx`: delete the local
-`ToolbarFilter` function + `ToolbarFilterProps` interface, import the shared one.
-Call sites are unchanged (same props). The contacts file's local `ALL = "__all__"`
-constant still works as the value/sentinel passed in.
+**Decision (2026-06-02):** `ToolbarFilter` is dropped and
+`shared/components/toolbar-filter.tsx` deleted. It never gained a consumer of the
+shared copy; the single-dimension dropdown filter is fully covered by `ListFilter`
+(§ the `ListFilter` entry), which is now the one documented filter primitive. The
+procurement/contacts toolbars migrated to `ListFilter` directly.
 
 ### 5. SearchInput (REFACTOR-012)
 
@@ -266,53 +266,42 @@ Replace the `<div className="relative ..."><Search .../><Input .../></div>` bloc
 Keep the existing `useDebounce(search, 300)` in the consumer. Issues list (client
 search) is out of scope.
 
-### 7. ListToolbar (REFACTOR-016)
+### 7. ListToolbar — REMOVED (deprecated)
 
-New `shared/components/list-toolbar.tsx`. Unifies the list toolbar row:
-left-side `filters` slot + right-side search + create button. Composes the
-shared `SearchInput`. **Decision (2026-06-02):** the create button moves to the
-right of the search box on every list (projects/ships currently render it on the
-title row — that button relocates into the toolbar). Left-side filter controls
-stay per-list via the slot.
+**Decision (2026-06-02):** `ListToolbar` is dropped and `list-toolbar.tsx`
+deleted. It never gained a consumer, and its responsibilities split cleanly
+across two existing primitives:
 
-Consumers: `projects/index.lazy.tsx`, `ships/index.lazy.tsx`,
-`-project-issues-tab.tsx` (and contacts/procurements toolbars if desired later).
+- **Filters** → `ListFilter` (§ the `ListFilter` entry): the declarative,
+  flicker-free multi-dimension filter that replaced the old filter slot.
+- **Search + create** → `SearchCreateBar` (§8), now with a bounded search box so
+  it can sit as the right cluster of a `justify-between` row.
 
-Per list:
-
-- Remove the create `<Button>` from the title/header row (projects/ships) — the
-  title row keeps only the heading + description.
-- Replace the `<div className="flex flex-wrap items-center justify-between gap-3">`
-  filter+search row with:
+Compose them directly instead of a shell component:
 
 ```tsx
-<ListToolbar
-  filters={(
-    <>
-      {/* existing status chips */}
-      <ProjectTagFilter ... />
-    </>
-  )}
-  search={{
-    value: search,
-    onChange: (v) => { setSearch(v); setPage(1); },
-    placeholder: t("list.searchPlaceholder"),
-  }}
-  create={isAdmin ? { label: t("list.create"), onClick: () => setCreateOpen(true) } : undefined}
-/>
+<div className="flex items-center justify-between gap-3">
+  <ListFilter dimensions={[statusDimension, tagDimension]} />
+  <SearchCreateBar
+    search={{ value: search, onChange: (v) => { setSearch(v); setPage(1); }, placeholder: t("list.searchPlaceholder") }}
+    create={isAdmin ? { label: t("list.create"), onClick: () => setCreateOpen(true) } : undefined}
+  />
+</div>
 ```
 
-- Issues tab: `filters` = the tag-filter group (or omit when no tags),
-  `create` = `canManage ? { label: t("issues.createButton"), onClick: () => openCreate("todo") }`.
-- Verify: search still resets page where it did; create gated by the same
-  permission; layout wraps on narrow widths; create now sits right of search.
+The original decision — relocate projects'/ships' create button from the title
+row into the toolbar — still holds; it now lands on `SearchCreateBar`.
 
 ### 8. SearchCreateBar (REFACTOR-017)
 
-New `shared/components/search-create-bar.tsx`. Minimal toolbar for lists with no
-chip filters: a full-width search box on the left + a create button on the right
-(e.g. contacts). Composes `SearchInput`. For lists that need filter controls,
-use `ListToolbar` (§7) instead.
+New `shared/components/search-create-bar.tsx`. Search + create cluster with a
+**bounded** search box (`w-full sm:w-64`). Two uses:
+
+- Standalone for lists with no chip filters (e.g. contacts).
+- Paired with `ListFilter` on the left of a `justify-between` row for lists that
+  need filter controls (replaces the removed `ListToolbar`, §7).
+
+Composes `SearchInput`.
 
 Consumer: `contacts/index.lazy.tsx` toolbar. Replace its search `<div>` + create
 button with:
@@ -329,10 +318,10 @@ button with:
 ```
 
 `create.label` is optional — omit it to get the generic "+ New" (`common.create`,
-added in zh/en). Pass a label only when a list wants specific text. Same rule
-applies to `ListToolbar.create.label` (§7).
+added in zh/en). Pass a label only when a list wants specific text.
 
-Verify: search fills width, create on the right, page reset preserved.
+Verify: search is bounded (`w-full sm:w-64`), create on the right, page reset
+preserved.
 
 ### 6. tag-utils (REFACTOR-013)
 

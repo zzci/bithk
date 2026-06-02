@@ -1,5 +1,9 @@
 import type { ContactInput, ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
 
+// Tag list helpers live in the shared lib; re-exported so existing importers
+// (and tests) of this module keep working.
+export { addTag, removeTag } from "@/shared/lib/tag-utils";
+
 export const CONTACT_STATUSES: readonly ContactStatus[] = ["active", "inactive"];
 export const CONTACT_VISIBILITIES: readonly ContactVisibility[] = ["private", "public"];
 
@@ -59,19 +63,6 @@ export function contactFormFromView(contact: ContactView): ContactFormState {
     categoryId: contact.categoryId ?? null,
     tags: contact.tags.map(tag => tag.name),
   };
-}
-
-export function addTag(list: readonly string[], raw: string): readonly string[] {
-  const name = raw.trim();
-  if (!name)
-    return list;
-  if (list.some(tag => tag.toLowerCase() === name.toLowerCase()))
-    return list;
-  return [...list, name];
-}
-
-export function removeTag(list: readonly string[], name: string): readonly string[] {
-  return list.filter(tag => tag !== name);
 }
 
 function textOrNull(value: string): string | null {

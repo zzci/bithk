@@ -1,22 +1,19 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { CreateProjectInput, ProjectView } from "@/shared/lib/api/projects";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import {
-  Plus,
-  Search,
-  Settings,
-} from "lucide-react";
+import { Settings } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
 import { ListFilter } from "@/shared/components/list-filter";
+import { PaginationFooter } from "@/shared/components/pagination-footer";
+import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import { Input } from "@/shared/components/ui/input";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import {
   useCreateProject,
@@ -92,64 +89,54 @@ export function ProjectsListPage() {
           <h1 className="text-2xl font-bold">{t("page.title")}</h1>
           <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
         </div>
-        {isAdmin && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus aria-hidden="true" />
-            {t("list.create")}
-          </Button>
-        )}
       </div>
 
       {projectsQuery.error && <ErrorBanner message={errorMessage(projectsQuery.error, t("common:common.error.loadFailed"))} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <ListFilter
-            dimensions={[
-              {
-                key: "status",
-                label: t("field.status"),
-                mode: "single",
-                resident: true,
-                defaultValue: "__active__",
-                value: tags.some(tag => tag.id === filter) ? "__active__" : filter,
-                onChange: (value) => {
-                  setFilter(value ?? "__active__");
-                  setPage(1);
-                },
-                options: [
-                  { value: "__active__", label: t("status.active"), count: activeCount },
-                  { value: "__archived__", label: t("status.archived"), count: archivedCount },
-                ],
+        <ListFilter
+          dimensions={[
+            {
+              key: "status",
+              label: t("field.status"),
+              mode: "single",
+              resident: true,
+              defaultValue: "__active__",
+              value: tags.some(tag => tag.id === filter) ? "__active__" : filter,
+              onChange: (value) => {
+                setFilter(value ?? "__active__");
+                setPage(1);
               },
-              {
-                key: "tags",
-                label: t("field.tags"),
-                mode: "single",
-                residentCount: 5,
-                value: tags.some(tag => tag.id === filter) ? filter : null,
-                onChange: (value) => {
-                  setFilter(value ?? "__active__");
-                  setPage(1);
-                },
-                options: tags.map(tag => ({ value: tag.id, label: tag.name })),
+              options: [
+                { value: "__active__", label: t("status.active"), count: activeCount },
+                { value: "__archived__", label: t("status.archived"), count: archivedCount },
+              ],
+            },
+            {
+              key: "tags",
+              label: t("field.tags"),
+              mode: "single",
+              residentCount: 5,
+              value: tags.some(tag => tag.id === filter) ? filter : null,
+              onChange: (value) => {
+                setFilter(value ?? "__active__");
+                setPage(1);
               },
-            ]}
-          />
-        </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
+              options: tags.map(tag => ({ value: tag.id, label: tag.name })),
+            },
+          ]}
+        />
+        <SearchCreateBar
+          search={{
+            value: search,
+            onChange: (v) => {
+              setSearch(v);
               setPage(1);
-            }}
-            placeholder={t("list.searchPlaceholder")}
-            className="pl-8"
-            aria-label={t("list.searchPlaceholder")}
-          />
-        </div>
+            },
+            placeholder: t("list.searchPlaceholder"),
+          }}
+          {...(isAdmin ? { create: { onClick: () => setCreateOpen(true) } } : {})}
+        />
       </div>
 
       {projectsQuery.isLoading
@@ -159,13 +146,13 @@ export function ProjectsListPage() {
           : <ProjectsGrid projects={visibleProjects} isAdmin={isAdmin} openProject={openProject} openSettings={setSettingsProjectId} />}
 
       {totalPages > 1 && meta && (
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-xs text-muted-foreground">{t("list.total", { count: meta.total })}</span>
-          <div className="flex gap-1">
-            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t("common:common.prev")}</Button>
-            <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t("common:common.next")}</Button>
-          </div>
-        </div>
+        <PaginationFooter
+          page={page}
+          totalPages={totalPages}
+          totalLabel={t("list.total", { count: meta.total })}
+          onPrev={() => setPage(p => p - 1)}
+          onNext={() => setPage(p => p + 1)}
+        />
       )}
 
       <ProjectFormDialog

@@ -134,14 +134,17 @@ describe("projectProcurementTab", () => {
     expect(urls.some(url => url.includes("limit=1000"))).toBe(false);
   });
 
-  it("renders the status and category toolbar filters", async () => {
+  it("folds status, priority and category into the shared Filter dropdown", async () => {
+    const user = userEvent.setup();
     routeFetch([row()]);
     renderWithProviders(
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
     await screen.findByText("Cement");
-    expect(screen.getByRole("button", { name: "Status" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Category" })).toBeInTheDocument();
+    // The three dimensions live behind the single shared Filter dropdown.
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: "Requested" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Materials" })).toBeInTheDocument();
   });
 
   it("opens the procurement detail drawer when the list row is clicked", async () => {
@@ -224,8 +227,8 @@ describe("projectProcurementTab", () => {
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
     await screen.findByText("Cement");
-    await user.click(screen.getByRole("button", { name: "Status" }));
-    await user.click(await screen.findByRole("menuitemradio", { name: "Cancelled" }));
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Cancelled" }));
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((c) => {
         const u = String(c[0]);

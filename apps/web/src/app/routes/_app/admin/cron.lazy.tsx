@@ -14,17 +14,10 @@ import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ListFilter } from "@/shared/components/list-filter";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -258,54 +251,44 @@ function CronPage() {
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         <span>{t("totalCount", { count: jobs.length })}</span>
 
-        <div className="flex items-center gap-2">
-          <Label className="cursor-pointer">{t("filter.label")}</Label>
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => {
-              if (typeof v === "string" && (STATUS_FILTER_ORDER as readonly string[]).includes(v))
-                setStatusFilter(v as StatusFilterKey);
-            }}
-          >
-            <SelectTrigger size="sm" className="w-32">
-              <SelectValue>
-                {(value: string) => t(`filter.${value}`, { defaultValue: value })}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_FILTER_ORDER.map(key => (
-                <SelectItem key={key} value={key}>{t(`filter.${key}`)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Label className="cursor-pointer">{t("typeFilter.label")}</Label>
-          <Select
-            value={typeFilter}
-            onValueChange={(v) => {
-              if (typeof v === "string")
-                setTypeFilter(v);
-            }}
-          >
-            <SelectTrigger size="sm" className="w-36">
-              <SelectValue>
-                {(value: string) => value === "__all__"
-                  ? t("typeFilter.all")
-                  : t(`typeFilter.cat.${value}`, { defaultValue: value })}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{t("typeFilter.all")}</SelectItem>
-              {typeOptions.map(cat => (
-                <SelectItem key={cat} value={cat}>
-                  {t(`typeFilter.cat.${cat}`, { defaultValue: cat })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <ListFilter
+          dimensions={[
+            // Compound status view (active/failed/success/deleted): each key
+            // maps to a `deleted`+`lastStatus` pair via STATUS_FILTERS, but as a
+            // UI control it is one discrete single-select — its keys are the
+            // options. Resident so all views stay inline; default "active".
+            {
+              key: "status",
+              label: t("filter.label"),
+              mode: "single",
+              resident: true,
+              defaultValue: "active",
+              value: statusFilter,
+              onChange: (value) => {
+                setStatusFilter(
+                  value && (STATUS_FILTER_ORDER as readonly string[]).includes(value)
+                    ? (value as StatusFilterKey)
+                    : "active",
+                );
+              },
+              options: STATUS_FILTER_ORDER.map(key => ({ value: key, label: t(`filter.${key}`) })),
+            },
+            // task_type category. `__all__` is the unset default (no chip); a
+            // concrete selection trails as a removable × chip from the dropdown.
+            {
+              key: "type",
+              label: t("typeFilter.label"),
+              mode: "single",
+              defaultValue: "__all__",
+              value: typeFilter,
+              onChange: value => setTypeFilter(value ?? "__all__"),
+              options: typeOptions.map(cat => ({
+                value: cat,
+                label: t(`typeFilter.cat.${cat}`, { defaultValue: cat }),
+              })),
+            },
+          ]}
+        />
       </div>
 
       <div className="rounded-lg border">

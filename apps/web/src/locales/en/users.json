@@ -4,10 +4,12 @@
     "description": "Manage platform users and their roles."
   },
   "searchPlaceholder": "Search by name, email, or username...",
-  "allRoles": "All Roles",
+  "field": {
+    "role": "Role",
+    "status": "Status"
+  },
   "roleAdmin": "Admin",
   "roleUser": "User",
-  "allStatuses": "All Statuses",
   "totalCount": "{{count}} users",
   "noResults": "No users found.",
   "statusActive": "Active",

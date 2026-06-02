@@ -3,6 +3,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ListFilter } from "@/shared/components/list-filter";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -15,13 +16,6 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -164,55 +158,42 @@ function UsersTab() {
           />
         </div>
 
-        <Select
-          value={roleFilter}
-          onValueChange={(v) => {
-            if (v === null)
-              return;
-            setRoleFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue>
-              {(v: string) => ({
-                [ALL]: t("allRoles"),
-                admin: t("roleAdmin"),
-                user: t("roleUser"),
-              }[v])}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("allRoles")}</SelectItem>
-            <SelectItem value="admin">{t("roleAdmin")}</SelectItem>
-            <SelectItem value="user">{t("roleUser")}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            if (v === null)
-              return;
-            setStatusFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue>
-              {(v: string) => ({
-                [ALL]: t("allStatuses"),
-                active: t("statusActive"),
-                disabled: t("statusDisabled"),
-              }[v])}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("allStatuses")}</SelectItem>
-            <SelectItem value="active">{t("statusActive")}</SelectItem>
-            <SelectItem value="disabled">{t("statusDisabled")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <ListFilter
+          dimensions={[
+            {
+              key: "role",
+              label: t("field.role"),
+              mode: "single",
+              resident: true,
+              defaultValue: ALL,
+              value: roleFilter,
+              onChange: (value) => {
+                setRoleFilter(value ?? ALL);
+                setPage(1);
+              },
+              options: [
+                { value: "admin", label: t("roleAdmin") },
+                { value: "user", label: t("roleUser") },
+              ],
+            },
+            {
+              key: "status",
+              label: t("field.status"),
+              mode: "single",
+              resident: true,
+              defaultValue: ALL,
+              value: statusFilter,
+              onChange: (value) => {
+                setStatusFilter(value ?? ALL);
+                setPage(1);
+              },
+              options: [
+                { value: "active", label: t("statusActive") },
+                { value: "disabled", label: t("statusDisabled") },
+              ],
+            },
+          ]}
+        />
 
         <span className="text-sm text-muted-foreground">
           {t("totalCount", { count: meta.total })}

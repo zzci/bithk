@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared/stores/auth";
@@ -102,8 +102,10 @@ describe("shipsListPage", () => {
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     // The KPI count comes from a dedicated count query that resolves
     // independently of the list, so wait for it to land on the active chip
-    // (the default selection; there is no "all" chip anymore).
-    await waitFor(() => expect(screen.getByRole("button", { name: /Active 1/ })).toBeInTheDocument());
+    // (the default selection; there is no "all" chip anymore). The shared
+    // ListFilter resident chip concatenates label + count badge with no space,
+    // so match "Active" followed by the count.
+    await waitFor(() => expect(screen.getByRole("button", { name: /Active\s*1/ })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /^All/ })).not.toBeInTheDocument();
   });
 
@@ -116,10 +118,13 @@ describe("shipsListPage", () => {
       const call = fetchMock.mock.calls.find(c => String(c[0]).includes("/ships?") && String(c[0]).includes("status=active") && !String(c[0]).includes("tagId="));
       expect(call).toBeDefined();
     });
-    // The single-select tag filter trigger replaces the old vessel-type dropdown.
-    expect(screen.getByRole("button", { name: "Tags" })).toBeInTheDocument();
-    // The ship card surfaces its tag as a badge.
-    expect(screen.getByText("Refit")).toBeInTheDocument();
+    // The shared ListFilter renders the (single, residentCount-pinned) ship tag
+    // as an inline resident toggle chip — not applied (not pressed) — replacing
+    // the old standalone tag-filter / vessel-type control.
+    expect(screen.getByRole("button", { name: "Refit", pressed: false })).toBeInTheDocument();
+    // The ship card also surfaces its tag as a badge (scoped to the card so it
+    // is not confused with the filter chip of the same name).
+    expect(within(screen.getByRole("button", { name: "Serenity" })).getByText("Refit")).toBeInTheDocument();
   });
 
   it("searches the whole fleet through the server", async () => {

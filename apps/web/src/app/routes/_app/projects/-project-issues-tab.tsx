@@ -24,17 +24,17 @@ import {
   Paperclip,
   Pin,
   PinOff,
-  Plus,
-  Search,
   User,
   X,
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ListFilter } from "@/shared/components/list-filter";
 import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-signal";
 import { validateAttachmentSelection } from "@/shared/components/resource";
 import { formatFileSize } from "@/shared/components/resource/attachment-section";
+import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -64,7 +64,6 @@ import { http } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
-import { ProjectTagFilter } from "./-project-tag-filter";
 
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
 const ISSUE_STATUSES: readonly IssueStatus[] = ["todo", "working", "review", "done", "cancel"];
@@ -246,8 +245,6 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
 
   const issueTagsQuery = useIssueTags();
   const issueTags = issueTagsQuery.data ?? [];
-  const toggleTag = useCallback((tagId: string) =>
-    setSelectedTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId])), []);
 
   // The drawer is a nested route; read the active issueId (if any) so the open
   // row stays highlighted while its drawer overlays the list.
@@ -307,42 +304,39 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   return (
     <div className="space-y-5">
       {/* Top toolbar — tag filter on the left, search + create grouped on the
-          right, on a single row that wraps gracefully on narrow widths. */}
+          right, on a single row that wraps gracefully on narrow widths. The tag
+          filter pins the most-used tags as resident toggle chips and folds the
+          rest behind the shared Filter dropdown; union semantics narrow the list
+          to issues carrying any selected tag. Omitted when the project has no
+          tags, keeping search + create right-aligned. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Tag filter bar — responsive multi-select chips with a searchable
-            "More" combobox. Union semantics: selecting tags narrows the list to
-            issues carrying any selected tag. Empty when the project has no tags,
-            keeping search + create right-aligned. */}
         {issueTags.length > 0
           ? (
-              <div role="group" aria-label={t("issues.tagFilter")} className="flex flex-wrap items-center gap-2">
-                <ProjectTagFilter
-                  multiple
-                  tags={issueTags}
-                  selectedTagIds={selectedTagIds}
-                  onToggle={toggleTag}
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <ListFilter
+                  dimensions={[
+                    {
+                      key: "tags",
+                      label: t("issues.tagFilter"),
+                      mode: "multi",
+                      residentCount: 5,
+                      value: selectedTagIds,
+                      onChange: value => setSelectedTagIds(value),
+                      options: issueTags.map(tag => ({ value: tag.id, label: tag.name })),
+                    },
+                  ]}
                 />
               </div>
             )
           : <div />}
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="relative max-w-xs flex-1">
-            <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={t("issues.searchPlaceholder")}
-              aria-label={t("issues.searchPlaceholder")}
-              className="pl-8"
-            />
-          </div>
-          {canManage && (
-            <Button onClick={() => openCreate("todo")}>
-              <Plus aria-hidden="true" />
-              {t("issues.createButton")}
-            </Button>
-          )}
-        </div>
+        <SearchCreateBar
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: t("issues.searchPlaceholder"),
+          }}
+          {...(canManage ? { create: { label: t("issues.createButton"), onClick: () => openCreate("todo") } } : {})}
+        />
       </div>
 
       {loadError && <ErrorBanner message={errorMessage(loadError, t("common:common.error.loadFailed"))} />}
