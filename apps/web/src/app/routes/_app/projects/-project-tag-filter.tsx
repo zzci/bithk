@@ -38,6 +38,9 @@ interface SingleSelectProps extends BaseProps {
   readonly multiple?: false;
   readonly selectedTagId: string | null;
   readonly onSelect: (tagId: string) => void;
+  // When provided, the selected tag renders as a removable chip whose X clears
+  // the selection. Omit it to keep the chip non-removable (other consumers).
+  readonly onClear?: () => void;
 }
 
 interface MultiSelectProps extends BaseProps {
@@ -121,20 +124,40 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
             </DropdownMenu>
           )}
 
-      {/* Selected tags as chips. Multi-select chips are removable; single-select
-          `onSelect` is set-only (not a toggle — see index.lazy.tsx), so its one
-          selected tag is shown as a non-removable highlighted label. */}
+      {/* Selected tags as chips. Multi-select chips are removable. Single-select
+          shows its one selected tag as a highlighted chip; with `onClear` it gets
+          an X that clears the selection, otherwise it is a plain label. */}
       {props.multiple
         ? selected.map(tag => (
             <RemovableChip key={tag.id} tag={tag} onRemove={props.onToggle} />
           ))
         : selected.map(tag => (
-            <span
-              key={tag.id}
-              className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground"
-            >
-              {tag.name}
-            </span>
+            props.onClear
+              ? (
+                  <span
+                    key={tag.id}
+                    className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-md bg-primary py-1 pr-1 pl-2.5 text-xs font-medium text-primary-foreground"
+                  >
+                    {tag.name}
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t("tags.remove", { name: tag.name })}
+                      className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+                      onClick={props.onClear}
+                    >
+                      <X aria-hidden="true" />
+                    </Button>
+                  </span>
+                )
+              : (
+                  <span
+                    key={tag.id}
+                    className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground"
+                  >
+                    {tag.name}
+                  </span>
+                )
           ))}
     </div>
   );

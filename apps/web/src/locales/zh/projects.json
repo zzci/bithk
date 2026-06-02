@@ -38,6 +38,7 @@
     "total_one": "{{count}} 个项目",
     "total_other": "{{count}} 个项目",
     "filterByTag": "按标签筛选",
+    "filterLabel": "筛选：",
     "searchPlaceholder": "搜索项目",
     "openSettings": "项目设置",
     "viewMode": "项目视图模式",
