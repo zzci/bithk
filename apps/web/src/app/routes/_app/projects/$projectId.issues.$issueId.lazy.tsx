@@ -8,10 +8,10 @@
 import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { useProject, useProjectMembers } from "@/shared/lib/api/projects";
 import { ProjectIssuePanel } from "./-project-issue-panel";
-import { ResizableDrawer } from "./-resizable-drawer";
 import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/issues/$issueId")({
