@@ -633,7 +633,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
       <DialogContent
         showCloseButton={false}
         className={cn(
-          "max-h-[calc(100svh-2rem)] gap-0 overflow-y-auto",
+          "max-h-[calc(100svh-2rem)] gap-0 overflow-y-auto pb-0",
           maximized ? "min-h-[80svh] sm:max-w-3xl" : "sm:max-w-xl",
         )}
       >
@@ -815,7 +815,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
 
           {/* Sticky footer keeps the actions reachable when a long description
               scrolls the dialog body. Holds only the continue toggle + submit. */}
-          <div className="sticky bottom-0 -mx-4 -mb-4 flex items-center justify-end gap-3 rounded-b-xl border-t bg-popover px-4 py-2.5">
+          <div className="sticky bottom-0 -mx-4 flex items-center justify-end gap-3 rounded-b-xl border-t bg-popover px-4 py-2.5">
             {/* Functional: keep the dialog open and reset after each create. */}
             <div className="flex items-center gap-1.5">
               <Switch id="issue-keep-open" size="sm" checked={keepOpen} onCheckedChange={setKeepOpen} />
