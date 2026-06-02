@@ -5,12 +5,16 @@
   },
   "list": {
     "create": "新建船舶",
-    "typeAll": "全部类型",
     "loading": "正在加载船舶…",
     "empty": "暂无船舶。",
     "noMatches": "没有符合搜索条件的船舶。",
     "total": "共 {{count}} 条",
     "searchPlaceholder": "搜索船名、船体号或 IMO",
+    "moreTags": "+{{count}}",
+    "tagFilterMore": "标签",
+    "tagFilterMoreLabel": "标签",
+    "tagFilterSearchPlaceholder": "搜索标签",
+    "tagFilterNoMore": "没有更多标签",
     "kpi": {
       "total": "船舶总数",
       "maintenance": "维护中",
@@ -25,13 +29,11 @@
     "active": "在用",
     "archived": "已归档"
   },
-  "vesselType": {
-    "motor_yacht": "机动游艇",
-    "sailing_yacht": "帆船游艇",
-    "catamaran": "双体船",
-    "work_boat": "工作船",
-    "cargo": "货船",
-    "other": "其他"
+  "tags": {
+    "searchPlaceholder": "搜索或创建标签",
+    "create": "创建 \"{{name}}\"",
+    "empty": "暂无标签",
+    "remove": "移除标签 {{name}}"
   },
   "tabs": {
     "overview": "概览",
@@ -67,7 +69,7 @@
     "name": "名称",
     "code": "船体编号",
     "status": "状态",
-    "vesselType": "船型",
+    "tags": "标签",
     "description": "描述",
     "builder": "建造方",
     "model": "型号",
