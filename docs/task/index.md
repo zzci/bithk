@@ -75,4 +75,4 @@
 | [FIX-020](FIX-020.md) | Create-issue dialog refinements | [PLAN-047](../plan/PLAN-047.md) | Completed | 2026-06-02 |
 | [FIX-021](FIX-021.md) | Tag-filter selector redesign | [PLAN-047](../plan/PLAN-047.md) | Completed | 2026-06-02 |
 | [FIX-022](FIX-022.md) | Procurement filter all-labels rename | [PLAN-047](../plan/PLAN-047.md) | Completed | 2026-06-02 |
-| [FIX-023](FIX-023.md) | Projects home filter row unification | [PLAN-047](../plan/PLAN-047.md) | Planned | 2026-06-02 |
+| [FIX-023](FIX-023.md) | Projects home filter row unification | [PLAN-047](../plan/PLAN-047.md) | Completed | 2026-06-02 |

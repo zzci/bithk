@@ -1,6 +1,6 @@
 # PLAN-047 Project list/dialog UI polish round
 
-- **status**: In Progress
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 vwfwi45t
 - **campaignId**: l1-75ymcfnr-uipolish-20260602015825
 - **tasks**: [FIX-020](../task/FIX-020.md), [FIX-021](../task/FIX-021.md), [FIX-022](../task/FIX-022.md), [FIX-023](../task/FIX-023.md)
