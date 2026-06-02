@@ -10,7 +10,7 @@
 
 import type { ProjectTag } from "@/shared/lib/api/projects";
 import { ChevronDown, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { cn } from "@/shared/lib/utils";
+import { pinnedFitCount } from "./-project-tag-filter.fit";
 
 interface BaseProps {
   // Tags in most-used-first order (as returned by the API).
@@ -82,11 +83,35 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
   const { tags, className } = props;
   const { t } = useTranslation("projects");
 
+  // Responsive pinned-chip count. Start at the MAX so SSR and the first
+  // (unmeasured) jsdom render pin every available chip; only shrink once a real
+  // container width is measured by the ResizeObserver below.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [fitCount, setFitCount] = useState(PINNED_COUNT);
+
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el || typeof ResizeObserver === "undefined")
+      return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        // Width 0 means "not laid out yet" (jsdom) — keep the MAX fallback.
+        if (width > 0)
+          setFitCount(pinnedFitCount(width, tags.length));
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [tags.length]);
+
   if (tags.length === 0)
     return null;
 
-  const pinned = tags.slice(0, PINNED_COUNT);
-  const rest = tags.slice(PINNED_COUNT);
+  const count = Math.max(0, Math.min(fitCount, PINNED_COUNT, tags.length));
+  const pinned = tags.slice(0, count);
+  const rest = tags.slice(count);
 
   const isActive = (tag: ProjectTag) =>
     props.multiple ? props.selectedTagIds.includes(tag.id) : props.selectedTagId === tag.id;
@@ -98,7 +123,7 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
     : rest.filter(tag => props.selectedTagId === tag.id);
 
   return (
-    <div className={cn("flex min-w-0 flex-wrap items-center gap-2", className)}>
+    <div ref={rowRef} className={cn("flex min-w-0 flex-wrap items-center gap-2", className)}>
       {/* Pinned inline toggle chips for the most-used tags. No X — toggles only. */}
       {pinned.map((tag) => {
         const active = isActive(tag);

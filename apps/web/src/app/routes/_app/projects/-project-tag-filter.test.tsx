@@ -168,3 +168,21 @@ describe("projectTagFilter (multi-select)", () => {
     expect(screen.queryByRole("button", { name: "Remove tag alpha" })).not.toBeInTheDocument();
   });
 });
+
+describe("projectTagFilter (responsive fallback)", () => {
+  // jsdom does no layout, so the ResizeObserver never reports a positive width.
+  // The component must keep its MAX (5) pinned fallback so consumers that rely
+  // on all five pinning when unmeasured do not regress.
+  it("pins up to the MAX (5) chips when the container width is unmeasured", () => {
+    renderWithProviders(
+      <ProjectTagFilter tags={tags(...EIGHT)} selectedTagId={null} onSelect={() => {}} onClear={() => {}} />,
+    );
+
+    for (const name of ["alpha", "beta", "gamma", "delta", "epsilon"]) {
+      expect(screen.getByRole("button", { name: `Filter by ${name}` })).toBeInTheDocument();
+    }
+    // The 6th most-used tag is not pinned; it lives behind the selector.
+    expect(screen.queryByRole("button", { name: "Filter by zeta" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tags" })).toBeInTheDocument();
+  });
+});
