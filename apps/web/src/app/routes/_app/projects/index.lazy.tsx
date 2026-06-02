@@ -103,7 +103,8 @@ export function ProjectsListPage() {
       {projectsQuery.error && <ErrorBanner message={errorMessage(projectsQuery.error, t("common:common.error.loadFailed"))} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <span className="shrink-0 text-sm text-muted-foreground">{t("list.filterLabel")}</span>
           {[
             { key: "__active__", label: t("status.active"), count: activeCount },
             { key: "__archived__", label: t("status.archived"), count: archivedCount },
@@ -111,7 +112,7 @@ export function ProjectsListPage() {
             <Button
               key={opt.key}
               variant={filter === opt.key ? "default" : "outline"}
-              className="h-8 shrink-0 rounded-full"
+              className="shrink-0 rounded-md px-2.5 text-xs"
               aria-pressed={filter === opt.key}
               onClick={() => {
                 setFilter(opt.key);
@@ -124,7 +125,6 @@ export function ProjectsListPage() {
               )}
             </Button>
           ))}
-          <span className="shrink-0 text-sm text-muted-foreground">{t("list.filterByTag")}</span>
           <ProjectTagFilter
             tags={tags}
             selectedTagId={tags.some(tag => tag.id === filter) ? filter : null}
