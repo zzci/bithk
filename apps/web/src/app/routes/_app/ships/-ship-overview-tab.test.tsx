@@ -25,7 +25,7 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-// The overview tab loads projects/equipment/templates/orders for its right-hand
+// The overview tab loads projects/equipment/worklists for its right-hand
 // previews; route these so the dashboard cards render real, deterministic data.
 function routeFetch() {
   fetchMock.mockImplementation(async (input) => {
@@ -34,10 +34,8 @@ function routeFetch() {
       return jsonResponse({ success: true, data: [{ id: "p1", name: "Base ops", code: "OPS", isBase: true, status: "active" }] });
     if (path === "/ships/s1/equipment")
       return jsonResponse({ success: true, data: [{ id: "eq1", name: "Generator", category: "Power", status: "active" }] });
-    if (path === "/ships/s1/maintenance-templates")
-      return jsonResponse({ success: true, data: [{ id: "tpl1", name: "Quarterly" }] });
-    if (path === "/ships/s1/maintenance-orders")
-      return jsonResponse({ success: true, data: [{ id: "wo1", title: "Hull survey", status: "todo", projectId: "p1", templateRefId: "tpl1", referenceId: "r1" }] });
+    if (path === "/ships/s1/worklists")
+      return jsonResponse({ success: true, data: [{ id: "wl1", name: "Quarterly" }] });
     return new Response("not found", { status: 404 });
   });
 }
@@ -96,11 +94,10 @@ describe("shipOverviewTab", () => {
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
   });
 
-  it("previews bound projects, equipment categories and active maintenance", async () => {
+  it("previews bound projects and equipment categories", async () => {
     routeFetch();
     renderWithProviders(<ShipOverviewTab ship={ship()} canManage={false} />);
     await waitFor(() => expect(screen.getByText("Base ops")).toBeInTheDocument());
     expect(screen.getByText("Power")).toBeInTheDocument();
-    expect(screen.getByText("Hull survey")).toBeInTheDocument();
   });
 });

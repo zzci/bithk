@@ -10,8 +10,8 @@
 //   20  Profile      — full read-only registry/spec fields
 //   30  Equipment    — T5b: add { value: "equipment", labelKey: "tabs.equipment", order: 30, render: … }
 //                      backed by a new `-ship-equipment-tab.tsx`
-//   40  Maintenance  — T5b: add { value: "maintenance", labelKey: "tabs.maintenance", order: 40, render: … }
-//                      backed by a new `-ship-maintenance-tab.tsx`
+//   40  Worklist     — { value: "worklist", labelKey: "tabs.worklist", order: 40, render: … }
+//                      backed by `-ship-worklist-tab.tsx`
 //   50  Projects     — this file
 //   60  Files        — this file
 //
@@ -30,10 +30,10 @@ import type { ReactNode } from "react";
 import type { ShipView } from "@/shared/lib/api/ships";
 import { ShipEquipmentTab } from "./-ship-equipment-tab";
 import { ShipFilesTab } from "./-ship-files-tab";
-import { ShipMaintenanceTab } from "./-ship-maintenance-tab";
 import { ShipOverviewTab } from "./-ship-overview-tab";
 import { ShipProfileTab } from "./-ship-profile-tab";
 import { ShipProjectsTab } from "./-ship-projects-tab";
+import { ShipWorklistTab } from "./-ship-worklist-tab";
 
 export interface ShipTabContext {
   readonly ship: ShipView;
@@ -69,10 +69,10 @@ export const SHIP_TABS: readonly ShipTabDefinition[] = [
     render: ctx => <ShipEquipmentTab ship={ctx.ship} canManage={ctx.canManage} />,
   },
   {
-    value: "maintenance",
-    labelKey: "tabs.maintenance",
+    value: "worklist",
+    labelKey: "tabs.worklist",
     order: 40,
-    render: ctx => <ShipMaintenanceTab ship={ctx.ship} canManage={ctx.canManage} />,
+    render: ctx => <ShipWorklistTab ship={ctx.ship} canManage={ctx.canManage} />,
   },
   {
     value: "projects",

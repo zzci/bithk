@@ -3347,8 +3347,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "maintenance_templates": {
-      "name": "maintenance_templates",
+    "worklists": {
+      "name": "worklists",
       "columns": {
         "id": {
           "name": "id",
@@ -3408,8 +3408,8 @@
         }
       },
       "indexes": {
-        "maintenance_templates_ship_idx": {
-          "name": "maintenance_templates_ship_idx",
+        "worklists_ship_idx": {
+          "name": "worklists_ship_idx",
           "columns": [
             "ship_id"
           ],
@@ -3417,9 +3417,9 @@
         }
       },
       "foreignKeys": {
-        "maintenance_templates_ship_id_ships_id_fk": {
-          "name": "maintenance_templates_ship_id_ships_id_fk",
-          "tableFrom": "maintenance_templates",
+        "worklists_ship_id_ships_id_fk": {
+          "name": "worklists_ship_id_ships_id_fk",
+          "tableFrom": "worklists",
           "tableTo": "ships",
           "columnsFrom": [
             "ship_id"

@@ -452,7 +452,7 @@ export function issueRoutes() {
     },
   });
 
-  // ─── Generic references + maintenance work orders (additive) ───────
+  // ─── Generic issue references (additive) ───────
   mountIssueReferenceRoutes(router);
 
   return router;
