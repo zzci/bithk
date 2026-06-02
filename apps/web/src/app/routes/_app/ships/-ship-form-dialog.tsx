@@ -4,7 +4,7 @@
 // mode only — create stays minimal.
 
 import type { ShipFormState } from "./-ship-form-logic";
-import type { ShipStatus, ShipVesselType, ShipView } from "@/shared/lib/api/ships";
+import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
@@ -27,8 +27,9 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { SHIP_STATUSES, SHIP_VESSEL_TYPES } from "@/shared/lib/api/ships";
+import { SHIP_STATUSES, useShipTags } from "@/shared/lib/api/ships";
 import { EMPTY_SHIP_FORM, SHIP_NUMBER_FIELD_RANGES, shipFormFromView, shipFormNumberErrors } from "./-ship-form-logic";
+import { ShipTagsCombobox } from "./-ship-tags-combobox";
 
 // Descriptive (edit-only) fields, rendered from a config so the markup stays
 // flat. `kind` drives the input type; the label comes from `ships:field.*`.
@@ -72,6 +73,7 @@ export function ShipFormDialog({
 }: ShipFormDialogProps) {
   const { t } = useTranslation(["ships", "common"]);
   const [form, setForm] = useState<ShipFormState>(EMPTY_SHIP_FORM);
+  const shipTags = useShipTags().data ?? [];
 
   /* eslint-disable react/set-state-in-effect -- reseed the form whenever the
      dialog opens so a previous draft never leaks into the next submission. */
@@ -146,19 +148,12 @@ export function ShipFormDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ship-vessel-type">{t("field.vesselType")}</Label>
-            <Select value={form.vesselType} onValueChange={v => v !== null && set("vesselType", v as ShipVesselType)}>
-              <SelectTrigger id="ship-vessel-type" className="w-full">
-                <SelectValue>
-                  {(v: string) => t(`vesselType.${v}` as const)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {SHIP_VESSEL_TYPES.map(vt => (
-                  <SelectItem key={vt} value={vt}>{t(`vesselType.${vt}` as const)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>{t("field.tags")}</Label>
+            <ShipTagsCombobox
+              value={form.tags}
+              onChange={tags => set("tags", tags)}
+              availableTags={shipTags.map(tag => tag.name)}
+            />
           </div>
 
           {mode === "edit" && (

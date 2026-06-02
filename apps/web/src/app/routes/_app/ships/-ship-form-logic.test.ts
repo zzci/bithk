@@ -18,7 +18,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     code: "HULL-1",
     name: "Serenity",
     status: "active",
-    vesselType: "motor_yacht",
+    tags: [],
     baseProjectId: "p1",
     model: "Custom 40",
     builder: "Acme Yards",
@@ -116,21 +116,23 @@ describe("shipFormFromView", () => {
     expect(form.lengthOverall).toBe("40.5");
   });
 
-  it("carries the vessel type through to the form", () => {
-    expect(shipFormFromView(ship({ vesselType: "catamaran" })).vesselType).toBe("catamaran");
+  it("carries the tag names through to the form", () => {
+    const form = shipFormFromView(ship({ tags: [{ id: "t1", name: "Refit" }, { id: "t2", name: "Survey" }] }));
+    expect(form.tags).toEqual(["Refit", "Survey"]);
   });
 });
 
 describe("shipFormToCreate", () => {
   it("trims the name and omits a blank code (API auto-generates it)", () => {
     const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "  Aurora  " });
-    expect(out).toEqual({ name: "Aurora", status: "active", vesselType: "other" });
+    expect(out).toEqual({ name: "Aurora", status: "active" });
     expect("code" in out).toBe(false);
   });
 
-  it("carries the selected vessel type", () => {
-    const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "Aurora", vesselType: "cargo" });
-    expect(out.vesselType).toBe("cargo");
+  it("carries selected tags and omits them when empty", () => {
+    expect("tags" in shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "Aurora" })).toBe(false);
+    const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "Aurora", tags: ["Refit"] });
+    expect(out.tags).toEqual(["Refit"]);
   });
 
   it("includes a non-blank trimmed code", () => {

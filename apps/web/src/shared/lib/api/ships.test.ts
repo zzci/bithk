@@ -20,6 +20,7 @@ import {
   useShipMaintenanceTemplates,
   useShipProjects,
   useShips,
+  useShipTags,
   useUnbindShipProject,
   useUpdateShip,
   useUpdateShipEquipment,
@@ -47,6 +48,8 @@ describe("shipKeys", () => {
   it("builds stable, scoped query keys", () => {
     expect(shipKeys.lists()).toEqual(["ships", "list"]);
     expect(shipKeys.list("active", "all", 2)).toEqual(["ships", "list", "active", "all", 2]);
+    expect(shipKeys.list("active", "t1", 2, "seren")).toEqual(["ships", "list", "active", "t1", 2, "seren"]);
+    expect(shipKeys.tags()).toEqual(["ships", "tags"]);
     expect(shipKeys.detail("s1")).toEqual(["ships", "detail", "s1"]);
     expect(shipKeys.projects("s1")).toEqual(["ships", "s1", "projects"]);
     expect(shipKeys.equipment("s1")).toEqual(["ships", "s1", "equipment"]);
@@ -71,15 +74,25 @@ describe("useShips", () => {
     expect(url).toContain("page=1");
   });
 
-  it("encodes the vessel-type filter", async () => {
+  it("encodes the tag filter", async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
       data: [],
       meta: { total: 0, page: 1, limit: 20 },
     }));
-    const { result } = renderHook(() => useShips({ status: "active", type: "catamaran", page: 1 }), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useShips({ status: "active", tagId: "t1", page: 1 }), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(String(fetchMock.mock.calls[0]![0])).toContain("type=catamaran");
+    expect(String(fetchMock.mock.calls[0]![0])).toContain("tagId=t1");
+  });
+});
+
+describe("useShipTags", () => {
+  it("fetches the ship tag vocabulary from /tags?type=ship", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [{ id: "t1", name: "Refit" }] }));
+    const { result } = renderHook(() => useShipTags(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain("/api/tags?type=ship");
   });
 });
 
