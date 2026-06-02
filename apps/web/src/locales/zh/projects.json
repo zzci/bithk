@@ -103,6 +103,7 @@
   "detail": {
     "notFound": "项目不存在或您无权访问。",
     "back": "返回项目列表",
+    "backToShip": "返回船舶",
     "breadcrumb": "项目面包屑",
     "loading": "正在加载项目...",
     "settings": "设置",

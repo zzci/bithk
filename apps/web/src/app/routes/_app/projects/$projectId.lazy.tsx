@@ -43,6 +43,10 @@ export const Route = createLazyFileRoute("/_app/projects/$projectId")({
 function ProjectDetailLayout() {
   const { t } = useTranslation(["projects", "common"]);
   const { projectId } = useParams({ from: "/_app/projects/$projectId" });
+  // `strict: false` reads the ship segment from whichever child is mounted: the
+  // `from/$shipId` route supplies it (entered from a ship), all other tab routes
+  // leave it undefined. Drives the back button's target + label below.
+  const { shipId: fromShipId } = useParams({ strict: false });
   const { settings: settingsParam } = useSearch({ from: "/_app/projects/$projectId" });
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -78,6 +82,16 @@ function ProjectDetailLayout() {
     void navigate({ to: PROJECT_TAB_TO[value], params: { projectId } });
   };
 
+  // Back button returns to the originating ship when the project was opened from
+  // one (`/projects/$projectId/from/$shipId`), otherwise to the project list.
+  const goBack = () => {
+    if (fromShipId)
+      void navigate({ to: "/ships/$shipId", params: { shipId: fromShipId } });
+    else
+      void navigate({ to: "/projects" });
+  };
+  const backLabel = fromShipId ? t("detail.backToShip") : t("detail.back");
+
   const [settingsOpen, setSettingsOpen] = useState(settingsParam ?? false);
 
   // Deep link from the project list (`?settings=true`) clears once the dialog
@@ -95,9 +109,9 @@ function ProjectDetailLayout() {
   if (projectQuery.error || !project) {
     return (
       <div className="flex flex-col gap-4">
-        <Button variant="ghost" onClick={() => void navigate({ to: "/projects" })}>
+        <Button variant="ghost" onClick={goBack}>
           <ArrowLeft aria-hidden="true" />
-          {t("detail.back")}
+          {backLabel}
         </Button>
         <ErrorBanner message={t("detail.notFound")} />
       </div>
@@ -111,10 +125,10 @@ function ProjectDetailLayout() {
       <Button
         variant="ghost"
         className="-ml-2 h-8 px-2 text-muted-foreground"
-        onClick={() => void navigate({ to: "/projects" })}
+        onClick={goBack}
       >
         <ArrowLeft aria-hidden="true" />
-        {t("detail.back")}
+        {backLabel}
       </Button>
 
       {/* Compact header — title + status, then creator/updated/tags inline on one meta row. */}

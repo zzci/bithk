@@ -103,6 +103,7 @@
   "detail": {
     "notFound": "Project not found or you do not have access.",
     "back": "Back to projects",
+    "backToShip": "Back to ship",
     "breadcrumb": "Project breadcrumb",
     "loading": "Loading project...",
     "settings": "Settings",
