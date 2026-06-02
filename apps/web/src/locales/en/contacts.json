@@ -15,6 +15,11 @@
     "searchPlaceholder": "Search company, person, or note",
     "statusAll": "All statuses",
     "visibilityAll": "All visibility",
+    "allConfidential": "All confidentiality",
+    "confidentialYes": "Confidential",
+    "confidentialNo": "Not confidential",
+    "total": "{{count}} contacts",
+    "colActions": "Actions",
     "kpi": {
       "total": "Total contacts",
       "active": "Active",

@@ -15,6 +15,11 @@
     "searchPlaceholder": "搜索公司、联系人或备注",
     "statusAll": "全部状态",
     "visibilityAll": "全部可见范围",
+    "allConfidential": "全部保密状态",
+    "confidentialYes": "保密",
+    "confidentialNo": "非保密",
+    "total": "{{count}} 个联系人",
+    "colActions": "操作",
     "kpi": {
       "total": "联系人总数",
       "active": "启用",
