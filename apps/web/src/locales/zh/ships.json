@@ -39,7 +39,7 @@
     "overview": "概览",
     "profile": "船体详情",
     "equipment": "设备",
-    "maintenance": "维护",
+    "worklist": "工作清单",
     "projects": "项目",
     "files": "文件"
   },
@@ -51,14 +51,12 @@
     "metrics": {
       "projects": "项目",
       "equipment": "设备",
-      "templates": "模板",
-      "workOrders": "工单"
+      "worklists": "工作清单"
     },
     "metricHints": {
       "projects": "{{base}} 个基础 + {{linked}} 个关联",
       "equipment": "{{count}} 项退役",
-      "templates": "{{count}} 个分类",
-      "workOrders": "{{count}} 个进行中"
+      "worklists": "{{count}} 个分类"
     }
   },
   "delete": {
@@ -105,8 +103,6 @@
     "noDescription": "暂无描述。",
     "notSet": "未设置",
     "archive": "船舶档案",
-    "upcomingMaintenance": "即将到期的维护",
-    "upcomingEmpty": "暂无进行中的维护工单。",
     "quickStats": "快捷统计",
     "boundProjects": "关联项目",
     "boundProjectsEmpty": "尚未绑定项目。",
@@ -159,60 +155,31 @@
       "retired": "退役"
     }
   },
-  "maintenance": {
-    "template": {
-      "title": "船舶维护模板",
-      "shortTitle": "模板",
-      "create": "新建模板",
-      "edit": "编辑模板",
-      "delete": "删除模板",
-      "loading": "正在加载维护模板…",
-      "empty": "暂无维护模板。",
-      "createTitle": "新建维护模板",
-      "editTitle": "编辑维护模板",
-      "dialogDescription": "定义该船舶维护工单使用的检查清单与注意事项。",
-      "deleteTitle": "删除维护模板",
-      "deleteConfirm": "确定删除“{{name}}”？现有工单会保留软引用。",
-      "copyFromGlobal": "从全局知识库复制",
-      "copyPlaceholder": "选择全局模板",
-      "copy": "复制模板",
-      "noChecklist": "暂无检查清单。",
-      "field": {
-        "name": "名称",
-        "category": "分类",
-        "checklist": "检查清单",
-        "precautions": "注意事项"
-      }
-    },
-    "workOrder": {
-      "title": "维护工单",
-      "shortTitle": "工单",
-      "create": "从模板开工单",
-      "createTitle": "开维护工单",
-      "createDescription": "在船舶基础项目中创建项目事项，并关联所选船舶模板。",
-      "loading": "正在加载维护工单…",
-      "empty": "暂无维护工单。",
-      "noBaseProject": "该船舶没有基础项目，无法创建工单。",
-      "view": "查看",
-      "selectTemplate": "选择模板",
-      "defaultTitle": "{{name}} 工单",
-      "field": {
-        "title": "标题",
-        "description": "描述",
-        "template": "模板",
-        "status": "状态",
-        "priority": "优先级",
-        "detail": "详情"
-      }
-    },
-    "reference": {
-      "empty": "暂无内容。",
-      "missing": "关联的维护模板已不可用。",
-      "missingShort": "模板不可用"
+  "worklist": {
+    "title": "工作清单",
+    "create": "新建工作清单",
+    "edit": "编辑工作清单",
+    "delete": "删除工作清单",
+    "loading": "正在加载工作清单…",
+    "empty": "暂无工作清单。",
+    "createTitle": "新建工作清单",
+    "editTitle": "编辑工作清单",
+    "dialogDescription": "定义该工作清单的检查清单与注意事项。",
+    "deleteTitle": "删除工作清单",
+    "deleteConfirm": "确定删除“{{name}}”？",
+    "copyFromGlobal": "从全局知识库复制",
+    "copyPlaceholder": "选择全局工作清单",
+    "copy": "复制工作清单",
+    "noChecklist": "暂无检查清单。",
+    "field": {
+      "name": "名称",
+      "category": "分类",
+      "checklist": "检查清单",
+      "precautions": "注意事项"
     }
   },
   "projects": {
-    "callout": "文件、权限与维护工单都挂在该船舶的基础项目下。基础项目不可解绑。",
+    "callout": "文件与权限都挂在该船舶的基础项目下。基础项目不可解绑。",
     "bindTitle": "绑定项目",
     "bindPlaceholder": "项目 ID",
     "bind": "绑定",

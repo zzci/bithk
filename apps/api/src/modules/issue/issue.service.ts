@@ -255,8 +255,8 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
       }).run();
     }
 
-    // Optional generic references (e.g. a maintenance_template that turns this
-    // issue into a work order). Soft references — no target validation here.
+    // Optional generic references (e.g. a worklist linked to this issue).
+    // Soft references — no target validation here.
     if (input.references && input.references.length > 0) {
       for (const row of buildReferenceRows(id, input.references, now))
         tx.insert(issueReferences).values(row).run();

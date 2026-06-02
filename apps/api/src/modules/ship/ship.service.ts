@@ -389,7 +389,7 @@ export async function updateShip(db: AppDatabase, shortId: string, input: Update
  * PLAN-011 Risk), every project linked to this ship — base project included —
  * is unbound (`projects.ship_id = null`) and the ship's `base_project_id` is
  * cleared. The cover image reference is released so its file ref-count is not
- * leaked. `ship_equipment` and ship-level `maintenance_templates` are left in
+ * leaked. `ship_equipment` and ship-level `worklists` are left in
  * place; they become unreachable with their soft-deleted ship.
  */
 export async function softDeleteShip(db: AppDatabase, config: FileServiceConfig, shortId: string): Promise<void> {

@@ -21,7 +21,7 @@ import { searchRoutes } from "@/modules/search";
 import { settingsRoutes } from "@/modules/settings";
 import { shareRoutes } from "@/modules/share";
 import { shipRoutes } from "@/modules/ship";
-import { maintenanceTemplateRoutes } from "@/modules/ship/ship.maintenance-template.service";
+import { worklistRoutes } from "@/modules/ship/ship.worklist.service";
 // Importing the tag module registers the `tags` backup contribution and exposes
 // `tagRoutes` (the shared typed-tag vocabulary). Each domain's `{ type }` binding
 // is wired into the tag registry here so the module never imports a domain schema.
@@ -51,7 +51,7 @@ export function protectedRoutes() {
   app.route("/", searchRoutes());
   app.route("/", shareRoutes());
   app.route("/", shipRoutes());
-  app.route("/", maintenanceTemplateRoutes()); // T3: global maintenance-template KB (admin only)
+  app.route("/", worklistRoutes()); // global worklist KB (admin only)
   app.route("/", settingsRoutes());
   app.route("/", auditRoutes());
   app.route("/", backupRoutes());

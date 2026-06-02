@@ -13,7 +13,7 @@ export const RECORD_STATUS_BADGE: Record<"active" | "archived", string> = {
   archived: "bg-muted text-muted-foreground",
 };
 
-/** Issue / maintenance-order status chip. */
+/** Issue status chip. */
 export const ISSUE_STATUS_BADGE: Record<IssueStatus, string> = {
   todo: "bg-warning/10 text-warning",
   working: "bg-info/10 text-info",
