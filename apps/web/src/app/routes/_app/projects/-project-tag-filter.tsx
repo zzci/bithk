@@ -56,6 +56,29 @@ type ProjectTagFilterProps = SingleSelectProps | MultiSelectProps;
 // Number of most-used tags pinned as inline toggle chips before the selector.
 const PINNED_COUNT = 5;
 
+// The component root is a shrinkable (`min-w-0`) flex item. In the projects-home
+// toolbar it shares a flex row with the status chips, so flexbox collapses it to
+// roughly a single chip width well before the row truly needs to wrap. Measuring
+// that starved box reports far less than the real available width, which made
+// `pinnedFitCount` drop every pinned chip (FIX-031 regression). Instead measure
+// the nearest ancestor that is WIDER than the (possibly collapsed) self: that
+// ancestor's width is driven by layout, not by our own chips, so it reflects the
+// true available space and cannot feed back into our content size (no observer
+// loop). When nothing is wider (the root already fills a block container, e.g.
+// the procurement tab) the root itself is already a faithful measure.
+function availableWidthSource(el: HTMLElement): HTMLElement {
+  const base = el.clientWidth;
+  let node = el.parentElement;
+  let hops = 0;
+  while (node && hops < 6) {
+    if (node.clientWidth > base + 1)
+      return node;
+    node = node.parentElement;
+    hops += 1;
+  }
+  return el;
+}
+
 interface RemovableChipProps {
   readonly tag: ProjectTag;
   readonly onRemove: (tagId: string) => void;
@@ -94,6 +117,9 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
     if (!el || typeof ResizeObserver === "undefined")
       return;
 
+    // Observe a non-starved, content-independent ancestor (see comment above)
+    // rather than the collapsible self, so the measured width is the real space.
+    const target = availableWidthSource(el);
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const width = entry.contentRect.width;
@@ -102,7 +128,7 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
           setFitCount(pinnedFitCount(width, tags.length));
       }
     });
-    observer.observe(el);
+    observer.observe(target);
     return () => observer.disconnect();
   }, [tags.length]);
 
