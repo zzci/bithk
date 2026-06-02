@@ -27,7 +27,7 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
 
 // Tag reference carried on procurement rows and detail (name resolved by the
 // API). Mirrors `IssueTagRef` (type='procurement').
-export interface ProcurementTagRef {
+interface ProcurementTagRef {
   readonly id: string;
   readonly name: string;
 }
@@ -70,7 +70,7 @@ export interface ProcurementRow {
   readonly version: number;
 }
 
-export interface ProcurementListMeta {
+interface ProcurementListMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;
@@ -88,7 +88,7 @@ export const procurementKeys = {
 };
 
 // Selectable procurement-tag vocabulary cache key (type=procurement).
-export const procurementTagKeys = {
+const procurementTagKeys = {
   vocabulary: ["tags", "procurement"] as const,
 };
 

@@ -80,7 +80,7 @@ export interface ShipProjectView extends ProjectView {
   readonly isBase: boolean;
 }
 
-export function composeShip(
+function composeShip(
   row: ShipRow,
   baseProjectShortId: string | null,
   coverImageUrl: string | null = null,

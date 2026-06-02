@@ -39,7 +39,7 @@ import {
   isMasked,
 } from "./-contact-form-logic";
 
-export type ContactPanelMode = "create" | "view" | "edit";
+type ContactPanelMode = "create" | "view" | "edit";
 
 const TEXT_FIELDS = ["contactPerson", "phone", "email", "address", "taxId"] as const;
 const CATEGORY_NONE = "__none__";

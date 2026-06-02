@@ -36,7 +36,7 @@ import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { RenameDialog } from "./-entry-create-dialogs";
 import { entryToDisplayItem } from "./-file-browser-types";
 
-export type DriveListSource = "recent" | "favorites" | "trash";
+type DriveListSource = "recent" | "favorites" | "trash";
 
 interface ListProps {
   readonly source: DriveListSource;

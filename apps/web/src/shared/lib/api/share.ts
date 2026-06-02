@@ -21,7 +21,7 @@ import { parseContentDispositionFilename } from "./drive";
 // ── Types ──
 
 export type ShareResourceType = "document" | "drive_entry";
-export type ShareType = "direct" | "public_link";
+type ShareType = "direct" | "public_link";
 export type SharePermission = "view" | "download" | "edit";
 
 /**
@@ -73,7 +73,7 @@ export interface PublicShareMeta {
 
 // ── Query keys ──
 
-export const shareKeys = {
+const shareKeys = {
   all: ["shares"] as const,
   capabilities: (type: ShareResourceType) => ["shares", "capabilities", type] as const,
   resource: (type: ShareResourceType, id: string) => ["shares", "resource", type, id] as const,
@@ -278,7 +278,7 @@ export interface PublicDocumentAttachment {
   readonly size: number;
 }
 
-export interface PublicDocumentBody {
+interface PublicDocumentBody {
   readonly id: string;
   readonly title: string;
   readonly content: string | null;

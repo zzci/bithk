@@ -91,7 +91,7 @@ export type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
 export type IssuePriority = "low" | "medium" | "high" | "urgent";
 
 // Tag reference carried on issue list rows and detail (name resolved by the API).
-export interface IssueTagRef {
+interface IssueTagRef {
   readonly id: string;
   readonly name: string;
 }
@@ -117,7 +117,7 @@ export interface ProjectIssueRow {
   readonly version: number;
 }
 
-export interface ListMeta {
+interface ListMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;
@@ -532,7 +532,7 @@ export interface CreateProjectIssueInput {
   readonly references?: readonly IssueReferenceInput[];
 }
 
-export interface IssueReferenceInput {
+interface IssueReferenceInput {
   readonly refType: "worklist" | "url" | "document";
   readonly refId: string;
   readonly label?: string | null;

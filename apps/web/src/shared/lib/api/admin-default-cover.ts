@@ -15,7 +15,7 @@ export interface DefaultCover {
   readonly url: string | null;
 }
 
-export const defaultCoverKeys = {
+const defaultCoverKeys = {
   all: ["admin", "project-default-cover"] as const,
 };
 
