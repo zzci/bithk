@@ -44,3 +44,4 @@
 | [PLAN-043](PLAN-043.md) | Unify tags into the central tag module | Implementing | 2026-05-31 |
 | [PLAN-044](PLAN-044.md) | Project module audit remediation (A–H) | Completed | 2026-06-01 |
 | [PLAN-045](PLAN-045.md) | Create-issue dialog optimization + priority icon refresh | Completed | 2026-06-02 |
+| [PLAN-046](PLAN-046.md) | Priority default low + unify status icon | Planned | 2026-06-02 |
