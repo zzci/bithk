@@ -71,7 +71,7 @@ describe("contact service", () => {
     const stranger = await seedUser("stranger-a");
     const view = await contactService.create(db, actor(owner), { name: "Private Co", visibility: "private" });
 
-    expect(await contactService.list(db, actor(stranger))).toEqual([]);
+    expect((await contactService.list(db, actor(stranger))).data).toEqual([]);
     await expect(contactService.get(db, actor(stranger), view.id))
       .rejects
       .toMatchObject({ statusCode: 404 });
@@ -90,7 +90,7 @@ describe("contact service", () => {
     expect(fetched.name).toBe("Public Co");
     expect(fetched.phone).toBe("123");
     expect(fetched.canManage).toBe(false);
-    expect((await contactService.list(db, actor(stranger))).map(c => c.id)).toEqual([view.id]);
+    expect((await contactService.list(db, actor(stranger))).data.map(c => c.id)).toEqual([view.id]);
   });
 
   test("explicit per-user viewer grant allows a stranger to read", async () => {
@@ -129,7 +129,7 @@ describe("contact service", () => {
 
     const fetched = await contactService.get(db, actor(member), view.id);
     expect(fetched.phone).toBe("456");
-    expect((await contactService.list(db, actor(member))).map(c => c.id)).toEqual([view.id]);
+    expect((await contactService.list(db, actor(member))).data.map(c => c.id)).toEqual([view.id]);
   });
 
   test("confidential public contacts mask implicit readers but not explicit viewers, owners, or admins", async () => {
@@ -177,8 +177,8 @@ describe("contact service", () => {
     const supplier = await contactService.create(db, actor(owner), { name: "Supplier", tags: ["supplier", "priority"] });
     const client = await contactService.create(db, actor(owner), { name: "Client", tags: ["client"] });
 
-    expect((await contactService.list(db, actor(owner), { tag: "supplier" })).map(c => c.id)).toEqual([supplier.id]);
-    expect((await contactService.list(db, actor(owner), { tag: "client" })).map(c => c.id)).toEqual([client.id]);
+    expect((await contactService.list(db, actor(owner), { tag: "supplier" })).data.map(c => c.id)).toEqual([supplier.id]);
+    expect((await contactService.list(db, actor(owner), { tag: "client" })).data.map(c => c.id)).toEqual([client.id]);
 
     const updated = await contactService.update(db, actor(owner), supplier.id, {
       name: "Supplier Updated",
@@ -186,8 +186,8 @@ describe("contact service", () => {
     });
     expect(updated.name).toBe("Supplier Updated");
     expect(updated.tags.map(t => t.name)).toEqual(["client"]);
-    expect((await contactService.list(db, actor(owner), { tag: "supplier" })).map(c => c.id)).toEqual([]);
-    expect((await contactService.list(db, actor(owner), { tag: "client" })).map(c => c.id).sort()).toEqual([client.id, supplier.id].sort());
+    expect((await contactService.list(db, actor(owner), { tag: "supplier" })).data.map(c => c.id)).toEqual([]);
+    expect((await contactService.list(db, actor(owner), { tag: "client" })).data.map(c => c.id).sort()).toEqual([client.id, supplier.id].sort());
   });
 
   test("revoke removes explicit access", async () => {
@@ -199,7 +199,7 @@ describe("contact service", () => {
     await expect(contactService.get(db, actor(viewer), view.id)).resolves.toMatchObject({ id: view.id });
     expect(await contactService.revoke(db, actor(owner), view.id, { type: "user", id: viewer })).toBe(true);
 
-    expect(await contactService.list(db, actor(viewer))).toEqual([]);
+    expect((await contactService.list(db, actor(viewer))).data).toEqual([]);
     await expect(contactService.get(db, actor(viewer), view.id))
       .rejects
       .toMatchObject({ statusCode: 404 });
@@ -252,6 +252,81 @@ describe("contact service", () => {
 
     // The unrelated contact's tag links remain intact (no stray cleanup ran).
     expect(await db.select().from(tagsRefs).where(eq(tagsRefs.resourceId, keep.id)).all()).toHaveLength(1);
+  });
+
+  test("q matches name, contactPerson, or note", async () => {
+    const owner = await seedUser("owner-a");
+    const byName = await contactService.create(db, actor(owner), { name: "Acme Industries" });
+    const byPerson = await contactService.create(db, actor(owner), { name: "Other Co", contactPerson: "Acme Bob" });
+    const byNote = await contactService.create(db, actor(owner), { name: "Third Co", note: "an acme supplier" });
+    await contactService.create(db, actor(owner), { name: "Unrelated" });
+
+    const hits = await contactService.list(db, actor(owner), { q: "acme" });
+    expect(hits.data.map(c => c.id).sort()).toEqual([byName.id, byPerson.id, byNote.id].sort());
+    expect(hits.total).toBe(3);
+  });
+
+  test("q escapes LIKE wildcards so they match literally", async () => {
+    const owner = await seedUser("owner-a");
+    const literal = await contactService.create(db, actor(owner), { name: "50% discount" });
+    await contactService.create(db, actor(owner), { name: "plain name" });
+
+    // Without escaping, '%' would match every row; escaped it matches only the literal.
+    const hits = await contactService.list(db, actor(owner), { q: "50%" });
+    expect(hits.data.map(c => c.id)).toEqual([literal.id]);
+  });
+
+  test("status filter narrows by contact status", async () => {
+    const owner = await seedUser("owner-a");
+    const active = await contactService.create(db, actor(owner), { name: "Active Co", status: "active" });
+    await contactService.create(db, actor(owner), { name: "Inactive Co", status: "inactive" });
+
+    const hits = await contactService.list(db, actor(owner), { status: "active" });
+    expect(hits.data.map(c => c.id)).toEqual([active.id]);
+  });
+
+  test("visibility filter narrows by visibility", async () => {
+    const owner = await seedUser("owner-a");
+    await contactService.create(db, actor(owner), { name: "Private Co", visibility: "private" });
+    const pub = await contactService.create(db, actor(owner), { name: "Public Co", visibility: "public" });
+
+    const hits = await contactService.list(db, actor(owner), { visibility: "public" });
+    expect(hits.data.map(c => c.id)).toEqual([pub.id]);
+  });
+
+  test("confidential filter narrows by confidential flag", async () => {
+    const owner = await seedUser("owner-a");
+    const secret = await contactService.create(db, actor(owner), { name: "Secret Co", confidential: true });
+    await contactService.create(db, actor(owner), { name: "Open Co", confidential: false });
+
+    const onlySecret = await contactService.list(db, actor(owner), { confidential: true });
+    expect(onlySecret.data.map(c => c.id)).toEqual([secret.id]);
+    const onlyOpen = await contactService.list(db, actor(owner), { confidential: false });
+    expect(onlyOpen.data.map(c => c.name)).toEqual(["Open Co"]);
+  });
+
+  test("pagination slices rows and reports the full total", async () => {
+    const owner = await seedUser("owner-a");
+    for (let i = 0; i < 5; i++)
+      await contactService.create(db, actor(owner), { name: `Co ${i}` });
+
+    const page1 = await contactService.list(db, actor(owner), { page: 1, limit: 2 });
+    expect(page1.data).toHaveLength(2);
+    expect(page1.total).toBe(5);
+
+    const page3 = await contactService.list(db, actor(owner), { page: 3, limit: 2 });
+    expect(page3.data).toHaveLength(1);
+    expect(page3.total).toBe(5);
+  });
+
+  test("omitting page returns the full set with total = row count", async () => {
+    const owner = await seedUser("owner-a");
+    for (let i = 0; i < 3; i++)
+      await contactService.create(db, actor(owner), { name: `Co ${i}` });
+
+    const all = await contactService.list(db, actor(owner));
+    expect(all.data).toHaveLength(3);
+    expect(all.total).toBe(3);
   });
 });
 

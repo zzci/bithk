@@ -278,6 +278,53 @@ describe("contact routes", () => {
     expect(((await clients.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Client Co"]);
   });
 
+  test("GET /contacts always returns a meta envelope (full-list mode)", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    await createdContact(app, owner, { name: "A Co" });
+    await createdContact(app, owner, { name: "B Co" });
+
+    const res = await app.request("/contacts", { headers: { "x-uid": owner } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: ContactView[]; meta: { total: number; page: number; limit: number } };
+    expect(body.data).toHaveLength(2);
+    expect(body.meta.total).toBe(2);
+    expect(body.meta.page).toBe(1);
+    expect(body.meta.limit).toBe(2);
+  });
+
+  test("GET /contacts paginates when page is provided", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    for (let i = 0; i < 3; i++)
+      await createdContact(app, owner, { name: `Co ${i}` });
+
+    const res = await app.request("/contacts?page=1&limit=2", { headers: { "x-uid": owner } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: ContactView[]; meta: { total: number; page: number; limit: number } };
+    expect(body.data).toHaveLength(2);
+    expect(body.meta).toEqual({ total: 3, page: 1, limit: 2 });
+  });
+
+  test("GET /contacts supports q, status, visibility, and confidential filters", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    await createdContact(app, owner, { name: "Acme Co", status: "active", visibility: "public", confidential: false });
+    await createdContact(app, owner, { name: "Other Co", status: "inactive", visibility: "private", confidential: true });
+
+    const byQ = await app.request("/contacts?q=acme", { headers: { "x-uid": owner } });
+    expect(((await byQ.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Acme Co"]);
+
+    const byStatus = await app.request("/contacts?status=inactive", { headers: { "x-uid": owner } });
+    expect(((await byStatus.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Other Co"]);
+
+    const byVisibility = await app.request("/contacts?visibility=public", { headers: { "x-uid": owner } });
+    expect(((await byVisibility.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Acme Co"]);
+
+    const byConfidential = await app.request("/contacts?confidential=true", { headers: { "x-uid": owner } });
+    expect(((await byConfidential.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Other Co"]);
+  });
+
   test("protected route registration exposes contact routes", async () => {
     const app = buildProtectedApp();
     const user = await seedUser("user-a");
