@@ -21,17 +21,20 @@ ordering set by FIX-030.
    most-used tags (up to `PINNED_COUNT=5`) must reliably show inline at normal
    widths; only genuinely narrow/overflow should shrink or drop pinned chips.
 
-2. **FIX-032** — On the projects home filter row, the `正常/已归档` status-chip
-   group must come FIRST and `<ProjectTagFilter>` must render to their RIGHT
-   (reversing FIX-030, which moved the tag filter to the front). Projects home
-   only; issues-tab order unchanged.
+2. **FIX-032** (revised) — On the projects home filter row, the filter CONTROLS
+   (标签 selector + pinned common-tag chips + `正常/已归档` status chips) stay on
+   the LEFT; only the newly-SELECTED removable × chips are pushed to the RIGHT
+   (right-aligned). Achieved by a home-only prop on `ProjectTagFilter` so
+   issues/procurement layout stays unchanged. Depends on FIX-031 (same file) —
+   serialized.
 
 ## Acceptance Criteria
 
 - Pinned common tags appear inline 常驻 at normal desktop width on projects
   home AND issues/procurement tabs (up to 5).
 - Responsive shrink still works on genuinely narrow widths.
-- Projects-home filter row order: status chips first, then tag filter.
+- Projects-home filter row: selector+pinned+status on the LEFT, selected
+  removable × chips right-aligned; issues/procurement layout unchanged.
 - `bun run check` passes (web + api tests green); no NEW failure beyond the
   known @milkdown flake and the foreign pagination-footer i18n red.
 
