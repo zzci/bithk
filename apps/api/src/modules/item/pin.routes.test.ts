@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
@@ -14,6 +15,7 @@ import { users } from "@/modules/account/users/schema";
 import { issueRoutes } from "@/modules/issue";
 import { createIssue } from "@/modules/issue/issue.service";
 import { itemRoutes } from "@/modules/item";
+import { items } from "@/modules/item/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { procurementRoutes } from "@/modules/procurement";
 import { createProcurement } from "@/modules/procurement/procurement.service";
@@ -209,10 +211,15 @@ describe("pinned-list (GET /projects/:projectId/pinned-items)", () => {
     const issue = await createIssue(db, { title: "Fix pump", projectId: project.id, creatorId: owner });
     const proc = await createProcurement(db, { projectId: project.id, itemName: "Steel", creatorId: owner });
 
-    // Pin the issue first, then the procurement, with a gap so pinnedAt differs.
+    // Pin both, then stamp explicit, distinct `pinnedAt` values directly on the
+    // backing item rows. `pinnedAt DESC` ordering is then deterministic without
+    // relying on a wall-clock gap between the two pin requests (which can land
+    // in the same millisecond and tie). procurement gets the later stamp, so it
+    // must sort first.
     await app.request(`/projects/${project.shortId}/issues/${issue.id}/pin`, jsonReq("POST", cookie));
-    await Bun.sleep(5);
     await app.request(`/projects/${project.shortId}/procurements/${proc.id}/pin`, jsonReq("POST", cookie));
+    await db.update(items).set({ pinnedAt: "2026-01-01T00:00:00.000Z" }).where(eq(items.shortId, issue.id)).run();
+    await db.update(items).set({ pinnedAt: "2026-01-01T00:00:01.000Z" }).where(eq(items.shortId, proc.id)).run();
 
     const res = await app.request(`/projects/${project.shortId}/pinned-items`, { headers: { Cookie: cookie } });
     expect(res.status).toBe(200);
