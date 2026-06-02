@@ -71,17 +71,6 @@ export const shipEquipment = sqliteTable("ship_equipment", {
   updatedAt: text("updated_at").notNull(),
 }, t => [index("ship_equipment_ship_idx").on(t.shipId)]);
 
-// Global, admin-maintained worklist categories. A standalone vocabulary that
-// seeds the worklist form's free-text `category` field as suggestions (no FK on
-// `worklists.category`). Mirrors `contactCategories` but without a `code`.
-export const worklistCategories = sqliteTable("worklist_categories", {
-  id: text("id").primaryKey(), // nanoid
-  name: text("name").notNull(),
-  description: text("description"),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-});
-
 // Worklists. `shipId` NULL = a global knowledge-base entry (copy source only);
 // a value = a ship-level copy the ship actually uses.
 export const worklists = sqliteTable("worklists", {

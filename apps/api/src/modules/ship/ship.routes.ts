@@ -38,14 +38,6 @@ import {
   updateShipWorklist,
   updateWorklistSchema,
 } from "./ship.worklist.service";
-import {
-  composeWorklistCategory,
-  createWorklistCategory,
-  deleteWorklistCategory,
-  listWorklistCategories,
-  resolveWorklistCategory,
-  updateWorklistCategory,
-} from "./worklist-category.service";
 
 const shipCoreShape = {
   tags: z.array(z.string()).optional(),
@@ -91,18 +83,6 @@ const listSchema = z.object({
 });
 
 const bindProjectSchema = z.object({ projectShortId: z.string().min(1) });
-
-const idSchema = z.string().min(1);
-
-const createWorklistCategorySchema = z.object({
-  name: z.string().min(1).max(255),
-  description: z.string().max(2000).nullable().optional(),
-});
-
-const updateWorklistCategorySchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  description: z.string().max(2000).nullable().optional(),
-}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
 const equipmentCoreShape = {
   category: z.string().max(255).nullable().optional(),
@@ -162,40 +142,6 @@ async function requireShipManage(c: Context<AppEnv>, shortId: string): Promise<{
 export function shipRoutes() {
   const router = new Hono<AppEnv>();
   router.use("*", authRequired);
-
-  // ─── Global worklist categories (admin only) ─────────────────────────
-  // A standalone, admin-maintained vocabulary that seeds the worklist form's
-  // free-text `category` field as suggestions (no FK; free text still allowed).
-  router.get("/worklist-categories", adminRequired, async (c) => {
-    const db = c.get("db");
-    return c.json({ success: true, data: (await listWorklistCategories(db)).map(composeWorklistCategory) });
-  });
-
-  router.post("/worklist-categories", adminRequired, async (c) => {
-    const db = c.get("db");
-    const body = createWorklistCategorySchema.parse(await c.req.json());
-    const category = await createWorklistCategory(db, body);
-    return c.json({ success: true, data: composeWorklistCategory(category) }, 201);
-  });
-
-  router.patch("/worklist-categories/:id", adminRequired, async (c) => {
-    const db = c.get("db");
-    const id = idSchema.parse(c.req.param("id"));
-    const body = updateWorklistCategorySchema.parse(await c.req.json());
-    const category = await updateWorklistCategory(db, id, body);
-    if (!category)
-      throw new NotFoundError("Worklist category", id);
-    return c.json({ success: true, data: composeWorklistCategory(category) });
-  });
-
-  router.delete("/worklist-categories/:id", adminRequired, async (c) => {
-    const db = c.get("db");
-    const id = idSchema.parse(c.req.param("id"));
-    const category = await resolveWorklistCategory(db, id);
-    if (!category || !await deleteWorklistCategory(db, id))
-      throw new NotFoundError("Worklist category", id);
-    return c.json({ success: true, data: null });
-  });
 
   // GET /ships — list. Admins see all; others see only ships whose base
   // project they belong to.

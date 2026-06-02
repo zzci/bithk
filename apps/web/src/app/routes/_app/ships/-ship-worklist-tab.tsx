@@ -5,13 +5,6 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/shared/components/ui/combobox";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
   Dialog,
@@ -39,7 +32,6 @@ import {
   useShipWorklists,
   useUpdateShipWorklist,
 } from "@/shared/lib/api/ships";
-import { useWorklistCategories } from "@/shared/lib/api/worklist-categories";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 
@@ -318,8 +310,8 @@ function WorklistDialog({
             <Input id="worklist-name" autoFocus required value={form.name} onChange={e => set("name", e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="worklist-category">{t("worklist.field.category")}</Label>
-            <WorklistCategoryCombobox value={form.category} onChange={value => set("category", value)} />
+            <Label htmlFor="worklist-cat">{t("worklist.field.category")}</Label>
+            <Input id="worklist-cat" placeholder={t("worklist.categoryPlaceholder")} value={form.category} onChange={e => set("category", e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="worklist-checklist">{t("worklist.field.checklist")}</Label>
@@ -341,46 +333,5 @@ function WorklistDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// Free-entry combobox for the worklist `category` field (OPTION b): the global
-// worklist-category vocabulary is offered as suggestions, but arbitrary free
-// text is still accepted. The form state stays a plain string — the combobox
-// only seeds suggestions, it does not constrain the value.
-export function WorklistCategoryCombobox({
-  value,
-  onChange,
-}: {
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-}) {
-  const { t } = useTranslation(["ships", "common"]);
-  const categoriesQuery = useWorklistCategories();
-  const names = useMemo(
-    () => [...new Set((categoriesQuery.data ?? []).map(c => c.name))],
-    [categoriesQuery.data],
-  );
-  const q = value.trim().toLowerCase();
-  const matches = q ? names.filter(n => n.toLowerCase().includes(q)) : names;
-
-  return (
-    <Combobox
-      items={matches}
-      inputValue={value}
-      onInputValueChange={onChange}
-      onValueChange={(next: string | null) => onChange(next ?? "")}
-    >
-      <ComboboxInput id="worklist-category" placeholder={t("worklist.categoryPlaceholder")} />
-      {matches.length > 0 && (
-        <ComboboxContent>
-          <ComboboxList>
-            {matches.map(name => (
-              <ComboboxItem key={name} value={name}>{name}</ComboboxItem>
-            ))}
-          </ComboboxList>
-        </ComboboxContent>
-      )}
-    </Combobox>
   );
 }
