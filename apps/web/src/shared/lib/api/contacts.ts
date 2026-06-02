@@ -7,10 +7,22 @@ interface ApiEnvelope<T> {
   readonly data: T;
 }
 
+interface ApiListEnvelope<T> {
+  readonly success: boolean;
+  readonly data: readonly T[];
+  readonly meta: { readonly total: number; readonly page: number; readonly limit: number };
+}
+
 // ── Types ──
 
 export type ContactStatus = "active" | "inactive";
 export type ContactVisibility = "private" | "public";
+
+export interface ContactListMeta {
+  readonly total: number;
+  readonly page: number;
+  readonly limit: number;
+}
 
 export interface ContactTagView {
   readonly id: string;
@@ -66,6 +78,7 @@ export const contactKeys = {
   all: ["contacts"] as const,
   lists: () => ["contacts", "list"] as const,
   list: (query: ContactsQuery = {}) => ["contacts", "list", query.tag ?? "all"] as const,
+  pagedList: (query: string) => ["contacts", "pagedList", query] as const,
   detail: (id: string) => ["contacts", "detail", id] as const,
 };
 
@@ -74,7 +87,54 @@ export const contactKeys = {
 export function useContacts(query: ContactsQuery = {}) {
   return useQuery({
     queryKey: contactKeys.list(query),
-    queryFn: () => http<ApiEnvelope<readonly ContactView[]>>(contactsPath(query)).then(r => r.data),
+    // Unwraps the paginated envelope but ignores `meta`: omitting `page` makes
+    // the backend return the full visible set, preserving the flat-array
+    // contract the supplier pickers depend on.
+    queryFn: () => http<ApiListEnvelope<ContactView>>(contactsPath(query)).then(r => r.data),
+    staleTime: 5_000,
+  });
+}
+
+export interface ContactsListQuery {
+  readonly q?: string | undefined;
+  readonly status?: ContactStatus | undefined;
+  readonly visibility?: ContactVisibility | undefined;
+  readonly confidential?: boolean | undefined;
+  readonly tag?: string | undefined;
+  readonly page?: number | undefined;
+  readonly limit?: number | undefined;
+}
+
+export interface ContactsListResult {
+  readonly data: readonly ContactView[];
+  readonly meta: ContactListMeta;
+}
+
+function contactsQueryString(query: ContactsListQuery): string {
+  const params = new URLSearchParams();
+  if (query.q)
+    params.set("q", query.q);
+  if (query.status)
+    params.set("status", query.status);
+  if (query.visibility)
+    params.set("visibility", query.visibility);
+  if (query.tag)
+    params.set("tag", query.tag);
+  if (query.confidential !== undefined)
+    params.set("confidential", query.confidential ? "true" : "false");
+  params.set("page", String(query.page ?? 1));
+  params.set("limit", String(query.limit ?? 20));
+  return params.toString();
+}
+
+export function useContactsList(query: ContactsListQuery = {}) {
+  const queryString = contactsQueryString(query);
+  return useQuery<ContactsListResult>({
+    queryKey: contactKeys.pagedList(queryString),
+    queryFn: async () => {
+      const res = await http<ApiListEnvelope<ContactView>>(`/contacts?${queryString}`);
+      return { data: res.data, meta: res.meta };
+    },
     staleTime: 5_000,
   });
 }
