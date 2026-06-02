@@ -7,7 +7,7 @@ import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
 import { shares } from "@/modules/share/schema";
 import { tagsRefs } from "@/modules/tag/schema";
-import { listResourceIdsByTag, listResourceTagViews, syncResourceTagsTx } from "@/modules/tag/tag.service";
+import { listResourceIdsByAnyTag, listResourceTagViews, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import {
@@ -80,11 +80,10 @@ export interface UpdateContactInput {
 }
 
 export interface ListContactsParams {
-  readonly tag?: string | undefined;
+  readonly tagIds?: readonly string[] | undefined;
+  readonly categoryId?: string | undefined;
   readonly q?: string | undefined;
   readonly status?: ContactStatus | undefined;
-  readonly visibility?: ContactVisibility | undefined;
-  readonly confidential?: boolean | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -174,19 +173,18 @@ export async function list(
     conditions.push(or(...access)!);
   }
 
-  if (params.tag) {
-    const ids = await listResourceIdsByTag(db, CONTACT_TAG_BINDING, params.tag);
+  // Multi-tag filter: union of contact ids carrying any of the selected tags.
+  if (params.tagIds && params.tagIds.length > 0) {
+    const ids = await listResourceIdsByAnyTag(db, CONTACT_TAG_BINDING, params.tagIds);
     if (ids.length === 0)
       return { data: [], total: 0 };
     conditions.push(inArray(contacts.id, ids));
   }
 
+  if (params.categoryId)
+    conditions.push(eq(contacts.categoryId, params.categoryId));
   if (params.status)
     conditions.push(eq(contacts.status, params.status));
-  if (params.visibility)
-    conditions.push(eq(contacts.visibility, params.visibility));
-  if (params.confidential !== undefined)
-    conditions.push(eq(contacts.confidential, params.confidential));
   if (params.q && params.q.length > 0) {
     const like = `%${escapeLike(params.q)}%`;
     conditions.push(sql`(${contacts.name} LIKE ${like} ESCAPE '\\' OR ${contacts.contactPerson} LIKE ${like} ESCAPE '\\' OR ${contacts.note} LIKE ${like} ESCAPE '\\')`);

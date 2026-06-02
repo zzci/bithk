@@ -59,11 +59,15 @@ is always returned on the contact view regardless of confidential masking.
 | ----- | ----------- |
 | `q` | Search across name, contact person, and note (matches the raw stored values, not the masked response fields). |
 | `status` | Filter by `active` or `inactive`. |
-| `visibility` | Filter by `private` or `public`. |
-| `confidential` | Filter by `true` or `false`. |
-| `tag` | Tag id or name. |
+| `tagIds` | Repeatable (`?tagIds=a&tagIds=b`) or comma-separated (`?tagIds=a,b`) tag ids or names. A contact carrying **any** of the listed tags matches (union/OR). Capped at 50 values. |
+| `categoryId` | Filter by contact category id. |
 | `page` | 1-based page number. When omitted, the full visible set is returned (no pagination applied). |
 | `limit` | Page size, default `20`, max `100`. |
+
+`visibility` and `confidential` are **not** user-facing list filters. They remain
+access-control attributes: `visibility` still drives who can see a contact and
+`confidential` still masks fields for implicit public viewers (see Permissions),
+but neither is accepted as a `GET /api/contacts` filter.
 
 Response envelope: `{ success, data, meta: { total, page, limit } }`. `data` is the
 array of visible contacts; `meta.total` is the total count matching the filters.

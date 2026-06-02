@@ -16,6 +16,7 @@ import { createTuple } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { protectedRoutes } from "@/routes/protected";
 import { errorHandler } from "@/shared/middleware/error-handler";
+import { createContactCategory } from "./contact-category.service";
 import { contactRoutes } from "./contact.routes";
 import "@/modules/account";
 
@@ -263,19 +264,27 @@ describe("contact routes", () => {
     expect(((await res.json()) as { data: ContactView }).data.phone).toBe("456");
   });
 
-  test("GET /contacts supports tag filtering", async () => {
+  test("GET /contacts filters by a multi-tag union (repeated + comma forms)", async () => {
     const app = buildContactApp();
     const owner = await seedUser("owner-a");
     await createdContact(app, owner, { name: "Supplier Co", tags: ["supplier", "priority"] });
     await createdContact(app, owner, { name: "Client Co", tags: ["client"] });
+    await createdContact(app, owner, { name: "Plain Co" });
 
-    const suppliers = await app.request("/contacts?tag=supplier", { headers: { "x-uid": owner } });
-    expect(suppliers.status).toBe(200);
-    expect(((await suppliers.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Supplier Co"]);
+    const single = await app.request("/contacts?tagIds=supplier", { headers: { "x-uid": owner } });
+    expect(single.status).toBe(200);
+    expect(((await single.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Supplier Co"]);
 
-    const clients = await app.request("/contacts?tag=client", { headers: { "x-uid": owner } });
-    expect(clients.status).toBe(200);
-    expect(((await clients.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Client Co"]);
+    // union via repeated params: a row carrying ANY selected tag matches.
+    const repeated = await app.request("/contacts?tagIds=supplier&tagIds=client", { headers: { "x-uid": owner } });
+    expect(repeated.status).toBe(200);
+    expect(((await repeated.json()) as { data: ContactView[] }).data.map(c => c.name).sort())
+      .toEqual(["Client Co", "Supplier Co"]);
+
+    // union via comma-separated form.
+    const comma = await app.request("/contacts?tagIds=supplier,client", { headers: { "x-uid": owner } });
+    expect(((await comma.json()) as { data: ContactView[] }).data.map(c => c.name).sort())
+      .toEqual(["Client Co", "Supplier Co"]);
   });
 
   test("GET /contacts always returns a meta envelope (full-list mode)", async () => {
@@ -306,11 +315,12 @@ describe("contact routes", () => {
     expect(body.meta).toEqual({ total: 3, page: 1, limit: 2 });
   });
 
-  test("GET /contacts supports q, status, visibility, and confidential filters", async () => {
+  test("GET /contacts supports q, status, and categoryId filters", async () => {
     const app = buildContactApp();
     const owner = await seedUser("owner-a");
-    await createdContact(app, owner, { name: "Acme Co", status: "active", visibility: "public", confidential: false });
-    await createdContact(app, owner, { name: "Other Co", status: "inactive", visibility: "private", confidential: true });
+    const cat = await createContactCategory(db, { name: "Suppliers" });
+    await createdContact(app, owner, { name: "Acme Co", status: "active", categoryId: cat.id });
+    await createdContact(app, owner, { name: "Other Co", status: "inactive" });
 
     const byQ = await app.request("/contacts?q=acme", { headers: { "x-uid": owner } });
     expect(((await byQ.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Acme Co"]);
@@ -318,11 +328,21 @@ describe("contact routes", () => {
     const byStatus = await app.request("/contacts?status=inactive", { headers: { "x-uid": owner } });
     expect(((await byStatus.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Other Co"]);
 
-    const byVisibility = await app.request("/contacts?visibility=public", { headers: { "x-uid": owner } });
-    expect(((await byVisibility.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Acme Co"]);
+    const byCategory = await app.request(`/contacts?categoryId=${cat.id}`, { headers: { "x-uid": owner } });
+    expect(((await byCategory.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Acme Co"]);
+  });
 
-    const byConfidential = await app.request("/contacts?confidential=true", { headers: { "x-uid": owner } });
-    expect(((await byConfidential.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Other Co"]);
+  test("GET /contacts ignores legacy visibility/confidential query params for filtering", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    await createdContact(app, owner, { name: "Pub Co", visibility: "public" });
+    await createdContact(app, owner, { name: "Priv Co", visibility: "private", confidential: true });
+
+    // These params are no longer user-facing filters; the owner still sees both rows.
+    const res = await app.request("/contacts?visibility=public&confidential=false", { headers: { "x-uid": owner } });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: ContactView[] }).data.map(c => c.name).sort())
+      .toEqual(["Priv Co", "Pub Co"]);
   });
 
   test("protected route registration exposes contact routes", async () => {
