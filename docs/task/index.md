@@ -92,4 +92,4 @@
 | [REFACTOR-016](REFACTOR-016.md) | Unify list toolbar (filters slot + search + create) | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
 | [FIX-031](FIX-031.md) | Tag-filter: reliably show pinned common tags at normal width | [PLAN-053](../plan/PLAN-053.md) | Superseded | 2026-06-02 |
 | [FIX-032](FIX-032.md) | Projects home: tag filter to the RIGHT of status chips | [PLAN-053](../plan/PLAN-053.md) | Superseded | 2026-06-02 |
-| [FIX-033](FIX-033.md) | Generic unified ListFilter component + projects-list adoption | [PLAN-054](../plan/PLAN-054.md) | Planned | 2026-06-02 |
+| [FIX-033](FIX-033.md) | Generic unified ListFilter component + projects-list adoption | [PLAN-054](../plan/PLAN-054.md) | Completed | 2026-06-02 |

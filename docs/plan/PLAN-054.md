@@ -1,6 +1,6 @@
 # PLAN-054 Generic unified "筛选" filter component + projects-list adoption
 
-- **status**: Planned
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 p57t0zqd
 - **campaignId**: l1-75ymcfnr-tagpos-20260602063716
 - **tasks**: [FIX-033](../task/FIX-033.md)
