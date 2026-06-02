@@ -48,3 +48,4 @@
 | [PLAN-047](PLAN-047.md) | Project list/dialog UI polish round | Completed | 2026-06-02 |
 | [PLAN-048](PLAN-048.md) | Tag-filter polish + projects-home label removal | Completed | 2026-06-02 |
 | [PLAN-049](PLAN-049.md) | Create-issue dialog staged-attachment list | Completed | 2026-06-02 |
+| [PLAN-050](PLAN-050.md) | Tag-filter pinned-chips + dropdown hybrid | Completed | 2026-06-02 |

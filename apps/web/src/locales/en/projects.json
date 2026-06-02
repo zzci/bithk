@@ -46,6 +46,7 @@
     "moreTags": "+{{count}}",
     "tagFilterMore": "Tags",
     "tagFilterMoreLabel": "Tags",
+    "tagFilterPinLabel": "Filter by {{name}}",
     "tagFilterSearchPlaceholder": "Search tags",
     "tagFilterNoMore": "No more tags",
     "kpi": {
