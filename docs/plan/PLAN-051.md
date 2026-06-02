@@ -307,6 +307,29 @@ Per list:
 - Verify: search still resets page where it did; create gated by the same
   permission; layout wraps on narrow widths; create now sits right of search.
 
+### 8. SearchCreateBar (REFACTOR-017)
+
+New `shared/components/search-create-bar.tsx`. Minimal toolbar for lists with no
+chip filters: a full-width search box on the left + a create button on the right
+(e.g. contacts). Composes `SearchInput`. For lists that need filter controls,
+use `ListToolbar` (§7) instead.
+
+Consumer: `contacts/index.lazy.tsx` toolbar. Replace its search `<div>` + create
+button with:
+
+```tsx
+<SearchCreateBar
+  search={{
+    value: search,
+    onChange: (v) => { setSearch(v); setPage(1); },
+    placeholder: t("list.searchPlaceholder"),
+  }}
+  create={canManage ? { label: t("list.create"), onClick: () => setCreateOpen(true) } : undefined}
+/>
+```
+
+Verify: search fills width, create on the right, page reset preserved.
+
 ### 6. tag-utils (REFACTOR-013)
 
 - `-project-form-logic.ts`: delete local `addTag`/`removeTag`, re-export from

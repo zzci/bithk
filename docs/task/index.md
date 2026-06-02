@@ -90,3 +90,4 @@
 | [FIX-029](FIX-029.md) | Issues tab: tag filter to front + remove label | [PLAN-052](../plan/PLAN-052.md) | Completed | 2026-06-02 |
 | [FIX-030](FIX-030.md) | Projects home: tag filter to front of filter row | [PLAN-052](../plan/PLAN-052.md) | Completed | 2026-06-02 |
 | [REFACTOR-016](REFACTOR-016.md) | Unify list toolbar (filters slot + search + create) | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
+| [REFACTOR-017](REFACTOR-017.md) | Add SearchCreateBar (search left + create right) | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
