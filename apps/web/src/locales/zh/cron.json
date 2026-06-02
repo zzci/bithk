@@ -20,7 +20,6 @@
   },
   "typeFilter": {
     "label": "分类",
-    "all": "全部分类",
     "cat": {
       "maintenance": "维护",
       "network": "网络",

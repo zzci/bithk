@@ -1,10 +1,7 @@
 {
   "nav": "Drive",
   "page": {
-    "title": "Drive",
-    "team": {
-      "back": "Back to directories"
-    }
+    "title": "Drive"
   },
   "sidebar": {
     "section": {
@@ -18,7 +15,6 @@
     "trash": "Trash",
     "sharedWithMe": "Shared with me",
     "sharedByMe": "Shared by me",
-    "teamDirectories": "Team directories",
     "empty": {
       "recent": "No recent files",
       "favorites": "No favorites yet",
@@ -43,15 +39,11 @@
     "searchPlaceholder": "Search files",
     "breadcrumbRoot": "Root",
     "dropHere": "Drop files to upload",
-    "selectAll": "Select all",
-    "selectEntry": "Select {{name}}",
     "selectedCount": "{{count}} selected",
     "deleteSelected": "Delete selected",
-    "clearSelection": "Clear",
     "viewGrid": "Grid view",
     "viewList": "List view",
     "filter": {
-      "type": "Filter by type",
       "typeLabel": "Type",
       "all": "All",
       "folders": "Folders",
@@ -68,11 +60,6 @@
       "source": "Source",
       "currentSource": "Current location"
     },
-    "status": {
-      "label": "View",
-      "files": "Files",
-      "trash": "Trash"
-    },
     "column": {
       "name": "Name",
       "owner": "Owner",
@@ -83,17 +70,14 @@
     "empty": {
       "folder": "No files or folders",
       "folderDesc": "Upload files or create a folder to get started",
-      "trash": "Trash is empty",
       "recentDesc": "Files you open will show up here",
       "favoritesDesc": "Star files to find them quickly",
       "trashDesc": "Items you delete land here before they are removed for good"
     },
     "action": {
       "more": "More actions",
-      "preview": "Preview",
       "download": "Download",
       "share": "Share",
-      "copyLink": "Copy link",
       "rename": "Rename",
       "move": "Move",
       "versions": "Version history",
@@ -131,13 +115,10 @@
   },
   "team": {
     "list": {
-      "title": "Team directories",
       "create": "New directory"
     },
     "col": {
       "name": "Name",
-      "members": "Members",
-      "role": "Role",
       "actions": "Actions"
     },
     "empty": "No team directories",
@@ -176,10 +157,8 @@
     }
   },
   "preview": {
-    "description": "File preview",
     "loading": "Loading preview…",
     "error": "Could not load this file.",
-    "pdfTitle": "PDF preview",
     "download": "Download",
     "unsupportedTitle": "Preview not available",
     "unsupportedDescription": "This file type can't be previewed. Download it to view.",
@@ -209,7 +188,6 @@
   "picker": {
     "title": "Select a file",
     "description": "Browse your drive and choose a file.",
-    "root": "My Drive",
-    "empty": "This folder is empty"
+    "root": "My Drive"
   }
 }

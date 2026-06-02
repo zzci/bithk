@@ -11,8 +11,6 @@
   "deleteTitle": "删除事项",
   "deleteConfirm": "确定要删除事项「{{title}}」吗？此操作无法撤销。",
   "searchPlaceholder": "按标题搜索...",
-  "allStatuses": "所有状态",
-  "allPriorities": "所有优先级",
   "statusTodo": "待办",
   "statusWorking": "进行中",
   "statusReview": "待审",
@@ -27,12 +25,8 @@
   "unassigned": "未分配",
   "notSet": "未设置",
   "col": {
-    "title": "标题",
     "status": "状态",
-    "priority": "优先级",
-    "assignee": "负责人",
     "creator": "创建人",
-    "dueDate": "截止日期",
     "createdAt": "创建时间",
     "actions": "操作"
   },

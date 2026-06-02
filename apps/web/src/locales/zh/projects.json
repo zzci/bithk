@@ -19,12 +19,7 @@
     "categoryUpdated": "分类已更新",
     "categoryDeleted": "分类已删除",
     "procurementCreated": "采购已创建",
-    "procurementUpdated": "采购已更新",
-    "procurementDeleted": "采购已删除",
-    "procurementStatusChanged": "采购状态已更新",
     "issueCreated": "工单已创建",
-    "issueUpdated": "工单已更新",
-    "issueDeleted": "工单已删除",
     "issuePinned": "工单已置顶",
     "issueUnpinned": "工单已取消置顶",
     "procurementPinned": "采购已置顶",
@@ -37,31 +32,16 @@
     "total": "{{count}} 个项目",
     "total_one": "{{count}} 个项目",
     "total_other": "{{count}} 个项目",
-    "filterByTag": "按标签筛选",
     "filter": "筛选",
     "filterRemove": "移除 {{label}}",
     "searchPlaceholder": "搜索项目",
     "openSettings": "项目设置",
-    "viewMode": "项目视图模式",
-    "viewGrid": "网格视图",
-    "viewList": "列表视图",
     "moreTags": "+{{count}}",
     "tagFilterMore": "标签",
     "tagFilterMoreLabel": "标签",
     "tagFilterPinLabel": "按 {{name}} 筛选",
     "tagFilterSearchPlaceholder": "搜索标签",
-    "tagFilterNoMore": "没有更多标签",
-    "kpi": {
-      "total": "项目总数",
-      "active": "正常项目",
-      "archived": "已归档",
-      "tags": "标签"
-    },
-    "col": {
-      "name": "名称",
-      "code": "编号",
-      "status": "状态"
-    }
+    "tagFilterNoMore": "没有更多标签"
   },
   "status": {
     "active": "正常",
@@ -93,11 +73,6 @@
     "namePlaceholder": "项目名称",
     "descriptionPlaceholder": "添加描述…"
   },
-  "edit": {
-    "title": "编辑项目",
-    "description": "更新项目详情。",
-    "submit": "保存"
-  },
   "delete": {
     "title": "删除项目",
     "confirm": "确定要删除项目“{{name}}”吗？此操作无法撤销。"
@@ -106,20 +81,14 @@
     "notFound": "项目不存在或您无权访问。",
     "back": "返回项目列表",
     "backToShip": "返回船舶",
-    "breadcrumb": "项目面包屑",
     "loading": "正在加载项目...",
     "settings": "设置",
     "copyCode": "复制项目编号",
     "codeCopied": "项目编号已复制",
-    "copyFailed": "复制项目编号失败",
-    "metrics": {
-      "issues": "工单",
-      "procurement": "采购"
-    }
+    "copyFailed": "复制项目编号失败"
   },
   "settings": {
     "title": "项目设置",
-    "description": "管理本项目的详情、成员和分类。",
     "tabs": {
       "general": "常规",
       "members": "成员",
@@ -136,10 +105,7 @@
     "files": "文件"
   },
   "overview": {
-    "creator": "创建者",
     "notSet": "未设置",
-    "noTags": "暂无标签。",
-    "updatedAt": "最近更新",
     "description": "描述",
     "noDescription": "暂无描述。",
     "pinned": "置顶",
@@ -156,41 +122,22 @@
     "viewAll": "查看全部"
   },
   "issues": {
-    "create": "创建工单",
     "createButton": "新建",
     "empty": "未找到工单。",
     "loading": "正在加载工单...",
     "searchPlaceholder": "搜索工单...",
     "tagFilter": "按标签筛选",
     "toggleSection": "折叠/展开分组",
-    "allPriorities": "全部优先级",
-    "viewMode": "工单视图模式",
-    "viewList": "列表视图",
-    "viewKanban": "看板视图",
     "emptyColumn": "暂无工单",
     "unassigned": "未分配",
-    "total": "{{count}} 个工单",
-    "total_one": "{{count}} 个工单",
-    "total_other": "{{count}} 个工单",
-    "col": {
-      "title": "标题",
-      "status": "状态",
-      "priority": "优先级",
-      "assignee": "负责人",
-      "dueDate": "截止日期"
-    },
     "field": {
       "title": "标题",
       "description": "描述",
       "descriptionPlaceholder": "添加描述...",
-      "priority": "优先级",
       "assignee": "负责人",
-      "dueDate": "截止日期",
-      "clearDueDate": "清除截止日期",
-      "project": "项目"
+      "dueDate": "截止日期"
     },
     "composer": {
-      "manualCreate": "手动创建",
       "titlePlaceholder": "issue 标题",
       "maximize": "最大化",
       "minimize": "还原",
@@ -200,7 +147,6 @@
       "submit": "创建 issue"
     },
     "createTitle": "创建工单",
-    "createDescription": "为该项目添加一个新工单。",
     "status": {
       "todo": "待办",
       "working": "进行中",
@@ -235,7 +181,6 @@
     "total_one": "{{count}} 条记录",
     "total_other": "{{count}} 条记录",
     "none": "无",
-    "mixedCurrencies": "多币种",
     "col": {
       "priority": "优先级",
       "id": "编号",
@@ -243,9 +188,7 @@
       "status": "状态",
       "amount": "金额",
       "category": "分类",
-      "supplier": "供应商",
-      "assignee": "负责人",
-      "actions": "操作"
+      "supplier": "供应商"
     },
     "field": {
       "itemName": "物品名称",
@@ -265,15 +208,6 @@
     "createTitle": "创建采购",
     "createDescription": "为该项目添加一条新的采购记录。",
     "changeStatus": "变更状态",
-    "pipeline": {
-      "title": "采购流程",
-      "description": "阶段汇总使用当前采购列表 API。",
-      "amount": "金额"
-    },
-    "delete": {
-      "title": "删除采购",
-      "confirm": "确定要删除“{{name}}”吗？此操作无法撤销。"
-    },
     "status": {
       "requested": "已申请",
       "ordered": "已下单",
@@ -291,7 +225,6 @@
     },
     "detail": {
       "title": "采购详情",
-      "description": "查看并编辑采购记录。",
       "backToList": "返回列表",
       "openFullPage": "打开全屏页面",
       "clickToEditTitle": "点击编辑",
@@ -310,10 +243,6 @@
   "members": {
     "add": "添加成员",
     "empty": "暂无成员。",
-    "loading": "正在加载成员...",
-    "tabDescription": "此处仅展示项目成员。成员与角色管理仍在项目设置中完成。",
-    "noRole": "无角色",
-    "joinedAt": "加入时间",
     "virtual": "虚拟",
     "col": {
       "member": "成员",
@@ -392,10 +321,6 @@
     "project.manage": "管理项目"
   },
   "capabilityGroup": {
-    "project": "项目",
-    "members": "成员",
-    "roles": "角色",
-    "categories": "分类",
     "procurement": "采购",
     "issue": "工单",
     "files": "文件"

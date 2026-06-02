@@ -5,8 +5,6 @@
   },
   "export": "Export CSV",
   "searchActor": "Filter by actor...",
-  "allActions": "All Actions",
-  "allResults": "All Results",
   "success": "Success",
   "failure": "Failure",
   "noResults": "No audit events found.",
