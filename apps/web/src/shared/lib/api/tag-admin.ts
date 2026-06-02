@@ -5,14 +5,10 @@
 
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ProjectTag } from "./projects";
+import type { ApiEnvelope } from "./types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 import { tagKeys } from "./projects";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
 
 export function useCreateTag(): UseMutationResult<ProjectTag, Error, { name: string }> {
   const queryClient = useQueryClient();

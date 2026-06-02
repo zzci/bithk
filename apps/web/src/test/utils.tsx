@@ -36,10 +36,6 @@ function AllProviders({ children, queryClient }: ProvidersProps) {
   );
 }
 
-export interface RenderWithProvidersResult {
-  readonly queryClient: QueryClient;
-}
-
 export function renderWithProviders(
   ui: ReactElement,
   options: RenderOptions & { queryClient?: QueryClient } = {},

@@ -168,4 +168,22 @@ describe("runSoftDeleteCleanup", () => {
     const result = await run({});
     expect(result).toMatch(/purged 3 soft-deleted jobs/);
   });
+
+  test("rejects a non-finite olderThanDays and deletes nothing", async () => {
+    const dead = await seedJob({ name: "dead", isDeleted: true });
+    // A hand-edited / corrupt config coerces to NaN. The old code let this
+    // null the cutoff and purge EVERY tombstone — it must throw instead.
+    expect(run({ olderThanDays: "abc" })).rejects.toThrow(/finite number >= 0/);
+
+    const row = await db.select().from(cronJobs).where(eq(cronJobs.id, dead)).get();
+    expect(row).toBeDefined();
+  });
+
+  test("rejects a negative olderThanDays and deletes nothing", async () => {
+    const dead = await seedJob({ name: "dead", isDeleted: true });
+    expect(run({ olderThanDays: -5 })).rejects.toThrow(/finite number >= 0/);
+
+    const row = await db.select().from(cronJobs).where(eq(cronJobs.id, dead)).get();
+    expect(row).toBeDefined();
+  });
 });

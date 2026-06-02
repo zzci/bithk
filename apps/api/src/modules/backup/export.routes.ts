@@ -189,9 +189,12 @@ export function backupExportRoutes() {
       }
     }
 
-    backupExportInFlight.add(bucket);
     const { modules, body } = streamJsonBackup(db, requestedModules);
     const timestamp = new Date().toISOString().replace(RE_TIMESTAMP_CHARS, "-").slice(0, 19);
+    // Audit is critical for this data-exfiltrating action: a failed write
+    // re-throws. Mark in-flight only after it succeeds so a thrown audit
+    // never leaks the semaphore (the marker is released when the stream
+    // below drains, which would never start on a throw here).
     await audit(db, c.get("logger"), {
       actorId: "system",
       actorName: "system:backup-sidecar",
@@ -203,7 +206,8 @@ export function backupExportRoutes() {
       ip: getClientIp(c),
       userAgent: c.req.header("user-agent") ?? "service-token",
       result: "success",
-    });
+    }, { critical: true });
+    backupExportInFlight.add(bucket);
     backupExportLastSuccess.set(bucket, Date.now());
     // Clear the in-flight marker after the stream actually drains. We
     // wrap the underlying ReadableStream so a client disconnect mid-
@@ -290,7 +294,7 @@ export function backupExportRoutes() {
       ip: getClientIp(c),
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
-    });
+    }, { critical: true });
 
     return new Response(stream, {
       headers: {
