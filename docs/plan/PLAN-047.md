@@ -3,7 +3,7 @@
 - **status**: In Progress
 - **owner**: l1-75ymcfnr / L2 vwfwi45t
 - **campaignId**: l1-75ymcfnr-uipolish-20260602015825
-- **tasks**: [FIX-020](../task/FIX-020.md), [FIX-021](../task/FIX-021.md), [FIX-022](../task/FIX-022.md)
+- **tasks**: [FIX-020](../task/FIX-020.md), [FIX-021](../task/FIX-021.md), [FIX-022](../task/FIX-022.md), [FIX-023](../task/FIX-023.md)
 - **createdAt**: 2026-06-02
 
 ## Goal
@@ -53,14 +53,27 @@ Rename the three ToolbarFilter `allLabel` values (shorter):
 Keys: `procurement.allStatuses` / `procurement.allPriorities` /
 `procurement.allCategories` in BOTH en and zh (parity guard stays green).
 
+### D — Projects home filter row unification (FIX-023) [scope addition v2]
+
+File: `index.lazy.tsx` + `locales/{en,zh}/projects.json` (new label key).
+
+Unify the projects-home filter bar into ONE "筛选:" chip row: leading label,
+正常/已归档 as tag-style chip buttons (count badges kept, toggle unchanged), the
+redesigned tag selector (from FIX-021) and removable selected tag chips — all
+one consistent chip visual. Behavior identical. deps=[B] (consumes B's
+ProjectTagFilter); disjoint file from A and C.
+
 ## DAG
 
 - A (FIX-020) deps=[] — `-project-issues-tab.tsx` + `projects.json` (issues.*)
 - B (FIX-021) deps=[] — tag-filter trio (no locale)
 - C (FIX-022) deps=[A] — `-project-procurement-tab.tsx` + `projects.json`
   (procurement.*). Serialized after A because both edit `projects.json`.
+- D (FIX-023) deps=[B] — `index.lazy.tsx` + `projects.json` (new label).
+  Consumes B's redesigned ProjectTagFilter; disjoint file from A/C so runs
+  parallel to A once B merges.
 
-A and B dispatch in parallel; C dispatches after A merges.
+A and B dispatch in parallel; C after A merges; D after B merges.
 
 ## Acceptance Criteria
 
