@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
@@ -19,12 +19,12 @@ import { getFilePermissionHook } from "./permission";
  * not leaked.
  */
 export function fileRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   router.get("/files/:id/metadata", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = c.req.param("id");
     const refId = c.req.query("ref");
     if (!refId)
@@ -62,7 +62,7 @@ export function fileRoutes() {
 
   router.get("/files/:id/content", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = c.req.param("id");
     const refId = c.req.query("ref");
     const wantInline = c.req.query("inline") === "true";

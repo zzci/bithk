@@ -5,6 +5,7 @@ import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError } from "@/shared/lib/errors";
+import { requireParam } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
 import { findShareAdapter } from "./adapter";
 import { SHARE_PERMISSIONS, SHARE_RESOURCE_TYPES } from "./schema";
@@ -100,7 +101,7 @@ export function shareRoutes() {
   // Resource-scoped list + create.
   router.get("/shares/:type/:id", async (c) => {
     const type = resourceTypeSchema.parse(c.req.param("type"));
-    const id = c.req.param("id")!;
+    const id = requireParam(c, "id");
     await requireAdapter(type).authorizeManage(c, id);
     return c.json({ success: true, data: await listSharesForResource(c.get("db"), type, id) });
   });
@@ -108,7 +109,7 @@ export function shareRoutes() {
   router.post("/shares/:type/:id", async (c) => {
     const user = c.get("user")!;
     const type = resourceTypeSchema.parse(c.req.param("type"));
-    const id = c.req.param("id")!;
+    const id = requireParam(c, "id");
     await requireAdapter(type).authorizeManage(c, id);
     const body = createShareSchema.parse(await c.req.json());
     const data = await createShare(c.get("db"), {
@@ -139,7 +140,7 @@ export function shareRoutes() {
   // Ownership-based update / revoke (only the share creator).
   router.patch("/shares/:shareId", async (c) => {
     const user = c.get("user")!;
-    const shareId = c.req.param("shareId")!;
+    const shareId = requireParam(c, "shareId");
     const body = updateShareSchema.parse(await c.req.json());
     const data = await updateShare(c.get("db"), shareId, user.id, body);
     await audit(c.get("db"), c.get("logger"), {
@@ -158,7 +159,7 @@ export function shareRoutes() {
 
   router.delete("/shares/:shareId", async (c) => {
     const user = c.get("user")!;
-    const shareId = c.req.param("shareId")!;
+    const shareId = requireParam(c, "shareId");
     await revokeShare(c.get("db"), shareId, user.id);
     await audit(c.get("db"), c.get("logger"), {
       actorId: user.id,

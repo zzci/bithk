@@ -7,6 +7,7 @@ import { audit } from "@/modules/audit/audit.service";
 import { buildDownloadResponse } from "@/modules/file";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError } from "@/shared/lib/errors";
+import { requireParam } from "@/shared/lib/route-params";
 import { findShareAdapter } from "./adapter";
 import { gatePublicShare, getPublicShareMeta, reserveDownload, toGateRow } from "./share.service";
 
@@ -79,7 +80,7 @@ export function sharePublicRoutes() {
   });
 
   async function download(c: Context<AppEnv>, childId: string | undefined) {
-    const token = c.req.param("token")!;
+    const token = requireParam(c, "token");
     const body = accessSchema.parse(await c.req.json().catch(() => ({})));
     const share = await gatePublicShare(c.get("db"), token, body.password);
     const adapter = requireAdapter(share.resourceType);

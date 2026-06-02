@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { DriveAccessActor } from "./drive.permission";
 import type { DriveOwner } from "./drive.service";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
@@ -114,8 +114,8 @@ function personalOwner(userId: string): DriveOwner {
   return { ownerType: "user", ownerId: userId };
 }
 
-function actorOf(c: Context<AppEnv>): DriveAccessActor {
-  const user = c.get("user")!;
+function actorOf(c: Context<ProtectedEnv>): DriveAccessActor {
+  const user = c.get("user");
   return { id: user.id, role: user.role };
 }
 
@@ -124,7 +124,7 @@ function actorOf(c: Context<AppEnv>): DriveAccessActor {
  * to the internal project ULID stored in `drive_entries.owner_id`. Fail-closed:
  * a missing / soft-deleted project surfaces as 404.
  */
-async function resolveProjectOwnerId(c: Context<AppEnv>, shortId: string): Promise<string> {
+async function resolveProjectOwnerId(c: Context<ProtectedEnv>, shortId: string): Promise<string> {
   const projectId = await resolveProjectId(c.get("db"), shortId);
   if (!projectId)
     throw new AppError("Project not found", 404, "NOT_FOUND");
@@ -132,7 +132,7 @@ async function resolveProjectOwnerId(c: Context<AppEnv>, shortId: string): Promi
 }
 
 export function driveRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // ── Listing / sidebar views (static paths registered before :id) ────────
@@ -154,13 +154,13 @@ export function driveRoutes() {
   });
 
   router.get("/drive/entries/recent", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const data = await listRecentDriveEntries(c.get("db"), user.id);
     return c.json({ success: true, data });
   });
 
   router.get("/drive/entries/favorites", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const data = await listFavoriteDriveEntries(c.get("db"), user.id);
     return c.json({ success: true, data });
   });
@@ -178,7 +178,7 @@ export function driveRoutes() {
   });
 
   router.delete("/drive/entries/trash", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const removed = await emptyDriveTrash(c.get("db"), c.get("config"), personalOwner(user.id));
     await audit(c.get("db"), c.get("logger"), {
       actorId: user.id,
@@ -195,7 +195,7 @@ export function driveRoutes() {
   });
 
   router.post("/drive/entries/text-file", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = createTextFileSchema.parse(await c.req.json());
     const owner = await resolveCreateOwner(c, body.ownerType, body.ownerId);
     const entry = await createDriveTextFile(c.get("db"), c.get("config"), {
@@ -219,7 +219,7 @@ export function driveRoutes() {
   });
 
   router.post("/drive/folders", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = createFolderSchema.parse(await c.req.json());
     const owner = await resolveCreateOwner(c, body.ownerType, body.ownerId);
     const entry = await createDriveFolder(c.get("db"), {
@@ -242,7 +242,7 @@ export function driveRoutes() {
   });
 
   router.post("/drive/files/upload", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const form = await c.req.formData();
     const file = form.get("file");
     if (!(file instanceof File))
@@ -310,7 +310,7 @@ export function driveRoutes() {
   });
 
   router.post("/drive/entries/:id/versions", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = entryIdSchema.parse(c.req.param("id"));
     const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
     const form = await c.req.formData();
@@ -338,7 +338,7 @@ export function driveRoutes() {
   });
 
   router.post("/drive/entries/:id/versions/:versionId/current", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = entryIdSchema.parse(c.req.param("id"));
     const versionId = entryIdSchema.parse(c.req.param("versionId"));
     const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
@@ -362,7 +362,7 @@ export function driveRoutes() {
   // `/shares/drive_entry/:id` and served via `/shared/:token`.
 
   router.patch("/drive/entries/:id", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = entryIdSchema.parse(c.req.param("id"));
     await driveAccess.assert(policyContext(c)!, "drive:update", id);
     const body = updateEntrySchema.parse(await c.req.json());
@@ -382,7 +382,7 @@ export function driveRoutes() {
   });
 
   router.post("/drive/entries/:id/restore", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = entryIdSchema.parse(c.req.param("id"));
     await driveAccess.assert(policyContext(c)!, "drive:update", id);
     const owner = await getEntryOwner(c.get("db"), id);
@@ -401,7 +401,7 @@ export function driveRoutes() {
   });
 
   router.delete("/drive/entries/:id/permanent", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = entryIdSchema.parse(c.req.param("id"));
     await driveAccess.assert(policyContext(c)!, "drive:delete", id);
     const owner = await getEntryOwner(c.get("db"), id);
@@ -420,7 +420,7 @@ export function driveRoutes() {
   });
 
   router.delete("/drive/entries/:id", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = entryIdSchema.parse(c.req.param("id"));
     await driveAccess.assert(policyContext(c)!, "drive:delete", id);
     const owner = await getEntryOwner(c.get("db"), id);
@@ -441,13 +441,13 @@ export function driveRoutes() {
   // ── Team directories ──────────────────────────────────────────────────
 
   router.get("/drive/team-directories", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const data = await listTeamDirectories(c.get("db"), user.id);
     return c.json({ success: true, data });
   });
 
   router.post("/drive/team-directories", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = createDirectorySchema.parse(await c.req.json());
     const data = await createTeamDirectory(c.get("db"), {
       name: body.name,
@@ -468,14 +468,14 @@ export function driveRoutes() {
   });
 
   router.get("/drive/team-directories/:id", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const directoryId = entryIdSchema.parse(c.req.param("id"));
     const data = await getTeamDirectory(c.get("db"), directoryId, user.id);
     return c.json({ success: true, data });
   });
 
   router.put("/drive/team-directories/:id", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const directoryId = entryIdSchema.parse(c.req.param("id"));
     const body = updateDirectorySchema.parse(await c.req.json());
     const data = await updateTeamDirectory(c.get("db"), directoryId, user.id, body);
@@ -493,7 +493,7 @@ export function driveRoutes() {
   });
 
   router.delete("/drive/team-directories/:id", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const directoryId = entryIdSchema.parse(c.req.param("id"));
     await deleteTeamDirectory(c.get("db"), directoryId, user.id);
     await audit(c.get("db"), c.get("logger"), {
@@ -510,14 +510,14 @@ export function driveRoutes() {
   });
 
   router.get("/drive/team-directories/:id/members", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const directoryId = entryIdSchema.parse(c.req.param("id"));
     const data = await listTeamMembers(c.get("db"), directoryId, user.id);
     return c.json({ success: true, data });
   });
 
   router.post("/drive/team-directories/:id/members", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const directoryId = entryIdSchema.parse(c.req.param("id"));
     const body = addMemberSchema.parse(await c.req.json());
     const data = await addTeamMember(c.get("db"), directoryId, user.id, body);
@@ -536,7 +536,7 @@ export function driveRoutes() {
   });
 
   router.put("/drive/team-directories/:id/members/:memberId", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const directoryId = entryIdSchema.parse(c.req.param("id"));
     const memberId = entryIdSchema.parse(c.req.param("memberId"));
     const body = updateMemberSchema.parse(await c.req.json());
@@ -556,7 +556,7 @@ export function driveRoutes() {
   });
 
   router.delete("/drive/team-directories/:id/members/:memberId", async (c) => {
-    const user = c.get("user")!;
+    const user = c.get("user");
     const directoryId = entryIdSchema.parse(c.req.param("id"));
     const memberId = entryIdSchema.parse(c.req.param("memberId"));
     await removeTeamMember(c.get("db"), directoryId, memberId, user.id);
@@ -585,11 +585,11 @@ export function driveRoutes() {
  * cannot read another user's drive.
  */
 async function resolveListOwner(
-  c: Context<AppEnv>,
+  c: Context<ProtectedEnv>,
   ownerType: "user" | "team_directory" | "project" | undefined,
   ownerId: string | undefined,
 ): Promise<DriveOwner> {
-  const user = c.get("user")!;
+  const user = c.get("user");
 
   if (ownerType === undefined || ownerType === "user") {
     if (ownerId && ownerId !== user.id)
@@ -626,11 +626,11 @@ async function resolveListOwner(
  * `user` path rejects a foreign `ownerId` so creation stays caller-scoped.
  */
 async function resolveCreateOwner(
-  c: Context<AppEnv>,
+  c: Context<ProtectedEnv>,
   ownerType: "user" | "team_directory" | "project" | undefined,
   ownerId: string | undefined,
 ): Promise<DriveOwner> {
-  const user = c.get("user")!;
+  const user = c.get("user");
 
   if (ownerType === undefined || ownerType === "user") {
     if (ownerId && ownerId !== user.id)
@@ -665,8 +665,8 @@ async function resolveCreateOwner(
  * caller's personal drive. A `team_directory` target requires the caller to
  * be an editor or admin of that directory.
  */
-async function resolveUploadOwner(c: Context<AppEnv>, form: FormData): Promise<DriveOwner> {
-  const user = c.get("user")!;
+async function resolveUploadOwner(c: Context<ProtectedEnv>, form: FormData): Promise<DriveOwner> {
+  const user = c.get("user");
   const ownerTypeRaw = form.get("ownerType");
   const ownerIdRaw = form.get("ownerId");
 

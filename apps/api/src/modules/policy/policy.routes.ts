@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { listGroups } from "@/modules/account/groups/groups.service";
@@ -58,7 +58,7 @@ const batchSchema = z.object({
 });
 
 export function policyRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   // GET /policy/tuples — list relation tuples (admin)
   router.get("/policy/tuples", authRequired, adminRequired, async (c) => {
@@ -88,7 +88,7 @@ export function policyRoutes() {
   // POST /policy/tuples — create relation tuple (admin)
   router.post("/policy/tuples", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = tupleSchema.parse(await c.req.json());
 
     // Auto-fill subjectRelation for group subjects
@@ -118,7 +118,7 @@ export function policyRoutes() {
   // DELETE /policy/tuples/:id — delete relation tuple (admin)
   router.delete("/policy/tuples/:id", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = c.req.param("id");
 
     const existing = await getTupleById(db, id);
@@ -146,7 +146,7 @@ export function policyRoutes() {
   // PATCH /policy/tuples/:id — update relation tuple (admin)
   router.patch("/policy/tuples/:id", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = c.req.param("id");
 
     const existing = await getTupleById(db, id);
@@ -189,7 +189,7 @@ export function policyRoutes() {
   // POST /policy/tuples/batch — batch create/delete tuples (admin)
   router.post("/policy/tuples/batch", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = batchSchema.parse(await c.req.json());
 
     const created = body.create ? await batchCreateTuples(db, body.create, user.id) : [];
@@ -317,7 +317,7 @@ export function policyRoutes() {
 
   router.post("/policy/resource-groups", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = z.object({
       name: z.string().min(1).max(100),
       description: z.string().max(500).nullable().default(null),
@@ -342,7 +342,7 @@ export function policyRoutes() {
 
   router.patch("/policy/resource-groups/:id", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = c.req.param("id");
     const body = z.object({
       name: z.string().min(1).max(100),
@@ -368,7 +368,7 @@ export function policyRoutes() {
 
   router.delete("/policy/resource-groups/:id", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const id = c.req.param("id");
 
     const deleted = await deleteResourceGroup(db, id);
@@ -399,7 +399,7 @@ export function policyRoutes() {
 
   router.post("/policy/resource-groups/:id/members", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const groupId = c.req.param("id");
     const body = z.object({
       namespace: z.string().min(1),
@@ -425,7 +425,7 @@ export function policyRoutes() {
 
   router.delete("/policy/resource-groups/:id/members/:tupleId", authRequired, adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const groupId = c.req.param("id");
     const tupleId = c.req.param("tupleId");
 

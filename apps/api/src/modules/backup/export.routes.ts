@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
@@ -27,7 +27,7 @@ function tokenBucketKey(token: string): string {
 const RE_TIMESTAMP_CHARS = /[:.]/g;
 
 export function backupExportRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   // Service-token export — for automated sidecar / cron jobs. Skips the
   // session-cookie + DEK-challenge dance (the sidecar has no master
@@ -156,7 +156,7 @@ export function backupExportRoutes() {
 
   router.post("/backup/export", adminRequired, async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
 
     const bodySchema = z.object({
       modules: z.array(z.string()).min(1),

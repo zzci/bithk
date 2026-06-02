@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -38,7 +38,7 @@ const updateBodySchema = z.object({
 });
 
 export function userRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   router.use("*", authRequired);
 
@@ -46,7 +46,7 @@ export function userRoutes() {
 
   router.get("/account/me", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const userGroupsList = await getUserGroups(db, user.id);
 
     return c.json({
@@ -68,14 +68,14 @@ export function userRoutes() {
 
   router.get("/account/me/groups", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const userGroupsList = await getUserGroups(db, user.id);
     return c.json({ success: true, data: userGroupsList });
   });
 
   router.get("/account/me/preferences/:key", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const key = c.req.param("key");
 
     const row = await db.select()
@@ -94,7 +94,7 @@ export function userRoutes() {
 
   router.put("/account/me/preferences/:key", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const key = c.req.param("key");
 
     let raw: unknown;
@@ -127,7 +127,7 @@ export function userRoutes() {
 
   router.get("/account/me/totp", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const devices = await listTotpDevices(db, user.id);
     return c.json({ success: true, data: devices });
   });
@@ -135,7 +135,7 @@ export function userRoutes() {
   router.post("/account/me/totp", async (c) => {
     const db = c.get("db");
     const config = c.get("config");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = z.object({ name: z.string().min(1).max(100) }).parse(await c.req.json());
     const result = await createTotpDevice(db, user.id, body.name, user.username, config.APP_DISPLAY_NAME);
     await audit(db, c.get("logger"), {
@@ -154,7 +154,7 @@ export function userRoutes() {
 
   router.post("/account/me/totp/:deviceId/confirm", rateLimit({ windowMs: 5 * 60 * 1000, max: 10, bucket: "totp-stepup" }), async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const deviceId = c.req.param("deviceId");
 
     // Bootstrap exception: if the user has no verified device yet, the very
@@ -201,7 +201,7 @@ export function userRoutes() {
 
   router.delete("/account/me/totp/:deviceId", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const deviceId = c.req.param("deviceId");
 
     // Once any device is verified, deletion is a sensitive op and must be
@@ -233,7 +233,7 @@ export function userRoutes() {
 
   router.post("/account/me/totp/verify", rateLimit({ windowMs: 5 * 60 * 1000, max: 10, bucket: "totp-stepup" }), async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = z.object({ code: z.string().length(6) }).parse(await c.req.json());
     const ok = await verifyTotpCode(db, user.id, body.code);
     if (!ok)
@@ -295,7 +295,7 @@ export function userRoutes() {
     const db = c.get("db");
     const id = c.req.param("id");
 
-    const currentUser = c.get("user")!;
+    const currentUser = c.get("user");
     if (id === currentUser.id) {
       throw new AppError("Cannot modify your own account", 403, "FORBIDDEN");
     }

@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { NotFoundError } from "@/shared/lib/errors";
@@ -14,7 +14,7 @@ const tagTypeSchema = z.enum(TAG_TYPES).default("project");
 const tagNameSchema = z.object({ name: z.string().min(1).max(50), type: tagTypeSchema });
 
 export function tagRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // GET /tags[?type=] — typed tag vocabulary with usage counts (for the list

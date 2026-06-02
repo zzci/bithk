@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
@@ -17,6 +17,7 @@ import { setItemPinned } from "@/modules/item/item.service";
 import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { requireParam } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
 import {
   createIssue,
@@ -88,9 +89,9 @@ function parseTagIds(raw: string[] | undefined): string[] {
  * a member without `issue.view` all surface as 404 so project membership and
  * project-issue existence are never leaked.
  */
-async function requireProjectMember(c: Context<AppEnv>, shortId: string): Promise<string> {
+async function requireProjectMember(c: Context<ProtectedEnv>, shortId: string): Promise<string> {
   const db = c.get("db");
-  const user = c.get("user")!;
+  const user = c.get("user");
   const projectId = await resolveProjectId(db, shortId);
   if (!projectId)
     throw new NotFoundError("Project", shortId);
@@ -110,11 +111,11 @@ async function requireProjectMember(c: Context<AppEnv>, shortId: string): Promis
  * fail-closed 404. Returns the resolved internal project id, the `items` row,
  * and the actor's access flags.
  */
-async function loadProjectIssue(c: Context<AppEnv>) {
+async function loadProjectIssue(c: Context<ProtectedEnv>) {
   const db = c.get("db");
-  const user = c.get("user")!;
-  const projectShort = c.req.param("projectId")!;
-  const issueShort = c.req.param("id")!;
+  const user = c.get("user");
+  const projectShort = requireParam(c, "projectId");
+  const issueShort = requireParam(c, "id");
   const projectId = await requireProjectMember(c, projectShort);
 
   const item = await resolveIssueItem(db, issueShort);
@@ -130,7 +131,7 @@ async function loadProjectIssue(c: Context<AppEnv>) {
 }
 
 export function issueRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // ─── List ──────────────────────────────────────────────────────────
@@ -160,7 +161,7 @@ export function issueRoutes() {
     const shortId = c.req.param("projectId");
     const projectId = await requireProjectMember(c, shortId);
     const db = c.get("db");
-    const actor = c.get("user")!;
+    const actor = c.get("user");
     // App admins bypass capability checks.
     if (actor.role !== "admin") {
       const caps = await getMemberCapabilities(db, projectId, actor.id);

@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import type { ProjectCapability } from "./schema";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
@@ -137,8 +137,8 @@ const updateCategorySchema = z.object({
   description: z.string().max(2000).nullable().optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
-function actorId(c: Context<AppEnv>): string {
-  return c.get("user")!.id;
+function actorId(c: Context<ProtectedEnv>): string {
+  return c.get("user").id;
 }
 
 /**
@@ -185,7 +185,7 @@ interface ProjectAccess {
  * missing project or non-member both surface as 404 so membership is not leaked.
  */
 async function requireProject(
-  c: Context<AppEnv>,
+  c: Context<ProtectedEnv>,
   shortId: string,
   capability?: ProjectCapability,
 ): Promise<ProjectAccess> {
@@ -193,7 +193,7 @@ async function requireProject(
   const projectId = await resolveProjectId(db, shortId);
   if (!projectId)
     throw new NotFoundError("Project", shortId);
-  if (c.get("user")!.role === "admin")
+  if (c.get("user").role === "admin")
     return { projectId, capabilities: new Set(PROJECT_CAPABILITIES) };
   const caps = await getMemberCapabilities(db, projectId, actorId(c));
   if (caps === null)
@@ -204,7 +204,7 @@ async function requireProject(
 }
 
 export function projectRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // ─── Global procurement categories (admin only) ────────────────────
@@ -274,7 +274,7 @@ export function projectRoutes() {
   // GET /projects — list. Admins see all; others see only projects they belong to.
   router.get("/projects", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const query = listSchema.parse({
       status: c.req.query("status"),
       q: c.req.query("q"),

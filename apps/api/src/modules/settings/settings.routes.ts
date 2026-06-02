@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
@@ -32,7 +32,7 @@ function validateSettingKey(key: string): void {
 }
 
 export function settingsRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   router.use("*", authRequired);
 
@@ -65,7 +65,7 @@ export function settingsRoutes() {
     const key = c.req.param("key");
     validateSettingKey(key);
     const body = putSettingSchema.parse(await c.req.json());
-    const user = c.get("user")!;
+    const user = c.get("user");
 
     // Reject saving the masked placeholder for sensitive keys
     if (isSensitiveKey(key) && body.value === MASKED_VALUE) {
@@ -103,7 +103,7 @@ export function settingsRoutes() {
     const db = c.get("db");
     const key = c.req.param("key");
     validateSettingKey(key);
-    const user = c.get("user")!;
+    const user = c.get("user");
 
     const deleted = await deleteSetting(db, key);
     if (!deleted) {

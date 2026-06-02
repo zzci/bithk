@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
@@ -78,11 +78,11 @@ function parseTagIds(raw: string[] | undefined): string[] {
   return [...out].slice(0, 50);
 }
 
-function actorId(c: Context<AppEnv>): string {
-  return c.get("user")!.id;
+function actorId(c: Context<ProtectedEnv>): string {
+  return c.get("user").id;
 }
 
-function auditMeta(c: Context<AppEnv>) {
+function auditMeta(c: Context<ProtectedEnv>) {
   return {
     ip: getClientIp(c),
     userAgent: c.req.header("user-agent") ?? "unknown",
@@ -96,13 +96,13 @@ function auditMeta(c: Context<AppEnv>) {
  * project's existence nor its procurement list/detail leaks. `needManage`
  * additionally requires the `procurement.manage` capability for mutations.
  */
-async function requireProcurementAccess(c: Context<AppEnv>, projectShortId: string, needManage = false): Promise<string> {
+async function requireProcurementAccess(c: Context<ProtectedEnv>, projectShortId: string, needManage = false): Promise<string> {
   const db = c.get("db");
   const projectId = await resolveProjectId(db, projectShortId);
   if (!projectId)
     throw new NotFoundError("Project", projectShortId);
   // App admins bypass project membership and procurement capabilities entirely.
-  if (c.get("user")!.role === "admin")
+  if (c.get("user").role === "admin")
     return projectId;
   if (!await isProjectMember(db, projectId, actorId(c)))
     throw new NotFoundError("Project", projectShortId);
@@ -121,7 +121,7 @@ async function requireProcurementAccess(c: Context<AppEnv>, projectShortId: stri
  * the procurement belongs to that project. Returns the project ULID and the
  * procurement row. Fail-closed 404 on any mismatch.
  */
-async function requireProcurement(c: Context<AppEnv>, projectShortId: string, procurementShortId: string, needManage = false) {
+async function requireProcurement(c: Context<ProtectedEnv>, projectShortId: string, procurementShortId: string, needManage = false) {
   const projectId = await requireProcurementAccess(c, projectShortId, needManage);
   const db = c.get("db");
   const procurement = await getProcurementByShortId(db, procurementShortId);
@@ -133,7 +133,7 @@ async function requireProcurement(c: Context<AppEnv>, projectShortId: string, pr
 }
 
 export function procurementRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // ─── List ──────────────────────────────────────────────────────────
@@ -208,7 +208,7 @@ export function procurementRoutes() {
   router.post("/projects/:projectId/procurements/:id/status", async (c) => {
     const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"), true);
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = statusSchema.parse(await c.req.json());
     const updated = await changeStatus(
       db,

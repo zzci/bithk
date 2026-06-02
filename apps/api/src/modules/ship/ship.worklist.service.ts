@@ -1,5 +1,5 @@
 import type { AppDatabase } from "@/db";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -236,7 +236,7 @@ export const createShipWorklistSchema = z.object({
 // ─── Global knowledge-base router (admin only; mounted in protected.ts) ──────
 
 export function worklistRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
   router.use("*", adminRequired);
 

@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { listActiveUsers } from "@/modules/account/users/users.service";
@@ -18,6 +18,7 @@ import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { NOOP_POLICY_LOGGER, policyContext } from "@/modules/policy";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
+import { requireParam } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
 import { documentAccess } from "./document.permission";
 import {
@@ -72,7 +73,7 @@ function auditMeta(c: Context) {
 }
 
 async function assertMoveTargetAllowed(
-  c: Context<AppEnv>,
+  c: Context<ProtectedEnv>,
   movingShortId: string,
   targetParentShortId: string | null,
 ) {
@@ -90,7 +91,7 @@ async function assertMoveTargetAllowed(
 }
 
 async function assertParentTargetAllowed(
-  c: Context<AppEnv>,
+  c: Context<ProtectedEnv>,
   targetParentShortId: string | null | undefined,
 ) {
   if (!targetParentShortId)
@@ -108,12 +109,12 @@ export function documentRoutes() {
   // Pure Hono. Permission enforcement comes from the global
   // `policyMiddleware` mounted in `app.ts`, driven by the route table
   // declared in `document.permission.ts`.
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   router.get("/documents", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const q = c.req.query("q");
     const tag = c.req.query("tag");
     const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
@@ -132,7 +133,7 @@ export function documentRoutes() {
 
   router.get("/documents/tree", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const data = await getDocumentTreeForUser(db, user);
     return c.json({ success: true, data });
   });
@@ -158,7 +159,7 @@ export function documentRoutes() {
   router.post("/documents", async (c) => {
     const db = c.get("db");
     const body = createSchema.parse(await c.req.json());
-    const actor = c.get("user")!;
+    const actor = c.get("user");
     await assertParentTargetAllowed(c, body.parentId);
     const doc = await createDocument(db, { ...body, creatorId: actor.id });
     await audit(db, c.get("logger"), {
@@ -176,7 +177,7 @@ export function documentRoutes() {
 
   router.get("/documents/:id", async (c) => {
     const db = c.get("db");
-    const id = c.req.param("id")!;
+    const id = requireParam(c, "id");
     const doc = await getDocumentById(db, id);
     if (!doc)
       throw new NotFoundError("Document", id);
@@ -197,8 +198,8 @@ export function documentRoutes() {
 
   router.patch("/documents/:id", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id")!;
+    const user = c.get("user");
+    const id = requireParam(c, "id");
     const existing = await getDocumentById(db, id);
     if (!existing)
       throw new NotFoundError("Document", id);
@@ -247,8 +248,8 @@ export function documentRoutes() {
 
   router.patch("/documents/:id/move", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id")!;
+    const user = c.get("user");
+    const id = requireParam(c, "id");
     const existing = await getDocumentById(db, id);
     if (!existing)
       throw new NotFoundError("Document", id);
@@ -277,8 +278,8 @@ export function documentRoutes() {
 
   router.delete("/documents/:id", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id")!;
+    const user = c.get("user");
+    const id = requireParam(c, "id");
     const existing = await getDocumentById(db, id);
     if (!existing)
       throw new NotFoundError("Document", id);
@@ -339,8 +340,8 @@ export function documentRoutes() {
 
   router.put("/documents/:id/pin", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id")!;
+    const user = c.get("user");
+    const id = requireParam(c, "id");
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
@@ -355,8 +356,8 @@ export function documentRoutes() {
 
   router.delete("/documents/:id/pin", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id")!;
+    const user = c.get("user");
+    const id = requireParam(c, "id");
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
@@ -371,8 +372,8 @@ export function documentRoutes() {
 
   router.post("/documents/:id/attachments", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id")!;
+    const user = c.get("user");
+    const id = requireParam(c, "id");
     const doc = await getDocumentById(db, id);
     if (!doc)
       throw new NotFoundError("Document", id);
@@ -418,7 +419,7 @@ export function documentRoutes() {
 
   router.get("/documents/:id/attachments", async (c) => {
     const db = c.get("db");
-    const id = c.req.param("id")!;
+    const id = requireParam(c, "id");
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
@@ -431,8 +432,8 @@ export function documentRoutes() {
 
   router.get("/documents/:id/attachments/:aid", async (c) => {
     const db = c.get("db");
-    const id = c.req.param("id")!;
-    const aid = c.req.param("aid")!;
+    const id = requireParam(c, "id");
+    const aid = requireParam(c, "aid");
     const item = await resolveDocumentItem(db, id);
     if (!item)
       throw new NotFoundError("Document", id);
@@ -452,9 +453,9 @@ export function documentRoutes() {
 
   router.delete("/documents/:id/attachments/:aid", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
-    const id = c.req.param("id")!;
-    const aid = c.req.param("aid")!;
+    const user = c.get("user");
+    const id = requireParam(c, "id");
+    const aid = requireParam(c, "aid");
     const doc = await getDocumentById(db, id);
     if (!doc)
       throw new NotFoundError("Document", id);
@@ -534,7 +535,7 @@ export function documentRoutes() {
 
   router.get("/documents/:id/shares", async (c) => {
     const db = c.get("db");
-    const id = c.req.param("id")!;
+    const id = requireParam(c, "id");
     // This handler previously had NO in-handler check at all and leaked
     // the (inherited) sharing graph to any authenticated user if the
     // policy binding desynced. Resolve + assert document:manage (owner)
@@ -554,7 +555,7 @@ export function documentRoutes() {
 
   router.post("/documents/:id/shares", async (c) => {
     const ctx = policyContext(c)!;
-    const id = c.req.param("id")!;
+    const id = requireParam(c, "id");
 
     const body = shareSchema.parse(await c.req.json());
     // The framework runs `canGrant` (owner-or-admin) and `onGranted`
@@ -574,8 +575,8 @@ export function documentRoutes() {
 
   router.delete("/documents/:id/shares/:shareId", async (c) => {
     const ctx = policyContext(c)!;
-    const id = c.req.param("id")!;
-    const shareId = c.req.param("shareId")!;
+    const id = requireParam(c, "id");
+    const shareId = requireParam(c, "shareId");
 
     const share = await getDocumentShareById(c.get("db"), shareId);
     if (!share || share.documentId !== id)
