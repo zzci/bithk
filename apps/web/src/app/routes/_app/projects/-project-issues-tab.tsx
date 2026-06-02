@@ -35,6 +35,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-signal";
 import { validateAttachmentSelection } from "@/shared/components/resource";
+import { formatFileSize } from "@/shared/components/resource/attachment-section";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -549,6 +550,10 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
     setFiles(prev => [...prev, ...picked]);
   };
 
+  // Drop a single staged file before submit; in-memory only (the issue does
+  // not exist yet, so there is nothing to delete server-side).
+  const removeFile = (index: number) => setFiles(prev => prev.filter((_, i) => i !== index));
+
   // Open the native calendar on click; fall back to focus when showPicker is
   // unavailable (older browsers / programmatic-open restrictions).
   const openDuePicker = () => {
@@ -781,6 +786,32 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
               className="sr-only"
             />
           </div>
+
+          {/* Staged attachments: visible before submit so files can be removed.
+              Cleared by reset() after a successful create. */}
+          {files.length > 0 && (
+            <ul className="space-y-1.5">
+              {files.map((file, index) => (
+                <li
+                  key={`${file.name}-${file.size}-${index}`}
+                  className="flex h-9 items-center gap-2 rounded-md border bg-card px-2.5"
+                >
+                  <Paperclip aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-[12px]">{file.name}</span>
+                  <span className="shrink-0 text-[12px] text-muted-foreground">{formatFileSize(file.size)}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("issues.composer.removeAttachment")}
+                    onClick={() => removeFile(index)}
+                  >
+                    <X aria-hidden="true" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {/* Sticky footer keeps the actions reachable when a long description
               scrolls the dialog body. Holds only the continue toggle + submit. */}
