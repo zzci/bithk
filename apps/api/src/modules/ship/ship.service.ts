@@ -1,4 +1,4 @@
-import type { ShipStatus } from "./schema";
+import type { ShipStatus, ShipVesselType } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
@@ -43,6 +43,7 @@ export interface ShipView {
   readonly code: string;
   readonly name: string;
   readonly status: ShipStatus;
+  readonly vesselType: ShipVesselType;
   readonly baseProjectId: string | null; // base project short_id (for files/drive)
   readonly model: string | null;
   readonly builder: string | null;
@@ -74,6 +75,7 @@ export function composeShip(row: ShipRow, baseProjectShortId: string | null, cov
     code: row.code,
     name: row.name,
     status: row.status,
+    vesselType: row.vesselType,
     baseProjectId: baseProjectShortId,
     model: row.model,
     builder: row.builder,
@@ -146,6 +148,7 @@ export interface CreateShipInput {
   readonly code?: string | undefined;
   readonly name: string;
   readonly status?: ShipStatus | undefined;
+  readonly vesselType?: ShipVesselType | undefined;
   readonly model?: string | null | undefined;
   readonly builder?: string | null | undefined;
   readonly buildYear?: number | null | undefined;
@@ -183,6 +186,7 @@ export async function createShip(db: AppDatabase, input: CreateShipInput): Promi
       code,
       name: input.name,
       status: input.status ?? "active",
+      vesselType: input.vesselType ?? "other",
       baseProjectId: null,
       model: input.model ?? null,
       builder: input.builder ?? null,
@@ -232,6 +236,7 @@ export async function resolveShipId(db: AppDatabase, shortId: string): Promise<s
 
 export interface ListShipParams {
   readonly status?: ShipStatus | undefined;
+  readonly type?: ShipVesselType | undefined;
   readonly q?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
@@ -252,6 +257,8 @@ export async function listShips(db: AppDatabase, params: ListShipParams = {}): P
   const conditions = [isNull(ships.deletedAt)];
   if (params.status)
     conditions.push(eq(ships.status, params.status));
+  if (params.type)
+    conditions.push(eq(ships.vesselType, params.type));
   if (params.q) {
     const pattern = `%${escapeLike(params.q)}%`;
     conditions.push(or(
@@ -294,6 +301,7 @@ export interface UpdateShipInput {
   readonly code?: string | undefined;
   readonly name?: string | undefined;
   readonly status?: ShipStatus | undefined;
+  readonly vesselType?: ShipVesselType | undefined;
   readonly model?: string | null | undefined;
   readonly builder?: string | null | undefined;
   readonly buildYear?: number | null | undefined;
@@ -314,6 +322,7 @@ const UPDATABLE_SHIP_KEYS = [
   "code",
   "name",
   "status",
+  "vesselType",
   "model",
   "builder",
   "buildYear",

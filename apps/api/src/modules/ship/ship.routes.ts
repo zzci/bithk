@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
-import { EQUIPMENT_STATUSES, SHIP_STATUSES } from "./schema";
+import { EQUIPMENT_STATUSES, SHIP_STATUSES, SHIP_VESSEL_TYPES } from "./schema";
 import {
   composeEquipment,
   createEquipment,
@@ -40,6 +40,7 @@ import {
 } from "./ship.service";
 
 const shipCoreShape = {
+  vesselType: z.enum(SHIP_VESSEL_TYPES).optional(),
   model: z.string().max(255).nullable().optional(),
   builder: z.string().max(255).nullable().optional(),
   buildYear: z.number().int().min(1800).max(2200).nullable().optional(),
@@ -75,6 +76,7 @@ const updateShipSchema = z.object({
 
 const listSchema = z.object({
   status: z.enum(SHIP_STATUSES).optional(),
+  type: z.enum(SHIP_VESSEL_TYPES).optional(),
   q: z.string().max(200).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -148,6 +150,7 @@ export function shipRoutes() {
     const user = c.get("user")!;
     const query = listSchema.parse({
       status: c.req.query("status"),
+      type: c.req.query("type"),
       q: c.req.query("q") || undefined,
       page: c.req.query("page"),
       limit: c.req.query("limit"),

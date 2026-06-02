@@ -2,12 +2,13 @@
 // normalization (trimming, number parsing, empty → null) is unit-testable
 // without a render harness.
 
-import type { CreateShipInput, ShipStatus, ShipView, UpdateShipInput } from "@/shared/lib/api/ships";
+import type { CreateShipInput, ShipStatus, ShipVesselType, ShipView, UpdateShipInput } from "@/shared/lib/api/ships";
 
 export interface ShipFormState {
   readonly name: string;
   readonly code: string;
   readonly status: ShipStatus;
+  readonly vesselType: ShipVesselType;
   readonly model: string;
   readonly builder: string;
   readonly buildYear: string;
@@ -28,6 +29,7 @@ export const EMPTY_SHIP_FORM: ShipFormState = {
   name: "",
   code: "",
   status: "active",
+  vesselType: "other",
   model: "",
   builder: "",
   buildYear: "",
@@ -55,6 +57,7 @@ export function shipFormFromView(ship: ShipView): ShipFormState {
     name: ship.name,
     code: ship.code,
     status: ship.status,
+    vesselType: ship.vesselType,
     model: ship.model ?? "",
     builder: ship.builder ?? "",
     buildYear: numToInput(ship.buildYear),
@@ -165,6 +168,7 @@ export function shipFormToCreate(state: ShipFormState): CreateShipInput {
   return {
     name: state.name.trim(),
     status: state.status,
+    vesselType: state.vesselType,
     ...(state.code.trim() ? { code: state.code.trim() } : {}),
   };
 }
@@ -174,6 +178,7 @@ export function shipFormToUpdate(state: ShipFormState): UpdateShipInput {
   return {
     name: state.name.trim(),
     status: state.status,
+    vesselType: state.vesselType,
     ...(state.code.trim() ? { code: state.code.trim() } : {}),
     ...descriptiveFields(state),
   };

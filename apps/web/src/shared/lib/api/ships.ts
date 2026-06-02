@@ -32,6 +32,9 @@ interface ApiListEnvelope<T> {
 export type ShipStatus = "active" | "archived";
 export const SHIP_STATUSES: readonly ShipStatus[] = ["active", "archived"];
 
+export type ShipVesselType = "motor_yacht" | "sailing_yacht" | "catamaran" | "work_boat" | "cargo" | "other";
+export const SHIP_VESSEL_TYPES: readonly ShipVesselType[] = ["motor_yacht", "sailing_yacht", "catamaran", "work_boat", "cargo", "other"];
+
 export type EquipmentStatus = "active" | "retired";
 export const EQUIPMENT_STATUSES: readonly EquipmentStatus[] = ["active", "retired"];
 
@@ -40,6 +43,7 @@ export interface ShipView {
   readonly code: string;
   readonly name: string;
   readonly status: ShipStatus;
+  readonly vesselType: ShipVesselType;
   readonly baseProjectId: string | null; // base project shortId (for files/drive + caps)
   readonly model: string | null;
   readonly builder: string | null;
@@ -128,8 +132,8 @@ export interface ListMeta {
 export const shipKeys = {
   all: ["ships"] as const,
   lists: () => ["ships", "list"] as const,
-  list: (status: string, page: number, q?: string) =>
-    q ? ["ships", "list", status, page, q] as const : ["ships", "list", status, page] as const,
+  list: (status: string, type: string, page: number, q?: string) =>
+    q ? ["ships", "list", status, type, page, q] as const : ["ships", "list", status, type, page] as const,
   count: (status: string) => ["ships", "count", status] as const,
   detail: (id: string) => ["ships", "detail", id] as const,
   projects: (id: string) => ["ships", id, "projects"] as const,
@@ -144,6 +148,7 @@ export const shipKeys = {
 
 export interface ShipsQuery {
   readonly status?: ShipStatus | undefined;
+  readonly type?: ShipVesselType | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
   /** Server-side name/code search; reaches the whole fleet, not just the page. */
@@ -157,15 +162,18 @@ export interface ShipsListResult {
 
 export function useShips(query: ShipsQuery = {}) {
   const status = query.status;
+  const type = query.type;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   const q = query.q?.trim() || undefined;
   return useQuery<ShipsListResult>({
-    queryKey: shipKeys.list(status ?? "all", page, q),
+    queryKey: shipKeys.list(status ?? "all", type ?? "all", page, q),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
+      if (type)
+        params.set("type", type);
       if (q)
         params.set("q", q);
       params.set("page", String(page));
@@ -216,6 +224,7 @@ export interface CreateShipInput {
   readonly name: string;
   readonly code?: string;
   readonly status?: ShipStatus;
+  readonly vesselType?: ShipVesselType;
 }
 
 export function useCreateShip(): UseMutationResult<ShipView, Error, CreateShipInput> {
@@ -233,6 +242,7 @@ export interface UpdateShipInput {
   readonly name?: string;
   readonly code?: string;
   readonly status?: ShipStatus;
+  readonly vesselType?: ShipVesselType;
   readonly model?: string | null;
   readonly builder?: string | null;
   readonly buildYear?: number | null;

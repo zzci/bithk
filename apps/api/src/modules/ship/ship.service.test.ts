@@ -111,6 +111,7 @@ describe("createShip", () => {
     expect(ship.shortId).toHaveLength(8);
     expect(ship.name).toBe("Aurora");
     expect(ship.status).toBe("active");
+    expect(ship.vesselType).toBe("other");
     expect(ship.version).toBe(1);
     expect(ship.code).toContain("S-");
     expect(ship.baseProjectId).not.toBeNull();
@@ -155,9 +156,10 @@ describe("updateShip", () => {
   test("bumps version and applies the patch", async () => {
     const creator = await seedUser("Alice");
     const ship = await createShip(db, { name: "P", creatorId: creator });
-    const updated = await updateShip(db, ship.shortId, { name: "P2", status: "archived", builder: "Acme" });
+    const updated = await updateShip(db, ship.shortId, { name: "P2", status: "archived", vesselType: "sailing_yacht", builder: "Acme" });
     expect(updated?.name).toBe("P2");
     expect(updated?.status).toBe("archived");
+    expect(updated?.vesselType).toBe("sailing_yacht");
     expect(updated?.builder).toBe("Acme");
     expect(updated!.version).toBe(2);
   });
@@ -267,6 +269,17 @@ describe("listShips", () => {
     const archived = await listShips(db, { status: "archived" });
     expect(archived.total).toBe(1);
     expect(archived.data[0]!.name).toBe("B");
+  });
+
+  test("filters by vessel type", async () => {
+    const creator = await seedUser("Alice");
+    await createShip(db, { name: "Yacht", vesselType: "motor_yacht", creatorId: creator });
+    await createShip(db, { name: "Tug", vesselType: "work_boat", creatorId: creator });
+
+    const workBoats = await listShips(db, { type: "work_boat" });
+    expect(workBoats.total).toBe(1);
+    expect(workBoats.data[0]!.name).toBe("Tug");
+    expect(workBoats.data[0]!.vesselType).toBe("work_boat");
   });
 
   test("memberUserId scopes to ships whose base project the user belongs to", async () => {

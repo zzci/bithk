@@ -4,7 +4,7 @@
 // mode only — create stays minimal.
 
 import type { ShipFormState } from "./-ship-form-logic";
-import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
+import type { ShipStatus, ShipVesselType, ShipView } from "@/shared/lib/api/ships";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { SHIP_STATUSES } from "@/shared/lib/api/ships";
+import { SHIP_STATUSES, SHIP_VESSEL_TYPES } from "@/shared/lib/api/ships";
 import { EMPTY_SHIP_FORM, SHIP_NUMBER_FIELD_RANGES, shipFormFromView, shipFormNumberErrors } from "./-ship-form-logic";
 
 // Descriptive (edit-only) fields, rendered from a config so the markup stays
@@ -140,6 +140,22 @@ export function ShipFormDialog({
               <SelectContent>
                 {SHIP_STATUSES.map(s => (
                   <SelectItem key={s} value={s}>{t(`status.${s}` as const)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ship-vessel-type">{t("field.vesselType")}</Label>
+            <Select value={form.vesselType} onValueChange={v => v !== null && set("vesselType", v as ShipVesselType)}>
+              <SelectTrigger id="ship-vessel-type" className="w-full">
+                <SelectValue>
+                  {(v: string) => t(`vesselType.${v}` as const)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SHIP_VESSEL_TYPES.map(vt => (
+                  <SelectItem key={vt} value={vt}>{t(`vesselType.${vt}` as const)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

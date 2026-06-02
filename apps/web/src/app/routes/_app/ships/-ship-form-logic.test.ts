@@ -18,6 +18,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     code: "HULL-1",
     name: "Serenity",
     status: "active",
+    vesselType: "motor_yacht",
     baseProjectId: "p1",
     model: "Custom 40",
     builder: "Acme Yards",
@@ -114,13 +115,22 @@ describe("shipFormFromView", () => {
     expect(form.model).toBe("");
     expect(form.lengthOverall).toBe("40.5");
   });
+
+  it("carries the vessel type through to the form", () => {
+    expect(shipFormFromView(ship({ vesselType: "catamaran" })).vesselType).toBe("catamaran");
+  });
 });
 
 describe("shipFormToCreate", () => {
   it("trims the name and omits a blank code (API auto-generates it)", () => {
     const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "  Aurora  " });
-    expect(out).toEqual({ name: "Aurora", status: "active" });
+    expect(out).toEqual({ name: "Aurora", status: "active", vesselType: "other" });
     expect("code" in out).toBe(false);
+  });
+
+  it("carries the selected vessel type", () => {
+    const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "Aurora", vesselType: "cargo" });
+    expect(out.vesselType).toBe("cargo");
   });
 
   it("includes a non-blank trimmed code", () => {

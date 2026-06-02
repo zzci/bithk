@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ShipFormState } from "./-ship-form-logic";
-import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
+import type { ShipStatus, ShipVesselType, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { Calendar, Loader2, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -10,8 +10,15 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { useDebounce } from "@/shared/hooks/use-debounce";
-import { SHIP_STATUSES, useCreateShip, useShipCount, useShips } from "@/shared/lib/api/ships";
+import { SHIP_STATUSES, SHIP_VESSEL_TYPES, useCreateShip, useShipCount, useShips } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ShipFormDialog } from "./-ship-form-dialog";
@@ -22,7 +29,7 @@ export const Route = createLazyFileRoute("/_app/ships/")({
   component: ShipsListPage,
 });
 
-const STATUS_ALL = "__all__";
+const TYPE_ALL = "__all__";
 const CURRENT_YEAR = new Date().getUTCFullYear();
 
 export function ShipsListPage() {
@@ -30,7 +37,8 @@ export function ShipsListPage() {
   const navigate = useNavigate();
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
-  const [status, setStatus] = useState<string>(STATUS_ALL);
+  const [status, setStatus] = useState<ShipStatus>("active");
+  const [type, setType] = useState<string>(TYPE_ALL);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -45,7 +53,8 @@ export function ShipsListPage() {
   }, [debouncedSearch]);
 
   const shipsQuery = useShips({
-    status: status === STATUS_ALL ? undefined : (status as ShipStatus),
+    status,
+    type: type === TYPE_ALL ? undefined : (type as ShipVesselType),
     page,
     q: debouncedSearch,
   });
@@ -53,7 +62,6 @@ export function ShipsListPage() {
 
   // Fleet KPIs from a dedicated status-keyed count query, stable across the
   // main list's pagination and search.
-  const totalCount = useShipCount().data;
   const activeCount = useShipCount("active").data;
   const archivedCount = useShipCount("archived").data;
   const ships = useMemo(() => shipsQuery.data?.data ?? [], [shipsQuery.data]);
@@ -72,7 +80,6 @@ export function ShipsListPage() {
   };
 
   const statusCounts: Record<string, number | undefined> = {
-    [STATUS_ALL]: totalCount,
     active: activeCount,
     archived: archivedCount,
   };
@@ -101,31 +108,49 @@ export function ShipsListPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">{t("list.filterByStatus")}</span>
-          {[
-            { key: STATUS_ALL, label: t("list.statusAll") },
-            ...SHIP_STATUSES.map(s => ({ key: s, label: t(`status.${s}` as const) })),
-          ].map((opt) => {
-            const count = statusCounts[opt.key];
+          {SHIP_STATUSES.map((s) => {
+            const label = t(`status.${s}` as const);
+            const count = statusCounts[s];
             return (
               <Button
-                key={opt.key}
-                variant={status === opt.key ? "default" : "outline"}
+                key={s}
+                variant={status === s ? "default" : "outline"}
                 className="h-8 shrink-0 rounded-full"
-                aria-pressed={status === opt.key}
-                aria-label={count === undefined ? opt.label : `${opt.label} ${count}`}
+                aria-pressed={status === s}
+                aria-label={count === undefined ? label : `${label} ${count}`}
                 onClick={() => {
-                  setStatus(opt.key);
+                  setStatus(s);
                   setPage(1);
                 }}
               >
-                {opt.label}
+                {label}
                 {count !== undefined && (
                   <span className="ml-1 rounded-full bg-background/60 px-1.5 text-xs tabular-nums">{count}</span>
                 )}
               </Button>
             );
           })}
+          <Select
+            value={type}
+            onValueChange={(v) => {
+              if (v !== null) {
+                setType(v);
+                setPage(1);
+              }
+            }}
+          >
+            <SelectTrigger className="h-8 w-40 shrink-0 rounded-full">
+              <SelectValue>
+                {(v: string) => (v === TYPE_ALL ? t("list.typeAll") : t(`vesselType.${v}` as const))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TYPE_ALL}>{t("list.typeAll")}</SelectItem>
+              {SHIP_VESSEL_TYPES.map(vt => (
+                <SelectItem key={vt} value={vt}>{t(`vesselType.${vt}` as const)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />

@@ -5,8 +5,7 @@
   },
   "list": {
     "create": "新建船舶",
-    "filterByStatus": "状态",
-    "statusAll": "全部",
+    "typeAll": "全部类型",
     "loading": "正在加载船舶…",
     "empty": "暂无船舶。",
     "noMatches": "没有符合搜索条件的船舶。",
@@ -25,6 +24,14 @@
   "status": {
     "active": "在用",
     "archived": "已归档"
+  },
+  "vesselType": {
+    "motor_yacht": "机动游艇",
+    "sailing_yacht": "帆船游艇",
+    "catamaran": "双体船",
+    "work_boat": "工作船",
+    "cargo": "货船",
+    "other": "其他"
   },
   "tabs": {
     "overview": "概览",
@@ -60,6 +67,7 @@
     "name": "名称",
     "code": "船体编号",
     "status": "状态",
+    "vesselType": "船型",
     "description": "描述",
     "builder": "建造方",
     "model": "型号",

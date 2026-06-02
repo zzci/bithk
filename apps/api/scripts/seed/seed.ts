@@ -94,7 +94,7 @@ interface UserRec { key: string; username: string; name: string; email: string; 
 interface GroupRec { key: string; name: string; description?: string; members: string[] }
 interface ContactRec { key: string; kind: string; name: string; contactPerson?: string; email?: string; phone?: string; address?: string; visibility?: "private" | "public"; tags?: string[]; note?: string }
 interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; location?: string; status?: "active" | "retired" }
-interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; gt?: number | null; flagState?: string; registryPort?: string; status?: "active" | "archived"; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; equipment?: EquipmentRec[] }
+interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; gt?: number | null; flagState?: string; registryPort?: string; status?: "active" | "archived"; vesselType?: "motor_yacht" | "sailing_yacht" | "catamaran" | "work_boat" | "cargo" | "other"; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; equipment?: EquipmentRec[] }
 interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; ship?: string; fromGlobal?: string }
 interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; bindShip?: string | null; members?: { user: string; role: string }[]; categories?: string[] }
 interface IssueTemplate { key: string; title: string; status: string; priority: string; tags?: string[]; description?: string; assign?: boolean; dueOffsetDays?: number | null; attachment?: string | null; comments?: { text: string; internal?: boolean }[] }
@@ -180,6 +180,7 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
       name: s.name,
       creatorId: uId(ADMIN_KEY),
       status: s.status ?? "active",
+      vesselType: s.vesselType ?? "other",
       model: s.model ?? null,
       builder: s.builder ?? null,
       buildYear: s.buildYear ?? null,

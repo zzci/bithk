@@ -48,6 +48,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     code: "HULL-1",
     name: "Serenity",
     status: "active",
+    vesselType: "motor_yacht",
     baseProjectId: "p1",
     model: null,
     builder: "Acme Yards",

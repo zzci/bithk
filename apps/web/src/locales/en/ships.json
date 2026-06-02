@@ -5,8 +5,7 @@
   },
   "list": {
     "create": "Create ship",
-    "filterByStatus": "Status",
-    "statusAll": "All",
+    "typeAll": "All types",
     "loading": "Loading ships…",
     "empty": "No ships yet.",
     "noMatches": "No ships match your search.",
@@ -25,6 +24,14 @@
   "status": {
     "active": "Active",
     "archived": "Archived"
+  },
+  "vesselType": {
+    "motor_yacht": "Motor yacht",
+    "sailing_yacht": "Sailing yacht",
+    "catamaran": "Catamaran",
+    "work_boat": "Work boat",
+    "cargo": "Cargo ship",
+    "other": "Other"
   },
   "tabs": {
     "overview": "Overview",
@@ -60,6 +67,7 @@
     "name": "Name",
     "code": "Hull number",
     "status": "Status",
+    "vesselType": "Vessel type",
     "description": "Description",
     "builder": "Builder",
     "model": "Model",

@@ -38,6 +38,7 @@ function listPayload() {
       name: "Serenity",
       code: "HULL-1",
       status: "active",
+      vesselType: "motor_yacht",
       baseProjectId: "p1",
       model: "Container 300",
       builder: "North Dock",
@@ -92,8 +93,22 @@ describe("shipsListPage", () => {
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     // The KPI count comes from a dedicated count query that resolves
-    // independently of the list, so wait for it to land on the chip.
-    await waitFor(() => expect(screen.getByRole("button", { name: /All 1/ })).toBeInTheDocument());
+    // independently of the list, so wait for it to land on the active chip
+    // (the default selection; there is no "all" chip anymore).
+    await waitFor(() => expect(screen.getByRole("button", { name: /Active 1/ })).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /^All/ })).not.toBeInTheDocument();
+  });
+
+  it("defaults to the active status and a vessel-type dropdown set to all types", async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
+    renderWithProviders(<ShipsListPage />);
+    await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
+    // The initial list request carries the default active status and no type.
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(c => String(c[0]).includes("/ships?") && String(c[0]).includes("status=active") && !String(c[0]).includes("type="));
+      expect(call).toBeDefined();
+    });
+    expect(screen.getByText("All types")).toBeInTheDocument();
   });
 
   it("searches the whole fleet through the server", async () => {
