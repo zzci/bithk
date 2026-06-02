@@ -1,15 +1,15 @@
-// Responsive tag filter, shared by the projects list (single-select) and the
-// project issues tab (multi-select). Renders as many of the most-used tag chips
-// as fit the available width inline, then tucks the rest behind a "More"
-// control. The visible count is measured from a hidden layout layer and
-// recomputed on container resize via ResizeObserver.
+// Tag filter shared by the projects list (single-select) and the project
+// issues / procurement tabs (multi-select). Renders a single selector control
+// that lists every tag with a checkable state, followed by the selected tags as
+// chips to its right.
 //
-// Single-select overflow is a plain dropdown; multi-select overflow is a
-// searchable combobox that shows the checked state per tag.
+// Single-select uses a DropdownMenu; multi-select uses a searchable Combobox
+// that shows the checked state per tag and diffs its value array down to a
+// single `onToggle` per change.
 
 import type { ProjectTag } from "@/shared/lib/api/projects";
-import { ChevronDown } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { ChevronDown, X } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -27,16 +27,6 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { cn } from "@/shared/lib/utils";
-import { computeVisibleTagCount } from "./-project-tag-filter-logic";
-
-// Matches the row's `gap-2` (0.5rem) so the fit math lines up with layout.
-const CHIP_GAP = 8;
-
-// Hard cap on inline chips regardless of how many would fit, to keep the filter
-// row compact. Fed into the fit math (not applied as a post-hoc slice) so that
-// when the cap actually truncates the list, the "More" trigger's width is
-// reserved up front — otherwise it could be forced in without room and clip.
-const MAX_INLINE_CHIPS = 7;
 
 interface BaseProps {
   // Tags in most-used-first order (as returned by the API).
@@ -58,177 +48,114 @@ interface MultiSelectProps extends BaseProps {
 
 type ProjectTagFilterProps = SingleSelectProps | MultiSelectProps;
 
-interface TagChipProps {
+interface RemovableChipProps {
   readonly tag: ProjectTag;
-  readonly active: boolean;
-  readonly onActivate: (tagId: string) => void;
-  readonly tabIndex?: number;
+  readonly onRemove: (tagId: string) => void;
 }
 
-function TagChip({ tag, active, onActivate, tabIndex }: TagChipProps) {
+// A selected tag rendered as a chip with an X button that deselects it.
+function RemovableChip({ tag, onRemove }: RemovableChipProps) {
+  const { t } = useTranslation("projects");
   return (
-    <Button
-      variant={active ? "default" : "outline"}
-      className="shrink-0 rounded-md px-2.5 text-xs"
-      aria-pressed={active}
-      tabIndex={tabIndex}
-      onClick={() => onActivate(tag.id)}
-    >
+    <span className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-md bg-muted py-1 pr-1 pl-2.5 text-xs font-medium">
       {tag.name}
-    </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label={t("tags.remove", { name: tag.name })}
+        onClick={() => onRemove(tag.id)}
+      >
+        <X aria-hidden="true" />
+      </Button>
+    </span>
   );
 }
 
 export function ProjectTagFilter(props: ProjectTagFilterProps) {
   const { tags, className } = props;
   const { t } = useTranslation("projects");
-  const containerRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
-  const [visibleCount, setVisibleCount] = useState(tags.length);
-
-  // Normalise both modes to an `isActive` predicate and an `activate` toggle.
-  const isActive = (tagId: string): boolean =>
-    props.multiple ? props.selectedTagIds.includes(tagId) : props.selectedTagId === tagId;
-  const activate = (tagId: string): void => {
-    if (props.multiple)
-      props.onToggle(tagId);
-    else
-      props.onSelect(tagId);
-  };
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const measure = measureRef.current;
-    if (!container || !measure)
-      return;
-
-    const recompute = () => {
-      const allWidths = Array.from(
-        measure.querySelectorAll<HTMLElement>("[data-measure-chip]"),
-      ).map(el => el.offsetWidth);
-      const moreWidth = measure.querySelector<HTMLElement>("[data-measure-more]")?.offsetWidth ?? 0;
-      // Only the first MAX_INLINE_CHIPS can ever show inline. When the cap
-      // truncates (more tags than the cap), a "More" trigger is mandatory, so
-      // reserve its width by shrinking the budget here and pass moreWidth 0 to
-      // the fit (it would otherwise reserve "More" only on width overflow, which
-      // a capped, all-fitting list never trips — the original bug).
-      const capTruncates = allWidths.length > MAX_INLINE_CHIPS;
-      const widths = allWidths.slice(0, MAX_INLINE_CHIPS);
-      const next = computeVisibleTagCount({
-        widths,
-        available: capTruncates ? Math.max(0, container.clientWidth - moreWidth - CHIP_GAP) : container.clientWidth,
-        moreWidth: capTruncates ? 0 : moreWidth,
-        gap: CHIP_GAP,
-      });
-      // eslint-disable-next-line react/set-state-in-effect -- measured layout; only re-renders when the fit actually changes.
-      setVisibleCount(prev => (prev === next ? prev : next));
-    };
-
-    recompute();
-    if (typeof ResizeObserver === "undefined")
-      return;
-    const observer = new ResizeObserver(recompute);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [tags]);
 
   if (tags.length === 0)
     return null;
 
-  // The MAX_INLINE_CHIPS cap is already baked into `visibleCount` (the fit math
-  // measures at most that many chips), so clamp only to the available tags.
-  const count = Math.max(0, Math.min(visibleCount, tags.length));
-  const inline = tags.slice(0, count);
-  const overflow = tags.slice(count);
-  const overflowActive = overflow.some(tag => isActive(tag.id));
+  const selected = props.multiple
+    ? tags.filter(tag => props.selectedTagIds.includes(tag.id))
+    : tags.filter(tag => props.selectedTagId === tag.id);
 
   return (
-    <div ref={containerRef} className={cn("relative flex min-w-0 items-center gap-2 overflow-hidden", className)}>
-      {inline.map(tag => (
-        <TagChip key={tag.id} tag={tag} active={isActive(tag.id)} onActivate={activate} />
-      ))}
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-2", className)}>
+      {props.multiple
+        ? (
+            <TagFilterCombobox
+              tags={tags}
+              selectedTagIds={props.selectedTagIds}
+              onToggle={props.onToggle}
+              active={selected.length > 0}
+            />
+          )
+        : (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={(
+                  <Button
+                    variant={selected.length > 0 ? "default" : "outline"}
+                    className="shrink-0 rounded-md px-2.5 text-xs"
+                    aria-label={t("list.tagFilterMoreLabel")}
+                  />
+                )}
+              >
+                {t("list.tagFilterMore")}
+                <ChevronDown aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {tags.map(tag => (
+                  <DropdownMenuItem
+                    key={tag.id}
+                    className={cn(props.selectedTagId === tag.id && "font-medium text-foreground")}
+                    onClick={() => props.onSelect(tag.id)}
+                  >
+                    {tag.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
-      {overflow.length > 0 && (
-        props.multiple
-          ? (
-              <TagFilterMoreCombobox
-                tags={tags}
-                overflow={overflow}
-                selectedTagIds={props.selectedTagIds}
-                onToggle={props.onToggle}
-                active={overflowActive}
-              />
-            )
-          : (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={(
-                    <Button
-                      variant={overflowActive ? "default" : "outline"}
-                      className="shrink-0 rounded-md px-2.5 text-xs"
-                      aria-label={t("list.tagFilterMoreLabel")}
-                    />
-                  )}
-                >
-                  {t("list.tagFilterMore")}
-                  <ChevronDown aria-hidden="true" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {overflow.map(tag => (
-                    <DropdownMenuItem
-                      key={tag.id}
-                      className={cn(isActive(tag.id) && "font-medium text-foreground")}
-                      onClick={() => activate(tag.id)}
-                    >
-                      {tag.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )
-      )}
-
-      {/* Hidden measuring layer: every chip plus the overflow trigger at their
-          natural width, taken out of flow so it never affects the visible row. */}
-      <div
-        ref={measureRef}
-        aria-hidden="true"
-        className="pointer-events-none invisible absolute top-0 left-0 -z-10 flex items-center gap-2"
-      >
-        {tags.map(tag => (
-          <span key={tag.id} data-measure-chip className="inline-flex">
-            <TagChip tag={tag} active={false} onActivate={() => {}} tabIndex={-1} />
-          </span>
-        ))}
-        <span data-measure-more className="inline-flex">
-          <Button variant="outline" className="shrink-0 rounded-md px-2.5 text-xs" tabIndex={-1}>
-            {t("list.tagFilterMore")}
-            <ChevronDown aria-hidden="true" />
-          </Button>
-        </span>
-      </div>
+      {/* Selected tags as chips. Multi-select chips are removable; single-select
+          `onSelect` is set-only (not a toggle — see index.lazy.tsx), so its one
+          selected tag is shown as a non-removable highlighted label. */}
+      {props.multiple
+        ? selected.map(tag => (
+            <RemovableChip key={tag.id} tag={tag} onRemove={props.onToggle} />
+          ))
+        : selected.map(tag => (
+            <span
+              key={tag.id}
+              className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground"
+            >
+              {tag.name}
+            </span>
+          ))}
     </div>
   );
 }
 
-interface TagFilterMoreComboboxProps {
-  // Full vocabulary so the search box can reach inline tags too.
+interface TagFilterComboboxProps {
   readonly tags: readonly ProjectTag[];
-  readonly overflow: readonly ProjectTag[];
   readonly selectedTagIds: readonly string[];
   readonly onToggle: (tagId: string) => void;
   readonly active: boolean;
 }
 
-// Searchable, checked-state multi-select popup for the overflow ("More") tags.
-// Diffs the combobox value array against the controlled selection to emit a
-// single `onToggle` per change.
-function TagFilterMoreCombobox({ tags, overflow, selectedTagIds, onToggle, active }: TagFilterMoreComboboxProps) {
+// Searchable, checked-state multi-select selector over the full tag list. Diffs
+// the combobox value array against the controlled selection to emit a single
+// `onToggle` per change.
+function TagFilterCombobox({ tags, selectedTagIds, onToggle, active }: TagFilterComboboxProps) {
   const { t } = useTranslation("projects");
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
-  const matches = (q ? tags.filter(tag => tag.name.toLowerCase().includes(q)) : overflow);
+  const matches = q ? tags.filter(tag => tag.name.toLowerCase().includes(q)) : tags;
 
   const handleChange = (next: readonly string[]) => {
     const nextSet = new Set(next);
@@ -261,7 +188,7 @@ function TagFilterMoreCombobox({ tags, overflow, selectedTagIds, onToggle, activ
       >
         {t("list.tagFilterMore")}
       </ComboboxTrigger>
-      <ComboboxContent align="end">
+      <ComboboxContent align="start">
         <ComboboxInput showTrigger={false} placeholder={t("list.tagFilterSearchPlaceholder")} />
         <ComboboxList>
           {matches.length === 0 && (
