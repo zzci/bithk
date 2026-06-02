@@ -186,7 +186,6 @@
       "maximize": "Maximize",
       "minimize": "Restore",
       "attach": "Attach file",
-      "agentMode": "Switch to agent",
       "continueCreate": "Create more",
       "submit": "Create issue"
     },
