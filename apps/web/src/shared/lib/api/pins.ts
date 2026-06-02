@@ -13,14 +13,10 @@
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ProcurementRow } from "./procurement";
 import type { ProjectIssueRow } from "./projects";
+import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 import { procurementKeys } from "./procurement";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
 
 /** A pinned-item entry as rendered in the project overview Pin area. */
 export interface PinnedItem {
