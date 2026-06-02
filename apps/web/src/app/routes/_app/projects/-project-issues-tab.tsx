@@ -19,7 +19,6 @@ import type {
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ChevronRight,
-  Folder,
   Maximize2,
   Minimize2,
   Paperclip,
@@ -35,6 +34,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-signal";
+import { validateAttachmentSelection } from "@/shared/components/resource";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -56,9 +56,11 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
+import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import { useToggleIssuePin } from "@/shared/lib/api/pins";
-import { useCreateProjectIssue, useIssueTags, useProject, useProjectIssues } from "@/shared/lib/api/projects";
+import { useCreateProjectIssue, useIssueTags, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { http } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
@@ -508,23 +510,44 @@ interface CreateIssueDialogProps {
 }
 
 function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, open, onOpenChange }: CreateIssueDialogProps) {
-  const { t } = useTranslation(["projects", "common"]);
+  const { t } = useTranslation(["projects", "common", "issues"]);
   const createIssue = useCreateProjectIssue();
-  // Issues are project-scoped; the project pill is read-only. The detail query
-  // is already warmed by the route, so this reads from cache (no extra fetch).
-  const projectName = useProject(projectId).data?.name;
+  const limits = useUploadLimits();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<IssueStatus>(initialStatus);
   const [priority, setPriority] = useState<IssuePriority>("low");
   const [assigneeMemberId, setAssigneeMemberId] = useState("__none__");
   const [dueDate, setDueDate] = useState("");
+  // The issue does not exist until creation, so selected attachments are staged
+  // here and uploaded to the new issue once the create resolves.
+  const [files, setFiles] = useState<File[]>([]);
   // When on, a successful create resets the form and keeps the dialog open so
   // the user can file several issues in a row.
   const [keepOpen, setKeepOpen] = useState(false);
   // Toggles the dialog between its default width and a roomy maximized size.
   const [maximized, setMaximized] = useState(false);
   const dueDateInputRef = useRef<HTMLInputElement>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
+
+  // Stage a file selection: validate against the same limits the issue panel
+  // enforces (count + per-file size), then keep accepted files in state.
+  const onPickFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (picked.length === 0)
+      return;
+    const validation = validateAttachmentSelection(picked, files.length, limits.maxFileSize, limits.maxAttachmentsPerResource);
+    if (validation === "limit") {
+      toast.error(t("issues:attachments.limitReached"));
+      return;
+    }
+    if (validation === "size") {
+      toast.error(t("issues:attachments.fileTooLarge"));
+      return;
+    }
+    setFiles(prev => [...prev, ...picked]);
+  };
 
   // Open the native calendar on click; fall back to focus when showPicker is
   // unavailable (older browsers / programmatic-open restrictions).
@@ -551,6 +574,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
     setPriority("low");
     setAssigneeMemberId("__none__");
     setDueDate("");
+    setFiles([]);
   };
 
   const submit = (event: React.FormEvent) => {
@@ -565,8 +589,23 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
       ...(assigneeMemberId !== "__none__" ? { assigneeMemberId } : {}),
       ...(dueDate ? { dueDate } : {}),
     };
+    const staged = files;
     createIssue.mutate({ projectId, ...body }, {
-      onSuccess: () => {
+      onSuccess: async (created) => {
+        // The issue exists now, so upload any staged attachments to it. An
+        // upload failure is surfaced but does not undo the created issue.
+        if (staged.length > 0) {
+          try {
+            for (const file of staged) {
+              const fd = new FormData();
+              fd.append("file", file);
+              await http(`/projects/${projectId}/issues/${created.id}/attachments`, { method: "POST", body: fd });
+            }
+          }
+          catch (err) {
+            toast.error(errorMessage(err, t("common:common.error.operationFailed")));
+          }
+        }
         toast.success(t("toast.issueCreated"));
         reset();
         if (!keepOpen)
@@ -593,39 +632,29 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
           maximized ? "min-h-[80svh] sm:max-w-3xl" : "sm:max-w-xl",
         )}
       >
+        {/* Window controls float at the top-right corner; the breadcrumb header
+            is gone, so the body starts straight at the title. The primitive's
+            own close is disabled in favor of this DialogClose. */}
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t(maximized ? "issues.composer.minimize" : "issues.composer.maximize")}
+            onClick={() => setMaximized(m => !m)}
+          >
+            {maximized ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+          </Button>
+          <DialogClose render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("common:common.close")} />}>
+            <X aria-hidden="true" />
+          </DialogClose>
+        </div>
+
         <form onSubmit={submit} className="space-y-4">
           {/* The borderless title replaces the visible header; keep a
               visually-hidden DialogTitle so the dialog primitive and screen
               readers still announce a name. */}
           <DialogTitle className="sr-only">{t("issues.createTitle")}</DialogTitle>
-
-          {/* Breadcrumb header: project context on the left, maximize + close
-              affordances on the right (the primitive's own close is disabled). */}
-          <div className="flex items-center justify-between gap-2">
-            <nav aria-label={t("issues.composer.manualCreate")} className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-              {projectName && (
-                <>
-                  <span className="max-w-[12rem] truncate font-medium text-foreground">{projectName}</span>
-                  <ChevronRight aria-hidden="true" className="size-3.5 shrink-0" />
-                </>
-              )}
-              <span className="shrink-0">{t("issues.composer.manualCreate")}</span>
-            </nav>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t(maximized ? "issues.composer.minimize" : "issues.composer.maximize")}
-                onClick={() => setMaximized(m => !m)}
-              >
-                {maximized ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-              </Button>
-              <DialogClose render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("common:common.close")} />}>
-                <X aria-hidden="true" />
-              </DialogClose>
-            </div>
-          </div>
 
           {createIssue.error && <ErrorBanner message={errorMessage(createIssue.error, t("common:common.error.operationFailed"))} />}
 
@@ -636,7 +665,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
             onChange={e => setTitle(e.target.value)}
             placeholder={t("issues.composer.titlePlaceholder")}
             aria-label={t("issues.field.title")}
-            className="h-auto border-0 bg-transparent px-0 py-0 text-lg font-medium shadow-none focus-visible:border-0 focus-visible:ring-0"
+            className="h-auto border-0 bg-transparent px-0 py-0 pr-16 text-lg font-medium shadow-none focus-visible:border-0 focus-visible:ring-0"
           />
 
           <Textarea
@@ -645,7 +674,10 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
             placeholder={t("issues.field.descriptionPlaceholder")}
             aria-label={t("issues.field.description")}
             rows={6}
-            className="min-h-40 resize-y border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
+            className={cn(
+              "resize-y border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:ring-0",
+              maximized ? "min-h-[60svh]" : "min-h-40",
+            )}
           />
 
           <div className="flex flex-wrap items-center gap-2 pb-2">
@@ -727,41 +759,42 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
               />
             </div>
 
-            {/* Read-only project pill: issues are project-scoped, so the project
-                is fixed to the current one — shown for parity, not selectable. */}
-            <span
-              className={cn(pillBase, "inline-flex h-8 items-center border border-solid border-border bg-background text-muted-foreground")}
-              aria-label={t("issues.field.project")}
+            {/* Attachment pill: stages files now, uploads them after the issue
+                is created. The single attach affordance for the dialog. */}
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(pillBase, "border", files.length > 0 ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+              onClick={() => attachInputRef.current?.click()}
             >
-              <Folder aria-hidden="true" className="size-3.5" />
-              <span className="max-w-[10rem] truncate">{projectName ?? t("issues.field.project")}</span>
-            </span>
+              <Paperclip aria-hidden="true" className={files.length > 0 ? "text-info" : undefined} />
+              {t("issues.composer.attach")}
+              {files.length > 0 && <span className="tabular-nums">{`· ${files.length}`}</span>}
+            </Button>
+            <input
+              ref={attachInputRef}
+              type="file"
+              multiple
+              tabIndex={-1}
+              aria-label={t("issues.composer.attach")}
+              onChange={onPickFiles}
+              className="sr-only"
+            />
           </div>
 
           {/* Sticky footer keeps the actions reachable when a long description
-              scrolls the dialog body. */}
-          <div className="sticky bottom-0 -mx-4 -mb-4 flex items-center justify-between gap-2 rounded-b-xl border-t bg-popover px-4 py-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled
-              aria-label={t("issues.composer.attach")}
-            >
-              <Paperclip aria-hidden="true" />
-            </Button>
-            <div className="flex items-center gap-3">
-              {/* Functional: keep the dialog open and reset after each create. */}
-              <div className="flex items-center gap-1.5">
-                <Switch id="issue-keep-open" size="sm" checked={keepOpen} onCheckedChange={setKeepOpen} />
-                <Label htmlFor="issue-keep-open" className="text-xs font-normal text-muted-foreground">
-                  {t("issues.composer.continueCreate")}
-                </Label>
-              </div>
-              <Button type="submit" disabled={createIssue.isPending || !title.trim()}>
-                {t("issues.composer.submit")}
-              </Button>
+              scrolls the dialog body. Holds only the continue toggle + submit. */}
+          <div className="sticky bottom-0 -mx-4 -mb-4 flex items-center justify-end gap-3 rounded-b-xl border-t bg-popover px-4 py-2.5">
+            {/* Functional: keep the dialog open and reset after each create. */}
+            <div className="flex items-center gap-1.5">
+              <Switch id="issue-keep-open" size="sm" checked={keepOpen} onCheckedChange={setKeepOpen} />
+              <Label htmlFor="issue-keep-open" className="text-xs font-normal text-muted-foreground">
+                {t("issues.composer.continueCreate")}
+              </Label>
             </div>
+            <Button type="submit" disabled={createIssue.isPending || !title.trim()}>
+              {t("issues.composer.submit")}
+            </Button>
           </div>
         </form>
       </DialogContent>
