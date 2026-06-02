@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
+import { ListFilter } from "@/shared/components/list-filter";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -29,7 +30,6 @@ import { useAuthStore } from "@/shared/stores/auth";
 import { ProjectFormDialog } from "./-project-form-dialog";
 import { projectsFilterToQuery } from "./-project-form-logic";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
-import { ProjectTagFilter } from "./-project-tag-filter";
 import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/")({
@@ -104,38 +104,38 @@ export function ProjectsListPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <ProjectTagFilter
-            tags={tags}
-            selectedTagId={tags.some(tag => tag.id === filter) ? filter : null}
-            onSelect={(tagId) => {
-              setFilter(tagId);
-              setPage(1);
-            }}
-            onClear={() => {
-              setFilter("__active__");
-              setPage(1);
-            }}
+          <ListFilter
+            dimensions={[
+              {
+                key: "status",
+                label: t("field.status"),
+                mode: "single",
+                resident: true,
+                defaultValue: "__active__",
+                value: tags.some(tag => tag.id === filter) ? "__active__" : filter,
+                onChange: (value) => {
+                  setFilter(value ?? "__active__");
+                  setPage(1);
+                },
+                options: [
+                  { value: "__active__", label: t("status.active"), count: activeCount },
+                  { value: "__archived__", label: t("status.archived"), count: archivedCount },
+                ],
+              },
+              {
+                key: "tags",
+                label: t("field.tags"),
+                mode: "single",
+                residentCount: 5,
+                value: tags.some(tag => tag.id === filter) ? filter : null,
+                onChange: (value) => {
+                  setFilter(value ?? "__active__");
+                  setPage(1);
+                },
+                options: tags.map(tag => ({ value: tag.id, label: tag.name })),
+              },
+            ]}
           />
-          {[
-            { key: "__active__", label: t("status.active"), count: activeCount },
-            { key: "__archived__", label: t("status.archived"), count: archivedCount },
-          ].map(opt => (
-            <Button
-              key={opt.key}
-              variant={filter === opt.key ? "default" : "outline"}
-              className="shrink-0 rounded-md px-2.5 text-xs"
-              aria-pressed={filter === opt.key}
-              onClick={() => {
-                setFilter(opt.key);
-                setPage(1);
-              }}
-            >
-              {opt.label}
-              {opt.count !== undefined && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">{opt.count}</Badge>
-              )}
-            </Button>
-          ))}
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
