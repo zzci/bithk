@@ -1,6 +1,6 @@
 # PLAN-050 Tag-filter pinned-chips + dropdown hybrid
 
-- **status**: Planned
+- **status**: In Progress
 - **owner**: l1-75ymcfnr / L2 28377ph1
 - **campaignId**: l1-75ymcfnr-tagpin-20260602052326
 - **tasks**: [FIX-027](../task/FIX-027.md)
@@ -48,7 +48,7 @@ prop edits.
 
 ## DAG
 
-- FIX-027 deps=[] / L3=TBD — sole owner of `-project-tag-filter.tsx` + its test
+- FIX-027 deps=[] / L3=66nt8c3f — sole owner of `-project-tag-filter.tsx` + its test
   `-project-tag-filter.test.tsx` + any new `list.tagFilter*` keys in
   `locales/{en,zh}/projects.json`. Single component → ONE L3 (no parallel
   same-file work). Consumers (`index.lazy.tsx`, `-project-issues-tab.tsx`,
