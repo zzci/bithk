@@ -1,5 +1,6 @@
 import type { ProjectView } from "@/shared/lib/api/projects";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared/stores/auth";
 import { renderWithProviders } from "@/test/utils";
@@ -117,6 +118,23 @@ describe("projectsListPage", () => {
     // Both rows are direct siblings inside the same column-stacked container.
     expect(description.parentElement).toBe(tagRow!.parentElement);
     expect(description.parentElement?.className).toContain("flex-col");
+  });
+
+  it("pushes search to the server q param instead of filtering the loaded page", async () => {
+    mockList([project()]);
+    renderWithProviders(<ProjectsListPage />);
+    await waitFor(() => expect(screen.getByText("Atlas Refit")).toBeInTheDocument());
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Search projects" }), "atlas");
+
+    // Debounced search reaches the list endpoint as a `q` param (whole-list,
+    // server-side) rather than being applied client-side over the current page.
+    await waitFor(() => {
+      const listUrls = fetchMock.mock.calls
+        .map(call => String(call[0]))
+        .filter(url => url.includes("/projects?"));
+      expect(listUrls.some(url => /[?&]q=atlas\b/.test(url))).toBe(true);
+    });
   });
 
   it("keeps existing tag chip rendering for tagged projects", async () => {

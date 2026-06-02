@@ -103,23 +103,32 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     setPage(1);
   }, []);
 
+  const categoriesQuery = useProcurementCategories(projectId);
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
+  // If the selected category is deleted (e.g. in settings) its id drops out of
+  // the loaded options. Fall back to "__all__" so the toolbar label and the
+  // applied filter cannot diverge — otherwise the trigger shows "All categories"
+  // while the query still filters by the ghost id, returning a confusing empty
+  // list. Derived (not an effect) so the stale id never reaches the query.
+  const effectiveCategory = categoryFilter !== "__all__" && categoriesQuery.isSuccess && !categories.some(c => c.id === categoryFilter)
+    ? "__all__"
+    : categoryFilter;
+
   const procurementsQuery = useProcurements(projectId, {
     q: debouncedSearch || undefined,
     status: statusFilter === "__all__" ? undefined : (statusFilter as ProcurementStatus),
     priority: priorityFilter === "__all__" ? undefined : (priorityFilter as ProcurementPriority),
-    categoryId: categoryFilter === "__all__" ? undefined : categoryFilter,
+    categoryId: effectiveCategory === "__all__" ? undefined : effectiveCategory,
     tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
     page,
   });
   const suppliersQuery = useContacts();
-  const categoriesQuery = useProcurementCategories(projectId);
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
   const suppliers = useMemo(
     () => (suppliersQuery.data ?? []).map(contact => ({ id: contact.id, name: contact.name })),
     [suppliersQuery.data],
   );
-  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
   const supplierNames = useMemo(() => new Map(suppliers.map(s => [s.id, s.name])), [suppliers]);
   const categoryNames = useMemo(() => new Map(categories.map(c => [c.id, c.name])), [categories]);
   const rows = procurementsQuery.data?.data ?? [];
@@ -164,7 +173,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
             }}
           />
           <ToolbarFilter
-            value={categoryFilter}
+            value={effectiveCategory}
             allLabel={t("procurement.allCategories")}
             options={categories.map(c => ({ value: c.id, label: c.name }))}
             onChange={(v) => {

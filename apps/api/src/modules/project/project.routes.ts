@@ -75,6 +75,7 @@ const updateProjectSchema = z.object({
 
 const listSchema = z.object({
   status: z.enum(PROJECT_STATUSES).optional(),
+  q: z.string().min(1).optional(),
   tagId: z.string().min(1).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -276,6 +277,7 @@ export function projectRoutes() {
     const user = c.get("user")!;
     const query = listSchema.parse({
       status: c.req.query("status"),
+      q: c.req.query("q"),
       tagId: c.req.query("tagId"),
       page: c.req.query("page"),
       limit: c.req.query("limit"),

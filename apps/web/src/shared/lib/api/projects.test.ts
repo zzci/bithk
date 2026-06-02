@@ -43,7 +43,7 @@ function calledUrl(index = 0): string {
 
 describe("projectKeys", () => {
   it("builds stable list and detail keys", () => {
-    expect(projectKeys.list("active", "t1", 2, 20)).toEqual(["projects", "list", "active", "t1", 2, 20]);
+    expect(projectKeys.list("active", "t1", "atlas", 2, 20)).toEqual(["projects", "list", "active", "t1", "atlas", 2, 20]);
     expect(projectKeys.detail("p1")).toEqual(["projects", "detail", "p1"]);
   });
 });
@@ -68,17 +68,19 @@ describe("useProjects", () => {
     expect(url).toContain("limit=20");
     expect(url).not.toContain("status=");
     expect(url).not.toContain("tagId=");
+    expect(url).not.toContain("q=");
   });
 
-  it("serialises status and tag filters", async () => {
+  it("serialises status, tag and search filters", async () => {
     fetchMock.mockResolvedValue(jsonResponse(listEnvelope));
     const { result } = renderHook(
-      () => useProjects({ status: "archived", tagId: "t9", page: 2, limit: 10 }),
+      () => useProjects({ status: "archived", q: "atlas", tagId: "t9", page: 2, limit: 10 }),
       { wrapper: makeWrapper() },
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const url = calledUrl();
     expect(url).toContain("status=archived");
+    expect(url).toContain("q=atlas");
     expect(url).toContain("tagId=t9");
     expect(url).toContain("page=2");
     expect(url).toContain("limit=10");

@@ -281,6 +281,19 @@ describe("GET /projects (list scoping)", () => {
     const res = await app.request("/projects?status=bogus", { headers: { Cookie: cookie } });
     expect(res.status).toBe(422);
   });
+
+  test("the q search param matches name/code server-side across the whole list", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+    await createProject(db, { name: "Atlas Refit", creatorId: admin.userId });
+    await createProject(db, { name: "Bridge Overhaul", creatorId: admin.userId });
+
+    const res = await app.request("/projects?q=atlas", { headers: { Cookie: admin.cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { name: string }[]; meta: { total: number } };
+    expect(body.data.map(p => p.name)).toEqual(["Atlas Refit"]);
+    expect(body.meta.total).toBe(1);
+  });
 });
 
 describe("GET /projects/:id (detail + fail-closed)", () => {

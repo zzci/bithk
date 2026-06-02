@@ -32,6 +32,12 @@ import { computeVisibleTagCount } from "./-project-tag-filter-logic";
 // Matches the row's `gap-2` (0.5rem) so the fit math lines up with layout.
 const CHIP_GAP = 8;
 
+// Hard cap on inline chips regardless of how many would fit, to keep the filter
+// row compact. Fed into the fit math (not applied as a post-hoc slice) so that
+// when the cap actually truncates the list, the "More" trigger's width is
+// reserved up front — otherwise it could be forced in without room and clip.
+const MAX_INLINE_CHIPS = 7;
+
 interface BaseProps {
   // Tags in most-used-first order (as returned by the API).
   readonly tags: readonly ProjectTag[];
@@ -97,14 +103,21 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
       return;
 
     const recompute = () => {
-      const widths = Array.from(
+      const allWidths = Array.from(
         measure.querySelectorAll<HTMLElement>("[data-measure-chip]"),
       ).map(el => el.offsetWidth);
       const moreWidth = measure.querySelector<HTMLElement>("[data-measure-more]")?.offsetWidth ?? 0;
+      // Only the first MAX_INLINE_CHIPS can ever show inline. When the cap
+      // truncates (more tags than the cap), a "More" trigger is mandatory, so
+      // reserve its width by shrinking the budget here and pass moreWidth 0 to
+      // the fit (it would otherwise reserve "More" only on width overflow, which
+      // a capped, all-fitting list never trips — the original bug).
+      const capTruncates = allWidths.length > MAX_INLINE_CHIPS;
+      const widths = allWidths.slice(0, MAX_INLINE_CHIPS);
       const next = computeVisibleTagCount({
         widths,
-        available: container.clientWidth,
-        moreWidth,
+        available: capTruncates ? Math.max(0, container.clientWidth - moreWidth - CHIP_GAP) : container.clientWidth,
+        moreWidth: capTruncates ? 0 : moreWidth,
         gap: CHIP_GAP,
       });
       // eslint-disable-next-line react/set-state-in-effect -- measured layout; only re-renders when the fit actually changes.
@@ -122,7 +135,9 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
   if (tags.length === 0)
     return null;
 
-  const count = Math.max(0, Math.min(visibleCount, tags.length, 7));
+  // The MAX_INLINE_CHIPS cap is already baked into `visibleCount` (the fit math
+  // measures at most that many chips), so clamp only to the available tags.
+  const count = Math.max(0, Math.min(visibleCount, tags.length));
   const inline = tags.slice(0, count);
   const overflow = tags.slice(count);
   const overflowActive = overflow.some(tag => isActive(tag.id));
