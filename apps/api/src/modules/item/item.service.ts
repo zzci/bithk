@@ -1,5 +1,6 @@
-import type { AppDatabase, RunResult } from "@/db";
+import type { AppDatabase } from "@/db";
 import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
@@ -148,7 +149,7 @@ export async function updateItem(
     ? and(eq(items.id, id), isNull(items.deletedAt), eq(items.version, input.expectedVersion))
     : and(eq(items.id, id), isNull(items.deletedAt));
 
-  const result = (await db.update(items).set(setData).where(where).run()) as unknown as RunResult;
+  const result = runWrite(() => db.update(items).set(setData).where(where).run());
 
   if (input.expectedVersion !== undefined && result.changes === 0) {
     // Either the item is gone, soft-deleted, or the version doesn't match.
@@ -173,11 +174,11 @@ export async function updateItem(
 export async function softDeleteItem(db: AppDatabase, id: string): Promise<void> {
   const now = new Date().toISOString();
   db.transaction((tx) => {
-    const updated = tx
+    const updated = runWrite(() => tx
       .update(items)
       .set({ deletedAt: now, updatedAt: now, version: sql`${items.version} + 1` })
       .where(and(eq(items.id, id), isNull(items.deletedAt)))
-      .run() as unknown as RunResult;
+      .run());
 
     if (updated.changes === 0)
       return;
