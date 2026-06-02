@@ -14,6 +14,7 @@ import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { relationTuples } from "@/modules/policy/schema";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
+import { NotFoundError } from "@/shared/lib/errors";
 import {
   createIssue,
   getIssueByShortId,
@@ -23,6 +24,7 @@ import {
   softDeleteIssue,
   updateIssue,
 } from "./issue.service";
+import { issueDetails } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -491,5 +493,31 @@ describe("resolveProjectIssueAccess", () => {
 
     const pmAccess = await resolveProjectIssueAccess(db, item, project.id, creator);
     expect(pmAccess.canEdit).toBe(true); // pm + creator
+  });
+});
+
+describe("composeIssue with a missing issue_details row", () => {
+  test("getIssueByShortId throws a typed NotFoundError (not a generic 500)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const issue = await createIssue(db, { title: "Orphan", creatorId: creator, projectId: project.id });
+    const item = (await db.select().from(items).where(eq(items.shortId, issue.id)).get())!;
+
+    // Simulate data drift / partial restore: the item survives but its
+    // details row is gone, so the composer can no longer find it.
+    await db.delete(issueDetails).where(eq(issueDetails.itemId, item.id)).run();
+
+    await expect(getIssueByShortId(db, issue.id)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  test("updateIssue throws a typed NotFoundError when issue_details is missing", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const issue = await createIssue(db, { title: "Orphan", creatorId: creator, projectId: project.id });
+    const item = (await db.select().from(items).where(eq(items.shortId, issue.id)).get())!;
+
+    await db.delete(issueDetails).where(eq(issueDetails.itemId, item.id)).run();
+
+    await expect(updateIssue(db, issue.id, { status: "working" })).rejects.toBeInstanceOf(NotFoundError);
   });
 });

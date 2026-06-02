@@ -25,7 +25,7 @@ export interface WorklistView {
   readonly updatedAt: string;
 }
 
-export function composeWorklist(row: WorklistRow): WorklistView {
+function composeWorklist(row: WorklistRow): WorklistView {
   return {
     id: row.id,
     name: row.name,

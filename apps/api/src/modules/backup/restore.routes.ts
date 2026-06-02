@@ -180,7 +180,7 @@ export function backupImportRoutes() {
           ip: getClientIp(c),
           userAgent: c.req.header("user-agent") ?? "unknown",
           result: "success",
-        });
+        }, { critical: true });
       }
     }
 
@@ -200,7 +200,7 @@ export function backupImportRoutes() {
       ip: getClientIp(c),
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
-    });
+    }, { critical: true });
 
     return c.json({
       success: true,

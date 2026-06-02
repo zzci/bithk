@@ -5,7 +5,7 @@ import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { procurementDetails } from "@/modules/procurement/schema";
-import { NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 
 export type ItemRow = typeof items.$inferSelect;
@@ -425,9 +425,4 @@ export async function assertItemExists(db: AppDatabase, id: string): Promise<Ite
   if (!row)
     throw new NotFoundError("Item", id);
   return row;
-}
-
-/** Internal: ValidationError builder for the comment validators. */
-export function makeCommentValidationError(field: string, message: string): ValidationError {
-  return new ValidationError("Invalid comment input", { [field]: message });
 }

@@ -30,7 +30,7 @@ export async function listGlobalCategories(db: AppDatabase): Promise<readonly Gl
   return await db.select().from(globalProcurementCategories).orderBy(desc(globalProcurementCategories.createdAt)).all();
 }
 
-export async function resolveGlobalCategory(db: AppDatabase, id: string): Promise<GlobalProcurementCategoryRow | undefined> {
+async function resolveGlobalCategory(db: AppDatabase, id: string): Promise<GlobalProcurementCategoryRow | undefined> {
   return await db.select().from(globalProcurementCategories).where(eq(globalProcurementCategories.id, id)).get();
 }
 

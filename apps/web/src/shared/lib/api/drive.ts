@@ -15,18 +15,14 @@
 // consistent. Never call `fetch` directly.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpRaw } from "../http";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
 
 // ── Types ──
 
 export type DriveOwnerType = "user" | "team_directory" | "project";
-export type DriveEntryType = "folder" | "file";
+type DriveEntryType = "folder" | "file";
 export type DriveEntryStatus = "normal" | "trash";
 export type TeamDirectoryRole = "admin" | "editor" | "viewer";
 

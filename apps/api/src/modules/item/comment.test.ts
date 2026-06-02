@@ -169,12 +169,14 @@ describe("listComments", () => {
   test("orders by createdAt ASC, id ASC so threads read top-down", async () => {
     const { userId, item } = await makeItem();
     const first = await createComment(db, { itemId: item.id, authorId: userId, content: "first" });
-    // Comment ids are random 8-char nanoids (not time-ordered), so when
-    // two rows share a ms the id-ASC tiebreaker is non-deterministic. A
-    // 2 ms gap guarantees `createdAt` itself drives the order, matching
-    // the contract this test pins down.
-    await Bun.sleep(2);
     const second = await createComment(db, { itemId: item.id, authorId: userId, content: "second" });
+    // Comment ids are random 8-char nanoids (not time-ordered), so two rows
+    // created in the same millisecond would tie on the id-ASC tiebreaker
+    // non-deterministically. Pin explicit, distinct `createdAt` stamps instead
+    // of sleeping on the wall clock — `createdAt` then unambiguously drives the
+    // order this test asserts.
+    await db.update(itemComments).set({ createdAt: "2026-01-01T00:00:00.000Z" }).where(eq(itemComments.id, first.id)).run();
+    await db.update(itemComments).set({ createdAt: "2026-01-01T00:00:01.000Z" }).where(eq(itemComments.id, second.id)).run();
 
     const list = await listComments(db, item.id, { includeInternal: true });
     expect(list.map(r => r.id)).toEqual([first.id, second.id]);

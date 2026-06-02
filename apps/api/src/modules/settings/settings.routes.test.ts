@@ -169,6 +169,26 @@ describe("PUT /settings/:key", () => {
     });
     expect(res.status).toBe(422);
   });
+
+  test("rejects a value over the 64 KiB bound with 422 (zod)", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const res = await buildApp().request("/settings/app.blob", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "Cookie": cookie },
+      body: JSON.stringify({ value: "x".repeat(64 * 1024 + 1) }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  test("accepts a value at the 64 KiB bound", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const res = await buildApp().request("/settings/app.blob", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "Cookie": cookie },
+      body: JSON.stringify({ value: "x".repeat(64 * 1024) }),
+    });
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("DELETE /settings/:key", () => {

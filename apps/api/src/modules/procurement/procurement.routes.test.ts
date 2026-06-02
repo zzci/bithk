@@ -196,6 +196,43 @@ describe("visibility gating (procurement.view)", () => {
   });
 });
 
+describe("list-query input bounds (FIX-AUDIT-016)", () => {
+  async function pmProject(): Promise<{ cookie: string; shortId: string }> {
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    return { cookie: await cookieForUser(owner), shortId: project.shortId };
+  }
+
+  test("an invalid status query is rejected with 422", async () => {
+    const app = buildApp(db);
+    const { cookie, shortId } = await pmProject();
+    const res = await app.request(`/projects/${shortId}/procurements?status=bogus`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(422);
+  });
+
+  test("an invalid priority query is rejected with 422", async () => {
+    const app = buildApp(db);
+    const { cookie, shortId } = await pmProject();
+    const res = await app.request(`/projects/${shortId}/procurements?priority=critical`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(422);
+  });
+
+  test("an over-long q query is rejected with 422", async () => {
+    const app = buildApp(db);
+    const { cookie, shortId } = await pmProject();
+    const res = await app.request(`/projects/${shortId}/procurements?q=${"a".repeat(201)}`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(422);
+  });
+
+  test("a valid status filter lists and clamps an over-limit page size to 100", async () => {
+    const app = buildApp(db);
+    const { cookie, shortId } = await pmProject();
+    const res = await app.request(`/projects/${shortId}/procurements?status=requested&limit=999`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect((await res.json() as { meta: { limit: number } }).meta.limit).toBe(100);
+  });
+});
+
 describe("POST procurement (procurement.manage)", () => {
   test("a view-only member cannot create (404); the pm can (201)", async () => {
     const app = buildApp(db);

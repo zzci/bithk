@@ -4,13 +4,16 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
-import { getReferenceById } from "@/modules/file";
+import { getReferenceById, releaseReferenceTx } from "@/modules/file";
 import { __resetFilePermissionHooksForTests } from "@/modules/file/permission";
+import { fileReferences } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
+import { ships } from "./schema";
 import { shipCoverPermissionHook } from "./ship.cover.permission";
 import {
   composeShipWithBase,
@@ -129,6 +132,31 @@ describe("ship cover", () => {
     // A is released (row gone); B is the live reference.
     expect(await getReferenceById(db, refA)).toBeUndefined();
     expect(await getReferenceById(db, refB)).toBeDefined();
+  });
+
+  // F4: the repoint and the previous-reference release commit together. A crash
+  // between them must roll BOTH back — never clear the cover while leaving the
+  // old reference unreleased (a dangling/orphaned ref).
+  test("F4: a failed cover repoint + release rolls back together (no dangling/released ref)", async () => {
+    const creator = await seedUser();
+    const ship = await createShip(db, { name: "Atomic", creatorId: creator });
+    const withCover = await setShipCover(db, testConfig(), ship.id, pngFile(), creator);
+    const refA = withCover!.coverReferenceId!;
+    expect(refA).toBeTruthy();
+
+    // Drive the same clear-then-release the service does, but throw before
+    // commit. Both the cover clear and the reference release must roll back.
+    expect(() =>
+      db.transaction((tx) => {
+        tx.update(ships).set({ coverReferenceId: null }).where(eq(ships.id, ship.id)).run();
+        releaseReferenceTx(tx, refA);
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+
+    const after = await getShipById(db, ship.id);
+    expect(after?.coverReferenceId).toBe(refA);
+    expect(await db.select().from(fileReferences).where(eq(fileReferences.id, refA)).get()).toBeTruthy();
   });
 
   test("permission hook: base-project members read, others do not; manage gates delete", async () => {

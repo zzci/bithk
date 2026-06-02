@@ -165,6 +165,38 @@ describe("POST /ships (admin only)", () => {
   });
 });
 
+describe("input bounds (FIX-AUDIT-016)", () => {
+  test("creating a ship with too many tags is rejected with 422", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const tags = Array.from({ length: 51 }, (_, i) => `t${i}`);
+    const res = await app.request("/ships", jsonReq("POST", cookie, { name: "Tagged", tags }));
+    expect(res.status).toBe(422);
+  });
+
+  test("creating a ship with an over-long tag is rejected with 422", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request("/ships", jsonReq("POST", cookie, { name: "Tagged", tags: ["a".repeat(51)] }));
+    expect(res.status).toBe(422);
+  });
+
+  test("an over-long list q query is rejected with 422", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request(`/ships?q=${"a".repeat(201)}`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(422);
+  });
+
+  test("the list clamps an over-limit page size to 100", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request("/ships?limit=999", { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect((await res.json() as { meta: { limit: number } }).meta.limit).toBe(100);
+  });
+});
+
 describe("GET /ships/:shortId (fail-closed read)", () => {
   test("non-member gets 404 (existence is not leaked); member and admin get 200", async () => {
     const app = buildApp(db);

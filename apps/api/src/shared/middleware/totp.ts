@@ -15,5 +15,3 @@ export const requireTotp: MiddlewareHandler<AppEnv> = async (c, next) => {
 
   return next();
 };
-
-export const requireTotpStepUp = requireTotp;

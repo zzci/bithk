@@ -73,8 +73,13 @@ describe("runShell", () => {
     expect(result).toContain("ABC");
   });
 
-  test("throws on non-zero exit, attaches stderr", async () => {
-    expect(run({ command: "echo boom >&2; exit 7" })).rejects.toThrow(/exited 7/);
+  test("throws on non-zero exit without leaking stderr into the persisted error", async () => {
+    const err: unknown = await run({ command: "echo boom >&2; exit 7" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/exited 7/);
+    // FIX-AUDIT-006: stderr must NOT be embedded in the thrown error
+    // (which is persisted to cron_job_logs.error and returned by triggers).
+    expect((err as Error).message).not.toContain("boom");
   });
 
   test("times out long-running commands", async () => {

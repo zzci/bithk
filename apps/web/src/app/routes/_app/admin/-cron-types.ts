@@ -39,7 +39,7 @@ export interface JobOneResponse {
   data: CronJob;
 }
 
-export type ActionInputType
+type ActionInputType
   = | "string"
     | "textarea"
     | "secret"
@@ -93,7 +93,7 @@ export interface ActionsResponse {
 // expression sent to the API. The API normalises shorthand forms
 // (`@every_5m` → `@every_5_minutes`) so either is accepted.
 
-export interface SchedulePreset {
+interface SchedulePreset {
   readonly key: string;
   readonly value: string;
 }

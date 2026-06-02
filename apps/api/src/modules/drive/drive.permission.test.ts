@@ -13,6 +13,7 @@ import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/s
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
+import { shares } from "@/modules/share/schema";
 import { createShare } from "@/modules/share/share.service";
 import { assertEntryCapability, resolveEntryCapabilities } from "./drive.permission";
 import { createDriveFolder, uploadDriveFile } from "./drive.service";
@@ -234,6 +235,37 @@ describe("resolveEntryCapabilities — additive direct shares", () => {
     expect([...caps].sort()).toEqual(["download", "read", "update"]);
     expect(caps.has("delete")).toBe(false);
     expect(caps.has("share")).toBe(false);
+  });
+
+  test("an expired direct share confers nothing", async () => {
+    const { row, recipient } = await sharedFile("edit");
+    // Direct shares created via the service carry no expiry; expire it directly.
+    await db.update(shares)
+      .set({ expiresAt: new Date(Date.now() - 60_000).toISOString() })
+      .where(eq(shares.resourceId, row.id))
+      .run();
+    const caps = await resolveEntryCapabilities(db, row, { id: recipient, role: "user" });
+    expect(caps.size).toBe(0);
+  });
+
+  test("an exhausted direct share confers nothing", async () => {
+    const { row, recipient } = await sharedFile("view");
+    await db.update(shares)
+      .set({ maxDownloads: 1, downloadCount: 1 })
+      .where(eq(shares.resourceId, row.id))
+      .run();
+    const caps = await resolveEntryCapabilities(db, row, { id: recipient, role: "user" });
+    expect(caps.size).toBe(0);
+  });
+
+  test("a share with a future expiry and remaining budget still grants access", async () => {
+    const { row, recipient } = await sharedFile("view");
+    await db.update(shares)
+      .set({ expiresAt: new Date(Date.now() + 60_000).toISOString(), maxDownloads: 5, downloadCount: 1 })
+      .where(eq(shares.resourceId, row.id))
+      .run();
+    const caps = await resolveEntryCapabilities(db, row, { id: recipient, role: "user" });
+    expect([...caps].sort()).toEqual(["download", "read"]);
   });
 });
 
