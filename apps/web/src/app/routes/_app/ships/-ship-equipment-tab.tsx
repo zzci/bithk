@@ -215,8 +215,8 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
 
       <div className="overflow-x-auto rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow>
+          <TableHeader className="[&_tr]:border-0">
+            <TableRow className="border-0">
               <TableHead>{t("equipment.field.name")}</TableHead>
               <TableHead>{t("equipment.field.category")}</TableHead>
               <TableHead>{t("equipment.field.manufacturerModel")}</TableHead>
@@ -227,7 +227,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
               {canManage && <TableHead className="w-28">{t("equipment.actions")}</TableHead>}
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="[&_tr]:border-0">
             {equipmentQuery.isLoading
               ? <TableRow><TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">{t("equipment.loading")}</TableCell></TableRow>
               : equipment.length === 0
@@ -251,7 +251,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                 : filtered.length === 0
                   ? <TableRow><TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">{t("equipment.noMatches")}</TableCell></TableRow>
                   : filtered.map(row => (
-                      <TableRow key={row.id}>
+                      <TableRow key={row.id} className="border-0">
                         <TableCell className="font-medium">{row.name}</TableCell>
                         <TableCell>{row.category || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
                         <TableCell>
