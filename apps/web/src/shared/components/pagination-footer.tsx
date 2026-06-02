@@ -9,7 +9,7 @@ import { Button } from "@/shared/components/ui/button";
 interface PaginationFooterProps {
   readonly page: number;
   readonly totalPages: number;
-  /** Pre-rendered left label, e.g. t("procurement.total", { count }). */
+  /** Pre-rendered left label; the caller translates its own total-count string. */
   readonly totalLabel: ReactNode;
   readonly onPrev: () => void;
   readonly onNext: () => void;
