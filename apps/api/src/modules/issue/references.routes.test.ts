@@ -14,8 +14,7 @@ import { users } from "@/modules/account/users/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
-import { maintenanceTemplates } from "@/modules/ship/schema";
-import { createShip } from "@/modules/ship/ship.service";
+import { worklists } from "@/modules/ship/schema";
 import { nanoid as genNanoid } from "@/shared/lib/id";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { issueRoutes } from "./issue.routes";
@@ -104,10 +103,10 @@ function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
   };
 }
 
-async function seedTemplate(shipId: string | null, name = "Annual Service"): Promise<string> {
+async function seedWorklist(shipId: string | null, name = "Annual Service"): Promise<string> {
   const id = genNanoid();
   const now = new Date().toISOString();
-  await db.insert(maintenanceTemplates).values({
+  await db.insert(worklists).values({
     id,
     shipId,
     name,
@@ -242,20 +241,20 @@ describe("issue create with references[]", () => {
     const owner = await seedUser("user");
     const cookie = await cookieForUser(owner);
     const project = await createProject(db, { name: "P", creatorId: owner });
-    const templateId = await seedTemplate(null);
+    const worklistId = await seedWorklist(null);
 
     const create = await app.request(`/projects/${project.shortId}/issues`, jsonReq("POST", cookie, {
       title: "Service the engine",
-      references: [{ refType: "maintenance_template", refId: templateId }],
+      references: [{ refType: "worklist", refId: worklistId }],
     }));
     expect(create.status).toBe(201);
     const created = await create.json() as { data: { id: string } };
 
     const list = await app.request(`/issues/${created.data.id}/references`, { headers: { Cookie: cookie } });
-    const listed = await list.json() as { data: Array<{ refType: string; template: { name: string } | null }> };
+    const listed = await list.json() as { data: Array<{ refType: string; worklist: { name: string } | null }> };
     expect(listed.data).toHaveLength(1);
-    expect(listed.data[0]!.refType).toBe("maintenance_template");
-    expect(listed.data[0]!.template?.name).toBe("Annual Service");
+    expect(listed.data[0]!.refType).toBe("worklist");
+    expect(listed.data[0]!.worklist?.name).toBe("Annual Service");
   });
 
   test("create without references behaves unchanged", async () => {
@@ -271,61 +270,25 @@ describe("issue create with references[]", () => {
   });
 });
 
-describe("maintenance_template resolution", () => {
+describe("worklist resolution", () => {
   test("resolves checklist + precautions, degrades gracefully on a dangling refId", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const cookie = await cookieForUser(owner);
     const project = await createProject(db, { name: "P", creatorId: owner });
     const issue = await createIssue(db, { title: "T", creatorId: owner, projectId: project.id });
-    const templateId = await seedTemplate(null);
+    const worklistId = await seedWorklist(null);
 
-    await app.request(`/issues/${issue.id}/references`, jsonReq("POST", cookie, { refType: "maintenance_template", refId: templateId }));
-    await app.request(`/issues/${issue.id}/references`, jsonReq("POST", cookie, { refType: "maintenance_template", refId: "deleted-template-id" }));
+    await app.request(`/issues/${issue.id}/references`, jsonReq("POST", cookie, { refType: "worklist", refId: worklistId }));
+    await app.request(`/issues/${issue.id}/references`, jsonReq("POST", cookie, { refType: "worklist", refId: "deleted-worklist-id" }));
 
     const list = await app.request(`/issues/${issue.id}/references`, { headers: { Cookie: cookie } });
     expect(list.status).toBe(200);
-    const data = (await list.json() as { data: Array<{ refId: string; template: { checklist: string; precautions: string } | null }> }).data;
-    const resolved = data.find(r => r.refId === templateId)!;
-    const dangling = data.find(r => r.refId === "deleted-template-id")!;
-    expect(resolved.template?.checklist).toBe("step 1\nstep 2");
-    expect(resolved.template?.precautions).toBe("wear gloves");
-    expect(dangling.template).toBeNull();
-  });
-});
-
-describe("ship maintenance work orders", () => {
-  test("lists issues in a ship's bound projects carrying a maintenance_template ref", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const cookie = await cookieForUser(owner);
-    const ship = await createShip(db, { name: "Aurora", creatorId: owner });
-    const templateId = await seedTemplate(ship.id);
-
-    // A maintenance work order in the ship's base project.
-    const issue = await createIssue(db, {
-      title: "Quarterly check",
-      creatorId: owner,
-      projectId: ship.baseProjectId!,
-      references: [{ refType: "maintenance_template", refId: templateId }],
-    });
-    // A plain issue (no maintenance ref) in the same project — must be excluded.
-    await createIssue(db, { title: "Plain", creatorId: owner, projectId: ship.baseProjectId! });
-
-    const res = await app.request(`/ships/${ship.shortId}/maintenance-orders`, { headers: { Cookie: cookie } });
-    expect(res.status).toBe(200);
-    const data = (await res.json() as { data: Array<{ id: string; templateRefId: string }> }).data;
-    expect(data).toHaveLength(1);
-    expect(data[0]!.id).toBe(issue.id);
-    expect(data[0]!.templateRefId).toBe(templateId);
-  });
-
-  test("a non-member gets a fail-closed 404", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const outsider = await seedUser("user");
-    const ship = await createShip(db, { name: "Aurora", creatorId: owner });
-    const res = await app.request(`/ships/${ship.shortId}/maintenance-orders`, { headers: { Cookie: await cookieForUser(outsider) } });
-    expect(res.status).toBe(404);
+    const data = (await list.json() as { data: Array<{ refId: string; worklist: { checklist: string; precautions: string } | null }> }).data;
+    const resolved = data.find(r => r.refId === worklistId)!;
+    const dangling = data.find(r => r.refId === "deleted-worklist-id")!;
+    expect(resolved.worklist?.checklist).toBe("step 1\nstep 2");
+    expect(resolved.worklist?.precautions).toBe("wear gloves");
+    expect(dangling.worklist).toBeNull();
   });
 });

@@ -47,8 +47,8 @@ import { addMember, createProject, listMembers, setProjectCover } from "@/module
 import { setSetting } from "@/modules/settings/settings.service";
 import { createShare } from "@/modules/share/share.service";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
-import { createGlobalTemplate, createShipTemplate } from "@/modules/ship/ship.maintenance-template.service";
 import { bindProject, createShip, setShipCover } from "@/modules/ship/ship.service";
+import { createGlobalWorklist, createShipWorklist } from "@/modules/ship/ship.worklist.service";
 import { ROOT_DIR } from "@/root";
 import { nanoid, ulid } from "@/shared/lib/id";
 // Side-effect imports: register the share adapters so `createShare` resolves
@@ -113,7 +113,7 @@ const userName = new Map<string, string>();
 const contactId = new Map<string, string>();
 const shipInternalId = new Map<string, string>();
 const shipShortId = new Map<string, string>();
-const globalTemplateId = new Map<string, string>();
+const globalWorklistId = new Map<string, string>();
 interface ProjectInfo { id: string; shortId: string; creatorUserId: string; memberRoleId: string; members: { memberId: string; userId: string }[]; categoryIds: Map<string, string> }
 const projectInfo = new Map<string, ProjectInfo>();
 
@@ -222,29 +222,29 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
   return equipment;
 }
 
-async function importMaintenanceTemplates(db: AppDatabase): Promise<number> {
-  const recs = await readJson<{ global: MaintRec[]; ship: MaintRec[] }>("maintenance-templates");
+async function importWorklists(db: AppDatabase): Promise<number> {
+  const recs = await readJson<{ global: MaintRec[]; ship: MaintRec[] }>("worklists");
   let count = 0;
   for (const t of recs.global) {
-    const tpl = await createGlobalTemplate(db, {
+    const wl = await createGlobalWorklist(db, {
       name: t.name ?? t.key,
       category: t.category,
       checklist: t.checklist,
       precautions: t.precautions,
     });
-    globalTemplateId.set(t.key, tpl.id);
+    globalWorklistId.set(t.key, wl.id);
     count++;
   }
   for (const t of recs.ship) {
     const internalId = shipInternalId.get(t.ship!);
     if (!internalId)
-      throw new Error(`Maintenance template ${t.key} references unknown ship ${t.ship}`);
-    await createShipTemplate(db, internalId, {
+      throw new Error(`Worklist ${t.key} references unknown ship ${t.ship}`);
+    await createShipWorklist(db, internalId, {
       name: t.name,
       category: t.category,
       checklist: t.checklist,
       precautions: t.precautions,
-      fromGlobalId: t.fromGlobal ? globalTemplateId.get(t.fromGlobal) : undefined,
+      fromGlobalId: t.fromGlobal ? globalWorklistId.get(t.fromGlobal) : undefined,
     });
     count++;
   }
@@ -653,7 +653,7 @@ async function main(): Promise<void> {
     await importGroups(db);
     await importContacts(db);
     const equipment = await importShips(db, config);
-    const templates = await importMaintenanceTemplates(db);
+    const worklistCount = await importWorklists(db);
     await importProjects(db, config);
     const issues = await importIssues(db, config);
     const procurements = await importProcurements(db, config);
@@ -668,7 +668,7 @@ async function main(): Promise<void> {
     console.log(`  groups:       (with members)`);
     console.log(`  contacts:     ${contactId.size}`);
     console.log(`  ships:        ${shipInternalId.size} (+ base projects, ${equipment} equipment)`);
-    console.log(`  maint. tmpl:  ${templates}`);
+    console.log(`  worklists:    ${worklistCount}`);
     console.log(`  projects:     ${projectInfo.size} standalone (+ ship base projects)`);
     console.log(`  issues:       ${issues.issues} (${issues.comments} comments, ${issues.attachments} attachments)`);
     console.log(`  procurements: ${procurements.procurements} (${procurements.attachments} attachments)`);

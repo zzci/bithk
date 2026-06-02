@@ -3,10 +3,10 @@ import { items } from "@/modules/item/schema";
 
 // Known reference target kinds. The column itself is free `text` so future
 // kinds can be added without a migration; this list drives input validation
-// and the soft-reference resolver. `maintenance_template` points (refId) at a
-// SHIP-LEVEL `maintenance_templates.id` and turns a plain issue into a
-// maintenance work order; `url` / `document` are generic attachments.
-export const ISSUE_REFERENCE_TYPES = ["maintenance_template", "url", "document"] as const;
+// and the soft-reference resolver. `worklist` points (refId) at a
+// `worklists.id` and links a plain issue to that worklist; `url` / `document`
+// are generic attachments.
+export const ISSUE_REFERENCE_TYPES = ["worklist", "url", "document"] as const;
 export type IssueReferenceType = typeof ISSUE_REFERENCE_TYPES[number];
 
 // Generic, additive references hung off an issue (`items.id`). Deliberately NOT

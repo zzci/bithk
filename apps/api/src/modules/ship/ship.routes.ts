@@ -15,15 +15,6 @@ import {
   updateEquipment,
 } from "./ship.equipment.service";
 import {
-  createShipTemplate,
-  createShipTemplateSchema,
-  deleteShipTemplate,
-  getShipTemplate,
-  listShipTemplates,
-  updateShipTemplate,
-  updateTemplateSchema,
-} from "./ship.maintenance-template.service";
-import {
   bindProject,
   composeShipWithBase,
   createShip,
@@ -38,6 +29,15 @@ import {
   userCanManageShip,
   userCanReadShip,
 } from "./ship.service";
+import {
+  createShipWorklist,
+  createShipWorklistSchema,
+  deleteShipWorklist,
+  getShipWorklist,
+  listShipWorklists,
+  updateShipWorklist,
+  updateWorklistSchema,
+} from "./ship.worklist.service";
 
 const shipCoreShape = {
   tags: z.array(z.string()).optional(),
@@ -311,55 +311,55 @@ export function shipRoutes() {
       throw new NotFoundError("Equipment", equipmentId);
     return c.json({ success: true, data: null });
   });
-  // ─── T3: ship-level maintenance templates ───────────────────────────────
+  // ─── Ship-level worklists ────────────────────────────────────────────────
   // Read = base-project member (404 fail-closed); write = project.manage (403).
-  // These return ONLY this ship's templates (never global knowledge-base rows).
-  router.get("/ships/:shortId/maintenance-templates", async (c) => {
+  // These return ONLY this ship's worklists (never global knowledge-base rows).
+  router.get("/ships/:shortId/worklists", async (c) => {
     const { ship } = await requireShipRead(c, c.req.param("shortId"));
     const db = c.get("db");
-    return c.json({ success: true, data: await listShipTemplates(db, ship.id) });
+    return c.json({ success: true, data: await listShipWorklists(db, ship.id) });
   });
 
-  router.post("/ships/:shortId/maintenance-templates", async (c) => {
+  router.post("/ships/:shortId/worklists", async (c) => {
     const { ship } = await requireShipManage(c, c.req.param("shortId"));
     const db = c.get("db");
-    const body = createShipTemplateSchema.parse(await c.req.json());
-    const result = await createShipTemplate(db, ship.id, body);
+    const body = createShipWorklistSchema.parse(await c.req.json());
+    const result = await createShipWorklist(db, ship.id, body);
     if (result.status === "global_not_found")
-      throw new NotFoundError("Maintenance template", body.fromGlobalId);
-    return c.json({ success: true, data: result.template }, 201);
+      throw new NotFoundError("Worklist", body.fromGlobalId);
+    return c.json({ success: true, data: result.worklist }, 201);
   });
 
-  router.get("/ships/:shortId/maintenance-templates/:id", async (c) => {
+  router.get("/ships/:shortId/worklists/:id", async (c) => {
     const { ship } = await requireShipRead(c, c.req.param("shortId"));
     const db = c.get("db");
     const id = c.req.param("id");
-    const tpl = await getShipTemplate(db, ship.id, id);
-    if (!tpl)
-      throw new NotFoundError("Maintenance template", id);
-    return c.json({ success: true, data: tpl });
+    const wl = await getShipWorklist(db, ship.id, id);
+    if (!wl)
+      throw new NotFoundError("Worklist", id);
+    return c.json({ success: true, data: wl });
   });
 
-  router.patch("/ships/:shortId/maintenance-templates/:id", async (c) => {
+  router.patch("/ships/:shortId/worklists/:id", async (c) => {
     const { ship } = await requireShipManage(c, c.req.param("shortId"));
     const db = c.get("db");
     const id = c.req.param("id");
-    const body = updateTemplateSchema.parse(await c.req.json());
-    const updated = await updateShipTemplate(db, ship.id, id, body);
+    const body = updateWorklistSchema.parse(await c.req.json());
+    const updated = await updateShipWorklist(db, ship.id, id, body);
     if (!updated)
-      throw new NotFoundError("Maintenance template", id);
+      throw new NotFoundError("Worklist", id);
     return c.json({ success: true, data: updated });
   });
 
-  router.delete("/ships/:shortId/maintenance-templates/:id", async (c) => {
+  router.delete("/ships/:shortId/worklists/:id", async (c) => {
     const { ship } = await requireShipManage(c, c.req.param("shortId"));
     const db = c.get("db");
     const id = c.req.param("id");
-    if (!await deleteShipTemplate(db, ship.id, id))
-      throw new NotFoundError("Maintenance template", id);
+    if (!await deleteShipWorklist(db, ship.id, id))
+      throw new NotFoundError("Worklist", id);
     return c.json({ success: true, data: null });
   });
-  // ─── end T3 ──────────────────────────────────────────────────────────────
+  // ─── end worklists ─────────────────────────────────────────────────────────
 
   return router;
 }

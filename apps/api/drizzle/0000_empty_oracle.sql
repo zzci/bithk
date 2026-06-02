@@ -470,7 +470,7 @@ CREATE INDEX `shares_created_by_idx` ON `shares` (`created_by`);--> statement-br
 CREATE INDEX `shares_shared_with_idx` ON `shares` (`shared_with_user_id`);--> statement-breakpoint
 CREATE INDEX `shares_share_type_idx` ON `shares` (`share_type`);--> statement-breakpoint
 CREATE INDEX `shares_active_expires_idx` ON `shares` (`is_active`,`expires_at`);--> statement-breakpoint
-CREATE TABLE `maintenance_templates` (
+CREATE TABLE `worklists` (
 	`id` text PRIMARY KEY NOT NULL,
 	`ship_id` text,
 	`name` text NOT NULL,
@@ -482,7 +482,7 @@ CREATE TABLE `maintenance_templates` (
 	FOREIGN KEY (`ship_id`) REFERENCES `ships`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `maintenance_templates_ship_idx` ON `maintenance_templates` (`ship_id`);--> statement-breakpoint
+CREATE INDEX `worklists_ship_idx` ON `worklists` (`ship_id`);--> statement-breakpoint
 CREATE TABLE `ship_equipment` (
 	`id` text PRIMARY KEY NOT NULL,
 	`ship_id` text NOT NULL,

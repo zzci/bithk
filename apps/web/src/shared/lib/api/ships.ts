@@ -6,13 +6,11 @@
 // *short* id so the frontend can render that project's drive and resolve its
 // capabilities directly.
 //
-// A ship is thin: its permissions, files, and work orders all live on its base
-// project. This client only covers the ship core + project binding (T5a);
-// equipment and maintenance templates arrive with their own client modules in
-// T5b.
+// A ship is thin: its permissions and files all live on its base project. This
+// client covers the ship core + project binding, equipment, and worklists.
 
 import type { UseMutationResult } from "@tanstack/react-query";
-import type { IssueStatus, ProjectView } from "./projects";
+import type { ProjectView } from "./projects";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
@@ -89,7 +87,7 @@ export interface ShipEquipmentView {
   readonly updatedAt: string;
 }
 
-export interface MaintenanceTemplateView {
+export interface WorklistView {
   readonly id: string;
   readonly name: string;
   readonly category: string | null;
@@ -99,7 +97,7 @@ export interface MaintenanceTemplateView {
   readonly updatedAt: string;
 }
 
-export interface ResolvedMaintenanceTemplate {
+export interface ResolvedWorklist {
   readonly id: string;
   readonly name: string;
   readonly category: string | null;
@@ -113,16 +111,7 @@ export interface IssueReferenceView {
   readonly refId: string;
   readonly label: string | null;
   readonly createdAt: string;
-  readonly template?: ResolvedMaintenanceTemplate | null;
-}
-
-export interface ShipMaintenanceOrderView {
-  readonly id: string;
-  readonly title: string;
-  readonly status: IssueStatus;
-  readonly projectId: string;
-  readonly templateRefId: string;
-  readonly referenceId: string;
+  readonly worklist?: ResolvedWorklist | null;
 }
 
 export interface ListMeta {
@@ -143,9 +132,8 @@ export const shipKeys = {
   detail: (id: string) => ["ships", "detail", id] as const,
   projects: (id: string) => ["ships", id, "projects"] as const,
   equipment: (id: string) => ["ships", id, "equipment"] as const,
-  maintenanceTemplates: (id: string) => ["ships", id, "maintenance-templates"] as const,
-  globalMaintenanceTemplates: () => ["maintenance-templates", "global"] as const,
-  maintenanceOrders: (id: string) => ["ships", id, "maintenance-orders"] as const,
+  worklists: (id: string) => ["ships", id, "worklists"] as const,
+  globalWorklists: () => ["worklists", "global"] as const,
   issueReferences: (issueId: string) => ["issues", issueId, "references"] as const,
 };
 
@@ -431,80 +419,69 @@ export function useDeleteShipEquipment(): UseMutationResult<null, Error, { shipI
   });
 }
 
-// ── Maintenance templates + work orders ──
+// ── Worklists ──
 
-export interface MaintenanceTemplateInput {
+export interface WorklistInput {
   readonly name?: string;
   readonly category?: string | null;
   readonly checklist?: string | null;
   readonly precautions?: string | null;
 }
 
-export function useShipMaintenanceTemplates(shipId: string | undefined) {
+export function useShipWorklists(shipId: string | undefined) {
   return useQuery({
-    queryKey: shipKeys.maintenanceTemplates(shipId ?? ""),
-    queryFn: () => http<ApiEnvelope<readonly MaintenanceTemplateView[]>>(`/ships/${encodeURIComponent(shipId!)}/maintenance-templates`).then(r => r.data),
+    queryKey: shipKeys.worklists(shipId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly WorklistView[]>>(`/ships/${encodeURIComponent(shipId!)}/worklists`).then(r => r.data),
     enabled: !!shipId,
     staleTime: 5_000,
   });
 }
 
-export function useGlobalMaintenanceTemplates(enabled: boolean) {
+export function useGlobalWorklists(enabled: boolean) {
   return useQuery({
-    queryKey: shipKeys.globalMaintenanceTemplates(),
-    queryFn: () => http<ApiEnvelope<readonly MaintenanceTemplateView[]>>("/maintenance-templates").then(r => r.data),
+    queryKey: shipKeys.globalWorklists(),
+    queryFn: () => http<ApiEnvelope<readonly WorklistView[]>>("/worklists").then(r => r.data),
     enabled,
     staleTime: 5_000,
   });
 }
 
-export function useCreateShipMaintenanceTemplate(): UseMutationResult<MaintenanceTemplateView, Error, { shipId: string; fromGlobalId?: string } & MaintenanceTemplateInput> {
+export function useCreateShipWorklist(): UseMutationResult<WorklistView, Error, { shipId: string; fromGlobalId?: string } & WorklistInput> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ shipId, ...body }) => http<ApiEnvelope<MaintenanceTemplateView>>(`/ships/${encodeURIComponent(shipId)}/maintenance-templates`, {
+    mutationFn: ({ shipId, ...body }) => http<ApiEnvelope<WorklistView>>(`/ships/${encodeURIComponent(shipId)}/worklists`, {
       method: "POST",
       body: JSON.stringify(body),
     }).then(r => r.data),
     onSuccess: (_data, { shipId }) => {
-      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceTemplates(shipId) });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.worklists(shipId) });
     },
   });
 }
 
-export function useUpdateShipMaintenanceTemplate(): UseMutationResult<MaintenanceTemplateView, Error, { shipId: string; templateId: string } & MaintenanceTemplateInput> {
+export function useUpdateShipWorklist(): UseMutationResult<WorklistView, Error, { shipId: string; worklistId: string } & WorklistInput> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ shipId, templateId, ...body }) => http<ApiEnvelope<MaintenanceTemplateView>>(
-      `/ships/${encodeURIComponent(shipId)}/maintenance-templates/${encodeURIComponent(templateId)}`,
+    mutationFn: ({ shipId, worklistId, ...body }) => http<ApiEnvelope<WorklistView>>(
+      `/ships/${encodeURIComponent(shipId)}/worklists/${encodeURIComponent(worklistId)}`,
       { method: "PATCH", body: JSON.stringify(body) },
     ).then(r => r.data),
     onSuccess: (_data, { shipId }) => {
-      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceTemplates(shipId) });
-      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceOrders(shipId) });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.worklists(shipId) });
     },
   });
 }
 
-export function useDeleteShipMaintenanceTemplate(): UseMutationResult<null, Error, { shipId: string; templateId: string }> {
+export function useDeleteShipWorklist(): UseMutationResult<null, Error, { shipId: string; worklistId: string }> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ shipId, templateId }) => http<ApiEnvelope<null>>(
-      `/ships/${encodeURIComponent(shipId)}/maintenance-templates/${encodeURIComponent(templateId)}`,
+    mutationFn: ({ shipId, worklistId }) => http<ApiEnvelope<null>>(
+      `/ships/${encodeURIComponent(shipId)}/worklists/${encodeURIComponent(worklistId)}`,
       { method: "DELETE" },
     ).then(r => r.data),
     onSuccess: (_data, { shipId }) => {
-      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceTemplates(shipId) });
-      void queryClient.invalidateQueries({ queryKey: shipKeys.maintenanceOrders(shipId) });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.worklists(shipId) });
     },
-  });
-}
-
-export function useShipMaintenanceOrders(shipId: string | undefined) {
-  return useQuery({
-    queryKey: shipKeys.maintenanceOrders(shipId ?? ""),
-    queryFn: () => http<ApiEnvelope<readonly ShipMaintenanceOrderView[]>>(`/ships/${encodeURIComponent(shipId!)}/maintenance-orders`).then(r => r.data),
-    enabled: !!shipId,
-    staleTime: 5_000,
   });
 }
 

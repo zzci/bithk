@@ -7,11 +7,11 @@ const ship = { id: "s1", name: "Serenity", baseProjectId: "p1" } as ShipView;
 describe("ship tab registry", () => {
   it("exposes ship detail tabs in ascending order", () => {
     const tabs = visibleShipTabs({ ship, canManage: true });
-    expect(tabs.map(t => t.value)).toEqual(["overview", "profile", "equipment", "maintenance", "projects", "files"]);
+    expect(tabs.map(t => t.value)).toEqual(["overview", "profile", "equipment", "worklist", "projects", "files"]);
     expect(tabs.map(t => t.order)).toEqual([...tabs.map(t => t.order)].sort((a, b) => a - b));
   });
 
-  it("registers T5b equipment and maintenance slots", () => {
+  it("registers the equipment and worklist slots", () => {
     const used = new Set(SHIP_TABS.map(t => t.order));
     expect(used.has(30)).toBe(true);
     expect(used.has(40)).toBe(true);

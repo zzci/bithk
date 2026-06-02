@@ -39,7 +39,7 @@
     "overview": "Overview",
     "profile": "Profile",
     "equipment": "Equipment",
-    "maintenance": "Maintenance",
+    "worklist": "Worklist",
     "projects": "Projects",
     "files": "Files"
   },
@@ -51,14 +51,12 @@
     "metrics": {
       "projects": "Projects",
       "equipment": "Equipment",
-      "templates": "Templates",
-      "workOrders": "Work orders"
+      "worklists": "Worklists"
     },
     "metricHints": {
       "projects": "{{base}} base + {{linked}} linked",
       "equipment": "{{count}} retired",
-      "templates": "{{count}} categories",
-      "workOrders": "{{count}} active"
+      "worklists": "{{count}} categories"
     }
   },
   "delete": {
@@ -105,8 +103,6 @@
     "noDescription": "No description provided.",
     "notSet": "Not set",
     "archive": "Ship archive",
-    "upcomingMaintenance": "Upcoming maintenance",
-    "upcomingEmpty": "No active maintenance work orders.",
     "quickStats": "Quick stats",
     "boundProjects": "Bound projects",
     "boundProjectsEmpty": "No projects bound yet.",
@@ -159,60 +155,31 @@
       "retired": "Retired"
     }
   },
-  "maintenance": {
-    "template": {
-      "title": "Ship maintenance templates",
-      "shortTitle": "Templates",
-      "create": "Create template",
-      "edit": "Edit template",
-      "delete": "Delete template",
-      "loading": "Loading maintenance templates…",
-      "empty": "No maintenance templates yet.",
-      "createTitle": "Create maintenance template",
-      "editTitle": "Edit maintenance template",
-      "dialogDescription": "Define the checklist and precautions used by this ship's maintenance work orders.",
-      "deleteTitle": "Delete maintenance template",
-      "deleteConfirm": "Delete \"{{name}}\"? Existing work orders will keep a soft reference.",
-      "copyFromGlobal": "Copy from global knowledge base",
-      "copyPlaceholder": "Select a global template",
-      "copy": "Copy template",
-      "noChecklist": "No checklist provided.",
-      "field": {
-        "name": "Name",
-        "category": "Category",
-        "checklist": "Checklist",
-        "precautions": "Precautions"
-      }
-    },
-    "workOrder": {
-      "title": "Maintenance work orders",
-      "shortTitle": "Work orders",
-      "create": "Open work order from template",
-      "createTitle": "Open work order",
-      "createDescription": "Creates a project issue in the ship's base project and links it to the selected ship template.",
-      "loading": "Loading maintenance work orders…",
-      "empty": "No maintenance work orders yet.",
-      "noBaseProject": "This ship has no base project, so work orders cannot be created.",
-      "view": "View",
-      "selectTemplate": "Select a template",
-      "defaultTitle": "{{name}} work order",
-      "field": {
-        "title": "Title",
-        "description": "Description",
-        "template": "Template",
-        "status": "Status",
-        "priority": "Priority",
-        "detail": "Detail"
-      }
-    },
-    "reference": {
-      "empty": "No content provided.",
-      "missing": "The referenced maintenance template is no longer available.",
-      "missingShort": "Template unavailable"
+  "worklist": {
+    "title": "Worklists",
+    "create": "Create worklist",
+    "edit": "Edit worklist",
+    "delete": "Delete worklist",
+    "loading": "Loading worklists…",
+    "empty": "No worklists yet.",
+    "createTitle": "Create worklist",
+    "editTitle": "Edit worklist",
+    "dialogDescription": "Define the checklist and precautions for this worklist.",
+    "deleteTitle": "Delete worklist",
+    "deleteConfirm": "Delete \"{{name}}\"?",
+    "copyFromGlobal": "Copy from global knowledge base",
+    "copyPlaceholder": "Select a global worklist",
+    "copy": "Copy worklist",
+    "noChecklist": "No checklist provided.",
+    "field": {
+      "name": "Name",
+      "category": "Category",
+      "checklist": "Checklist",
+      "precautions": "Precautions"
     }
   },
   "projects": {
-    "callout": "Files, permissions, and maintenance work orders are all anchored on this ship's base project. The base project cannot be unbound.",
+    "callout": "Files and permissions are all anchored on this ship's base project. The base project cannot be unbound.",
     "bindTitle": "Bind a project",
     "bindPlaceholder": "Project ID",
     "bind": "Bind",

@@ -17,9 +17,8 @@ import {
   useDeleteShip,
   useShip,
   useShipEquipment,
-  useShipMaintenanceOrders,
-  useShipMaintenanceTemplates,
   useShipProjects,
+  useShipWorklists,
 } from "@/shared/lib/api/ships";
 import { useProjectCapabilities } from "../projects/-use-project-role";
 import { visibleShipTabs } from "./-ship-tabs";
@@ -51,8 +50,7 @@ function ShipDetailPage() {
   // badges below.
   const projects = useShipProjects(shipId).data;
   const equipment = useShipEquipment(shipId).data;
-  const templates = useShipMaintenanceTemplates(shipId).data;
-  const orders = useShipMaintenanceOrders(shipId).data;
+  const worklists = useShipWorklists(shipId).data;
 
   const deleteShip = useDeleteShip();
   const [tab, setTab] = useState("overview");
@@ -79,7 +77,7 @@ function ShipDetailPage() {
   const tabCounts: Record<string, number | undefined> = {
     profile: 1,
     equipment: equipment?.length,
-    maintenance: templates === undefined || orders === undefined ? undefined : templates.length + orders.length,
+    worklist: worklists?.length,
     projects: projects?.length,
   };
 

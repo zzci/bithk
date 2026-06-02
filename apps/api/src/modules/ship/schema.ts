@@ -71,10 +71,9 @@ export const shipEquipment = sqliteTable("ship_equipment", {
   updatedAt: text("updated_at").notNull(),
 }, t => [index("ship_equipment_ship_idx").on(t.shipId)]);
 
-// Maintenance templates. `shipId` NULL = a global knowledge-base entry (copy
-// source only); a value = a ship-level copy the ship actually uses. CRUD routes
-// land in a later phase; defined now to keep one foundation migration.
-export const maintenanceTemplates = sqliteTable("maintenance_templates", {
+// Worklists. `shipId` NULL = a global knowledge-base entry (copy source only);
+// a value = a ship-level copy the ship actually uses.
+export const worklists = sqliteTable("worklists", {
   id: text("id").primaryKey(), // nanoid
   shipId: text("ship_id").references(() => ships.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
@@ -83,4 +82,4 @@ export const maintenanceTemplates = sqliteTable("maintenance_templates", {
   precautions: text("precautions"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-}, t => [index("maintenance_templates_ship_idx").on(t.shipId)]);
+}, t => [index("worklists_ship_idx").on(t.shipId)]);

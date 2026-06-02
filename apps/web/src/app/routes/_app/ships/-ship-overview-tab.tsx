@@ -1,13 +1,13 @@
 // Overview tab: a two-column dashboard for one ship. Left column holds the
-// editable archive and active maintenance; the right column previews quick
-// stats, bound projects and equipment categories. Every value is real ship
-// data — editing stays gated on `canManage`.
+// editable archive; the right column previews quick stats, bound projects and
+// equipment categories. Every value is real ship data — editing stays gated on
+// `canManage`.
 
 import type { ReactNode } from "react";
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipView } from "@/shared/lib/api/ships";
 import { useNavigate } from "@tanstack/react-router";
-import { ClipboardList, FolderKanban, Package, Pencil, Wrench } from "lucide-react";
+import { ClipboardList, FolderKanban, Package, Pencil } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -21,15 +21,13 @@ import {
 } from "@/shared/components/ui/card";
 import {
   useShipEquipment,
-  useShipMaintenanceOrders,
-  useShipMaintenanceTemplates,
   useShipProjects,
+  useShipWorklists,
   useUpdateShip,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
-import { ISSUE_STATUS_BADGE } from "./-ship-colors";
 import { ShipCoverField } from "./-ship-cover-field";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToUpdate } from "./-ship-form-logic";
@@ -40,8 +38,6 @@ interface ShipOverviewTabProps {
   readonly ship: ShipView;
   readonly canManage: boolean;
 }
-
-const ACTIVE_ORDER_STATUSES = new Set(["todo", "working", "review"]);
 
 function Card({ title, action, children }: { readonly title: string; readonly action?: ReactNode; readonly children: ReactNode }) {
   return (
@@ -75,14 +71,11 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
   const projects = useShipProjects(ship.id).data ?? [];
   const equipmentData = useShipEquipment(ship.id).data;
   const equipment = useMemo(() => equipmentData ?? [], [equipmentData]);
-  const templates = useShipMaintenanceTemplates(ship.id).data ?? [];
-  const orders = useShipMaintenanceOrders(ship.id).data ?? [];
+  const worklists = useShipWorklists(ship.id).data ?? [];
 
   const notSet = <span className="text-muted-foreground">{t("overview.notSet")}</span>;
   const text = (v: string | null): ReactNode => (v && v.length > 0 ? v : notSet);
   const num = (v: number | null): ReactNode => (v === null ? notSet : String(v));
-
-  const activeOrders = orders.filter(o => ACTIVE_ORDER_STATUSES.has(o.status));
 
   const equipmentCategories = useMemo(() => {
     const counts = new Map<string, number>();
@@ -146,26 +139,6 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
             <Field label={t("field.grossTonnage")}>{num(ship.grossTonnage)}</Field>
           </ArchiveSection>
         </Card>
-
-        <Card title={t("overview.upcomingMaintenance")}>
-          {activeOrders.length === 0
-            ? <p className="text-sm text-muted-foreground">{t("overview.upcomingEmpty")}</p>
-            : (
-                <ul className="space-y-2">
-                  {activeOrders.slice(0, 5).map(order => (
-                    <li key={order.id} className="flex items-center gap-3 rounded-md border bg-muted/20 px-3 py-2">
-                      <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-maint/10 text-accent-maint [&>svg]:size-4">
-                        <Wrench />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{order.title}</span>
-                      <Badge variant="secondary" className={cn("shrink-0", ISSUE_STATUS_BADGE[order.status])}>
-                        {t(`projects:issues.status.${order.status}` as const)}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              )}
-        </Card>
       </div>
 
       <div className="space-y-4">
@@ -186,14 +159,8 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
             <StatTile
               icon={<ClipboardList />}
               accent="bg-info/10 text-info"
-              label={t("detail.metrics.templates")}
-              value={templates.length}
-            />
-            <StatTile
-              icon={<Wrench />}
-              accent="bg-warning/10 text-warning"
-              label={t("detail.metrics.workOrders")}
-              value={orders.length}
+              label={t("detail.metrics.worklists")}
+              value={worklists.length}
             />
           </div>
         </Card>

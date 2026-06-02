@@ -6,25 +6,24 @@ import {
   useBindShipProject,
   useCreateShip,
   useCreateShipEquipment,
-  useCreateShipMaintenanceTemplate,
+  useCreateShipWorklist,
   useDeleteShip,
   useDeleteShipEquipment,
-  useDeleteShipMaintenanceTemplate,
-  useGlobalMaintenanceTemplates,
+  useDeleteShipWorklist,
+  useGlobalWorklists,
   useIssueReferences,
   useRemoveShipCover,
   useSetShipCover,
   useShip,
   useShipEquipment,
-  useShipMaintenanceOrders,
-  useShipMaintenanceTemplates,
   useShipProjects,
   useShips,
   useShipTags,
+  useShipWorklists,
   useUnbindShipProject,
   useUpdateShip,
   useUpdateShipEquipment,
-  useUpdateShipMaintenanceTemplate,
+  useUpdateShipWorklist,
 } from "./ships";
 
 function jsonResponse(body: unknown) {
@@ -53,8 +52,7 @@ describe("shipKeys", () => {
     expect(shipKeys.detail("s1")).toEqual(["ships", "detail", "s1"]);
     expect(shipKeys.projects("s1")).toEqual(["ships", "s1", "projects"]);
     expect(shipKeys.equipment("s1")).toEqual(["ships", "s1", "equipment"]);
-    expect(shipKeys.maintenanceTemplates("s1")).toEqual(["ships", "s1", "maintenance-templates"]);
-    expect(shipKeys.maintenanceOrders("s1")).toEqual(["ships", "s1", "maintenance-orders"]);
+    expect(shipKeys.worklists("s1")).toEqual(["ships", "s1", "worklists"]);
   });
 });
 
@@ -126,39 +124,34 @@ describe("ship equipment hooks", () => {
   });
 });
 
-describe("ship maintenance hooks", () => {
-  it("lists ship templates, global templates, maintenance orders, and issue references", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "tpl1", name: "Quarterly" }] }));
-    const templates = renderHook(() => useShipMaintenanceTemplates("s1"), { wrapper: makeWrapper() });
-    await waitFor(() => expect(templates.result.current.isSuccess).toBe(true));
-    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/ships/s1/maintenance-templates");
+describe("ship worklist hooks", () => {
+  it("lists ship worklists, global worklists, and issue references", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "wl1", name: "Quarterly" }] }));
+    const worklists = renderHook(() => useShipWorklists("s1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(worklists.result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/ships/s1/worklists");
 
-    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "gt1", name: "Global" }] }));
-    const globals = renderHook(() => useGlobalMaintenanceTemplates(true), { wrapper: makeWrapper() });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "gw1", name: "Global" }] }));
+    const globals = renderHook(() => useGlobalWorklists(true), { wrapper: makeWrapper() });
     await waitFor(() => expect(globals.result.current.isSuccess).toBe(true));
-    expect(String(fetchMock.mock.calls[1]![0])).toBe("/api/maintenance-templates");
+    expect(String(fetchMock.mock.calls[1]![0])).toBe("/api/worklists");
 
-    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "wo1", title: "Check", templateRefId: "tpl1" }] }));
-    const orders = renderHook(() => useShipMaintenanceOrders("s1"), { wrapper: makeWrapper() });
-    await waitFor(() => expect(orders.result.current.isSuccess).toBe(true));
-    expect(String(fetchMock.mock.calls[2]![0])).toBe("/api/ships/s1/maintenance-orders");
-
-    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "ref1", refType: "maintenance_template", refId: "tpl1", template: null }] }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "ref1", refType: "worklist", refId: "wl1", worklist: null }] }));
     const refs = renderHook(() => useIssueReferences("wo1"), { wrapper: makeWrapper() });
     await waitFor(() => expect(refs.result.current.isSuccess).toBe(true));
-    expect(String(fetchMock.mock.calls[3]![0])).toBe("/api/issues/wo1/references");
+    expect(String(fetchMock.mock.calls[2]![0])).toBe("/api/issues/wo1/references");
   });
 
-  it("creates ship templates from scratch and from a global source", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "tpl1", name: "Quarterly" } }));
-    const create = renderHook(() => useCreateShipMaintenanceTemplate(), { wrapper: makeWrapper() });
+  it("creates ship worklists from scratch and from a global source", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "wl1", name: "Quarterly" } }));
+    const create = renderHook(() => useCreateShipWorklist(), { wrapper: makeWrapper() });
     create.result.current.mutate({ shipId: "s1", name: "Quarterly" });
     await waitFor(() => expect(create.result.current.isSuccess).toBe(true));
     expect(JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)).toEqual({ name: "Quarterly" });
 
-    create.result.current.mutate({ shipId: "s1", fromGlobalId: "gt1" });
+    create.result.current.mutate({ shipId: "s1", fromGlobalId: "gw1" });
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(JSON.parse(fetchMock.mock.calls[1]![1]!.body as string)).toEqual({ fromGlobalId: "gt1" });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1]!.body as string)).toEqual({ fromGlobalId: "gw1" });
   });
 });
 
@@ -237,25 +230,25 @@ describe("ship mutation hooks", () => {
     expect(init?.method).toBe("DELETE");
   });
 
-  it("useUpdateShipMaintenanceTemplate patches the scoped template route", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "tpl1", name: "Renamed" } }));
-    const { result } = renderHook(() => useUpdateShipMaintenanceTemplate(), { wrapper: makeWrapper() });
-    result.current.mutate({ shipId: "s1", templateId: "tpl1", name: "Renamed" });
+  it("useUpdateShipWorklist patches the scoped worklist route", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { id: "wl1", name: "Renamed" } }));
+    const { result } = renderHook(() => useUpdateShipWorklist(), { wrapper: makeWrapper() });
+    result.current.mutate({ shipId: "s1", worklistId: "wl1", name: "Renamed" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe("/api/ships/s1/maintenance-templates/tpl1");
+    expect(String(url)).toBe("/api/ships/s1/worklists/wl1");
     expect(init?.method).toBe("PATCH");
-    // shipId and templateId are path params, not body fields.
+    // shipId and worklistId are path params, not body fields.
     expect(JSON.parse(init!.body as string)).toEqual({ name: "Renamed" });
   });
 
-  it("useDeleteShipMaintenanceTemplate deletes the scoped template route", async () => {
+  it("useDeleteShipWorklist deletes the scoped worklist route", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: null }));
-    const { result } = renderHook(() => useDeleteShipMaintenanceTemplate(), { wrapper: makeWrapper() });
-    result.current.mutate({ shipId: "s1", templateId: "tpl1" });
+    const { result } = renderHook(() => useDeleteShipWorklist(), { wrapper: makeWrapper() });
+    result.current.mutate({ shipId: "s1", worklistId: "wl1" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe("/api/ships/s1/maintenance-templates/tpl1");
+    expect(String(url)).toBe("/api/ships/s1/worklists/wl1");
     expect(init?.method).toBe("DELETE");
   });
 });

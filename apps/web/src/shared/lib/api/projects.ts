@@ -543,7 +543,7 @@ export interface CreateProjectIssueInput {
 }
 
 export interface IssueReferenceInput {
-  readonly refType: "maintenance_template" | "url" | "document";
+  readonly refType: "worklist" | "url" | "document";
   readonly refId: string;
   readonly label?: string | null;
 }
