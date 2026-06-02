@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeTestQueryClient, makeWrapper } from "@/test/utils";
 import {
   contactKeys,
+  contactTagKeys,
   useContact,
   useContacts,
   useContactsList,
+  useContactTags,
   useCreateContact,
   useDeleteContact,
   useGrantContact,
@@ -120,35 +122,61 @@ describe("useContactsList", () => {
   it("serializes filter and pagination params into the query string", async () => {
     fetchMock.mockImplementation(okList([]));
     const { result } = renderHook(
-      () => useContactsList({ q: "acme co", status: "inactive", visibility: "public", confidential: true, page: 3, limit: 50 }),
+      () => useContactsList({ q: "acme co", status: "inactive", categoryId: "cat-1", page: 3, limit: 50 }),
       { wrapper: makeWrapper() },
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const url = new URL(urlOf(), "http://x");
     expect(url.searchParams.get("q")).toBe("acme co");
     expect(url.searchParams.get("status")).toBe("inactive");
-    expect(url.searchParams.get("visibility")).toBe("public");
-    expect(url.searchParams.get("confidential")).toBe("true");
+    expect(url.searchParams.get("categoryId")).toBe("cat-1");
     expect(url.searchParams.get("page")).toBe("3");
     expect(url.searchParams.get("limit")).toBe("50");
   });
 
-  it("defaults page and limit and serializes confidential=false explicitly", async () => {
+  it("emits repeatable tagIds params sorted for a stable cache key", async () => {
     fetchMock.mockImplementation(okList([]));
-    const { result } = renderHook(() => useContactsList({ confidential: false }), { wrapper: makeWrapper() });
+    const { result } = renderHook(
+      () => useContactsList({ tagIds: ["zeta", "alpha", "mike"] }),
+      { wrapper: makeWrapper() },
+    );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const url = new URL(urlOf(), "http://x");
-    expect(url.searchParams.get("confidential")).toBe("false");
+    expect(url.searchParams.getAll("tagIds")).toEqual(["alpha", "mike", "zeta"]);
+  });
+
+  it("omits the dropped visibility, confidential, and single tag params", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContactsList({ q: "acme" }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.has("visibility")).toBe(false);
+    expect(url.searchParams.has("confidential")).toBe(false);
+    expect(url.searchParams.has("tag")).toBe(false);
+  });
+
+  it("defaults page and limit and omits an empty tagIds set", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContactsList({ tagIds: [] }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.has("tagIds")).toBe(false);
     expect(url.searchParams.get("page")).toBe("1");
     expect(url.searchParams.get("limit")).toBe("20");
   });
+});
 
-  it("keeps the tag filter working", async () => {
-    fetchMock.mockImplementation(okList([]));
-    const { result } = renderHook(() => useContactsList({ tag: "ship supplier" }), { wrapper: makeWrapper() });
+describe("useContactTags", () => {
+  it("requests the contact tag vocabulary and unwraps the enveloped data", async () => {
+    fetchMock.mockImplementation(ok([{ id: "t1", name: "supplier", usageCount: 3 }]));
+    const { result } = renderHook(() => useContactTags(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const url = new URL(urlOf(), "http://x");
-    expect(url.searchParams.get("tag")).toBe("ship supplier");
+    expect(urlOf()).toBe("/api/tags?type=contact");
+    expect(result.current.data?.[0]?.name).toBe("supplier");
+  });
+
+  it("keys the vocabulary cache under contactTagKeys", () => {
+    expect(contactTagKeys.vocabulary).toEqual(["tags", "contact"]);
   });
 });
 
