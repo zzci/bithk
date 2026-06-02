@@ -24,6 +24,20 @@ const stubLogger = {
   flush: () => {},
 } as unknown as Logger;
 
+// Logger that records which level the failure path used, so the routine
+// (warn) and critical (error) branches can be told apart.
+function makeRecordingLogger(calls: { level: string; msg: string; err: unknown }[]): Logger {
+  const record = (level: string) => (ctx: Record<string, unknown>, msg: string) => calls.push({ level, msg, err: ctx.err });
+  return {
+    debug: () => {},
+    info: () => {},
+    warn: record("warn"),
+    error: record("error"),
+    fatal: () => {},
+    flush: () => {},
+  } as unknown as Logger;
+}
+
 beforeEach(async () => {
   dir = mkdtempSync(resolve(tmpdir(), "audit-service-"));
   db = await createDb(resolve(dir, "app.db"));
@@ -101,19 +115,12 @@ describe("audit()", () => {
     expect(row!.result).toBe("failure");
   });
 
-  test("returns undefined and routes through the injected logger when the insert throws", async () => {
-    const calls: { msg: string; err: unknown }[] = [];
-    const recordingLogger = {
-      debug: () => {},
-      info: () => {},
-      warn: () => {},
-      error: (ctx: Record<string, unknown>, msg: string) => calls.push({ msg, err: ctx.err }),
-      fatal: () => {},
-      flush: () => {},
-    } as unknown as Logger;
+  test("routine failures log at warn, return undefined, and never throw", async () => {
+    const calls: { level: string; msg: string; err: unknown }[] = [];
+    const recordingLogger = makeRecordingLogger(calls);
 
     // Close the DB so the next insert raises a known error inside audit()'s
-    // try/catch — exercises the failure-handling branch end-to-end.
+    // try/catch — exercises the best-effort failure branch end-to-end.
     db.close();
 
     const id = await audit(db, recordingLogger, {
@@ -130,6 +137,35 @@ describe("audit()", () => {
 
     expect(id).toBeUndefined();
     expect(calls.length).toBe(1);
+    expect(calls[0]!.level).toBe("warn");
+    expect(calls[0]!.msg).toMatch(/audit/i);
+
+    // Re-open the DB for afterEach cleanup.
+    db = await createDb(resolve(dir, "app.db"));
+  });
+
+  test("critical failures log at error and re-throw so a sensitive action cannot complete untraced", async () => {
+    const calls: { level: string; msg: string; err: unknown }[] = [];
+    const recordingLogger = makeRecordingLogger(calls);
+
+    // Close the DB so the insert raises inside audit()'s try/catch.
+    db.close();
+
+    const promise = audit(db, recordingLogger, {
+      actorId: "u_5",
+      actorName: "x",
+      action: "backup.import",
+      resourceType: "system",
+      resourceId: "database",
+      resourceName: "database",
+      ip: "0.0.0.0",
+      userAgent: "x",
+      result: "success",
+    }, { critical: true });
+
+    await expect(promise).rejects.toThrow();
+    expect(calls.length).toBe(1);
+    expect(calls[0]!.level).toBe("error");
     expect(calls[0]!.msg).toMatch(/audit/i);
 
     // Re-open the DB for afterEach cleanup.
