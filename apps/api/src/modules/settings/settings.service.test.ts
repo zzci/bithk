@@ -37,10 +37,22 @@ describe("isSensitiveKey", () => {
     expect(isSensitiveKey("baz.secret")).toBe(true);
   });
 
+  test("matches the expanded terminal suffixes", () => {
+    expect(isSensitiveKey("smtp.pass")).toBe(true);
+    expect(isSensitiveKey("db.passwd")).toBe(true);
+    expect(isSensitiveKey("x.pwd")).toBe(true);
+    expect(isSensitiveKey("oauth.access_token")).toBe(true);
+    expect(isSensitiveKey("oauth.refresh_token")).toBe(true);
+    expect(isSensitiveKey("tls.private_key")).toBe(true);
+  });
+
   test("does not match unrelated keys", () => {
     expect(isSensitiveKey("smtp.host")).toBe(false);
     expect(isSensitiveKey("session.max_age")).toBe(false);
     expect(isSensitiveKey("password.host")).toBe(false); // suffix only
+    // Documented gap: a secret under an arbitrarily-named key is not maskable
+    // by the suffix contract (see REMAINING note in settings.service.ts).
+    expect(isSensitiveKey("oauth.clientSecretValue")).toBe(false);
   });
 });
 
