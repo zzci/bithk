@@ -140,8 +140,8 @@ describe("projectProcurementTab", () => {
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
     await screen.findByText("Cement");
-    expect(screen.getByText("All statuses")).toBeInTheDocument();
-    expect(screen.getByText("All categories")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Status" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Category" })).toBeInTheDocument();
   });
 
   it("opens the procurement detail drawer when the list row is clicked", async () => {
@@ -224,7 +224,7 @@ describe("projectProcurementTab", () => {
       <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage={false} />,
     );
     await screen.findByText("Cement");
-    await user.click(screen.getByRole("button", { name: "All statuses" }));
+    await user.click(screen.getByRole("button", { name: "Status" }));
     await user.click(await screen.findByRole("menuitemradio", { name: "Cancelled" }));
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((c) => {
