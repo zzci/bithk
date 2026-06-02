@@ -1,6 +1,6 @@
 # PLAN-051 Tag-filter responsive pinned-chip count
 
-- **status**: In Progress
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 xgbm1bkf
 - **campaignId**: l1-75ymcfnr-tagfit-20260602054625
 - **tasks**: [FIX-028](../task/FIX-028.md), [FIX-029](../task/FIX-029.md), [FIX-030](../task/FIX-030.md)
@@ -91,3 +91,4 @@ neither is expected to write json.
 ## Notes
 
 - 2026-06-02 - Created at L2 xgbm1bkf bootstrap.
+- 2026-06-02 - All 3 L3 lanes (FIX-028 allpuvtd / FIX-029 e0xamx5y / FIX-030 pt67mhzv) merged --no-ff into bkd/xgbm1bkf; no file overlap, clean merges. `bun run check` exit 1 = KNOWN @milkdown/ctx teardown flake only (web 621/621 pass, changed-file tests 47/47 green). PLAN Completed; branch ready for L1 review+merge.
