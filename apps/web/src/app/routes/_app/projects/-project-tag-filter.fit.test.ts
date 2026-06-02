@@ -22,6 +22,12 @@ describe("pinnedFitCount", () => {
     expect(pinnedFitCount(2000, 8)).toBe(5);
   });
 
+  it("pins all 5 at a normal desktop container width (FIX-031)", () => {
+    // The component now feeds a non-starved ancestor width (the toolbar / flex-1
+    // region, not the collapsed self), which at desktop is comfortably wide.
+    expect(pinnedFitCount(900, 8)).toBe(5);
+  });
+
   it("clamps to the tag count when fewer than max tags exist", () => {
     expect(pinnedFitCount(2000, 3)).toBe(3);
   });
