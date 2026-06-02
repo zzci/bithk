@@ -1,6 +1,6 @@
 # PLAN-045 Create-issue dialog optimization + priority icon refresh
 
-- **status**: Implementing
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 mh18btcp
 - **campaignId**: l1-75ymcfnr-issuedlg-20260601234538
 - **tasks**: [FIX-016](../task/FIX-016.md), [FIX-017](../task/FIX-017.md)
