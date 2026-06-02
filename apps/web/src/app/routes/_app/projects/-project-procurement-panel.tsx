@@ -262,16 +262,16 @@ export function ProjectProcurementPanel({
       <DetailPanelHeader
         variant={variant}
         title={procurement.itemName}
-        titleEdit={canEdit
-          ? { canEdit: true, onSave: next => patch({ itemName: next }), editHint: t("procurement.detail.clickToEditTitle") }
-          : undefined}
+        {...(canEdit
+          ? { titleEdit: { canEdit: true, onSave: (next: string) => patch({ itemName: next }), editHint: t("procurement.detail.clickToEditTitle") } }
+          : {})}
         labels={{
           back: t("procurement.detail.backToList"),
           maximize: t("procurement.detail.openFullPage"),
           close: t("common:common.close"),
         }}
         onClose={onClose}
-        onMaximize={variant === "drawer" ? onMaximize : undefined}
+        {...(variant === "drawer" && onMaximize ? { onMaximize } : {})}
       />
 
       {/* Body — scrollable */}

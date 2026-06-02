@@ -251,9 +251,9 @@ export function ProjectIssuePanel({
       <DetailPanelHeader
         variant={variant}
         title={issue.title}
-        titleEdit={permissions.canEditAll
-          ? { canEdit: true, onSave: next => patch({ title: next }), editHint: t("clickToEditTitle") }
-          : undefined}
+        {...(permissions.canEditAll
+          ? { titleEdit: { canEdit: true, onSave: (next: string) => patch({ title: next }), editHint: t("clickToEditTitle") } }
+          : {})}
         labels={{
           back: t("backToList"),
           maximize: t("openFullPage"),
@@ -261,8 +261,8 @@ export function ProjectIssuePanel({
           delete: t("common.delete"),
         }}
         onClose={onClose}
-        onMaximize={variant === "drawer" ? onMaximize : undefined}
-        onDelete={permissions.canDelete ? () => setDeleteOpen(true) : undefined}
+        {...(variant === "drawer" && onMaximize ? { onMaximize } : {})}
+        {...(permissions.canDelete ? { onDelete: () => setDeleteOpen(true) } : {})}
       />
 
       {/* Body — scrollable */}
