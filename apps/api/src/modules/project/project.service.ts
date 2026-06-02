@@ -5,13 +5,14 @@ import type { FileServiceConfig } from "@/modules/file";
 import type { ResourceTagUsageView } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { users } from "@/modules/account/users/schema";
-import { getReferenceById, releaseReference, uploadAndReference } from "@/modules/file";
+import { finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
 import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { procurementDetails } from "@/modules/procurement/schema";
-import { deleteSetting, getSetting, setSetting } from "@/modules/settings/settings.service";
+import { settings } from "@/modules/settings/schema";
+import { getSetting } from "@/modules/settings/settings.service";
 import { ships } from "@/modules/ship/schema";
 import {
   listResourceIdsByTag,
@@ -402,9 +403,29 @@ export interface UpdateProjectInput {
   readonly status?: ProjectStatus | undefined;
   readonly description?: string | null | undefined;
   readonly tags?: readonly string[] | undefined;
+  /**
+   * Optimistic-concurrency guard. When supplied, the update only proceeds if
+   * the stored `version` still equals it; a mismatch returns a
+   * {@link ProjectVersionConflict} instead of writing (lost-update guard,
+   * mirroring `updateItem`/`updateDocument`).
+   */
+  readonly expectedVersion?: number | undefined;
 }
 
-export async function updateProject(db: AppDatabase, shortId: string, input: UpdateProjectInput): Promise<ProjectRow | undefined> {
+/**
+ * Optimistic-concurrency conflict result. Returned by {@link updateProject}
+ * when the caller's `expectedVersion` no longer matches the stored row.
+ */
+export interface ProjectVersionConflict {
+  readonly conflict: true;
+  readonly current: ProjectRow;
+}
+
+export function isProjectVersionConflict(v: unknown): v is ProjectVersionConflict {
+  return typeof v === "object" && v !== null && (v as { conflict?: unknown }).conflict === true;
+}
+
+export async function updateProject(db: AppDatabase, shortId: string, input: UpdateProjectInput): Promise<ProjectRow | ProjectVersionConflict | undefined> {
   const project = await getProjectByShortId(db, shortId);
   if (!project)
     return undefined;
@@ -417,11 +438,26 @@ export async function updateProject(db: AppDatabase, shortId: string, input: Upd
       patch[key] = input[key];
   }
 
-  db.transaction((tx) => {
-    tx.update(projects).set(patch).where(eq(projects.id, project.id)).run();
+  // Scope the write on `version` when an expectedVersion is supplied so the
+  // check + bump are atomic (no read-then-write race). A zero-row update
+  // means a concurrent writer moved the version on between read and write.
+  const stale = db.transaction((tx) => {
+    const where = input.expectedVersion !== undefined
+      ? and(eq(projects.id, project.id), eq(projects.version, input.expectedVersion))
+      : eq(projects.id, project.id);
+    const result = tx.update(projects).set(patch).where(where).run() as unknown as RunResult;
+    if (input.expectedVersion !== undefined && result.changes === 0)
+      return true;
     if (input.tags !== undefined)
       syncTagsTx(tx, project.id, input.tags, now);
+    return false;
   });
+
+  if (stale) {
+    const current = await db.select().from(projects).where(eq(projects.id, project.id)).get();
+    return current ? { conflict: true, current } : undefined;
+  }
+
   return await db.select().from(projects).where(eq(projects.id, project.id)).get();
 }
 
@@ -498,14 +534,18 @@ export async function setProjectCover(
   });
 
   const now = new Date().toISOString();
-  await db.update(projects)
-    .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${projects.version} + 1` })
-    .where(eq(projects.id, projectId))
-    .run();
-
   const previous = project.coverReferenceId;
-  if (previous && previous !== reference.id)
-    await releaseReference(db, config, { referenceId: previous });
+  // Repoint + release in one tx so an interrupted change can never leave the
+  // previous reference unreleased (the orphan-blob leak window of F4). The
+  // sync-GC blob delete runs after commit — driver I/O can't run in a sync tx.
+  const drained = db.transaction((tx) => {
+    tx.update(projects)
+      .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${projects.version} + 1` })
+      .where(eq(projects.id, projectId))
+      .run();
+    return previous && previous !== reference.id ? releaseReferenceTx(tx, previous) : null;
+  });
+  await finalizeReleasedBlob(db, config, drained);
 
   return await db.select().from(projects).where(eq(projects.id, projectId)).get();
 }
@@ -524,11 +564,16 @@ export async function removeProjectCover(
     return project;
 
   const now = new Date().toISOString();
-  await db.update(projects)
-    .set({ coverReferenceId: null, updatedAt: now, version: sql`${projects.version} + 1` })
-    .where(eq(projects.id, projectId))
-    .run();
-  await releaseReference(db, config, { referenceId: previous });
+  // Clear + release atomically (F4): no window where the cover is cleared but
+  // the old reference is left unreleased.
+  const drained = db.transaction((tx) => {
+    tx.update(projects)
+      .set({ coverReferenceId: null, updatedAt: now, version: sql`${projects.version} + 1` })
+      .where(eq(projects.id, projectId))
+      .run();
+    return releaseReferenceTx(tx, previous);
+  });
+  await finalizeReleasedBlob(db, config, drained);
 
   return await db.select().from(projects).where(eq(projects.id, projectId)).get();
 }
@@ -580,10 +625,24 @@ export async function setDefaultProjectCover(
     uploadedBy,
   });
 
-  await setSetting(db, PROJECT_DEFAULT_COVER_KEY, reference.id, { updatedBy: uploadedBy });
-
-  if (previous && previous !== reference.id)
-    await releaseReference(db, config, { referenceId: previous });
+  // Repoint the setting + release the old reference atomically (F4): the
+  // settings upsert is inlined into the tx (the standalone `setSetting`
+  // helper is not transaction-aware) so a crash can't leave the key pointing
+  // at the new reference while the previous one stays unreleased.
+  const now = new Date().toISOString();
+  const drained = db.transaction((tx) => {
+    tx.insert(settings).values({
+      key: PROJECT_DEFAULT_COVER_KEY,
+      value: reference.id,
+      updatedBy: uploadedBy,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: settings.key,
+      set: { value: reference.id, updatedBy: uploadedBy, updatedAt: now },
+    }).run();
+    return previous && previous !== reference.id ? releaseReferenceTx(tx, previous) : null;
+  });
+  await finalizeReleasedBlob(db, config, drained);
 
   return { referenceId: reference.id, url: buildCoverUrl(stored.id, reference.id) };
 }
@@ -594,9 +653,13 @@ export async function setDefaultProjectCover(
  */
 export async function removeDefaultProjectCover(db: AppDatabase, config: FileServiceConfig): Promise<void> {
   const previous = await getSetting(db, PROJECT_DEFAULT_COVER_KEY);
-  await deleteSetting(db, PROJECT_DEFAULT_COVER_KEY);
-  if (previous)
-    await releaseReference(db, config, { referenceId: previous });
+  // Clear the setting + release the old reference atomically (F4); the delete
+  // is inlined into the tx since the standalone helper is not tx-aware.
+  const drained = db.transaction((tx) => {
+    tx.delete(settings).where(eq(settings.key, PROJECT_DEFAULT_COVER_KEY)).run();
+    return previous ? releaseReferenceTx(tx, previous) : null;
+  });
+  await finalizeReleasedBlob(db, config, drained);
 }
 
 // ─── Member CRUD ────────────────────────────────────────────────────────

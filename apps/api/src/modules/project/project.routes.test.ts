@@ -361,6 +361,38 @@ describe("PATCH / DELETE /projects/:id (project.manage gate)", () => {
     expect(res.status).toBe(422);
   });
 
+  test("PATCH with only expectedVersion (no mutable field) is rejected with 422", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const res = await app.request(`/projects/${project.shortId}`, jsonReq("PATCH", await cookieForUser(owner), { expectedVersion: 1 }));
+    expect(res.status).toBe(422);
+  });
+
+  test("F5: a stale expectedVersion is rejected with 409 and does not write", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+
+    // First write succeeds and bumps version 1 -> 2.
+    const ok = await app.request(`/projects/${project.shortId}`, jsonReq("PATCH", await cookieForUser(owner), { name: "P2", expectedVersion: 1 }));
+    expect(ok.status).toBe(200);
+    expect((await ok.json() as { data: { version: number } }).data.version).toBe(2);
+
+    // A second writer still holding version 1 is rejected.
+    const stale = await app.request(`/projects/${project.shortId}`, jsonReq("PATCH", await cookieForUser(owner), { name: "stale", expectedVersion: 1 }));
+    expect(stale.status).toBe(409);
+    const body = await stale.json() as { success: boolean; error: { code: string }; data: { version: number; name: string } };
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("VERSION_CONFLICT");
+    expect(body.data.version).toBe(2);
+    expect(body.data.name).toBe("P2");
+
+    // The stale name never landed.
+    const detail = await app.request(`/projects/${project.shortId}`, { headers: { Cookie: await cookieForUser(owner) } });
+    expect((await detail.json() as { data: { name: string } }).data.name).toBe("P2");
+  });
+
   test("the pm soft-deletes; the project then 404s", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");

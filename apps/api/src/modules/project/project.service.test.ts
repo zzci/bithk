@@ -28,6 +28,7 @@ import {
   getProjectByShortId,
   hasCapability,
   isMember,
+  isProjectVersionConflict,
   listMembers,
   listProjects,
   removeMember,
@@ -270,9 +271,43 @@ describe("updateProject", () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
     const updated = await updateProject(db, project.shortId, { name: "P2", status: "archived" });
+    expect(isProjectVersionConflict(updated)).toBe(false);
+    if (isProjectVersionConflict(updated))
+      return;
     expect(updated?.name).toBe("P2");
     expect(updated?.status).toBe("archived");
     expect(updated!.version).toBe(2);
+  });
+
+  test("expectedVersion match applies the patch and bumps version", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    expect(project.version).toBe(1);
+    const updated = await updateProject(db, project.shortId, { name: "P2", expectedVersion: 1 });
+    expect(isProjectVersionConflict(updated)).toBe(false);
+    if (isProjectVersionConflict(updated))
+      return;
+    expect(updated?.name).toBe("P2");
+    expect(updated!.version).toBe(2);
+  });
+
+  test("expectedVersion mismatch returns a conflict with the current row and writes nothing", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    // Bump the version once so the stored version (2) diverges from a stale client's 1.
+    await updateProject(db, project.shortId, { name: "P2" });
+
+    const conflict = await updateProject(db, project.shortId, { name: "stale", expectedVersion: 1 });
+    expect(isProjectVersionConflict(conflict)).toBe(true);
+    if (!isProjectVersionConflict(conflict))
+      return;
+    expect(conflict.current.version).toBe(2);
+    expect(conflict.current.name).toBe("P2");
+
+    // The stale write must not have landed.
+    const fresh = await getProjectByShortId(db, project.shortId);
+    expect(fresh?.name).toBe("P2");
+    expect(fresh?.version).toBe(2);
   });
 
   test("code is immutable: a sneaked-in code is ignored", async () => {
@@ -283,6 +318,8 @@ describe("updateProject", () => {
     // Force a `code` field past the typed input to prove the service never
     // patches it (the column is dropped from the patched-keys loop).
     const updated = await updateProject(db, project.shortId, { name: "P2", code: "HACKED" } as unknown as Parameters<typeof updateProject>[2]);
+    if (isProjectVersionConflict(updated))
+      return;
     expect(updated?.name).toBe("P2");
     expect(updated?.code).toBe("orig-1");
   });

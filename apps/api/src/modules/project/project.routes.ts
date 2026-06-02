@@ -35,6 +35,7 @@ import {
   getDefaultProjectCover,
   getMemberCapabilities,
   getProjectByShortId,
+  isProjectVersionConflict,
   listMembers,
   listProjects,
   removeDefaultProjectCover,
@@ -63,9 +64,12 @@ const updateProjectSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   status: z.enum(PROJECT_STATUSES).optional(),
   description: z.string().max(2000).nullable().optional(),
+  // Optional optimistic-concurrency guard; not a mutable field, so it is
+  // excluded from the "at least one field" check below.
+  expectedVersion: z.number().int().nonnegative().optional(),
   ...tagsShape,
 }).refine(
-  v => Object.values(v).some(value => value !== undefined),
+  ({ expectedVersion, ...fields }) => Object.values(fields).some(value => value !== undefined),
   { message: "At least one field must be provided" },
 );
 
@@ -319,6 +323,12 @@ export function projectRoutes() {
     const updated = await updateProject(db, shortId, body);
     if (!updated)
       throw new NotFoundError("Project", shortId);
+    if (isProjectVersionConflict(updated)) {
+      return c.json(
+        { success: false, error: { code: "VERSION_CONFLICT", message: "Project was modified by another editor" }, data: updated.current },
+        409,
+      );
+    }
     return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
   });
 
