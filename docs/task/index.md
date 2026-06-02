@@ -70,5 +70,5 @@
 | [FIX-015](FIX-015.md) | Dead code + test gaps (audit H) | [PLAN-044](../plan/PLAN-044.md) | Completed | 2026-06-01 |
 | [FIX-016](FIX-016.md) | Priority indicator: background-backed icon + sync consumers | [PLAN-045](../plan/PLAN-045.md) | Completed | 2026-06-02 |
 | [FIX-017](FIX-017.md) | Create-issue dialog Linear-style layout optimization | [PLAN-045](../plan/PLAN-045.md) | Completed | 2026-06-02 |
-| [FIX-018](FIX-018.md) | Priority default low (no none level) across create paths | [PLAN-046](../plan/PLAN-046.md) | In Progress | 2026-06-02 |
-| [FIX-019](FIX-019.md) | Unify status icon — create dialog reuses StatusIcon | [PLAN-046](../plan/PLAN-046.md) | In Progress | 2026-06-02 |
+| [FIX-018](FIX-018.md) | Priority default low (no none level) across create paths | [PLAN-046](../plan/PLAN-046.md) | Completed | 2026-06-02 |
+| [FIX-019](FIX-019.md) | Unify status icon — create dialog reuses StatusIcon | [PLAN-046](../plan/PLAN-046.md) | Completed | 2026-06-02 |
