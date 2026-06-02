@@ -48,6 +48,16 @@ exported `formatFileSize`) for visual consistency.
   treating a test exit 1 as real; run `bun install` first if a fresh worktree
   errors 127).
 
+## Scope Addition (v2, user-approved 2026-06-02)
+
+Same component, folded into the same L3 (j26jd761): the create-issue dialog has
+excess empty padding below the sticky footer row — a large blank gap between the
+footer (Create-more Switch + submit Button) and the dialog bottom edge. Tighten
+it by adjusting only spacing/padding utility classes (DialogContent padding +
+the footer's `-mx-4 -mb-4` negative margins) so the footer sits compactly at the
+bottom with padding balanced against the other edges. Footer contents and the
+staged-attachment list stay unchanged. `bun run check` still EXIT=0.
+
 ## Out of Scope
 
 - Only the create-issue dialog staged-attachment UI. No backend changes, no
