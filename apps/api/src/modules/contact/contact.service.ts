@@ -1,7 +1,8 @@
 import type { ContactAccessActor, ContactCapability } from "./contact.permission";
 import type { ContactStatus, ContactVisibility } from "./schema";
-import type { AppDatabase, RunResult } from "@/db";
+import type { AppDatabase } from "@/db";
 import { and, count, desc, eq, inArray, not, or, sql } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { createTuple, deleteTupleByKey } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
@@ -300,7 +301,7 @@ async function deleteContact(
   // no FK and no `type` column, so they are never reachable for cleanup again).
   // Run the deletes synchronously inside the tx — see bun:sqlite tx note.
   const changes = db.transaction((tx) => {
-    const result = tx.delete(contacts).where(eq(contacts.id, id)).run() as unknown as RunResult;
+    const result = runWrite(() => tx.delete(contacts).where(eq(contacts.id, id)).run());
     if (result.changes === 0)
       return 0;
 

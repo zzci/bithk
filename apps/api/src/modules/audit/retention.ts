@@ -1,7 +1,8 @@
 import type { Config } from "@/config";
-import type { AppDatabase, RunResult } from "@/db";
+import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
 import { sql } from "drizzle-orm";
+import { runWrite } from "@/db";
 
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const FIRST_SWEEP_DELAY_MS = 30 * 1000; // 30 seconds — let boot settle
@@ -30,9 +31,9 @@ export async function pruneAuditEvents(db: AppDatabase, retentionDays: number): 
   const cutoff = new Date(Date.now() - retentionDays * MS_PER_DAY).toISOString();
   let totalDeleted = 0;
   while (true) {
-    const res = (await db.run(
+    const res = runWrite(() => db.run(
       sql`DELETE FROM audit_events WHERE id IN (SELECT id FROM audit_events WHERE created_at < ${cutoff} LIMIT ${DELETE_BATCH})`,
-    )) as unknown as RunResult;
+    ));
     const affected = res.changes ?? 0;
     totalDeleted += affected;
     if (affected < DELETE_BATCH)

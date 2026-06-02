@@ -1,5 +1,6 @@
 import type { AppDatabase, AppTransaction } from "@/db";
 import { desc, eq } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { nanoid } from "@/shared/lib/id";
 import { globalProcurementCategories, procurementCategories } from "./schema";
 
@@ -80,9 +81,9 @@ export async function updateGlobalCategory(
 }
 
 export async function deleteGlobalCategory(db: AppDatabase, id: string): Promise<boolean> {
-  const result = await db.delete(globalProcurementCategories)
+  const result = runWrite(() => db.delete(globalProcurementCategories)
     .where(eq(globalProcurementCategories.id, id))
-    .run() as unknown as { changes: number };
+    .run());
   return result.changes > 0;
 }
 
