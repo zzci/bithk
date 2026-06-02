@@ -1,4 +1,5 @@
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ProjectTag } from "./projects";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
@@ -84,6 +85,12 @@ export const contactKeys = {
   detail: (id: string) => ["contacts", "detail", id] as const,
 };
 
+// Selectable contact-tag vocabulary cache key (type=contact). Mirrors
+// `procurementTagKeys` / `issueTagKeys`.
+export const contactTagKeys = {
+  vocabulary: ["tags", "contact"] as const,
+};
+
 // ── Queries ──
 
 export function useContacts(query: ContactsQuery = {}) {
@@ -100,9 +107,9 @@ export function useContacts(query: ContactsQuery = {}) {
 export interface ContactsListQuery {
   readonly q?: string | undefined;
   readonly status?: ContactStatus | undefined;
-  readonly visibility?: ContactVisibility | undefined;
-  readonly confidential?: boolean | undefined;
-  readonly tag?: string | undefined;
+  readonly categoryId?: string | undefined;
+  // Union (OR) filter: a contact matches when it carries ANY of these tag ids.
+  readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -118,12 +125,14 @@ function contactsQueryString(query: ContactsListQuery): string {
     params.set("q", query.q);
   if (query.status)
     params.set("status", query.status);
-  if (query.visibility)
-    params.set("visibility", query.visibility);
-  if (query.tag)
-    params.set("tag", query.tag);
-  if (query.confidential !== undefined)
-    params.set("confidential", query.confidential ? "true" : "false");
+  if (query.categoryId)
+    params.set("categoryId", query.categoryId);
+  // Repeatable tagId params; sorted so the cache key stays stable regardless of
+  // selection order (the backend union semantics are order-independent).
+  if (query.tagIds && query.tagIds.length > 0) {
+    for (const tagId of [...query.tagIds].sort())
+      params.append("tagIds", tagId);
+  }
   params.set("page", String(query.page ?? 1));
   params.set("limit", String(query.limit ?? 20));
   return params.toString();
@@ -138,6 +147,16 @@ export function useContactsList(query: ContactsListQuery = {}) {
       return { data: res.data, meta: res.meta };
     },
     staleTime: 5_000,
+  });
+}
+
+// Selectable contact-tag vocabulary (type=contact), usage-count ordered.
+// Drives the contact list multi-select tag filter. Mirrors `useProcurementTags`.
+export function useContactTags() {
+  return useQuery<readonly ProjectTag[]>({
+    queryKey: contactTagKeys.vocabulary,
+    queryFn: () => http<ApiEnvelope<readonly ProjectTag[]>>("/tags?type=contact").then(r => r.data),
+    staleTime: 30_000,
   });
 }
 
