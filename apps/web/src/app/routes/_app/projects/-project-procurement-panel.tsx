@@ -7,11 +7,9 @@
 // non-deletable, so — unlike the issue panel — there is no delete affordance,
 // and status changes go through the dedicated status endpoint (not PATCH).
 
-import type { ProcurementPriority, ProcurementStatus, UpdateProcurementInput } from "@/shared/lib/api/procurement";
+import type { ProcurementStatus, UpdateProcurementInput } from "@/shared/lib/api/procurement";
 import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import {
-  ChevronDown,
-  Paperclip,
   Pencil,
 } from "lucide-react";
 import {
@@ -21,15 +19,24 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { DetailDescription } from "@/shared/components/detail-description";
+import {
+  DetailMetaRow,
+  MetaActions,
+  MetaAssignee,
+  MetaDueDate,
+  MetaSelectBadge,
+  MetaSeparator,
+} from "@/shared/components/detail-meta-row";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
-import { MarkdownEditor } from "@/shared/components/editor";
+import { PRIORITY_BADGE_VARIANT } from "@/shared/components/priority-variant";
 import {
   ResourceFooterSections,
   useResourceAttachmentUpload,
   validateAttachmentSelection,
 } from "@/shared/components/resource";
+import { TagsCombobox } from "@/shared/components/tags-combobox";
 import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
@@ -52,21 +59,10 @@ import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
-import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
-import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 // ── Helpers ──
-
-// Priority badge variants — kept in sync with the issues panel so the same
-// priority reads identically across the procurement tab and the detail panel.
-const PRIORITY_VARIANTS: Record<ProcurementPriority, "default" | "outline" | "secondary" | "destructive"> = {
-  low: "secondary",
-  medium: "outline",
-  high: "default",
-  urgent: "destructive",
-};
 
 const NONE = "__none__";
 
@@ -114,7 +110,6 @@ export function ProjectProcurementPanel({
   const [descDraft, setDescDraft] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const dueDateInputRef = useRef<HTMLInputElement>(null);
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
   const suppliers = useMemo(
@@ -237,9 +232,6 @@ export function ProjectProcurementPanel({
     return <CenteredHint tone="destructive">{error ?? t("procurement.detail.loadFailed")}</CenteredHint>;
 
   const creatorName = userNames.get(procurement.creatorId) ?? procurement.creatorId;
-  const assigneeLabel = procurement.assigneeMemberId
-    ? memberLabels.get(procurement.assigneeMemberId) ?? procurement.assigneeMemberId
-    : null;
   const supplierName = procurement.supplierId
     ? suppliers.find(s => s.id === procurement.supplierId)?.name ?? procurement.supplierId
     : null;
@@ -279,176 +271,72 @@ export function ProjectProcurementPanel({
         <ErrorBanner message={error} />
 
         {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <DetailMetaRow>
           {/* Status — changed through the dedicated status endpoint. */}
-          {canEdit
-            ? (
-                <Select value={procurement.status} onValueChange={v => v !== null && changeProcurementStatus(v as ProcurementStatus)}>
-                  <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3" aria-label={t("procurement.changeStatus")}>
-                    <Badge variant="secondary" className={cn("cursor-pointer", PROCUREMENT_STATUS_BADGE[procurement.status])}>
-                      {t(`procurement.status.${procurement.status}` as const)}
-                    </Badge>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROCUREMENT_STATUSES.map(s => (
-                      <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )
-            : <Badge variant="secondary" className={PROCUREMENT_STATUS_BADGE[procurement.status]}>{t(`procurement.status.${procurement.status}` as const)}</Badge>}
+          <MetaSelectBadge
+            canEdit={canEdit}
+            value={procurement.status}
+            options={PROCUREMENT_STATUSES}
+            renderLabel={s => t(`procurement.status.${s}` as const)}
+            variant="secondary"
+            badgeClassName={PROCUREMENT_STATUS_BADGE[procurement.status]}
+            triggerAriaLabel={t("procurement.changeStatus")}
+            onValueChange={changeProcurementStatus}
+          />
 
           {/* Priority */}
-          {canEdit
-            ? (
-                <Select value={procurement.priority} onValueChange={v => v !== null && patch({ priority: v as ProcurementPriority })}>
-                  <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 [&>svg:last-child]:size-3" aria-label={t("procurement.field.priority")}>
-                    <Badge variant={PRIORITY_VARIANTS[procurement.priority]} className="cursor-pointer">
-                      {t(`procurement.priority.${procurement.priority}` as const)}
-                    </Badge>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROCUREMENT_PRIORITIES.map(p => (
-                      <SelectItem key={p} value={p}>{t(`procurement.priority.${p}` as const)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )
-            : <Badge variant={PRIORITY_VARIANTS[procurement.priority]}>{t(`procurement.priority.${procurement.priority}` as const)}</Badge>}
+          <MetaSelectBadge
+            canEdit={canEdit}
+            value={procurement.priority}
+            options={PROCUREMENT_PRIORITIES}
+            renderLabel={p => t(`procurement.priority.${p}` as const)}
+            variant={PRIORITY_BADGE_VARIANT[procurement.priority]}
+            triggerAriaLabel={t("procurement.field.priority")}
+            onValueChange={v => patch({ priority: v })}
+          />
 
-          <span className="mx-1 text-muted-foreground/50">·</span>
+          <MetaSeparator />
 
           {/* Assignee — project member picker */}
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span>
-              {t("procurement.field.assignee")}
-              :
-            </span>
-            {canEdit
-              ? (
-                  <Select
-                    value={procurement.assigneeMemberId ?? NONE}
-                    onValueChange={(v) => {
-                      if (v === null)
-                        return;
-                      patch({ assigneeMemberId: v === NONE ? null : v });
-                    }}
-                  >
-                    <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-xs text-foreground hover:text-primary [&>svg:last-child]:size-3">
-                      <SelectValue>
-                        {(v: string) => {
-                          if (v === NONE)
-                            return <span className="text-muted-foreground">{t("procurement.detail.unassigned")}</span>;
-                          return memberLabels.get(v) ?? v;
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>{t("procurement.detail.unassigned")}</SelectItem>
-                      {members.map(m => (
-                        <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )
-              : (
-                  <span className="text-foreground">
-                    {assigneeLabel ?? t("procurement.detail.unassigned")}
-                  </span>
-                )}
-          </span>
+          <MetaAssignee
+            label={t("procurement.field.assignee")}
+            unassignedLabel={t("procurement.detail.unassigned")}
+            canEdit={canEdit}
+            value={procurement.assigneeMemberId}
+            members={members}
+            memberLabels={memberLabels}
+            onChange={next => patch({ assigneeMemberId: next })}
+          />
 
-          <span className="mx-1 text-muted-foreground/50">·</span>
+          <MetaSeparator />
 
           {/* Due date */}
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span>
-              {t("procurement.field.dueDate")}
-              :
-            </span>
-            {canEdit
-              ? (
-                  <span className="relative inline-flex items-center">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded text-xs text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => {
-                        const input = dueDateInputRef.current;
-                        if (!input)
-                          return;
-                        if (typeof input.showPicker === "function") {
-                          try {
-                            input.showPicker();
-                            return;
-                          }
-                          catch {
-                            // showPicker can throw if not allowed; fall through to focus.
-                          }
-                        }
-                        input.focus();
-                      }}
-                      aria-label={t("procurement.field.dueDate")}
-                      title={t("procurement.field.dueDate")}
-                    >
-                      {procurement.dueDate
-                        ? <span>{procurement.dueDate}</span>
-                        : <span className="text-muted-foreground">{t("procurement.detail.notSet")}</span>}
-                      <ChevronDown className="size-3" />
-                    </button>
-                    <input
-                      ref={dueDateInputRef}
-                      type="date"
-                      className="sr-only"
-                      tabIndex={-1}
-                      value={procurement.dueDate ?? ""}
-                      onChange={e => patch({ dueDate: e.target.value || null })}
-                    />
-                  </span>
-                )
-              : <span className="text-foreground">{procurement.dueDate ?? "—"}</span>}
-          </span>
-
-          <div className="ml-auto inline-flex items-center gap-0.5">
-            {canUploadAttachment && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="text-muted-foreground"
-                onClick={() => fileInputRef.current?.click()}
-                title={t("issues:attachments.upload")}
-              >
-                <Paperclip className="size-3" />
-                {upload.isPending ? t("issues:attachments.uploading") : t("issues:attachments.upload")}
-              </Button>
-            )}
-            {canEdit && !editingDesc && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="text-muted-foreground"
-                onClick={startEditDesc}
-              >
-                <Pencil className="size-3" />
-                {t("common:common.edit")}
-              </Button>
-            )}
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={e => handleUpload(e.target.files)}
+          <MetaDueDate
+            label={t("procurement.field.dueDate")}
+            notSetLabel={t("procurement.detail.notSet")}
+            canEdit={canEdit}
+            value={procurement.dueDate}
+            onChange={next => patch({ dueDate: next })}
           />
-        </div>
+
+          <MetaActions
+            canUpload={canUploadAttachment}
+            uploadPending={upload.isPending}
+            uploadLabel={t("issues:attachments.upload")}
+            uploadingLabel={t("issues:attachments.uploading")}
+            showEdit={canEdit && !editingDesc}
+            editLabel={t("common:common.edit")}
+            onEditClick={startEditDesc}
+            fileInputRef={fileInputRef}
+            onFilesSelected={handleUpload}
+          />
+        </DetailMetaRow>
 
         {/* Tags — view / add / remove, mirroring the issue panel. */}
         <div className="flex flex-wrap items-center gap-1.5">
           {canEdit
             ? (
-                <ProjectTagsCombobox
+                <TagsCombobox
                   value={currentTagNames}
                   suggestions={tagVocabulary}
                   onChange={next => patch({ tags: [...next] })}
@@ -567,48 +455,20 @@ export function ProjectProcurementPanel({
         </section>
 
         {/* Description */}
-        <div className="rounded-md bg-muted/40 p-3">
-          {editingDesc && canEdit
-            ? (
-                <div key="description-edit" className="space-y-2">
-                  <MarkdownEditor
-                    value={descDraft}
-                    onChange={setDescDraft}
-                    placeholder={t("procurement.detail.descriptionPlaceholder")}
-                    minHeight={160}
-                  />
-                  <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" onClick={cancelDesc}>
-                      {t("common:common.cancel")}
-                    </Button>
-                    <Button onClick={saveDesc}>
-                      {t("common:common.save")}
-                    </Button>
-                  </div>
-                </div>
-              )
-            : procurement.description
-              ? (
-                  <div key="description-readonly" className="text-sm leading-relaxed">
-                    <MarkdownEditor value={procurement.description} readOnly />
-                  </div>
-                )
-              : canEdit
-                ? (
-                    <button
-                      type="button"
-                      onClick={startEditDesc}
-                      className="w-full rounded-md border border-dashed bg-transparent px-2 py-1 text-left text-sm italic text-muted-foreground leading-snug hover:bg-muted/50 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {t("procurement.detail.noDescription")}
-                    </button>
-                  )
-                : (
-                    <p className="text-sm italic text-muted-foreground leading-snug">
-                      {t("procurement.detail.noDescription")}
-                    </p>
-                  )}
-        </div>
+        <DetailDescription
+          canEdit={canEdit}
+          editing={editingDesc}
+          value={procurement.description ?? null}
+          draft={descDraft}
+          placeholder={t("procurement.detail.descriptionPlaceholder")}
+          noDescriptionLabel={t("procurement.detail.noDescription")}
+          saveLabel={t("common:common.save")}
+          cancelLabel={t("common:common.cancel")}
+          onDraftChange={setDescDraft}
+          onStartEdit={startEditDesc}
+          onSave={saveDesc}
+          onCancel={cancelDesc}
+        />
 
         {/* Creator + timestamps — subtle footer-style strip above the
             attachments section, right-aligned and toned down so it
