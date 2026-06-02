@@ -6,8 +6,6 @@
 import type { EquipmentStatus, ShipStatus } from "@/shared/lib/api/ships";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 
-export { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
-
 /** Ship status chip colors (active vessel vs archived record). */
 export const SHIP_STATUS_BADGE: Record<ShipStatus, string> = RECORD_STATUS_BADGE;
 

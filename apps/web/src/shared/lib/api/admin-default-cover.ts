@@ -6,13 +6,9 @@
 // separate from projects.ts, which owns the unrelated per-project covers.
 
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
+import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
 
 export interface DefaultCover {
   readonly referenceId: string | null;

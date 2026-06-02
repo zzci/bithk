@@ -183,7 +183,7 @@ export function CreateJobDrawer({
                   <FieldHint>{t("form.scheduleCustomHelp")}</FieldHint>
                   {supportedFormats.length > 0 && (
                     <details className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                      <summary className="cursor-pointer select-none">Supported formats</summary>
+                      <summary className="cursor-pointer select-none">{t("form.supportedFormats")}</summary>
                       <ul className="mt-2 space-y-1 pl-4">
                         {supportedFormats.map(f => (
                           <li key={f} className="font-mono">{f}</li>

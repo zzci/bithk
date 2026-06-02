@@ -1,4 +1,5 @@
 import type { Config } from "./schema";
+import { isSpoofableProxyConfig } from "@/shared/lib/client-ip";
 import { ConfigError } from "./errors";
 
 /**
@@ -51,6 +52,8 @@ export function assertProductionNetworkGuards(data: Config, oauthInPlay: boolean
   if (data.NODE_ENV !== "production")
     return [];
 
+  const warnings: string[] = [];
+
   if (!data.CORS_ORIGIN && oauthInPlay) {
     throw new ConfigError("CORS_ORIGIN is required in production", { field: "CORS_ORIGIN" });
   }
@@ -61,9 +64,22 @@ export function assertProductionNetworkGuards(data: Config, oauthInPlay: boolean
         { field: "APP_URL" },
       );
     }
-    return [
+    warnings.push(
       "[config] APP_URL is unset in production single-user mode — the CSRF guard cannot enforce origin checks without it.",
-    ];
+    );
   }
-  return [];
+
+  // `TRUST_PROXY=true` with an empty `TRUSTED_PROXY_IPS` allow-list is now
+  // fail-closed at the IP layer (forwarding headers are ignored — see
+  // `getClientIp`), so per-client IP controls collapse onto the single proxy
+  // peer. Surface the config requirement: set `TRUSTED_PROXY_IPS` to restore
+  // real client IPs, and keep `APP_URL` / `CORS_ORIGIN` set so origin-based
+  // CSRF defence stays effective while IP-keyed limits are degraded.
+  if (isSpoofableProxyConfig(data)) {
+    warnings.push(
+      "[config] TRUST_PROXY=true with an empty TRUSTED_PROXY_IPS allow-list: forwarding headers are ignored in production (fail closed). Set TRUSTED_PROXY_IPS to your proxy subnet, and ensure APP_URL / CORS_ORIGIN are configured for origin-based CSRF defence.",
+    );
+  }
+
+  return warnings;
 }

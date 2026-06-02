@@ -216,6 +216,56 @@ describe("importJsonBackup — error surfaces", () => {
   });
 });
 
+describe("importJsonBackup — partial payload must not wipe omitted tables", () => {
+  test("a table key omitted from the payload leaves its live rows intact, while included tables still fully replace", async () => {
+    // Seed two modules' worth of data.
+    await db.run(sql`INSERT INTO users (id, oauth_sub, username, name, email, role, status, created_at, updated_at) VALUES ('u_old', 'sub_old', 'old', 'Old', 'old@example.com', 'user', 'active', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`);
+    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('keep.me', '42', '2026-01-01T00:00:00Z')`);
+
+    // A truncated / hand-edited upload: it lists both modules but carries no
+    // `settings` key at all. The settings table must survive untouched; the
+    // users table (present in the payload) must be fully replaced.
+    const result = await importJsonBackup(db, {
+      version: 1,
+      exportedAt: "2026-05-14T00:00:00Z",
+      modules: ["users", "settings"],
+      tables: {
+        users: [
+          { id: "u_new", oauthSub: "sub_new", username: "new", name: "New", email: "new@example.com", role: "user", status: "active", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+        ],
+        groups: [],
+        user_preferences: [],
+        // settings key intentionally absent
+      },
+    });
+    expect(result.tablesImported).toBe(1);
+
+    // Omitted table: original row preserved (NOT silently emptied).
+    const settings = await db.all(sql`SELECT key, value FROM settings`);
+    expect(settings).toEqual([{ key: "keep.me", value: "42" }]);
+
+    // Included table: fully replaced with the payload's rows.
+    const users = await db.all(sql`SELECT id FROM users`);
+    expect(users).toEqual([{ id: "u_new" }]);
+  });
+
+  test("a present-but-empty table key still clears that table (full-replace semantics preserved)", async () => {
+    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('drop.me', '1', '2026-01-01T00:00:00Z')`);
+
+    // A complete export emits an empty array for an empty table. The key
+    // being present means "replace with nothing" — the table is cleared.
+    await importJsonBackup(db, {
+      version: 1,
+      exportedAt: "2026-05-14T00:00:00Z",
+      modules: ["settings"],
+      tables: { settings: [] },
+    });
+
+    const settings = await db.all(sql`SELECT key FROM settings`);
+    expect(settings).toEqual([]);
+  });
+});
+
 describe("reconcileRestoredFiles — blobs are out of backup scope", () => {
   const present = "a".repeat(64);
   const missing = "b".repeat(64);

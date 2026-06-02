@@ -5,12 +5,14 @@
 // here so we keep the consumer count low.
 /* eslint-disable react-refresh/only-export-components */
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { settingKeys } from "@/shared/lib/api/settings";
 import { http } from "@/shared/lib/http";
 
 // ─── Shared types ───
@@ -24,31 +26,44 @@ export interface SettingRow {
 
 // ─── Settings helpers ───
 
+// Prefix/list query key, nested under the shared `["settings"]` namespace from
+// the settings api layer so saves/deletes that invalidate the root also drop
+// these list caches — the two layers can no longer diverge for the same key.
+const settingsPrefixKey = (prefix: string) => [...settingKeys.all, "prefix", prefix] as const;
+
 export function useSettingsByPrefix(prefix: string) {
-  const [settings, setSettings] = useState<SettingRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Consumer-supplied error overlay (e.g. a failed toggle/delete) sits on top
+  // of the query's own load error; cleared on refetch, matching the prior hook.
+  const [overrideError, setOverrideError] = useState<string | null>(null);
 
-  const fetch_ = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const query = useQuery({
+    queryKey: settingsPrefixKey(prefix),
+    queryFn: async () => {
       const res = await http<{ success: boolean; data: SettingRow[] }>(`/settings?prefix=${encodeURIComponent(prefix)}`);
-      setSettings(res.data);
-    }
-    catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load settings");
-    }
-    finally {
-      setLoading(false);
-    }
-  }, [prefix]);
+      return res.data;
+    },
+  });
 
-  useEffect(() => {
-    void fetch_();
-  }, [fetch_]);
+  const queryRefetch = query.refetch;
+  const refetch = useCallback(async () => {
+    setOverrideError(null);
+    await queryRefetch();
+  }, [queryRefetch]);
 
-  return { settings, loading, error, setError, refetch: fetch_ };
+  const error = overrideError
+    ?? (query.error instanceof Error
+      ? query.error.message
+      : query.isError
+        ? "Failed to load settings"
+        : null);
+
+  return {
+    settings: query.data ?? [],
+    loading: query.isPending,
+    error,
+    setError: setOverrideError,
+    refetch,
+  };
 }
 
 export async function saveSetting(key: string, value: string) {
@@ -98,19 +113,16 @@ export function SettingsCard({
     return initial;
   }, [fields, prefix, settings]);
 
+  const queryClient = useQueryClient();
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   const prevInitialRef = useRef(initialValues);
   if (prevInitialRef.current !== initialValues) {
     prevInitialRef.current = initialValues;
     setValues(initialValues);
   }
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       for (const field of fields) {
         const val = values[field.key];
         if (val !== undefined && val !== "") {
@@ -121,15 +133,20 @@ export function SettingsCard({
           await saveSetting(fullKey, val);
         }
       }
+    },
+    onSuccess: () => {
+      // Drop every cached settings query (prefix lists + per-key details) so the
+      // freshly saved values are reflected without a manual refetch.
+      void queryClient.invalidateQueries({ queryKey: settingKeys.all });
       onSaved();
-    }
-    catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error.saveFailed"));
-    }
-    finally {
-      setSaving(false);
-    }
-  };
+    },
+  });
+
+  const error = saveMutation.error instanceof Error
+    ? saveMutation.error.message
+    : saveMutation.isError
+      ? t("common.error.saveFailed")
+      : null;
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
@@ -160,9 +177,9 @@ export function SettingsCard({
       </div>
 
       <div className="flex justify-end">
-        <Button disabled={saving} onClick={() => void handleSave()}>
+        <Button disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
           <Save className="mr-1 size-3" />
-          {saving ? t("settings:saving") : t("common.save")}
+          {saveMutation.isPending ? t("settings:saving") : t("common.save")}
         </Button>
       </div>
     </div>

@@ -7,6 +7,7 @@
 // envelope itself to surface the conflict row via `DocumentVersionConflictError`.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { HttpError, httpRaw } from "../http";
@@ -92,18 +93,11 @@ export function parseTags(tagsJson: string | null | undefined): string[] {
 
 // ── Raw clients ──
 
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-  readonly error?: { readonly code?: string; readonly message?: string };
-  readonly meta?: { readonly total: number; readonly page: number; readonly limit: number };
-}
-
 /**
- * Documents needs the full envelope (`success` + `data` + `meta`) for
- * a couple of routes — `http()` strips it down to `data`. Build it on
- * top of `httpRaw()` so CSRF / credentials / event emission stay
- * consistent with the rest of the SPA.
+ * Documents parses the raw `{ success, data }` envelope itself for a couple of
+ * routes — `http()` strips it down to `data`, but the 409 conflict path needs
+ * `body.data`. Build it on top of `httpRaw()` so CSRF / credentials / event
+ * emission stay consistent with the rest of the SPA.
  */
 async function rawJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await httpRaw(path, init);
@@ -236,6 +230,8 @@ export function useCreateDocument(): UseMutationResult<Document, Error, CreateDo
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: documentsKeys.tree() });
+      // A document created with a brand-new tag must refresh the tag filter vocab.
+      void qc.invalidateQueries({ queryKey: documentsKeys.tags() });
     },
   });
 }

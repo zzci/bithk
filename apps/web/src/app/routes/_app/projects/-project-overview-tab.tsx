@@ -55,6 +55,8 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
           onViewAll={() => onOpenTab("issues")}
           isLoading={latestIssuesQuery.isLoading}
           loadingText={t("issues.loading")}
+          isError={latestIssuesQuery.isError}
+          onRetry={() => void latestIssuesQuery.refetch()}
           isEmpty={(latestIssuesQuery.data?.data.length ?? 0) === 0}
           emptyText={t("issues.empty")}
         >
@@ -79,6 +81,8 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
             onViewAll={() => onOpenTab("procurement")}
             isLoading={latestProcurementsQuery.isLoading}
             loadingText={t("procurement.loading")}
+            isError={latestProcurementsQuery.isError}
+            onRetry={() => void latestProcurementsQuery.refetch()}
             isEmpty={(latestProcurementsQuery.data?.data.length ?? 0) === 0}
             emptyText={t("procurement.empty")}
           >
@@ -132,6 +136,18 @@ function ListState({ children }: { readonly children: ReactNode }) {
   );
 }
 
+// Failed-to-load state: distinct from the muted empty state so a fetch failure
+// never masquerades as "no data". Offers a retry.
+function ListErrorState({ onRetry }: { readonly onRetry: () => void }) {
+  const { t } = useTranslation("common");
+  return (
+    <div className="flex flex-col items-center gap-2 px-2 py-6 text-center">
+      <p className="text-sm text-destructive">{t("common.error.loadFailed")}</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>{t("common.retry")}</Button>
+    </div>
+  );
+}
+
 function RowMeta({ children }: { readonly children: ReactNode }) {
   return (
     <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -162,15 +178,17 @@ function ProjectPinnedCard({ projectId, caps, onOpenTab }: ProjectPinnedCardProp
       <CardContent>
         {pinnedQuery.isLoading
           ? <ListState>{t("overview.pinnedLoading")}</ListState>
-          : pinned.length === 0
-            ? <ListState>{t("overview.noPinned")}</ListState>
-            : (
-                <ul aria-label={t("overview.pinned")} className="-mx-2 space-y-0.5">
-                  {pinned.map(item => (
-                    <PinnedRow key={item.id} item={item} caps={caps} onOpenTab={onOpenTab} />
-                  ))}
-                </ul>
-              )}
+          : pinnedQuery.isError
+            ? <ListErrorState onRetry={() => void pinnedQuery.refetch()} />
+            : pinned.length === 0
+              ? <ListState>{t("overview.noPinned")}</ListState>
+              : (
+                  <ul aria-label={t("overview.pinned")} className="-mx-2 space-y-0.5">
+                    {pinned.map(item => (
+                      <PinnedRow key={item.id} item={item} caps={caps} onOpenTab={onOpenTab} />
+                    ))}
+                  </ul>
+                )}
       </CardContent>
     </Card>
   );
@@ -230,12 +248,14 @@ interface LatestActivityCardProps {
   readonly onViewAll: () => void;
   readonly isLoading: boolean;
   readonly loadingText: string;
+  readonly isError: boolean;
+  readonly onRetry: () => void;
   readonly isEmpty: boolean;
   readonly emptyText: string;
   readonly children?: ReactNode;
 }
 
-function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, isEmpty, emptyText, children }: LatestActivityCardProps) {
+function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, isError, onRetry, isEmpty, emptyText, children }: LatestActivityCardProps) {
   const { t } = useTranslation("projects");
 
   return (
@@ -254,9 +274,11 @@ function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, is
       <CardContent>
         {isLoading
           ? <ListState>{loadingText}</ListState>
-          : isEmpty
-            ? <ListState>{emptyText}</ListState>
-            : <ul className="-mx-2 space-y-0.5">{children}</ul>}
+          : isError
+            ? <ListErrorState onRetry={onRetry} />
+            : isEmpty
+              ? <ListState>{emptyText}</ListState>
+              : <ul className="-mx-2 space-y-0.5">{children}</ul>}
       </CardContent>
     </Card>
   );

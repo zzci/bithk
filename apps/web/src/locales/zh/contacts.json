@@ -8,20 +8,8 @@
     "loading": "正在加载联系人…",
     "empty": "暂无联系人。",
     "searchPlaceholder": "搜索公司、联系人或备注",
-    "statusAll": "全部状态",
-    "categoryAll": "全部分类",
-    "tagFilterLabel": "标签",
-    "tagFilterLabelCount": "标签（{{count}}）",
-    "tagFilterEmpty": "暂无标签",
-    "tagFilterRemove": "移除标签 {{name}}",
     "total": "{{count}} 个联系人",
-    "colActions": "操作",
-    "kpi": {
-      "total": "联系人总数",
-      "active": "启用",
-      "public": "公开",
-      "confidential": "保密"
-    }
+    "colActions": "操作"
   },
   "drawer": {
     "contactMethods": "联系方式",

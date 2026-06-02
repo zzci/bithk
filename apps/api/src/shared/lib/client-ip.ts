@@ -6,6 +6,7 @@ const RE_BAD_PEER = /^(?:unknown|::)$/i;
 interface ClientIpConfig {
   readonly TRUST_PROXY: boolean;
   readonly TRUSTED_PROXY_IPS?: string;
+  readonly NODE_ENV?: "development" | "production" | "test";
 }
 
 /**
@@ -23,9 +24,12 @@ interface ClientIpConfig {
  *
  * If `TRUSTED_PROXY_IPS` is set (a comma-separated list of CIDR / IP
  * literals — IPv4 only at this layer), forwarding headers are accepted
- * only when the immediate peer matches one of those ranges. Empty
- * (default) means "any peer is trusted" — preserves the pre-flag
- * behaviour.
+ * only when the immediate peer matches one of those ranges. When the
+ * allow-list is empty (default), behaviour splits by environment: in
+ * production forwarding headers are IGNORED and the socket peer IP is
+ * used (fail closed — an exposed `TRUST_PROXY=true` must not let any
+ * direct caller forge a client IP), while in dev/test they are honoured
+ * from any peer so local proxy setups stay testable.
  */
 export function getClientIp(c: Context, config?: ClientIpConfig): string {
   const peerIp = c.env?.IP?.address;
@@ -34,12 +38,23 @@ export function getClientIp(c: Context, config?: ClientIpConfig): string {
     return peerIp ?? "unknown";
   }
 
+  const proxyAllowList = parseProxyAllowList(config.TRUSTED_PROXY_IPS);
+
+  // Fail closed in production: `TRUST_PROXY=true` with no usable allow-list
+  // means any caller reaching the process directly could forge
+  // `X-Forwarded-For` and defeat every IP-keyed limiter / spoof audit IPs.
+  // Ignore forwarding headers entirely and use the socket peer IP. Dev/test
+  // keep the permissive path so local proxy setups stay testable; the boot
+  // warning (`isSpoofableProxyConfig`) flags the prod misconfiguration.
+  if (config.NODE_ENV === "production" && proxyAllowList.length === 0) {
+    return peerIp ?? "unknown";
+  }
+
   // Per-peer gate: when the operator has supplied an allow-list,
   // forwarding headers from an unknown peer are dropped on the floor
   // (returns the peer itself). This stops a misconfigured `TRUST_PROXY`
   // (e.g. exposed to the open internet without a proxy in front of it)
   // from letting any caller forge a client IP.
-  const proxyAllowList = parseProxyAllowList(config.TRUSTED_PROXY_IPS);
   if (proxyAllowList.length > 0 && peerIp && !isAllowedPeer(peerIp, proxyAllowList)) {
     return peerIp;
   }

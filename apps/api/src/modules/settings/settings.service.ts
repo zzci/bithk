@@ -9,7 +9,28 @@ export interface SettingRow {
   readonly updatedAt: string;
 }
 
-const SENSITIVE_SUFFIXES = [".secret", ".api_key", ".password", ".client_secret", ".token"];
+// Secret-masking contract: a setting is treated as sensitive — and its value
+// replaced with MASKED_VALUE in every read response — only when its key ends
+// with one of these terminal suffixes. The match is suffix-only, so a key like
+// `password.host` is NOT masked; this keeps the contract predictable.
+//
+// REMAINING (FIX-AUDIT-015): a suffix heuristic cannot mask a secret stored
+// under an arbitrarily-named key (e.g. `oauth.clientSecretValue`). Genuinely
+// secret settings should move to env or encrypted storage rather than the
+// generic settings table — that migration is the larger follow-up to this fix.
+const SENSITIVE_SUFFIXES = [
+  ".secret",
+  ".client_secret",
+  ".api_key",
+  ".token",
+  ".access_token",
+  ".refresh_token",
+  ".password",
+  ".pass",
+  ".passwd",
+  ".pwd",
+  ".private_key",
+];
 export const MASKED_VALUE = "******";
 
 export function isSensitiveKey(key: string): boolean {

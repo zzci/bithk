@@ -1,18 +1,8 @@
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ProjectTag } from "./projects";
+import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
-
-interface ApiListEnvelope<T> {
-  readonly success: boolean;
-  readonly data: readonly T[];
-  readonly meta: { readonly total: number; readonly page: number; readonly limit: number };
-}
 
 // ── Types ──
 
@@ -180,6 +170,9 @@ export function useCreateContact(): UseMutationResult<ContactView, Error, Contac
     }).then(r => r.data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: contactKeys.all });
+      // A created contact may introduce new tag names into the vocabulary, which
+      // is a sibling of `["contacts"]` and so is not covered by `contactKeys.all`.
+      void queryClient.invalidateQueries({ queryKey: contactTagKeys.vocabulary });
     },
   });
 }
@@ -194,6 +187,8 @@ export function useUpdateContact(): UseMutationResult<ContactView, Error, { id: 
     onSuccess: (_data, { id }) => {
       void queryClient.invalidateQueries({ queryKey: contactKeys.all });
       void queryClient.invalidateQueries({ queryKey: contactKeys.detail(id) });
+      // An updated tag set may introduce new tag names into the sibling vocabulary.
+      void queryClient.invalidateQueries({ queryKey: contactTagKeys.vocabulary });
     },
   });
 }

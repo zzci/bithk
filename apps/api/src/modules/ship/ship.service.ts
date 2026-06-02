@@ -1,10 +1,10 @@
 import type { ShipStatus } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
-import type { FileServiceConfig } from "@/modules/file";
+import type { DrainedBlob, FileServiceConfig } from "@/modules/file";
 import type { ProjectView } from "@/modules/project/project.service";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { releaseReference, uploadAndReference } from "@/modules/file";
+import { finalizeReleasedBlob, releaseReference, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
 import {
   composeProject,
@@ -398,17 +398,20 @@ export async function softDeleteShip(db: AppDatabase, config: FileServiceConfig,
     return;
   const now = new Date().toISOString();
   const previousCover = ship.coverReferenceId;
-  db.transaction((tx) => {
+  // Unbind, soft-delete, and release the cover reference in one tx (F4): a
+  // crash can never leave the cover cleared but the old reference unreleased.
+  // The blob GC delete runs after commit — driver I/O can't run in a sync tx.
+  const drained = db.transaction((tx) => {
     tx.update(projects).set({ shipId: null }).where(eq(projects.shipId, ship.id)).run();
     tx.update(ships)
       .set({ baseProjectId: null, coverReferenceId: null, deletedAt: now, updatedAt: now, version: sql`${ships.version} + 1` })
       .where(eq(ships.id, ship.id))
       .run();
+    return previousCover ? releaseReferenceTx(tx, previousCover) : null;
   });
   // Drop tag assignments (tags_refs has no FK, so clean them app-level).
   await deleteResourceTags(db, ship.id);
-  if (previousCover)
-    await releaseReference(db, config, { referenceId: previousCover });
+  await finalizeReleasedBlob(db, config, drained);
 }
 
 // ─── Cover image ──────────────────────────────────────────────────────────
@@ -443,24 +446,27 @@ export async function setShipCover(
   });
 
   const now = new Date().toISOString();
-  // Repoint to the new reference; if that write fails, release the freshly
-  // uploaded reference so it is not orphaned (uploaded + referenced but no
-  // ship points to it). The previous reference is only released once the
-  // repoint has committed.
+  const previous = ship.coverReferenceId;
+  // Repoint + release the previous reference in one tx (F4) so an interrupted
+  // change can never leave the previous reference unreleased. If the repoint tx
+  // fails, release the freshly uploaded reference so it is not orphaned
+  // (uploaded + referenced but no ship points to it). The blob GC delete runs
+  // after commit — driver I/O can't run in a sync tx.
+  let drained: DrainedBlob | null;
   try {
-    await db.update(ships)
-      .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${ships.version} + 1` })
-      .where(eq(ships.id, shipInternalId))
-      .run();
+    drained = db.transaction((tx) => {
+      tx.update(ships)
+        .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${ships.version} + 1` })
+        .where(eq(ships.id, shipInternalId))
+        .run();
+      return previous && previous !== reference.id ? releaseReferenceTx(tx, previous) : null;
+    });
   }
   catch (err) {
     await releaseReference(db, config, { referenceId: reference.id });
     throw err;
   }
-
-  const previous = ship.coverReferenceId;
-  if (previous && previous !== reference.id)
-    await releaseReference(db, config, { referenceId: previous });
+  await finalizeReleasedBlob(db, config, drained);
 
   return await getShipById(db, shipInternalId);
 }
@@ -479,11 +485,16 @@ export async function removeShipCover(
     return ship;
 
   const now = new Date().toISOString();
-  await db.update(ships)
-    .set({ coverReferenceId: null, updatedAt: now, version: sql`${ships.version} + 1` })
-    .where(eq(ships.id, shipInternalId))
-    .run();
-  await releaseReference(db, config, { referenceId: previous });
+  // Clear + release atomically (F4): no window where the cover is cleared but
+  // the old reference is left unreleased. Blob GC delete runs after commit.
+  const drained = db.transaction((tx) => {
+    tx.update(ships)
+      .set({ coverReferenceId: null, updatedAt: now, version: sql`${ships.version} + 1` })
+      .where(eq(ships.id, shipInternalId))
+      .run();
+    return releaseReferenceTx(tx, previous);
+  });
+  await finalizeReleasedBlob(db, config, drained);
 
   return await getShipById(db, shipInternalId);
 }

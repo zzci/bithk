@@ -11,19 +11,9 @@
 // CSRF header on mutating methods stay consistent.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
-
-interface ApiListEnvelope<T> {
-  readonly success: boolean;
-  readonly data: readonly T[];
-  readonly meta: { readonly total: number; readonly page: number; readonly limit: number };
-}
 
 // ── Types ──
 
