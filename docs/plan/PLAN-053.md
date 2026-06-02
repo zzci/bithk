@@ -1,6 +1,6 @@
 # PLAN-053 Tag-filter pinned-chip reliability + projects-home order correction
 
-- **status**: Planned
+- **status**: Superseded (replaced by [PLAN-054](PLAN-054.md) unified-filter redesign; FIX-031 was merged into bkd/p57t0zqd @018ffcf and KEPT for issues/procurement, FIX-032 abandoned unmerged)
 - **owner**: l1-75ymcfnr / L2 p57t0zqd
 - **campaignId**: l1-75ymcfnr-tagpos-20260602063716
 - **tasks**: [FIX-031](../task/FIX-031.md), [FIX-032](../task/FIX-032.md)
