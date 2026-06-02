@@ -3,20 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "@/test/utils";
-import { ProjectTagsCombobox } from "./-project-tags-combobox";
+import { TagsCombobox } from "./tags-combobox";
 
 // A thin controlled wrapper so the test can assert on the emitted value.
 function Harness({ suggestions }: { readonly suggestions: readonly string[] }) {
   const [value, setValue] = useState<readonly string[]>([]);
   return (
     <>
-      <ProjectTagsCombobox value={value} onChange={setValue} suggestions={suggestions} />
+      <TagsCombobox value={value} onChange={setValue} suggestions={suggestions} />
       <output data-testid="value">{value.join(",")}</output>
     </>
   );
 }
 
-describe("projectTagsCombobox", () => {
+describe("tagsCombobox", () => {
   it("lists existing tags and selects one", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Harness suggestions={["alpha", "beta"]} />);

@@ -5,7 +5,6 @@
   },
   "relationTuples": "关系元组",
   "permissionCheck": "权限检查",
-  "allNamespaces": "所有命名空间",
   "createTuple": "创建元组",
   "createTitle": "创建关系元组",
   "createDescription": "为主体和对象之间添加一条权限关系。",

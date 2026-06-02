@@ -3,7 +3,6 @@
 // unit-tested without React.
 
 import type { DocumentTreeNode } from "@/shared/lib/api/documents";
-import { storageKey } from "@/shared/lib/branding";
 
 export interface TreeIndex {
   /** Map of parentId ('' = root) → ordered children. */
@@ -150,38 +149,4 @@ export function stepFocus(
     return visible[0]!.node.id;
   const next = (idx + delta + visible.length) % visible.length;
   return visible[next]!.node.id;
-}
-
-/**
- * Reads/writes the persisted expanded-set. Keyed globally, not per-user — the
- * spec calls this out explicitly. `null` from the reader means "use default".
- */
-const STORAGE_KEY = storageKey("documents:expanded");
-
-export function readPersistedExpansion(): ReadonlySet<string> | null {
-  if (typeof window === "undefined")
-    return null;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw)
-    return null;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed))
-      return null;
-    return new Set(parsed.filter((v): v is string => typeof v === "string"));
-  }
-  catch {
-    return null;
-  }
-}
-
-export function writePersistedExpansion(expanded: ReadonlySet<string>): void {
-  if (typeof window === "undefined")
-    return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(expanded)));
-  }
-  catch {
-    // Storage quota / private mode — silently degrade.
-  }
 }

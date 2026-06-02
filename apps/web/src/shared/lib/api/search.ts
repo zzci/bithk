@@ -2,6 +2,7 @@
 // command palette. The endpoint returns hits already permission-scoped by the
 // API; the client only renders and navigates.
 
+import type { ApiEnvelope } from "./types";
 import { useQuery } from "@tanstack/react-query";
 import { http } from "../http";
 
@@ -25,11 +26,6 @@ export interface GlobalSearchResult {
   readonly ships: readonly SearchHit[];
 }
 
-interface SearchEnvelope {
-  readonly success: boolean;
-  readonly data: GlobalSearchResult;
-}
-
 /**
  * Fetch global search results for a trimmed query. Disabled while the query is
  * empty so the palette shows quick entries instead of firing a request.
@@ -40,7 +36,7 @@ export function useGlobalSearch(query: string) {
     queryKey: ["search", q],
     enabled: q.length > 0,
     queryFn: async () => {
-      const res = await http<SearchEnvelope>(`/search?q=${encodeURIComponent(q)}`);
+      const res = await http<ApiEnvelope<GlobalSearchResult>>(`/search?q=${encodeURIComponent(q)}`);
       return res.data;
     },
     staleTime: 10_000,

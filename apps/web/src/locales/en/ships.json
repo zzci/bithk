@@ -15,12 +15,6 @@
     "tagFilterMoreLabel": "Tags",
     "tagFilterSearchPlaceholder": "Search tags",
     "tagFilterNoMore": "No more tags",
-    "kpi": {
-      "total": "Total ships",
-      "maintenance": "In maintenance",
-      "buildingTrial": "Build / sea trial",
-      "inService": "In service"
-    },
     "card": {
       "ageValue": "{{count}} yr"
     }
@@ -52,11 +46,6 @@
       "projects": "Projects",
       "equipment": "Equipment",
       "worklists": "Worklists"
-    },
-    "metricHints": {
-      "projects": "{{base}} base + {{linked}} linked",
-      "equipment": "{{count}} retired",
-      "worklists": "{{count}} categories"
     }
   },
   "delete": {
@@ -133,7 +122,6 @@
     "noMatches": "No equipment matches the filters.",
     "searchPlaceholder": "Search name, serial, or location",
     "filterAll": "All",
-    "uncategorized": "Uncategorized",
     "createTitle": "Add equipment",
     "editTitle": "Edit equipment",
     "dialogDescription": "Track the equipment installed on this ship.",

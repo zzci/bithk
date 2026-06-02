@@ -17,6 +17,18 @@ export interface AuditParams {
   readonly result: "success" | "failure";
 }
 
+export interface AuditOptions {
+  /**
+   * Marks a high-sensitivity action (e.g. a destructive restore or a
+   * data-exfiltrating export). When the audit write fails for such an
+   * action we log at `error` and re-throw, so the action cannot quietly
+   * complete with no trail. Routine events leave this `false` (the
+   * default) and stay best-effort: the failure is logged at `warn` and
+   * swallowed so a flaky audit write never breaks an ordinary request.
+   */
+  readonly critical?: boolean;
+}
+
 /**
  * Persist a single audit event. The `logger` is used only on the
  * failure path (DB insert raised); production callers thread it
@@ -24,8 +36,16 @@ export interface AuditParams {
  * pino redaction config. Replaces the prior module-level
  * `setAuditLogger` singleton, which forced every test to reset shared
  * state and silently swapped the logger out under DEK rotation.
+ *
+ * Pass `{ critical: true }` for genuinely sensitive actions so an
+ * audit-write failure surfaces (throws) instead of being swallowed.
  */
-export async function audit(db: AppDatabase, logger: Logger, params: AuditParams): Promise<string | undefined> {
+export async function audit(
+  db: AppDatabase,
+  logger: Logger,
+  params: AuditParams,
+  options: AuditOptions = {},
+): Promise<string | undefined> {
   try {
     const id = ulid();
     await db.insert(auditEvents).values({
@@ -45,7 +65,11 @@ export async function audit(db: AppDatabase, logger: Logger, params: AuditParams
     return id;
   }
   catch (err) {
-    logger.error({ err, action: params.action }, "Failed to write audit event");
+    if (options.critical) {
+      logger.error({ err, action: params.action }, "Failed to write audit event for a sensitive action");
+      throw err;
+    }
+    logger.warn({ err, action: params.action }, "Failed to write audit event");
     return undefined;
   }
 }

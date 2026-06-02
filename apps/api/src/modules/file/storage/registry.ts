@@ -51,8 +51,3 @@ export function getActiveDriver(): FileStorageDriver {
   }
   return getDriver(activeDriverName);
 }
-
-/** Inspect the registered driver names — handy for diagnostic endpoints / tests. */
-export function listRegisteredDrivers(): readonly string[] {
-  return [...drivers.keys()].sort();
-}

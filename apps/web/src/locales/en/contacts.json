@@ -8,20 +8,8 @@
     "loading": "Loading contacts…",
     "empty": "No contacts yet.",
     "searchPlaceholder": "Search company, person, or note",
-    "statusAll": "All statuses",
-    "categoryAll": "All categories",
-    "tagFilterLabel": "Tags",
-    "tagFilterLabelCount": "Tags ({{count}})",
-    "tagFilterEmpty": "No tags available",
-    "tagFilterRemove": "Remove tag {{name}}",
     "total": "{{count}} contacts",
-    "colActions": "Actions",
-    "kpi": {
-      "total": "Total contacts",
-      "active": "Active",
-      "public": "Public",
-      "confidential": "Confidential"
-    }
+    "colActions": "Actions"
   },
   "drawer": {
     "contactMethods": "Contact methods",

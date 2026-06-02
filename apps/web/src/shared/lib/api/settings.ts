@@ -4,20 +4,16 @@
 // as `null` (the backend answers GET with 404 when the key has no value).
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http, HttpError } from "../http";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
 
 interface SettingPayload {
   readonly key: string;
   readonly value: string;
 }
 
-const settingKeys = {
+export const settingKeys = {
   all: ["settings"] as const,
   detail: (key: string) => ["settings", key] as const,
 };

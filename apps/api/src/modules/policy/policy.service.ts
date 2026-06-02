@@ -125,6 +125,46 @@ export async function createTuple(db: AppDatabase, input: CreateTupleInput, crea
   return values;
 }
 
+/**
+ * Atomically replace an existing tuple with a new one carrying an updated
+ * relation. Validation runs first (it throws before any write), then the old
+ * row is deleted and the replacement dup-checked + inserted inside a single
+ * write-locked transaction. Wrapping both writes means a validation or
+ * duplicate failure can never leave the original grant deleted with no
+ * replacement (FIX-AUDIT-017) — a failed dup-check rolls the delete back.
+ * Returns the new row (a fresh id, like `createTuple`).
+ */
+export async function updateTupleRelation(
+  db: AppDatabase,
+  id: string,
+  input: CreateTupleInput,
+  createdBy: string,
+): Promise<RelationTuple> {
+  validateTupleInput(input);
+
+  const newId = nanoid();
+  const now = new Date().toISOString();
+  const values = {
+    id: newId,
+    namespace: input.namespace,
+    objectId: input.objectId,
+    relation: input.relation,
+    subjectNamespace: input.subjectNamespace,
+    subjectId: input.subjectId,
+    subjectRelation: input.subjectRelation ?? null,
+    createdBy,
+    createdAt: now,
+  };
+
+  db.transaction((tx) => {
+    tx.delete(relationTuples).where(eq(relationTuples.id, id)).run();
+    checkDuplicateTuple(tx, input);
+    tx.insert(relationTuples).values(values).run();
+  });
+
+  return values;
+}
+
 export async function deleteTuple(db: AppDatabase, id: string): Promise<boolean> {
   const existing = await db.select({ id: relationTuples.id }).from(relationTuples).where(eq(relationTuples.id, id)).get();
   if (!existing)
@@ -437,34 +477,42 @@ export async function addGroupMembership(
   userId: string,
   createdBy: string,
 ): Promise<boolean> {
-  const existing = await db
-    .select({ id: relationTuples.id })
-    .from(relationTuples)
-    .where(
-      and(
-        eq(relationTuples.namespace, "group"),
-        eq(relationTuples.objectId, groupId),
-        eq(relationTuples.relation, "member"),
-        eq(relationTuples.subjectNamespace, "user"),
-        eq(relationTuples.subjectId, userId),
-        isNull(relationTuples.subjectRelation),
-      ),
-    )
-    .get();
-  if (existing)
-    return false;
-  await db.insert(relationTuples).values({
-    id: nanoid(),
-    namespace: "group",
-    objectId: groupId,
-    relation: "member",
-    subjectNamespace: "user",
-    subjectId: userId,
-    subjectRelation: null,
-    createdBy,
-    createdAt: new Date().toISOString(),
-  }).run();
-  return true;
+  // BEGIN takes the write lock at transaction start, so the existence check +
+  // insert serialize against concurrent adders — the only protection for these
+  // NULL-`subjectRelation` membership rows, which idx_tuples_unique cannot
+  // enforce (SQLite treats NULLs as distinct). Without this a concurrent
+  // double-add inserts a duplicate membership row (FIX-AUDIT-017; mirrors
+  // `createTuple`). Sync callback: see bun:sqlite transaction note.
+  return db.transaction((tx) => {
+    const existing = tx
+      .select({ id: relationTuples.id })
+      .from(relationTuples)
+      .where(
+        and(
+          eq(relationTuples.namespace, "group"),
+          eq(relationTuples.objectId, groupId),
+          eq(relationTuples.relation, "member"),
+          eq(relationTuples.subjectNamespace, "user"),
+          eq(relationTuples.subjectId, userId),
+          isNull(relationTuples.subjectRelation),
+        ),
+      )
+      .get();
+    if (existing)
+      return false;
+    tx.insert(relationTuples).values({
+      id: nanoid(),
+      namespace: "group",
+      objectId: groupId,
+      relation: "member",
+      subjectNamespace: "user",
+      subjectId: userId,
+      subjectRelation: null,
+      createdBy,
+      createdAt: new Date().toISOString(),
+    }).run();
+    return true;
+  });
 }
 
 /**
