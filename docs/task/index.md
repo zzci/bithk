@@ -72,3 +72,6 @@
 | [FIX-017](FIX-017.md) | Create-issue dialog Linear-style layout optimization | [PLAN-045](../plan/PLAN-045.md) | Completed | 2026-06-02 |
 | [FIX-018](FIX-018.md) | Priority default low (no none level) across create paths | [PLAN-046](../plan/PLAN-046.md) | Completed | 2026-06-02 |
 | [FIX-019](FIX-019.md) | Unify status icon — create dialog reuses StatusIcon | [PLAN-046](../plan/PLAN-046.md) | Completed | 2026-06-02 |
+| [FIX-020](FIX-020.md) | Create-issue dialog refinements | [PLAN-047](../plan/PLAN-047.md) | In Progress | 2026-06-02 |
+| [FIX-021](FIX-021.md) | Tag-filter selector redesign | [PLAN-047](../plan/PLAN-047.md) | In Progress | 2026-06-02 |
+| [FIX-022](FIX-022.md) | Procurement filter all-labels rename | [PLAN-047](../plan/PLAN-047.md) | Planned | 2026-06-02 |

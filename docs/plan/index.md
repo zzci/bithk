@@ -45,3 +45,4 @@
 | [PLAN-044](PLAN-044.md) | Project module audit remediation (A–H) | Completed | 2026-06-01 |
 | [PLAN-045](PLAN-045.md) | Create-issue dialog optimization + priority icon refresh | Completed | 2026-06-02 |
 | [PLAN-046](PLAN-046.md) | Priority default low + unify status icon | Completed | 2026-06-02 |
+| [PLAN-047](PLAN-047.md) | Project list/dialog UI polish round | In Progress | 2026-06-02 |
