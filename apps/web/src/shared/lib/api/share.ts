@@ -12,15 +12,11 @@
 // consistent. Never call `fetch` directly.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { httpRaw } from "../http";
 import { parseContentDispositionFilename } from "./drive";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
 
 // ── Types ──
 
