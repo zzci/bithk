@@ -45,9 +45,10 @@
     "viewGrid": "Grid view",
     "viewList": "List view",
     "moreTags": "+{{count}}",
-    "tagFilterMore": "More",
-    "tagFilterMoreLabel": "More tags",
+    "tagFilterMore": "Tags",
+    "tagFilterMoreLabel": "Tags",
     "tagFilterSearchPlaceholder": "Search tags",
+    "tagFilterNoMore": "No more tags",
     "kpi": {
       "total": "Total projects",
       "active": "Active projects",

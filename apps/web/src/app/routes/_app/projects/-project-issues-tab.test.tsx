@@ -267,7 +267,7 @@ describe("projectIssuesTab", () => {
 
     const bar = screen.getByRole("group", { name: "Filter by tag" });
     // Select "alpha" through the tag selector.
-    await user.click(within(bar).getByRole("combobox", { name: "More tags" }));
+    await user.click(within(bar).getByRole("combobox", { name: "Tags" }));
     await user.click(await screen.findByRole("option", { name: "alpha" }));
 
     // tagIds reaches the single issues query (one repeatable param per tag id).
@@ -293,7 +293,7 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Fix leak");
 
-    const more = screen.getByRole("combobox", { name: "More tags" });
+    const more = screen.getByRole("combobox", { name: "Tags" });
     await user.click(more);
     const search = await screen.findByPlaceholderText("Search tags");
     await user.type(search, "gamma");

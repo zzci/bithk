@@ -93,35 +93,14 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
               tags={tags}
               selectedTagIds={props.selectedTagIds}
               onToggle={props.onToggle}
-              active={selected.length > 0}
             />
           )
         : (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={(
-                  <Button
-                    variant={selected.length > 0 ? "default" : "outline"}
-                    className="shrink-0 rounded-md px-2.5 text-xs"
-                    aria-label={t("list.tagFilterMoreLabel")}
-                  />
-                )}
-              >
-                {t("list.tagFilterMore")}
-                <ChevronDown aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {tags.map(tag => (
-                  <DropdownMenuItem
-                    key={tag.id}
-                    className={cn(props.selectedTagId === tag.id && "font-medium text-foreground")}
-                    onClick={() => props.onSelect(tag.id)}
-                  >
-                    {tag.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <SingleSelectDropdown
+              tags={tags}
+              selectedTagId={props.selectedTagId}
+              onSelect={props.onSelect}
+            />
           )}
 
       {/* Selected tags as chips. Multi-select chips are removable. Single-select
@@ -163,22 +142,65 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
   );
 }
 
+interface SingleSelectDropdownProps {
+  readonly tags: readonly ProjectTag[];
+  readonly selectedTagId: string | null;
+  readonly onSelect: (tagId: string) => void;
+}
+
+// Single-select dropdown over the unselected tags. The trigger stays neutral
+// (outline) regardless of selection; the selected tag is conveyed by its chip.
+function SingleSelectDropdown({ tags, selectedTagId, onSelect }: SingleSelectDropdownProps) {
+  const { t } = useTranslation("projects");
+  const options = tags.filter(tag => tag.id !== selectedTagId);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={(
+          <Button
+            variant="outline"
+            className="shrink-0 rounded-md px-2.5 text-xs"
+            aria-label={t("list.tagFilterMoreLabel")}
+          />
+        )}
+      >
+        {t("list.tagFilterMore")}
+        <ChevronDown aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {options.length === 0
+          ? (
+              <DropdownMenuItem disabled className="text-muted-foreground">
+                {t("list.tagFilterNoMore")}
+              </DropdownMenuItem>
+            )
+          : options.map(tag => (
+              <DropdownMenuItem key={tag.id} onClick={() => onSelect(tag.id)}>
+                {tag.name}
+              </DropdownMenuItem>
+            ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 interface TagFilterComboboxProps {
   readonly tags: readonly ProjectTag[];
   readonly selectedTagIds: readonly string[];
   readonly onToggle: (tagId: string) => void;
-  readonly active: boolean;
 }
 
-// Searchable, checked-state multi-select selector over the full tag list. Diffs
+// Searchable, checked-state multi-select selector over the unselected tags. Diffs
 // the combobox value array against the controlled selection to emit a single
 // `onToggle` per change.
-function TagFilterCombobox({ tags, selectedTagIds, onToggle, active }: TagFilterComboboxProps) {
+function TagFilterCombobox({ tags, selectedTagIds, onToggle }: TagFilterComboboxProps) {
   const { t } = useTranslation("projects");
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
-  const matches = q ? tags.filter(tag => tag.name.toLowerCase().includes(q)) : tags;
+  const unselected = tags.filter(tag => !selectedTagIds.includes(tag.id));
+  const matches = q ? unselected.filter(tag => tag.name.toLowerCase().includes(q)) : unselected;
 
   const handleChange = (next: readonly string[]) => {
     const nextSet = new Set(next);
@@ -204,9 +226,7 @@ function TagFilterCombobox({ tags, selectedTagIds, onToggle, active }: TagFilter
         aria-label={t("list.tagFilterMoreLabel")}
         className={cn(
           "inline-flex h-8 shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors",
-          active
-            ? "border-transparent bg-primary text-primary-foreground hover:bg-primary/90"
-            : "border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
+          "border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
         )}
       >
         {t("list.tagFilterMore")}
@@ -215,7 +235,7 @@ function TagFilterCombobox({ tags, selectedTagIds, onToggle, active }: TagFilter
         <ComboboxInput showTrigger={false} placeholder={t("list.tagFilterSearchPlaceholder")} />
         <ComboboxList>
           {matches.length === 0 && (
-            <p className="px-2 py-4 text-center text-sm text-muted-foreground">{t("tags.empty")}</p>
+            <p className="px-2 py-4 text-center text-sm text-muted-foreground">{t("list.tagFilterNoMore")}</p>
           )}
           {matches.map(tag => (
             <ComboboxItem key={tag.id} value={tag.id}>{tag.name}</ComboboxItem>
