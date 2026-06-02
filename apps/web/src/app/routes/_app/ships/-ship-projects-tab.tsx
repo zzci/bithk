@@ -112,7 +112,7 @@ export function ShipProjectsTab({ ship, canManage }: ShipProjectsTabProps) {
                     <div className="flex items-center gap-1 border-t border-dashed pt-2">
                       <Button
                         variant="ghost"
-                        onClick={() => void navigate({ to: "/projects/$projectId", params: { projectId: project.id } })}
+                        onClick={() => void navigate({ to: "/projects/$projectId/from/$shipId", params: { projectId: project.id, shipId: ship.id } })}
                       >
                         <ExternalLink className="mr-1 size-4" />
                         {t("projects.open")}
