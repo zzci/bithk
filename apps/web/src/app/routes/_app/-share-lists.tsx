@@ -23,6 +23,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useClipboard, useVisibleUsers } from "@/shared/components/share/share-helpers";
+import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { downloadDriveEntry } from "@/shared/lib/api/drive";
 import {
   buildShareUrl,
@@ -31,6 +32,7 @@ import {
   useRevokeShare,
   useSentShares,
 } from "@/shared/lib/api/share";
+import { errorMessage } from "@/shared/lib/errors";
 import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { detectFileType } from "./-file-browser-types";
 
@@ -124,6 +126,8 @@ function ShareListSurface({
   mode,
   shares,
   loading,
+  isError,
+  error,
   onRefresh,
   extraFilters,
   onPreviewEntry,
@@ -131,6 +135,8 @@ function ShareListSurface({
   readonly mode: ShareListMode;
   readonly shares: readonly ShareView[];
   readonly loading: boolean;
+  readonly isError: boolean;
+  readonly error: unknown;
   readonly onRefresh: () => void;
   readonly extraFilters?: readonly SurfaceExtraFilter[] | undefined;
   readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
@@ -219,11 +225,18 @@ function ShareListSurface({
     getCustomActions,
   };
 
+  // Surface a load failure through the surface's banner slot so an errored
+  // fetch (shares=[]) is not silently rendered as the empty state.
+  const banner = isError
+    ? <ErrorBanner message={errorMessage(error, t("common.error.loadFailed", { ns: "common" }))} className="mb-3" />
+    : undefined;
+
   return (
     <div className="flex h-full min-h-96 flex-col">
       <DriveFileListSurface
         items={items}
         loading={loading}
+        banner={banner}
         viewModeStorageKey="drive.shareList.viewMode"
         toolbar={{
           kind: "collection",
@@ -252,6 +265,8 @@ export function ReceivedSharesList({ onPreviewEntry }: {
       mode="received"
       shares={query.data ?? []}
       loading={query.isLoading}
+      isError={query.isError}
+      error={query.error}
       onRefresh={() => void query.refetch()}
       onPreviewEntry={onPreviewEntry}
     />
@@ -298,6 +313,8 @@ export function OutgoingSharesList({ onPreviewEntry }: {
       mode="sent"
       shares={shares}
       loading={sentQuery.isLoading || linksQuery.isLoading}
+      isError={sentQuery.isError || linksQuery.isError}
+      error={sentQuery.error ?? linksQuery.error}
       onRefresh={() => {
         void sentQuery.refetch();
         void linksQuery.refetch();

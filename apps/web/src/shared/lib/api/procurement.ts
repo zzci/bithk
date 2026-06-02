@@ -7,19 +7,9 @@
 
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ProjectTag } from "./projects";
+import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
-
-interface ApiListEnvelope<T> {
-  readonly success: boolean;
-  readonly data: readonly T[];
-  readonly meta: { readonly total: number; readonly page: number; readonly limit: number };
-}
 
 // ── Types ──
 
@@ -37,7 +27,7 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
 
 // Tag reference carried on procurement rows and detail (name resolved by the
 // API). Mirrors `IssueTagRef` (type='procurement').
-export interface ProcurementTagRef {
+interface ProcurementTagRef {
   readonly id: string;
   readonly name: string;
 }
@@ -80,7 +70,7 @@ export interface ProcurementRow {
   readonly version: number;
 }
 
-export interface ProcurementListMeta {
+interface ProcurementListMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;
@@ -98,7 +88,7 @@ export const procurementKeys = {
 };
 
 // Selectable procurement-tag vocabulary cache key (type=procurement).
-export const procurementTagKeys = {
+const procurementTagKeys = {
   vocabulary: ["tags", "procurement"] as const,
 };
 

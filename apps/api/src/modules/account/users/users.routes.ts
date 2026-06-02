@@ -22,7 +22,7 @@ import {
 import { getUserById, getUserGroups, listActiveUsers, listUsers } from "./users.service";
 
 const listQuerySchema = z.object({
-  q: z.string().optional(),
+  q: z.string().max(200).optional(),
   role: z.enum(["admin", "user"]).optional(),
   status: z.enum(["active", "disabled"]).optional(),
   group_id: z.string().optional(),
@@ -92,10 +92,17 @@ export function userRoutes() {
     value: z.unknown(),
   }).strict();
 
+  // Storage-abuse bounds for `PUT /account/me/preferences/:key`: cap the key
+  // length and the serialized value size before the upsert so an authenticated
+  // user cannot write unbounded preference blobs.
+  const MAX_PREFERENCE_KEY_LENGTH = 200;
+  const MAX_PREFERENCE_VALUE_BYTES = 64 * 1024;
+  const preferenceKeySchema = z.string().min(1).max(MAX_PREFERENCE_KEY_LENGTH);
+
   router.put("/account/me/preferences/:key", async (c) => {
     const db = c.get("db");
     const user = c.get("user");
-    const key = c.req.param("key");
+    const key = preferenceKeySchema.parse(c.req.param("key"));
 
     let raw: unknown;
     try {
@@ -109,6 +116,8 @@ export function userRoutes() {
     }
     const body = preferenceBodySchema.parse(raw);
     const value = typeof body.value === "string" ? body.value : JSON.stringify(body.value);
+    if (new TextEncoder().encode(value).length > MAX_PREFERENCE_VALUE_BYTES)
+      throw new AppError("Preference value too large", 413, "PREFERENCE_TOO_LARGE");
 
     await db.insert(userPreferences).values({
       userId: user.id,

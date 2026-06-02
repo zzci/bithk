@@ -21,8 +21,13 @@ import {
 const SETTING_KEY_RE = /^[a-z0-9][\w.-]{0,127}$/i;
 const LIKE_SPECIAL_RE = /[%_]/g;
 
+// Upper bound (64 KiB) on a stored setting value. The column is TEXT NOT NULL,
+// so without this an admin could persist an unbounded blob that every
+// `GET /settings` then reads into memory.
+const MAX_SETTING_VALUE_LENGTH = 64 * 1024;
+
 const putSettingSchema = z.object({
-  value: z.string().min(1),
+  value: z.string().min(1).max(MAX_SETTING_VALUE_LENGTH),
 });
 
 function validateSettingKey(key: string): void {

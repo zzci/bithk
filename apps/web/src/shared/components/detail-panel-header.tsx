@@ -12,7 +12,7 @@ import { ArrowLeft, Maximize2, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/button";
 
-export type DetailPanelVariant = "drawer" | "fullscreen";
+type DetailPanelVariant = "drawer" | "fullscreen";
 
 interface DetailPanelTitleEdit {
   /** When false the title renders read-only (no click-to-edit). */

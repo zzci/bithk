@@ -3,13 +3,9 @@
 // global-procurement-categories routes, all admin-only).
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
-
-interface ApiEnvelope<T> {
-  readonly success: boolean;
-  readonly data: T;
-}
 
 export interface GlobalProcurementCategory {
   readonly id: string;
@@ -26,7 +22,7 @@ export interface GlobalCategoryInput {
   readonly description?: string | null;
 }
 
-export const globalCategoryKeys = {
+const globalCategoryKeys = {
   all: ["global-procurement-categories"] as const,
 };
 

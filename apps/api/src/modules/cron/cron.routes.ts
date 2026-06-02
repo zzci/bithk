@@ -20,11 +20,27 @@ import { getScheduler } from "./cron.service";
 import { executeTask } from "./executor";
 import { serializeJob } from "./serialize";
 
+// Outer guardrails on the free-form action `config` payload (FIX-AUDIT-016).
+// The per-action validator (`validateActionConfig`) checks field *shape*;
+// these cap the raw payload so an admin can't persist a multi-megabyte or
+// thousand-key blob into `cron_jobs.task_config`.
+const MAX_CONFIG_KEYS = 50;
+const MAX_CONFIG_KEY_LENGTH = 100;
+const MAX_CONFIG_BYTES = 16 * 1024;
+
 const createJobSchema = z.object({
   name: z.string().min(1).max(100).regex(/^[\w-]+$/, "Name must be alphanumeric, underscore, or hyphen only"),
   cron: z.string().min(1).max(200),
   action: z.string().min(1).max(100),
-  config: z.record(z.string(), z.unknown()).optional(),
+  config: z
+    .record(z.string().min(1).max(MAX_CONFIG_KEY_LENGTH), z.unknown())
+    .refine(c => Object.keys(c).length <= MAX_CONFIG_KEYS, {
+      message: `config may not exceed ${MAX_CONFIG_KEYS} keys`,
+    })
+    .refine(c => JSON.stringify(c).length <= MAX_CONFIG_BYTES, {
+      message: `config exceeds the ${MAX_CONFIG_BYTES}-byte size limit`,
+    })
+    .optional(),
   // Retry budget: N consecutive failures flip `enabled=false`. `0`
   // disables auto-pause for jobs that must keep retrying. Cap matches
   // the executor's intent (the limit is the LIMIT clause on the recent

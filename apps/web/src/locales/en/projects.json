@@ -19,12 +19,7 @@
     "categoryUpdated": "Category updated",
     "categoryDeleted": "Category deleted",
     "procurementCreated": "Procurement created",
-    "procurementUpdated": "Procurement updated",
-    "procurementDeleted": "Procurement deleted",
-    "procurementStatusChanged": "Procurement status updated",
     "issueCreated": "Work order created",
-    "issueUpdated": "Work order updated",
-    "issueDeleted": "Work order deleted",
     "issuePinned": "Work order pinned",
     "issueUnpinned": "Work order unpinned",
     "procurementPinned": "Procurement pinned",
@@ -37,31 +32,16 @@
     "total": "{{count}} projects",
     "total_one": "{{count}} project",
     "total_other": "{{count}} projects",
-    "filterByTag": "Filter by tag",
     "filter": "Filter",
     "filterRemove": "Remove {{label}}",
     "searchPlaceholder": "Search projects",
     "openSettings": "Project settings",
-    "viewMode": "Project view mode",
-    "viewGrid": "Grid view",
-    "viewList": "List view",
     "moreTags": "+{{count}}",
     "tagFilterMore": "Tags",
     "tagFilterMoreLabel": "Tags",
     "tagFilterPinLabel": "Filter by {{name}}",
     "tagFilterSearchPlaceholder": "Search tags",
-    "tagFilterNoMore": "No more tags",
-    "kpi": {
-      "total": "Total projects",
-      "active": "Active projects",
-      "archived": "Archived",
-      "tags": "Tags"
-    },
-    "col": {
-      "name": "Name",
-      "code": "Code",
-      "status": "Status"
-    }
+    "tagFilterNoMore": "No more tags"
   },
   "status": {
     "active": "Active",
@@ -93,11 +73,6 @@
     "namePlaceholder": "Project name",
     "descriptionPlaceholder": "Add a description…"
   },
-  "edit": {
-    "title": "Edit project",
-    "description": "Update project details.",
-    "submit": "Save"
-  },
   "delete": {
     "title": "Delete project",
     "confirm": "Are you sure you want to delete the project \"{{name}}\"? This action cannot be undone."
@@ -106,20 +81,14 @@
     "notFound": "Project not found or you do not have access.",
     "back": "Back to projects",
     "backToShip": "Back to ship",
-    "breadcrumb": "Project breadcrumb",
     "loading": "Loading project...",
     "settings": "Settings",
     "copyCode": "Copy project ID",
     "codeCopied": "Project ID copied",
-    "copyFailed": "Could not copy project ID",
-    "metrics": {
-      "issues": "Work orders",
-      "procurement": "Procurement"
-    }
+    "copyFailed": "Could not copy project ID"
   },
   "settings": {
     "title": "Project settings",
-    "description": "Manage this project's details, members, and categories.",
     "tabs": {
       "general": "General",
       "members": "Members",
@@ -136,10 +105,7 @@
     "files": "Files"
   },
   "overview": {
-    "creator": "Creator",
     "notSet": "Not set",
-    "noTags": "No tags.",
-    "updatedAt": "Last updated",
     "description": "Description",
     "noDescription": "No description yet.",
     "pinned": "Pinned",
@@ -156,41 +122,22 @@
     "viewAll": "View all"
   },
   "issues": {
-    "create": "Create work order",
     "createButton": "New",
     "empty": "No work orders found.",
     "loading": "Loading work orders...",
     "searchPlaceholder": "Search work orders...",
     "tagFilter": "Filter by tag",
     "toggleSection": "Toggle section",
-    "allPriorities": "All priorities",
-    "viewMode": "Work order view mode",
-    "viewList": "List view",
-    "viewKanban": "Kanban view",
     "emptyColumn": "No work orders",
     "unassigned": "Unassigned",
-    "total": "{{count}} work orders",
-    "total_one": "{{count}} work order",
-    "total_other": "{{count}} work orders",
-    "col": {
-      "title": "Title",
-      "status": "Status",
-      "priority": "Priority",
-      "assignee": "Assignee",
-      "dueDate": "Due date"
-    },
     "field": {
       "title": "Title",
       "description": "Description",
       "descriptionPlaceholder": "Add a description...",
-      "priority": "Priority",
       "assignee": "Assignee",
-      "dueDate": "Due date",
-      "clearDueDate": "Clear due date",
-      "project": "Project"
+      "dueDate": "Due date"
     },
     "composer": {
-      "manualCreate": "Manual create",
       "titlePlaceholder": "Issue title",
       "maximize": "Maximize",
       "minimize": "Restore",
@@ -200,7 +147,6 @@
       "submit": "Create issue"
     },
     "createTitle": "Create work order",
-    "createDescription": "Add a new work order to this project.",
     "status": {
       "todo": "To Do",
       "working": "In Progress",
@@ -235,7 +181,6 @@
     "total_one": "{{count}} record",
     "total_other": "{{count}} records",
     "none": "None",
-    "mixedCurrencies": "Mixed",
     "col": {
       "priority": "Priority",
       "id": "No.",
@@ -243,9 +188,7 @@
       "status": "Status",
       "amount": "Amount",
       "category": "Category",
-      "supplier": "Supplier",
-      "assignee": "Assignee",
-      "actions": "Actions"
+      "supplier": "Supplier"
     },
     "field": {
       "itemName": "Item name",
@@ -265,15 +208,6 @@
     "createTitle": "Create procurement",
     "createDescription": "Add a new procurement record to this project.",
     "changeStatus": "Change status",
-    "pipeline": {
-      "title": "Procurement pipeline",
-      "description": "Stage totals use the current procurement list API.",
-      "amount": "Amount"
-    },
-    "delete": {
-      "title": "Delete procurement",
-      "confirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
-    },
     "status": {
       "requested": "Requested",
       "ordered": "Ordered",
@@ -291,7 +225,6 @@
     },
     "detail": {
       "title": "Procurement detail",
-      "description": "View and edit a procurement record.",
       "backToList": "Back to list",
       "openFullPage": "Open full page",
       "clickToEditTitle": "Click to edit",
@@ -310,10 +243,6 @@
   "members": {
     "add": "Add member",
     "empty": "No members yet.",
-    "loading": "Loading members...",
-    "tabDescription": "Project membership is read-only here. Manage members and roles from project settings.",
-    "noRole": "No role",
-    "joinedAt": "Joined",
     "virtual": "Virtual",
     "col": {
       "member": "Member",
@@ -392,10 +321,6 @@
     "project.manage": "Manage project"
   },
   "capabilityGroup": {
-    "project": "Project",
-    "members": "Members",
-    "roles": "Roles",
-    "categories": "Categories",
     "procurement": "Procurement",
     "issue": "Work orders",
     "files": "Files"

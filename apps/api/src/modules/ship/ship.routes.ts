@@ -4,6 +4,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { parsePageQuery } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { EQUIPMENT_STATUSES, SHIP_STATUSES } from "./schema";
 import {
@@ -40,7 +41,9 @@ import {
 } from "./ship.worklist.service";
 
 const shipCoreShape = {
-  tags: z.array(z.string()).optional(),
+  // Per-tag length + array-size caps (mirrors the project tag bound) so
+  // unbounded tag count/length cannot flow into syncResourceTagsTx.
+  tags: z.array(z.string().min(1).max(50)).max(50).optional(),
   model: z.string().max(255).nullable().optional(),
   builder: z.string().max(255).nullable().optional(),
   buildYear: z.number().int().min(1800).max(2200).nullable().optional(),
@@ -76,10 +79,8 @@ const updateShipSchema = z.object({
 
 const listSchema = z.object({
   status: z.enum(SHIP_STATUSES).optional(),
-  tagId: z.string().optional(),
+  tagId: z.string().max(100).optional(),
   q: z.string().max(200).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 const bindProjectSchema = z.object({ projectShortId: z.string().min(1) });
@@ -152,17 +153,18 @@ export function shipRoutes() {
       status: c.req.query("status"),
       tagId: c.req.query("tagId"),
       q: c.req.query("q") || undefined,
-      page: c.req.query("page"),
-      limit: c.req.query("limit"),
     });
+    const { page, limit } = parsePageQuery(c, { limit: 20 });
     const result = await listShips(db, {
       ...query,
+      page,
+      limit,
       memberUserId: user.role === "admin" ? undefined : user.id,
     });
     return c.json({
       success: true,
       data: result.data,
-      meta: { total: result.total, page: query.page ?? 1, limit: query.limit ?? 20 },
+      meta: { total: result.total, page, limit },
     });
   });
 

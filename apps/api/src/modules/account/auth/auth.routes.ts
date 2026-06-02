@@ -124,7 +124,7 @@ const authRateBuckets = new Map<string, RateBucket>();
  * key per-end-user IP (X-Real-IP / right-most X-Forwarded-For) instead of
  * collapsing the entire tenant onto the proxy's peer IP.
  */
-export function rateLimitKey(c: Context<AppEnv>): string {
+function rateLimitKey(c: Context<AppEnv>): string {
   return getClientIp(c, c.get("config"));
 }
 

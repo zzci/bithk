@@ -15,6 +15,7 @@ import { fileReferences, files } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
+import { AppError } from "@/shared/lib/errors";
 import {
   buildDriveEntryDownloadResponse,
   createDriveFolder,
@@ -27,6 +28,7 @@ import {
   listRecentDriveEntries,
   restoreDriveEntry,
   searchDriveEntriesByOwners,
+  throwDuplicateName,
   trashDriveEntry,
   updateDriveEntry,
   uploadDriveFile,
@@ -346,5 +348,34 @@ describe("audit landing for a drive write", () => {
     expect(row?.actorId).toBe(owner);
     expect(row?.resourceType).toBe("drive_entry");
     expect(row?.result).toBe("success");
+  });
+});
+
+describe("throwDuplicateName matches the specific name constraint (FIX-AUDIT-019)", () => {
+  // SQLite reports a UNIQUE violation by its column list. The name guard is the
+  // `(owner_type, owner_id, parent_entry_id, name, status)` index.
+  const nameViolation = "UNIQUE constraint failed: drive_entries.owner_type, drive_entries.owner_id, drive_entries.parent_entry_id, drive_entries.name, drive_entries.status";
+  // A wholly unrelated index (e.g. a drive_file_versions version race).
+  const versionViolation = "UNIQUE constraint failed: drive_file_versions.drive_entry_id, drive_file_versions.version_no";
+
+  test("maps a name-index violation to a 409 DUPLICATE_NAME AppError", () => {
+    expect(() => throwDuplicateName(new Error(nameViolation))).toThrow(AppError);
+    try {
+      throwDuplicateName(new Error(nameViolation));
+    }
+    catch (err) {
+      expect(err).toMatchObject({ statusCode: 409, code: "DUPLICATE_NAME" });
+    }
+  });
+
+  test("does NOT mislabel an unrelated UNIQUE violation as a name clash", () => {
+    // Falls through (returns void) so the caller rethrows the real error.
+    expect(throwDuplicateName(new Error(versionViolation))).toBeUndefined();
+    expect(throwDuplicateName(new Error("some other failure"))).toBeUndefined();
+  });
+
+  test("walks the cause chain to find a nested name violation", () => {
+    const wrapped = new Error("Failed query: insert into drive_entries", { cause: new Error(nameViolation) });
+    expect(() => throwDuplicateName(wrapped)).toThrow(AppError);
   });
 });

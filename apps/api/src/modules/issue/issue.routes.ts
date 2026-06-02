@@ -17,6 +17,7 @@ import { setItemPinned } from "@/modules/item/item.service";
 import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { parsePageQuery } from "@/shared/lib/pagination";
 import { requireParam } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
 import {
@@ -33,11 +34,14 @@ import { mountIssueReferenceRoutes, referenceInputSchema } from "./references.ro
 
 // Project work order: the assignment target is a `project_members.id`. The
 // project comes from the `:projectId` path param.
+const ISSUE_STATUSES = ["todo", "working", "review", "done", "cancel"] as const;
+const ISSUE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
+
 const createSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional(),
-  status: z.enum(["todo", "working", "review", "done", "cancel"]).optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  status: z.enum(ISSUE_STATUSES).optional(),
+  priority: z.enum(ISSUE_PRIORITIES).optional(),
   assigneeMemberId: z.string().min(1).optional(),
   dueDate: z.string().max(30).optional(),
   // Optional tag names (tag type 'issue') synced with the issue.
@@ -49,14 +53,23 @@ const createSchema = z.object({
 const updateSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(2000).nullable().optional(),
-  status: z.enum(["todo", "working", "review", "done", "cancel"]).optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  status: z.enum(ISSUE_STATUSES).optional(),
+  priority: z.enum(ISSUE_PRIORITIES).optional(),
   assigneeMemberId: z.string().min(1).nullable().optional(),
   dueDate: z.string().max(30).nullable().optional(),
   // Replacement tag set (tag type 'issue'); omit to leave tags unchanged.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
 }).refine(d => Object.values(d).some(v => v !== undefined), {
   message: "At least one field must be provided",
+});
+
+// Bounded list-query schema for the list edge: caps `q` length and validates
+// status / priority against their enums (invalid → 422 instead of silently
+// yielding zero rows). Pagination uses `parsePageQuery`.
+const listQuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  status: z.enum(ISSUE_STATUSES).optional(),
+  priority: z.enum(ISSUE_PRIORITIES).optional(),
 });
 
 function auditMeta(c: Context) {
@@ -139,12 +152,13 @@ export function issueRoutes() {
   router.get("/projects/:projectId/issues", async (c) => {
     const projectId = await requireProjectMember(c, c.req.param("projectId"));
     const db = c.get("db");
-    const q = c.req.query("q");
-    const status = c.req.query("status");
-    const priority = c.req.query("priority");
+    const { q, status, priority } = listQuerySchema.parse({
+      q: c.req.query("q") || undefined,
+      status: c.req.query("status") || undefined,
+      priority: c.req.query("priority") || undefined,
+    });
     const tagIds = parseTagIds(c.req.queries("tagIds"));
-    const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
-    const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
+    const { page, limit } = parsePageQuery(c, { limit: 20 });
 
     const result = await listByProject(db, { projectId, q, status, priority, tagIds, page, limit });
     return c.json({

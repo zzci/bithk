@@ -234,6 +234,58 @@ describe("getClientIp (TRUST_PROXY=true with TRUSTED_PROXY_IPS allow-list)", () 
   });
 });
 
+describe("getClientIp (production fail-closed — TRUST_PROXY=true, empty allow-list)", () => {
+  const prodCfg = { TRUST_PROXY: true, NODE_ENV: "production" } as const;
+
+  test("ignores X-Forwarded-For and returns the socket peer IP", () => {
+    // The spoofable case the audit flagged: an exposed process trusting
+    // forwarding headers from any peer. In production this must fail closed.
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5, 10.0.0.1" }, { IP: { address: "8.8.8.8" } }),
+        prodCfg,
+      ),
+    ).toBe("8.8.8.8");
+  });
+
+  test("ignores X-Real-IP and returns the socket peer IP", () => {
+    expect(
+      getClientIp(ctx({ "x-real-ip": "203.0.113.5" }, { IP: { address: "8.8.8.8" } }), prodCfg),
+    ).toBe("8.8.8.8");
+  });
+
+  test("returns 'unknown' when no socket peer IP is available", () => {
+    expect(getClientIp(ctx({ "x-forwarded-for": "203.0.113.5" }, {}), prodCfg)).toBe("unknown");
+  });
+
+  test("an all-invalid allow-list still fails closed in production", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "8.8.8.8" } }),
+        { TRUST_PROXY: true, NODE_ENV: "production", TRUSTED_PROXY_IPS: "garbage, /99" },
+      ),
+    ).toBe("8.8.8.8");
+  });
+
+  test("a valid allow-list is still honoured in production (not over-blocked)", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "10.0.0.42" } }),
+        { TRUST_PROXY: true, NODE_ENV: "production", TRUSTED_PROXY_IPS: "10.0.0.0/8" },
+      ),
+    ).toBe("203.0.113.5");
+  });
+
+  test("dev/test stay usable: an empty allow-list still honours X-Forwarded-For", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "8.8.8.8" } }),
+        { TRUST_PROXY: true, NODE_ENV: "development" },
+      ),
+    ).toBe("203.0.113.5");
+  });
+});
+
 describe("isSpoofableProxyConfig", () => {
   test("false when TRUST_PROXY is off", () => {
     expect(isSpoofableProxyConfig({ TRUST_PROXY: false })).toBe(false);

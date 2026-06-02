@@ -35,7 +35,7 @@ interface OrphanRule {
   readonly parentKey: string;
 }
 
-export async function listOrphanReferences(
+async function listOrphanReferences(
   db: AppDatabase,
   rule: OrphanRule,
   limit: number,

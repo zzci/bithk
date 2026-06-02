@@ -11,7 +11,7 @@
     "directory": "apps/api"
   },
   "exports": {
-    ".": "./src/dev.ts"
+    ".": "./src/app.ts"
   },
   "scripts": {
     "dev": "nsl run --name \"${APP_NAME:-bit}:${BASE_PATH:-}/api\" bun --env-file=../../.env src/index.ts",
@@ -27,7 +27,6 @@
     "check:api-docs": "bun scripts/gen-api-docs.ts --check"
   },
   "dependencies": {
-    "@app/shared": "workspace:*",
     "cac": "7.0.0",
     "consola": "3.4.2",
     "cronbake": "0.4.0",
