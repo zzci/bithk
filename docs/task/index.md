@@ -68,3 +68,5 @@
 | [FIX-013](FIX-013.md) | List-search correctness + UX polish (audit F) | [PLAN-044](../plan/PLAN-044.md) | Completed | 2026-06-01 |
 | [FIX-014](FIX-014.md) | i18n parity + CI guard (audit G) | [PLAN-044](../plan/PLAN-044.md) | Completed | 2026-06-01 |
 | [FIX-015](FIX-015.md) | Dead code + test gaps (audit H) | [PLAN-044](../plan/PLAN-044.md) | Completed | 2026-06-01 |
+| [FIX-016](FIX-016.md) | Priority indicator: background-backed icon + sync consumers | [PLAN-045](../plan/PLAN-045.md) | Completed | 2026-06-02 |
+| [FIX-017](FIX-017.md) | Create-issue dialog Linear-style layout optimization | [PLAN-045](../plan/PLAN-045.md) | Completed | 2026-06-02 |

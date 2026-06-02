@@ -181,7 +181,17 @@
       "priority": "Priority",
       "assignee": "Assignee",
       "dueDate": "Due date",
-      "clearDueDate": "Clear due date"
+      "clearDueDate": "Clear due date",
+      "project": "Project"
+    },
+    "composer": {
+      "manualCreate": "Manual create",
+      "titlePlaceholder": "Issue title",
+      "maximize": "Maximize",
+      "minimize": "Restore",
+      "attach": "Attach file",
+      "continueCreate": "Create more",
+      "submit": "Create issue"
     },
     "createTitle": "Create work order",
     "createDescription": "Add a new work order to this project.",
