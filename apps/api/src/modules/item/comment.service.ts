@@ -1,6 +1,6 @@
 import type { AppDatabase } from "@/db";
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { releaseAllByOwner } from "@/modules/file";
+import { finalizeReleasedBlob, listAttachmentsByOwner, releaseReferenceTx } from "@/modules/file";
 import { itemComments, items } from "@/modules/item/schema";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
@@ -14,13 +14,15 @@ import { nanoid } from "@/shared/lib/id";
 const COMMENT_ATTACHMENT_OWNER_TYPE = "item_comment_attachment";
 
 /**
- * Drop a comment's attachment references on the **async** GC contract: the
- * `file_references` rows go away and `files.ref_count` is decremented in
- * `releaseReference`'s own transaction; blob reclamation is deferred to the
+ * Drop a comment's attachment references on the **async** GC contract: inside
+ * {@link deleteComment}'s transaction only the `file_references` rows go away
+ * and `files.ref_count` is decremented; blob reclamation is deferred to the
  * existing unreferenced-files GC. We deliberately do not request the `sync`
  * contract here — driving `driver.delete` + the `files` row delete from the
  * comment-delete path is exactly the cascade the libsql encrypted-WAL quirk
- * (documented on {@link deleteComment}) penalises.
+ * (documented on {@link deleteComment}) penalises. The config is the value
+ * passed to {@link finalizeReleasedBlob} after commit, where async mode makes
+ * it a no-op.
  */
 const RELEASE_CONFIG = { FILE_GC_MODE: "async", FILE_PRESIGN_ENABLED: false, FILE_PRESIGN_TTL_SECONDS: 0 } as const;
 
@@ -156,7 +158,7 @@ export async function createComment(
  * correctness silently depended on an optional background job.
  *
  * We now always release the comment's references on delete, reusing the
- * exact path the sweep uses (`releaseAllByOwner` → `releaseReference`,
+ * exact path the sweep uses (`releaseReferenceTx`,
  * `owner_type = 'item_comment_attachment'`). This is idempotent with the
  * sweep: a later sweep pass simply finds no orphan rows for this comment.
  *
@@ -164,17 +166,28 @@ export async function createComment(
  * in-line release was specific to driving the **blob delete** (`sync` GC:
  * `driver.delete` + `files` row delete) from this transaction. We sidestep
  * it by releasing on the **async** GC contract (see {@link RELEASE_CONFIG}):
- * only the `file_references` rows and `files.ref_count` change here, each
- * in `releaseReference`'s own transaction — never inside the
- * `itemComments` delete — and blob reclamation stays with the existing
- * unreferenced-files GC. The signature is unchanged because the release
- * contract is fixed, not caller-supplied.
+ * only the `file_references` rows and `files.ref_count` change inside the
+ * transaction — the blob delete never runs here — and blob reclamation stays
+ * with the existing unreferenced-files GC.
  *
- * References are released before the row delete so a crash between the two
- * steps degrades to the original behaviour (leftover orphans the sweep can
- * still reclaim) rather than losing the ability to find them.
+ * The reference releases ({@link releaseReferenceTx}) and the row delete run
+ * in a **single transaction** so they are atomic (FIX-AUDIT-017): a failure
+ * rolls back the whole unit, never leaving the comment alive with some
+ * attachment ref-counts already decremented. Any blob whose refcount hit zero
+ * is finalised after commit via {@link finalizeReleasedBlob} (a no-op under
+ * the async contract — driver I/O cannot run in a synchronous bun:sqlite tx),
+ * mirroring the project-cover release pattern.
  */
 export async function deleteComment(db: AppDatabase, commentId: string): Promise<void> {
-  await releaseAllByOwner(db, RELEASE_CONFIG, COMMENT_ATTACHMENT_OWNER_TYPE, commentId);
-  await db.delete(itemComments).where(eq(itemComments.id, commentId)).run();
+  const attachments = await listAttachmentsByOwner(db, COMMENT_ATTACHMENT_OWNER_TYPE, commentId);
+
+  const drained = db.transaction((tx) => {
+    const blobs = attachments.map(a => releaseReferenceTx(tx, a.id));
+    tx.delete(itemComments).where(eq(itemComments.id, commentId)).run();
+    return blobs;
+  });
+
+  for (const blob of drained) {
+    await finalizeReleasedBlob(db, RELEASE_CONFIG, blob);
+  }
 }
