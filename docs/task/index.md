@@ -78,3 +78,4 @@
 | [FIX-023](FIX-023.md) | Projects home filter row unification | [PLAN-047](../plan/PLAN-047.md) | Completed | 2026-06-02 |
 | [FIX-024](FIX-024.md) | Tag-filter neutral trigger + hide selected from list | [PLAN-048](../plan/PLAN-048.md) | Completed | 2026-06-02 |
 | [FIX-025](FIX-025.md) | Remove projects-home filter-row label | [PLAN-048](../plan/PLAN-048.md) | Completed | 2026-06-02 |
+| [FIX-026](FIX-026.md) | Create-issue dialog staged-attachment list | [PLAN-049](../plan/PLAN-049.md) | In Progress | 2026-06-02 |
