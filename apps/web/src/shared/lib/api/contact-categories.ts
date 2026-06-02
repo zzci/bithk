@@ -26,7 +26,7 @@ export interface ContactCategoryInput {
   readonly description?: string | null;
 }
 
-export const contactCategoryKeys = {
+const contactCategoryKeys = {
   all: ["contact-categories"] as const,
 };
 

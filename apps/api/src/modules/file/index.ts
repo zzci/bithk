@@ -9,7 +9,7 @@ import { getDriver, setActiveDriver } from "./storage/registry";
 import "./storage/local";
 
 export { fileRoutes } from "./file.routes";
-export type { DrainedBlob, FileServiceConfig } from "./file.service";
+export type { FileServiceConfig } from "./file.service";
 export {
   addReference,
   buildDownloadResponse,
@@ -17,12 +17,10 @@ export {
   getFileById,
   getReferenceById,
   listAttachmentsByOwner,
-  listReferencesByOwner,
   makeAttachmentView,
   releaseAllByOwner,
   releaseReference,
   releaseReferenceTx,
-  totalStoredBytes,
   uploadAndReference,
 } from "./file.service";
 export { startFileGcSweep, stopFileGcSweep } from "./gc";

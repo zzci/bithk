@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 // Project work-order detail panel. A 1:1 port of the access issue panel
 // (`portal/issues/-issue-panel.tsx`), adapted only for project nesting:
 // assignment is member-based (`project_members.id`), reads/writes go through the
@@ -57,14 +56,14 @@ import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 // Priority badge variants — kept in sync with the issues list so the same
 // priority reads identically across the tab and the detail panel.
-export const priorityVariants: Record<string, "default" | "outline" | "secondary" | "destructive"> = {
+const priorityVariants: Record<string, "default" | "outline" | "secondary" | "destructive"> = {
   low: "secondary",
   medium: "outline",
   high: "default",
   urgent: "destructive",
 };
 
-export function priorityKey(p: string) {
+function priorityKey(p: string) {
   const map: Record<string, string> = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
   return map[p] ?? p;
 }

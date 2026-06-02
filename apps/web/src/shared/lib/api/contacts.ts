@@ -19,13 +19,13 @@ interface ApiListEnvelope<T> {
 export type ContactStatus = "active" | "inactive";
 export type ContactVisibility = "private" | "public";
 
-export interface ContactListMeta {
+interface ContactListMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;
 }
 
-export interface ContactTagView {
+interface ContactTagView {
   readonly id: string;
   readonly name: string;
 }

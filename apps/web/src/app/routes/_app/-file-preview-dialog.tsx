@@ -65,7 +65,6 @@ import { errorMessage, formatSize, mimeTypeForSave, resolvePreviewKind } from ".
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-export type { PreviewKind } from "./-file-preview-types";
 export { resolvePreviewKind } from "./-file-preview-types";
 
 interface FilePreviewDialogProps {

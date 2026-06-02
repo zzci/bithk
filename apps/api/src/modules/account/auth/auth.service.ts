@@ -375,7 +375,7 @@ export async function getSessionWithUser(db: AppDatabase, sessionId: string) {
   return row;
 }
 
-export async function updateSessionTokens(
+async function updateSessionTokens(
   db: AppDatabase,
   sessionId: string,
   accessToken: string,
@@ -404,7 +404,7 @@ export async function deleteUserSessions(db: AppDatabase, userId: string) {
   await db.delete(sessions).where(eq(sessions.userId, userId)).run();
 }
 
-export function isSessionExpired(expiresAt: string): boolean {
+function isSessionExpired(expiresAt: string): boolean {
   return new Date(expiresAt).getTime() <= Date.now();
 }
 

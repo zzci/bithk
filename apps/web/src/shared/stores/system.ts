@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { BASE_PATH } from "@/shared/lib/http";
 
-export type SystemStatus = "loading" | "ready" | "db-error" | "error";
+type SystemStatus = "loading" | "ready" | "db-error" | "error";
 
 const POLL_INTERVAL = 30_000;
 

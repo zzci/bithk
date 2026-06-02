@@ -10,7 +10,7 @@
 const env = import.meta.env as Record<string, string | undefined>;
 
 /** Lowercase slug. Used for filenames, localStorage keys, etc. */
-export const APP_NAME = env.VITE_APP_NAME ?? "app";
+const APP_NAME = env.VITE_APP_NAME ?? "app";
 
 /** Human-readable display name. Used for HTML title, login screen, etc. */
 export const APP_DISPLAY_NAME = env.VITE_APP_DISPLAY_NAME ?? "App";

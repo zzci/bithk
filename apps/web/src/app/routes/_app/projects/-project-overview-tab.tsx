@@ -26,7 +26,7 @@ import { formatDate } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 
-export type ProjectTab = "issues" | "procurement";
+type ProjectTab = "issues" | "procurement";
 
 interface ProjectOverviewTabProps {
   readonly project: ProjectView;

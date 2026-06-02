@@ -17,7 +17,7 @@ interface SettingPayload {
   readonly value: string;
 }
 
-export const settingKeys = {
+const settingKeys = {
   all: ["settings"] as const,
   detail: (key: string) => ["settings", key] as const,
 };

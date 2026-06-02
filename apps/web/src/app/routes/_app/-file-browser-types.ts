@@ -26,7 +26,7 @@ export type DriveModifiedFilter = "all" | "today" | "7d" | "30d";
 export type DriveSourceFilter = "all" | "current";
 
 /** Owner scope as the surface understands it (team directories render as "team"). */
-export type DisplayOwnerType = "user" | "team";
+type DisplayOwnerType = "user" | "team";
 
 export interface DisplayItem {
   readonly id: string;

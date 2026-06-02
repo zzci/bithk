@@ -97,7 +97,7 @@ export interface WorklistView {
   readonly updatedAt: string;
 }
 
-export interface ResolvedWorklist {
+interface ResolvedWorklist {
   readonly id: string;
   readonly name: string;
   readonly category: string | null;
@@ -114,7 +114,7 @@ export interface IssueReferenceView {
   readonly worklist?: ResolvedWorklist | null;
 }
 
-export interface ListMeta {
+interface ListMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;

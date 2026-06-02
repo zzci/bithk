@@ -26,7 +26,7 @@ interface ApiEnvelope<T> {
 // ── Types ──
 
 export type DriveOwnerType = "user" | "team_directory" | "project";
-export type DriveEntryType = "folder" | "file";
+type DriveEntryType = "folder" | "file";
 export type DriveEntryStatus = "normal" | "trash";
 export type TeamDirectoryRole = "admin" | "editor" | "viewer";
 

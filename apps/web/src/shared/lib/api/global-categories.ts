@@ -26,7 +26,7 @@ export interface GlobalCategoryInput {
   readonly description?: string | null;
 }
 
-export const globalCategoryKeys = {
+const globalCategoryKeys = {
   all: ["global-procurement-categories"] as const,
 };
 
