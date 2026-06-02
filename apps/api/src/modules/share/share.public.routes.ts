@@ -7,6 +7,7 @@ import { audit } from "@/modules/audit/audit.service";
 import { buildDownloadResponse } from "@/modules/file";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError } from "@/shared/lib/errors";
+import { rateLimit } from "@/shared/middleware/rate-limit";
 import { findShareAdapter } from "./adapter";
 import { gatePublicShare, getPublicShareMeta, reserveDownload, toGateRow } from "./share.service";
 
@@ -36,6 +37,13 @@ function requireAdapter(resourceType: ShareResourceType) {
  */
 export function sharePublicRoutes() {
   const router = new Hono<AppEnv>();
+
+  // These endpoints are unauthenticated, so without a gate a password-
+  // protected share token can be brute-forced and download budgets probed at
+  // network speed. Apply an IP-keyed limiter across every public share path,
+  // mirroring the 120/min window the public auth routes use (comfortably above
+  // human browsing throughput, far below brute-force throughput).
+  router.use("*", rateLimit({ windowMs: 60_000, max: 120, bucket: "share-public" }));
 
   router.get("/shared/:token", async (c) => {
     const data = await getPublicShareMeta(c.get("db"), c.req.param("token"));
