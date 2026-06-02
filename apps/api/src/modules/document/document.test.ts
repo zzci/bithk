@@ -188,6 +188,38 @@ describe("createDocument", () => {
   });
 });
 
+describe("missing-resource errors map to 404 (FIX-AUDIT-019)", () => {
+  test("createDocument with an unknown parentId rejects as 404 NotFound", async () => {
+    const userId = await seedUser("Alice");
+    await expect(createDocument(db, { title: "Orphan", creatorId: userId, parentId: "missing" }))
+      .rejects
+      .toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+  });
+
+  test("updateDocument/moveDocument onto an unknown parentId rejects as 404 NotFound", async () => {
+    const userId = await seedUser("Alice");
+    const doc = await createDocument(db, { title: "D", creatorId: userId });
+    await expect(updateDocument(db, doc.id, { parentId: "missing" }))
+      .rejects
+      .toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+    await expect(moveDocument(db, doc.id, "missing"))
+      .rejects
+      .toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+  });
+
+  test("addDocumentShare on an unknown document rejects as 404 NotFound", async () => {
+    const alice = await seedUser("Alice");
+    await expect(addDocumentShare(policyCtx(alice), {
+      documentId: "missing",
+      targetType: "user",
+      targetId: alice,
+      permission: "viewer",
+    }))
+      .rejects
+      .toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+  });
+});
+
 describe("documentRoutes create parent permissions", () => {
   test("rejects creating a child under a parent the actor cannot update", async () => {
     const owner = await seedUser("Owner");

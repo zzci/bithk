@@ -733,8 +733,20 @@ function decodeParentId(parentEntryId: string): string | null {
   return parentEntryId || null;
 }
 
-function throwDuplicateName(err: unknown): never | void {
-  if (err instanceof Error && err.message.includes("UNIQUE constraint failed")) {
-    throw new AppError("A drive entry with this name already exists in the target folder", 409, "DUPLICATE_NAME");
+// The duplicate-name guard is the `drive_entries_owner_parent_name_status_idx`
+// UNIQUE index. SQLite reports a violation by its column list, so the failure
+// message contains `drive_entries.name` — match that specific column rather
+// than any "UNIQUE constraint failed" text. A violation on a *different* index
+// (e.g. a `drive_file_versions` (drive_entry_id, version_no) race) must NOT be
+// reported as a name clash; those fall through so the caller rethrows the real
+// error. The cause chain is walked because Drizzle/libsql may nest the SQLite
+// message under `err.cause`.
+export function throwDuplicateName(err: unknown): never | void {
+  let cur: unknown = err;
+  while (cur instanceof Error) {
+    if (cur.message.includes("UNIQUE constraint failed") && cur.message.includes("drive_entries.name")) {
+      throw new AppError("A drive entry with this name already exists in the target folder", 409, "DUPLICATE_NAME");
+    }
+    cur = (cur as { cause?: unknown }).cause;
   }
 }
