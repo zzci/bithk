@@ -1,4 +1,4 @@
-# PLAN-051 Tag-filter responsive pinned-chip count
+# PLAN-052 Tag-filter responsive pinned-chip count
 
 - **status**: Completed
 - **owner**: l1-75ymcfnr / L2 xgbm1bkf
