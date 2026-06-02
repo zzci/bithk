@@ -41,6 +41,7 @@ import { Route as AppProjectsProjectIdFilesRouteImport } from './routes/_app/pro
 import { Route as AppAdminUsersGroupsRouteImport } from './routes/_app/admin/users/groups'
 import { Route as AppProjectsProjectIdProcurementsProcurementIdRouteImport } from './routes/_app/projects/$projectId.procurements.$procurementId'
 import { Route as AppProjectsProjectIdIssuesIssueIdRouteImport } from './routes/_app/projects/$projectId.issues.$issueId'
+import { Route as AppProjectsProjectIdFromShipIdRouteImport } from './routes/_app/projects/$projectId.from.$shipId'
 import { Route as AppProjectsProjectIdProcurementsProcurementIdFullRouteImport } from './routes/_app/projects/$projectId_.procurements.$procurementId.full'
 import { Route as AppProjectsProjectIdIssuesIssueIdFullRouteImport } from './routes/_app/projects/$projectId_.issues.$issueId.full'
 
@@ -259,6 +260,16 @@ const AppProjectsProjectIdIssuesIssueIdRoute =
       (d) => d.Route,
     ),
   )
+const AppProjectsProjectIdFromShipIdRoute =
+  AppProjectsProjectIdFromShipIdRouteImport.update({
+    id: '/from/$shipId',
+    path: '/from/$shipId',
+    getParentRoute: () => AppProjectsProjectIdRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId.from.$shipId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AppProjectsProjectIdProcurementsProcurementIdFullRoute =
   AppProjectsProjectIdProcurementsProcurementIdFullRouteImport.update({
     id: '/projects/$projectId_/procurements/$procurementId/full',
@@ -310,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
   '/admin/users/': typeof AppAdminUsersIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
+  '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/projects/$projectId/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
@@ -342,6 +354,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
   '/admin/users': typeof AppAdminUsersIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
+  '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/projects/$projectId/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
@@ -379,6 +392,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
+  '/_app/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/_app/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/_app/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/_app/projects/$projectId_/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
@@ -416,6 +430,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/procurements'
     | '/admin/users/'
     | '/projects/$projectId/'
+    | '/projects/$projectId/from/$shipId'
     | '/projects/$projectId/issues/$issueId'
     | '/projects/$projectId/procurements/$procurementId'
     | '/projects/$projectId/issues/$issueId/full'
@@ -448,6 +463,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/procurements'
     | '/admin/users'
     | '/projects/$projectId'
+    | '/projects/$projectId/from/$shipId'
     | '/projects/$projectId/issues/$issueId'
     | '/projects/$projectId/procurements/$procurementId'
     | '/projects/$projectId/issues/$issueId/full'
@@ -484,6 +500,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/procurements'
     | '/_app/admin/users/'
     | '/_app/projects/$projectId/'
+    | '/_app/projects/$projectId/from/$shipId'
     | '/_app/projects/$projectId/issues/$issueId'
     | '/_app/projects/$projectId/procurements/$procurementId'
     | '/_app/projects/$projectId_/issues/$issueId/full'
@@ -726,6 +743,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdIssuesIssueIdRouteImport
       parentRoute: typeof AppProjectsProjectIdIssuesRoute
     }
+    '/_app/projects/$projectId/from/$shipId': {
+      id: '/_app/projects/$projectId/from/$shipId'
+      path: '/from/$shipId'
+      fullPath: '/projects/$projectId/from/$shipId'
+      preLoaderRoute: typeof AppProjectsProjectIdFromShipIdRouteImport
+      parentRoute: typeof AppProjectsProjectIdRoute
+    }
     '/_app/projects/$projectId_/procurements/$procurementId/full': {
       id: '/_app/projects/$projectId_/procurements/$procurementId/full'
       path: '/projects/$projectId/procurements/$procurementId/full'
@@ -828,6 +852,7 @@ interface AppProjectsProjectIdRouteChildren {
   AppProjectsProjectIdIssuesRoute: typeof AppProjectsProjectIdIssuesRouteWithChildren
   AppProjectsProjectIdProcurementsRoute: typeof AppProjectsProjectIdProcurementsRouteWithChildren
   AppProjectsProjectIdIndexRoute: typeof AppProjectsProjectIdIndexRoute
+  AppProjectsProjectIdFromShipIdRoute: typeof AppProjectsProjectIdFromShipIdRoute
 }
 
 const AppProjectsProjectIdRouteChildren: AppProjectsProjectIdRouteChildren = {
@@ -836,6 +861,7 @@ const AppProjectsProjectIdRouteChildren: AppProjectsProjectIdRouteChildren = {
   AppProjectsProjectIdProcurementsRoute:
     AppProjectsProjectIdProcurementsRouteWithChildren,
   AppProjectsProjectIdIndexRoute: AppProjectsProjectIdIndexRoute,
+  AppProjectsProjectIdFromShipIdRoute: AppProjectsProjectIdFromShipIdRoute,
 }
 
 const AppProjectsProjectIdRouteWithChildren =
