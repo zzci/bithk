@@ -3,7 +3,7 @@
 - **status**: In Progress
 - **owner**: l1-75ymcfnr / L2 xgbm1bkf
 - **campaignId**: l1-75ymcfnr-tagfit-20260602054625
-- **tasks**: [FIX-028](../task/FIX-028.md)
+- **tasks**: [FIX-028](../task/FIX-028.md), [FIX-029](../task/FIX-029.md), [FIX-030](../task/FIX-030.md)
 - **createdAt**: 2026-06-02
 
 ## Goal
@@ -47,10 +47,24 @@ Public props stay UNCHANGED so the three consumers need no edits.
 
 ## DAG
 
-- FIX-028 deps=[] / L3 (one lane) — sole owner of `-project-tag-filter.tsx`,
+Three independent lanes (different files) → all parallel, no shared-file
+conflict.
+
+- FIX-028 deps=[] / L3 — sole owner of `-project-tag-filter.tsx`,
   optional `-project-tag-filter.fit.ts` (or inline helper) + its test, the
   component test `-project-tag-filter.test.tsx`, and any new `list.tagFilter*`
-  keys in `locales/{en,zh}/projects.json`. Single component → ONE L3.
+  keys in `locales/{en,zh}/projects.json`. Responsive pinned-chip count.
+- FIX-029 deps=[] / L3 — sole owner of `-project-issues-tab.tsx` (issues
+  toolbar): tag filter to front + remove visible "按标签筛选" label; may touch
+  `locales/{en,zh}/projects.json` ONLY if `issues.tagFilter` becomes unused.
+- FIX-030 deps=[] / L3 — sole owner of `index.lazy.tsx` (home filter row): move
+  tag filter before the 正常/已归档 status chips.
+
+i18n note: FIX-028 and FIX-029 could both touch `projects.json`. FIX-028 likely
+adds no key; FIX-029 only edits the key if it becomes fully unused (it stays
+referenced by the group `aria-label`, so likely NO json edit). If both end up
+editing json, merge FIX-028 first, then FIX-029 rebases — but in practice
+neither is expected to write json.
 
 ## Acceptance Criteria
 

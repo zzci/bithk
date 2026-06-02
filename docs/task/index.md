@@ -81,3 +81,5 @@
 | [FIX-026](FIX-026.md) | Create-issue dialog staged-attachment list | [PLAN-049](../plan/PLAN-049.md) | Completed | 2026-06-02 |
 | [FIX-027](FIX-027.md) | Tag-filter pinned top-N chips + dropdown rest + removable non-pinned | [PLAN-050](../plan/PLAN-050.md) | Completed | 2026-06-02 |
 | [FIX-028](FIX-028.md) | Tag-filter: responsive pinned-chip count | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
+| [FIX-029](FIX-029.md) | Issues tab: tag filter to front + remove label | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
+| [FIX-030](FIX-030.md) | Projects home: tag filter to front of filter row | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
