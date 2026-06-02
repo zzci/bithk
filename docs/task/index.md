@@ -60,5 +60,5 @@
 | [CHORE-003](CHORE-003.md) | Full-feature static seed dataset | [PLAN-041](../plan/PLAN-041.md) | Done | 2026-05-30 |
 | [FEAT-017](FEAT-017.md) | GitHub-style project role permissions (per-module) | [PLAN-042](../plan/PLAN-042.md) | Completed | 2026-05-31 |
 | [REFACTOR-009](REFACTOR-009.md) | Unify tags into the central tag module | [PLAN-043](../plan/PLAN-043.md) | In Progress | 2026-05-31 |
-| [FIX-016](FIX-016.md) | Priority indicator: background-backed icon + sync consumers | [PLAN-045](../plan/PLAN-045.md) | In Progress | 2026-06-01 |
-| [FIX-017](FIX-017.md) | Create-issue dialog Linear-style layout optimization | [PLAN-045](../plan/PLAN-045.md) | Planned | 2026-06-01 |
+| [FIX-016](FIX-016.md) | Priority indicator: background-backed icon + sync consumers | [PLAN-045](../plan/PLAN-045.md) | Completed | 2026-06-02 |
+| [FIX-017](FIX-017.md) | Create-issue dialog Linear-style layout optimization | [PLAN-045](../plan/PLAN-045.md) | In Progress | 2026-06-02 |
