@@ -266,9 +266,8 @@ describe("projectIssuesTab", () => {
     expect(screen.getByText("Other task")).toBeInTheDocument();
 
     const bar = screen.getByRole("group", { name: "Filter by tag" });
-    // Select "alpha" through the tag selector.
-    await user.click(within(bar).getByRole("combobox", { name: "Tags" }));
-    await user.click(await screen.findByRole("option", { name: "alpha" }));
+    // With only two tags both are pinned; select "alpha" via its pinned chip.
+    await user.click(within(bar).getByRole("button", { name: "Filter by alpha" }));
 
     // tagIds reaches the single issues query (one repeatable param per tag id).
     await waitFor(() => {
@@ -278,17 +277,17 @@ describe("projectIssuesTab", () => {
     await waitFor(() => expect(screen.queryByText("Other task")).not.toBeInTheDocument());
     expect(screen.getByText("Fix leak")).toBeInTheDocument();
 
-    // The selected tag shows as a removable chip; its X clears the filter.
-    await user.click(within(bar).getByRole("button", { name: "Remove tag alpha" }));
+    // Toggling the active pinned chip off clears the filter.
+    await user.click(within(bar).getByRole("button", { name: "Filter by alpha" }));
     await waitFor(() => expect(screen.getByText("Other task")).toBeInTheDocument());
   });
 
-  it("opens a searchable More combobox for overflow tags and toggles via it", async () => {
+  it("opens a searchable Tags dropdown for non-pinned tags and toggles via it", async () => {
     const user = userEvent.setup();
-    // Default jsdom clientWidth (0) forces all-but-one tag into the overflow.
+    // Six tags: the first five pin, leaving "gamma" (t6) in the Tags dropdown.
     routeFetch(
-      [issue({ id: "i1", title: "Fix leak", status: "todo", tags: [{ id: "t3", name: "gamma" }] })],
-      tags("alpha", "beta", "gamma"),
+      [issue({ id: "i1", title: "Fix leak", status: "todo", tags: [{ id: "t6", name: "gamma" }] })],
+      tags("alpha", "beta", "delta", "epsilon", "zeta", "gamma"),
     );
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Fix leak");
@@ -300,7 +299,7 @@ describe("projectIssuesTab", () => {
     await user.click(await screen.findByRole("option", { name: "gamma" }));
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("tagIds=t3"))).toBe(true);
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("tagIds=t6"))).toBe(true);
     });
   });
 

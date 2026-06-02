@@ -46,6 +46,7 @@
     "moreTags": "+{{count}}",
     "tagFilterMore": "标签",
     "tagFilterMoreLabel": "标签",
+    "tagFilterPinLabel": "按 {{name}} 筛选",
     "tagFilterSearchPlaceholder": "搜索标签",
     "tagFilterNoMore": "没有更多标签",
     "kpi": {
