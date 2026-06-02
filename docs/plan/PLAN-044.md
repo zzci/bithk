@@ -1,6 +1,6 @@
 # PLAN-044 — Project module audit remediation (A–H)
 
-- Status: Implementing
+- Status: Completed (2026-06-02) — all 8 campaigns A–H merged into bkd/uvgvhcm1, final bun run check EXIT=0.
 - Campaign: l1-75ymcfnr-projaudit-20260601230043
 - Date: 2026-06-01
 - Source audit: [`docs/audit/project-module-audit.md`](../audit/project-module-audit.md)
