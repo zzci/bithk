@@ -191,6 +191,7 @@
       "maximize": "Maximize",
       "minimize": "Restore",
       "attach": "Attach file",
+      "removeAttachment": "Remove attachment",
       "continueCreate": "Create more",
       "submit": "Create issue"
     },
