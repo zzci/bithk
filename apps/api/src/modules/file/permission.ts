@@ -47,8 +47,3 @@ export function __resetFilePermissionHooksForTests(): void {
 export function getFilePermissionHook(ownerType: string): FilePermissionHook | undefined {
   return hooks.get(ownerType);
 }
-
-/** Sorted list of registered owner_types. Diagnostic + test helper. */
-export function listRegisteredOwnerTypes(): readonly string[] {
-  return [...hooks.keys()].sort();
-}
