@@ -42,6 +42,7 @@ export interface ContactView {
   readonly status: ContactStatus | null;
   readonly visibility: ContactVisibility;
   readonly confidential: boolean;
+  readonly categoryId: string | null;
   readonly tags: readonly ContactTagView[];
   readonly canManage: boolean;
   readonly createdAt: string;
@@ -59,6 +60,7 @@ export interface ContactInput {
   readonly status?: ContactStatus | undefined;
   readonly visibility?: ContactVisibility | undefined;
   readonly confidential?: boolean | undefined;
+  readonly categoryId?: string | null | undefined;
   readonly tags?: readonly string[] | undefined;
 }
 

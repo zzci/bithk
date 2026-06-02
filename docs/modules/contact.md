@@ -10,9 +10,10 @@ handled with the shared [`tag`](./tag.md) vocabulary (scoped to
 
 ```text
 apps/api/src/modules/contact/
-  schema.ts              # contacts + contact_tags
-  contact.permission.ts  # contact namespace owner/viewer policy resource
-  contact.service.ts     # CRUD, visibility filtering, masking, tags, grants
+  schema.ts                   # contacts + contact_categories
+  contact.permission.ts       # contact namespace owner/viewer policy resource
+  contact.service.ts          # CRUD, visibility filtering, masking, tags, grants
+  contact-category.service.ts # global contact-category vocabulary CRUD
   contact.routes.ts      # /api/contacts...
   contact.backup.ts      # backup contribution
   index.ts               # route export + backup registration
@@ -23,7 +24,8 @@ apps/api/src/modules/contact/
 
 | Table | Purpose |
 | ----- | ------- |
-| `contacts` | Global contact rows. `id` (nanoid), `owner_id` (creator), `name`, `contact_person`, `phone`, `email`, `address`, `tax_id`, `note`, `status` (`active`/`inactive`), `visibility` (`private`/`public`), `confidential`, timestamps. Indexed by `owner_id`. |
+| `contacts` | Global contact rows. `id` (nanoid), `owner_id` (creator), `name`, `contact_person`, `phone`, `email`, `address`, `tax_id`, `note`, `category_id` (nullable FK to `contact_categories`, `ON DELETE SET NULL`), `status` (`active`/`inactive`), `visibility` (`private`/`public`), `confidential`, timestamps. Indexed by `owner_id`. |
+| `contact_categories` | Global, admin-maintained classification vocabulary referenced by `contacts.category_id`. `id` (nanoid), `name`, `code` (nullable), `description` (nullable), timestamps. Standalone — not copied per project (unlike procurement categories). |
 | `contact_tags` | Contact-to-tag assignment join. PK `(contact_id, tag_id)`, `contact_id` cascades with `contacts`, `tag_id` references the shared `tags` table (`ON DELETE CASCADE`) owned by the [`tag`](./tag.md) module. |
 
 The module reuses the shared `tags` vocabulary (source type `contact`) rather
@@ -43,6 +45,13 @@ Mounted under `protectedRoutes`; every route requires `authRequired`.
 | DELETE | `/api/contacts/:id` | Delete the contact, its tag links, and policy tuples. Owner/admin only. |
 | POST | `/api/contacts/:id/grant` | Grant explicit viewer access to exactly one `{ userId }` or `{ groupId }`. |
 | POST | `/api/contacts/:id/revoke` | Revoke explicit viewer access for exactly one `{ userId }` or `{ groupId }`. |
+| GET | `/api/contact-categories` | List the global contact categories. Admin only. |
+| POST | `/api/contact-categories` | Create a contact category (`name`, optional `code`/`description`). Admin only. |
+| PATCH | `/api/contact-categories/:id` | Update a contact category. Admin only; 404 if missing. |
+| DELETE | `/api/contact-categories/:id` | Delete a contact category; referencing contacts have `category_id` set to NULL. Admin only; 404 if missing. |
+
+`POST`/`PATCH` to `/api/contacts` accept an optional `categoryId` (nullable); it
+is always returned on the contact view regardless of confidential masking.
 
 ### `GET /api/contacts` query params
 
@@ -95,12 +104,15 @@ the project and does not check a contact type.
 
 Write routes emit `contact.created`, `contact.updated`, `contact.deleted`,
 `contact.access_granted`, and `contact.access_revoked` audit events with
-`resourceType: 'contact'`.
+`resourceType: 'contact'`. The admin category routes emit
+`contact_category.created`, `contact_category.updated`, and
+`contact_category.deleted` with `resourceType: 'contact_category'`.
 
 ## Backup
 
 `contactBackupContribution` registers the `contacts` data module with tables
-`contacts` then `contact_tags`. It depends on `tags` (deps `["tags"]`) so the
+`contact_categories` then `contacts` (categories first so a restore inserts the
+rows that `category_id` references before the contacts). It depends on `tags` (deps `["tags"]`) so the
 shared `tags` vocabulary — backed up by the [`tag`](./tag.md) module — restores
 before `contact_tags` references it. Owner/viewer policy tuples are exported by
 the `policies` contribution.

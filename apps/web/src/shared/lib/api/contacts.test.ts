@@ -46,6 +46,7 @@ function contact(overrides: Partial<ContactView> = {}): ContactView {
     status: "active",
     visibility: "private",
     confidential: false,
+    categoryId: null,
     tags: [{ id: "tag1", name: "supplier" }],
     canManage: true,
     createdAt: "2026-05-24T00:00:00.000Z",

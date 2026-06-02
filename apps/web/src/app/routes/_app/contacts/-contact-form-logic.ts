@@ -14,6 +14,7 @@ export interface ContactFormState {
   readonly status: ContactStatus;
   readonly visibility: ContactVisibility;
   readonly confidential: boolean;
+  readonly categoryId: string | null;
   readonly tags: readonly string[];
 }
 
@@ -28,6 +29,7 @@ export const EMPTY_CONTACT_FORM: ContactFormState = {
   status: "active",
   visibility: "private",
   confidential: false,
+  categoryId: null,
   tags: [],
 };
 
@@ -43,6 +45,7 @@ export function contactFormFromView(contact: ContactView): ContactFormState {
     status: contact.status ?? "active",
     visibility: contact.visibility,
     confidential: contact.confidential,
+    categoryId: contact.categoryId ?? null,
     tags: contact.tags.map(tag => tag.name),
   };
 }
@@ -77,6 +80,7 @@ export function contactFormToInput(state: ContactFormState): ContactInput {
     status: state.status,
     visibility: state.visibility,
     confidential: state.confidential,
+    categoryId: state.categoryId,
     tags: state.tags,
   };
 }

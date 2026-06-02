@@ -25,6 +25,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { useContactCategories } from "@/shared/lib/api/contact-categories";
 import {
   addTag,
   CONTACT_STATUSES,
@@ -35,6 +36,7 @@ import {
 } from "./-contact-form-logic";
 
 const TEXT_FIELDS = ["contactPerson", "phone", "email", "address", "taxId"] as const;
+const CATEGORY_NONE = "__none__";
 
 interface ContactFormDialogProps {
   readonly open: boolean;
@@ -176,6 +178,11 @@ export function ContactFormDialog({
                   </SelectContent>
                 </Select>
               </div>
+
+              <CategoryField
+                value={form.categoryId}
+                onChange={id => set("categoryId", id)}
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -243,5 +250,39 @@ export function ContactFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CategoryField({
+  value,
+  onChange,
+}: {
+  readonly value: string | null;
+  readonly onChange: (id: string | null) => void;
+}) {
+  const { t } = useTranslation(["contacts"]);
+  const categoriesQuery = useContactCategories();
+  const categories = categoriesQuery.data ?? [];
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label>{t("field.category")}</Label>
+      <Select
+        value={value ?? CATEGORY_NONE}
+        onValueChange={v => v !== null && onChange(v === CATEGORY_NONE ? null : v)}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={t("category.placeholder")}>
+            {(v: string) => (v === CATEGORY_NONE ? t("category.none") : categories.find(c => c.id === v)?.name ?? v)}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={CATEGORY_NONE}>{t("category.none")}</SelectItem>
+          {categories.map(category => (
+            <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

@@ -38,6 +38,7 @@ function contact(overrides: Partial<ContactView> = {}): ContactView {
     status: "active",
     visibility: "private",
     confidential: false,
+    categoryId: null,
     tags: [{ id: "t1", name: "supplier" }],
     canManage: true,
     createdAt: "2026-05-24T00:00:00.000Z",
@@ -59,6 +60,11 @@ function routeFetch(contacts: ContactView[], total = contacts.length) {
   fetchMock.mockImplementation(async (url, init) => {
     const path = String(url);
     const method = String(init?.method ?? "GET").toUpperCase();
+    // The grid resolves category names through the global vocabulary query;
+    // answer it with a fresh empty-list Response so it stays test-safe.
+    if (path.includes("/contact-categories") && method === "GET") {
+      return ok([]);
+    }
     if (path.includes("/contacts") && method === "GET") {
       const parsed = new URL(path, "http://test.local");
       const page = Number(parsed.searchParams.get("page") ?? 1);
