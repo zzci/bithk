@@ -122,26 +122,28 @@
     "eventsHint": "Comma-separated event types, or * for all events.",
     "allEventsPlaceholder": "* (all events)"
   },
-  "worklistCategories": {
-    "title": "Worklist Categories",
-    "description": "The global category vocabulary suggested when classifying ship worklists.",
-    "add": "Add Category",
-    "addTitle": "Add Category",
-    "editTitle": "Edit Category",
-    "dialogDescription": "Worklist categories are suggested for the worklist category field; free text is still allowed.",
+  "globalWorklists": {
+    "title": "Global Worklists",
+    "description": "The knowledge-base worklist templates that ships copy from.",
+    "add": "Add Worklist",
+    "addTitle": "Add Worklist",
+    "editTitle": "Edit Worklist",
+    "dialogDescription": "Global worklists are reusable templates ships can copy into their own worklists.",
     "fieldName": "Name",
-    "fieldDescription": "Description",
+    "fieldCategory": "Category",
+    "fieldChecklist": "Checklist",
+    "fieldPrecautions": "Precautions",
     "colName": "Name",
-    "colDescription": "Description",
-    "empty": "No worklist categories yet.",
+    "colCategory": "Category",
+    "empty": "No global worklists yet.",
     "delete": {
-      "title": "Delete category",
-      "confirm": "Delete \"{{name}}\"? It will no longer be suggested for worklists."
+      "title": "Delete worklist",
+      "confirm": "Delete \"{{name}}\"? Ships that already copied it keep their copy."
     },
     "toast": {
-      "created": "Category created.",
-      "updated": "Category updated.",
-      "deleted": "Category \"{{name}}\" deleted."
+      "created": "Worklist created.",
+      "updated": "Worklist updated.",
+      "deleted": "Worklist \"{{name}}\" deleted."
     }
   },
   "contactCategories": {

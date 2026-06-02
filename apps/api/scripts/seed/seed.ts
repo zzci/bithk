@@ -49,7 +49,6 @@ import { createShare } from "@/modules/share/share.service";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
 import { bindProject, createShip, setShipCover } from "@/modules/ship/ship.service";
 import { createGlobalWorklist, createShipWorklist } from "@/modules/ship/ship.worklist.service";
-import { createWorklistCategory } from "@/modules/ship/worklist-category.service";
 import { ROOT_DIR } from "@/root";
 import { nanoid, ulid } from "@/shared/lib/id";
 // Side-effect imports: register the share adapters so `createShare` resolves
@@ -221,20 +220,6 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
     }
   }
   return equipment;
-}
-
-// Global worklist-category vocabulary: suggestions for the worklist form's
-// free-text category field (no FK). Names align with the seeded worklist
-// categories so the suggestions match existing data.
-async function importWorklistCategories(db: AppDatabase): Promise<number> {
-  const categories: { name: string; description: string | null }[] = [
-    { name: "Routine Maintenance", description: "Scheduled upkeep and servicing tasks." },
-    { name: "Safety Inspection", description: "Periodic safety checks and drills." },
-    { name: "Equipment Repair", description: "Corrective work on installed equipment." },
-  ];
-  for (const c of categories)
-    await createWorklistCategory(db, c);
-  return categories.length;
 }
 
 async function importWorklists(db: AppDatabase): Promise<number> {
@@ -668,7 +653,6 @@ async function main(): Promise<void> {
     await importGroups(db);
     await importContacts(db);
     const equipment = await importShips(db, config);
-    const worklistCategoryCount = await importWorklistCategories(db);
     const worklistCount = await importWorklists(db);
     await importProjects(db, config);
     const issues = await importIssues(db, config);
@@ -684,7 +668,6 @@ async function main(): Promise<void> {
     console.log(`  groups:       (with members)`);
     console.log(`  contacts:     ${contactId.size}`);
     console.log(`  ships:        ${shipInternalId.size} (+ base projects, ${equipment} equipment)`);
-    console.log(`  worklistCats: ${worklistCategoryCount}`);
     console.log(`  worklists:    ${worklistCount}`);
     console.log(`  projects:     ${projectInfo.size} standalone (+ ship base projects)`);
     console.log(`  issues:       ${issues.issues} (${issues.comments} comments, ${issues.attachments} attachments)`);
