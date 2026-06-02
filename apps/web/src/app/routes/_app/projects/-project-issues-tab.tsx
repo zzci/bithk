@@ -756,14 +756,6 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
               <Paperclip aria-hidden="true" />
             </Button>
             <div className="flex items-center gap-3">
-              {/* Presentational only — there is no agent-creation backend yet, so
-                  this toggle is inert (kept for layout parity / future wiring). */}
-              <div className="hidden items-center gap-1.5 sm:flex">
-                <Switch id="issue-agent-mode" size="sm" disabled />
-                <Label htmlFor="issue-agent-mode" className="text-xs font-normal text-muted-foreground">
-                  {t("issues.composer.agentMode")}
-                </Label>
-              </div>
               {/* Functional: keep the dialog open and reset after each create. */}
               <div className="flex items-center gap-1.5">
                 <Switch id="issue-keep-open" size="sm" checked={keepOpen} onCheckedChange={setKeepOpen} />

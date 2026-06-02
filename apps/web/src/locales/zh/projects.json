@@ -186,7 +186,6 @@
       "maximize": "最大化",
       "minimize": "还原",
       "attach": "添加附件",
-      "agentMode": "切换到智能体",
       "continueCreate": "继续创建",
       "submit": "创建 issue"
     },
