@@ -38,6 +38,8 @@
     "total_one": "{{count}} project",
     "total_other": "{{count}} projects",
     "filterByTag": "Filter by tag",
+    "filter": "Filter",
+    "filterRemove": "Remove {{label}}",
     "searchPlaceholder": "Search projects",
     "openSettings": "Project settings",
     "viewMode": "Project view mode",
@@ -191,7 +193,7 @@
       "titlePlaceholder": "Issue title",
       "maximize": "Maximize",
       "minimize": "Restore",
-      "attach": "Attach file",
+      "attach": "Attachment",
       "removeAttachment": "Remove attachment",
       "continueCreate": "Create more",
       "submit": "Create issue"

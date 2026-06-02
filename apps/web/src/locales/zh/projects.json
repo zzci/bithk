@@ -38,6 +38,8 @@
     "total_one": "{{count}} 个项目",
     "total_other": "{{count}} 个项目",
     "filterByTag": "按标签筛选",
+    "filter": "筛选",
+    "filterRemove": "移除 {{label}}",
     "searchPlaceholder": "搜索项目",
     "openSettings": "项目设置",
     "viewMode": "项目视图模式",
@@ -191,7 +193,7 @@
       "titlePlaceholder": "issue 标题",
       "maximize": "最大化",
       "minimize": "还原",
-      "attach": "添加附件",
+      "attach": "附件",
       "removeAttachment": "移除附件",
       "continueCreate": "继续创建",
       "submit": "创建 issue"

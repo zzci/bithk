@@ -51,3 +51,5 @@
 | [PLAN-050](PLAN-050.md) | Tag-filter pinned-chips + dropdown hybrid | Completed | 2026-06-02 |
 | [PLAN-051](PLAN-051.md) | Extract shared frontend components (lists, detail panels, form fields) | Implementing | 2026-06-02 |
 | [PLAN-052](PLAN-052.md) | Tag-filter responsive pinned-chip count | Completed | 2026-06-02 |
+| [PLAN-053](PLAN-053.md) | Tag-filter pinned-chip reliability + projects-home order correction | Superseded | 2026-06-02 |
+| [PLAN-054](PLAN-054.md) | Generic unified filter component + projects-list adoption | Completed | 2026-06-02 |
