@@ -132,6 +132,10 @@ export function ProjectsListPage() {
               setFilter(tagId);
               setPage(1);
             }}
+            onClear={() => {
+              setFilter("__active__");
+              setPage(1);
+            }}
           />
         </div>
         <div className="relative w-full sm:w-64">

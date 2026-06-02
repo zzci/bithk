@@ -35,13 +35,23 @@ describe("projectTagFilter (single-select)", () => {
     expect(onSelect).toHaveBeenCalledWith("t2");
   });
 
-  it("renders the selected tag as a non-removable chip", () => {
+  it("renders the selected tag as a non-removable chip when onClear is omitted", () => {
     renderWithProviders(
       <ProjectTagFilter tags={tags("alpha", "beta")} selectedTagId="t0" onSelect={() => {}} />,
     );
-    // The chip shows the selected tag name; single-select chips carry no X.
+    // The chip shows the selected tag name; without onClear it carries no X.
     expect(screen.getByText("alpha")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove tag alpha" })).not.toBeInTheDocument();
+  });
+
+  it("renders a removable selected chip and clears via the X when onClear is provided", async () => {
+    const onClear = vi.fn();
+    renderWithProviders(
+      <ProjectTagFilter tags={tags("alpha", "beta")} selectedTagId="t0" onSelect={() => {}} onClear={onClear} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove tag alpha" }));
+    expect(onClear).toHaveBeenCalledTimes(1);
   });
 });
 
