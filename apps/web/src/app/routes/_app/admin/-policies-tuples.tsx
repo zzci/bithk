@@ -2,6 +2,7 @@ import type { EntitiesResponse, RelationTuple, TuplesResponse } from "./-policie
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ListFilter } from "@/shared/components/list-filter";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -56,24 +57,24 @@ export function TupleManager() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Select
-            value={filterNs}
-            onValueChange={(v) => {
-              if (v === null)
-                return;
-              setFilterNs(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue>{(v: string) => v === "__all__" ? t("allNamespaces") : t(`ns.${v}`)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">{t("allNamespaces")}</SelectItem>
-              {NAMESPACES.map(ns => <SelectItem key={ns} value={ns}>{t(`ns.${ns}`)}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <ListFilter
+            dimensions={[
+              {
+                key: "namespace",
+                label: t("namespace"),
+                mode: "single",
+                resident: true,
+                defaultValue: "__all__",
+                value: filterNs,
+                onChange: (value) => {
+                  setFilterNs(value ?? "__all__");
+                  setPage(1);
+                },
+                options: NAMESPACES.map(ns => ({ value: ns, label: t(`ns.${ns}`) })),
+              },
+            ]}
+          />
         </div>
         <CreateTupleDialog entities={entities} />
       </div>
