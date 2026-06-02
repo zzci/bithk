@@ -157,7 +157,9 @@ async function composeIssue(
   details?: typeof issueDetails.$inferSelect | undefined,
   tags?: readonly { id: string; name: string }[] | undefined,
 ): Promise<IssueRow> {
-  const d = details ?? (await db.select().from(issueDetails).where(eq(issueDetails.itemId, item.id)).get())!;
+  const d = details ?? (await db.select().from(issueDetails).where(eq(issueDetails.itemId, item.id)).get());
+  if (!d)
+    throw new NotFoundError("Issue details", item.shortId);
   const assigneeId = await getAssigneeId(db, item.id);
   const projectShort = await projectShortId(db, d.projectId);
   const tagList = tags ?? await listResourceTagViews(db, issueTagBinding, item.id);
@@ -302,7 +304,9 @@ export async function updateIssue(db: AppDatabase, shortId: string, input: Updat
   const now = new Date().toISOString();
 
   const details = await db.select().from(issueDetails).where(eq(issueDetails.itemId, item.id)).get();
-  const projectId = details!.projectId;
+  if (!details)
+    throw new NotFoundError("Issue details", item.shortId);
+  const projectId = details.projectId;
 
   // Reassignment: validate the member up front (async) and resolve its user id
   // so the `item#assignee@user` tuple stays in sync.
