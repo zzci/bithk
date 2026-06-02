@@ -4,14 +4,14 @@ import type { ResourceTagBinding } from "@/modules/tag/tag.service";
 import type { Logger } from "@/shared/lib/logger";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { audit } from "@/modules/audit/audit.service";
-import { resolve as resolveGlobalContact } from "@/modules/contact/contact.service";
+import { contacts } from "@/modules/contact/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { resolveCategory } from "@/modules/project/project.categories";
 import { resolveAssignableMember } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
 import { listResourceIdsByAnyTag, listResourceTagViews, loadResourceTagsByResource, syncResourceTagsTx } from "@/modules/tag/tag.service";
-import { NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { PROCUREMENT_STATUSES, procurementDetails } from "./schema";
 
@@ -48,15 +48,28 @@ function isProcurementStatus(value: string): value is ProcurementStatus {
   return (PROCUREMENT_STATUSES as readonly string[]).includes(value);
 }
 
+/**
+ * Validate a supplier reference. A supplier MUST be a publicly-visible,
+ * non-confidential contact: the existence and id of such contacts are already
+ * visible to every user, so surfacing the id on procurement rows leaks nothing.
+ *
+ * A private contact, a confidential contact, or a non-existent id all produce
+ * the SAME "unknown supplier" error, so creating/updating a procurement cannot
+ * be used as an oracle to probe — or silently attach — contacts the actor may
+ * not see (IDOR / existence leak — audit FIX-AUDIT-004).
+ */
 async function assertSupplierExists(db: AppDatabase, supplierId: string): Promise<void> {
-  try {
-    await resolveGlobalContact(db, supplierId);
-  }
-  catch (error) {
-    if (error instanceof NotFoundError)
-      throw new ValidationError("Supplier is not a valid contact", { supplierId: "Unknown supplier" });
-    throw error;
-  }
+  const supplier = await db
+    .select({ id: contacts.id })
+    .from(contacts)
+    .where(and(
+      eq(contacts.id, supplierId),
+      eq(contacts.visibility, "public"),
+      eq(contacts.confidential, false),
+    ))
+    .get();
+  if (!supplier)
+    throw new ValidationError("Supplier is not a valid contact", { supplierId: "Unknown supplier" });
 }
 
 /** Composite view returned by routes and tests. */
