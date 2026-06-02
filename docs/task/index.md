@@ -80,3 +80,9 @@
 | [FIX-025](FIX-025.md) | Remove projects-home filter-row label | [PLAN-048](../plan/PLAN-048.md) | Completed | 2026-06-02 |
 | [FIX-026](FIX-026.md) | Create-issue dialog staged-attachment list | [PLAN-049](../plan/PLAN-049.md) | Completed | 2026-06-02 |
 | [FIX-027](FIX-027.md) | Tag-filter pinned top-N chips + dropdown rest + removable non-pinned | [PLAN-050](../plan/PLAN-050.md) | Completed | 2026-06-02 |
+| [REFACTOR-010](REFACTOR-010.md) | Extract shared detail-panel skeleton (issue + procurement) | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
+| [REFACTOR-011](REFACTOR-011.md) | Merge project/ship cover fields into a shared CoverField | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
+| [REFACTOR-012](REFACTOR-012.md) | Extract shared list primitives (pagination, toolbar filter, search) | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
+| [REFACTOR-013](REFACTOR-013.md) | Consolidate tag utilities + reuse TagsInput in contact form | [PLAN-051](../plan/PLAN-051.md) | In Progress | 2026-06-02 |
+| [REFACTOR-014](REFACTOR-014.md) | ResponsiveTableList for contacts + procurements (optional) | [PLAN-051](../plan/PLAN-051.md) | Pending | 2026-06-02 |
+| [REFACTOR-015](REFACTOR-015.md) | CardGridList for projects + ships (optional) | [PLAN-051](../plan/PLAN-051.md) | Pending | 2026-06-02 |
