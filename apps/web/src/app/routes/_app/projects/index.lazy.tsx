@@ -16,6 +16,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
+import { useDebounce } from "@/shared/hooks/use-debounce";
 import {
   useCreateProject,
   useProject,
@@ -45,10 +46,16 @@ export function ProjectsListPage() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsProjectId, setSettingsProjectId] = useState<string | null>(null);
+  // Search runs server-side (whole-list, not page-local), so debounce the raw
+  // input before it drives the query to avoid a request per keystroke.
+  const debouncedSearch = useDebounce(search, 300);
 
-  const projectsQuery = useProjects({ ...projectsFilterToQuery(filter), page });
-  const activeCountQuery = useProjects({ status: "active" });
-  const archivedCountQuery = useProjects({ status: "archived" });
+  const projectsQuery = useProjects({ ...projectsFilterToQuery(filter), q: debouncedSearch.trim() || undefined, page });
+  // Count chips only need `meta.total`, so request a single row instead of a
+  // full 20-row page (the `limit` is part of the query key, so these stay
+  // distinct from the main list query).
+  const activeCountQuery = useProjects({ status: "active", limit: 1 });
+  const archivedCountQuery = useProjects({ status: "archived", limit: 1 });
   const tagsQuery = useTags();
   const createProject = useCreateProject();
 
@@ -59,17 +66,7 @@ export function ProjectsListPage() {
   const activeCount = activeCountQuery.data?.meta.total;
   const archivedCount = archivedCountQuery.data?.meta.total;
 
-  const visibleProjects = useMemo(() => {
-    const all = projectsQuery.data?.data ?? [];
-    const q = search.trim().toLowerCase();
-    if (!q)
-      return all;
-    return all.filter(p =>
-      p.name.toLowerCase().includes(q)
-      || (p.code?.toLowerCase().includes(q) ?? false)
-      || (p.description?.toLowerCase().includes(q) ?? false),
-    );
-  }, [projectsQuery.data, search]);
+  const visibleProjects = projectsQuery.data?.data ?? [];
 
   const handleCreate = (values: CreateProjectInput) => {
     createProject.mutate(values, {
@@ -141,7 +138,10 @@ export function ProjectsListPage() {
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             placeholder={t("list.searchPlaceholder")}
             className="pl-8"
             aria-label={t("list.searchPlaceholder")}

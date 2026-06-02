@@ -1,6 +1,6 @@
 import type { TagType } from "./schema";
 import type { AppDatabase, AppTransaction } from "@/db";
-import { and, count, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne, or } from "drizzle-orm";
 import { ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import { tags, tagsRefs } from "./schema";
@@ -27,7 +27,7 @@ export function normalizeTagName(raw: string): string {
 }
 
 /** Reject empty or over-long names. `name` is expected to be normalized. */
-export function assertValidTagName(name: string): void {
+function assertValidTagName(name: string): void {
   if (!name)
     throw new ValidationError("Tag name is required", { name: "Required" });
   if (name.length > TAG_NAME_MAX)
@@ -237,15 +237,28 @@ export async function loadResourceTagsByResource(
       resourceId: tagsRefs.resourceId,
       id: tags.id,
       name: tags.name,
-      usageCount: sql<number>`(SELECT COUNT(*) FROM ${tagsRefs} WHERE ${tagsRefs.tagId} = ${tags.id})`,
     })
     .from(tagsRefs)
     .innerJoin(tags, eq(tags.id, tagsRefs.tagId))
     .where(inArray(tagsRefs.resourceId, [...resourceIds]))
     .all();
+  if (rows.length === 0)
+    return map;
+
+  // Per-tag usage counts in a single GROUP BY pass, replacing the correlated
+  // COUNT subquery that ran once per (row, tag) occurrence.
+  const tagIds = [...new Set(rows.map(r => r.id))];
+  const usageRows = await db
+    .select({ tagId: tagsRefs.tagId, usageCount: count() })
+    .from(tagsRefs)
+    .where(inArray(tagsRefs.tagId, tagIds))
+    .groupBy(tagsRefs.tagId)
+    .all();
+  const usageByTag = new Map(usageRows.map(u => [u.tagId, u.usageCount]));
+
   for (const r of rows) {
     const list = map.get(r.resourceId) ?? [];
-    list.push({ id: r.id, name: r.name, usageCount: r.usageCount });
+    list.push({ id: r.id, name: r.name, usageCount: usageByTag.get(r.id) ?? 0 });
     map.set(r.resourceId, list);
   }
   return map;

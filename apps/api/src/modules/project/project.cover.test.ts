@@ -8,7 +8,9 @@ import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
+import { releaseReferenceTx } from "@/modules/file";
 import { __resetFilePermissionHooksForTests } from "@/modules/file/permission";
+import { fileReferences } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { createShip, setShipCover } from "@/modules/ship/ship.service";
@@ -115,6 +117,41 @@ describe("project cover", () => {
 
     expect(second!.coverReferenceId).toBeTruthy();
     expect(second!.coverReferenceId).not.toBe(firstRef);
+  });
+
+  test("F4: replacing a cover releases the previous reference (no leak)", async () => {
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Swap", creatorId: creator });
+    const first = await setProjectCover(db, testConfig(), project.id, pngFile(), creator);
+    const firstRef = first!.coverReferenceId!;
+    const other = new File([Uint8Array.from([...PNG_1X1, 5, 6, 7])], "c2.png", { type: "image/png" });
+    const second = await setProjectCover(db, testConfig(), project.id, other, creator);
+
+    // The repoint committed alongside the release: the old reference row is
+    // gone (no dangling/orphaned ref) and the new one is live.
+    expect(await db.select().from(fileReferences).where(eq(fileReferences.id, firstRef)).get()).toBeUndefined();
+    expect(await db.select().from(fileReferences).where(eq(fileReferences.id, second!.coverReferenceId!)).get()).toBeTruthy();
+  });
+
+  test("F4: a failed cover repoint + release rolls back together (no dangling/released ref)", async () => {
+    const creator = await seedUser();
+    const project = await createProject(db, { name: "Atomic", creatorId: creator });
+    const withCover = await setProjectCover(db, testConfig(), project.id, pngFile(), creator);
+    const refA = withCover!.coverReferenceId!;
+
+    // Drive the same repoint-then-release the service does, but throw before
+    // commit. Both the cover clear and the reference release must roll back.
+    expect(() =>
+      db.transaction((tx) => {
+        tx.update(projects).set({ coverReferenceId: null }).where(eq(projects.id, project.id)).run();
+        releaseReferenceTx(tx, refA);
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+
+    const after = await getProjectByShortId(db, project.shortId);
+    expect(after?.coverReferenceId).toBe(refA);
+    expect(await db.select().from(fileReferences).where(eq(fileReferences.id, refA)).get()).toBeTruthy();
   });
 
   test("permission hook: members read, non-members do not", async () => {

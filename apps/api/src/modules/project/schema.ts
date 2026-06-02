@@ -45,7 +45,12 @@ export const projects = sqliteTable("projects", {
   // Optional cover image: a `file_references` row with owner_type
   // 'project_cover'. Nulled automatically when that reference is released.
   coverReferenceId: text("cover_reference_id").references((): AnySQLiteColumn => fileReferences.id, { onDelete: "set null" }),
-  creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // ON DELETE RESTRICT (not cascade): a user must not silently hard-delete every
+  // project they created — that DB cascade cannot reach `tags_refs` (no FK on
+  // `resource_id`), so it would permanently orphan tag links. Account deletion
+  // must route through a service that reassigns/soft-deletes owned projects and
+  // calls `deleteResourceTags`. See docs/decisions/008.
+  creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   version: integer("version").notNull().default(1),
   deletedAt: text("deleted_at"),
   updatedAt: text("updated_at").notNull(),
@@ -89,6 +94,10 @@ export const projectMembers = sqliteTable("project_members", {
 }, t => [
   index("project_members_project_idx").on(t.projectId),
   index("project_members_role_idx").on(t.roleId),
+  // Standalone userId index: lookups filtering by userId alone (project list
+  // member scope, issue search scope, isMember) cannot use the composite unique
+  // index below where userId is the trailing column.
+  index("project_members_user_idx").on(t.userId),
   // One row per real user per project. Virtual members carry NULL userId, which
   // SQLite treats as mutually distinct, so multiple virtual members coexist.
   uniqueIndex("project_members_project_user_idx").on(t.projectId, t.userId),

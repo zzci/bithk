@@ -11,6 +11,7 @@ import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createTuple } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check } from "@/modules/policy/zanzibar.engine";
+import { shares } from "@/modules/share/schema";
 import { tagsRefs } from "@/modules/tag/schema";
 import * as contactService from "./contact.service";
 
@@ -218,6 +219,39 @@ describe("contact service", () => {
       eq(relationTuples.namespace, "contact"),
       eq(relationTuples.objectId, view.id),
     )).all()).toEqual([]);
+  });
+
+  test("delete clears the row, tag links, tuples, and token-based shares in one atomic step", async () => {
+    const owner = await seedUser("owner-a");
+    const view = await contactService.create(db, actor(owner), { name: "Shared Co", tags: ["supplier"] });
+    await contactService.grant(db, actor(owner), view.id, { type: "user", id: owner });
+    // A polymorphic token-based share row (no FK on `resource_id`).
+    await db.insert(shares).values({
+      id: nanoid(),
+      resourceType: "contact" as never,
+      resourceId: view.id,
+      token: `tok-${view.id}`,
+      createdBy: owner,
+    }).run();
+
+    await contactService.delete(db, actor(owner), view.id);
+
+    await expect(contactService.resolve(db, view.id)).rejects.toMatchObject({ statusCode: 404 });
+    expect(await db.select().from(tagsRefs).where(eq(tagsRefs.resourceId, view.id)).all()).toEqual([]);
+    expect(await db.select().from(relationTuples).where(eq(relationTuples.objectId, view.id)).all()).toEqual([]);
+    expect(await db.select().from(shares).where(eq(shares.resourceId, view.id)).all()).toEqual([]);
+  });
+
+  test("deleting a missing contact throws and touches nothing", async () => {
+    const owner = await seedUser("owner-a");
+    const keep = await contactService.create(db, actor(owner), { name: "Keep Co", tags: ["supplier"] });
+
+    await expect(contactService.delete(db, actor(owner), "no-such-contact"))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+
+    // The unrelated contact's tag links remain intact (no stray cleanup ran).
+    expect(await db.select().from(tagsRefs).where(eq(tagsRefs.resourceId, keep.id)).all()).toHaveLength(1);
   });
 });
 

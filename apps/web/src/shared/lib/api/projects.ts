@@ -138,7 +138,7 @@ export interface ListMeta {
 export const projectKeys = {
   all: ["projects"] as const,
   lists: () => ["projects", "list"] as const,
-  list: (status: string, tag: string, page: number) => ["projects", "list", status, tag, page] as const,
+  list: (status: string, tag: string, q: string, page: number, limit: number) => ["projects", "list", status, tag, q, page, limit] as const,
   detail: (id: string) => ["projects", "detail", id] as const,
   members: (id: string) => ["projects", id, "members"] as const,
   roles: (id: string) => ["projects", id, "roles"] as const,
@@ -175,6 +175,8 @@ export function useIssueTags() {
 
 export interface ProjectsQuery {
   readonly status?: ProjectStatus | undefined;
+  // Full-text search over project name/code (matched server-side, whole-list).
+  readonly q?: string | undefined;
   readonly tagId?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
@@ -187,15 +189,18 @@ export interface ProjectsListResult {
 
 export function useProjects(query: ProjectsQuery = {}) {
   const status = query.status;
+  const q = query.q;
   const tagId = query.tagId;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   return useQuery<ProjectsListResult>({
-    queryKey: projectKeys.list(status ?? "all", tagId ?? "all", page),
+    queryKey: projectKeys.list(status ?? "all", tagId ?? "all", q ?? "", page, limit),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
+      if (q)
+        params.set("q", q);
       if (tagId)
         params.set("tagId", tagId);
       params.set("page", String(page));

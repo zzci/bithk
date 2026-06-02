@@ -35,6 +35,8 @@
     "empty": "未找到项目。",
     "loading": "正在加载项目...",
     "total": "{{count}} 个项目",
+    "total_one": "{{count}} 个项目",
+    "total_other": "{{count}} 个项目",
     "filterByTag": "按标签筛选",
     "searchPlaceholder": "搜索项目",
     "openSettings": "项目设置",
@@ -163,6 +165,8 @@
     "emptyColumn": "暂无工单",
     "unassigned": "未分配",
     "total": "{{count}} 个工单",
+    "total_one": "{{count}} 个工单",
+    "total_other": "{{count}} 个工单",
     "col": {
       "title": "标题",
       "status": "状态",
@@ -182,13 +186,6 @@
     "createTitle": "创建工单",
     "createDescription": "为该项目添加一个新工单。",
     "status": {
-      "todo": "待办",
-      "working": "进行中",
-      "review": "待审",
-      "done": "已完成",
-      "cancel": "已取消"
-    },
-    "group": {
       "todo": "待办",
       "working": "进行中",
       "review": "待审",
@@ -219,6 +216,8 @@
     "allCategories": "全部分类",
     "tagFilter": "按标签筛选",
     "total": "{{count}} 条记录",
+    "total_one": "{{count}} 条记录",
+    "total_other": "{{count}} 条记录",
     "none": "无",
     "mixedCurrencies": "多币种",
     "col": {

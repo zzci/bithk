@@ -35,6 +35,7 @@ import {
   getDefaultProjectCover,
   getMemberCapabilities,
   getProjectByShortId,
+  isProjectVersionConflict,
   listMembers,
   listProjects,
   removeDefaultProjectCover,
@@ -63,14 +64,18 @@ const updateProjectSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   status: z.enum(PROJECT_STATUSES).optional(),
   description: z.string().max(2000).nullable().optional(),
+  // Optional optimistic-concurrency guard; not a mutable field, so it is
+  // excluded from the "at least one field" check below.
+  expectedVersion: z.number().int().nonnegative().optional(),
   ...tagsShape,
 }).refine(
-  v => Object.values(v).some(value => value !== undefined),
+  ({ expectedVersion, ...fields }) => Object.values(fields).some(value => value !== undefined),
   { message: "At least one field must be provided" },
 );
 
 const listSchema = z.object({
   status: z.enum(PROJECT_STATUSES).optional(),
+  q: z.string().min(1).optional(),
   tagId: z.string().min(1).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -134,6 +139,38 @@ const updateCategorySchema = z.object({
 
 function actorId(c: Context<AppEnv>): string {
   return c.get("user")!.id;
+}
+
+/**
+ * Reject assigning a system role (the `kind='owner'` role or any `isSystem=1`
+ * role) to a member (F1). `members.manage` is meant to delegate member
+ * administration, not to hand out full ownership: letting it assign the Owner
+ * role is a complete privilege escalation. Ownership is established only at
+ * project creation; the Guest role is reached solely via the delete-fallback
+ * path, never through the member endpoints.
+ */
+function assertAssignableRole(role: { isSystem: number; kind: "owner" | "guest" | null }): void {
+  if (role.isSystem === 1 || role.kind === "owner")
+    throw new ForbiddenError("System roles (Owner / Guest) cannot be assigned to members");
+}
+
+/**
+ * Bound a capability grant to the caller's own capabilities (F2): a holder of
+ * `roles.manage` cannot create or edit a role to include a capability they do
+ * not themselves hold. This prevents privilege amplification (e.g. granting
+ * `project.manage` / `members.manage` to a role and then assuming it). App
+ * admins and Owners hold the full capability set, so legitimate flows are
+ * unaffected.
+ */
+function assertGrantWithinCaps(
+  granter: ReadonlySet<ProjectCapability>,
+  requested: readonly ProjectCapability[] | undefined,
+): void {
+  if (!requested)
+    return;
+  const over = requested.filter(cap => !granter.has(cap));
+  if (over.length > 0)
+    throw new ForbiddenError(`Cannot grant capabilities you do not hold: ${over.join(", ")}`);
 }
 
 interface ProjectAccess {
@@ -240,6 +277,7 @@ export function projectRoutes() {
     const user = c.get("user")!;
     const query = listSchema.parse({
       status: c.req.query("status"),
+      q: c.req.query("q"),
       tagId: c.req.query("tagId"),
       page: c.req.query("page"),
       limit: c.req.query("limit"),
@@ -287,6 +325,12 @@ export function projectRoutes() {
     const updated = await updateProject(db, shortId, body);
     if (!updated)
       throw new NotFoundError("Project", shortId);
+    if (isProjectVersionConflict(updated)) {
+      return c.json(
+        { success: false, error: { code: "VERSION_CONFLICT", message: "Project was modified by another editor" }, data: updated.current },
+        409,
+      );
+    }
     return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
   });
 
@@ -341,8 +385,10 @@ export function projectRoutes() {
     const { projectId } = await requireProject(c, c.req.param("id"), "members.manage");
     const db = c.get("db");
     const body = addMemberSchema.parse(await c.req.json());
-    if (!await resolveRole(db, projectId, body.roleId))
+    const role = await resolveRole(db, projectId, body.roleId);
+    if (!role)
       throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
+    assertAssignableRole(role);
     const member = await addMember(db, projectId, body);
     return c.json({ success: true, data: composeMember(member) }, 201);
   });
@@ -351,8 +397,12 @@ export function projectRoutes() {
     const { projectId } = await requireProject(c, c.req.param("id"), "members.manage");
     const db = c.get("db");
     const body = updateMemberSchema.parse(await c.req.json());
-    if (body.roleId !== undefined && !await resolveRole(db, projectId, body.roleId))
-      throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
+    if (body.roleId !== undefined) {
+      const role = await resolveRole(db, projectId, body.roleId);
+      if (!role)
+        throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
+      assertAssignableRole(role);
+    }
     const member = await updateMember(db, projectId, c.req.param("memberId"), body);
     if (!member)
       throw new NotFoundError("Project member", c.req.param("memberId"));
@@ -376,17 +426,19 @@ export function projectRoutes() {
   });
 
   router.post("/projects/:id/roles", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "roles.manage");
+    const { projectId, capabilities } = await requireProject(c, c.req.param("id"), "roles.manage");
     const db = c.get("db");
     const body = createRoleSchema.parse(await c.req.json());
+    assertGrantWithinCaps(capabilities, body.capabilities);
     const role = await createRole(db, projectId, body);
     return c.json({ success: true, data: composeRole(role) }, 201);
   });
 
   router.patch("/projects/:id/roles/:roleId", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "roles.manage");
+    const { projectId, capabilities } = await requireProject(c, c.req.param("id"), "roles.manage");
     const db = c.get("db");
     const body = updateRoleSchema.parse(await c.req.json());
+    assertGrantWithinCaps(capabilities, body.capabilities);
     const role = await updateRole(db, projectId, c.req.param("roleId"), body);
     if (!role)
       throw new NotFoundError("Project role", c.req.param("roleId"));

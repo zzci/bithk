@@ -3,10 +3,15 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { fileReferences, files } from "@/modules/file/schema";
+import { issueDetails } from "@/modules/issue/schema";
+import { items } from "@/modules/item/schema";
+import { relationTuples } from "@/modules/policy/schema";
+import { procurementDetails } from "@/modules/procurement/schema";
 import { setSetting } from "@/modules/settings/settings.service";
 import { listCategories } from "./project.categories";
 import {
@@ -23,6 +28,7 @@ import {
   getProjectByShortId,
   hasCapability,
   isMember,
+  isProjectVersionConflict,
   listMembers,
   listProjects,
   removeMember,
@@ -32,6 +38,7 @@ import {
   updateMember,
   updateProject,
 } from "./project.service";
+import { projectRoles } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -59,6 +66,40 @@ async function seedUser(name: string): Promise<string> {
 async function memberRoleId(projectId: string): Promise<string> {
   const roles = await listRoles(db, projectId);
   return roles.find(r => r.name === "Reader")!.id;
+}
+
+/**
+ * Seed a live issue / procurement child item under a project: the base `items`
+ * row, its `*_details` link, and an owner relation tuple. Returns the item id.
+ */
+async function seedChildItem(creator: string, projectId: string, type: "issue" | "procurement"): Promise<string> {
+  const itemId = nanoid();
+  const now = new Date().toISOString();
+  await db.insert(items).values({
+    id: itemId,
+    shortId: nanoid(),
+    type,
+    title: `${type} item`,
+    status: "todo",
+    creatorId: creator,
+    updatedAt: now,
+  }).run();
+  if (type === "issue")
+    await db.insert(issueDetails).values({ itemId, projectId }).run();
+  else
+    await db.insert(procurementDetails).values({ itemId, projectId, itemName: "Widget" }).run();
+  await db.insert(relationTuples).values({
+    id: nanoid(),
+    namespace: "item",
+    objectId: itemId,
+    relation: "owner",
+    subjectNamespace: "user",
+    subjectId: creator,
+    subjectRelation: null,
+    createdBy: creator,
+    createdAt: now,
+  }).run();
+  return itemId;
 }
 
 beforeEach(async () => {
@@ -173,14 +214,100 @@ describe("members", () => {
   });
 });
 
+describe("member authz guards (02-F3/F4)", () => {
+  test("addMember rejects a non-existent userId (F4)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const roleId = await memberRoleId(project.id);
+    expect(addMember(db, project.id, { roleId, userId: "ghost" })).rejects.toThrow();
+  });
+
+  test("addMember rejects a duplicate real member (F4)", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const roleId = await memberRoleId(project.id);
+    await addMember(db, project.id, { roleId, userId: bob });
+    expect(addMember(db, project.id, { roleId, userId: bob })).rejects.toThrow();
+  });
+
+  test("updateMember rejects promoting a virtual member onto a non-existent user (F4)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const roleId = await memberRoleId(project.id);
+    const virtual = await addMember(db, project.id, { roleId, displayName: "Ext" });
+    expect(updateMember(db, project.id, virtual.id, { userId: "ghost" })).rejects.toThrow();
+  });
+
+  test("removeMember refuses to remove the last owner (F3)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const ownerMember = (await listMembers(db, project.id)).find(m => m.userId === creator)!;
+    expect(removeMember(db, project.id, ownerMember.id)).rejects.toThrow();
+  });
+
+  test("updateMember refuses to demote the last owner (F3)", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const ownerMember = (await listMembers(db, project.id)).find(m => m.userId === creator)!;
+    const readerId = await memberRoleId(project.id);
+    expect(updateMember(db, project.id, ownerMember.id, { roleId: readerId })).rejects.toThrow();
+  });
+
+  test("an owner can be removed once a second owner exists (F3)", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const ownerRole = (await listRoles(db, project.id)).find(r => r.kind === "owner")!;
+    // A second owner makes the first one removable without leaving the project ownerless.
+    await addMember(db, project.id, { roleId: ownerRole.id, userId: bob });
+    const ownerMember = (await listMembers(db, project.id)).find(m => m.userId === creator)!;
+    expect(await removeMember(db, project.id, ownerMember.id)).toBe(true);
+  });
+});
+
 describe("updateProject", () => {
   test("bumps version and applies the patch", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
     const updated = await updateProject(db, project.shortId, { name: "P2", status: "archived" });
+    expect(isProjectVersionConflict(updated)).toBe(false);
+    if (isProjectVersionConflict(updated))
+      return;
     expect(updated?.name).toBe("P2");
     expect(updated?.status).toBe("archived");
     expect(updated!.version).toBe(2);
+  });
+
+  test("expectedVersion match applies the patch and bumps version", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    expect(project.version).toBe(1);
+    const updated = await updateProject(db, project.shortId, { name: "P2", expectedVersion: 1 });
+    expect(isProjectVersionConflict(updated)).toBe(false);
+    if (isProjectVersionConflict(updated))
+      return;
+    expect(updated?.name).toBe("P2");
+    expect(updated!.version).toBe(2);
+  });
+
+  test("expectedVersion mismatch returns a conflict with the current row and writes nothing", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    // Bump the version once so the stored version (2) diverges from a stale client's 1.
+    await updateProject(db, project.shortId, { name: "P2" });
+
+    const conflict = await updateProject(db, project.shortId, { name: "stale", expectedVersion: 1 });
+    expect(isProjectVersionConflict(conflict)).toBe(true);
+    if (!isProjectVersionConflict(conflict))
+      return;
+    expect(conflict.current.version).toBe(2);
+    expect(conflict.current.name).toBe("P2");
+
+    // The stale write must not have landed.
+    const fresh = await getProjectByShortId(db, project.shortId);
+    expect(fresh?.name).toBe("P2");
+    expect(fresh?.version).toBe(2);
   });
 
   test("code is immutable: a sneaked-in code is ignored", async () => {
@@ -191,6 +318,8 @@ describe("updateProject", () => {
     // Force a `code` field past the typed input to prove the service never
     // patches it (the column is dropped from the patched-keys loop).
     const updated = await updateProject(db, project.shortId, { name: "P2", code: "HACKED" } as unknown as Parameters<typeof updateProject>[2]);
+    if (isProjectVersionConflict(updated))
+      return;
     expect(updated?.name).toBe("P2");
     expect(updated?.code).toBe("orig-1");
   });
@@ -205,6 +334,40 @@ describe("softDeleteProject", () => {
     expect(await getProjectByShortId(db, project.shortId)).toBeUndefined();
     expect(await resolveProjectId(db, project.shortId)).toBeNull();
     expect(await listMembers(db, project.id)).toHaveLength(1);
+  });
+
+  test("cascades the soft-delete to the project's issue / procurement items and tears down their tuples", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const issueItemId = await seedChildItem(creator, project.id, "issue");
+    const procItemId = await seedChildItem(creator, project.id, "procurement");
+
+    // Live before the project delete.
+    expect((await db.select().from(items).where(eq(items.id, issueItemId)).get())!.deletedAt).toBeNull();
+    expect(await db.select().from(relationTuples).where(eq(relationTuples.objectId, issueItemId)).all()).toHaveLength(1);
+
+    await softDeleteProject(db, project.shortId);
+
+    // Both children are now soft-deleted in the same operation.
+    expect((await db.select().from(items).where(eq(items.id, issueItemId)).get())!.deletedAt).not.toBeNull();
+    expect((await db.select().from(items).where(eq(items.id, procItemId)).get())!.deletedAt).not.toBeNull();
+    // Their relation tuples are gone.
+    expect(await db.select().from(relationTuples).where(eq(relationTuples.objectId, issueItemId)).all()).toHaveLength(0);
+    expect(await db.select().from(relationTuples).where(eq(relationTuples.objectId, procItemId)).all()).toHaveLength(0);
+  });
+
+  test("re-soft-deleting an already-deleted project does not re-stamp child items", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const issueItemId = await seedChildItem(creator, project.id, "issue");
+
+    await softDeleteProject(db, project.shortId);
+    const firstStamp = (await db.select().from(items).where(eq(items.id, issueItemId)).get())!.deletedAt;
+
+    // A second call sees the project already soft-deleted and must not touch children again.
+    await softDeleteProject(db, project.shortId);
+    const secondStamp = (await db.select().from(items).where(eq(items.id, issueItemId)).get())!.deletedAt;
+    expect(secondStamp).toBe(firstStamp);
   });
 });
 
@@ -401,6 +564,29 @@ describe("roles engine", () => {
 
     expect(await deleteRole(db, project.id, owner.id)).toBe("system");
     expect(await deleteRole(db, project.id, guestRole.id)).toBe("system");
+  });
+
+  test("deleteRole degrades cleanly when the Guest role is missing", async () => {
+    const creator = await seedUser("Alice");
+    const bob = await seedUser("Bob");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const reader = (await listRoles(db, project.id)).find(r => r.name === "Reader")!;
+    const writer = (await listRoles(db, project.id)).find(r => r.name === "Writer")!;
+    const guest = (await resolveGuestRole(db, project.id))!;
+
+    // Simulate a corrupted project: drop the Guest role (the delete-fallback target).
+    await db.delete(projectRoles).where(eq(projectRoles.id, guest.id)).run();
+
+    // A held role can't be reassigned without Guest → blocks with a clean error
+    // (ValidationError → 422) instead of raising a raw FK constraint failure.
+    await addMember(db, project.id, { roleId: reader.id, userId: bob });
+    await expect(deleteRole(db, project.id, reader.id)).rejects.toMatchObject({ statusCode: 422 });
+    // The role and its holder are untouched.
+    expect((await listRoles(db, project.id)).some(r => r.id === reader.id)).toBe(true);
+
+    // An unheld role is still safe to delete directly.
+    expect(await deleteRole(db, project.id, writer.id)).toBe("deleted");
+    expect((await listRoles(db, project.id)).some(r => r.id === writer.id)).toBe(false);
   });
 });
 

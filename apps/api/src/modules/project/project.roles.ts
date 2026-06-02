@@ -1,6 +1,7 @@
 import type { ProjectCapability } from "./schema";
 import type { AppDatabase, AppTransaction } from "@/db";
 import { and, eq } from "drizzle-orm";
+import { ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import { PROJECT_CAPABILITIES, projectMembers, projectRoles, projects } from "./schema";
 
@@ -214,14 +215,32 @@ export async function deleteRole(db: AppDatabase, projectId: string, roleId: str
     return "system";
 
   const guest = await resolveGuestRole(db, projectId);
-  // Guest is guaranteed to exist; if somehow missing, fallback: just delete the role.
-  db.transaction((tx) => {
-    if (guest) {
-      tx.update(projectMembers)
-        .set({ roleId: guest.id })
-        .where(eq(projectMembers.roleId, roleId))
-        .run();
+  if (!guest) {
+    // Guest is always seeded (createProject + boot-time backfill), so this only
+    // triggers on a corrupted project. We cannot reassign holders without it,
+    // and `project_members.role_id` is ON DELETE RESTRICT, so deleting a held
+    // role would raise a raw FK error. Degrade cleanly: block with a clear
+    // ValidationError when any member still holds the role; otherwise the
+    // unheld role is safe to delete directly.
+    const holder = await db.select({ id: projectMembers.id })
+      .from(projectMembers)
+      .where(eq(projectMembers.roleId, roleId))
+      .get();
+    if (holder) {
+      throw new ValidationError("Cannot delete role", {
+        role: "The project has no Guest role to reassign members to",
+      });
     }
+    await db.delete(projectRoles).where(eq(projectRoles.id, roleId)).run();
+    return "deleted";
+  }
+
+  // In one transaction, reassign every holder to Guest, then delete the role.
+  db.transaction((tx) => {
+    tx.update(projectMembers)
+      .set({ roleId: guest.id })
+      .where(eq(projectMembers.roleId, roleId))
+      .run();
     tx.delete(projectRoles).where(eq(projectRoles.id, roleId)).run();
   });
   return "deleted";

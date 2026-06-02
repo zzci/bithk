@@ -85,39 +85,83 @@ async function getAssigneeId(db: AppDatabase, itemId: string): Promise<string | 
   return row?.subjectId ?? null;
 }
 
+/**
+ * Batch-resolve the user-tuple assignee for a set of issue item ids in a single
+ * query, returning a `itemId → userId` map. Replaces the per-row
+ * `getAssigneeId` call on list/search paths (F1/F5).
+ */
+async function loadAssigneeIds(db: AppDatabase, itemIds: readonly string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (itemIds.length === 0)
+    return map;
+  const rows = await db.select({ objectId: relationTuples.objectId, subjectId: relationTuples.subjectId })
+    .from(relationTuples)
+    .where(and(
+      eq(relationTuples.namespace, "item"),
+      eq(relationTuples.relation, "assignee"),
+      eq(relationTuples.subjectNamespace, "user"),
+      inArray(relationTuples.objectId, [...itemIds]),
+    ))
+    .all();
+  for (const r of rows)
+    map.set(r.objectId, r.subjectId);
+  return map;
+}
+
 /** Resolve a project's short_id from its internal ULID. */
 async function projectShortId(db: AppDatabase, projectId: string): Promise<string> {
   const row = await db.select({ shortId: projects.shortId }).from(projects).where(eq(projects.id, projectId)).get();
   return row?.shortId ?? projectId;
 }
 
+/**
+ * Pure row composer: builds an `IssueRow` from already-fetched parts (item,
+ * details, the project short id, the resolved assignee, and tags). The
+ * list/search paths prefetch every part in batch, so no per-row query remains.
+ */
+function composeIssueRow(
+  item: typeof items.$inferSelect,
+  details: typeof issueDetails.$inferSelect,
+  projectShort: string,
+  assigneeId: string | null,
+  tags: readonly { id: string; name: string }[],
+): IssueRow {
+  return {
+    id: item.shortId,
+    title: item.title,
+    description: details.description ?? null,
+    status: item.status as IssueStatus,
+    priority: (details.priority ?? "medium") as IssuePriority,
+    creatorId: item.creatorId,
+    assigneeId,
+    dueDate: details.dueDate ?? null,
+    projectId: projectShort,
+    assigneeMemberId: details.assigneeMemberId ?? null,
+    createdAt: ulidTimestamp(item.id),
+    updatedAt: item.updatedAt,
+    version: item.version,
+    pinned: item.pinned,
+    pinnedAt: item.pinnedAt,
+    tags: tags.map(t => ({ id: t.id, name: t.name })),
+  };
+}
+
+/**
+ * Single-row composer used by create / get / update. Fetches the row's details,
+ * assignee, project short id, and tags individually — acceptable for one row.
+ * The list/search paths use `composeIssueRow` with batched data instead.
+ */
 async function composeIssue(
   db: AppDatabase,
   item: typeof items.$inferSelect,
   details?: typeof issueDetails.$inferSelect | undefined,
   tags?: readonly { id: string; name: string }[] | undefined,
 ): Promise<IssueRow> {
-  const d = details ?? await db.select().from(issueDetails).where(eq(issueDetails.itemId, item.id)).get();
+  const d = details ?? (await db.select().from(issueDetails).where(eq(issueDetails.itemId, item.id)).get())!;
   const assigneeId = await getAssigneeId(db, item.id);
+  const projectShort = await projectShortId(db, d.projectId);
   const tagList = tags ?? await listResourceTagViews(db, issueTagBinding, item.id);
-  return {
-    id: item.shortId,
-    title: item.title,
-    description: d?.description ?? null,
-    status: item.status as IssueStatus,
-    priority: (d?.priority ?? "medium") as IssuePriority,
-    creatorId: item.creatorId,
-    assigneeId,
-    dueDate: d?.dueDate ?? null,
-    projectId: await projectShortId(db, d!.projectId),
-    assigneeMemberId: d?.assigneeMemberId ?? null,
-    createdAt: ulidTimestamp(item.id),
-    updatedAt: item.updatedAt,
-    version: item.version,
-    pinned: item.pinned,
-    pinnedAt: item.pinnedAt,
-    tags: tagList.map(t => ({ id: t.id, name: t.name })),
-  };
+  return composeIssueRow(item, d, projectShort, assigneeId, tagList);
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────
@@ -375,21 +419,16 @@ export async function listByProject(
   const page = Math.max(1, params.page ?? 1);
   const limit = Math.min(100, Math.max(1, params.limit ?? 20));
 
-  const detailConditions = [eq(issueDetails.projectId, params.projectId)];
-  if (params.priority && params.priority !== "__all__")
-    detailConditions.push(eq(issueDetails.priority, params.priority as IssuePriority));
-  const detailRows = await db.select({ itemId: issueDetails.itemId })
-    .from(issueDetails)
-    .where(and(...detailConditions))
-    .all();
-  if (detailRows.length === 0)
-    return { data: [], total: 0 };
-
+  // Single innerJoin (items ⋈ issueDetails) so status/title (on items) and
+  // projectId/priority (on issueDetails) live in one bounded query — no
+  // pre-scan of every itemId, no unbounded IN list (F3). Mirrors procurement.
   const conditions = [
     eq(items.type, "issue"),
     isNull(items.deletedAt),
-    inArray(items.id, detailRows.map(r => r.itemId)),
+    eq(issueDetails.projectId, params.projectId),
   ];
+  if (params.priority && params.priority !== "__all__")
+    conditions.push(eq(issueDetails.priority, params.priority as IssuePriority));
   if (params.status && params.status !== "__all__")
     conditions.push(eq(items.status, params.status));
   if (params.q)
@@ -405,13 +444,38 @@ export async function listByProject(
 
   const where = and(...conditions);
 
-  const totalRow = await db.select({ value: count() }).from(items).where(where).get();
+  const totalRow = await db.select({ value: count() })
+    .from(items)
+    .innerJoin(issueDetails, eq(issueDetails.itemId, items.id))
+    .where(where)
+    .get();
   const total = totalRow?.value ?? 0;
-  const rows = await db.select().from(items).where(where).orderBy(desc(items.id)).limit(limit).offset((page - 1) * limit).all();
-  const tagMap = await loadResourceTagsByResource(db, issueTagBinding, rows.map(r => r.id));
-  const data: IssueRow[] = [];
-  for (const r of rows)
-    data.push(await composeIssue(db, r, undefined, tagMap.get(r.id) ?? []));
+  if (total === 0)
+    return { data: [], total: 0 };
+
+  // Every row in this list shares one project, so resolve its short_id once (F1).
+  const projectShort = await projectShortId(db, params.projectId);
+
+  const rows = await db.select({ item: items, details: issueDetails })
+    .from(items)
+    .innerJoin(issueDetails, eq(issueDetails.itemId, items.id))
+    .where(where)
+    .orderBy(desc(items.id))
+    .limit(limit)
+    .offset((page - 1) * limit)
+    .all();
+
+  // Batch the assignee tuples + tags for the whole page (F1).
+  const itemIds = rows.map(r => r.item.id);
+  const tagMap = await loadResourceTagsByResource(db, issueTagBinding, itemIds);
+  const assigneeMap = await loadAssigneeIds(db, itemIds);
+  const data = rows.map(r => composeIssueRow(
+    r.item,
+    r.details,
+    projectShort,
+    assigneeMap.get(r.item.id) ?? null,
+    tagMap.get(r.item.id) ?? [],
+  ));
   return { data, total };
 }
 
@@ -446,20 +510,41 @@ export async function searchIssues(db: AppDatabase, params: SearchIssuesParams):
       .all();
     if (memberProjects.length === 0)
       return [];
-    const scoped = await db.select({ itemId: issueDetails.itemId })
-      .from(issueDetails)
-      .where(inArray(issueDetails.projectId, memberProjects.map(r => r.projectId)))
-      .all();
-    if (scoped.length === 0)
-      return [];
-    conditions.push(inArray(items.id, scoped.map(r => r.itemId)));
+    // Push the project scope straight into the joined WHERE — no pre-scan of
+    // every itemId (F5).
+    conditions.push(inArray(issueDetails.projectId, memberProjects.map(r => r.projectId)));
   }
 
-  const rows = await db.select().from(items).where(and(...conditions)).orderBy(desc(items.id)).limit(limit).all();
-  const data: IssueRow[] = [];
-  for (const r of rows)
-    data.push(await composeIssue(db, r));
-  return data;
+  const rows = await db.select({ item: items, details: issueDetails })
+    .from(items)
+    .innerJoin(issueDetails, eq(issueDetails.itemId, items.id))
+    .where(and(...conditions))
+    .orderBy(desc(items.id))
+    .limit(limit)
+    .all();
+  if (rows.length === 0)
+    return [];
+
+  // Batch tags + assignee tuples for the whole result set, and resolve each
+  // distinct project's short id once (search spans projects, so it cannot be a
+  // single lookup like listByProject).
+  const itemIds = rows.map(r => r.item.id);
+  const tagMap = await loadResourceTagsByResource(db, issueTagBinding, itemIds);
+  const assigneeMap = await loadAssigneeIds(db, itemIds);
+  const projectIds = [...new Set(rows.map(r => r.details.projectId))];
+  const projectRows = await db.select({ id: projects.id, shortId: projects.shortId })
+    .from(projects)
+    .where(inArray(projects.id, projectIds))
+    .all();
+  const projectShortMap = new Map(projectRows.map(p => [p.id, p.shortId]));
+
+  return rows.map(r => composeIssueRow(
+    r.item,
+    r.details,
+    projectShortMap.get(r.details.projectId) ?? r.details.projectId,
+    assigneeMap.get(r.item.id) ?? null,
+    tagMap.get(r.item.id) ?? [],
+  ));
 }
 
 // ─── Access helper ────────────────────────────────────────────────────

@@ -1,0 +1,1 @@
+CREATE INDEX `project_members_user_idx` ON `project_members` (`user_id`);

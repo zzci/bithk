@@ -35,6 +35,8 @@
     "empty": "No projects found.",
     "loading": "Loading projects...",
     "total": "{{count}} projects",
+    "total_one": "{{count}} project",
+    "total_other": "{{count}} projects",
     "filterByTag": "Filter by tag",
     "searchPlaceholder": "Search projects",
     "openSettings": "Project settings",
@@ -163,6 +165,8 @@
     "emptyColumn": "No work orders",
     "unassigned": "Unassigned",
     "total": "{{count}} work orders",
+    "total_one": "{{count}} work order",
+    "total_other": "{{count}} work orders",
     "col": {
       "title": "Title",
       "status": "Status",
@@ -182,13 +186,6 @@
     "createTitle": "Create work order",
     "createDescription": "Add a new work order to this project.",
     "status": {
-      "todo": "To Do",
-      "working": "In Progress",
-      "review": "In Review",
-      "done": "Done",
-      "cancel": "Cancelled"
-    },
-    "group": {
       "todo": "To Do",
       "working": "In Progress",
       "review": "In Review",
@@ -219,6 +216,8 @@
     "allCategories": "All categories",
     "tagFilter": "Filter by tag",
     "total": "{{count}} records",
+    "total_one": "{{count}} record",
+    "total_other": "{{count}} records",
     "none": "None",
     "mixedCurrencies": "Mixed",
     "col": {

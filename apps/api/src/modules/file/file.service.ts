@@ -1,5 +1,5 @@
 import type { Config } from "@/config";
-import type { AppDatabase } from "@/db";
+import type { AppDatabase, AppTransaction } from "@/db";
 import { createHash } from "node:crypto";
 import { and, count, desc, eq, sql } from "drizzle-orm";
 import { fileReferences, files } from "@/modules/file/schema";
@@ -280,6 +280,63 @@ export interface ReleaseReferenceInput {
 }
 
 /**
+ * A blob whose refcount dropped to zero when its last reference was
+ * released. Returned by {@link releaseReferenceTx} so the caller can drive
+ * the post-commit side effect ({@link finalizeReleasedBlob}) — driver I/O
+ * (sync-GC blob delete) cannot run inside a synchronous bun:sqlite tx.
+ */
+export interface DrainedBlob {
+  readonly id: string;
+  readonly storageDriver: string;
+  readonly storageKey: string;
+  readonly size: number;
+}
+
+/**
+ * DB-only reference release that runs inside a **caller-provided**
+ * transaction: deletes the `file_references` row and decrements the blob
+ * `ref_count`. Returns the {@link DrainedBlob} when the refcount hit zero so
+ * the caller can finalise the blob after the tx commits, or `null` when the
+ * reference is missing (idempotent) or the blob still has live references.
+ *
+ * Use this when the release must be atomic with other writes in the same
+ * transaction (e.g. repointing a project cover then releasing the old
+ * reference). For a standalone release, call {@link releaseReference}.
+ */
+export function releaseReferenceTx(tx: AppTransaction, referenceId: string): DrainedBlob | null {
+  const ref = tx.select().from(fileReferences).where(eq(fileReferences.id, referenceId)).get();
+  if (!ref)
+    return null;
+
+  tx.delete(fileReferences).where(eq(fileReferences.id, referenceId)).run();
+  tx.update(files)
+    .set({ refCount: sql`MAX(${files.refCount} - 1, 0)` })
+    .where(eq(files.id, ref.fileId))
+    .run();
+  const after = tx.select({ refCount: files.refCount, storageDriver: files.storageDriver, storageKey: files.storageKey, size: files.size })
+    .from(files)
+    .where(eq(files.id, ref.fileId))
+    .get();
+  return after && after.refCount === 0 ? { id: ref.fileId, ...after } : null;
+}
+
+/**
+ * Drive the post-commit side effect for a blob drained inside a transaction
+ * via {@link releaseReferenceTx}: in sync-GC mode delete the blob bytes +
+ * `files` row immediately; in async mode the sweeper reclaims refcount=0
+ * rows, so this is a no-op. Safe to call with `null` (nothing drained).
+ */
+export async function finalizeReleasedBlob(
+  db: AppDatabase,
+  config: FileServiceConfig,
+  drained: DrainedBlob | null,
+): Promise<void> {
+  if (drained && config.FILE_GC_MODE === "sync") {
+    await syncDeleteBlob(db, drained);
+  }
+}
+
+/**
  * Drop one reference. In async-GC mode, only the `file_references` row is
  * deleted and `files.ref_count` decremented; the sweeper handles the blob.
  * In sync-GC mode (tests / local-only), if the final reference goes away
@@ -293,26 +350,8 @@ export async function releaseReference(
   config: FileServiceConfig,
   input: ReleaseReferenceInput,
 ): Promise<void> {
-  const ref = await db.select().from(fileReferences).where(eq(fileReferences.id, input.referenceId)).get();
-  if (!ref)
-    return;
-
-  const drainedFileId = db.transaction((tx) => {
-    tx.delete(fileReferences).where(eq(fileReferences.id, input.referenceId)).run();
-    tx.update(files)
-      .set({ refCount: sql`MAX(${files.refCount} - 1, 0)` })
-      .where(eq(files.id, ref.fileId))
-      .run();
-    const after = tx.select({ refCount: files.refCount, storageDriver: files.storageDriver, storageKey: files.storageKey, size: files.size })
-      .from(files)
-      .where(eq(files.id, ref.fileId))
-      .get();
-    return after && after.refCount === 0 ? { id: ref.fileId, ...after } : null;
-  });
-
-  if (drainedFileId && config.FILE_GC_MODE === "sync") {
-    await syncDeleteBlob(db, drainedFileId);
-  }
+  const drained = db.transaction(tx => releaseReferenceTx(tx, input.referenceId));
+  await finalizeReleasedBlob(db, config, drained);
 }
 
 /**
@@ -338,7 +377,7 @@ export async function releaseAllByOwner(
 
 async function syncDeleteBlob(
   db: AppDatabase,
-  drained: { id: string; storageDriver: string; storageKey: string; size: number },
+  drained: DrainedBlob,
 ): Promise<void> {
   const driver = getActiveDriver();
   if (driver.name !== drained.storageDriver) {

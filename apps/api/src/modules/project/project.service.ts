@@ -1,21 +1,28 @@
 import type { ProjectCapability, ProjectStatus } from "./schema";
 import type { Config } from "@/config";
-import type { AppDatabase, AppTransaction } from "@/db";
+import type { AppDatabase, AppTransaction, RunResult } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
 import type { ResourceTagUsageView } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import { getReferenceById, releaseReference, uploadAndReference } from "@/modules/file";
+import { users } from "@/modules/account/users/schema";
+import { finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
-import { deleteSetting, getSetting, setSetting } from "@/modules/settings/settings.service";
+import { issueDetails } from "@/modules/issue/schema";
+import { items } from "@/modules/item/schema";
+import { relationTuples } from "@/modules/policy/schema";
+import { procurementDetails } from "@/modules/procurement/schema";
+import { settings } from "@/modules/settings/schema";
+import { getSetting } from "@/modules/settings/settings.service";
 import { ships } from "@/modules/ship/schema";
 import {
   listResourceIdsByTag,
   loadResourceTagsByResource,
   syncResourceTagsTx,
 } from "@/modules/tag/tag.service";
+import { AppError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { seedProjectCategoriesTx } from "./project.global-categories";
-import { parseCapabilities, seedDefaultRoles } from "./project.roles";
+import { parseCapabilities, resolveRole, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects } from "./schema";
 
 /** Settings key backing the admin "Project Defaults" cover picker. */
@@ -274,19 +281,6 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
 }
 
 /**
- * Resolve the default cover reference id from settings. Returns null when unset
- * or when the configured reference no longer exists, so a dangling default can
- * never block project creation (the FK would otherwise reject the insert).
- */
-async function resolveDefaultCoverReferenceId(db: AppDatabase): Promise<string | null> {
-  const refId = await getSetting(db, PROJECT_DEFAULT_COVER_KEY);
-  if (!refId)
-    return null;
-  const exists = await db.select({ id: fileReferences.id }).from(fileReferences).where(eq(fileReferences.id, refId)).get();
-  return exists ? refId : null;
-}
-
-/**
  * Create a project and, in the same synchronous transaction, seed its default
  * roles and add the creator as a "Project Owner" member. `code` is
  * auto-generated from the short id when not supplied. bun:sqlite transactions
@@ -294,12 +288,23 @@ async function resolveDefaultCoverReferenceId(db: AppDatabase): Promise<string |
  */
 export async function createProject(db: AppDatabase, input: CreateProjectInput): Promise<ProjectRow> {
   // Apply the admin "Project Defaults" cover for projects that omit one. The
-  // status is always "active" (set in createProjectTx); settings resolve async,
-  // before the sync tx.
-  const coverReferenceId = input.coverReferenceId ?? await resolveDefaultCoverReferenceId(db);
+  // setting read is async, so it happens before the sync tx; its existence is
+  // re-verified *inside* the tx (below) to close the TOCTOU against a concurrent
+  // default-cover removal that would otherwise make the insert FK reject.
+  const defaultCoverRefId = input.coverReferenceId === undefined
+    ? await getSetting(db, PROJECT_DEFAULT_COVER_KEY)
+    : null;
 
   let id = "";
   db.transaction((tx) => {
+    let coverReferenceId = input.coverReferenceId ?? null;
+    // Re-check the default-cover reference existence atomically with the insert.
+    // A dangling default is dropped to null so a concurrent removal can never
+    // block project creation; an explicit caller-supplied ref is trusted as-is.
+    if (coverReferenceId === null && defaultCoverRefId) {
+      const exists = tx.select({ id: fileReferences.id }).from(fileReferences).where(eq(fileReferences.id, defaultCoverRefId)).get();
+      coverReferenceId = exists ? defaultCoverRefId : null;
+    }
     id = createProjectTx(tx, { ...input, coverReferenceId }).id;
   });
 
@@ -398,9 +403,29 @@ export interface UpdateProjectInput {
   readonly status?: ProjectStatus | undefined;
   readonly description?: string | null | undefined;
   readonly tags?: readonly string[] | undefined;
+  /**
+   * Optimistic-concurrency guard. When supplied, the update only proceeds if
+   * the stored `version` still equals it; a mismatch returns a
+   * {@link ProjectVersionConflict} instead of writing (lost-update guard,
+   * mirroring `updateItem`/`updateDocument`).
+   */
+  readonly expectedVersion?: number | undefined;
 }
 
-export async function updateProject(db: AppDatabase, shortId: string, input: UpdateProjectInput): Promise<ProjectRow | undefined> {
+/**
+ * Optimistic-concurrency conflict result. Returned by {@link updateProject}
+ * when the caller's `expectedVersion` no longer matches the stored row.
+ */
+export interface ProjectVersionConflict {
+  readonly conflict: true;
+  readonly current: ProjectRow;
+}
+
+export function isProjectVersionConflict(v: unknown): v is ProjectVersionConflict {
+  return typeof v === "object" && v !== null && (v as { conflict?: unknown }).conflict === true;
+}
+
+export async function updateProject(db: AppDatabase, shortId: string, input: UpdateProjectInput): Promise<ProjectRow | ProjectVersionConflict | undefined> {
   const project = await getProjectByShortId(db, shortId);
   if (!project)
     return undefined;
@@ -413,28 +438,73 @@ export async function updateProject(db: AppDatabase, shortId: string, input: Upd
       patch[key] = input[key];
   }
 
-  db.transaction((tx) => {
-    tx.update(projects).set(patch).where(eq(projects.id, project.id)).run();
+  // Scope the write on `version` when an expectedVersion is supplied so the
+  // check + bump are atomic (no read-then-write race). A zero-row update
+  // means a concurrent writer moved the version on between read and write.
+  const stale = db.transaction((tx) => {
+    const where = input.expectedVersion !== undefined
+      ? and(eq(projects.id, project.id), eq(projects.version, input.expectedVersion))
+      : eq(projects.id, project.id);
+    const result = tx.update(projects).set(patch).where(where).run() as unknown as RunResult;
+    if (input.expectedVersion !== undefined && result.changes === 0)
+      return true;
     if (input.tags !== undefined)
       syncTagsTx(tx, project.id, input.tags, now);
+    return false;
   });
+
+  if (stale) {
+    const current = await db.select().from(projects).where(eq(projects.id, project.id)).get();
+    return current ? { conflict: true, current } : undefined;
+  }
+
   return await db.select().from(projects).where(eq(projects.id, project.id)).get();
 }
 
 /**
- * Soft-delete a project (stamp `deleted_at`). Reads everywhere filter on
- * `deleted_at IS NULL`, so members / issues / procurement stay intact and
- * simply become invisible.
+ * Soft-delete a project and cascade the soft-delete to its child work items.
+ *
+ * In one transaction we stamp `deleted_at` on the project row and on every live
+ * issue / procurement item belonging to it (resolved via the `*_details`
+ * `project_id` link), tearing down each item's relation tuples — mirroring
+ * `softDeleteItem`. Without this, the children kept `deleted_at IS NULL` (still
+ * "live") and accumulated unbounded under a project that no list/detail read can
+ * reach (those resolve the parent first and filter `deleted_at IS NULL`). See
+ * docs/decisions/008 for the cascade contract. Members / roles / categories /
+ * tags are intentionally retained (the project row still exists); there is no
+ * project restore endpoint, so the cascade is one-way by design.
  */
 export async function softDeleteProject(db: AppDatabase, shortId: string): Promise<void> {
   const project = await db.select().from(projects).where(eq(projects.shortId, shortId)).get();
   if (!project)
     return;
   const now = new Date().toISOString();
-  await db.update(projects)
-    .set({ deletedAt: now, updatedAt: now, version: sql`${projects.version} + 1` })
-    .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
-    .run();
+  db.transaction((tx) => {
+    const updated = tx.update(projects)
+      .set({ deletedAt: now, updatedAt: now, version: sql`${projects.version} + 1` })
+      .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
+      .run() as unknown as RunResult;
+
+    // Already soft-deleted — don't re-stamp the children.
+    if (updated.changes === 0)
+      return;
+
+    const childItemIds = [
+      ...tx.select({ itemId: issueDetails.itemId }).from(issueDetails).where(eq(issueDetails.projectId, project.id)).all(),
+      ...tx.select({ itemId: procurementDetails.itemId }).from(procurementDetails).where(eq(procurementDetails.projectId, project.id)).all(),
+    ].map(r => r.itemId);
+
+    if (childItemIds.length === 0)
+      return;
+
+    tx.update(items)
+      .set({ deletedAt: now, updatedAt: now, version: sql`${items.version} + 1` })
+      .where(and(inArray(items.id, childItemIds), isNull(items.deletedAt)))
+      .run();
+    tx.delete(relationTuples)
+      .where(and(eq(relationTuples.namespace, "item"), inArray(relationTuples.objectId, childItemIds)))
+      .run();
+  });
 }
 
 // ─── Cover image ──────────────────────────────────────────────────────────
@@ -464,14 +534,18 @@ export async function setProjectCover(
   });
 
   const now = new Date().toISOString();
-  await db.update(projects)
-    .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${projects.version} + 1` })
-    .where(eq(projects.id, projectId))
-    .run();
-
   const previous = project.coverReferenceId;
-  if (previous && previous !== reference.id)
-    await releaseReference(db, config, { referenceId: previous });
+  // Repoint + release in one tx so an interrupted change can never leave the
+  // previous reference unreleased (the orphan-blob leak window of F4). The
+  // sync-GC blob delete runs after commit — driver I/O can't run in a sync tx.
+  const drained = db.transaction((tx) => {
+    tx.update(projects)
+      .set({ coverReferenceId: reference.id, updatedAt: now, version: sql`${projects.version} + 1` })
+      .where(eq(projects.id, projectId))
+      .run();
+    return previous && previous !== reference.id ? releaseReferenceTx(tx, previous) : null;
+  });
+  await finalizeReleasedBlob(db, config, drained);
 
   return await db.select().from(projects).where(eq(projects.id, projectId)).get();
 }
@@ -490,11 +564,16 @@ export async function removeProjectCover(
     return project;
 
   const now = new Date().toISOString();
-  await db.update(projects)
-    .set({ coverReferenceId: null, updatedAt: now, version: sql`${projects.version} + 1` })
-    .where(eq(projects.id, projectId))
-    .run();
-  await releaseReference(db, config, { referenceId: previous });
+  // Clear + release atomically (F4): no window where the cover is cleared but
+  // the old reference is left unreleased.
+  const drained = db.transaction((tx) => {
+    tx.update(projects)
+      .set({ coverReferenceId: null, updatedAt: now, version: sql`${projects.version} + 1` })
+      .where(eq(projects.id, projectId))
+      .run();
+    return releaseReferenceTx(tx, previous);
+  });
+  await finalizeReleasedBlob(db, config, drained);
 
   return await db.select().from(projects).where(eq(projects.id, projectId)).get();
 }
@@ -546,10 +625,24 @@ export async function setDefaultProjectCover(
     uploadedBy,
   });
 
-  await setSetting(db, PROJECT_DEFAULT_COVER_KEY, reference.id, { updatedBy: uploadedBy });
-
-  if (previous && previous !== reference.id)
-    await releaseReference(db, config, { referenceId: previous });
+  // Repoint the setting + release the old reference atomically (F4): the
+  // settings upsert is inlined into the tx (the standalone `setSetting`
+  // helper is not transaction-aware) so a crash can't leave the key pointing
+  // at the new reference while the previous one stays unreleased.
+  const now = new Date().toISOString();
+  const drained = db.transaction((tx) => {
+    tx.insert(settings).values({
+      key: PROJECT_DEFAULT_COVER_KEY,
+      value: reference.id,
+      updatedBy: uploadedBy,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: settings.key,
+      set: { value: reference.id, updatedBy: uploadedBy, updatedAt: now },
+    }).run();
+    return previous && previous !== reference.id ? releaseReferenceTx(tx, previous) : null;
+  });
+  await finalizeReleasedBlob(db, config, drained);
 
   return { referenceId: reference.id, url: buildCoverUrl(stored.id, reference.id) };
 }
@@ -560,9 +653,13 @@ export async function setDefaultProjectCover(
  */
 export async function removeDefaultProjectCover(db: AppDatabase, config: FileServiceConfig): Promise<void> {
   const previous = await getSetting(db, PROJECT_DEFAULT_COVER_KEY);
-  await deleteSetting(db, PROJECT_DEFAULT_COVER_KEY);
-  if (previous)
-    await releaseReference(db, config, { referenceId: previous });
+  // Clear the setting + release the old reference atomically (F4); the delete
+  // is inlined into the tx since the standalone helper is not tx-aware.
+  const drained = db.transaction((tx) => {
+    tx.delete(settings).where(eq(settings.key, PROJECT_DEFAULT_COVER_KEY)).run();
+    return previous ? releaseReferenceTx(tx, previous) : null;
+  });
+  await finalizeReleasedBlob(db, config, drained);
 }
 
 // ─── Member CRUD ────────────────────────────────────────────────────────
@@ -574,7 +671,47 @@ export interface AddMemberInput {
   readonly title?: string | null | undefined;
 }
 
+/**
+ * Count the members of a project that hold the `kind='owner'` role. Used to
+ * enforce the "at least one owner must remain" invariant before a demotion or
+ * removal that targets an owner.
+ */
+async function countOwnerMembers(db: AppDatabase, projectId: string): Promise<number> {
+  const row = await db.select({ value: count() })
+    .from(projectMembers)
+    .innerJoin(projectRoles, eq(projectRoles.id, projectMembers.roleId))
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectRoles.kind, "owner")))
+    .get();
+  return row?.value ?? 0;
+}
+
+/**
+ * Validate a real (`userId`-bearing) member assignment: the user must exist and
+ * must not already be a member of the project. Fail-closed with a clean 4xx
+ * instead of letting the FK / unique-index violation bubble to a 500.
+ * `excludeMemberId` is skipped from the duplicate check so a no-op update of an
+ * existing member's own row is allowed.
+ */
+async function assertAssignableUser(
+  db: AppDatabase,
+  projectId: string,
+  userId: string,
+  excludeMemberId?: string,
+): Promise<void> {
+  const exists = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).get();
+  if (!exists)
+    throw new NotFoundError("User", userId);
+  const conflict = await db.select({ id: projectMembers.id })
+    .from(projectMembers)
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
+    .get();
+  if (conflict && conflict.id !== excludeMemberId)
+    throw new AppError("User is already a member of this project", 409, "CONFLICT");
+}
+
 export async function addMember(db: AppDatabase, projectId: string, input: AddMemberInput): Promise<ProjectMemberRow> {
+  if (input.userId != null && input.userId !== "")
+    await assertAssignableUser(db, projectId, input.userId);
   const id = nanoid();
   const now = new Date().toISOString();
   await db.insert(projectMembers).values({
@@ -613,6 +750,22 @@ export async function updateMember(
   if (!existing)
     return undefined;
 
+  // Promotion / re-point to a real user: the user must exist and not already be
+  // a member (its own row excepted) — fail-closed with a clean 4xx (F4).
+  if (input.userId != null && input.userId !== "")
+    await assertAssignableUser(db, projectId, input.userId, memberId);
+
+  // Last-owner guard (F3): changing the sole owner's role to a non-owner role
+  // would leave the project with no owner. Block it.
+  if (input.roleId !== undefined && input.roleId !== existing.roleId) {
+    const currentRole = await resolveRole(db, projectId, existing.roleId);
+    if (currentRole?.kind === "owner") {
+      const nextRole = await resolveRole(db, projectId, input.roleId);
+      if (nextRole?.kind !== "owner" && await countOwnerMembers(db, projectId) <= 1)
+        throw new ValidationError("Cannot demote the last owner", { roleId: "At least one owner must remain" });
+    }
+  }
+
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { updatedAt: now };
   if (input.roleId !== undefined)
@@ -629,6 +782,18 @@ export async function updateMember(
 }
 
 export async function removeMember(db: AppDatabase, projectId: string, memberId: string): Promise<boolean> {
+  const existing = await db.select().from(projectMembers).where(
+    and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)),
+  ).get();
+  if (!existing)
+    return false;
+
+  // Last-owner guard (F3): refuse to remove the only member holding the owner
+  // role, which would lock ordinary administration out of the project.
+  const role = await resolveRole(db, projectId, existing.roleId);
+  if (role?.kind === "owner" && await countOwnerMembers(db, projectId) <= 1)
+    throw new ValidationError("Cannot remove the last owner", { memberId: "At least one owner must remain" });
+
   const result = await db.delete(projectMembers)
     .where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)))
     .run() as unknown as { changes: number };

@@ -14,7 +14,7 @@ import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { createRole, listRoles } from "./project.roles";
 import { projectRoutes } from "./project.routes";
-import { addMember, createProject, updateProject } from "./project.service";
+import { addMember, createProject, listMembers, updateProject } from "./project.service";
 // Registers the session-cookie auth provider that `authRequired` resolves
 // through — without it the middleware throws.
 import "@/modules/account";
@@ -281,6 +281,19 @@ describe("GET /projects (list scoping)", () => {
     const res = await app.request("/projects?status=bogus", { headers: { Cookie: cookie } });
     expect(res.status).toBe(422);
   });
+
+  test("the q search param matches name/code server-side across the whole list", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+    await createProject(db, { name: "Atlas Refit", creatorId: admin.userId });
+    await createProject(db, { name: "Bridge Overhaul", creatorId: admin.userId });
+
+    const res = await app.request("/projects?q=atlas", { headers: { Cookie: admin.cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { name: string }[]; meta: { total: number } };
+    expect(body.data.map(p => p.name)).toEqual(["Atlas Refit"]);
+    expect(body.meta.total).toBe(1);
+  });
 });
 
 describe("GET /projects/:id (detail + fail-closed)", () => {
@@ -359,6 +372,38 @@ describe("PATCH / DELETE /projects/:id (project.manage gate)", () => {
     const project = await createProject(db, { name: "P", creatorId: owner });
     const res = await app.request(`/projects/${project.shortId}`, jsonReq("PATCH", await cookieForUser(owner), {}));
     expect(res.status).toBe(422);
+  });
+
+  test("PATCH with only expectedVersion (no mutable field) is rejected with 422", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const res = await app.request(`/projects/${project.shortId}`, jsonReq("PATCH", await cookieForUser(owner), { expectedVersion: 1 }));
+    expect(res.status).toBe(422);
+  });
+
+  test("F5: a stale expectedVersion is rejected with 409 and does not write", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+
+    // First write succeeds and bumps version 1 -> 2.
+    const ok = await app.request(`/projects/${project.shortId}`, jsonReq("PATCH", await cookieForUser(owner), { name: "P2", expectedVersion: 1 }));
+    expect(ok.status).toBe(200);
+    expect((await ok.json() as { data: { version: number } }).data.version).toBe(2);
+
+    // A second writer still holding version 1 is rejected.
+    const stale = await app.request(`/projects/${project.shortId}`, jsonReq("PATCH", await cookieForUser(owner), { name: "stale", expectedVersion: 1 }));
+    expect(stale.status).toBe(409);
+    const body = await stale.json() as { success: boolean; error: { code: string }; data: { version: number; name: string } };
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("VERSION_CONFLICT");
+    expect(body.data.version).toBe(2);
+    expect(body.data.name).toBe("P2");
+
+    // The stale name never landed.
+    const detail = await app.request(`/projects/${project.shortId}`, { headers: { Cookie: await cookieForUser(owner) } });
+    expect((await detail.json() as { data: { name: string } }).data.name).toBe("P2");
   });
 
   test("the pm soft-deletes; the project then 404s", async () => {
@@ -520,6 +565,94 @@ describe("roles (roles.manage gate)", () => {
     const free = await createRole(db, project.id, { name: "Free", capabilities: [] });
     const ok = await app.request(`/projects/${project.shortId}/roles/${free.id}`, jsonReq("DELETE", cookie));
     expect(ok.status).toBe(200);
+  });
+});
+
+describe("role/authz hardening (02-F1..F4)", () => {
+  test("members.manage cannot assign the Owner role — self or other (F1)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const carol = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    // A natural delegation: a custom role that can administer members.
+    const memberAdmin = await createRole(db, project.id, { name: "MemberAdmin", capabilities: ["members.manage", "issue.view"] });
+    const bobMember = await addMember(db, project.id, { roleId: memberAdmin.id, userId: bob });
+    const ownerRole = (await listRoles(db, project.id)).find(r => r.kind === "owner")!;
+    const bobCookie = await cookieForUser(bob);
+
+    // Self-escalation to Owner is rejected.
+    const selfEscalate = await app.request(`/projects/${project.shortId}/members/${bobMember.id}`, jsonReq("PATCH", bobCookie, { roleId: ownerRole.id }));
+    expect(selfEscalate.status).toBe(403);
+
+    // Granting Owner to another member is rejected too.
+    const grant = await app.request(`/projects/${project.shortId}/members`, jsonReq("POST", bobCookie, { roleId: ownerRole.id, userId: carol }));
+    expect(grant.status).toBe(403);
+  });
+
+  test("assigning the Guest system role through the member endpoint is rejected (F1)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const guestRole = (await listRoles(db, project.id)).find(r => r.kind === "guest")!;
+    const res = await app.request(`/projects/${project.shortId}/members`, jsonReq("POST", await cookieForUser(owner), { roleId: guestRole.id, userId: bob }));
+    expect(res.status).toBe(403);
+  });
+
+  test("roles.manage cannot grant a capability the caller lacks (F2)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const roleMgr = await createRole(db, project.id, { name: "RoleMgr", capabilities: ["roles.manage", "issue.view"] });
+    await addMember(db, project.id, { roleId: roleMgr.id, userId: bob });
+    const bobCookie = await cookieForUser(bob);
+
+    // Over-grant: project.manage is outside Bob's own capability set.
+    const over = await app.request(`/projects/${project.shortId}/roles`, jsonReq("POST", bobCookie, { name: "X", capabilities: ["project.manage"] }));
+    expect(over.status).toBe(403);
+
+    // Within caps: issue.view is allowed.
+    const within = await app.request(`/projects/${project.shortId}/roles`, jsonReq("POST", bobCookie, { name: "Y", capabilities: ["issue.view"] }));
+    expect(within.status).toBe(201);
+
+    // Editing a role to add a capability the caller lacks is blocked too.
+    const target = await createRole(db, project.id, { name: "Z", capabilities: ["issue.view"] });
+    const updOver = await app.request(`/projects/${project.shortId}/roles/${target.id}`, jsonReq("PATCH", bobCookie, { capabilities: ["members.manage"] }));
+    expect(updOver.status).toBe(403);
+  });
+
+  test("the Owner (full caps) can still grant any capability (F2 — no legitimate-flow regression)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const res = await app.request(`/projects/${project.shortId}/roles`, jsonReq("POST", await cookieForUser(owner), { name: "Admins", capabilities: ["project.manage", "members.manage", "roles.manage"] }));
+    expect(res.status).toBe(201);
+  });
+
+  test("the last owner cannot be demoted or removed via the API (F3)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+    const ownerMember = (await listMembers(db, project.id)).find(m => m.userId === owner)!;
+    const readerId = await memberRoleId(project.id);
+
+    const demote = await app.request(`/projects/${project.shortId}/members/${ownerMember.id}`, jsonReq("PATCH", cookie, { roleId: readerId }));
+    expect(demote.status).toBe(422);
+
+    const remove = await app.request(`/projects/${project.shortId}/members/${ownerMember.id}`, jsonReq("DELETE", cookie));
+    expect(remove.status).toBe(422);
+  });
+
+  test("member create with a non-existent userId returns a clean 4xx, not a 500 (F4)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const roleId = await memberRoleId(project.id);
+    const res = await app.request(`/projects/${project.shortId}/members`, jsonReq("POST", await cookieForUser(owner), { roleId, userId: "ghost-user" }));
+    expect(res.status).toBe(404);
   });
 });
 

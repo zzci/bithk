@@ -2,11 +2,12 @@ import type { ContactAccessActor, ContactCapability } from "./contact.permission
 import type { ContactStatus, ContactVisibility } from "./schema";
 import type { AppDatabase, RunResult } from "@/db";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
-import { createTuple, deleteTupleByKey, deleteTuplesForEntity } from "@/modules/policy/policy.service";
+import { createTuple, deleteTupleByKey } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
 import { shares } from "@/modules/share/schema";
-import { deleteResourceTags, listResourceIdsByTag, listResourceTagViews, syncResourceTagsTx } from "@/modules/tag/tag.service";
+import { tagsRefs } from "@/modules/tag/schema";
+import { listResourceIdsByTag, listResourceTagViews, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import {
@@ -221,15 +222,35 @@ async function deleteContact(
   id: string,
 ): Promise<void> {
   await assertContactCapability(db, actor, id, "delete");
-  const result = await db.delete(contacts).where(eq(contacts.id, id)).run() as unknown as RunResult;
-  if (result.changes === 0)
-    throw new NotFoundError("Contact", id);
 
-  // `tags_refs.resource_id` has no FK, so the contact hard-delete cannot cascade
-  // its tag links — drop them app-level (replaces the old per-domain join cascade).
-  await deleteResourceTags(db, id);
-  await deleteTuplesForEntity(db, "contact", id);
-  await deleteContactShares(db, id);
+  // Atomic hard-delete: the contact row plus its three app-level cleanups
+  // (`tags_refs`, policy tuples, shares) commit or roll back together. Contact
+  // is the only hard-deleted tag-carrying resource, so a mid-cleanup failure
+  // here would otherwise orphan `tags_refs` rows permanently (`resource_id` has
+  // no FK and no `type` column, so they are never reachable for cleanup again).
+  // Run the deletes synchronously inside the tx — see bun:sqlite tx note.
+  const changes = db.transaction((tx) => {
+    const result = tx.delete(contacts).where(eq(contacts.id, id)).run() as unknown as RunResult;
+    if (result.changes === 0)
+      return 0;
+
+    // `tags_refs.resource_id` has no FK, so the row delete cannot cascade its
+    // tag links — drop them here (replaces the old per-domain join cascade).
+    tx.delete(tagsRefs).where(eq(tagsRefs.resourceId, id)).run();
+    // Policy tuples referencing this contact as object or subject.
+    tx.delete(relationTuples).where(or(
+      and(eq(relationTuples.namespace, "contact"), eq(relationTuples.objectId, id)),
+      and(eq(relationTuples.subjectNamespace, "contact"), eq(relationTuples.subjectId, id)),
+    )).run();
+    // Token-based shares (`shares.resource_id` is polymorphic, no FK).
+    tx.delete(shares)
+      .where(and(sql`${shares.resourceType} = ${"contact"}`, eq(shares.resourceId, id)))
+      .run();
+    return result.changes;
+  });
+
+  if (changes === 0)
+    throw new NotFoundError("Contact", id);
 }
 
 export { deleteContact as delete };
@@ -316,10 +337,4 @@ function targetTuple(contactId: string, target: ContactGrantTarget) {
     subjectId: target.id,
     subjectRelation: target.type === "group" ? "member" : null,
   };
-}
-
-async function deleteContactShares(db: AppDatabase, contactId: string): Promise<void> {
-  await db.delete(shares)
-    .where(and(sql`${shares.resourceType} = ${"contact"}`, eq(shares.resourceId, contactId)))
-    .run();
 }

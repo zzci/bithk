@@ -17,7 +17,12 @@ export const items = sqliteTable("items", {
   type: text("type").notNull(),
   title: text("title").notNull(),
   status: text("status").notNull(),
-  creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // ON DELETE RESTRICT (not cascade): a user must not silently hard-delete every
+  // item they created — that DB cascade cannot reach the item's `tags_refs` (no
+  // FK on `resource_id`), so it would permanently orphan tag links. Account
+  // deletion must route through a service that reassigns/soft-deletes owned
+  // items and calls `deleteResourceTags`. See docs/decisions/008.
+  creatorId: text("creator_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   version: integer("version").notNull().default(1),
   // Pin flag shared by every sub-type (issue, procurement, …). Pinned items
   // surface in the project overview's Pin area. `pinned_at` records when the

@@ -9,10 +9,11 @@ import { getDriver, setActiveDriver } from "./storage/registry";
 import "./storage/local";
 
 export { fileRoutes } from "./file.routes";
-export type { FileServiceConfig } from "./file.service";
+export type { DrainedBlob, FileServiceConfig } from "./file.service";
 export {
   addReference,
   buildDownloadResponse,
+  finalizeReleasedBlob,
   getFileById,
   getReferenceById,
   listAttachmentsByOwner,
@@ -20,6 +21,7 @@ export {
   makeAttachmentView,
   releaseAllByOwner,
   releaseReference,
+  releaseReferenceTx,
   totalStoredBytes,
   uploadAndReference,
 } from "./file.service";

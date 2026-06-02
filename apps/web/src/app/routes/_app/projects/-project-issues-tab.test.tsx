@@ -252,7 +252,7 @@ describe("projectIssuesTab", () => {
     expect(within(taglessRow).queryByText("electrical")).not.toBeInTheDocument();
   });
 
-  it("toggles a tag in the multi-select bar and threads tagIds into every status query", async () => {
+  it("toggles a tag in the multi-select bar and threads tagIds into the issues query", async () => {
     const user = userEvent.setup();
     const restore = withWideContainer();
     try {
@@ -271,11 +271,11 @@ describe("projectIssuesTab", () => {
       const alphaChip = within(bar).getByRole("button", { name: "alpha" });
       await user.click(alphaChip);
 
-      // The selected chip is marked pressed and tagIds reaches the per-status
-      // queries (one repeatable param per tag id).
+      // The selected chip is marked pressed and tagIds reaches the single
+      // issues query (one repeatable param per tag id).
       expect(alphaChip).toHaveAttribute("aria-pressed", "true");
       await waitFor(() => {
-        expect(fetchMock.mock.calls.some(c => String(c[0]).includes("tagIds=t1") && String(c[0]).includes("status=done"))).toBe(true);
+        expect(fetchMock.mock.calls.some(c => String(c[0]).includes("tagIds=t1") && String(c[0]).includes("/issues"))).toBe(true);
       });
       // Union filter narrows the list to issues carrying the selected tag.
       await waitFor(() => expect(screen.queryByText("Other task")).not.toBeInTheDocument());
