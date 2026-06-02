@@ -7,7 +7,6 @@ import { setItemPinned } from "@/modules/item/item.service";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { NotFoundError } from "@/shared/lib/errors";
-import { parsePageQuery } from "@/shared/lib/pagination";
 import { authRequired } from "@/shared/middleware/auth";
 import {
   changeStatus,
@@ -18,9 +17,6 @@ import {
   updateProcurement,
 } from "./procurement.service";
 import { PROCUREMENT_STATUSES } from "./schema";
-
-// Shared priority levels for procurement create / update / list edges.
-const PROCUREMENT_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 
 const createSchema = z.object({
   itemName: z.string().min(1).max(500),
@@ -35,7 +31,7 @@ const createSchema = z.object({
   currency: z.string().max(10).nullable().optional(),
   // Issue-parity fields. Mirror `issue.routes.ts` create semantics.
   description: z.string().max(2000).nullable().optional(),
-  priority: z.enum(PROCUREMENT_PRIORITIES).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().max(30).nullable().optional(),
   // Optional tag names (tag type 'procurement') synced with the procurement.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
@@ -53,7 +49,7 @@ const updateSchema = z.object({
   // Issue-parity fields. Mirror `issue.routes.ts` update semantics — a null
   // description / dueDate clears the stored value.
   description: z.string().max(2000).nullable().optional(),
-  priority: z.enum(PROCUREMENT_PRIORITIES).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   dueDate: z.string().max(30).nullable().optional(),
   // Replacement tag set (tag type 'procurement'); omit to leave tags unchanged.
   tags: z.array(z.string().min(1).max(50)).max(50).optional(),
@@ -63,16 +59,6 @@ const updateSchema = z.object({
 
 const statusSchema = z.object({
   status: z.enum(PROCUREMENT_STATUSES),
-});
-
-// Bounded list-query schema for the list edge: caps `q` length and validates
-// status / priority against their enums (invalid → 422 instead of silently
-// dropped). `categoryId` is bounded; pagination uses `parsePageQuery`.
-const listQuerySchema = z.object({
-  q: z.string().max(200).optional(),
-  status: z.enum(PROCUREMENT_STATUSES).optional(),
-  priority: z.enum(PROCUREMENT_PRIORITIES).optional(),
-  categoryId: z.string().max(100).optional(),
 });
 
 // Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
@@ -154,14 +140,13 @@ export function procurementRoutes() {
   router.get("/projects/:projectId/procurements", async (c) => {
     const projectId = await requireProcurementAccess(c, c.req.param("projectId"));
     const db = c.get("db");
-    const { q, status, priority, categoryId } = listQuerySchema.parse({
-      q: c.req.query("q") || undefined,
-      status: c.req.query("status") || undefined,
-      priority: c.req.query("priority") || undefined,
-      categoryId: c.req.query("categoryId") || undefined,
-    });
+    const q = c.req.query("q");
+    const status = c.req.query("status");
+    const priority = c.req.query("priority");
+    const categoryId = c.req.query("categoryId");
     const tagIds = parseTagIds(c.req.queries("tagIds"));
-    const { page, limit } = parsePageQuery(c, { limit: 20 });
+    const page = Math.max(1, Math.floor(Number.parseInt(c.req.query("page") ?? "", 10)) || 1);
+    const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
     const result = await listByProject(db, projectId, { q, status, priority, categoryId, tagIds, page, limit });
     return c.json({
       success: true,
