@@ -620,19 +620,21 @@ describe("serializeJob", () => {
     expect(out.lastRun?.durationMs).toBe(42);
   });
 
-  test("falls back to a raw blob when taskConfig is not valid JSON", async () => {
+  test("redacts the raw blob when taskConfig is not valid JSON", async () => {
     const id = nanoid();
     await db.insert(cronJobs).values({
       id,
       name: "bad-json",
       cron: "@yearly",
       taskType: "custom",
+      // A corrupt config string could embed a secret substring, so the
+      // marker is redacted rather than echoed verbatim (FIX-AUDIT-005).
       taskConfig: "{not-json",
       enabled: false,
     }).run();
     const row = (await db.select().from(cronJobs).where(eq(cronJobs.id, id)).get())!;
     const out = await serializeJob(db, null, row);
-    expect(out.taskConfig).toEqual({ _raw: "{not-json" });
+    expect(out.taskConfig).toEqual({ _raw: "[REDACTED]" });
     expect(out.status).toBe("disabled");
   });
 });
