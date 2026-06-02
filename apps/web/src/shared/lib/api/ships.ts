@@ -485,6 +485,49 @@ export function useDeleteShipWorklist(): UseMutationResult<null, Error, { shipId
   });
 }
 
+// ── Global worklists (admin knowledge base) ──
+// CRUD over the global worklist templates (shipId NULL) that ships copy from.
+// All routes are admin-gated on the API; each mutation refreshes the shared
+// global-worklist list used by the ship worklist copy picker.
+
+export function useCreateGlobalWorklist(): UseMutationResult<WorklistView, Error, { name: string } & WorklistInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: body => http<ApiEnvelope<WorklistView>>("/worklists", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(r => r.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.globalWorklists() });
+    },
+  });
+}
+
+export function useUpdateGlobalWorklist(): UseMutationResult<WorklistView, Error, { id: string } & WorklistInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }) => http<ApiEnvelope<WorklistView>>(`/worklists/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }).then(r => r.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.globalWorklists() });
+    },
+  });
+}
+
+export function useDeleteGlobalWorklist(): UseMutationResult<null, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: id => http<ApiEnvelope<null>>(`/worklists/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }).then(r => r.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: shipKeys.globalWorklists() });
+    },
+  });
+}
+
 export function useIssueReferences(issueId: string | undefined) {
   return useQuery({
     queryKey: shipKeys.issueReferences(issueId ?? ""),

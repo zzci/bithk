@@ -29,13 +29,6 @@
       "when": 1780375051763,
       "tag": "0003_plain_umar",
       "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1780391066256,
-      "tag": "0004_past_chat",
-      "breakpoints": true
     }
   ]
 }

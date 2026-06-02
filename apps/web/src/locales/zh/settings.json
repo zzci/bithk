@@ -122,26 +122,28 @@
     "eventsHint": "以逗号分隔的事件类型，或 * 表示所有事件。",
     "allEventsPlaceholder": "*（所有事件）"
   },
-  "worklistCategories": {
-    "title": "工作清单分类",
-    "description": "为船舶工作清单分类时建议使用的全局分类词汇表。",
-    "add": "添加分类",
-    "addTitle": "添加分类",
-    "editTitle": "编辑分类",
-    "dialogDescription": "工作清单分类用于在工作清单的分类字段中提供建议；仍允许自由输入。",
+  "globalWorklists": {
+    "title": "全局工作清单",
+    "description": "供船舶复制使用的知识库工作清单模板。",
+    "add": "添加工作清单",
+    "addTitle": "添加工作清单",
+    "editTitle": "编辑工作清单",
+    "dialogDescription": "全局工作清单是可复用的模板，船舶可将其复制为自己的工作清单。",
     "fieldName": "名称",
-    "fieldDescription": "描述",
+    "fieldCategory": "分类",
+    "fieldChecklist": "检查项",
+    "fieldPrecautions": "注意事项",
     "colName": "名称",
-    "colDescription": "描述",
-    "empty": "暂无工作清单分类。",
+    "colCategory": "分类",
+    "empty": "暂无全局工作清单。",
     "delete": {
-      "title": "删除分类",
-      "confirm": "删除「{{name}}」？将不再为工作清单提供该建议。"
+      "title": "删除工作清单",
+      "confirm": "删除「{{name}}」？已复制该清单的船舶将保留其副本。"
     },
     "toast": {
-      "created": "分类已创建。",
-      "updated": "分类已更新。",
-      "deleted": "分类「{{name}}」已删除。"
+      "created": "工作清单已创建。",
+      "updated": "工作清单已更新。",
+      "deleted": "工作清单「{{name}}」已删除。"
     }
   },
   "contactCategories": {

@@ -1,10 +1,10 @@
-// Body of the admin "Ship" settings tab. Hosts the global worklist-categories
-// vocabulary that seeds the worklist form's free-text category field as
-// suggestions. Mirrors ContactSettingsTab but is wired to the standalone
-// worklist-categories data layer (no `code` column). Structured as a container
-// so future ship-scoped settings sections can be added alongside.
+// Body of the admin "Ship" settings tab. Manages the GLOBAL WORKLISTS — the
+// knowledge-base worklist templates (rows in the `worklists` table with
+// shipId NULL) that ships copy from. A worklist IS the template; there is no
+// separate category vocabulary, so `category` is plain free text. Structured as
+// a container so future ship-scoped settings sections can be added alongside.
 
-import type { WorklistCategory, WorklistCategoryInput } from "@/shared/lib/api/worklist-categories";
+import type { WorklistInput, WorklistView } from "@/shared/lib/api/ships";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,69 +32,69 @@ import {
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
-  useCreateWorklistCategory,
-  useDeleteWorklistCategory,
-  useUpdateWorklistCategory,
-  useWorklistCategories,
-} from "@/shared/lib/api/worklist-categories";
+  useCreateGlobalWorklist,
+  useDeleteGlobalWorklist,
+  useGlobalWorklists,
+  useUpdateGlobalWorklist,
+} from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 
 export function ShipSettingsTab() {
   return (
     <div className="space-y-8 pt-4">
-      <WorklistCategoriesSection />
+      <GlobalWorklistsSection />
     </div>
   );
 }
 
-function WorklistCategoriesSection() {
+function GlobalWorklistsSection() {
   const { t } = useTranslation(["settings", "common"]);
-  const categoriesQuery = useWorklistCategories();
-  const deleteCategory = useDeleteWorklistCategory();
+  const worklistsQuery = useGlobalWorklists(true);
+  const deleteWorklist = useDeleteGlobalWorklist();
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<WorklistCategory | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<WorklistCategory | null>(null);
+  const [editTarget, setEditTarget] = useState<WorklistView | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorklistView | null>(null);
 
-  const categories = categoriesQuery.data ?? [];
+  const worklists = worklistsQuery.data ?? [];
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">{t("settings:worklistCategories.title")}</h2>
-          <p className="text-sm text-muted-foreground">{t("settings:worklistCategories.description")}</p>
+          <h2 className="text-lg font-semibold">{t("settings:globalWorklists.title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("settings:globalWorklists.description")}</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
-          {t("settings:worklistCategories.add")}
+          {t("settings:globalWorklists.add")}
         </Button>
       </div>
 
-      {categoriesQuery.error && <ErrorBanner message={errorMessage(categoriesQuery.error, t("common:common.error.loadFailed"))} />}
+      {worklistsQuery.error && <ErrorBanner message={errorMessage(worklistsQuery.error, t("common:common.error.loadFailed"))} />}
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("settings:worklistCategories.colName")}</TableHead>
-              <TableHead>{t("settings:worklistCategories.colDescription")}</TableHead>
+              <TableHead>{t("settings:globalWorklists.colName")}</TableHead>
+              <TableHead>{t("settings:globalWorklists.colCategory")}</TableHead>
               <TableHead className="w-32">{t("settings:col.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {categories.length === 0
-              ? <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">{t("settings:worklistCategories.empty")}</TableCell></TableRow>
-              : categories.map(category => (
-                  <TableRow key={category.id}>
-                    <TableCell className="font-medium">{category.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{category.description ?? "—"}</TableCell>
+            {worklists.length === 0
+              ? <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">{t("settings:globalWorklists.empty")}</TableCell></TableRow>
+              : worklists.map(worklist => (
+                  <TableRow key={worklist.id}>
+                    <TableCell className="font-medium">{worklist.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{worklist.category ?? "—"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" onClick={() => setEditTarget(category)}>
+                        <Button variant="ghost" onClick={() => setEditTarget(worklist)}>
                           {t("common:common.edit")}
                         </Button>
-                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(category)}>
+                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(worklist)}>
                           {t("common:common.delete")}
                         </Button>
                       </div>
@@ -111,16 +111,16 @@ function WorklistCategoriesSection() {
           if (!open)
             setDeleteTarget(null);
         }}
-        title={t("settings:worklistCategories.delete.title")}
-        description={t("settings:worklistCategories.delete.confirm", { name: deleteTarget?.name })}
-        pending={deleteCategory.isPending}
+        title={t("settings:globalWorklists.delete.title")}
+        description={t("settings:globalWorklists.delete.confirm", { name: deleteTarget?.name })}
+        pending={deleteWorklist.isPending}
         onConfirm={() => {
           if (!deleteTarget)
             return;
           const name = deleteTarget.name;
-          deleteCategory.mutate(deleteTarget.id, {
+          deleteWorklist.mutate(deleteTarget.id, {
             onSuccess: () => {
-              toast.success(t("settings:worklistCategories.toast.deleted", { name }));
+              toast.success(t("settings:globalWorklists.toast.deleted", { name }));
               setDeleteTarget(null);
             },
             onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
@@ -128,11 +128,11 @@ function WorklistCategoriesSection() {
         }}
       />
 
-      <CategoryDialog mode="create" open={createOpen} onOpenChange={setCreateOpen} />
+      <WorklistDialog mode="create" open={createOpen} onOpenChange={setCreateOpen} />
       {editTarget && (
-        <CategoryDialog
+        <WorklistDialog
           mode="edit"
-          category={editTarget}
+          worklist={editTarget}
           open
           onOpenChange={open => !open && setEditTarget(null)}
         />
@@ -141,26 +141,30 @@ function WorklistCategoriesSection() {
   );
 }
 
-interface CategoryDialogProps {
+interface WorklistDialogProps {
   readonly mode: "create" | "edit";
-  readonly category?: WorklistCategory;
+  readonly worklist?: WorklistView;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
 
-function CategoryDialog({ mode, category, open, onOpenChange }: CategoryDialogProps) {
+function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogProps) {
   const { t } = useTranslation(["settings", "common"]);
-  const createCategory = useCreateWorklistCategory();
-  const updateCategory = useUpdateWorklistCategory();
+  const createWorklist = useCreateGlobalWorklist();
+  const updateWorklist = useUpdateGlobalWorklist();
 
-  const [name, setName] = useState(category?.name ?? "");
-  const [description, setDescription] = useState(category?.description ?? "");
+  const [name, setName] = useState(worklist?.name ?? "");
+  const [category, setCategory] = useState(worklist?.category ?? "");
+  const [checklist, setChecklist] = useState(worklist?.checklist ?? "");
+  const [precautions, setPrecautions] = useState(worklist?.precautions ?? "");
 
-  const pending = createCategory.isPending || updateCategory.isPending;
-  const error = createCategory.error ?? updateCategory.error;
+  const pending = createWorklist.isPending || updateWorklist.isPending;
+  const error = createWorklist.error ?? updateWorklist.error;
 
-  const buildInput = (): WorklistCategoryInput => ({
-    description: description.trim() || null,
+  const buildInput = (): WorklistInput => ({
+    category: category.trim() || null,
+    checklist: checklist.trim() || null,
+    precautions: precautions.trim() || null,
   });
 
   const submit = (event: React.FormEvent) => {
@@ -169,18 +173,18 @@ function CategoryDialog({ mode, category, open, onOpenChange }: CategoryDialogPr
     if (!trimmed || pending)
       return;
     if (mode === "create") {
-      createCategory.mutate({ name: trimmed, ...buildInput() }, {
+      createWorklist.mutate({ name: trimmed, ...buildInput() }, {
         onSuccess: () => {
-          toast.success(t("settings:worklistCategories.toast.created"));
+          toast.success(t("settings:globalWorklists.toast.created"));
           onOpenChange(false);
         },
         onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
       });
     }
-    else if (category) {
-      updateCategory.mutate({ id: category.id, name: trimmed, ...buildInput() }, {
+    else if (worklist) {
+      updateWorklist.mutate({ id: worklist.id, name: trimmed, ...buildInput() }, {
         onSuccess: () => {
-          toast.success(t("settings:worklistCategories.toast.updated"));
+          toast.success(t("settings:globalWorklists.toast.updated"));
           onOpenChange(false);
         },
         onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
@@ -190,23 +194,33 @@ function CategoryDialog({ mode, category, open, onOpenChange }: CategoryDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:worklistCategories.addTitle") : t("settings:worklistCategories.editTitle")}</DialogTitle>
-            <DialogDescription>{t("settings:worklistCategories.dialogDescription")}</DialogDescription>
+            <DialogTitle>{mode === "create" ? t("settings:globalWorklists.addTitle") : t("settings:globalWorklists.editTitle")}</DialogTitle>
+            <DialogDescription>{t("settings:globalWorklists.dialogDescription")}</DialogDescription>
           </DialogHeader>
 
           {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
 
           <div className="space-y-1.5">
-            <Label htmlFor="worklist-category-name">{t("settings:worklistCategories.fieldName")}</Label>
-            <Input id="worklist-category-name" autoFocus required maxLength={255} value={name} onChange={e => setName(e.target.value)} />
+            <Label htmlFor="global-worklist-name">{t("settings:globalWorklists.fieldName")}</Label>
+            <Input id="global-worklist-name" autoFocus required maxLength={255} value={name} onChange={e => setName(e.target.value)} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="worklist-category-description">{t("settings:worklistCategories.fieldDescription")}</Label>
-            <Textarea id="worklist-category-description" rows={2} maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} />
+            <Label htmlFor="global-worklist-cat">{t("settings:globalWorklists.fieldCategory")}</Label>
+            <Input id="global-worklist-cat" maxLength={255} value={category} onChange={e => setCategory(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="global-worklist-checklist">{t("settings:globalWorklists.fieldChecklist")}</Label>
+            <Textarea id="global-worklist-checklist" rows={4} value={checklist} onChange={e => setChecklist(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="global-worklist-precautions">{t("settings:globalWorklists.fieldPrecautions")}</Label>
+            <Textarea id="global-worklist-precautions" rows={3} value={precautions} onChange={e => setPrecautions(e.target.value)} />
           </div>
 
           <DialogFooter>

@@ -1,4 +1,5 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
 import { ShipSettingsTab } from "./-settings-ship";
@@ -22,26 +23,40 @@ afterEach(() => {
 });
 
 describe("shipSettingsTab", () => {
-  it("renders the worklist categories section with its rows", async () => {
+  it("renders the global worklists section with its rows", async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
       data: [
-        { id: "wc1", name: "Routine Maintenance", description: "Scheduled upkeep", createdAt: "2026-06-02T00:00:00.000Z", updatedAt: "2026-06-02T00:00:00.000Z" },
+        { id: "wl1", name: "Engine service", category: "Engine", checklist: "oil; filter", precautions: "cool down", createdAt: "2026-06-02T00:00:00.000Z", updatedAt: "2026-06-02T00:00:00.000Z" },
       ],
     }));
 
     renderWithProviders(<ShipSettingsTab />);
 
-    expect(screen.getByText("Worklist Categories")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("Routine Maintenance")).toBeInTheDocument());
-    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/worklist-categories");
+    expect(screen.getByText("Global Worklists")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Engine service")).toBeInTheDocument());
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/worklists");
   });
 
-  it("shows the empty state when there are no categories", async () => {
+  it("shows the empty state when there are no global worklists", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
 
     renderWithProviders(<ShipSettingsTab />);
 
-    await waitFor(() => expect(screen.getByText("No worklist categories yet.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No global worklists yet.")).toBeInTheDocument());
+  });
+
+  it("opens the create dialog with the worklist fields", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
+
+    renderWithProviders(<ShipSettingsTab />);
+    await waitFor(() => expect(screen.getByText("No global worklists yet.")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Add Worklist" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Name")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Category")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Checklist")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Precautions")).toBeInTheDocument();
   });
 });
