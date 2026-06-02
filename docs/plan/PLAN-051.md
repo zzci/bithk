@@ -266,6 +266,47 @@ Replace the `<div className="relative ..."><Search .../><Input .../></div>` bloc
 Keep the existing `useDebounce(search, 300)` in the consumer. Issues list (client
 search) is out of scope.
 
+### 7. ListToolbar (REFACTOR-016)
+
+New `shared/components/list-toolbar.tsx`. Unifies the list toolbar row:
+left-side `filters` slot + right-side search + create button. Composes the
+shared `SearchInput`. **Decision (2026-06-02):** the create button moves to the
+right of the search box on every list (projects/ships currently render it on the
+title row — that button relocates into the toolbar). Left-side filter controls
+stay per-list via the slot.
+
+Consumers: `projects/index.lazy.tsx`, `ships/index.lazy.tsx`,
+`-project-issues-tab.tsx` (and contacts/procurements toolbars if desired later).
+
+Per list:
+
+- Remove the create `<Button>` from the title/header row (projects/ships) — the
+  title row keeps only the heading + description.
+- Replace the `<div className="flex flex-wrap items-center justify-between gap-3">`
+  filter+search row with:
+
+```tsx
+<ListToolbar
+  filters={(
+    <>
+      {/* existing status chips */}
+      <ProjectTagFilter ... />
+    </>
+  )}
+  search={{
+    value: search,
+    onChange: (v) => { setSearch(v); setPage(1); },
+    placeholder: t("list.searchPlaceholder"),
+  }}
+  create={isAdmin ? { label: t("list.create"), onClick: () => setCreateOpen(true) } : undefined}
+/>
+```
+
+- Issues tab: `filters` = the tag-filter group (or omit when no tags),
+  `create` = `canManage ? { label: t("issues.createButton"), onClick: () => openCreate("todo") }`.
+- Verify: search still resets page where it did; create gated by the same
+  permission; layout wraps on narrow widths; create now sits right of search.
+
 ### 6. tag-utils (REFACTOR-013)
 
 - `-project-form-logic.ts`: delete local `addTag`/`removeTag`, re-export from
