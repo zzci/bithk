@@ -22,6 +22,7 @@ function contact(overrides: Partial<ContactView> = {}): ContactView {
     status: "active",
     visibility: "public",
     confidential: true,
+    categoryId: null,
     tags: [{ id: "t1", name: "supplier" }],
     canManage: true,
     createdAt: "2026-05-24T00:00:00.000Z",
@@ -77,6 +78,7 @@ describe("contactFormToInput", () => {
       status: "active",
       visibility: "public",
       confidential: true,
+      categoryId: null,
       tags: ["supplier"],
     });
   });

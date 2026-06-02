@@ -4,8 +4,16 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { ValidationError } from "@/shared/lib/errors";
-import { authRequired } from "@/shared/middleware/auth";
+import { NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { adminRequired, authRequired } from "@/shared/middleware/auth";
+import {
+  composeContactCategory,
+  createContactCategory,
+  deleteContactCategory,
+  listContactCategories,
+  resolveContactCategory,
+  updateContactCategory,
+} from "./contact-category.service";
 import * as contactService from "./contact.service";
 import { CONTACT_STATUSES, CONTACT_VISIBILITIES } from "./schema";
 
@@ -22,12 +30,25 @@ const contactBodySchema = z.object({
   status: z.enum(CONTACT_STATUSES).optional(),
   visibility: z.enum(CONTACT_VISIBILITIES).optional(),
   confidential: z.boolean().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(80)).optional(),
 });
 
 const updateBodySchema = contactBodySchema.partial().refine(v => Object.keys(v).length > 0, {
   message: "At least one field must be provided",
 });
+
+const createContactCategorySchema = z.object({
+  name: z.string().min(1).max(255),
+  code: z.string().max(100).nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
+});
+
+const updateContactCategorySchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  code: z.string().max(100).nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
+}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
 const grantTargetSchema = z.object({
   userId: z.string().min(1).optional(),
@@ -59,6 +80,72 @@ function grantTarget(body: z.infer<typeof grantTargetSchema>): contactService.Co
 export function contactRoutes() {
   const router = new Hono<AppEnv>();
   router.use("*", authRequired);
+
+  // ─── Global contact categories (admin only) ────────────────────────
+  // A standalone, admin-maintained vocabulary referenced by `contacts.category_id`.
+  router.get("/contact-categories", adminRequired, async (c) => {
+    const db = c.get("db");
+    return c.json({ success: true, data: (await listContactCategories(db)).map(composeContactCategory) });
+  });
+
+  router.post("/contact-categories", adminRequired, async (c) => {
+    const user = c.get("user")!;
+    const db = c.get("db");
+    const body = createContactCategorySchema.parse(await c.req.json());
+    const category = await createContactCategory(db, body);
+    await audit(db, c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "contact_category.created",
+      resourceType: "contact_category",
+      resourceId: category.id,
+      resourceName: category.name,
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data: composeContactCategory(category) }, 201);
+  });
+
+  router.patch("/contact-categories/:id", adminRequired, async (c) => {
+    const user = c.get("user")!;
+    const db = c.get("db");
+    const id = idSchema.parse(c.req.param("id"));
+    const body = updateContactCategorySchema.parse(await c.req.json());
+    const category = await updateContactCategory(db, id, body);
+    if (!category)
+      throw new NotFoundError("Contact category", id);
+    await audit(db, c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "contact_category.updated",
+      resourceType: "contact_category",
+      resourceId: category.id,
+      resourceName: category.name,
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data: composeContactCategory(category) });
+  });
+
+  router.delete("/contact-categories/:id", adminRequired, async (c) => {
+    const user = c.get("user")!;
+    const db = c.get("db");
+    const id = idSchema.parse(c.req.param("id"));
+    const category = await resolveContactCategory(db, id);
+    if (!category || !await deleteContactCategory(db, id))
+      throw new NotFoundError("Contact category", id);
+    await audit(db, c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "contact_category.deleted",
+      resourceType: "contact_category",
+      resourceId: category.id,
+      resourceName: category.name,
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data: null });
+  });
 
   router.get("/contacts", async (c) => {
     const tag = c.req.query("tag")?.trim();

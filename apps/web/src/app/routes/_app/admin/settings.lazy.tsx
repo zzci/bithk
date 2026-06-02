@@ -1,9 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { FolderCog, Mail, Shield, Webhook } from "lucide-react";
+import { Contact, FolderCog, Mail, Shield, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { AuthSettingsTab } from "./-settings-auth";
+import { ContactSettingsTab } from "./-settings-contact";
 import { ProjectDefaultsTab } from "./-settings-project-defaults";
 import { SmtpSettingsTab } from "./-settings-smtp";
 import { WebhookSettingsTab } from "./-settings-webhook";
@@ -40,6 +41,10 @@ function SettingsPage() {
             <FolderCog className="mr-1.5 size-4" />
             {t("tabs.projectDefaults")}
           </TabsTrigger>
+          <TabsTrigger value="contact">
+            <Contact className="mr-1.5 size-4" />
+            {t("tabs.contact")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="auth">
@@ -53,6 +58,9 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="projectDefaults">
           <ProjectDefaultsTab />
+        </TabsContent>
+        <TabsContent value="contact">
+          <ContactSettingsTab />
         </TabsContent>
       </Tabs>
     </div>
