@@ -1,6 +1,6 @@
 # PLAN-051 Extract shared frontend components (lists, detail panels, form fields)
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-06-02 05:42
 - **approvedAt**: 2026-06-02 05:42
 - **relatedTask**: REFACTOR-010, REFACTOR-011, REFACTOR-012, REFACTOR-013, REFACTOR-014, REFACTOR-015

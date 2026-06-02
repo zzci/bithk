@@ -32,3 +32,5 @@ Extracting a shared responsive table list for contacts and procurements.
 
 Gate decision: confirm with the user before starting — may be dropped if Phase 1–2
 already deliver the bulk of the value.
+
+- 2026-06-02: Closed — superseded. The list unification was delivered via the shared ListFilter (left) + SearchCreateBar (right) single-row composition (PLAN-051 campaign bkd/9wrbjm5z, merged to main 58c1741), not a ResponsiveTableList container. No separate table-list abstraction was needed.

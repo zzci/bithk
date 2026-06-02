@@ -38,3 +38,4 @@ Unifying the list toolbar into a filters-slot + search + create shell.
   Consumer migration deferred — see PLAN-051 Migration Guide §7. Index row for this
   task pending resolution of the in-progress `bkd/xgbm1bkf` merge on main (docs
   index files currently conflicted).
+- 2026-06-02: Completed via a revised approach. ListToolbar was built then REMOVED; the unified one-row toolbar is now ListFilter (left) + bounded SearchCreateBar (right), adopted across projects/ships/issues/procurement/contacts. Merged to main in the PLAN-051 campaign.

@@ -31,3 +31,5 @@ Extracting a shared card-grid list for projects and ships.
 ## Notes
 
 Gate decision: confirm with the user before starting — may be dropped.
+
+- 2026-06-02: Closed — superseded. Projects/ships lists were unified via ListFilter + SearchCreateBar (single row), not a CardGridList container. Abstraction not needed.
