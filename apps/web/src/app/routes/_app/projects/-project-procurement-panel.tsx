@@ -10,12 +10,9 @@
 import type { ProcurementPriority, ProcurementStatus, UpdateProcurementInput } from "@/shared/lib/api/procurement";
 import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import {
-  ArrowLeft,
   ChevronDown,
-  Maximize2,
   Paperclip,
   Pencil,
-  X,
 } from "lucide-react";
 import {
   useEffect,
@@ -24,6 +21,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
 import { MarkdownEditor } from "@/shared/components/editor";
 import {
   ResourceFooterSections,
@@ -113,8 +111,6 @@ export function ProjectProcurementPanel({
   const procurement = procurementQuery.data ?? null;
 
   const [error, setError] = useState<string | null>(null);
-  const [titleDraft, setTitleDraft] = useState("");
-  const [editingTitle, setEditingTitle] = useState(false);
   const [descDraft, setDescDraft] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -139,12 +135,6 @@ export function ProjectProcurementPanel({
   // Drafts are seeded when entering edit mode (so an in-flight patch that
   // refreshes `procurement` never clobbers what the user is typing); the read
   // views always render straight from `procurement`.
-  const startEditTitle = () => {
-    if (!procurement)
-      return;
-    setTitleDraft(procurement.itemName);
-    setEditingTitle(true);
-  };
   const startEditDesc = () => {
     setDescDraft(procurement?.description ?? "");
     setEditingDesc(true);
@@ -192,15 +182,6 @@ export function ProjectProcurementPanel({
   };
 
   const canUploadAttachment = !!procurement && canEdit;
-
-  const saveTitle = () => {
-    const trimmed = titleDraft.trim();
-    if (procurement && trimmed && trimmed !== procurement.itemName)
-      patch({ itemName: trimmed });
-    else if (procurement)
-      setTitleDraft(procurement.itemName);
-    setEditingTitle(false);
-  };
 
   const saveDesc = () => {
     if (!procurement)
@@ -278,80 +259,20 @@ export function ProjectProcurementPanel({
       tabIndex={-1}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2 shrink-0">
-        {variant === "fullscreen" && (
-          <Button
-            variant="ghost"
-            onClick={() => onClose()}
-            className="-ml-1 gap-1 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            {t("procurement.detail.backToList")}
-          </Button>
-        )}
-        <div className="min-w-0 flex-1">
-          {editingTitle && canEdit
-            ? (
-                <input
-                  className="w-full bg-transparent text-base font-semibold tracking-tight outline-none border-b-2 border-primary"
-                  value={titleDraft}
-                  autoFocus
-                  onChange={e => setTitleDraft(e.target.value)}
-                  onBlur={saveTitle}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      saveTitle();
-                    }
-                    else if (e.key === "Escape") {
-                      setTitleDraft(procurement.itemName);
-                      setEditingTitle(false);
-                    }
-                  }}
-                />
-              )
-            : (
-                <h1
-                  className={`truncate text-base font-semibold tracking-tight ${canEdit ? "cursor-pointer rounded-sm hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}
-                  onClick={() => canEdit && startEditTitle()}
-                  title={canEdit ? t("procurement.detail.clickToEditTitle") : procurement.itemName}
-                  tabIndex={canEdit ? 0 : undefined}
-                  onKeyDown={canEdit
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          startEditTitle();
-                        }
-                      }
-                    : undefined}
-                >
-                  {procurement.itemName}
-                </h1>
-              )}
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          {variant === "drawer" && onMaximize && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onMaximize}
-              title={t("procurement.detail.openFullPage")}
-            >
-              <Maximize2 className="size-4" />
-            </Button>
-          )}
-          {variant === "drawer" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onClose()}
-              title={t("common:common.close")}
-            >
-              <X className="size-4" />
-            </Button>
-          )}
-        </div>
-      </div>
+      <DetailPanelHeader
+        variant={variant}
+        title={procurement.itemName}
+        titleEdit={canEdit
+          ? { canEdit: true, onSave: next => patch({ itemName: next }), editHint: t("procurement.detail.clickToEditTitle") }
+          : undefined}
+        labels={{
+          back: t("procurement.detail.backToList"),
+          maximize: t("procurement.detail.openFullPage"),
+          close: t("common:common.close"),
+        }}
+        onClose={onClose}
+        onMaximize={variant === "drawer" ? onMaximize : undefined}
+      />
 
       {/* Body — scrollable */}
       <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-2">
