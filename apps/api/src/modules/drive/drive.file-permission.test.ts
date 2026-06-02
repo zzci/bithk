@@ -1,6 +1,5 @@
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
-import type { FilePermissionHook } from "@/modules/file";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -9,7 +8,6 @@ import { and, eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
-import { getFilePermissionHook } from "@/modules/file/permission";
 import { fileReferences } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
@@ -17,12 +15,14 @@ import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
 import { createShare } from "@/modules/share/share.service";
+// Import the hook object directly: other suites reset the shared hook
+// registry via `__resetFilePermissionHooksForTests`, so going through
+// `getFilePermissionHook` would be order-dependent.
+import { driveEntryFilePermissionHook } from "./drive.file-permission";
 import { uploadDriveFile } from "./drive.service";
 import { addTeamMember, createTeamDirectory } from "./drive.team-directory.service";
-// Side-effect imports: register the `drive_entry` file-permission hook (the
-// subject under test) and the drive share adapter (so `createShare` resolves
-// `drive_entry` resources).
-import "./drive.file-permission";
+// Side-effect import: register the drive share adapter so `createShare`
+// resolves `drive_entry` resources.
 import "./drive.share-adapter";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
@@ -39,13 +39,7 @@ const config: Pick<Config, "MAX_UPLOAD_BYTES" | "MAX_ATTACHMENTS_PER_RESOURCE" |
   FILE_PRESIGN_TTL_SECONDS: 300,
 };
 
-/** The registered drive_entry hook — fail loudly if the side-effect import broke. */
-function driveHook(): FilePermissionHook {
-  const hook = getFilePermissionHook("drive_entry");
-  if (!hook)
-    throw new Error("drive_entry file-permission hook is not registered");
-  return hook;
-}
+const driveHook = driveEntryFilePermissionHook;
 
 async function seedUser(name: string, role: "admin" | "user" = "user") {
   const id = nanoid();
@@ -105,8 +99,8 @@ describe("drive_entry hook — personal ownership", () => {
     const owner = await seedUser("Owner");
     const ref = await driveFileRef("user", owner, owner);
     const actor = { id: owner, role: "user" };
-    expect(await driveHook().canRead(db, actor, ref)).toBe(true);
-    expect(await driveHook().canDelete(db, actor, ref)).toBe(true);
+    expect(await driveHook.canRead(db, actor, ref)).toBe(true);
+    expect(await driveHook.canDelete(db, actor, ref)).toBe(true);
   });
 
   test("a stranger can neither read nor delete (was the bug: owner-only check)", async () => {
@@ -114,8 +108,8 @@ describe("drive_entry hook — personal ownership", () => {
     const stranger = await seedUser("Stranger");
     const ref = await driveFileRef("user", owner, owner);
     const actor = { id: stranger, role: "user" };
-    expect(await driveHook().canRead(db, actor, ref)).toBe(false);
-    expect(await driveHook().canDelete(db, actor, ref)).toBe(false);
+    expect(await driveHook.canRead(db, actor, ref)).toBe(false);
+    expect(await driveHook.canDelete(db, actor, ref)).toBe(false);
   });
 
   test("a global admin can read and delete any entry", async () => {
@@ -123,8 +117,8 @@ describe("drive_entry hook — personal ownership", () => {
     const admin = await seedUser("Admin", "admin");
     const ref = await driveFileRef("user", owner, owner);
     const actor = { id: admin, role: "admin" };
-    expect(await driveHook().canRead(db, actor, ref)).toBe(true);
-    expect(await driveHook().canDelete(db, actor, ref)).toBe(true);
+    expect(await driveHook.canRead(db, actor, ref)).toBe(true);
+    expect(await driveHook.canDelete(db, actor, ref)).toBe(true);
   });
 
   test("returns false when the referenced entry no longer exists", async () => {
@@ -132,8 +126,8 @@ describe("drive_entry hook — personal ownership", () => {
     const ref = await driveFileRef("user", owner, owner);
     const missingRef = { ...ref, ownerId: "no-such-entry" };
     const actor = { id: owner, role: "user" };
-    expect(await driveHook().canRead(db, actor, missingRef)).toBe(false);
-    expect(await driveHook().canDelete(db, actor, missingRef)).toBe(false);
+    expect(await driveHook.canRead(db, actor, missingRef)).toBe(false);
+    expect(await driveHook.canDelete(db, actor, missingRef)).toBe(false);
   });
 });
 
@@ -151,22 +145,22 @@ describe("drive_entry hook — team directory access", () => {
   test("team editor can read and delete (denied before the fix)", async () => {
     const { ref, member } = await teamRef("editor");
     const actor = { id: member, role: "user" };
-    expect(await driveHook().canRead(db, actor, ref)).toBe(true);
-    expect(await driveHook().canDelete(db, actor, ref)).toBe(true);
+    expect(await driveHook.canRead(db, actor, ref)).toBe(true);
+    expect(await driveHook.canDelete(db, actor, ref)).toBe(true);
   });
 
   test("team viewer can read but not delete", async () => {
     const { ref, member } = await teamRef("viewer");
     const actor = { id: member, role: "user" };
-    expect(await driveHook().canRead(db, actor, ref)).toBe(true);
-    expect(await driveHook().canDelete(db, actor, ref)).toBe(false);
+    expect(await driveHook.canRead(db, actor, ref)).toBe(true);
+    expect(await driveHook.canDelete(db, actor, ref)).toBe(false);
   });
 
   test("a non-member can neither read nor delete", async () => {
     const { ref, member } = await teamRef("none");
     const actor = { id: member, role: "user" };
-    expect(await driveHook().canRead(db, actor, ref)).toBe(false);
-    expect(await driveHook().canDelete(db, actor, ref)).toBe(false);
+    expect(await driveHook.canRead(db, actor, ref)).toBe(false);
+    expect(await driveHook.canDelete(db, actor, ref)).toBe(false);
   });
 });
 
@@ -190,22 +184,22 @@ describe("drive_entry hook — project access", () => {
   test("a project manager (files.manage) can read and delete", async () => {
     const { ref, actor } = await projectRef("pm");
     const who = { id: actor, role: "user" };
-    expect(await driveHook().canRead(db, who, ref)).toBe(true);
-    expect(await driveHook().canDelete(db, who, ref)).toBe(true);
+    expect(await driveHook.canRead(db, who, ref)).toBe(true);
+    expect(await driveHook.canDelete(db, who, ref)).toBe(true);
   });
 
   test("a project reader (files.view) can read but not delete", async () => {
     const { ref, actor } = await projectRef("reader");
     const who = { id: actor, role: "user" };
-    expect(await driveHook().canRead(db, who, ref)).toBe(true);
-    expect(await driveHook().canDelete(db, who, ref)).toBe(false);
+    expect(await driveHook.canRead(db, who, ref)).toBe(true);
+    expect(await driveHook.canDelete(db, who, ref)).toBe(false);
   });
 
   test("a non-member can neither read nor delete", async () => {
     const { ref, actor } = await projectRef("none");
     const who = { id: actor, role: "user" };
-    expect(await driveHook().canRead(db, who, ref)).toBe(false);
-    expect(await driveHook().canDelete(db, who, ref)).toBe(false);
+    expect(await driveHook.canRead(db, who, ref)).toBe(false);
+    expect(await driveHook.canDelete(db, who, ref)).toBe(false);
   });
 });
 
@@ -228,14 +222,14 @@ describe("drive_entry hook — direct shares", () => {
   test("a view share confers read but never delete", async () => {
     const { ref, recipient } = await sharedRef("view");
     const actor = { id: recipient, role: "user" };
-    expect(await driveHook().canRead(db, actor, ref)).toBe(true);
-    expect(await driveHook().canDelete(db, actor, ref)).toBe(false);
+    expect(await driveHook.canRead(db, actor, ref)).toBe(true);
+    expect(await driveHook.canDelete(db, actor, ref)).toBe(false);
   });
 
   test("an edit share confers read but still never delete", async () => {
     const { ref, recipient } = await sharedRef("edit");
     const actor = { id: recipient, role: "user" };
-    expect(await driveHook().canRead(db, actor, ref)).toBe(true);
-    expect(await driveHook().canDelete(db, actor, ref)).toBe(false);
+    expect(await driveHook.canRead(db, actor, ref)).toBe(true);
+    expect(await driveHook.canDelete(db, actor, ref)).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import type { AppDatabase } from "@/db";
+import type { FilePermissionHook } from "@/modules/file";
 import { eq } from "drizzle-orm";
 import { registerFilePermissionHook } from "@/modules/file";
 import { resolveEntryCapabilities } from "./drive.permission";
@@ -22,7 +23,11 @@ async function loadEntryOwner(db: AppDatabase, entryId: string) {
 // so team-directory, project and direct-share derived access is honored the
 // same way the drive routes honor it — not just direct personal ownership.
 // (Admin bypass lives inside `resolveEntryCapabilities`.)
-registerFilePermissionHook("drive_entry", {
+//
+// Exported so tests can exercise it directly without depending on the shared
+// hook registry, which other suites reset via
+// `__resetFilePermissionHooksForTests`.
+export const driveEntryFilePermissionHook: FilePermissionHook = {
   canRead: async (db, actor, ref) => {
     const entry = await loadEntryOwner(db, ref.ownerId);
     if (!entry)
@@ -37,4 +42,6 @@ registerFilePermissionHook("drive_entry", {
     const caps = await resolveEntryCapabilities(db, entry, actor);
     return caps.has("delete");
   },
-});
+};
+
+registerFilePermissionHook("drive_entry", driveEntryFilePermissionHook);
