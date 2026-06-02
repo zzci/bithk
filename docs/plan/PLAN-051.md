@@ -148,7 +148,6 @@ New files:
 | `DetailPanelHeader` | `shared/components/detail-panel-header.tsx` | issue/procurement panel header block |
 | `CoverField` | `shared/components/cover-field.tsx` | `ProjectCoverField`, `ShipCoverField` |
 | `PaginationFooter` | `shared/components/pagination-footer.tsx` | inline prev/next footers (4 lists) |
-| `ToolbarFilter` | `shared/components/toolbar-filter.tsx` | local `ToolbarFilter` copies (procurement, contacts) |
 | `SearchInput` | `shared/components/search-input.tsx` | inline Search-icon+Input markup (4 toolbars) |
 | `addTag`/`removeTag` | `shared/lib/tag-utils.ts` | dup copies in project/contact form-logic |
 
@@ -243,12 +242,13 @@ Each list's `{totalPages > 1 && meta && (<div ...prev/next...>)}` becomes:
 Swap `totalLabel` per list (`list.total`, etc.). Prev/Next text comes from the
 shared component (`common.prev`/`common.next`).
 
-### 4. ToolbarFilter (REFACTOR-012)
+### 4. ToolbarFilter — REMOVED (superseded by ListFilter)
 
-In `-project-procurement-tab.tsx` and `contacts/index.lazy.tsx`: delete the local
-`ToolbarFilter` function + `ToolbarFilterProps` interface, import the shared one.
-Call sites are unchanged (same props). The contacts file's local `ALL = "__all__"`
-constant still works as the value/sentinel passed in.
+**Decision (2026-06-02):** `ToolbarFilter` is dropped and
+`shared/components/toolbar-filter.tsx` deleted. It never gained a consumer of the
+shared copy; the single-dimension dropdown filter is fully covered by `ListFilter`
+(§ the `ListFilter` entry), which is now the one documented filter primitive. The
+procurement/contacts toolbars migrated to `ListFilter` directly.
 
 ### 5. SearchInput (REFACTOR-012)
 

@@ -27,7 +27,6 @@ from. Feature-local components living under `app/routes/**` are out of scope.
 | --- | --- |
 | `ui/*`, `ResizableDrawer`, `ResourceFooterSections`, `CoverImage`, `PrioritySignal`, `ListFilter` | In use |
 | `DetailPanelHeader`, `CoverField`, `PaginationFooter`, `SearchInput`, `SearchCreateBar`, `tag-utils` | Defined (PLAN-051); consumer migration pending — see [plan/PLAN-051.md](plan/PLAN-051.md) Migration Guide |
-| `ToolbarFilter` | Defined (PLAN-051); largely superseded by `ListFilter` for new code — prefer `ListFilter` |
 
 ---
 
@@ -94,20 +93,6 @@ row and pair it with `SearchCreateBar` on the right:
   />
 </div>
 ```
-
-### `ToolbarFilter`
-
-`shared/components/toolbar-filter.tsx` — simpler single-dimension dropdown filter
-(radio group) with a leading "show everything" sentinel (`"__all__"`). **Prefer
-`ListFilter` for new code**; `ToolbarFilter` remains for the plain single-dropdown
-case.
-
-| Prop | Type | Notes |
-| --- | --- | --- |
-| `value` | `string` | `"__all__"` means no filter |
-| `allLabel` | `string` | label for the sentinel option |
-| `options` | `{ value; label }[]` | |
-| `onChange` | `(value: string) => void` | |
 
 ### `PaginationFooter`
 
