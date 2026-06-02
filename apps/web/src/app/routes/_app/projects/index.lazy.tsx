@@ -104,6 +104,18 @@ export function ProjectsListPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <ProjectTagFilter
+            tags={tags}
+            selectedTagId={tags.some(tag => tag.id === filter) ? filter : null}
+            onSelect={(tagId) => {
+              setFilter(tagId);
+              setPage(1);
+            }}
+            onClear={() => {
+              setFilter("__active__");
+              setPage(1);
+            }}
+          />
           {[
             { key: "__active__", label: t("status.active"), count: activeCount },
             { key: "__archived__", label: t("status.archived"), count: archivedCount },
@@ -124,18 +136,6 @@ export function ProjectsListPage() {
               )}
             </Button>
           ))}
-          <ProjectTagFilter
-            tags={tags}
-            selectedTagId={tags.some(tag => tag.id === filter) ? filter : null}
-            onSelect={(tagId) => {
-              setFilter(tagId);
-              setPage(1);
-            }}
-            onClear={() => {
-              setFilter("__active__");
-              setPage(1);
-            }}
-          />
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
