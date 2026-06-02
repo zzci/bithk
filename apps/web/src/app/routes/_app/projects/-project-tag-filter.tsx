@@ -1,11 +1,12 @@
 // Tag filter shared by the projects list (single-select) and the project
-// issues / procurement tabs (multi-select). Renders a single selector control
-// that lists every tag with a checkable state, followed by the selected tags as
-// chips to its right.
+// issues / procurement tabs (multi-select). Hybrid layout: the top-N most-used
+// tags are pinned as inline toggle chips, a "Tags" selector lists the rest, and
+// non-pinned selected tags trail to the right as removable chips.
 //
 // Single-select uses a DropdownMenu; multi-select uses a searchable Combobox
 // that shows the checked state per tag and diffs its value array down to a
-// single `onToggle` per change.
+// single `onToggle` per change. Both selectors are fed only the non-pinned
+// remainder; the selector is hidden entirely when no remainder exists.
 
 import type { ProjectTag } from "@/shared/lib/api/projects";
 import { ChevronDown, X } from "lucide-react";
@@ -51,6 +52,9 @@ interface MultiSelectProps extends BaseProps {
 
 type ProjectTagFilterProps = SingleSelectProps | MultiSelectProps;
 
+// Number of most-used tags pinned as inline toggle chips before the selector.
+const PINNED_COUNT = 5;
+
 interface RemovableChipProps {
   readonly tag: ProjectTag;
   readonly onRemove: (tagId: string) => void;
@@ -81,36 +85,75 @@ export function ProjectTagFilter(props: ProjectTagFilterProps) {
   if (tags.length === 0)
     return null;
 
-  const selected = props.multiple
-    ? tags.filter(tag => props.selectedTagIds.includes(tag.id))
-    : tags.filter(tag => props.selectedTagId === tag.id);
+  const pinned = tags.slice(0, PINNED_COUNT);
+  const rest = tags.slice(PINNED_COUNT);
+
+  const isActive = (tag: ProjectTag) =>
+    props.multiple ? props.selectedTagIds.includes(tag.id) : props.selectedTagId === tag.id;
+
+  // Selected tags that are NOT pinned trail as removable chips; pinned selected
+  // tags convey their state through the pinned chip itself.
+  const restSelected = props.multiple
+    ? rest.filter(tag => props.selectedTagIds.includes(tag.id))
+    : rest.filter(tag => props.selectedTagId === tag.id);
 
   return (
     <div className={cn("flex min-w-0 flex-wrap items-center gap-2", className)}>
-      {props.multiple
-        ? (
-            <TagFilterCombobox
-              tags={tags}
-              selectedTagIds={props.selectedTagIds}
-              onToggle={props.onToggle}
-            />
-          )
-        : (
-            <SingleSelectDropdown
-              tags={tags}
-              selectedTagId={props.selectedTagId}
-              onSelect={props.onSelect}
-            />
-          )}
+      {/* Pinned inline toggle chips for the most-used tags. No X — toggles only. */}
+      {pinned.map((tag) => {
+        const active = isActive(tag);
+        return (
+          <Button
+            key={tag.id}
+            variant="outline"
+            aria-pressed={active}
+            aria-label={t("list.tagFilterPinLabel", { name: tag.name })}
+            className={cn(
+              "h-8 shrink-0 rounded-md px-2.5 text-xs font-medium",
+              active
+              && "border-transparent bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
+            )}
+            onClick={() => {
+              if (props.multiple)
+                props.onToggle(tag.id);
+              else if (active)
+                props.onClear?.();
+              else
+                props.onSelect(tag.id);
+            }}
+          >
+            {tag.name}
+          </Button>
+        );
+      })}
 
-      {/* Selected tags as chips. Multi-select chips are removable. Single-select
-          shows its one selected tag as a highlighted chip; with `onClear` it gets
-          an X that clears the selection, otherwise it is a plain label. */}
+      {/* Selector over the non-pinned remainder; hidden when nothing remains. */}
+      {rest.length > 0 && (
+        props.multiple
+          ? (
+              <TagFilterCombobox
+                tags={rest}
+                selectedTagIds={props.selectedTagIds}
+                onToggle={props.onToggle}
+              />
+            )
+          : (
+              <SingleSelectDropdown
+                tags={rest}
+                selectedTagId={props.selectedTagId}
+                onSelect={props.onSelect}
+              />
+            )
+      )}
+
+      {/* Non-pinned selected tags as chips. Multi-select chips are removable.
+          Single-select shows its selected tag as a highlighted chip; with
+          `onClear` it gets an X that clears the selection, otherwise a label. */}
       {props.multiple
-        ? selected.map(tag => (
+        ? restSelected.map(tag => (
             <RemovableChip key={tag.id} tag={tag} onRemove={props.onToggle} />
           ))
-        : selected.map(tag => (
+        : restSelected.map(tag => (
             props.onClear
               ? (
                   <span
