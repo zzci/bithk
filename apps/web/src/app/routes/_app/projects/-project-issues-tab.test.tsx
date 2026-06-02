@@ -254,40 +254,33 @@ describe("projectIssuesTab", () => {
 
   it("toggles a tag in the multi-select bar and threads tagIds into the issues query", async () => {
     const user = userEvent.setup();
-    const restore = withWideContainer();
-    try {
-      routeFetch(
-        [
-          issue({ id: "i1", title: "Fix leak", status: "todo", tags: [{ id: "t1", name: "alpha" }] }),
-          issue({ id: "i2", title: "Other task", status: "todo", tags: [{ id: "t2", name: "beta" }] }),
-        ],
-        tags("alpha", "beta"),
-      );
-      renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
-      await screen.findByText("Fix leak");
-      expect(screen.getByText("Other task")).toBeInTheDocument();
+    routeFetch(
+      [
+        issue({ id: "i1", title: "Fix leak", status: "todo", tags: [{ id: "t1", name: "alpha" }] }),
+        issue({ id: "i2", title: "Other task", status: "todo", tags: [{ id: "t2", name: "beta" }] }),
+      ],
+      tags("alpha", "beta"),
+    );
+    renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} />);
+    await screen.findByText("Fix leak");
+    expect(screen.getByText("Other task")).toBeInTheDocument();
 
-      const bar = screen.getByRole("group", { name: "Filter by tag" });
-      const alphaChip = within(bar).getByRole("button", { name: "alpha" });
-      await user.click(alphaChip);
+    const bar = screen.getByRole("group", { name: "Filter by tag" });
+    // Select "alpha" through the tag selector.
+    await user.click(within(bar).getByRole("combobox", { name: "More tags" }));
+    await user.click(await screen.findByRole("option", { name: "alpha" }));
 
-      // The selected chip is marked pressed and tagIds reaches the single
-      // issues query (one repeatable param per tag id).
-      expect(alphaChip).toHaveAttribute("aria-pressed", "true");
-      await waitFor(() => {
-        expect(fetchMock.mock.calls.some(c => String(c[0]).includes("tagIds=t1") && String(c[0]).includes("/issues"))).toBe(true);
-      });
-      // Union filter narrows the list to issues carrying the selected tag.
-      await waitFor(() => expect(screen.queryByText("Other task")).not.toBeInTheDocument());
-      expect(screen.getByText("Fix leak")).toBeInTheDocument();
+    // tagIds reaches the single issues query (one repeatable param per tag id).
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("tagIds=t1") && String(c[0]).includes("/issues"))).toBe(true);
+    });
+    // Union filter narrows the list to issues carrying the selected tag.
+    await waitFor(() => expect(screen.queryByText("Other task")).not.toBeInTheDocument());
+    expect(screen.getByText("Fix leak")).toBeInTheDocument();
 
-      // Deselecting clears the filter.
-      await user.click(within(bar).getByRole("button", { name: "alpha" }));
-      await waitFor(() => expect(screen.getByText("Other task")).toBeInTheDocument());
-    }
-    finally {
-      restore();
-    }
+    // The selected tag shows as a removable chip; its X clears the filter.
+    await user.click(within(bar).getByRole("button", { name: "Remove tag alpha" }));
+    await waitFor(() => expect(screen.getByText("Other task")).toBeInTheDocument());
   });
 
   it("opens a searchable More combobox for overflow tags and toggles via it", async () => {
