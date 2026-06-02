@@ -79,4 +79,4 @@
 | [FIX-024](FIX-024.md) | Tag-filter neutral trigger + hide selected from list | [PLAN-048](../plan/PLAN-048.md) | Completed | 2026-06-02 |
 | [FIX-025](FIX-025.md) | Remove projects-home filter-row label | [PLAN-048](../plan/PLAN-048.md) | Completed | 2026-06-02 |
 | [FIX-026](FIX-026.md) | Create-issue dialog staged-attachment list | [PLAN-049](../plan/PLAN-049.md) | Completed | 2026-06-02 |
-| [FIX-027](FIX-027.md) | Tag-filter pinned top-N chips + dropdown rest + removable non-pinned | [PLAN-050](../plan/PLAN-050.md) | In Progress | 2026-06-02 |
+| [FIX-027](FIX-027.md) | Tag-filter pinned top-N chips + dropdown rest + removable non-pinned | [PLAN-050](../plan/PLAN-050.md) | Completed | 2026-06-02 |

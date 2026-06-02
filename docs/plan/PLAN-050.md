@@ -1,6 +1,6 @@
 # PLAN-050 Tag-filter pinned-chips + dropdown hybrid
 
-- **status**: In Progress
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 28377ph1
 - **campaignId**: l1-75ymcfnr-tagpin-20260602052326
 - **tasks**: [FIX-027](../task/FIX-027.md)
@@ -84,3 +84,4 @@ prop edits.
 ## Notes
 
 - 2026-06-02 - Created at L2 28377ph1 bootstrap.
+- 2026-06-02 - FIX-027 (L3 66nt8c3f) merged + verified; PLAN Completed. branch bkd/28377ph1 @ d06c5ad, check EXIT=0.
