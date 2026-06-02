@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { SearchInput } from "@/shared/components/search-input";
 import { Button } from "@/shared/components/ui/button";
 
@@ -18,7 +19,8 @@ interface ListToolbarSearch {
 }
 
 interface ListToolbarCreate {
-  readonly label: string;
+  /** Button text. Defaults to the generic "New" (common.create). */
+  readonly label?: string;
   readonly onClick: () => void;
 }
 
@@ -31,6 +33,7 @@ interface ListToolbarProps {
 }
 
 export function ListToolbar({ filters, search, create }: ListToolbarProps) {
+  const { t } = useTranslation("common");
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{filters}</div>
@@ -44,7 +47,7 @@ export function ListToolbar({ filters, search, create }: ListToolbarProps) {
         {create && (
           <Button onClick={create.onClick}>
             <Plus aria-hidden="true" />
-            {create.label}
+            {create.label ?? t("common.create")}
           </Button>
         )}
       </div>

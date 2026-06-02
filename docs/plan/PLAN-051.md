@@ -328,6 +328,10 @@ button with:
 />
 ```
 
+`create.label` is optional — omit it to get the generic "+ New" (`common.create`,
+added in zh/en). Pass a label only when a list wants specific text. Same rule
+applies to `ListToolbar.create.label` (§7).
+
 Verify: search fills width, create on the right, page reset preserved.
 
 ### 6. tag-utils (REFACTOR-013)

@@ -4,6 +4,7 @@
 // instead. Composes the shared SearchInput.
 
 import { Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { SearchInput } from "@/shared/components/search-input";
 import { Button } from "@/shared/components/ui/button";
 
@@ -14,7 +15,8 @@ interface SearchCreateBarSearch {
 }
 
 interface SearchCreateBarCreate {
-  readonly label: string;
+  /** Button text. Defaults to the generic "New" (common.create). */
+  readonly label?: string;
   readonly onClick: () => void;
 }
 
@@ -25,6 +27,7 @@ interface SearchCreateBarProps {
 }
 
 export function SearchCreateBar({ search, create }: SearchCreateBarProps) {
+  const { t } = useTranslation("common");
   return (
     <div className="flex items-center gap-2">
       <SearchInput
@@ -36,7 +39,7 @@ export function SearchCreateBar({ search, create }: SearchCreateBarProps) {
       {create && (
         <Button onClick={create.onClick}>
           <Plus aria-hidden="true" />
-          {create.label}
+          {create.label ?? t("common.create")}
         </Button>
       )}
     </div>
