@@ -369,7 +369,7 @@ describe("projectIssuesTab", () => {
     await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
 
-    await user.type(within(dialog).getByPlaceholderText("Title"), "Replace pump seal");
+    await user.type(within(dialog).getByPlaceholderText("Issue title"), "Replace pump seal");
 
     await user.click(within(dialog).getByRole("button", { name: /To Do/ }));
     await user.click(await screen.findByRole("menuitemradio", { name: "In Progress" }));
@@ -382,7 +382,7 @@ describe("projectIssuesTab", () => {
 
     fireEvent.change(within(dialog).getByLabelText("Due date", { selector: "input" }), { target: { value: "2099-06-15" } });
 
-    await user.click(within(dialog).getByRole("button", { name: "Create work order" }));
+    await user.click(within(dialog).getByRole("button", { name: "Create issue" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "POST");
@@ -399,6 +399,32 @@ describe("projectIssuesTab", () => {
     });
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  }, 15000);
+
+  it("keeps the composer open and resets the form when 'create more' is on", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    renderWithProviders(
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await screen.findByText("No work orders found.");
+
+    await user.click(screen.getByRole("button", { name: "New" }));
+    const dialog = await screen.findByRole("dialog");
+
+    await user.click(within(dialog).getByRole("switch", { name: "Create more" }));
+    const titleInput = within(dialog).getByPlaceholderText("Issue title");
+    await user.type(titleInput, "First issue");
+    await user.click(within(dialog).getByRole("button", { name: "Create issue" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "POST");
+      expect(post).toBeDefined();
+    });
+
+    // Dialog stays open and the title clears, ready for the next entry.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByPlaceholderText("Issue title")).toHaveValue(""));
   }, 15000);
 
   it("opens the native date picker when the due-date pill is clicked", async () => {
