@@ -1,7 +1,7 @@
 import type { ContactAccessActor, ContactCapability } from "./contact.permission";
 import type { ContactStatus, ContactVisibility } from "./schema";
 import type { AppDatabase, RunResult } from "@/db";
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { createTuple, deleteTupleByKey } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
@@ -78,6 +78,24 @@ export interface UpdateContactInput {
 
 export interface ListContactsParams {
   readonly tag?: string | undefined;
+  readonly q?: string | undefined;
+  readonly status?: ContactStatus | undefined;
+  readonly visibility?: ContactVisibility | undefined;
+  readonly confidential?: boolean | undefined;
+  readonly page?: number | undefined;
+  readonly limit?: number | undefined;
+}
+
+export interface ListContactsResult {
+  readonly data: readonly ContactView[];
+  readonly total: number;
+}
+
+const LIKE_SPECIAL_RE = /[\\%_]/g;
+
+/** Backslash-escape SQL LIKE wildcards so user input is matched literally. */
+function escapeLike(v: string): string {
+  return v.replace(LIKE_SPECIAL_RE, "\\$&");
 }
 
 export interface ContactGrantTarget {
@@ -138,7 +156,7 @@ export async function list(
   db: AppDatabase,
   actor: ContactAccessActor,
   params: ListContactsParams = {},
-): Promise<readonly ContactView[]> {
+): Promise<ListContactsResult> {
   const conditions = [];
 
   if (actor.role !== "admin") {
@@ -155,17 +173,41 @@ export async function list(
   if (params.tag) {
     const ids = await listResourceIdsByTag(db, CONTACT_TAG_BINDING, params.tag);
     if (ids.length === 0)
-      return [];
+      return { data: [], total: 0 };
     conditions.push(inArray(contacts.id, ids));
   }
 
+  if (params.status)
+    conditions.push(eq(contacts.status, params.status));
+  if (params.visibility)
+    conditions.push(eq(contacts.visibility, params.visibility));
+  if (params.confidential !== undefined)
+    conditions.push(eq(contacts.confidential, params.confidential));
+  if (params.q && params.q.length > 0) {
+    const like = `%${escapeLike(params.q)}%`;
+    conditions.push(sql`(${contacts.name} LIKE ${like} ESCAPE '\\' OR ${contacts.contactPerson} LIKE ${like} ESCAPE '\\' OR ${contacts.note} LIKE ${like} ESCAPE '\\')`);
+  }
+
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const rows = await db
+
+  const paginate = params.page !== undefined;
+  const page = Math.max(1, params.page ?? 1);
+  const limit = Math.min(100, Math.max(1, params.limit ?? 20));
+
+  let total: number;
+  if (paginate) {
+    const totalRow = await db.select({ value: count() }).from(contacts).where(where).get();
+    total = totalRow?.value ?? 0;
+  }
+
+  const baseQuery = db
     .select()
     .from(contacts)
     .where(where)
-    .orderBy(desc(contacts.createdAt), desc(contacts.id))
-    .all();
+    .orderBy(desc(contacts.createdAt), desc(contacts.id));
+  const rows = paginate
+    ? await baseQuery.limit(limit).offset((page - 1) * limit).all()
+    : await baseQuery.all();
 
   const views: ContactView[] = [];
   for (const row of rows) {
@@ -174,7 +216,7 @@ export async function list(
       continue;
     views.push(await composeWithCapabilities(db, actor, row, caps));
   }
-  return views;
+  return { data: views, total: paginate ? total! : views.length };
 }
 
 export async function update(

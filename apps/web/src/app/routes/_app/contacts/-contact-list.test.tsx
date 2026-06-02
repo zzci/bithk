@@ -50,15 +50,34 @@ function ok(data: unknown) {
   return jsonResponse({ success: true, data });
 }
 
+/**
+ * Route the paginated list GET (returns the { data, meta } envelope the new
+ * server-driven list expects) while letting mutations resolve generically.
+ * `total` defaults to the row count so single-page tests need no override.
+ */
+function routeFetch(contacts: ContactView[], total = contacts.length) {
+  fetchMock.mockImplementation(async (url, init) => {
+    const path = String(url);
+    const method = String(init?.method ?? "GET").toUpperCase();
+    if (path.includes("/contacts") && method === "GET") {
+      const parsed = new URL(path, "http://test.local");
+      const page = Number(parsed.searchParams.get("page") ?? 1);
+      const limit = Number(parsed.searchParams.get("limit") ?? 20);
+      return jsonResponse({ success: true, data: contacts, meta: { total, page, limit } });
+    }
+    return ok({ id: "c1" });
+  });
+}
+
 describe("contactsListPage", () => {
-  it("renders contacts with fields, tags, and manage actions", async () => {
-    fetchMock.mockResolvedValue(ok([contact()]));
+  it("renders contacts as dense grid rows with fields, tags, and manage actions", async () => {
+    routeFetch([contact()]);
 
     renderWithProviders(<ContactsListPage />);
 
     expect(screen.getByRole("heading", { name: "Contacts" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    expect(screen.getByRole("columnheader", { name: "Company / unit" })).toBeInTheDocument();
+    expect(screen.getByText("Company / unit")).toBeInTheDocument();
     expect(screen.getByText("Jane")).toBeInTheDocument();
     expect(screen.getByText("supplier")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Acme Marine" })).toBeInTheDocument();
@@ -66,21 +85,60 @@ describe("contactsListPage", () => {
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
   });
 
-  it("renders the status and visibility filter chips with counts", async () => {
-    fetchMock.mockResolvedValue(ok([
-      contact(),
-      contact({ id: "c2", name: "Beta Yard", status: "inactive", visibility: "public", confidential: true }),
-    ]));
+  it("renders the toolbar dropdown filters with their default labels", async () => {
+    routeFetch([contact()]);
 
     renderWithProviders(<ContactsListPage />);
 
-    await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Active 1" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Public 1" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "All statuses" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All visibility" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All confidentiality" })).toBeInTheDocument();
   });
 
-  it("hides manage actions when canManage is false", async () => {
-    fetchMock.mockResolvedValue(ok([contact({ canManage: false })]));
+  it("drives the list query from the status filter dropdown", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "All statuses" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Active" }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("status=active"))).toBe(true);
+    });
+  });
+
+  it("drives the list query from the confidential filter dropdown", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "All confidentiality" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Confidential" }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("confidential=true"))).toBe(true);
+    });
+  });
+
+  it("debounces the search box into the q query param", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.type(screen.getByLabelText("Search company, person, or note"), "Beta");
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("q=Beta"))).toBe(true);
+    });
+  });
+
+  it("hides the hover-reveal manage actions when canManage is false", async () => {
+    routeFetch([contact({ canManage: false })]);
 
     renderWithProviders(<ContactsListPage />);
 
@@ -90,8 +148,8 @@ describe("contactsListPage", () => {
     expect(screen.queryByRole("button", { name: "Share Acme Marine" })).not.toBeInTheDocument();
   });
 
-  it("renders locked placeholders for masked confidential public reads in the table", async () => {
-    fetchMock.mockResolvedValue(ok([
+  it("renders locked placeholders for masked confidential public reads in the grid", async () => {
+    routeFetch([
       contact({
         contactPerson: null,
         phone: null,
@@ -104,19 +162,19 @@ describe("contactsListPage", () => {
         confidential: true,
         canManage: false,
       }),
-    ]));
+    ]);
 
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    // The dense table surfaces four sensitive columns; all must be locked.
+    // The dense row surfaces four sensitive columns; all must be locked.
     expect(screen.getAllByLabelText("Masked field")).toHaveLength(4);
     expect(screen.queryByText("Jane")).not.toBeInTheDocument();
     expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
   });
 
   it("keeps every sensitive field locked inside the detail drawer for masked reads", async () => {
-    fetchMock.mockResolvedValue(ok([
+    routeFetch([
       contact({
         contactPerson: null,
         phone: null,
@@ -129,7 +187,7 @@ describe("contactsListPage", () => {
         confidential: true,
         canManage: false,
       }),
-    ]));
+    ]);
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
@@ -142,7 +200,7 @@ describe("contactsListPage", () => {
   });
 
   it("opens a detail drawer that reuses the loaded contact data", async () => {
-    fetchMock.mockResolvedValue(ok([contact()]));
+    routeFetch([contact()]);
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
@@ -155,38 +213,8 @@ describe("contactsListPage", () => {
     expect(within(drawer).getByText("Contact methods")).toBeInTheDocument();
   });
 
-  it("filters client-side by status", async () => {
-    fetchMock.mockResolvedValue(ok([
-      contact(),
-      contact({ id: "c2", name: "Beta Yard", status: "inactive" }),
-    ]));
-    const user = userEvent.setup();
-
-    renderWithProviders(<ContactsListPage />);
-    await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Inactive 1" }));
-
-    expect(screen.queryByText("Acme Marine")).not.toBeInTheDocument();
-    expect(screen.getByText("Beta Yard")).toBeInTheDocument();
-  });
-
-  it("filters client-side by search query", async () => {
-    fetchMock.mockResolvedValue(ok([
-      contact(),
-      contact({ id: "c2", name: "Beta Yard", contactPerson: "Bob" }),
-    ]));
-    const user = userEvent.setup();
-
-    renderWithProviders(<ContactsListPage />);
-    await waitFor(() => expect(screen.getByText("Beta Yard")).toBeInTheDocument());
-    await user.type(screen.getByLabelText("Search company, person, or note"), "Beta");
-
-    await waitFor(() => expect(screen.queryByText("Acme Marine")).not.toBeInTheDocument());
-    expect(screen.getByText("Beta Yard")).toBeInTheDocument();
-  });
-
-  it("refetches with a tag filter", async () => {
-    fetchMock.mockResolvedValue(ok([contact()]));
+  it("applies a single server-side tag filter to the query", async () => {
+    routeFetch([contact()]);
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
@@ -201,7 +229,7 @@ describe("contactsListPage", () => {
   });
 
   it("opens the current-schema form as sections without type controls", async () => {
-    fetchMock.mockResolvedValue(ok([]));
+    routeFetch([]);
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
@@ -214,11 +242,30 @@ describe("contactsListPage", () => {
     expect(within(dialog).queryByLabelText("Type")).not.toBeInTheDocument();
   });
 
+  it("opens the edit form from the row action", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Edit Acme Marine" }));
+
+    expect(await screen.findByRole("heading", { name: "Edit contact" })).toBeInTheDocument();
+  });
+
+  it("opens the share dialog from the row action", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Share Acme Marine" }));
+
+    expect(await screen.findByRole("heading", { name: "Share contact" })).toBeInTheDocument();
+  });
+
   it("deletes after confirmation", async () => {
-    fetchMock
-      .mockResolvedValueOnce(ok([contact()]))
-      .mockResolvedValueOnce(ok({ id: "c1" }))
-      .mockResolvedValue(ok([]));
+    routeFetch([contact()]);
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
@@ -231,6 +278,26 @@ describe("contactsListPage", () => {
     await waitFor(() => {
       const deleted = fetchMock.mock.calls.find(c => String(c[0]).endsWith("/api/contacts/c1") && c[1]?.method === "DELETE");
       expect(deleted).toBeDefined();
+    });
+  });
+
+  it("renders meta-driven pagination and pages forward", async () => {
+    // 25 total over a 20-row page -> two pages.
+    routeFetch([contact()], 25);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+
+    const prev = screen.getByRole("button", { name: "Previous" });
+    const next = screen.getByRole("button", { name: "Next" });
+    expect(prev).toBeDisabled();
+    expect(next).toBeEnabled();
+    expect(screen.getByText("25 contacts")).toBeInTheDocument();
+
+    await user.click(next);
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("page=2"))).toBe(true);
     });
   });
 });

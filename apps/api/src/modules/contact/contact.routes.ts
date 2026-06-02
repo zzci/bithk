@@ -62,8 +62,42 @@ export function contactRoutes() {
 
   router.get("/contacts", async (c) => {
     const tag = c.req.query("tag")?.trim();
-    const data = await contactService.list(c.get("db"), actorOf(c), tag ? { tag } : {});
-    return c.json({ success: true, data });
+    const qRaw = c.req.query("q")?.trim();
+    const q = qRaw || undefined;
+    const statusRaw = c.req.query("status");
+    const status = statusRaw && (CONTACT_STATUSES as readonly string[]).includes(statusRaw)
+      ? statusRaw as (typeof CONTACT_STATUSES)[number]
+      : undefined;
+    const visibilityRaw = c.req.query("visibility");
+    const visibility = visibilityRaw && (CONTACT_VISIBILITIES as readonly string[]).includes(visibilityRaw)
+      ? visibilityRaw as (typeof CONTACT_VISIBILITIES)[number]
+      : undefined;
+    const confidentialRaw = c.req.query("confidential");
+    const confidential = confidentialRaw === "true"
+      ? true
+      : confidentialRaw === "false"
+        ? false
+        : undefined;
+    const pageRaw = c.req.query("page");
+    const paginate = pageRaw !== undefined;
+    const page = paginate ? Math.max(1, Math.floor(Number.parseInt(pageRaw, 10)) || 1) : undefined;
+    const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
+
+    const result = await contactService.list(c.get("db"), actorOf(c), {
+      ...(tag ? { tag } : {}),
+      q,
+      status,
+      visibility,
+      confidential,
+      ...(paginate ? { page, limit } : {}),
+    });
+    return c.json({
+      success: true,
+      data: result.data,
+      meta: paginate
+        ? { total: result.total, page: page!, limit }
+        : { total: result.total, page: 1, limit: result.total },
+    });
   });
 
   router.post("/contacts", async (c) => {
