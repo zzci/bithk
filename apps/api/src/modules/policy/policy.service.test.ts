@@ -8,6 +8,7 @@ import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { loadNamespaces } from "./namespace-config";
 import {
+  addGroupMembership,
   batchCreateTuples,
   batchDeleteTuples,
   createTuple,
@@ -15,6 +16,7 @@ import {
   getTuplesByObject,
   getTuplesBySubject,
   listTuples,
+  updateTupleRelation,
 } from "./policy.service";
 
 const testNamespaces = [
