@@ -170,6 +170,7 @@
     "copyFromGlobal": "从全局知识库复制",
     "copyPlaceholder": "选择全局工作清单",
     "copy": "复制工作清单",
+    "categoryPlaceholder": "选择或输入分类",
     "noChecklist": "暂无检查清单。",
     "field": {
       "name": "名称",
