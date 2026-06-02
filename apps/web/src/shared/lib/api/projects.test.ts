@@ -43,7 +43,7 @@ function calledUrl(index = 0): string {
 
 describe("projectKeys", () => {
   it("builds stable list and detail keys", () => {
-    expect(projectKeys.list("active", "t1", 2)).toEqual(["projects", "list", "active", "t1", 2]);
+    expect(projectKeys.list("active", "t1", 2, 20)).toEqual(["projects", "list", "active", "t1", 2, 20]);
     expect(projectKeys.detail("p1")).toEqual(["projects", "detail", "p1"]);
   });
 });

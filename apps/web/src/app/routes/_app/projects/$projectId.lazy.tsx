@@ -57,8 +57,12 @@ function ProjectDetailLayout() {
   const project = projectQuery.data;
   const caps = useProjectCapabilities(project);
 
-  const issuesCountQuery = useProjectIssues(caps.canViewIssues ? projectId : undefined, { limit: 1 });
-  const procurementCountQuery = useProcurements(projectId, { limit: 1 }, caps.canViewProcurement);
+  // Use the same `limit: 5` as the overview tab's "latest" queries so the query
+  // keys coincide and TanStack Query dedupes them into one request per resource
+  // instead of firing a separate count-only request (F8). Only `meta.total` is
+  // read here.
+  const issuesCountQuery = useProjectIssues(caps.canViewIssues ? projectId : undefined, { limit: 5 });
+  const procurementCountQuery = useProcurements(projectId, { limit: 5 }, caps.canViewProcurement);
   const issuesCount = issuesCountQuery.data?.meta.total;
   const procurementCount = procurementCountQuery.data?.meta.total;
 

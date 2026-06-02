@@ -94,6 +94,10 @@ export const projectMembers = sqliteTable("project_members", {
 }, t => [
   index("project_members_project_idx").on(t.projectId),
   index("project_members_role_idx").on(t.roleId),
+  // Standalone userId index: lookups filtering by userId alone (project list
+  // member scope, issue search scope, isMember) cannot use the composite unique
+  // index below where userId is the trailing column.
+  index("project_members_user_idx").on(t.userId),
   // One row per real user per project. Virtual members carry NULL userId, which
   // SQLite treats as mutually distinct, so multiple virtual members coexist.
   uniqueIndex("project_members_project_user_idx").on(t.projectId, t.userId),

@@ -47,8 +47,11 @@ export function ProjectsListPage() {
   const [settingsProjectId, setSettingsProjectId] = useState<string | null>(null);
 
   const projectsQuery = useProjects({ ...projectsFilterToQuery(filter), page });
-  const activeCountQuery = useProjects({ status: "active" });
-  const archivedCountQuery = useProjects({ status: "archived" });
+  // Count chips only need `meta.total`, so request a single row instead of a
+  // full 20-row page (the `limit` is part of the query key, so these stay
+  // distinct from the main list query).
+  const activeCountQuery = useProjects({ status: "active", limit: 1 });
+  const archivedCountQuery = useProjects({ status: "archived", limit: 1 });
   const tagsQuery = useTags();
   const createProject = useCreateProject();
 

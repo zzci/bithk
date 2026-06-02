@@ -13,7 +13,7 @@ import type {
 import type { ProjectMemberView, ProjectTag } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Pin, PinOff, Plus, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PrioritySignal } from "@/shared/components/priority-signal";
@@ -98,10 +98,10 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
 
   const procurementTagsQuery = useProcurementTags();
   const procurementTags = useMemo(() => procurementTagsQuery.data ?? [], [procurementTagsQuery.data]);
-  const toggleTag = (tagId: string) => {
+  const toggleTag = useCallback((tagId: string) => {
     setSelectedTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]));
     setPage(1);
-  };
+  }, []);
 
   const procurementsQuery = useProcurements(projectId, {
     q: debouncedSearch || undefined,
@@ -126,9 +126,9 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   const meta = procurementsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
 
-  const openProcurement = (id: string) => {
+  const openProcurement = useCallback((id: string) => {
     void navigate({ to: "/projects/$projectId/procurements/$procurementId", params: { projectId, procurementId: id } });
-  };
+  }, [navigate, projectId]);
 
   const supplierName = (id: string | null) =>
     id ? supplierNames.get(id) ?? id : <span className="text-muted-foreground">{t("procurement.none")}</span>;

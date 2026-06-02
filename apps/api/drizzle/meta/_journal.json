@@ -15,6 +15,13 @@
       "when": 1780356746448,
       "tag": "0001_hot_whistler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780356746500,
+      "tag": "0002_project_members_user_id_idx",
+      "breakpoints": true
     }
   ]
 }

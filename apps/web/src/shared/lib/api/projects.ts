@@ -138,7 +138,7 @@ export interface ListMeta {
 export const projectKeys = {
   all: ["projects"] as const,
   lists: () => ["projects", "list"] as const,
-  list: (status: string, tag: string, page: number) => ["projects", "list", status, tag, page] as const,
+  list: (status: string, tag: string, page: number, limit: number) => ["projects", "list", status, tag, page, limit] as const,
   detail: (id: string) => ["projects", "detail", id] as const,
   members: (id: string) => ["projects", id, "members"] as const,
   roles: (id: string) => ["projects", id, "roles"] as const,
@@ -191,7 +191,7 @@ export function useProjects(query: ProjectsQuery = {}) {
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   return useQuery<ProjectsListResult>({
-    queryKey: projectKeys.list(status ?? "all", tagId ?? "all", page),
+    queryKey: projectKeys.list(status ?? "all", tagId ?? "all", page, limit),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)

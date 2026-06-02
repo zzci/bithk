@@ -26,7 +26,7 @@ import {
   Tags,
   User,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-signal";
@@ -245,8 +245,8 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
 
   const issueTagsQuery = useIssueTags();
   const issueTags = issueTagsQuery.data ?? [];
-  const toggleTag = (tagId: string) =>
-    setSelectedTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]));
+  const toggleTag = useCallback((tagId: string) =>
+    setSelectedTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId])), []);
 
   // The drawer is a nested route; read the active issueId (if any) so the open
   // row stays highlighted while its drawer overlays the list.
@@ -255,28 +255,32 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
 
   const q = debouncedSearch || undefined;
   const tagIds = selectedTagIds.length > 0 ? selectedTagIds : undefined;
-  const todoQuery = useProjectIssues(projectId, { status: "todo", q, tagIds });
-  const workingQuery = useProjectIssues(projectId, { status: "working", q, tagIds });
-  const reviewQuery = useProjectIssues(projectId, { status: "review", q, tagIds });
-  const doneQuery = useProjectIssues(projectId, { status: "done", q, tagIds });
-  const cancelQuery = useProjectIssues(projectId, { status: "cancel", q, tagIds });
-
-  const queryByStatus: Record<IssueStatus, ReturnType<typeof useProjectIssues>> = {
-    todo: todoQuery,
-    working: workingQuery,
-    review: reviewQuery,
-    done: doneQuery,
-    cancel: cancelQuery,
-  };
+  // One list request (no status filter); group by status on the client. The
+  // rows already carry `status`, so this collapses the former 5-per-status
+  // fan-out into a single request and makes counts a client-side reduce. A high
+  // limit keeps every status' rows present for grouping.
+  const issuesQuery = useProjectIssues(projectId, { q, tagIds, limit: 100 });
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
 
-  const countOf = (status: IssueStatus) => queryByStatus[status].data?.meta.total ?? 0;
-  const totalAll = ISSUE_STATUSES.reduce((sum, s) => sum + countOf(s), 0);
+  const issuesByStatus = useMemo(() => {
+    const map: Record<IssueStatus, ProjectIssueRow[]> = {
+      todo: [],
+      working: [],
+      review: [],
+      done: [],
+      cancel: [],
+    };
+    for (const issue of issuesQuery.data?.data ?? [])
+      map[issue.status].push(issue);
+    return map;
+  }, [issuesQuery.data]);
 
-  const groups = ISSUE_STATUSES.map(status => queryByStatus[status]);
-  const loadError = groups.find(g => g.error)?.error;
-  const isInitialLoading = groups.every(g => g.isLoading);
+  const countOf = (status: IssueStatus) => issuesByStatus[status].length;
+  const totalAll = issuesQuery.data?.data.length ?? 0;
+
+  const loadError = issuesQuery.error;
+  const isInitialLoading = issuesQuery.isLoading;
   const hasAnyIssue = totalAll > 0;
 
   // No status filter: always show every populated status group.
@@ -287,17 +291,17 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
       ? memberLabels.get(issue.assigneeMemberId) ?? issue.assigneeMemberId
       : t("issues.unassigned");
 
-  const openIssue = (issueId: string) => {
+  const openIssue = useCallback((issueId: string) => {
     void navigate({ to: "/projects/$projectId/issues/$issueId", params: { projectId, issueId } });
-  };
+  }, [navigate, projectId]);
 
   const openCreate = (status: IssueStatus) => {
     setCreateStatus(status);
     setCreateOpen(true);
   };
 
-  const toggleCollapse = (status: IssueStatus) =>
-    setCollapsed(prev => ({ ...prev, [status]: !prev[status] }));
+  const toggleCollapse = useCallback((status: IssueStatus) =>
+    setCollapsed(prev => ({ ...prev, [status]: !prev[status] })), []);
 
   return (
     <div className="space-y-5">
@@ -355,7 +359,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
               : (
                   <div className="space-y-2.5">
                     {visibleStatuses.map((status) => {
-                      const groupIssues = queryByStatus[status].data?.data ?? [];
+                      const groupIssues = issuesByStatus[status];
                       const count = countOf(status);
                       const label = t(`issues.status.${status}` as const);
                       const isCollapsed = collapsed[status] ?? false;
