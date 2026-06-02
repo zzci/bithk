@@ -1,6 +1,6 @@
 # PLAN-046 Priority default low + unify status icon
 
-- **status**: Planned
+- **status**: In Progress
 - **owner**: l1-75ymcfnr / L2 ltkgr2rj
 - **campaignId**: l1-75ymcfnr-pridef-20260602013633
 - **tasks**: [FIX-018](../task/FIX-018.md), [FIX-019](../task/FIX-019.md)
