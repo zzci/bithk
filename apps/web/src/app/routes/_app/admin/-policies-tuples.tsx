@@ -35,7 +35,7 @@ export function TupleManager() {
   params.set("page", String(page));
   params.set("limit", "20");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["tuples", filterNs, page],
     queryFn: () => http<TuplesResponse>(`/tuples?${params.toString()}`),
   });
@@ -98,47 +98,58 @@ export function TupleManager() {
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t("loading")}</TableCell>
                   </TableRow>
                 )
-              : tuples.length === 0
+              : isError
                 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t("noTuples")}</TableCell>
-                    </TableRow>
-                  )
-                : tuples.map(tuple => (
-                    <TableRow key={tuple.id}>
-                      <TableCell><Badge variant="outline">{t(`ns.${tuple.namespace}`)}</Badge></TableCell>
-                      <TableCell className="text-sm">{resolveEntityName(tuple.objectId)}</TableCell>
-                      <TableCell><Badge variant="secondary">{t(`rel.${tuple.relation}`)}</Badge></TableCell>
-                      <TableCell className="text-sm">
-                        <Badge variant="outline" className="mr-1">{t(`ns.${tuple.subjectNamespace}`)}</Badge>
-                        {resolveEntityName(tuple.subjectId)}
-                        {tuple.subjectRelation
-                          ? (
-                              <Badge variant="secondary" className="ml-1">
-                                #
-                                {t(`rel.${tuple.subjectRelation}`)}
-                              </Badge>
-                            )
-                          : ""}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {formatDate(tuple.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <EditTupleDialog tuple={tuple} />
-                          <Button
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => deleteMutation.mutate(tuple.id)}
-                            disabled={deleteMutation.isPending}
-                          >
-                            {t("common.delete")}
-                          </Button>
+                      <TableCell colSpan={6} className="py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-sm text-destructive">{t("common.error.loadFailed", { ns: "common" })}</span>
+                          <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("common.retry", { ns: "common" })}</Button>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )
+                : tuples.length === 0
+                  ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t("noTuples")}</TableCell>
+                      </TableRow>
+                    )
+                  : tuples.map(tuple => (
+                      <TableRow key={tuple.id}>
+                        <TableCell><Badge variant="outline">{t(`ns.${tuple.namespace}`)}</Badge></TableCell>
+                        <TableCell className="text-sm">{resolveEntityName(tuple.objectId)}</TableCell>
+                        <TableCell><Badge variant="secondary">{t(`rel.${tuple.relation}`)}</Badge></TableCell>
+                        <TableCell className="text-sm">
+                          <Badge variant="outline" className="mr-1">{t(`ns.${tuple.subjectNamespace}`)}</Badge>
+                          {resolveEntityName(tuple.subjectId)}
+                          {tuple.subjectRelation
+                            ? (
+                                <Badge variant="secondary" className="ml-1">
+                                  #
+                                  {t(`rel.${tuple.subjectRelation}`)}
+                                </Badge>
+                              )
+                            : ""}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {formatDate(tuple.createdAt)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <EditTupleDialog tuple={tuple} />
+                            <Button
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => deleteMutation.mutate(tuple.id)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              {t("common.delete")}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
           </TableBody>
         </Table>
       </div>
