@@ -54,6 +54,10 @@ beforeAll(() => {
           return new Response("brew", { status: 418 });
         case "/echo":
           return new Response(`method=${req.method}`, { status: 200 });
+        case "/redirect":
+          return new Response(null, { status: 302, headers: { Location: "/ok" } });
+        case "/redirect-loop":
+          return new Response(null, { status: 302, headers: { Location: "/redirect-loop" } });
         case "/slow":
           return new Promise((resolve) => {
             setTimeout(() => resolve(new Response("eventually", { status: 200 })), 500);
@@ -145,6 +149,42 @@ describe("runHttpRequest", () => {
 
   test("unreachable host produces a thrown error, not an unhandled rejection", async () => {
     expect(run({ url: "http://127.0.0.1:1/" })).rejects.toThrow(/failed/);
+  });
+
+  test("error message omits the response body (FIX-AUDIT-006)", async () => {
+    const err: unknown = await run({ url: `${base}/notfound` }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/→ 404/);
+    // The target's reflected body ("nope") must not leak into the persisted error.
+    expect((err as Error).message).not.toContain("nope");
+  });
+});
+
+describe("runHttpRequest — redirects (manual, re-vetted per hop)", () => {
+  test("follows a redirect to a 2xx target", async () => {
+    const result = await run({ url: `${base}/redirect` });
+    expect(result).toMatch(/→ 200/);
+  });
+
+  test("rejects a redirect chain past the hop cap", async () => {
+    expect(run({ url: `${base}/redirect-loop` })).rejects.toThrow(/exceeded 5 redirects/);
+  });
+
+  test("re-validates every hop against the SSRF gate (FIX-AUDIT-001)", async () => {
+    const { resolveTarget } = await import("./executor");
+    const restricted = {
+      HTTP_ACTION_ALLOW_PRIVATE: false,
+      HTTP_ACTION_TIMEOUT_SECONDS: 30,
+      SHELL_ACTION_TIMEOUT_SECONDS: 300,
+    } as unknown as ActionContext["config"];
+    // A redirect Location pointing at cloud metadata / a private host is
+    // refused before the next hop is fetched.
+    expect(resolveTarget(restricted, "http://169.254.169.254/latest/meta-data/")).rejects.toThrow(/refused private destination/);
+    expect(resolveTarget(restricted, "http://10.0.0.1/")).rejects.toThrow(/refused private destination/);
+    // A public IP literal is accepted unchanged (no DNS, no rewrite).
+    const ok = await resolveTarget(restricted, "http://8.8.8.8/health");
+    expect(ok.requestUrl).toBe("http://8.8.8.8/health");
+    expect(ok.pinned).toBe(false);
   });
 });
 
