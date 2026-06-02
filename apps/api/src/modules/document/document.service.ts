@@ -1,6 +1,7 @@
-import type { AppDatabase, RunResult } from "@/db";
+import type { AppDatabase } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { groups } from "@/modules/account/groups/schema";
 import { documentAccess } from "@/modules/document/document.permission";
 import { documentDetails, documentPins } from "@/modules/document/schema";
@@ -257,7 +258,7 @@ export async function updateDocument(
     const itemPatch: Record<string, unknown> = { updatedAt: now, version: sql`${items.version} + 1` };
     if (input.title !== undefined)
       itemPatch.title = input.title;
-    const res = tx.update(items).set(itemPatch).where(where).run() as unknown as RunResult;
+    const res = runWrite(() => tx.update(items).set(itemPatch).where(where).run());
     if (input.expectedVersion !== undefined && res.changes === 0) {
       const current = tx.select().from(items).where(eq(items.id, item.id)).get();
       if (current && current.version !== input.expectedVersion) {
