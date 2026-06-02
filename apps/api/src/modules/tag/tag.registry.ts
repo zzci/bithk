@@ -1,10 +1,12 @@
 import type { TagType } from "./schema";
 import type { ResourceTagBinding } from "./tag.service";
 
-// Source registry for the shared tag vocabulary, mirroring the backup-module
-// registry pattern. Each domain registers its `{ type }` binding from
-// `routes/protected.ts` as a load-time side effect, so the shared `/tags`
-// routes learn which types exist without importing any domain schema.
+// Source registry for the shared tag vocabulary. Each domain registers its
+// `{ type }` binding from `routes/protected.ts` as a load-time side effect.
+// The registry only records bindings; the shared `/tags` routes validate the
+// requested type against the static `TAG_TYPES` enum, so there is no read path
+// here. The former `getTagBinding` / `listRegisteredSourceTypes` accessors were
+// unused dead code and have been removed.
 
 const sources = new Map<TagType, ResourceTagBinding>();
 
@@ -14,17 +16,4 @@ const sources = new Map<TagType, ResourceTagBinding>();
  */
 export function registerTagSource(binding: ResourceTagBinding): void {
   sources.set(binding.type, binding);
-}
-
-/** Resolve a registered binding by type. Throws if none is registered. */
-export function getTagBinding(type: TagType): ResourceTagBinding {
-  const binding = sources.get(type);
-  if (!binding)
-    throw new Error(`No tag source registered for type '${type}'`);
-  return binding;
-}
-
-/** Every type that currently has a registered binding. */
-export function listRegisteredSourceTypes(): TagType[] {
-  return [...sources.keys()];
 }

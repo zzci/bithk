@@ -27,7 +27,7 @@ export function normalizeTagName(raw: string): string {
 }
 
 /** Reject empty or over-long names. `name` is expected to be normalized. */
-export function assertValidTagName(name: string): void {
+function assertValidTagName(name: string): void {
   if (!name)
     throw new ValidationError("Tag name is required", { name: "Required" });
   if (name.length > TAG_NAME_MAX)

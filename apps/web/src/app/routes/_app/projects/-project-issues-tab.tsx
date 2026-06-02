@@ -68,7 +68,7 @@ const STATUS_ICON_TINT: Record<IssueStatus, string> = {
   cancel: "text-muted-foreground/60",
 };
 
-// Small status dot used by the filter chips + create dialog selector.
+// Small status dot used by the create-dialog status selector.
 const STATUS_DOT: Record<IssueStatus, string> = {
   todo: "bg-warning",
   working: "bg-info",
