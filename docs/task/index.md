@@ -76,3 +76,5 @@
 | [FIX-021](FIX-021.md) | Tag-filter selector redesign | [PLAN-047](../plan/PLAN-047.md) | Completed | 2026-06-02 |
 | [FIX-022](FIX-022.md) | Procurement filter all-labels rename | [PLAN-047](../plan/PLAN-047.md) | Completed | 2026-06-02 |
 | [FIX-023](FIX-023.md) | Projects home filter row unification | [PLAN-047](../plan/PLAN-047.md) | Completed | 2026-06-02 |
+| [FIX-024](FIX-024.md) | Tag-filter neutral trigger + hide selected from list | [PLAN-048](../plan/PLAN-048.md) | Completed | 2026-06-02 |
+| [FIX-025](FIX-025.md) | Remove projects-home filter-row label | [PLAN-048](../plan/PLAN-048.md) | Completed | 2026-06-02 |

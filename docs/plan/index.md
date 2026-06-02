@@ -46,3 +46,4 @@
 | [PLAN-045](PLAN-045.md) | Create-issue dialog optimization + priority icon refresh | Completed | 2026-06-02 |
 | [PLAN-046](PLAN-046.md) | Priority default low + unify status icon | Completed | 2026-06-02 |
 | [PLAN-047](PLAN-047.md) | Project list/dialog UI polish round | Completed | 2026-06-02 |
+| [PLAN-048](PLAN-048.md) | Tag-filter polish + projects-home label removal | Completed | 2026-06-02 |
