@@ -8,16 +8,22 @@ import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
+import { getReferenceById } from "@/modules/file";
+import { __resetFilePermissionHooksForTests } from "@/modules/file/permission";
+import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
+import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { addMember, getMemberCapabilities } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
 import {
   bindProject,
   composeShipWithBase,
   createShip,
+  getShipById,
   getShipByShortId,
   listShipProjects,
   listShips,
   resolveShipId,
+  setShipCover,
   softDeleteShip,
   unbindProject,
   updateShip,
@@ -34,6 +40,27 @@ const fileConfig: FileServiceConfig = {
   FILE_PRESIGN_ENABLED: false,
   FILE_PRESIGN_TTL_SECONDS: 300,
 };
+
+// Full config for the cover-release path (T8/B2), where setShipCover uploads a
+// real blob through the local driver and softDeleteShip releases it.
+const coverConfig = {
+  MAX_UPLOAD_BYTES: 10 * 1024 * 1024,
+  MAX_ATTACHMENTS_PER_RESOURCE: 20,
+  UPLOADS_TOTAL_BYTES: 0,
+  FILE_GC_MODE: "sync",
+  FILE_PRESIGN_ENABLED: false,
+  FILE_PRESIGN_TTL_SECONDS: 300,
+} as unknown as Parameters<typeof setShipCover>[1];
+
+// Real 1x1 PNG — uploadAndReference verifies the declared MIME against magic bytes.
+const PNG_1X1 = Uint8Array.from(
+  atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="),
+  c => c.charCodeAt(0),
+);
+
+function pngFile(): File {
+  return new File([PNG_1X1], "cover.png", { type: "image/png" });
+}
 
 let db: AppDatabase;
 let dbPath: string;
@@ -134,6 +161,22 @@ describe("updateShip", () => {
     expect(updated?.builder).toBe("Acme");
     expect(updated!.version).toBe(2);
   });
+
+  // T3: an unknown short id resolves to undefined, which the route maps to 404.
+  test("returns undefined for an unknown ship (route maps this to 404)", async () => {
+    expect(await updateShip(db, "nope1234", { name: "X" })).toBeUndefined();
+  });
+
+  // T3: an empty patch still bumps the version and stamps updatedAt without
+  // changing any field (the route schema forbids `{}`, but the service does not).
+  test("an empty patch still bumps the version, leaving fields untouched", async () => {
+    const creator = await seedUser("Alice");
+    const ship = await createShip(db, { name: "P", code: "HULL-1", creatorId: creator });
+    const updated = await updateShip(db, ship.shortId, {});
+    expect(updated!.version).toBe(2);
+    expect(updated!.name).toBe("P");
+    expect(updated!.code).toBe("HULL-1");
+  });
 });
 
 describe("softDeleteShip", () => {
@@ -151,6 +194,62 @@ describe("softDeleteShip", () => {
     const baseProject = await db.select().from(projects).where(eq(projects.id, baseProjectId)).get();
     expect(baseProject).toBeDefined();
     expect(baseProject!.shipId).toBeNull();
+  });
+
+  // T8: a second delete is a no-op — it neither throws nor re-bumps the version.
+  test("is idempotent: a second call on an already-deleted ship is a no-op", async () => {
+    const creator = await seedUser("Alice");
+    const ship = await createShip(db, { name: "P", creatorId: creator });
+
+    await softDeleteShip(db, fileConfig, ship.shortId);
+    const afterFirst = await getShipById(db, ship.id);
+    expect(afterFirst!.deletedAt).not.toBeNull();
+    const versionAfterFirst = afterFirst!.version;
+
+    // Second call: no throw, no further version bump.
+    await softDeleteShip(db, fileConfig, ship.shortId);
+    const afterSecond = await getShipById(db, ship.id);
+    expect(afterSecond!.version).toBe(versionAfterFirst);
+  });
+
+  // T8: every project linked to the ship is unbound, not only the base project.
+  test("unbinds extra bound projects as well as the base project", async () => {
+    const creator = await seedUser("Alice");
+    const ship = await createShip(db, { name: "P", creatorId: creator });
+    const { createProject } = await import("@/modules/project/project.service");
+    const extra = await createProject(db, { name: "Extra", creatorId: creator });
+    expect(await bindProject(db, ship.id, extra.shortId)).toBe("ok");
+
+    await softDeleteShip(db, fileConfig, ship.shortId);
+
+    // Both the base project and the extra project are now unbound.
+    const stillBound = await db.select().from(projects).where(eq(projects.shipId, ship.id)).all();
+    expect(stillBound).toHaveLength(0);
+    const extraRow = await db.select().from(projects).where(eq(projects.id, extra.id)).get();
+    expect(extraRow!.shipId).toBeNull();
+  });
+
+  // T8 / B2 regression: a soft-deleted ship releases its cover reference so the
+  // file ref-count is not leaked.
+  test("releases the cover image reference (B2)", async () => {
+    __resetDriverRegistryForTests();
+    __resetFilePermissionHooksForTests();
+    __setLocalDriverRootForTests(resolve(dbPath, "..", "blobs"));
+    setActiveDriver("local");
+
+    const creator = await seedUser("Alice");
+    const ship = await createShip(db, { name: "P", creatorId: creator });
+    const withCover = await setShipCover(db, coverConfig, ship.id, pngFile(), creator);
+    const coverRef = withCover!.coverReferenceId!;
+    expect(coverRef).toBeTruthy();
+    expect(await getReferenceById(db, coverRef)).toBeDefined();
+
+    await softDeleteShip(db, coverConfig, ship.shortId);
+
+    // The reference row is gone (released), and the row no longer points at it.
+    expect(await getReferenceById(db, coverRef)).toBeUndefined();
+    const row = await getShipById(db, ship.id);
+    expect(row!.coverReferenceId).toBeNull();
   });
 });
 
@@ -188,6 +287,52 @@ describe("listShips", () => {
 
     const pct = await listShips(db, { q: "a%b" });
     expect(pct.data.map(s => s.name)).toEqual(["a%b"]);
+  });
+
+  // T5: `q` matches the ship code, not just the name.
+  test("q matches by code as well as by name", async () => {
+    const creator = await seedUser("Alice");
+    await createShip(db, { name: "Aurora", code: "HULL-XYZ", creatorId: creator });
+    await createShip(db, { name: "Bridge", code: "HULL-ABC", creatorId: creator });
+
+    const byCode = await listShips(db, { q: "XYZ" });
+    expect(byCode.total).toBe(1);
+    expect(byCode.data[0]!.code).toBe("HULL-XYZ");
+  });
+
+  // T5: total counts the whole filtered set while a page returns only `limit`
+  // rows; a later page returns the remainder.
+  test("paginates across multiple pages (total spans the set, page slices it)", async () => {
+    const creator = await seedUser("Alice");
+    for (let i = 0; i < 5; i++)
+      await createShip(db, { name: `Ship ${i}`, creatorId: creator });
+
+    const page1 = await listShips(db, { page: 1, limit: 2 });
+    expect(page1.total).toBe(5);
+    expect(page1.data).toHaveLength(2);
+
+    const page3 = await listShips(db, { page: 3, limit: 2 });
+    expect(page3.total).toBe(5);
+    expect(page3.data).toHaveLength(1); // 5 = 2 + 2 + 1
+
+    // Pages do not overlap.
+    const ids = new Set([...page1.data, ...page3.data].map(s => s.id));
+    expect(ids.size).toBe(3);
+  });
+
+  // T5: limit is clamped to [1, 100]; an out-of-range value never widens or
+  // empties the page.
+  test("clamps the limit to the [1, 100] range", async () => {
+    const creator = await seedUser("Alice");
+    for (let i = 0; i < 3; i++)
+      await createShip(db, { name: `Ship ${i}`, creatorId: creator });
+
+    // Above the cap → clamped to 100, so all 3 fit on one page.
+    expect((await listShips(db, { limit: 5000 })).data).toHaveLength(3);
+    // Below the floor → clamped to 1.
+    const clampedLow = await listShips(db, { limit: 0 });
+    expect(clampedLow.data).toHaveLength(1);
+    expect(clampedLow.total).toBe(3);
   });
 });
 
