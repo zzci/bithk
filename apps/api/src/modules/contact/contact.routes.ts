@@ -19,6 +19,23 @@ import { CONTACT_STATUSES, CONTACT_VISIBILITIES } from "./schema";
 
 const idSchema = z.string().min(1);
 
+// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
+// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
+// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
+function parseTagIds(raw: string[] | undefined): string[] {
+  if (!raw || raw.length === 0)
+    return [];
+  const out = new Set<string>();
+  for (const part of raw) {
+    for (const value of part.split(",")) {
+      const trimmed = value.trim();
+      if (trimmed)
+        out.add(trimmed);
+    }
+  }
+  return [...out].slice(0, 50);
+}
+
 const contactBodySchema = z.object({
   name: z.string().trim().min(1).max(255),
   contactPerson: z.string().trim().max(255).nullable().optional(),
@@ -148,34 +165,24 @@ export function contactRoutes() {
   });
 
   router.get("/contacts", async (c) => {
-    const tag = c.req.query("tag")?.trim();
+    const tagIds = parseTagIds(c.req.queries("tagIds"));
+    const categoryId = c.req.query("categoryId")?.trim() || undefined;
     const qRaw = c.req.query("q")?.trim();
     const q = qRaw || undefined;
     const statusRaw = c.req.query("status");
     const status = statusRaw && (CONTACT_STATUSES as readonly string[]).includes(statusRaw)
       ? statusRaw as (typeof CONTACT_STATUSES)[number]
       : undefined;
-    const visibilityRaw = c.req.query("visibility");
-    const visibility = visibilityRaw && (CONTACT_VISIBILITIES as readonly string[]).includes(visibilityRaw)
-      ? visibilityRaw as (typeof CONTACT_VISIBILITIES)[number]
-      : undefined;
-    const confidentialRaw = c.req.query("confidential");
-    const confidential = confidentialRaw === "true"
-      ? true
-      : confidentialRaw === "false"
-        ? false
-        : undefined;
     const pageRaw = c.req.query("page");
     const paginate = pageRaw !== undefined;
     const page = paginate ? Math.max(1, Math.floor(Number.parseInt(pageRaw, 10)) || 1) : undefined;
     const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
 
     const result = await contactService.list(c.get("db"), actorOf(c), {
-      ...(tag ? { tag } : {}),
+      ...(tagIds.length > 0 ? { tagIds } : {}),
+      ...(categoryId ? { categoryId } : {}),
       q,
       status,
-      visibility,
-      confidential,
       ...(paginate ? { page, limit } : {}),
     });
     return c.json({

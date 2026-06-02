@@ -1,4 +1,6 @@
+import type { ContactCategory } from "@/shared/lib/api/contact-categories";
 import type { ContactView } from "@/shared/lib/api/contacts";
+import type { ProjectTag } from "@/shared/lib/api/projects";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,23 +49,45 @@ function contact(overrides: Partial<ContactView> = {}): ContactView {
   };
 }
 
+function category(overrides: Partial<ContactCategory> = {}): ContactCategory {
+  return {
+    id: "cat1",
+    name: "Suppliers",
+    code: null,
+    description: null,
+    createdAt: "2026-05-24T00:00:00.000Z",
+    updatedAt: "2026-05-24T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function tag(overrides: Partial<ProjectTag> = {}): ProjectTag {
+  return { id: "tag1", name: "ship supplier", usageCount: 3, ...overrides };
+}
+
 function ok(data: unknown) {
   return jsonResponse({ success: true, data });
 }
 
 /**
- * Route the paginated list GET (returns the { data, meta } envelope the new
- * server-driven list expects) while letting mutations resolve generically.
- * `total` defaults to the row count so single-page tests need no override.
+ * Route the paginated list GET (returns the { data, meta } envelope the
+ * server-driven list expects) plus the category and tag vocabularies, while
+ * letting mutations resolve generically. `total` defaults to the row count so
+ * single-page tests need no override.
  */
-function routeFetch(contacts: ContactView[], total = contacts.length) {
+function routeFetch(
+  contacts: ContactView[],
+  total = contacts.length,
+  { categories = [], tags = [] }: { categories?: ContactCategory[]; tags?: ProjectTag[] } = {},
+) {
   fetchMock.mockImplementation(async (url, init) => {
     const path = String(url);
     const method = String(init?.method ?? "GET").toUpperCase();
-    // The grid resolves category names through the global vocabulary query;
-    // answer it with a fresh empty-list Response so it stays test-safe.
     if (path.includes("/contact-categories") && method === "GET") {
-      return ok([]);
+      return ok(categories);
+    }
+    if (path.includes("/tags") && method === "GET") {
+      return ok(tags);
     }
     if (path.includes("/contacts") && method === "GET") {
       const parsed = new URL(path, "http://test.local");
@@ -91,15 +115,18 @@ describe("contactsListPage", () => {
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
   });
 
-  it("renders the toolbar dropdown filters with their default labels", async () => {
+  it("renders a single-row toolbar of status, category, and tag filters", async () => {
     routeFetch([contact()]);
 
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "All statuses" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "All visibility" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "All confidentiality" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All categories" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tags" })).toBeInTheDocument();
+    // The visibility and confidentiality dropdowns are gone.
+    expect(screen.queryByRole("button", { name: "All visibility" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "All confidentiality" })).not.toBeInTheDocument();
   });
 
   it("drives the list query from the status filter dropdown", async () => {
@@ -116,18 +143,33 @@ describe("contactsListPage", () => {
     });
   });
 
-  it("drives the list query from the confidential filter dropdown", async () => {
-    routeFetch([contact()]);
+  it("drives the list query from the category filter dropdown", async () => {
+    routeFetch([contact()], 1, { categories: [category()] });
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "All confidentiality" }));
-    await user.click(await screen.findByRole("menuitemradio", { name: "Confidential" }));
+    await user.click(screen.getByRole("button", { name: "All categories" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Suppliers" }));
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("confidential=true"))).toBe(true);
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("categoryId=cat1"))).toBe(true);
     });
+  });
+
+  it("filters by a tag from the multi-select dropdown and shows a removable chip", async () => {
+    routeFetch([contact()], 1, { tags: [tag()] });
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Tags" }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "ship supplier" }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("tagIds=tag1"))).toBe(true);
+    });
+    expect(screen.getByRole("button", { name: "Remove tag ship supplier" })).toBeInTheDocument();
   });
 
   it("debounces the search box into the q query param", async () => {
@@ -201,7 +243,8 @@ describe("contactsListPage", () => {
     await user.click(screen.getByRole("button", { name: "Acme Marine" }));
 
     const drawer = await screen.findByRole("dialog");
-    expect(within(drawer).getAllByLabelText("Masked field")).toHaveLength(7);
+    // View shows five contact methods plus the note as masked placeholders.
+    expect(within(drawer).getAllByLabelText("Masked field")).toHaveLength(6);
     expect(within(drawer).queryByText("Dock 1")).not.toBeInTheDocument();
   });
 
@@ -219,22 +262,7 @@ describe("contactsListPage", () => {
     expect(within(drawer).getByText("Contact methods")).toBeInTheDocument();
   });
 
-  it("applies a single server-side tag filter to the query", async () => {
-    routeFetch([contact()]);
-    const user = userEvent.setup();
-
-    renderWithProviders(<ContactsListPage />);
-    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    await user.type(screen.getByLabelText("Tag filter"), "ship supplier");
-    await user.click(screen.getByRole("button", { name: "Apply" }));
-
-    await waitFor(() => {
-      const filtered = fetchMock.mock.calls.find(c => String(c[0]).includes("tag=ship+supplier"));
-      expect(filtered).toBeDefined();
-    });
-  });
-
-  it("opens the current-schema form as sections without type controls", async () => {
+  it("opens the create form in a sectioned drawer", async () => {
     routeFetch([]);
     const user = userEvent.setup();
 
@@ -242,9 +270,11 @@ describe("contactsListPage", () => {
     await user.click(screen.getByRole("button", { name: "Create contact" }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Company" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Create contact" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Identity" })).toBeInTheDocument();
     expect(within(dialog).getByRole("heading", { name: "Contact methods" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("heading", { name: "Access and tags" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Classification" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Access" })).toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Type")).not.toBeInTheDocument();
   });
 
@@ -255,6 +285,20 @@ describe("contactsListPage", () => {
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Edit Acme Marine" }));
+
+    expect(await screen.findByRole("heading", { name: "Edit contact" })).toBeInTheDocument();
+  });
+
+  it("switches from view to edit inside the same drawer", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Acme Marine" }));
+
+    const drawer = await screen.findByRole("dialog");
+    await user.click(within(drawer).getByRole("button", { name: "Edit contact" }));
 
     expect(await screen.findByRole("heading", { name: "Edit contact" })).toBeInTheDocument();
   });

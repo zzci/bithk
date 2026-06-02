@@ -1,10 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ContactFormState } from "./-contact-form-logic";
-import type { ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
+import type { ContactStatus, ContactView } from "@/shared/lib/api/contacts";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { ChevronDown, Edit3, Lock, Plus, Search, Share2, Trash2 } from "lucide-react";
+import { ChevronDown, Edit3, Plus, Search, Share2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -17,28 +18,19 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
-import { useContactsList, useCreateContact, useDeleteContact, useUpdateContact } from "@/shared/lib/api/contacts";
+import { useContactsList, useContactTags, useCreateContact, useDeleteContact, useUpdateContact } from "@/shared/lib/api/contacts";
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
-import { ContactFormDialog } from "./-contact-form-dialog";
-import { contactFormToInput } from "./-contact-form-logic";
+import { contactFormToInput, isMasked } from "./-contact-form-logic";
+import { ContactFieldValue, ContactPanel } from "./-contact-panel";
 import { ContactShareDialog } from "./-contact-share-dialog";
+import { ContactTagFilter } from "./-contact-tag-filter";
 
 export const Route = createLazyFileRoute("/_app/contacts/")({
   component: ContactsListPage,
 });
-
-const SENSITIVE_FIELDS = ["contactPerson", "phone", "email", "address", "taxId", "note", "status"] as const;
 
 // "show everything" sentinel for the toolbar dropdowns.
 const ALL = "__all__";
@@ -54,95 +46,63 @@ const CONTACT_GRID = [
   "md:grid-cols-[minmax(0,1fr)_8rem_7rem_9rem_8rem_8rem_5rem]",
 ].join(" ");
 
-function isMasked(contact: ContactView): boolean {
-  return contact.visibility === "public"
-    && contact.confidential
-    && !contact.canManage
-    && SENSITIVE_FIELDS.every(key => contact[key] === null);
-}
-
-function ContactFieldValue({
-  value,
-  locked,
-  lockedLabel,
-  hiddenLabel,
-}: {
-  readonly value: string | null;
-  readonly locked: boolean;
-  readonly lockedLabel: string;
-  readonly hiddenLabel: string;
-}) {
-  if (value)
-    return <span className="break-words text-foreground">{value}</span>;
-  if (locked) {
-    return (
-      <span className="inline-flex items-center gap-1 text-muted-foreground" aria-label={lockedLabel}>
-        <Lock className="size-3.5" />
-        <span aria-hidden="true">{hiddenLabel}</span>
-        <span className="sr-only">{lockedLabel}</span>
-      </span>
-    );
-  }
-  return <span className="text-muted-foreground">—</span>;
-}
+type DrawerState
+  = | { readonly mode: "create" }
+    | { readonly mode: "view"; readonly contact: ContactView }
+    | { readonly mode: "edit"; readonly contact: ContactView };
 
 export function ContactsListPage() {
   const { t } = useTranslation(["contacts", "common"]);
-  const [tagDraft, setTagDraft] = useState("");
-  const [tag, setTag] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(ALL);
-  const [visibilityFilter, setVisibilityFilter] = useState(ALL);
-  const [confidentialFilter, setConfidentialFilter] = useState(ALL);
+  const [categoryFilter, setCategoryFilter] = useState(ALL);
+  const [tagIds, setTagIds] = useState<readonly string[]>([]);
   const [page, setPage] = useState(1);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<ContactView | null>(null);
+  const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContactView | null>(null);
   const [shareTarget, setShareTarget] = useState<ContactView | null>(null);
-  const [detailTarget, setDetailTarget] = useState<ContactView | null>(null);
   const debouncedSearch = useDebounce(search, 300);
 
   const contactsQuery = useContactsList({
     q: debouncedSearch || undefined,
     status: statusFilter === ALL ? undefined : (statusFilter as ContactStatus),
-    visibility: visibilityFilter === ALL ? undefined : (visibilityFilter as ContactVisibility),
-    confidential: confidentialFilter === ALL ? undefined : confidentialFilter === "yes",
-    tag: tag || undefined,
+    categoryId: categoryFilter === ALL ? undefined : categoryFilter,
+    tagIds: tagIds.length > 0 ? tagIds : undefined,
     page,
   });
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
   const categoriesQuery = useContactCategories();
-  const categoryNameById = new Map((categoriesQuery.data ?? []).map(c => [c.id, c.name]));
+  const tagsQuery = useContactTags();
+  const categories = categoriesQuery.data ?? [];
+  const categoryNameById = new Map(categories.map(c => [c.id, c.name]));
 
   const rows = contactsQuery.data?.data ?? [];
   const meta = contactsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
 
-  const handleCreate = (state: ContactFormState) => {
-    createContact.mutate(contactFormToInput(state), {
-      onSuccess: () => setCreateOpen(false),
-    });
+  const toggleTag = (tagId: string) => {
+    setTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]));
+    setPage(1);
   };
 
-  const handleUpdate = (state: ContactFormState) => {
-    if (!editTarget)
+  const handleSubmit = (state: ContactFormState) => {
+    if (drawer?.mode === "edit") {
+      updateContact.mutate({ id: drawer.contact.id, ...contactFormToInput(state) }, {
+        onSuccess: () => setDrawer(null),
+      });
       return;
-    updateContact.mutate({ id: editTarget.id, ...contactFormToInput(state) }, {
-      onSuccess: () => setEditTarget(null),
+    }
+    createContact.mutate(contactFormToInput(state), {
+      onSuccess: () => setDrawer(null),
     });
   };
 
-  const applyTag = () => {
-    setTag(tagDraft.trim());
-    setPage(1);
-  };
-  const clearTag = () => {
-    setTag("");
-    setTagDraft("");
-    setPage(1);
-  };
+  const panelPending = drawer?.mode === "edit" ? updateContact.isPending : createContact.isPending;
+  const panelError = drawer?.mode === "edit"
+    ? (updateContact.error ? errorMessage(updateContact.error, t("common:common.error.operationFailed")) : null)
+    : (createContact.error ? errorMessage(createContact.error, t("common:common.error.operationFailed")) : null);
 
   const lockedLabel = t("masked.locked");
   const hiddenLabel = t("masked.hiddenValue");
@@ -158,92 +118,48 @@ export function ContactsListPage() {
 
       {contactsQuery.error && <ErrorBanner message={errorMessage(contactsQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-1 flex-wrap items-center gap-2">
-            <ToolbarFilter
-              value={statusFilter}
-              allLabel={t("list.statusAll")}
-              options={[
-                { value: "active", label: t("status.active") },
-                { value: "inactive", label: t("status.inactive") },
-              ]}
-              onChange={(v) => {
-                setStatusFilter(v);
-                setPage(1);
-              }}
-            />
-            <ToolbarFilter
-              value={visibilityFilter}
-              allLabel={t("list.visibilityAll")}
-              options={[
-                { value: "private", label: t("visibility.private") },
-                { value: "public", label: t("visibility.public") },
-              ]}
-              onChange={(v) => {
-                setVisibilityFilter(v);
-                setPage(1);
-              }}
-            />
-            <ToolbarFilter
-              value={confidentialFilter}
-              allLabel={t("list.allConfidential")}
-              options={[
-                { value: "yes", label: t("list.confidentialYes") },
-                { value: "no", label: t("list.confidentialNo") },
-              ]}
-              onChange={(v) => {
-                setConfidentialFilter(v);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <div className="relative max-w-xs flex-1">
-              <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                placeholder={t("list.searchPlaceholder")}
-                aria-label={t("list.searchPlaceholder")}
-                className="pl-8"
-              />
-            </div>
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus aria-hidden="true" />
-              {t("list.create")}
-            </Button>
-          </div>
+      {/* Single-row toolbar: status + category + tag dropdowns, then search and
+          create pushed to the trailing edge. Wraps on narrow viewports. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <ToolbarFilter
+          value={statusFilter}
+          allLabel={t("list.statusAll")}
+          options={[
+            { value: "active", label: t("status.active") },
+            { value: "inactive", label: t("status.inactive") },
+          ]}
+          onChange={(v) => {
+            setStatusFilter(v);
+            setPage(1);
+          }}
+        />
+        <ToolbarFilter
+          value={categoryFilter}
+          allLabel={t("list.categoryAll")}
+          options={categories.map(c => ({ value: c.id, label: c.name }))}
+          onChange={(v) => {
+            setCategoryFilter(v);
+            setPage(1);
+          }}
+        />
+        <ContactTagFilter tags={tagsQuery.data ?? []} selectedTagIds={tagIds} onToggle={toggleTag} />
+        <div className="relative ml-auto max-w-xs flex-1">
+          <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder={t("list.searchPlaceholder")}
+            aria-label={t("list.searchPlaceholder")}
+            className="pl-8"
+          />
         </div>
-
-        {/* Single server-side tag filter — debounced draft applied on demand. */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="flex flex-1 flex-col gap-1.5">
-            <label htmlFor="contacts-tag-filter" className="text-xs font-medium text-muted-foreground">{t("list.filterByTag")}</label>
-            <Input
-              id="contacts-tag-filter"
-              value={tagDraft}
-              onChange={e => setTagDraft(e.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter")
-                  applyTag();
-              }}
-              placeholder={t("list.tagPlaceholder")}
-              className="max-w-xs"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={clearTag} disabled={!tag && !tagDraft}>
-              {t("list.clearFilter")}
-            </Button>
-            <Button type="button" onClick={applyTag}>
-              {t("list.applyFilter")}
-            </Button>
-          </div>
-        </div>
+        <Button onClick={() => setDrawer({ mode: "create" })}>
+          <Plus aria-hidden="true" />
+          {t("list.create")}
+        </Button>
       </div>
 
       {contactsQuery.isLoading
@@ -278,7 +194,7 @@ export function ContactsListPage() {
                           type="button"
                           aria-label={contact.name}
                           className={cn(CONTACT_GRID, "min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
-                          onClick={() => setDetailTarget(contact)}
+                          onClick={() => setDrawer({ mode: "view", contact })}
                         >
                           <span className="flex min-w-0 items-center gap-2">
                             <span
@@ -346,7 +262,7 @@ export function ContactsListPage() {
                                 variant="ghost"
                                 className="size-8"
                                 aria-label={t("actions.edit", { name: contact.name })}
-                                onClick={() => setEditTarget(contact)}
+                                onClick={() => setDrawer({ mode: "edit", contact })}
                               >
                                 <Edit3 data-icon="inline" />
                               </Button>
@@ -379,43 +295,42 @@ export function ContactsListPage() {
         </div>
       )}
 
-      <ContactDetailDrawer
-        contact={detailTarget}
-        onOpenChange={open => !open && setDetailTarget(null)}
-        lockedLabel={lockedLabel}
-        hiddenLabel={hiddenLabel}
-        onEdit={(c) => {
-          setDetailTarget(null);
-          setEditTarget(c);
-        }}
-        onShare={(c) => {
-          setDetailTarget(null);
-          setShareTarget(c);
-        }}
-        onDelete={(c) => {
-          setDetailTarget(null);
-          setDeleteTarget(c);
-        }}
-      />
-
-      <ContactFormDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        mode="create"
-        pending={createContact.isPending}
-        errorMessage={createContact.error ? errorMessage(createContact.error, t("common:common.error.operationFailed")) : null}
-        onSubmit={handleCreate}
-      />
-
-      <ContactFormDialog
-        open={!!editTarget}
-        onOpenChange={open => !open && setEditTarget(null)}
-        mode="edit"
-        initial={editTarget}
-        pending={updateContact.isPending}
-        errorMessage={updateContact.error ? errorMessage(updateContact.error, t("common:common.error.operationFailed")) : null}
-        onSubmit={handleUpdate}
-      />
+      {drawer && (
+        <ResizableDrawer
+          ariaLabel={drawerAriaLabel(drawer, t)}
+          resizeLabel={t("drawer.resize")}
+          onClose={() => setDrawer(null)}
+        >
+          <ContactPanel
+            mode={drawer.mode}
+            contact={drawer.mode === "create" ? null : drawer.contact}
+            pending={panelPending}
+            errorMessage={panelError}
+            lockedLabel={lockedLabel}
+            hiddenLabel={hiddenLabel}
+            onClose={() => setDrawer(null)}
+            onEdit={() => {
+              if (drawer.mode === "view")
+                setDrawer({ mode: "edit", contact: drawer.contact });
+            }}
+            onShare={() => {
+              if (drawer.mode !== "create") {
+                const target = drawer.contact;
+                setDrawer(null);
+                setShareTarget(target);
+              }
+            }}
+            onDelete={() => {
+              if (drawer.mode !== "create") {
+                const target = drawer.contact;
+                setDrawer(null);
+                setDeleteTarget(target);
+              }
+            }}
+            onSubmit={handleSubmit}
+          />
+        </ResizableDrawer>
+      )}
 
       <ConfirmDeleteDialog
         open={!!deleteTarget}
@@ -437,6 +352,14 @@ export function ContactsListPage() {
       />
     </div>
   );
+}
+
+function drawerAriaLabel(drawer: DrawerState, t: (key: string) => string): string {
+  if (drawer.mode === "create")
+    return t("form.createTitle");
+  if (drawer.mode === "edit")
+    return t("form.editTitle");
+  return drawer.contact.name;
 }
 
 interface ToolbarFilterProps {
@@ -467,124 +390,5 @@ function ToolbarFilter({ value, allLabel, options, onChange }: ToolbarFilterProp
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-function DrawerField({
-  label,
-  value,
-  locked,
-  lockedLabel,
-  hiddenLabel,
-}: {
-  readonly label: string;
-  readonly value: string | null;
-  readonly locked: boolean;
-  readonly lockedLabel: string;
-  readonly hiddenLabel: string;
-}) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 text-sm">
-        <ContactFieldValue value={value} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-      </dd>
-    </div>
-  );
-}
-
-function ContactDetailDrawer({
-  contact,
-  onOpenChange,
-  lockedLabel,
-  hiddenLabel,
-  onEdit,
-  onShare,
-  onDelete,
-}: {
-  readonly contact: ContactView | null;
-  readonly onOpenChange: (open: boolean) => void;
-  readonly lockedLabel: string;
-  readonly hiddenLabel: string;
-  readonly onEdit: (contact: ContactView) => void;
-  readonly onShare: (contact: ContactView) => void;
-  readonly onDelete: (contact: ContactView) => void;
-}) {
-  const { t } = useTranslation(["contacts", "common"]);
-  const locked = contact ? isMasked(contact) : false;
-  const status = contact?.status ? t(`status.${contact.status}` as const) : null;
-
-  return (
-    <Sheet open={!!contact} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[28rem] max-w-[92vw]">
-        {contact && (
-          <>
-            <SheetHeader>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="secondary" className={contact.visibility === "public" ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"}>
-                  {t(`visibility.${contact.visibility}` as const)}
-                </Badge>
-                {contact.confidential && <Badge variant="secondary" className="bg-warning/10 text-warning">{t("field.confidential")}</Badge>}
-              </div>
-              <SheetTitle className="break-words text-lg">{contact.name}</SheetTitle>
-              <SheetDescription className="sr-only">{contact.name}</SheetDescription>
-            </SheetHeader>
-
-            <div className="flex-1 space-y-6 overflow-y-auto px-4">
-              <section className="space-y-3">
-                <h3 className="text-sm font-medium">{t("drawer.contactMethods")}</h3>
-                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DrawerField label={t("field.contactPerson")} value={contact.contactPerson} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                  <DrawerField label={t("field.phone")} value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                  <DrawerField label={t("field.email")} value={contact.email} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                  <DrawerField label={t("field.status")} value={status} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                  <DrawerField label={t("field.address")} value={contact.address} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                  <DrawerField label={t("field.taxId")} value={contact.taxId} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                </dl>
-              </section>
-
-              <section className="space-y-3">
-                <h3 className="text-sm font-medium">{t("drawer.tagsAndNotes")}</h3>
-                {contact.tags.length > 0
-                  ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {contact.tags.map(tg => (
-                          <Badge key={tg.id} variant="outline">{tg.name}</Badge>
-                        ))}
-                      </div>
-                    )
-                  : <p className="text-sm text-muted-foreground">—</p>}
-                <DrawerField label={t("field.note")} value={contact.note} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-              </section>
-            </div>
-
-            {contact.canManage && (
-              <SheetFooter>
-                <h3 className="sr-only">{t("drawer.sharing")}</h3>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" onClick={() => onShare(contact)}>
-                    <Share2 data-icon="inline-start" />
-                    {t("share.title")}
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => onEdit(contact)}>
-                    <Edit3 data-icon="inline-start" />
-                    {t("form.editTitle")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => onDelete(contact)}
-                  >
-                    <Trash2 data-icon="inline-start" />
-                    {t("delete.title")}
-                  </Button>
-                </div>
-              </SheetFooter>
-            )}
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
   );
 }

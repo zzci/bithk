@@ -5,19 +5,15 @@
   },
   "list": {
     "create": "Create contact",
-    "filterByTag": "Tag filter",
-    "tagPlaceholder": "Filter by tag name",
-    "applyFilter": "Apply",
-    "clearFilter": "Clear",
-    "activeTag": "Filtering by {{tag}}",
     "loading": "Loading contacts…",
     "empty": "No contacts yet.",
     "searchPlaceholder": "Search company, person, or note",
     "statusAll": "All statuses",
-    "visibilityAll": "All visibility",
-    "allConfidential": "All confidentiality",
-    "confidentialYes": "Confidential",
-    "confidentialNo": "Not confidential",
+    "categoryAll": "All categories",
+    "tagFilterLabel": "Tags",
+    "tagFilterLabelCount": "Tags ({{count}})",
+    "tagFilterEmpty": "No tags available",
+    "tagFilterRemove": "Remove tag {{name}}",
     "total": "{{count}} contacts",
     "colActions": "Actions",
     "kpi": {
@@ -29,8 +25,8 @@
   },
   "drawer": {
     "contactMethods": "Contact methods",
-    "tagsAndNotes": "Tags and notes",
-    "sharing": "Sharing"
+    "classification": "Classification",
+    "resize": "Resize panel"
   },
   "field": {
     "name": "Name",
@@ -69,12 +65,8 @@
     "submitCreate": "Create",
     "submitSave": "Save",
     "sections": {
-      "company": "Company",
-      "companyDescription": "Directory identity backed by the current contact API.",
-      "methods": "Contact methods",
-      "methodsDescription": "Phone, email, address, tax ID and notes.",
-      "access": "Access and tags",
-      "accessDescription": "Status, visibility, confidentiality and tag filters."
+      "identity": "Identity",
+      "access": "Access"
     }
   },
   "tags": {

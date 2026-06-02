@@ -13,6 +13,7 @@ import { relationTuples } from "@/modules/policy/schema";
 import { check } from "@/modules/policy/zanzibar.engine";
 import { shares } from "@/modules/share/schema";
 import { tagsRefs } from "@/modules/tag/schema";
+import { createContactCategory } from "./contact-category.service";
 import * as contactService from "./contact.service";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
@@ -172,13 +173,16 @@ describe("contact service", () => {
     await expect(contactService.get(db, actor(admin, "admin"), view.id)).resolves.toMatchObject({ email: "secret@example.test" });
   });
 
-  test("tags attach, resync on update, and list filters by tag", async () => {
+  test("tags attach, resync on update, and list filters by a multi-tag union", async () => {
     const owner = await seedUser("owner-a");
     const supplier = await contactService.create(db, actor(owner), { name: "Supplier", tags: ["supplier", "priority"] });
     const client = await contactService.create(db, actor(owner), { name: "Client", tags: ["client"] });
 
-    expect((await contactService.list(db, actor(owner), { tag: "supplier" })).data.map(c => c.id)).toEqual([supplier.id]);
-    expect((await contactService.list(db, actor(owner), { tag: "client" })).data.map(c => c.id)).toEqual([client.id]);
+    expect((await contactService.list(db, actor(owner), { tagIds: ["supplier"] })).data.map(c => c.id)).toEqual([supplier.id]);
+    expect((await contactService.list(db, actor(owner), { tagIds: ["client"] })).data.map(c => c.id)).toEqual([client.id]);
+    // union: a row carrying ANY selected tag matches.
+    expect((await contactService.list(db, actor(owner), { tagIds: ["supplier", "client"] })).data.map(c => c.id).sort())
+      .toEqual([client.id, supplier.id].sort());
 
     const updated = await contactService.update(db, actor(owner), supplier.id, {
       name: "Supplier Updated",
@@ -186,8 +190,8 @@ describe("contact service", () => {
     });
     expect(updated.name).toBe("Supplier Updated");
     expect(updated.tags.map(t => t.name)).toEqual(["client"]);
-    expect((await contactService.list(db, actor(owner), { tag: "supplier" })).data.map(c => c.id)).toEqual([]);
-    expect((await contactService.list(db, actor(owner), { tag: "client" })).data.map(c => c.id).sort()).toEqual([client.id, supplier.id].sort());
+    expect((await contactService.list(db, actor(owner), { tagIds: ["supplier"] })).data.map(c => c.id)).toEqual([]);
+    expect((await contactService.list(db, actor(owner), { tagIds: ["client"] })).data.map(c => c.id).sort()).toEqual([client.id, supplier.id].sort());
   });
 
   test("revoke removes explicit access", async () => {
@@ -285,24 +289,29 @@ describe("contact service", () => {
     expect(hits.data.map(c => c.id)).toEqual([active.id]);
   });
 
-  test("visibility filter narrows by visibility", async () => {
+  test("categoryId filter narrows by category", async () => {
     const owner = await seedUser("owner-a");
-    await contactService.create(db, actor(owner), { name: "Private Co", visibility: "private" });
-    const pub = await contactService.create(db, actor(owner), { name: "Public Co", visibility: "public" });
+    const supplierCat = await createContactCategory(db, { name: "Suppliers" });
+    const clientCat = await createContactCategory(db, { name: "Clients" });
+    const supplier = await contactService.create(db, actor(owner), { name: "Supplier Co", categoryId: supplierCat.id });
+    await contactService.create(db, actor(owner), { name: "Client Co", categoryId: clientCat.id });
+    await contactService.create(db, actor(owner), { name: "Uncategorized Co" });
 
-    const hits = await contactService.list(db, actor(owner), { visibility: "public" });
-    expect(hits.data.map(c => c.id)).toEqual([pub.id]);
+    const hits = await contactService.list(db, actor(owner), { categoryId: supplierCat.id });
+    expect(hits.data.map(c => c.id)).toEqual([supplier.id]);
   });
 
-  test("confidential filter narrows by confidential flag", async () => {
+  test("visibility and confidential are no longer user-facing list filters but masking stays intact", async () => {
     const owner = await seedUser("owner-a");
-    const secret = await contactService.create(db, actor(owner), { name: "Secret Co", confidential: true });
-    await contactService.create(db, actor(owner), { name: "Open Co", confidential: false });
+    await contactService.create(db, actor(owner), { name: "Private Co", visibility: "private" });
+    await contactService.create(db, actor(owner), { name: "Public Co", visibility: "public", confidential: true });
 
-    const onlySecret = await contactService.list(db, actor(owner), { confidential: true });
-    expect(onlySecret.data.map(c => c.id)).toEqual([secret.id]);
-    const onlyOpen = await contactService.list(db, actor(owner), { confidential: false });
-    expect(onlyOpen.data.map(c => c.name)).toEqual(["Open Co"]);
+    // The owner always sees its own rows; no visibility/confidential filter prunes them.
+    const all = await contactService.list(db, actor(owner));
+    expect(all.data.map(c => c.name).sort()).toEqual(["Private Co", "Public Co"]);
+    // The owner is never masked on its own confidential contact.
+    const secret = all.data.find(c => c.name === "Public Co")!;
+    expect(secret.confidential).toBe(true);
   });
 
   test("pagination slices rows and reports the full total", async () => {
