@@ -17,7 +17,6 @@
   "noResults": "No documents found.",
   "selectToView": "Select a document to view",
   "col": {
-    "title": "Title",
     "creator": "Creator",
     "createdAt": "Created",
     "actions": "Actions"
@@ -85,7 +84,6 @@
     "title": "Pinned"
   },
   "conflict": {
-    "title": "Document changed elsewhere",
     "body": "This document was updated in another session. Your draft is preserved here — copy your changes, then reload to merge."
   }
 }

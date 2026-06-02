@@ -5,7 +5,6 @@
   },
   "relationTuples": "Relation Tuples",
   "permissionCheck": "Permission Check",
-  "allNamespaces": "All namespaces",
   "createTuple": "Create Tuple",
   "createTitle": "Create Relation Tuple",
   "createDescription": "Add a new permission relation between a subject and an object.",
