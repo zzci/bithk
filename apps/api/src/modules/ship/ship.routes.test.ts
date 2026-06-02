@@ -194,6 +194,25 @@ describe("GET /ships/:shortId (fail-closed read)", () => {
   });
 });
 
+describe("GET /ships (list is member-scoped for non-admins)", () => {
+  test("a non-admin sees only ships whose base project they belong to", async () => {
+    const app = buildApp(db);
+    const a = await createShipAsAdmin(app, "ShipA");
+    await createShipAsAdmin(app, "ShipB");
+
+    // A plain user, member of ShipA's base project only.
+    const member = await seedUser("user");
+    await addMember(db, a.baseProjectInternalId, { roleId: await memberRoleId(a.baseProjectInternalId), userId: member });
+
+    const listRes = await app.request("/ships", { headers: { Cookie: await cookieForUser(member) } });
+    expect(listRes.status).toBe(200);
+    const body = await listRes.json() as { data: { id: string }[]; meta: { total: number } };
+    expect(body.meta.total).toBe(1);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]!.id).toBe(a.shipShortId);
+  });
+});
+
 describe("PATCH /ships/:shortId (write needs project.manage)", () => {
   test("a plain member gets 403; the PM updates; a non-member gets 404", async () => {
     const app = buildApp(db);

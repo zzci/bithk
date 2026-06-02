@@ -132,7 +132,6 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
             <Field label={t("field.status")}>
               <ShipStatusBadge status={ship.status} />
             </Field>
-            <Field label={t("field.vesselType")}>{t(`vesselType.${ship.vesselType}` as const)}</Field>
             <Field label={t("field.builder")}>{text(ship.builder)}</Field>
             <Field label={t("field.model")}>{text(ship.model)}</Field>
             <Field label={t("field.buildYear")}>{num(ship.buildYear)}</Field>

@@ -37,6 +37,7 @@ const REFERENCE = "en";
 const IDENTICAL_ALLOWLIST: ReadonlySet<string> = new Set([
   "ships:field.mmsi", // MMSI — maritime acronym, identical in every locale
   "projects:list.moreTags", // "+{{count}}" — symbol + interpolation, no words
+  "ships:list.moreTags", // "+{{count}}" — symbol + interpolation, no words
   "totp:verifyCodePlaceholder", // "000000" — numeric input placeholder
   "contacts:share.targetId", // "ID" — acronym
   "editor:linkDialogPlaceholder", // "https://example.com" — example URL

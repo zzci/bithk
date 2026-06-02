@@ -5,12 +5,16 @@
   },
   "list": {
     "create": "Create ship",
-    "typeAll": "All types",
     "loading": "Loading ships…",
     "empty": "No ships yet.",
     "noMatches": "No ships match your search.",
     "total": "{{count}} total",
     "searchPlaceholder": "Search name, hull number, or IMO",
+    "moreTags": "+{{count}}",
+    "tagFilterMore": "Tags",
+    "tagFilterMoreLabel": "Tags",
+    "tagFilterSearchPlaceholder": "Search tags",
+    "tagFilterNoMore": "No more tags",
     "kpi": {
       "total": "Total ships",
       "maintenance": "In maintenance",
@@ -25,13 +29,11 @@
     "active": "Active",
     "archived": "Archived"
   },
-  "vesselType": {
-    "motor_yacht": "Motor yacht",
-    "sailing_yacht": "Sailing yacht",
-    "catamaran": "Catamaran",
-    "work_boat": "Work boat",
-    "cargo": "Cargo ship",
-    "other": "Other"
+  "tags": {
+    "searchPlaceholder": "Search or create tags",
+    "create": "Create \"{{name}}\"",
+    "empty": "No tags yet",
+    "remove": "Remove tag {{name}}"
   },
   "tabs": {
     "overview": "Overview",
@@ -67,7 +69,7 @@
     "name": "Name",
     "code": "Hull number",
     "status": "Status",
-    "vesselType": "Vessel type",
+    "tags": "Tags",
     "description": "Description",
     "builder": "Builder",
     "model": "Model",

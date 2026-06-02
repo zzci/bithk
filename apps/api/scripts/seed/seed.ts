@@ -93,8 +93,8 @@ async function assetFile(dir: string, filename: string): Promise<File> {
 interface UserRec { key: string; username: string; name: string; email: string; role: "admin" | "user" }
 interface GroupRec { key: string; name: string; description?: string; members: string[] }
 interface ContactRec { key: string; kind: string; name: string; contactPerson?: string; email?: string; phone?: string; address?: string; visibility?: "private" | "public"; tags?: string[]; note?: string }
-interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; location?: string; status?: "active" | "retired" }
-interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; gt?: number | null; flagState?: string; registryPort?: string; status?: "active" | "archived"; vesselType?: "motor_yacht" | "sailing_yacht" | "catamaran" | "work_boat" | "cargo" | "other"; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; equipment?: EquipmentRec[] }
+interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; serialNumber?: string; installedAt?: string; note?: string; location?: string; status?: "active" | "retired" }
+interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; gt?: number | null; flagState?: string; registryPort?: string; status?: "active" | "archived"; tags?: string[]; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; ownerName?: string; equipment?: EquipmentRec[] }
 interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; ship?: string; fromGlobal?: string }
 interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; bindShip?: string | null; members?: { user: string; role: string }[]; categories?: string[] }
 interface IssueTemplate { key: string; title: string; status: string; priority: string; tags?: string[]; description?: string; assign?: boolean; dueOffsetDays?: number | null; attachment?: string | null; comments?: { text: string; internal?: boolean }[] }
@@ -180,7 +180,7 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
       name: s.name,
       creatorId: uId(ADMIN_KEY),
       status: s.status ?? "active",
-      vesselType: s.vesselType ?? "other",
+      tags: s.tags ?? [],
       model: s.model ?? null,
       builder: s.builder ?? null,
       buildYear: s.buildYear ?? null,
@@ -193,7 +193,7 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
       callSign: s.callSign ?? null,
       flagState: s.flagState ?? null,
       registryPort: s.registryPort ?? null,
-      ownerName: null,
+      ownerName: s.ownerName ?? null,
       description: s.model ? `${s.builder ?? ""} ${s.model} — ${s.loa ?? "?"} m.`.trim() : null,
     });
     shipInternalId.set(s.key, ship.id);
@@ -205,6 +205,9 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
         category: e.category ?? null,
         manufacturer: e.manufacturer ?? null,
         model: e.model ?? null,
+        serialNumber: e.serialNumber ?? null,
+        installedAt: e.installedAt ?? null,
+        note: e.note ?? null,
         location: e.location ?? null,
         status: e.status ?? "active",
       });

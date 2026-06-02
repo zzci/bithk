@@ -1,35 +1,29 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ShipFormState } from "./-ship-form-logic";
-import type { ShipStatus, ShipVesselType, ShipView } from "@/shared/lib/api/ships";
+import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { Calendar, Loader2, MapPin, Plus, Search, Ship as ShipIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CoverImage } from "@/shared/components/cover-image";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { useDebounce } from "@/shared/hooks/use-debounce";
-import { SHIP_STATUSES, SHIP_VESSEL_TYPES, useCreateShip, useShipCount, useShips } from "@/shared/lib/api/ships";
+import { SHIP_STATUSES, useCreateShip, useShipCount, useShips, useShipTags } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ShipFormDialog } from "./-ship-form-dialog";
 import { shipFormToCreate } from "./-ship-form-logic";
+import { ShipTagFilter } from "./-ship-tag-filter";
 import { ShipStatusBadge } from "./-ship-visuals";
 
 export const Route = createLazyFileRoute("/_app/ships/")({
   component: ShipsListPage,
 });
 
-const TYPE_ALL = "__all__";
 const CURRENT_YEAR = new Date().getUTCFullYear();
 
 export function ShipsListPage() {
@@ -38,7 +32,7 @@ export function ShipsListPage() {
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
   const [status, setStatus] = useState<ShipStatus>("active");
-  const [type, setType] = useState<string>(TYPE_ALL);
+  const [tagId, setTagId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -54,11 +48,12 @@ export function ShipsListPage() {
 
   const shipsQuery = useShips({
     status,
-    type: type === TYPE_ALL ? undefined : (type as ShipVesselType),
+    tagId: tagId ?? undefined,
     page,
     q: debouncedSearch,
   });
   const createShip = useCreateShip();
+  const shipTags = useShipTags().data ?? [];
 
   // Fleet KPIs from a dedicated status-keyed count query, stable across the
   // main list's pagination and search.
@@ -130,27 +125,18 @@ export function ShipsListPage() {
               </Button>
             );
           })}
-          <Select
-            value={type}
-            onValueChange={(v) => {
-              if (v !== null) {
-                setType(v);
-                setPage(1);
-              }
+          <ShipTagFilter
+            tags={shipTags}
+            selectedTagId={tagId}
+            onSelect={(id) => {
+              setTagId(id);
+              setPage(1);
             }}
-          >
-            <SelectTrigger className="h-8 w-40 shrink-0 rounded-full">
-              <SelectValue>
-                {(v: string) => (v === TYPE_ALL ? t("list.typeAll") : t(`vesselType.${v}` as const))}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TYPE_ALL}>{t("list.typeAll")}</SelectItem>
-              {SHIP_VESSEL_TYPES.map(vt => (
-                <SelectItem key={vt} value={vt}>{t(`vesselType.${vt}` as const)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onClear={() => {
+              setTagId(null);
+              setPage(1);
+            }}
+          />
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -272,6 +258,21 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
             </span>
           )}
         </div>
+
+        {ship.tags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {ship.tags.slice(0, 3).map(tag => (
+              <Badge key={tag.id} variant="secondary" className="text-[10px] font-medium">
+                {tag.name}
+              </Badge>
+            ))}
+            {ship.tags.length > 3 && (
+              <span className="self-center text-[10px] font-medium text-muted-foreground">
+                {t("list.moreTags", { count: ship.tags.length - 3 })}
+              </span>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

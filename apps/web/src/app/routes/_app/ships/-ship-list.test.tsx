@@ -30,6 +30,14 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
+// Ship list requests and the ship-tag vocabulary (`/tags?type=ship`) share the
+// same fetch mock; route by URL so the tag filter has real tags to render.
+function defaultFetch(input: RequestInfo | URL): Promise<Response> {
+  if (String(input).includes("/tags"))
+    return Promise.resolve(jsonResponse({ success: true, data: [{ id: "tag-refit", name: "Refit" }] }));
+  return Promise.resolve(jsonResponse(listPayload()));
+}
+
 function listPayload() {
   return {
     success: true,
@@ -38,7 +46,7 @@ function listPayload() {
       name: "Serenity",
       code: "HULL-1",
       status: "active",
-      vesselType: "motor_yacht",
+      tags: [{ id: "tag-refit", name: "Refit" }],
       baseProjectId: "p1",
       model: "Container 300",
       builder: "North Dock",
@@ -64,7 +72,7 @@ function listPayload() {
 
 describe("shipsListPage", () => {
   it("renders the heading and a ship card with its status badge", async () => {
-    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
+    fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     expect(screen.getByRole("heading", { name: "Ships" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
@@ -74,7 +82,7 @@ describe("shipsListPage", () => {
   });
 
   it("hides the create entry for non-admins", async () => {
-    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
+    fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Create ship" })).not.toBeInTheDocument();
@@ -82,14 +90,14 @@ describe("shipsListPage", () => {
 
   it("shows the admin create entry", async () => {
     useAuthStore.setState({ user: { id: "u1", role: "admin" } as never });
-    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
+    fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Create ship" })).toBeInTheDocument();
   });
 
   it("renders the status filter chips with fleet counts", async () => {
-    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
+    fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     // The KPI count comes from a dedicated count query that resolves
@@ -99,22 +107,27 @@ describe("shipsListPage", () => {
     expect(screen.queryByRole("button", { name: /^All/ })).not.toBeInTheDocument();
   });
 
-  it("defaults to the active status and a vessel-type dropdown set to all types", async () => {
-    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
+  it("defaults to the active status and renders the tag filter with no tag applied", async () => {
+    fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    // The initial list request carries the default active status and no type.
+    // The initial list request carries the default active status and no tag.
     await waitFor(() => {
-      const call = fetchMock.mock.calls.find(c => String(c[0]).includes("/ships?") && String(c[0]).includes("status=active") && !String(c[0]).includes("type="));
+      const call = fetchMock.mock.calls.find(c => String(c[0]).includes("/ships?") && String(c[0]).includes("status=active") && !String(c[0]).includes("tagId="));
       expect(call).toBeDefined();
     });
-    expect(screen.getByText("All types")).toBeInTheDocument();
+    // The single-select tag filter trigger replaces the old vessel-type dropdown.
+    expect(screen.getByRole("button", { name: "Tags" })).toBeInTheDocument();
+    // The ship card surfaces its tag as a badge.
+    expect(screen.getByText("Refit")).toBeInTheDocument();
   });
 
   it("searches the whole fleet through the server", async () => {
     // Server-side search: the list endpoint applies `q`, so an empty result
     // for an unmatched term must come from the API, not a client page filter.
     fetchMock.mockImplementation((input) => {
+      if (String(input).includes("/tags"))
+        return Promise.resolve(jsonResponse({ success: true, data: [{ id: "tag-refit", name: "Refit" }] }));
       const q = new URL(String(input), "http://test").searchParams.get("q");
       if (q === "zzz")
         return Promise.resolve(jsonResponse({ success: true, data: [], meta: { total: 0, page: 1, limit: 20 } }));
@@ -137,7 +150,7 @@ describe("shipsListPage", () => {
   });
 
   it("refetches with a status filter when a status chip is selected", async () => {
-    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(listPayload())));
+    fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
 
