@@ -1,6 +1,6 @@
 # PLAN-049 Create-issue dialog staged-attachment list
 
-- **status**: In Progress
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 xps1yt40
 - **campaignId**: l1-75ymcfnr-attach-20260602042448
 - **tasks**: [FIX-026](../task/FIX-026.md)
