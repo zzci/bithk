@@ -15,7 +15,6 @@ import {
   getTupleById,
   getTuplesBySubject,
   listTuples,
-  updateTupleRelation,
 } from "./policy.service";
 import { getPermissionManifest } from "./registry";
 import {
@@ -159,10 +158,9 @@ export function policyRoutes() {
       relation: z.string().min(1),
     }).parse(await c.req.json());
 
-    // Delete old and create new with updated relation atomically: a failed
-    // validation / duplicate check rolls back, so the existing grant is never
-    // destroyed by a partial write (FIX-AUDIT-017).
-    const updated = await updateTupleRelation(db, id, {
+    // Delete old and create new with updated relation
+    await deleteTuple(db, id);
+    const updated = await createTuple(db, {
       namespace: existing.namespace,
       objectId: existing.objectId,
       relation: body.relation,
