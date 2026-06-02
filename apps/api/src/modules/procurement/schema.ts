@@ -38,7 +38,7 @@ export const procurementDetails = sqliteTable("procurement_details", {
   // Issue-parity fields mirroring `issue_details` exactly so the procurement
   // detail UI reaches feature parity with the project issue detail.
   description: text("description"),
-  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("medium"),
+  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("low"),
   dueDate: text("due_date"),
 }, t => [index("procurement_project_idx").on(t.projectId)]);
 

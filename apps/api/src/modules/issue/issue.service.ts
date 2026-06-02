@@ -131,7 +131,7 @@ function composeIssueRow(
     title: item.title,
     description: details.description ?? null,
     status: item.status as IssueStatus,
-    priority: (details.priority ?? "medium") as IssuePriority,
+    priority: (details.priority ?? "low") as IssuePriority,
     creatorId: item.creatorId,
     assigneeId,
     dueDate: details.dueDate ?? null,
@@ -220,7 +220,7 @@ export async function createIssue(db: AppDatabase, input: CreateIssueInput): Pro
     tx.insert(issueDetails).values({
       itemId: id,
       description: input.description ?? null,
-      priority: input.priority ?? "medium",
+      priority: input.priority ?? "low",
       dueDate: input.dueDate ?? null,
       projectId: input.projectId,
       assigneeMemberId,

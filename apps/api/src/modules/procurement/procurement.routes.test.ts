@@ -214,7 +214,7 @@ describe("POST procurement (procurement.manage)", () => {
     expect(body.data.status).toBe("requested");
   });
 
-  test("create accepts description/priority/dueDate and defaults priority to medium", async () => {
+  test("create accepts description/priority/dueDate and defaults priority to low", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
@@ -235,7 +235,7 @@ describe("POST procurement (procurement.manage)", () => {
     const defaults = await app.request(`/projects/${project.shortId}/procurements`, jsonReq("POST", cookie, { itemName: "Bolts" }));
     expect(defaults.status).toBe(201);
     const df = (await res2json(defaults)).data;
-    expect(df.priority).toBe("medium");
+    expect(df.priority).toBe("low");
     expect(df.description).toBeNull();
     expect(df.dueDate).toBeNull();
   });

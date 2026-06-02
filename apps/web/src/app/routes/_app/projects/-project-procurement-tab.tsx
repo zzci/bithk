@@ -377,7 +377,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<ProcurementStatus>("requested");
-  const [priority, setPriority] = useState<ProcurementPriority>("medium");
+  const [priority, setPriority] = useState<ProcurementPriority>("low");
   const [dueDate, setDueDate] = useState("");
   const [quantity, setQuantity] = useState("");
   const [amount, setAmount] = useState("");
@@ -393,7 +393,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
     setTitle("");
     setDescription("");
     setStatus("requested");
-    setPriority("medium");
+    setPriority("low");
     setDueDate("");
     setQuantity("");
     setAmount("");
