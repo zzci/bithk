@@ -105,23 +105,25 @@ failure can no longer orphan rows.
 - **04-F3: `SET NULL` on `creator_id`.** Not possible — `creator_id` is
   `NOT NULL`.
 
-## Deferred (documented, not implemented this campaign)
+## Resolved in the campaign-C follow-up (2026-06-02, L3 rypgzh5l → 0a7fb58)
 
-- **04-F4 — cover-image reference release is not atomic with the project
-  update.** A crash between the `projects.cover_reference_id` repoint and the
-  `releaseReference` of the previous reference leaks one unreleased
-  `file_references` row (storage only; the project already points at the new
-  reference). A fully atomic fix needs a transaction-aware reference-release API
-  in the file module (`file.service.ts`), which is outside this campaign's file
-  ownership; inlining the release would either duplicate file-layer internals or
-  regress sync-mode blob GC. The existing repoint-before-release ordering bounds
-  the leak to one reference per interrupted change. Deferred to a file-module
-  change.
-- **04-F5 — `updateProject` bumps `version` without an optimistic-concurrency
-  guard.** Adding an `expectedVersion` check would also require route-layer
-  changes (`project.routes.ts`), which are out of this campaign's scope; with the
-  small editor set and single settings dialog the lost-update risk is low.
-  Deferred.
+The two findings below were initially deferred, then completed in an
+L1-approved follow-up L3 and merged into `bkd/uvgvhcm1`.
+
+- **04-F4 — cover-image reference release is now ATOMIC with the project
+  update.** Added `releaseReferenceTx(tx, referenceId)` (DB-only release inside a
+  caller-provided transaction) + `finalizeReleasedBlob(db, config, drained)` for
+  the post-commit sync-GC blob delete (driver I/O cannot run inside a `bun:sqlite`
+  tx). `setProjectCover`/`removeProjectCover` repoint `cover_reference_id` and
+  release the old reference in ONE `db.transaction` — the leak window is closed.
+  The two default-cover settings paths are made atomic in the same tx (settings
+  upsert/delete inlined via the `settings` table). Sync-mode blob GC preserved.
+- **04-F5 — `updateProject` now ENFORCES optimistic concurrency.**
+  `UpdateProjectInput` gains an optional `expectedVersion`; the version-bump
+  `UPDATE` is scoped `WHERE version = expectedVersion` inside the tx (TOCTOU-safe)
+  and returns `ProjectVersionConflict { conflict, current }` on a 0-row write.
+  `PATCH /projects/:id` accepts `expectedVersion` and returns `409
+  { code: VERSION_CONFLICT, data: current }` on a stale update.
 
 ## Sunset / review
 
