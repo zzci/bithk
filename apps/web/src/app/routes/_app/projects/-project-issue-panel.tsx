@@ -9,13 +9,9 @@
 import type { UpdateProjectIssueInput } from "./-project-issue-hooks";
 import type { ProjectIssueRow, ProjectMemberView } from "@/shared/lib/api/projects";
 import {
-  ArrowLeft,
   ChevronDown,
-  Maximize2,
   Paperclip,
   Pencil,
-  Trash2,
-  X,
 } from "lucide-react";
 import {
   useEffect,
@@ -24,6 +20,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
 import { MarkdownEditor } from "@/shared/components/editor";
 import {
   ResourceFooterSections,
@@ -114,8 +111,6 @@ export function ProjectIssuePanel({
 
   const [error, setError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
-  const [editingTitle, setEditingTitle] = useState(false);
   const [descDraft, setDescDraft] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -135,12 +130,6 @@ export function ProjectIssuePanel({
   // Drafts are seeded when entering edit mode (so an in-flight patch that
   // refreshes `issue` never clobbers what the user is typing); the read views
   // always render straight from `issue`.
-  const startEditTitle = () => {
-    if (!issue)
-      return;
-    setTitleDraft(issue.title);
-    setEditingTitle(true);
-  };
   const startEditDesc = () => {
     setDescDraft(issue?.description ?? "");
     setEditingDesc(true);
@@ -207,17 +196,6 @@ export function ProjectIssuePanel({
 
   const canUploadAttachment = !!issue && (permissions.canEditAll || issue.assigneeId === user?.id);
 
-  const saveTitle = () => {
-    const trimmed = titleDraft.trim();
-    if (issue && trimmed && trimmed !== issue.title) {
-      patch({ title: trimmed });
-    }
-    else if (issue) {
-      setTitleDraft(issue.title);
-    }
-    setEditingTitle(false);
-  };
-
   const saveDesc = () => {
     if (!issue)
       return;
@@ -270,90 +248,22 @@ export function ProjectIssuePanel({
       tabIndex={-1}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2 shrink-0">
-        {variant === "fullscreen" && (
-          <Button
-            variant="ghost"
-            onClick={() => onClose()}
-            className="-ml-1 gap-1 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            {t("backToList")}
-          </Button>
-        )}
-        <div className="min-w-0 flex-1">
-          {editingTitle && permissions.canEditAll
-            ? (
-                <input
-                  className="w-full bg-transparent text-base font-semibold tracking-tight outline-none border-b-2 border-primary"
-                  value={titleDraft}
-                  autoFocus
-                  onChange={e => setTitleDraft(e.target.value)}
-                  onBlur={saveTitle}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      saveTitle();
-                    }
-                    else if (e.key === "Escape") {
-                      setTitleDraft(issue.title);
-                      setEditingTitle(false);
-                    }
-                  }}
-                />
-              )
-            : (
-                <h1
-                  className={`truncate text-base font-semibold tracking-tight ${permissions.canEditAll ? "cursor-pointer rounded-sm hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}
-                  onClick={() => permissions.canEditAll && startEditTitle()}
-                  title={permissions.canEditAll ? t("clickToEditTitle") : issue.title}
-                  tabIndex={permissions.canEditAll ? 0 : undefined}
-                  onKeyDown={permissions.canEditAll
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          startEditTitle();
-                        }
-                      }
-                    : undefined}
-                >
-                  {issue.title}
-                </h1>
-              )}
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          {permissions.canDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setDeleteOpen(true)}
-              title={t("common.delete")}
-            >
-              <Trash2 className="size-4 text-destructive" />
-            </Button>
-          )}
-          {variant === "drawer" && onMaximize && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onMaximize}
-              title={t("openFullPage")}
-            >
-              <Maximize2 className="size-4" />
-            </Button>
-          )}
-          {variant === "drawer" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onClose()}
-              title={t("common.close")}
-            >
-              <X className="size-4" />
-            </Button>
-          )}
-        </div>
-      </div>
+      <DetailPanelHeader
+        variant={variant}
+        title={issue.title}
+        {...(permissions.canEditAll
+          ? { titleEdit: { canEdit: true, onSave: (next: string) => patch({ title: next }), editHint: t("clickToEditTitle") } }
+          : {})}
+        labels={{
+          back: t("backToList"),
+          maximize: t("openFullPage"),
+          close: t("common.close"),
+          delete: t("common.delete"),
+        }}
+        onClose={onClose}
+        {...(variant === "drawer" && onMaximize ? { onMaximize } : {})}
+        {...(permissions.canDelete ? { onDelete: () => setDeleteOpen(true) } : {})}
+      />
 
       {/* Body — scrollable */}
       <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-2">
