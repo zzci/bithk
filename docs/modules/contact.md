@@ -36,13 +36,31 @@ Mounted under `protectedRoutes`; every route requires `authRequired`.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| GET | `/api/contacts` | List contacts visible to the caller. Optional `tag` query matches a tag id or name. |
+| GET | `/api/contacts` | List contacts visible to the caller. Supports filtering, search, and pagination (see below). |
 | POST | `/api/contacts` | Create a contact. The caller becomes owner and an owner policy tuple is written. |
 | GET | `/api/contacts/:id` | Read one visible contact. Private contacts without access fail closed. |
 | PATCH | `/api/contacts/:id` | Update contact fields, visibility, confidentiality, status, and tags. Owner/admin only. |
 | DELETE | `/api/contacts/:id` | Delete the contact, its tag links, and policy tuples. Owner/admin only. |
 | POST | `/api/contacts/:id/grant` | Grant explicit viewer access to exactly one `{ userId }` or `{ groupId }`. |
 | POST | `/api/contacts/:id/revoke` | Revoke explicit viewer access for exactly one `{ userId }` or `{ groupId }`. |
+
+### `GET /api/contacts` query params
+
+| Param | Description |
+| ----- | ----------- |
+| `q` | Search across name, contact person, and note (matches the raw stored values, not the masked response fields). |
+| `status` | Filter by `active` or `inactive`. |
+| `visibility` | Filter by `private` or `public`. |
+| `confidential` | Filter by `true` or `false`. |
+| `tag` | Tag id or name. |
+| `page` | 1-based page number. When omitted, the full visible set is returned (no pagination applied). |
+| `limit` | Page size, default `20`, max `100`. |
+
+Response envelope: `{ success, data, meta: { total, page, limit } }`. `data` is the
+array of visible contacts; `meta.total` is the total count matching the filters.
+`meta` is always present, including when `page` is omitted and the full set is
+returned. Search matches the raw `name`/`contactPerson`/`note` values; response
+field masking for confidential public contacts is unchanged (see Permissions).
 
 ## Permissions
 
