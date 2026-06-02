@@ -210,7 +210,7 @@ export async function createProcurement(db: AppDatabase, input: CreateProcuremen
       amount: input.amount ?? null,
       currency: input.currency ?? null,
       description: input.description ?? null,
-      priority: input.priority ?? "medium",
+      priority: input.priority ?? "low",
       dueDate: input.dueDate ?? null,
     }).run();
 

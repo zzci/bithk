@@ -112,7 +112,7 @@ const SCHEMA_DDL: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS issue_details (
     item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
     description TEXT,
-    priority TEXT NOT NULL DEFAULT 'medium',
+    priority TEXT NOT NULL DEFAULT 'low',
     due_date TEXT,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     assignee_member_id TEXT REFERENCES project_members(id) ON DELETE SET NULL
@@ -205,7 +205,7 @@ describe("createIssue", () => {
     expect(issue.id).toHaveLength(8); // short_id
     expect(issue.title).toBe("Test task");
     expect(issue.status).toBe("todo");
-    expect(issue.priority).toBe("medium");
+    expect(issue.priority).toBe("low");
     expect(issue.creatorId).toBe(creator);
     expect(issue.assigneeId).toBeNull();
     expect(issue.projectId).toBe(project.shortId);
