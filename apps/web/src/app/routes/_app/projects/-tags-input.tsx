@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { addTag, removeTag } from "./-project-form-logic";
+import { addTag, removeTag } from "@/shared/lib/tag-utils";
 
 interface TagsInputProps {
   readonly value: readonly string[];

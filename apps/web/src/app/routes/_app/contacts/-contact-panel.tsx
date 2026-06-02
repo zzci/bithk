@@ -30,14 +30,13 @@ import {
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
+import { addTag, removeTag } from "@/shared/lib/tag-utils";
 import {
-  addTag,
   CONTACT_STATUSES,
   CONTACT_VISIBILITIES,
   contactFormFromView,
   EMPTY_CONTACT_FORM,
   isMasked,
-  removeTag,
 } from "./-contact-form-logic";
 
 export type ContactPanelMode = "create" | "view" | "edit";
