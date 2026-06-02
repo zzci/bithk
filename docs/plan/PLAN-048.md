@@ -1,6 +1,6 @@
 # PLAN-048 Tag-filter polish + projects-home label removal
 
-- **status**: In Progress
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 h9ieukwl
 - **campaignId**: l1-75ymcfnr-tagfx-20260602025356
 - **tasks**: [FIX-024](../task/FIX-024.md), [FIX-025](../task/FIX-025.md)
