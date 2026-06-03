@@ -37,8 +37,9 @@ function member(overrides: Partial<ProjectMemberView> = {}): ProjectMemberView {
 }
 
 const roles: ProjectRoleView[] = [
-  { id: "r1", name: "Owner", capabilities: [], isSystem: true, createdAt: "", updatedAt: "" },
+  { id: "r1", name: "Owner", capabilities: [], isSystem: true, kind: "owner", createdAt: "", updatedAt: "" },
   { id: "r2", name: "Worker", capabilities: [], isSystem: false, createdAt: "", updatedAt: "" },
+  { id: "r3", name: "Guest", capabilities: [], isSystem: true, kind: "guest", createdAt: "", updatedAt: "" },
 ];
 
 /** Route the roles GET, the visible-users GET, and any member mutation. */
@@ -98,6 +99,22 @@ describe("projectSettingsMembers", () => {
     expect(await screen.findByText("Worker")).toBeInTheDocument();
   });
 
+  it("labels a member on the guest system role as Guest, not Project Owner", async () => {
+    routeFetch();
+    renderWithProviders(
+      <ProjectSettingsMembers
+        projectId="p1"
+        members={[member({ id: "m3", roleId: "r3" })]}
+        userNames={userNames}
+        canManage={false}
+      />,
+    );
+    await screen.findByText("Alice");
+    // The guest system role resolves via its `kind`, not the owner fallback.
+    expect(await screen.findByText("Guest")).toBeInTheDocument();
+    expect(screen.queryByText("Project Owner")).not.toBeInTheDocument();
+  });
+
   it("hides management controls when the viewer cannot manage", async () => {
     routeFetch();
     renderWithProviders(
@@ -119,6 +136,28 @@ describe("projectSettingsMembers", () => {
     const dialog = await screen.findByRole("dialog");
     // Neither role nor user selected yet → submit must stay disabled.
     expect(within(dialog).getByRole("button", { name: "Add" })).toBeDisabled();
+  });
+
+  it("excludes the Guest system role from the assignable role options", async () => {
+    const user = userEvent.setup();
+    routeFetch();
+    renderWithProviders(
+      <ProjectSettingsMembers projectId="p1" members={[]} userNames={userNames} canManage />,
+    );
+    await screen.findByText("No members yet.");
+    await user.click(screen.getByRole("button", { name: "Add member" }));
+    const dialog = await screen.findByRole("dialog");
+    // The role select is the last combobox in the dialog (after kind + user).
+    const comboboxes = within(dialog).getAllByRole("combobox");
+    await user.click(comboboxes[comboboxes.length - 1]!);
+    const listbox = await screen.findByRole("listbox");
+    // Wait for the roles query to settle and populate the options.
+    await within(listbox).findByRole("option", { name: "Project Owner" });
+    const optionNames = within(listbox).getAllByRole("option").map(o => o.textContent?.trim());
+    // Owner + custom roles are assignable; the Guest system role is excluded.
+    expect(optionNames).toContain("Project Owner");
+    expect(optionNames).toContain("Worker");
+    expect(optionNames).not.toContain("Guest");
   });
 
   it("edits a member's title and patches the specific member id", async () => {

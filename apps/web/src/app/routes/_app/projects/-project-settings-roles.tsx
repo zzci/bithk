@@ -30,6 +30,7 @@ import {
   useUpdateProjectRole,
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { systemRoleLabel } from "./-member-helpers";
 
 // ---------------------------------------------------------------------------
 // Module tier definitions
@@ -124,14 +125,6 @@ function buildCapabilities(
 const PRESET_READER = { issue: "view" as IssueTier, procurement: "view" as ProcurementTier, files: "view" as FilesTier, admin: [] as ProjectCapability[] };
 const PRESET_COMMENTER = { issue: "comment" as IssueTier, procurement: "comment" as ProcurementTier, files: "view" as FilesTier, admin: [] as ProjectCapability[] };
 const PRESET_WRITER = { issue: "manage" as IssueTier, procurement: "manage" as ProcurementTier, files: "manage" as FilesTier, admin: ["categories.manage"] as ProjectCapability[] };
-
-/** Resolve the display label for a system role based on its `kind` field. */
-function systemRoleLabel(role: ProjectRoleView, ownerLabel: string, guestLabel: string): string {
-  if (role.kind === "guest")
-    return guestLabel;
-  // kind==="owner" or legacy system roles with no kind
-  return ownerLabel;
-}
 
 interface ProjectSettingsRolesProps {
   readonly projectId: string;
