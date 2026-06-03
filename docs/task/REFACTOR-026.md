@@ -1,7 +1,7 @@
-# REFACTOR-021 — Project member/assignee pickers → unified users (drop displayName)
+# REFACTOR-026 — Project member/assignee pickers → unified users (drop displayName)
 
 - Status: Completed (merged into bkd/fto2m2se)
-- Plan: [PLAN-066](../plan/PLAN-066.md)
+- Plan: [PLAN-067](../plan/PLAN-067.md)
 - Campaign: l1-75ymcfnr-vuser-20260603200111
 - Owner: L2 fto2m2se dispatch → L3-3
 - Created: 2026-06-03
@@ -44,7 +44,7 @@ Switch project member add + member/assignee display to the unified users model:
 
 ## Dependencies
 
-- L3-1 (REFACTOR-020) backend: member view `name`+`isVirtual`, `userId`-only
+- L3-1 (REFACTOR-025) backend: member view `name`+`isVirtual`, `userId`-only
   member API, `GET /account/assignable-users`.
 
 ## Status notes
@@ -74,4 +74,4 @@ Switch project member add + member/assignee display to the unified users model:
   campaign (cherry-picks, pre-roledup base) EXCEPT the member files which now
   match roledup+picker (superset of main's roledup version → easier 3-way). main
   currently has roledup/ovratio/roleui (PLAN-063/064/065); our plan was renumbered
-  PLAN-063 → **PLAN-066** to avoid the file-level collision.
+  PLAN-063 → **PLAN-067** to avoid the file-level collision.

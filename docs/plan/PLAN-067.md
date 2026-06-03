@@ -1,9 +1,9 @@
-# PLAN-066 Virtual users as first-class user rows
+# PLAN-067 Virtual users as first-class user rows
 
 - **status**: Completed
 - **owner**: l1-75ymcfnr / L2 fto2m2se
 - **campaignId**: l1-75ymcfnr-vuser-20260603200111
-- **tasks**: [REFACTOR-020](../task/REFACTOR-020.md), [FEAT-020](../task/FEAT-020.md), [REFACTOR-021](../task/REFACTOR-021.md)
+- **tasks**: [REFACTOR-025](../task/REFACTOR-025.md), [FEAT-020](../task/FEAT-020.md), [REFACTOR-026](../task/REFACTOR-026.md)
 - **createdAt**: 2026-06-03
 
 ## Goal
@@ -93,13 +93,13 @@ convertible to a real login user later.
 
 ## Decomposition (3 L3; frontend depends on backend)
 
-1. **L3-1 backend** (REFACTOR-020) — users.isVirtual + migration + virtual-user
+1. **L3-1 backend** (REFACTOR-025) — users.isVirtual + migration + virtual-user
    admin CRUD + global username uniqueness + `assignable-users` + visible-users
    real-only + members `userId`-only (drop displayName, member view name +
    isVirtual) + tests.
 2. **L3-2 frontend admin** (FEAT-020, deps L3-1) — admin Users create/edit/
    delete virtual user + virtual badge + i18n.
-3. **L3-3 frontend members** (REFACTOR-021, deps L3-1) — member-add + assignee
+3. **L3-3 frontend members** (REFACTOR-026, deps L3-1) — member-add + assignee
    pickers → unified users (real+virtual) by userId; remove displayName entry;
    member view name + badge + i18n + tests.
 

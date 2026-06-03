@@ -1,7 +1,7 @@
 # FEAT-020 — Admin Users: create / edit / delete virtual users
 
 - Status: Completed (merged into bkd/fto2m2se)
-- Plan: [PLAN-066](../plan/PLAN-066.md)
+- Plan: [PLAN-067](../plan/PLAN-067.md)
 - Campaign: l1-75ymcfnr-vuser-20260603200111
 - Owner: L2 fto2m2se dispatch → L3-2
 - Created: 2026-06-03
@@ -30,7 +30,7 @@ list:
 
 ## Dependencies
 
-- L3-1 (REFACTOR-020) backend: `isVirtual` on list/detail, POST/PATCH/DELETE
+- L3-1 (REFACTOR-025) backend: `isVirtual` on list/detail, POST/PATCH/DELETE
   `/account/users` for virtual users.
 
 ## Status notes

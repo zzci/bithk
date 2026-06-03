@@ -1,7 +1,7 @@
-# REFACTOR-020 — Virtual users first-class: backend (users.isVirtual + members userId-only)
+# REFACTOR-025 — Virtual users first-class: backend (users.isVirtual + members userId-only)
 
 - Status: Completed (merged into bkd/fto2m2se)
-- Plan: [PLAN-066](../plan/PLAN-066.md)
+- Plan: [PLAN-067](../plan/PLAN-067.md)
 - Campaign: l1-75ymcfnr-vuser-20260603200111
 - Owner: L2 fto2m2se dispatch → L3-1
 - Created: 2026-06-03

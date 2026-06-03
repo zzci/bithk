@@ -103,6 +103,6 @@
 | [FIX-035](FIX-035.md) | FileBrowser renders file preview internally | [PLAN-060](../plan/PLAN-060.md) | Superseded | 2026-06-03 |
 | [REFACTOR-019](REFACTOR-019.md) | Global toggle-driven FileBrowser (features config) + built-in preview + consumer migration | [PLAN-061](../plan/PLAN-061.md) | Completed | 2026-06-03 |
 | [FIX-036](FIX-036.md) | Issues tab tag-filter label 按标签筛选 -> 标签 | [PLAN-062](../plan/PLAN-062.md) | Completed | 2026-06-03 |
-| [REFACTOR-020](REFACTOR-020.md) | Virtual users first-class: backend (users.isVirtual + members userId-only) | [PLAN-066](../plan/PLAN-066.md) | In Progress | 2026-06-03 |
-| [FEAT-020](FEAT-020.md) | Admin Users: create / edit / delete virtual users | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
-| [REFACTOR-021](REFACTOR-021.md) | Project member/assignee pickers → unified users (drop displayName) | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
+| [REFACTOR-025](REFACTOR-025.md) | Virtual users first-class: backend (users.isVirtual + members userId-only) | [PLAN-067](../plan/PLAN-067.md) | In Progress | 2026-06-03 |
+| [FEAT-020](FEAT-020.md) | Admin Users: create / edit / delete virtual users | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
+| [REFACTOR-026](REFACTOR-026.md) | Project member/assignee pickers → unified users (drop displayName) | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
