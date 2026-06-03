@@ -120,3 +120,28 @@ describe("contactPanel (form) cancel", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("contactPanel (form) header close", () => {
+  it("edit mode: header X calls onCancel without closing the drawer", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    const onClose = vi.fn();
+    renderForm("edit", makeContact(), { onCancel, onClose });
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("create mode: header X calls onCancel", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    const onClose = vi.fn();
+    renderForm("create", null, { onCancel, onClose });
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
