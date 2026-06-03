@@ -6,13 +6,14 @@ import type { FormEvent } from "react";
 import type { FileType } from "@/app/routes/_app/-file-browser-types";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { PublicDriveContent, PublicShareEntry, PublicShareListing, PublicShareMeta } from "@/shared/lib/api/share";
-import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileText, Folder, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileSpreadsheet, FileText, Folder, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { detectFileType, FILE_ICONS } from "@/app/routes/_app/-file-browser-types";
 import { FilePreviewDialog, resolvePreviewKind } from "@/app/routes/_app/-file-preview-dialog";
 import { Button } from "@/shared/components/ui/button";
+import { isUniverSheetEntry } from "@/shared/lib/api/drive";
 import {
   accessPublicShare,
   downloadPublicShareChild,
@@ -65,7 +66,7 @@ export function DrivePublicPreview({ meta, token }: { readonly meta: PublicShare
 }
 
 function FileShare({ token, meta }: { readonly token: string; readonly meta: PublicShareMeta }) {
-  const { t } = useTranslation("share");
+  const { t } = useTranslation(["share", "drive"]);
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(!meta.requiresPassword);
   const [content, setContent] = useState<PublicDriveContent | null>(null);
@@ -113,6 +114,9 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
     [token, file],
   );
   const canPreview = file ? resolvePreviewKind(file.mimetype, file.filename) !== "unsupported" : false;
+  // Univer spreadsheets have no public read-only renderer (the editor route is
+  // app-only), so show a clear spreadsheet card with a download instead.
+  const isSheet = previewEntry ? isUniverSheetEntry(previewEntry) : false;
 
   const handleDownload = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -148,9 +152,15 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
     <ShareShell>
       <div className="flex flex-col gap-5">
         <ShareIconHeader
-          icon={<FileText className="size-5" />}
+          icon={isSheet ? <FileSpreadsheet className="size-5" /> : <FileText className="size-5" />}
           name={file?.filename ?? meta.name}
-          subtitle={file ? <p className="text-sm text-muted-foreground">{formatBytes(file.size)}</p> : null}
+          subtitle={file
+            ? (
+                <p className="text-sm text-muted-foreground">
+                  {isSheet ? `${t("drive:preview.spreadsheetTitle")} · ${formatBytes(file.size)}` : formatBytes(file.size)}
+                </p>
+              )
+            : null}
         />
 
         <form className="flex flex-col gap-3" onSubmit={handleDownload}>

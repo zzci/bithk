@@ -15,28 +15,33 @@ import type {
 } from "./-drive-file-list-surface";
 import type { DisplayItem } from "./-file-browser-types";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
+import { useNavigate } from "@tanstack/react-router";
 import { FolderInput, History, Upload } from "lucide-react";
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 
 import {
   downloadDriveEntry,
   useCreateDriveFolder,
+  useCreateSpreadsheet,
   useCreateTextFile,
   useDriveEntries,
   useDriveSearchEntries,
   useTrashDriveEntry,
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
+import { csvToUniverSnapshotJson, emptyUniverSnapshotJson } from "@/shared/lib/univer-snapshot";
 import { cn } from "@/shared/lib/utils";
 import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { useDriveUploader } from "./-drive-upload";
 import { DriveVersionHistoryDialog } from "./-drive-version-history-dialog";
 import {
   CreateFolderDialog,
+  CreateSpreadsheetDialog,
   CreateTextFileDialog,
   MoveDialog,
   RenameDialog,
@@ -64,6 +69,7 @@ interface FolderCrumb {
 type DialogState
   = | { readonly type: "folder" }
     | { readonly type: "text"; readonly markdown: boolean }
+    | { readonly type: "spreadsheet" }
     | { readonly type: "rename"; readonly entry: DriveEntry }
     | { readonly type: "move"; readonly entry: DriveEntry }
     | { readonly type: "versions"; readonly entry: DriveEntry }
@@ -81,6 +87,7 @@ export function FileBrowser({
   showSearch = true,
 }: FileBrowserProps) {
   const { t } = useTranslation("drive");
+  const navigate = useNavigate();
 
   const [folderStack, setFolderStack] = useState<readonly FolderCrumb[]>([]);
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -88,6 +95,7 @@ export function FileBrowser({
   const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const csvInputRef = useRef<HTMLInputElement | null>(null);
 
   const owner = useMemo(() => ({ ownerType, ownerId }), [ownerType, ownerId]);
   const parentEntryId = folderStack.at(-1)?.id ?? null;
@@ -100,6 +108,7 @@ export function FileBrowser({
 
   const createFolder = useCreateDriveFolder();
   const createTextFile = useCreateTextFile();
+  const createSpreadsheet = useCreateSpreadsheet();
   const enqueueUploads = useDriveUploader();
   const updateEntry = useUpdateDriveEntry();
   const trashEntry = useTrashDriveEntry();
@@ -107,8 +116,16 @@ export function FileBrowser({
   const error = activeQuery.error
     ?? createFolder.error
     ?? createTextFile.error
+    ?? createSpreadsheet.error
     ?? updateEntry.error
     ?? trashEntry.error;
+
+  // Created spreadsheets open straight in the dedicated editor route; the
+  // open-routing chokepoint in `drive.lazy.tsx` handles existing entries.
+  const openSheet = useCallback(
+    (entry: DriveEntry) => void navigate({ to: "/drive/sheet/$entryId", params: { entryId: entry.id } }),
+    [navigate],
+  );
 
   // Look up the source entry behind a surface item: the surface passes back an
   // entry id (preview/rename/favorite) or a file id (download/share) only.
@@ -138,6 +155,34 @@ export function FileBrowser({
     event.currentTarget.value = "";
     if (list.length > 0)
       uploadFiles(list);
+  };
+
+  // Read a picked CSV, convert it to a Univer snapshot, create the spreadsheet
+  // entry, then open it in the editor. Parsing happens client-side (no Univer
+  // import) so the heavy editor engine only loads on the editor route.
+  const onCsvInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file)
+      return;
+    const baseName = file.name.replace(/\.csv$/i, "") || file.name;
+    const text = await file.text();
+    if (text.trim().length === 0) {
+      toast.error(t("csv.empty"));
+      return;
+    }
+    let content: string;
+    try {
+      content = csvToUniverSnapshotJson(text, baseName);
+    }
+    catch {
+      toast.error(t("csv.importError"));
+      return;
+    }
+    createSpreadsheet.mutate(
+      { name: `${baseName}.sheet`, content, parentEntryId, ownerType, ownerId },
+      { onSuccess: openSheet },
+    );
   };
 
   const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
@@ -265,6 +310,8 @@ export function FileBrowser({
     onUploadClick: () => fileInputRef.current?.click(),
     onUploadFolderClick: () => folderInputRef.current?.click(),
     onCreateTextFile: kind => setDialog({ type: "text", markdown: kind === "markdown" }),
+    onCreateSpreadsheet: () => setDialog({ type: "spreadsheet" }),
+    onImportCsv: () => csvInputRef.current?.click(),
     getCustomActions,
   };
 
@@ -304,6 +351,13 @@ export function FileBrowser({
         className="hidden"
         onChange={onUploadInputChange}
       />
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={event => void onCsvInputChange(event)}
+      />
 
       <DriveFileListSurface
         items={items}
@@ -334,6 +388,18 @@ export function FileBrowser({
             onSuccess: (entry) => {
               closeDialog();
               onPreviewEntry?.(entry, true);
+            },
+          })}
+      />
+      <CreateSpreadsheetDialog
+        open={dialog?.type === "spreadsheet"}
+        onOpenChange={open => !open && closeDialog()}
+        pending={createSpreadsheet.isPending}
+        onCreate={({ name }) =>
+          createSpreadsheet.mutate({ name, content: emptyUniverSnapshotJson(name), parentEntryId, ownerType, ownerId }, {
+            onSuccess: (entry) => {
+              closeDialog();
+              openSheet(entry);
             },
           })}
       />
