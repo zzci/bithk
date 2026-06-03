@@ -1,6 +1,6 @@
 # FEAT-020 — Admin Users: create / edit / delete virtual users
 
-- Status: Planned
+- Status: Completed (merged into bkd/fto2m2se)
 - Plan: [PLAN-066](../plan/PLAN-066.md)
 - Campaign: l1-75ymcfnr-vuser-20260603200111
 - Owner: L2 fto2m2se dispatch → L3-2
@@ -36,3 +36,12 @@ list:
 ## Status notes
 
 - 2026-06-03: Created (planned, deps=L3-1). File-disjoint from L3-3.
+- 2026-06-03: **L3-2 (0iipd539) MERGED** into bkd/fto2m2se via cherry-pick of its
+  own commit bd7ee14 → 37f8fa3 (clean; 3 files: admin/users/index.lazy.tsx +
+  users.json en/zh). Cherry-pick used (not full branch merge) because BKD cut the
+  L3 worktree from a NEWER main already carrying 3 foreign campaigns
+  (roledup/ovratio/roleui = PLAN-063/064/065); cherry-picking the L3's own commit
+  keeps bkd/fto2m2se scoped to ONLY this campaign. UI +isVirtual; virtual badge;
+  Create/Edit/Delete virtual-user dialogs (POST/PATCH/DELETE /account/users);
+  i18n virtual.* + field.username/name (en+zh). Post-cherry-pick `bun run check`
+  EXIT 0 (all green). Completed.

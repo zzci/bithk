@@ -1,6 +1,6 @@
 # PLAN-066 Virtual users as first-class user rows
 
-- **status**: Implementing
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 fto2m2se
 - **campaignId**: l1-75ymcfnr-vuser-20260603200111
 - **tasks**: [REFACTOR-020](../task/REFACTOR-020.md), [FEAT-020](../task/FEAT-020.md), [REFACTOR-021](../task/REFACTOR-021.md)

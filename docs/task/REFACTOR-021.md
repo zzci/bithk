@@ -1,6 +1,6 @@
 # REFACTOR-021 — Project member/assignee pickers → unified users (drop displayName)
 
-- Status: Planned
+- Status: Completed (merged into bkd/fto2m2se)
 - Plan: [PLAN-066](../plan/PLAN-066.md)
 - Campaign: l1-75ymcfnr-vuser-20260603200111
 - Owner: L2 fto2m2se dispatch → L3-3
@@ -50,3 +50,28 @@ Switch project member add + member/assignee display to the unified users model:
 ## Status notes
 
 - 2026-06-03: Created (planned, deps=L3-1). File-disjoint from L3-2.
+- 2026-06-03: **L3-3 (r0qlbvyo) MERGED** into bkd/fto2m2se via cherry-pick of its
+  own commit 8d4f820 → a24075f. ProjectMemberView drops displayName + adds
+  name/isVirtual; AddProjectMemberInput userId required; new useAssignableUsers;
+  AddMemberDialog = single unified user picker (real+virtual) excluding existing
+  members, kind selector + displayName input removed; EditMemberDialog role+title
+  only; member table virtual badge driven by member.isVirtual; memberLabel →
+  member.name; dead i18n keys removed (members.kind.*, field.kind,
+  field.displayName, promote). **OVERLAP RECONCILIATION:** L3-3 was based on the
+  newer main that includes the foreign `roledup` campaign (PLAN-063: systemRoleLabel
+  + Guest excluded from assignable roles, in -member-helpers.ts +
+  -project-settings-members.tsx). The cherry-pick onto our pre-roledup base
+  auto-merged those two source files in a way that DROPPED roledup's
+  systemRoleLabel (→ 2 roledup tests failed). Resolved by `git checkout
+  bkd/r0qlbvyo --` the overlapping member files so they exactly match L3-3's
+  tested state (roledup systemRoleLabel/Guest-exclusion + our picker changes),
+  amended into a24075f. `roles.guest` i18n + `ProjectRoleView.kind` already
+  existed in our base, so it compiles + check:i18n passes. Recheck `bun run check`:
+  web 670/670 + api 1450/0, build/i18n/env/api-docs green; EXIT 1 ONLY from the
+  known @milkdown/ctx teardown flake (removeEventListener, -project-issue-panel.test.tsx;
+  0 real failures). Completed.
+- NOTE for L1 final merge: bkd/fto2m2se is intentionally scoped to ONLY this
+  campaign (cherry-picks, pre-roledup base) EXCEPT the member files which now
+  match roledup+picker (superset of main's roledup version → easier 3-way). main
+  currently has roledup/ovratio/roleui (PLAN-063/064/065); our plan was renumbered
+  PLAN-063 → **PLAN-066** to avoid the file-level collision.
