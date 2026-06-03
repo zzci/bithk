@@ -1,6 +1,6 @@
 // Searchable worklist picker for the create-issue dialog. Lists the project's
 // referenceable worklists grouped into "本船 / 全局" (this ship / global), filters
-// by name or category, and reports the chosen worklist to the caller. Uses the
+// by name or tags, and reports the chosen worklist to the caller. Uses the
 // shared shadcn Dialog + Input primitives — no extra UI deps.
 
 import type { ReferenceableWorklist } from "@/shared/lib/api/projects";
@@ -28,7 +28,7 @@ function matches(worklist: ReferenceableWorklist, query: string): boolean {
     return true;
   return (
     worklist.name.toLowerCase().includes(query)
-    || (worklist.category?.toLowerCase().includes(query) ?? false)
+    || worklist.tags.some(tag => tag.name.toLowerCase().includes(query))
   );
 }
 
@@ -110,8 +110,8 @@ function WorklistGroup({ label, items, onPick }: WorklistGroupProps) {
               onClick={() => onPick(worklist)}
             >
               <span className="truncate text-sm">{worklist.name}</span>
-              {worklist.category && (
-                <span className="truncate text-xs text-muted-foreground">{worklist.category}</span>
+              {worklist.tags.length > 0 && (
+                <span className="truncate text-xs text-muted-foreground">{worklist.tags.map(tag => tag.name).join(", ")}</span>
               )}
             </Button>
           </li>

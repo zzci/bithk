@@ -191,14 +191,14 @@
     "dialogDescription": "定义该工作清单的检查清单与注意事项。",
     "deleteTitle": "删除工作清单",
     "deleteConfirm": "确定删除“{{name}}”？",
-    "copyFromGlobal": "从全局知识库复制",
-    "copyPlaceholder": "选择全局工作清单",
-    "copy": "复制工作清单",
-    "categoryPlaceholder": "选择或输入分类",
+    "startFromTemplate": "从模板创建",
+    "startFromTemplateBlank": "空白",
+    "startFromTemplatePlaceholder": "选择模板",
+    "tags": "标签",
+    "tagFilter": "标签",
     "noChecklist": "暂无检查清单。",
     "field": {
       "name": "名称",
-      "category": "分类",
       "checklist": "检查清单",
       "precautions": "注意事项"
     }

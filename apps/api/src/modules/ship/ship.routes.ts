@@ -495,7 +495,9 @@ export function shipRoutes() {
   router.get("/ships/:shortId/worklists", async (c) => {
     const { ship } = await requireShipRead(c, c.req.param("shortId"));
     const db = c.get("db");
-    return c.json({ success: true, data: await listShipWorklists(db, ship.id) });
+    // Repeated `tagId=` query params combine with OR semantics (any-of).
+    const rawTagIds = c.req.queries("tagId") ?? [];
+    return c.json({ success: true, data: await listShipWorklists(db, ship.id, rawTagIds.length > 0 ? rawTagIds : undefined) });
   });
 
   router.post("/ships/:shortId/worklists", async (c) => {

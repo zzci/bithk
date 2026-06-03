@@ -25,7 +25,9 @@ import {
   getShipWorklist,
   listGlobalWorklists,
   listReferenceableWorklists,
+  listShipWorklists,
   updateGlobalWorklist,
+  updateShipWorklist,
   worklistRoutes,
 } from "./ship.worklist.service";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
@@ -125,7 +127,7 @@ async function createShipAsAdmin(app: Hono<AppEnv>, name = "Aurora"): Promise<{ 
   return { adminCookie: admin.cookie, shipShortId: body.data.id, baseProjectInternalId: ship!.baseProjectId! };
 }
 
-interface TemplateBody { id: string; name: string; category: string | null; checklist: string | null; precautions: string | null }
+interface TemplateBody { id: string; name: string; tags: { id: string; name: string }[]; checklist: string | null; precautions: string | null }
 
 async function dataOf<T>(r: Response): Promise<T> {
   return (await r.json() as { data: T }).data;
@@ -145,13 +147,23 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-describe("global worklist KB (admin only)", () => {
-  test("non-admin is rejected with 403 on every verb", async () => {
+describe("global worklist KB (reads open, mutations admin-only)", () => {
+  test("non-admin can read (list + detail) but cannot mutate", async () => {
     const app = buildApp(db);
+    const admin = await sessionFor("admin");
     const { cookie } = await sessionFor("user");
-    expect((await app.request("/worklists", { headers: { Cookie: cookie } })).status).toBe(403);
+
+    // Seed a global so the non-admin reads see real content.
+    const tpl = await dataOf<TemplateBody>(await app.request("/worklists", jsonReq("POST", admin.cookie, { name: "Readable" })));
+
+    // Reads: any authenticated user (so a ship-manager can pick a template).
+    expect((await app.request("/worklists", { headers: { Cookie: cookie } })).status).toBe(200);
+    expect((await app.request(`/worklists/${tpl.id}`, { headers: { Cookie: cookie } })).status).toBe(200);
+
+    // Mutations stay admin-only.
     expect((await app.request("/worklists", jsonReq("POST", cookie, { name: "X" }))).status).toBe(403);
-    expect((await app.request("/worklists/x", { headers: { Cookie: cookie } })).status).toBe(403);
+    expect((await app.request(`/worklists/${tpl.id}`, jsonReq("PATCH", cookie, { name: "Y" }))).status).toBe(403);
+    expect((await app.request(`/worklists/${tpl.id}`, jsonReq("DELETE", cookie))).status).toBe(403);
   });
 
   test("unauthenticated is rejected with 401", async () => {
@@ -165,13 +177,14 @@ describe("global worklist KB (admin only)", () => {
 
     const created = await app.request("/worklists", jsonReq("POST", admin.cookie, {
       name: "Engine service",
-      category: "engine",
+      tags: ["engine"],
       checklist: "oil; filter",
       precautions: "cool down first",
     }));
     expect(created.status).toBe(201);
     const tpl = await dataOf<TemplateBody>(created);
     expect(tpl.name).toBe("Engine service");
+    expect(tpl.tags.map(t => t.name)).toEqual(["engine"]);
 
     const list = await app.request("/worklists", { headers: { Cookie: admin.cookie } });
     expect((await dataOf<TemplateBody[]>(list))).toHaveLength(1);
@@ -218,7 +231,7 @@ describe("ship-level worklists: isolation from the global KB", () => {
 
     const global = await dataOf<TemplateBody>(await app.request("/worklists", jsonReq("POST", adminCookie, {
       name: "Hull check",
-      category: "hull",
+      tags: ["hull"],
       checklist: "step 1; step 2",
       precautions: "dry dock",
     })));
@@ -228,6 +241,7 @@ describe("ship-level worklists: isolation from the global KB", () => {
     const copy = await dataOf<TemplateBody>(copied);
     expect(copy.name).toBe("Hull check");
     expect(copy.checklist).toBe("step 1; step 2");
+    expect(copy.tags.map(t => t.name)).toEqual(["hull"]); // tags copied too
     expect(copy.id).not.toBe(global.id); // a new, independent row
 
     // Edit the global afterwards.
@@ -248,7 +262,7 @@ describe("ship-level worklists: isolation from the global KB", () => {
   test("create from scratch without a name → 422", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const res = await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { category: "x" }));
+    const res = await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { checklist: "x" }));
     expect(res.status).toBe(422);
   });
 
@@ -273,7 +287,7 @@ describe("global worklist getters: isNull(shipId) guard", () => {
     const creator = await seedUser("admin");
     const ship = await createShip(db, { name: "Aurora", creatorId: creator });
 
-    const shipLevel = await createShipWorklist(db, ship.id, { name: "Ship local", category: "engine" });
+    const shipLevel = await createShipWorklist(db, ship.id, { name: "Ship local", tags: ["engine"] });
     expect(shipLevel.status).toBe("ok");
     const shipWorklistId = shipLevel.status === "ok" ? shipLevel.worklist.id : "";
 
@@ -305,7 +319,7 @@ describe("listReferenceableWorklists", () => {
     const creator = await seedUser("admin");
     const ship = await createShip(db, { name: "Aurora", creatorId: creator });
 
-    const shipLevel = await createShipWorklist(db, ship.id, { name: "Ship local", category: "engine" });
+    const shipLevel = await createShipWorklist(db, ship.id, { name: "Ship local", tags: ["engine"] });
     expect(shipLevel.status).toBe("ok");
     const g1 = await createGlobalWorklist(db, { name: "Global one" });
     const g2 = await createGlobalWorklist(db, { name: "Global two" });
@@ -351,5 +365,81 @@ describe("ship-level worklists: authz", () => {
     // PM (admin) writes successfully.
     expect((await app.request(`/ships/${shipShortId}/worklists/${tpl.id}`, jsonReq("PATCH", adminCookie, { name: "Renamed" }))).status).toBe(200);
     expect((await app.request(`/ships/${shipShortId}/worklists/${tpl.id}`, jsonReq("DELETE", adminCookie))).status).toBe(200);
+  });
+});
+
+describe("worklist tags: sync + filtering", () => {
+  test("create returns tags; update replaces; omitting tags leaves them untouched", async () => {
+    const creator = await seedUser("admin");
+    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+
+    const created = await createShipWorklist(db, ship.id, { name: "WL", tags: ["engine", "deck"] });
+    expect(created.status).toBe("ok");
+    const wlId = created.status === "ok" ? created.worklist.id : "";
+    const createdTags = created.status === "ok" ? created.worklist.tags.map(t => t.name).sort() : [];
+    expect(createdTags).toEqual(["deck", "engine"]);
+
+    // Supplying tags replaces the whole set.
+    const replaced = await updateShipWorklist(db, ship.id, wlId, { tags: ["safety"] });
+    expect(replaced?.tags.map(t => t.name)).toEqual(["safety"]);
+
+    // Omitting tags leaves them untouched.
+    const renamed = await updateShipWorklist(db, ship.id, wlId, { name: "WL2" });
+    expect(renamed?.name).toBe("WL2");
+    expect(renamed?.tags.map(t => t.name)).toEqual(["safety"]);
+  });
+
+  test("listShipWorklists filters by tagIds: single, multi (OR/union), unknown, empty", async () => {
+    const creator = await seedUser("admin");
+    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+
+    await createShipWorklist(db, ship.id, { name: "A", tags: ["engine"] });
+    await createShipWorklist(db, ship.id, { name: "B", tags: ["deck"] });
+    await createShipWorklist(db, ship.id, { name: "C", tags: ["engine", "deck"] });
+    await createShipWorklist(db, ship.id, { name: "D" });
+
+    // Single tag → rows carrying it.
+    expect((await listShipWorklists(db, ship.id, ["engine"])).map(w => w.name).sort()).toEqual(["A", "C"]);
+    // Multiple tags → OR/union.
+    expect((await listShipWorklists(db, ship.id, ["engine", "deck"])).map(w => w.name).sort()).toEqual(["A", "B", "C"]);
+    // Unknown tag → empty.
+    expect(await listShipWorklists(db, ship.id, ["nope"])).toHaveLength(0);
+    // Empty / omitted filter → no filter.
+    expect(await listShipWorklists(db, ship.id, [])).toHaveLength(4);
+    expect(await listShipWorklists(db, ship.id)).toHaveLength(4);
+  });
+
+  test("ship list HTTP route filters by repeated tagId= (OR)", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+    await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "A", tags: ["engine"] }));
+    await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "B", tags: ["deck"] }));
+
+    const eng = await dataOf<TemplateBody[]>(await app.request(`/ships/${shipShortId}/worklists?tagId=engine`, { headers: { Cookie: adminCookie } }));
+    expect(eng.map(w => w.name)).toEqual(["A"]);
+
+    const both = await dataOf<TemplateBody[]>(await app.request(`/ships/${shipShortId}/worklists?tagId=engine&tagId=deck`, { headers: { Cookie: adminCookie } }));
+    expect(both.map(w => w.name).sort()).toEqual(["A", "B"]);
+  });
+
+  test("global list HTTP route filters by repeated tagId= (OR)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+    await app.request("/worklists", jsonReq("POST", admin.cookie, { name: "GA", tags: ["x"] }));
+    await app.request("/worklists", jsonReq("POST", admin.cookie, { name: "GB", tags: ["y"] }));
+
+    const xs = await dataOf<TemplateBody[]>(await app.request("/worklists?tagId=x", { headers: { Cookie: admin.cookie } }));
+    expect(xs.map(w => w.name)).toEqual(["GA"]);
+  });
+
+  test("copy-from-global copies the source's tags onto the new ship row", async () => {
+    const creator = await seedUser("admin");
+    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+    const global = await createGlobalWorklist(db, { name: "Tmpl", tags: ["propulsion", "safety"] });
+
+    const copied = await createShipWorklist(db, ship.id, { fromGlobalId: global.id });
+    expect(copied.status).toBe("ok");
+    const tags = copied.status === "ok" ? copied.worklist.tags.map(t => t.name).sort() : [];
+    expect(tags).toEqual(["propulsion", "safety"]);
   });
 });

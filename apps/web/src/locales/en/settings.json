@@ -130,11 +130,11 @@
     "editTitle": "Edit Worklist",
     "dialogDescription": "Global worklists are reusable templates ships can copy into their own worklists.",
     "fieldName": "Name",
-    "fieldCategory": "Category",
+    "fieldTags": "Tags",
     "fieldChecklist": "Checklist",
     "fieldPrecautions": "Precautions",
     "colName": "Name",
-    "colCategory": "Category",
+    "colTags": "Tags",
     "empty": "No global worklists yet.",
     "delete": {
       "title": "Delete worklist",

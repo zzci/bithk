@@ -82,7 +82,9 @@ export interface ShipEquipmentView {
 export interface WorklistView {
   readonly id: string;
   readonly name: string;
-  readonly category: string | null;
+  // Worklists carry tags (not a single category); the API resolves names. The
+  // tag vocabulary lives under `/tags?type=worklist`.
+  readonly tags: readonly { id: string; name: string }[];
   readonly checklist: string | null;
   readonly precautions: string | null;
   readonly createdAt: string;
@@ -92,7 +94,6 @@ export interface WorklistView {
 interface ResolvedWorklist {
   readonly id: string;
   readonly name: string;
-  readonly category: string | null;
   readonly checklist: string | null;
   readonly precautions: string | null;
 }
@@ -126,6 +127,7 @@ export const shipKeys = {
   projects: (id: string) => ["ships", id, "projects"] as const,
   equipment: (id: string) => ["ships", id, "equipment"] as const,
   worklists: (id: string) => ["ships", id, "worklists"] as const,
+  worklistTags: () => ["tags", "worklist"] as const,
   globalWorklists: () => ["worklists", "global"] as const,
   issueReferences: (issueId: string) => ["issues", issueId, "references"] as const,
 };
@@ -430,17 +432,45 @@ export function useDeleteShipEquipment(): UseMutationResult<null, Error, { shipI
 
 export interface WorklistInput {
   readonly name?: string;
-  readonly category?: string | null;
+  /** Tag NAMES; the backend upserts the vocabulary by name. */
+  readonly tags?: readonly string[];
   readonly checklist?: string | null;
   readonly precautions?: string | null;
 }
 
-export function useShipWorklists(shipId: string | undefined) {
+/**
+ * List a ship's worklists, optionally narrowed to those carrying ANY of the
+ * given tag ids (OR / union semantics). `tagIds` is optional so existing
+ * callers (`useShipWorklists(shipId)`) keep working unchanged.
+ */
+export function useShipWorklists(shipId: string | undefined, tagIds: readonly string[] = []) {
+  // Sort to keep the query key stable regardless of selection order.
+  const tagKey = tagIds.length === 0 ? "all" : [...tagIds].sort().join(",");
   return useQuery({
-    queryKey: shipKeys.worklists(shipId ?? ""),
-    queryFn: () => http<ApiEnvelope<readonly WorklistView[]>>(`/ships/${encodeURIComponent(shipId!)}/worklists`).then(r => r.data),
+    queryKey: [...shipKeys.worklists(shipId ?? ""), tagKey] as const,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      // Repeated `tagId=` params: backend reads via `c.req.queries("tagId")`.
+      for (const id of tagIds)
+        params.append("tagId", id);
+      const qs = params.toString();
+      const url = qs
+        ? `/ships/${encodeURIComponent(shipId!)}/worklists?${qs}`
+        : `/ships/${encodeURIComponent(shipId!)}/worklists`;
+      return http<ApiEnvelope<readonly WorklistView[]>>(url).then(r => r.data);
+    },
     enabled: !!shipId,
     staleTime: 5_000,
+  });
+}
+
+// Selectable worklist-tag vocabulary (type=worklist), usage-count ordered.
+// Drives the ship worklist tab tag filter and the worklist tag editor.
+export function useWorklistTags() {
+  return useQuery<readonly ShipTag[]>({
+    queryKey: shipKeys.worklistTags(),
+    queryFn: () => http<ApiEnvelope<readonly ShipTag[]>>("/tags?type=worklist").then(r => r.data),
+    staleTime: 30_000,
   });
 }
 
@@ -462,6 +492,8 @@ export function useCreateShipWorklist(): UseMutationResult<WorklistView, Error, 
     }).then(r => r.data),
     onSuccess: (_data, { shipId }) => {
       void queryClient.invalidateQueries({ queryKey: shipKeys.worklists(shipId) });
+      // A new worklist may carry new tag names; refresh the filter vocabulary.
+      void queryClient.invalidateQueries({ queryKey: shipKeys.worklistTags() });
     },
   });
 }
@@ -475,6 +507,7 @@ export function useUpdateShipWorklist(): UseMutationResult<WorklistView, Error, 
     ).then(r => r.data),
     onSuccess: (_data, { shipId }) => {
       void queryClient.invalidateQueries({ queryKey: shipKeys.worklists(shipId) });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.worklistTags() });
     },
   });
 }
@@ -506,6 +539,8 @@ export function useCreateGlobalWorklist(): UseMutationResult<WorklistView, Error
     }).then(r => r.data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: shipKeys.globalWorklists() });
+      // A global template may carry new tag names; refresh the vocabulary.
+      void queryClient.invalidateQueries({ queryKey: shipKeys.worklistTags() });
     },
   });
 }
@@ -519,6 +554,7 @@ export function useUpdateGlobalWorklist(): UseMutationResult<WorklistView, Error
     }).then(r => r.data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: shipKeys.globalWorklists() });
+      void queryClient.invalidateQueries({ queryKey: shipKeys.worklistTags() });
     },
   });
 }

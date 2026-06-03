@@ -259,7 +259,8 @@ async function importWorklists(db: AppDatabase): Promise<number> {
   for (const t of recs.global) {
     const wl = await createGlobalWorklist(db, {
       name: t.name ?? t.key,
-      category: t.category,
+      // The old free-text `category` maps to a single worklist tag.
+      tags: t.category ? [t.category] : [],
       checklist: t.checklist,
       precautions: t.precautions,
     });
@@ -272,7 +273,8 @@ async function importWorklists(db: AppDatabase): Promise<number> {
       throw new Error(`Worklist ${t.key} references unknown ship ${t.ship}`);
     await createShipWorklist(db, internalId, {
       name: t.name,
-      category: t.category,
+      // The old free-text `category` maps to a single worklist tag.
+      tags: t.category ? [t.category] : [],
       checklist: t.checklist,
       precautions: t.precautions,
       fromGlobalId: t.fromGlobal ? globalWorklistId.get(t.fromGlobal) : undefined,
