@@ -288,6 +288,8 @@
   },
   "roles": {
     "add": "添加角色",
+    "newRole": "新建角色",
+    "selectRole": "角色",
     "empty": "尚未定义角色。",
     "owner": "项目所有者",
     "guest": "访客",

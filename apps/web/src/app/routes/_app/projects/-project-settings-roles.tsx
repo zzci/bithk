@@ -1,5 +1,7 @@
-// Roles settings section: list project roles, create/edit/delete custom roles
-// with per-module radio tier selectors + admin capability toggles.
+// Roles settings section: an in-page role editor (no nested modal). A Select
+// dropdown chooses which role to edit — a "+ New role" entry creates one, every
+// existing role loads into the inline editor below. Permissions are set through
+// an inline table of per-module tier radios + admin capability toggles.
 // System roles (`isSystem`) are read-only and cannot be deleted.
 
 import type { ProjectCapability, ProjectRoleView } from "@/shared/lib/api/projects";
@@ -10,19 +12,19 @@ import { toast } from "sonner";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { Switch } from "@/shared/components/ui/switch";
+import { Table, TableBody, TableCell, TableRow } from "@/shared/components/ui/table";
 import {
   useCreateProjectRole,
   useDeleteProjectRole,
@@ -133,6 +135,9 @@ function systemRoleLabel(role: ProjectRoleView, ownerLabel: string, guestLabel: 
   return ownerLabel;
 }
 
+// Sentinel selection value for the "+ New role" (create) entry in the dropdown.
+const NEW_ROLE = "__new__";
+
 interface ProjectSettingsRolesProps {
   readonly projectId: string;
   readonly canManage: boolean;
@@ -143,71 +148,76 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
   const rolesQuery = useProjectRoles(projectId);
   const deleteRole = useDeleteProjectRole();
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<ProjectRoleView | null>(null);
+  // Which role is loaded into the inline editor: NEW_ROLE (create) or a role id.
+  const [selectedId, setSelectedId] = useState<string>(canManage ? NEW_ROLE : "");
+  // Bumped to force the keyed editor to re-mount (reset its form) after a
+  // create/delete even when the effective selection string is unchanged.
+  const [resetNonce, setResetNonce] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<ProjectRoleView | null>(null);
 
   const roles = rolesQuery.data ?? [];
 
+  // Dropdown options: the create entry (only when the viewer can manage) then
+  // every role. The effective selection always resolves to one of these.
+  const options = [
+    ...(canManage ? [NEW_ROLE] : []),
+    ...roles.map(r => r.id),
+  ];
+  const effectiveId = options.includes(selectedId) ? selectedId : (options[0] ?? "");
+  const effectiveRole = roles.find(r => r.id === effectiveId) ?? null;
+
+  const roleOptionLabel = (role: ProjectRoleView) =>
+    role.isSystem ? systemRoleLabel(role, t("roles.owner"), t("roles.guest")) : role.name;
+  const labelForId = (id: string) => {
+    if (id === NEW_ROLE)
+      return t("roles.newRole");
+    const role = roles.find(r => r.id === id);
+    return role ? roleOptionLabel(role) : id;
+  };
+
   return (
     <div className="space-y-4">
-      {canManage && (
-        <div className="flex justify-end">
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 size-4" />
-            {t("roles.add")}
-          </Button>
-        </div>
-      )}
-
       {rolesQuery.error && <ErrorBanner message={errorMessage(rolesQuery.error, t("common:common.error.loadFailed"))} />}
 
-      <div className="space-y-3">
-        {roles.length === 0
-          ? <p className="text-sm text-muted-foreground">{t("roles.empty")}</p>
-          : roles.map(role => (
-              <div key={role.id} className="rounded-md border p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        {role.isSystem
-                          ? systemRoleLabel(role, t("roles.owner"), t("roles.guest"))
-                          : role.name}
-                      </span>
-                      {role.isSystem && <Badge variant="outline" className="text-xs">{t("roles.system")}</Badge>}
-                    </div>
-                    {/* Guest system role: show the fallback explanation. */}
-                    {role.isSystem && role.kind === "guest" && (
-                      <p className="text-xs text-muted-foreground">{t("roles.guestFallbackNote")}</p>
+      {options.length === 0
+        ? <p className="text-sm text-muted-foreground">{t("roles.empty")}</p>
+        : (
+            <>
+              <div className="space-y-1.5">
+                <Label>{t("roles.selectRole")}</Label>
+                <Select value={effectiveId} onValueChange={v => v !== null && setSelectedId(v)}>
+                  <SelectTrigger className="w-full sm:w-72">
+                    <SelectValue>
+                      {(v: string) => labelForId(v)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {canManage && (
+                      <SelectItem value={NEW_ROLE}>
+                        <Plus className="size-4" />
+                        {t("roles.newRole")}
+                      </SelectItem>
                     )}
-                    {/* The system owner role holds every capability and is
-                        capability-locked; the badge list is noise, so we omit it
-                        and only show capabilities for custom roles. */}
-                    {!role.isSystem && (
-                      <div className="flex flex-wrap gap-1">
-                        {role.capabilities.length === 0
-                          ? <span className="text-xs text-muted-foreground">{t("roles.noCapabilities")}</span>
-                          : role.capabilities.map(cap => (
-                              <Badge key={cap} variant="secondary" className="text-xs">{t(`capability.${cap}` as const)}</Badge>
-                            ))}
-                      </div>
-                    )}
-                  </div>
-                  {canManage && !role.isSystem && (
-                    <div className="flex shrink-0 gap-1">
-                      <Button variant="ghost" onClick={() => setEditTarget(role)}>
-                        {t("common:common.edit")}
-                      </Button>
-                      <Button variant="ghost" onClick={() => setDeleteTarget(role)}>
-                        {t("common:common.delete")}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                    {roles.map(r => (
+                      <SelectItem key={r.id} value={r.id}>{roleOptionLabel(r)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            ))}
-      </div>
+
+              <RoleEditor
+                key={`${effectiveId}:${resetNonce}`}
+                projectId={projectId}
+                role={effectiveRole}
+                canManage={canManage}
+                onCreated={() => {
+                  setSelectedId(NEW_ROLE);
+                  setResetNonce(n => n + 1);
+                }}
+                onRequestDelete={setDeleteTarget}
+              />
+            </>
+          )}
 
       <ConfirmDeleteDialog
         open={deleteTarget !== null}
@@ -220,49 +230,40 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
         onConfirm={() => {
           if (deleteTarget) {
             deleteRole.mutate({ projectId, roleId: deleteTarget.id }, {
-              onSuccess: () => toast.success(t("toast.roleDeleted")),
+              onSuccess: () => {
+                toast.success(t("toast.roleDeleted"));
+                setSelectedId(NEW_ROLE);
+                setResetNonce(n => n + 1);
+              },
               onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
             });
             setDeleteTarget(null);
           }
         }}
       />
-
-      {canManage && (
-        <>
-          <RoleDialog
-            projectId={projectId}
-            mode="create"
-            open={createOpen}
-            onOpenChange={setCreateOpen}
-          />
-          {editTarget && (
-            <RoleDialog
-              projectId={projectId}
-              mode="edit"
-              role={editTarget}
-              open
-              onOpenChange={open => !open && setEditTarget(null)}
-            />
-          )}
-        </>
-      )}
     </div>
   );
 }
 
-interface RoleDialogProps {
+interface RoleEditorProps {
   readonly projectId: string;
-  readonly mode: "create" | "edit";
-  readonly role?: ProjectRoleView;
-  readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
+  // The role loaded into the editor, or null for create mode.
+  readonly role: ProjectRoleView | null;
+  readonly canManage: boolean;
+  readonly onCreated: () => void;
+  readonly onRequestDelete: (role: ProjectRoleView) => void;
 }
 
-function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogProps) {
+function RoleEditor({ projectId, role, canManage, onCreated, onRequestDelete }: RoleEditorProps) {
   const { t } = useTranslation(["projects", "common"]);
   const createRole = useCreateProjectRole();
   const updateRole = useUpdateProjectRole();
+
+  const isCreate = role === null;
+  const isSystem = role?.isSystem ?? false;
+  // System roles are capability-locked; viewers without manage rights see
+  // everything read-only.
+  const editable = canManage && !isSystem;
 
   const [name, setName] = useState(role?.name ?? "");
 
@@ -292,150 +293,153 @@ function RoleDialog({ projectId, mode, role, open, onOpenChange }: RoleDialogPro
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!name.trim() || pending)
+    if (!editable || !name.trim() || pending)
       return;
     const capabilities = buildCapabilities(issueTier, procurementTier, filesTier, adminCaps);
-    if (mode === "create") {
+    if (isCreate) {
       createRole.mutate({ projectId, name: name.trim(), capabilities }, {
         onSuccess: () => {
           toast.success(t("toast.roleCreated"));
-          onOpenChange(false);
+          onCreated();
         },
         onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
       });
     }
     else if (role) {
       updateRole.mutate({ projectId, roleId: role.id, name: name.trim(), capabilities }, {
-        onSuccess: () => {
-          toast.success(t("toast.roleUpdated"));
-          onOpenChange(false);
-        },
+        onSuccess: () => toast.success(t("toast.roleUpdated")),
         onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
       });
     }
   };
 
+  let heading: string;
+  if (!role)
+    heading = t("roles.createTitle");
+  else if (role.isSystem)
+    heading = systemRoleLabel(role, t("roles.owner"), t("roles.guest"));
+  else
+    heading = t("roles.editTitle");
+
+  // A single module's tier row: module name + the cumulative tier radios. Plain
+  // helper (not a component) so re-renders reconcile in place without remounting.
+  const tierRow = (label: string, tiers: readonly string[], value: string, onChange: (v: string) => void) => (
+    <TableRow>
+      <TableCell className="align-middle font-medium">{label}</TableCell>
+      <TableCell>
+        <RadioGroup
+          value={value}
+          onValueChange={v => v !== null && onChange(v)}
+          disabled={!editable}
+          aria-label={label}
+          className="flex flex-wrap gap-x-4 gap-y-1"
+        >
+          {tiers.map(tier => (
+            <RadioGroupItem key={tier} value={tier}>
+              <span className="text-sm">{t(`roles.tier.${tier}` as const)}</span>
+            </RadioGroupItem>
+          ))}
+        </RadioGroup>
+      </TableCell>
+    </TableRow>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto">
-        <form onSubmit={submit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("roles.createTitle") : t("roles.editTitle")}</DialogTitle>
-            <DialogDescription>{t("roles.dialogDescription")}</DialogDescription>
-          </DialogHeader>
+    <form onSubmit={submit} className="space-y-4">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-medium">{heading}</h3>
+          {isSystem && <Badge variant="outline" className="text-xs">{t("roles.system")}</Badge>}
+        </div>
+        {/* Guest system role: show the fallback explanation. */}
+        {isSystem && role?.kind === "guest" && (
+          <p className="text-xs text-muted-foreground">{t("roles.guestFallbackNote")}</p>
+        )}
+        {editable && <p className="text-xs text-muted-foreground">{t("roles.dialogDescription")}</p>}
+      </div>
 
-          {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
+      {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="role-name">{t("roles.field.name")}</Label>
-            <Input id="role-name" autoFocus required value={name} onChange={e => setName(e.target.value)} />
+      <div className="space-y-1.5">
+        <Label htmlFor="role-name">{t("roles.field.name")}</Label>
+        <Input
+          id="role-name"
+          required={editable}
+          disabled={!editable}
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+      </div>
+
+      {/* Preset quick-fill buttons: Reader / Commenter / Writer. */}
+      {editable && (
+        <div className="space-y-1.5">
+          <Label>{t("roles.presets.label")}</Label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_READER)}>
+              {t("roles.presets.reader")}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_COMMENTER)}>
+              {t("roles.presets.commenter")}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_WRITER)}>
+              {t("roles.presets.writer")}
+            </Button>
           </div>
+        </div>
+      )}
 
-          {/* Preset quick-fill buttons: Reader / Commenter / Writer. */}
-          <div className="space-y-1.5">
-            <Label>{t("roles.presets.label")}</Label>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_READER)}>
-                {t("roles.presets.reader")}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_COMMENTER)}>
-                {t("roles.presets.commenter")}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => applyPreset(PRESET_WRITER)}>
-                {t("roles.presets.writer")}
-              </Button>
-            </div>
-          </div>
+      {/* Inline permissions table: per-module tier radios + admin toggles. */}
+      <div className="space-y-2">
+        <Label>{t("roles.field.capabilities")}</Label>
+        <div className="rounded-md border">
+          <Table>
+            <TableBody>
+              {tierRow(t("capabilityGroup.issue"), ["none", "view", "comment", "manage"], issueTier, v => setIssueTier(v as IssueTier))}
+              {tierRow(t("capabilityGroup.procurement"), ["none", "view", "comment", "manage"], procurementTier, v => setProcurementTier(v as ProcurementTier))}
+              {tierRow(t("capabilityGroup.files"), ["none", "view", "manage"], filesTier, v => setFilesTier(v as FilesTier))}
 
-          {/* Per-module 3-tier radio selectors */}
-          <div className="space-y-2">
-            <Label>{t("roles.field.capabilities")}</Label>
-            <div className="space-y-4 rounded-md border p-3">
-
-              {/* Issue module */}
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-muted-foreground">
-                  {t("capabilityGroup.issue")}
-                </legend>
-                <RadioGroup
-                  value={issueTier}
-                  onValueChange={val => setIssueTier(val as IssueTier)}
-                  className="flex flex-wrap gap-x-4 gap-y-1"
-                >
-                  {(["none", "view", "comment", "manage"] as const).map(tier => (
-                    <RadioGroupItem key={tier} value={tier}>
-                      <span className="text-sm">{t(`roles.tier.${tier}`)}</span>
-                    </RadioGroupItem>
-                  ))}
-                </RadioGroup>
-              </fieldset>
-
-              {/* Procurement module */}
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-muted-foreground">
-                  {t("capabilityGroup.procurement")}
-                </legend>
-                <RadioGroup
-                  value={procurementTier}
-                  onValueChange={val => setProcurementTier(val as ProcurementTier)}
-                  className="flex flex-wrap gap-x-4 gap-y-1"
-                >
-                  {(["none", "view", "comment", "manage"] as const).map(tier => (
-                    <RadioGroupItem key={tier} value={tier}>
-                      <span className="text-sm">{t(`roles.tier.${tier}`)}</span>
-                    </RadioGroupItem>
-                  ))}
-                </RadioGroup>
-              </fieldset>
-
-              {/* Files module — no comment tier */}
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-muted-foreground">
-                  {t("capabilityGroup.files")}
-                </legend>
-                <RadioGroup
-                  value={filesTier}
-                  onValueChange={val => setFilesTier(val as FilesTier)}
-                  className="flex flex-wrap gap-x-4 gap-y-1"
-                >
-                  {(["none", "view", "manage"] as const).map(tier => (
-                    <RadioGroupItem key={tier} value={tier}>
-                      <span className="text-sm">{t(`roles.tier.${tier}`)}</span>
-                    </RadioGroupItem>
-                  ))}
-                </RadioGroup>
-              </fieldset>
-
-            </div>
-          </div>
-
-          {/* Administration caps: independent toggles (not tiered) */}
-          <div className="space-y-2">
-            <Label>{t("roles.administration")}</Label>
-            <div className="space-y-2 rounded-md border p-3">
+              {/* Administration caps: independent toggles (not tiered). */}
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={2} className="bg-muted/50 text-xs font-medium text-muted-foreground">
+                  {t("roles.administration")}
+                </TableCell>
+              </TableRow>
               {ADMIN_CAPS.map(cap => (
-                <div key={cap} className="flex items-center justify-between gap-2">
-                  <Label htmlFor={`cap-${cap}`} className="text-sm font-normal">{t(`capability.${cap}` as const)}</Label>
-                  <Switch
-                    id={`cap-${cap}`}
-                    checked={adminCaps.includes(cap)}
-                    onCheckedChange={() => toggleAdmin(cap)}
-                  />
-                </div>
+                <TableRow key={cap}>
+                  <TableCell className="align-middle">
+                    <Label htmlFor={`cap-${cap}`} className="font-normal">{t(`capability.${cap}` as const)}</Label>
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      id={`cap-${cap}`}
+                      checked={adminCaps.includes(cap)}
+                      onCheckedChange={() => toggleAdmin(cap)}
+                      disabled={!editable}
+                    />
+                  </TableCell>
+                </TableRow>
               ))}
-            </div>
-          </div>
+            </TableBody>
+          </Table>
+        </div>
+      </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t("common:common.cancel")}
-            </Button>
-            <Button type="submit" disabled={pending || !name.trim()}>
-              {mode === "create" ? t("common:common.add") : t("common:common.save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      {editable && (
+        <div className="flex items-center justify-between gap-2">
+          {/* Delete is available only for existing custom roles. */}
+          {!isCreate && role
+            ? (
+                <Button type="button" variant="outline" onClick={() => onRequestDelete(role)}>
+                  {t("common:common.delete")}
+                </Button>
+              )
+            : <span />}
+          <Button type="submit" disabled={pending || !name.trim()}>
+            {isCreate ? t("common:common.add") : t("common:common.save")}
+          </Button>
+        </div>
+      )}
+    </form>
   );
 }
