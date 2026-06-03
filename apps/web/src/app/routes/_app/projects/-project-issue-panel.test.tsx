@@ -223,3 +223,71 @@ describe("projectIssuePanel sticky composer", () => {
     await waitFor(() => expect(document.querySelector(".sticky.bottom-0")).not.toBeNull());
   });
 });
+
+describe("projectIssuePanel worklist references", () => {
+  function routeWithReferences(references: unknown[]) {
+    fetchMock.mockImplementation(async (url) => {
+      const path = String(url);
+      if (/\/issues\/i1\/references$/.test(path))
+        return jsonResponse({ success: true, data: references });
+      if (/\/issues\/i1$/.test(path))
+        return jsonResponse({ success: true, data: issue() });
+      if (path.includes("/tags"))
+        return jsonResponse({ success: true, data: [] });
+      return jsonResponse({ success: true, data: [] });
+    });
+  }
+
+  it("renders the referenced worklist name", async () => {
+    routeWithReferences([
+      {
+        id: "ref1",
+        refType: "worklist",
+        refId: "wl1",
+        label: "Annual Service",
+        createdAt: "2026-05-23T00:00:00.000Z",
+        worklist: { id: "wl1", name: "Annual Service", category: "Engine", checklist: null, precautions: null },
+      },
+    ]);
+    renderWithProviders(
+      <ProjectIssuePanel
+        projectId="p1"
+        issueId="i1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("Inspect hull");
+    expect(await screen.findByText("Referenced worklist:")).toBeInTheDocument();
+    expect(screen.getByText("Annual Service")).toBeInTheDocument();
+  });
+
+  it("degrades to the raw refId when the worklist reference is dangling", async () => {
+    routeWithReferences([
+      {
+        id: "ref1",
+        refType: "worklist",
+        refId: "wl-gone",
+        label: "Old worklist",
+        createdAt: "2026-05-23T00:00:00.000Z",
+        worklist: null,
+      },
+    ]);
+    renderWithProviders(
+      <ProjectIssuePanel
+        projectId="p1"
+        issueId="i1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("Inspect hull");
+    expect(await screen.findByText("wl-gone")).toBeInTheDocument();
+  });
+});
