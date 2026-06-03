@@ -99,4 +99,5 @@
 | [FIX-034](FIX-034.md) | Whole project card clickable to detail | [PLAN-056](../plan/PLAN-056.md) | Completed | 2026-06-03 |
 | [FEAT-018](FEAT-018.md) | Project work orders reference ship worklists | [PLAN-057](../plan/PLAN-057.md) | Completed | 2026-06-03 |
 | [FEAT-019](FEAT-019.md) | Projects list tag filter multi-select | [PLAN-058](../plan/PLAN-058.md) | Completed | 2026-06-03 |
-| [FIX-035](FIX-035.md) | FileBrowser renders file preview internally | [PLAN-060](../plan/PLAN-060.md) | In Progress | 2026-06-03 |
+| [FIX-035](FIX-035.md) | FileBrowser renders file preview internally | [PLAN-060](../plan/PLAN-060.md) | Superseded | 2026-06-03 |
+| [REFACTOR-019](REFACTOR-019.md) | Global toggle-driven FileBrowser (features config) + built-in preview + consumer migration | [PLAN-061](../plan/PLAN-061.md) | In Progress | 2026-06-03 |

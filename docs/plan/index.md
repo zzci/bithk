@@ -57,4 +57,5 @@
 | [PLAN-056](PLAN-056.md) | Restore whole-card navigation on the projects list | Completed | 2026-06-03 |
 | [PLAN-057](PLAN-057.md) | Project work orders reference ship worklists | Completed | 2026-06-03 |
 | [PLAN-058](PLAN-058.md) | Projects list tag filter multi-select | Completed | 2026-06-03 |
-| [PLAN-060](PLAN-060.md) | File preview built into the shared FileBrowser | In Progress | 2026-06-03 |
+| [PLAN-060](PLAN-060.md) | File preview built into the shared FileBrowser | Superseded | 2026-06-03 |
+| [PLAN-061](PLAN-061.md) | Global toggle-driven FileBrowser module | In Progress | 2026-06-03 |

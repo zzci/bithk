@@ -1,10 +1,17 @@
 # PLAN-060 File preview built into the shared FileBrowser
 
-- **status**: In Progress
+- **status**: Superseded
+- **superseded-by**: [PLAN-061](PLAN-061.md)
 - **owner**: l1-75ymcfnr / L2 lkiwea9v
 - **campaignId**: l1-75ymcfnr-filprev-20260603172034
 - **tasks**: [FIX-035](../task/FIX-035.md)
 - **createdAt**: 2026-06-03
+
+> **Superseded 2026-06-03** by user-approved scope expansion: the preview
+> integration is now ONE feature toggle inside a broader refactor of FileBrowser
+> into a global, toggle-driven file component (declarative `features` config +
+> migrate all consumers). See [PLAN-061](PLAN-061.md) / [REFACTOR-019](../task/REFACTOR-019.md).
+> The preview-only goal below is retained for history only.
 
 ## Goal
 
