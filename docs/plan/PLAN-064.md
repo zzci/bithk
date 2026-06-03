@@ -1,4 +1,4 @@
-# PLAN-063 Project overview description+pinned grid 2:1 responsive ratio
+# PLAN-064 Project overview description+pinned grid 2:1 responsive ratio
 
 - **status**: Completed
 - **owner**: l1-75ymcfnr / L2 to81pc78
