@@ -96,7 +96,7 @@ describe("projectOverviewTab", () => {
     expect(screen.getByText("No description yet.")).toBeInTheDocument();
   });
 
-  it("renders a mixed pinned list with kind badges", async () => {
+  it("renders a mixed pinned list as single-line rows", async () => {
     routeFetch({
       pinned: [
         pin({ id: "it1", type: "issue", title: "Fix pump", status: "todo" }),
@@ -106,14 +106,16 @@ describe("projectOverviewTab", () => {
     renderWithProviders(
       <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
     );
-    // Scope to the pinned list so the kind badges are asserted unambiguously
+    // Scope to the pinned list so titles/status are asserted unambiguously
     // against the "Latest procurements" list heading on the same page.
     const pinnedList = within(await screen.findByRole("list", { name: "Pinned" }));
     expect(pinnedList.getByText("Fix pump")).toBeInTheDocument();
     expect(pinnedList.getByText("Buy steel")).toBeInTheDocument();
-    // Kind badges distinguish the two types by label (+ icon).
-    expect(pinnedList.getByText("Work order")).toBeInTheDocument();
-    expect(pinnedList.getByText("Procurement")).toBeInTheDocument();
+    // The kind is now a leading icon labelled by accessible name (not text);
+    // the status badge still renders on each single-line row.
+    expect(pinnedList.getByRole("img", { name: "Work order" })).toBeInTheDocument();
+    expect(pinnedList.getByRole("img", { name: "Procurement" })).toBeInTheDocument();
+    expect(pinnedList.getByText("To Do")).toBeInTheDocument();
   });
 
   it("shows only the description in the info card — creator/updated/tags moved to the header", () => {

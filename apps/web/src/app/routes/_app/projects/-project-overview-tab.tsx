@@ -22,7 +22,6 @@ import {
 import { usePinnedItems } from "@/shared/lib/api/pins";
 import { useProcurements } from "@/shared/lib/api/procurement";
 import { useProjectIssues } from "@/shared/lib/api/projects";
-import { formatDate } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 
@@ -44,9 +43,10 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
 
   return (
     <div className="space-y-6">
-      <ProjectInfoCard description={project.description} />
-
-      <ProjectPinnedCard projectId={project.id} caps={caps} onOpenTab={onOpenTab} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ProjectInfoCard description={project.description} />
+        <ProjectPinnedCard projectId={project.id} caps={caps} onOpenTab={onOpenTab} />
+      </div>
 
       <div className={cn("grid gap-4", showProcurement && "lg:grid-cols-2")}>
         <LatestActivityCard
@@ -124,12 +124,6 @@ function ProjectInfoCard({ description }: ProjectInfoCardProps) {
   );
 }
 
-// Shared list presentation for the pinned + latest-activity sections: one row
-// rhythm (title first, then a wrapping metadata line) and intentional muted
-// loading/empty states instead of loose body text.
-const ROW_BUTTON_CLASS
-  = "group flex h-auto w-full flex-col items-start gap-1.5 rounded-md px-2 py-2 text-left font-normal transition-colors hover:bg-muted/40";
-
 function ListState({ children }: { readonly children: ReactNode }) {
   return (
     <p className="px-2 py-6 text-center text-sm text-pretty text-muted-foreground">{children}</p>
@@ -148,13 +142,10 @@ function ListErrorState({ onRetry }: { readonly onRetry: () => void }) {
   );
 }
 
-function RowMeta({ children }: { readonly children: ReactNode }) {
-  return (
-    <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-      {children}
-    </span>
-  );
-}
+// Single-line row for the pinned + latest-activity lists: leading content,
+// a truncating title, and a trailing status badge share one horizontal row.
+const ACTIVITY_ROW_CLASS
+  = "group flex h-auto w-full items-center gap-2 rounded-md px-2 py-1.5 text-left font-normal transition-colors hover:bg-muted/40";
 
 interface ProjectPinnedCardProps {
   readonly projectId: string;
@@ -214,20 +205,14 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
         type="button"
         variant="ghost"
         disabled={!canOpen}
-        className={cn(ROW_BUTTON_CLASS, "disabled:pointer-events-none disabled:opacity-60")}
+        className={cn(ACTIVITY_ROW_CLASS, "disabled:pointer-events-none disabled:opacity-60")}
         onClick={() => onOpenTab(target)}
       >
-        <span className="flex w-full items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</span>
-          <Pin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        </span>
-        <RowMeta>
-          <Badge variant="outline" className="shrink-0 gap-1">
-            {isIssue
-              ? <ClipboardList className="size-3" aria-hidden="true" />
-              : <Package className="size-3" aria-hidden="true" />}
-            {isIssue ? t("overview.pinKind.issue") : t("overview.pinKind.procurement")}
-          </Badge>
+        {isIssue
+          ? <ClipboardList role="img" aria-label={t("overview.pinKind.issue")} className="size-4 shrink-0 text-muted-foreground" />
+          : <Package role="img" aria-label={t("overview.pinKind.procurement")} className="size-4 shrink-0 text-muted-foreground" />}
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</span>
+        <span className="ml-auto shrink-0">
           <Badge
             variant="secondary"
             className={cn("shrink-0", isIssue ? ISSUE_STATUS_BADGE[item.status as keyof typeof ISSUE_STATUS_BADGE] ?? "" : "")}
@@ -236,8 +221,7 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
               ? t(`issues.status.${item.status}` as const)
               : t(`procurement.status.${item.status}` as const)}
           </Badge>
-          <span className="ml-auto shrink-0">{formatDate(item.pinnedAt)}</span>
-        </RowMeta>
+        </span>
       </Button>
     </li>
   );
@@ -290,12 +274,6 @@ interface ActivityRowProps {
   readonly badge: ReactNode;
   readonly onClick: () => void;
 }
-
-// Single-line variant for the latest-activity lists: title and status badge
-// share one horizontal row. Distinct from ROW_BUTTON_CLASS so the pinned
-// card keeps its two-line rhythm.
-const ACTIVITY_ROW_CLASS
-  = "group flex h-auto w-full items-center gap-2 rounded-md px-2 py-1.5 text-left font-normal transition-colors hover:bg-muted/40";
 
 function ActivityRow({ title, badge, onClick }: ActivityRowProps) {
   return (
