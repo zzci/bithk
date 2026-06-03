@@ -1,7 +1,7 @@
 # REFACTOR-021 — Project member/assignee pickers → unified users (drop displayName)
 
 - Status: Planned
-- Plan: [PLAN-063](../plan/PLAN-063.md)
+- Plan: [PLAN-066](../plan/PLAN-066.md)
 - Campaign: l1-75ymcfnr-vuser-20260603200111
 - Owner: L2 fto2m2se dispatch → L3-3
 - Created: 2026-06-03

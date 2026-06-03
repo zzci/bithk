@@ -1,4 +1,4 @@
-# PLAN-063 Virtual users as first-class user rows
+# PLAN-066 Virtual users as first-class user rows
 
 - **status**: Implementing
 - **owner**: l1-75ymcfnr / L2 fto2m2se
