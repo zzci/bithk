@@ -1,6 +1,6 @@
 # PLAN-063 Project role editor: in-page dropdown + table (replace modal)
 
-- **status**: Implementing
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 zvko353r
 - **campaignId**: l1-75ymcfnr-roleui-20260603194819
 - **tasks**: [UI-023](../task/UI-023.md)
