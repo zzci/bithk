@@ -55,3 +55,4 @@
 | [PLAN-054](PLAN-054.md) | Generic unified filter component + projects-list adoption | Completed | 2026-06-02 |
 | [PLAN-055](PLAN-055.md) | Drive-style multi-dropdown unified ListFilter + full adoption | Completed | 2026-06-03 |
 | [PLAN-056](PLAN-056.md) | Restore whole-card navigation on the projects list | Completed | 2026-06-03 |
+| [PLAN-057](PLAN-057.md) | Project work orders reference ship worklists | Implementing | 2026-06-03 |
