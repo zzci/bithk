@@ -1,6 +1,6 @@
 # PLAN-057 Project work orders reference ship worklists
 
-- **status**: Implementing
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 52r11h7b
 - **campaignId**: l1-75ymcfnr-wlref-20260603153351
 - **tasks**: [FEAT-018](../task/FEAT-018.md)
