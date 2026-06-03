@@ -1,7 +1,9 @@
+import type { FilterDimension } from "@/shared/components/list-filter";
 import type { ShipView, WorklistInput, WorklistView } from "@/shared/lib/api/ships";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ListFilter } from "@/shared/components/list-filter";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
@@ -31,9 +33,10 @@ import {
   useGlobalWorklists,
   useShipWorklists,
   useUpdateShipWorklist,
+  useWorklistTags,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
-import { useAuthStore } from "@/shared/stores/auth";
+import { WorklistTagsCombobox } from "./-worklist-tags-combobox";
 
 interface ShipWorklistTabProps {
   readonly ship: ShipView;
@@ -42,14 +45,18 @@ interface ShipWorklistTabProps {
 
 interface WorklistFormState {
   readonly name: string;
-  readonly category: string;
+  readonly tags: readonly string[];
   readonly checklist: string;
   readonly precautions: string;
 }
 
+// Sentinel for the "blank" option of the create-dialog template selector;
+// base-ui SelectItem cannot take an empty-string value.
+const BLANK_TEMPLATE = "__blank__";
+
 const EMPTY_WORKLIST_FORM: WorklistFormState = {
   name: "",
-  category: "",
+  tags: [],
   checklist: "",
   precautions: "",
 };
@@ -59,7 +66,7 @@ function formFromWorklist(worklist: WorklistView | null): WorklistFormState {
     return EMPTY_WORKLIST_FORM;
   return {
     name: worklist.name,
-    category: worklist.category ?? "",
+    tags: worklist.tags.map(tag => tag.name),
     checklist: worklist.checklist ?? "",
     precautions: worklist.precautions ?? "",
   };
@@ -69,7 +76,7 @@ function worklistPayload(form: WorklistFormState): { name: string } & WorklistIn
   const nullable = (value: string) => value.trim() ? value.trim() : null;
   return {
     name: form.name.trim(),
-    category: nullable(form.category),
+    tags: form.tags,
     checklist: nullable(form.checklist),
     precautions: nullable(form.precautions),
   };
@@ -91,10 +98,15 @@ function preview(value: string | null): string {
 
 export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
   const { t } = useTranslation(["ships", "common"]);
-  const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
-  const worklistsQuery = useShipWorklists(ship.id);
-  const globalWorklistsQuery = useGlobalWorklists(!!isAdmin && canManage);
+  // Selected tag ids; empty means no tag filter. A worklist matches the union
+  // of the selected tags.
+  const [selectedTagIds, setSelectedTagIds] = useState<readonly string[]>([]);
+  const worklistTags = useWorklistTags().data ?? [];
+  const tagIds = selectedTagIds.length > 0 ? selectedTagIds : undefined;
+
+  const worklistsQuery = useShipWorklists(ship.id, tagIds);
+  const globalWorklistsQuery = useGlobalWorklists(canManage);
   const createWorklist = useCreateShipWorklist();
   const updateWorklist = useUpdateShipWorklist();
   const deleteWorklist = useDeleteShipWorklist();
@@ -102,9 +114,17 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
   const [worklistDialog, setWorklistDialog] = useState<"create" | "edit" | null>(null);
   const [editWorklist, setEditWorklist] = useState<WorklistView | null>(null);
   const [deleteWorklistTarget, setDeleteWorklistTarget] = useState<WorklistView | null>(null);
-  const [copyGlobalId, setCopyGlobalId] = useState("");
 
   const worklists = useMemo(() => worklistsQuery.data ?? [], [worklistsQuery.data]);
+
+  const tagDimension: FilterDimension = {
+    key: "tags",
+    label: t("worklist.tagFilter"),
+    mode: "multi",
+    value: selectedTagIds,
+    onChange: value => setSelectedTagIds(value),
+    options: worklistTags.map(tag => ({ value: tag.id, label: tag.name })),
+  };
 
   const openCreateWorklist = () => {
     setEditWorklist(null);
@@ -117,15 +137,6 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
   };
 
   const closeWorklistDialog = () => setWorklistDialog(null);
-
-  const copyFromGlobal = () => {
-    if (!copyGlobalId || createWorklist.isPending)
-      return;
-    createWorklist.mutate(
-      { shipId: ship.id, fromGlobalId: copyGlobalId },
-      { onSuccess: () => setCopyGlobalId("") },
-    );
-  };
 
   const confirmDeleteWorklist = () => {
     if (!deleteWorklistTarget)
@@ -151,6 +162,12 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
         )}
       </div>
 
+      {/* Tag filter row, mirroring the project issues tab: a multi-select
+          dropdown whose selected tags surface as removable chips; union
+          semantics narrow the list to worklists carrying any selected tag.
+          Omitted when no worklist tags exist yet. */}
+      {worklistTags.length > 0 ? <ListFilter dimensions={[tagDimension]} /> : <div />}
+
       {worklistsQuery.error && <ErrorBanner message={errorMessage(worklistsQuery.error, t("common:common.error.loadFailed"))} />}
       {globalWorklistsQuery.error && <ErrorBanner message={errorMessage(globalWorklistsQuery.error, t("common:common.error.loadFailed"))} />}
       {createWorklist.error && <ErrorBanner message={errorMessage(createWorklist.error, t("common:common.error.operationFailed"))} />}
@@ -158,31 +175,6 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
       {deleteWorklist.error && <ErrorBanner message={errorMessage(deleteWorklist.error, t("common:common.error.deleteFailed"))} />}
 
       <section className="space-y-4">
-        {canManage && isAdmin && (
-          <Card>
-            <CardContent className="flex flex-wrap items-end gap-2">
-              <div className="min-w-56 flex-1 space-y-1.5">
-                <Label>{t("worklist.copyFromGlobal")}</Label>
-                <Select value={copyGlobalId} onValueChange={v => v !== null && setCopyGlobalId(v)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue>
-                      {(v: string) => globalWorklistsQuery.data?.find(worklist => worklist.id === v)?.name ?? t("worklist.copyPlaceholder")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(globalWorklistsQuery.data ?? []).map(worklist => (
-                      <SelectItem key={worklist.id} value={worklist.id}>{worklist.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button variant="outline" onClick={copyFromGlobal} disabled={!copyGlobalId || createWorklist.isPending || globalWorklistsQuery.isLoading}>
-                {t("worklist.copy")}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         {worklistsQuery.isLoading
           ? <p className="text-sm text-muted-foreground">{t("worklist.loading")}</p>
           : worklists.length === 0
@@ -195,7 +187,9 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <span className="font-medium">{worklist.name}</span>
-                            {worklist.category && <Badge variant="outline" className="text-xs">{worklist.category}</Badge>}
+                            {worklist.tags.map(tag => (
+                              <Badge key={tag.id} variant="outline" className="text-xs">{tag.name}</Badge>
+                            ))}
                           </div>
                           {canManage && (
                             <div className="flex shrink-0 gap-1">
@@ -230,6 +224,8 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
           open={worklistDialog !== null}
           mode={worklistDialog ?? "create"}
           initial={editWorklist}
+          templates={globalWorklistsQuery.data ?? []}
+          availableTags={worklistTags.map(tag => tag.name)}
           pending={createWorklist.isPending || updateWorklist.isPending}
           onOpenChange={open => !open && closeWorklistDialog()}
           onSubmit={(form) => {
@@ -266,6 +262,8 @@ function WorklistDialog({
   onOpenChange,
   mode,
   initial,
+  templates,
+  availableTags,
   pending,
   onSubmit,
 }: {
@@ -273,21 +271,40 @@ function WorklistDialog({
   readonly onOpenChange: (open: boolean) => void;
   readonly mode: "create" | "edit";
   readonly initial: WorklistView | null;
+  readonly templates: readonly WorklistView[];
+  readonly availableTags: readonly string[];
   readonly pending: boolean;
   readonly onSubmit: (form: WorklistFormState) => void;
 }) {
   const { t } = useTranslation(["ships", "common"]);
   const [form, setForm] = useState(EMPTY_WORKLIST_FORM);
+  // Create-mode "Start from template" selection; resets to blank on open.
+  const [templateId, setTemplateId] = useState(BLANK_TEMPLATE);
 
   /* eslint-disable react/set-state-in-effect -- reseed the form whenever the dialog opens. */
   useEffect(() => {
-    if (open)
+    if (open) {
       setForm(formFromWorklist(initial));
+      setTemplateId(BLANK_TEMPLATE);
+    }
   }, [open, initial]);
   /* eslint-enable react/set-state-in-effect */
 
   const set = <K extends keyof WorklistFormState>(key: K, value: WorklistFormState[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
+
+  // Prefill the whole form (incl. tags) from a chosen global template; blank
+  // resets to an empty form. The user may then edit any field freely.
+  const pickTemplate = (id: string) => {
+    setTemplateId(id);
+    if (id === BLANK_TEMPLATE) {
+      setForm(EMPTY_WORKLIST_FORM);
+      return;
+    }
+    const template = templates.find(w => w.id === id);
+    if (template)
+      setForm(formFromWorklist(template));
+  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -305,13 +322,34 @@ function WorklistDialog({
             <DialogDescription>{t("worklist.dialogDescription")}</DialogDescription>
           </DialogHeader>
 
+          {mode === "create" && templates.length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="worklist-template">{t("worklist.startFromTemplate")}</Label>
+              <Select value={templateId} onValueChange={v => v !== null && pickTemplate(v)}>
+                <SelectTrigger id="worklist-template" className="w-full">
+                  <SelectValue>
+                    {(v: string) => v === BLANK_TEMPLATE
+                      ? t("worklist.startFromTemplateBlank")
+                      : templates.find(w => w.id === v)?.name ?? t("worklist.startFromTemplatePlaceholder")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BLANK_TEMPLATE}>{t("worklist.startFromTemplateBlank")}</SelectItem>
+                  {templates.map(template => (
+                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="worklist-name">{t("worklist.field.name")}</Label>
             <Input id="worklist-name" autoFocus required value={form.name} onChange={e => set("name", e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="worklist-cat">{t("worklist.field.category")}</Label>
-            <Input id="worklist-cat" placeholder={t("worklist.categoryPlaceholder")} value={form.category} onChange={e => set("category", e.target.value)} />
+            <Label>{t("worklist.tags")}</Label>
+            <WorklistTagsCombobox value={form.tags} onChange={tags => set("tags", tags)} availableTags={availableTags} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="worklist-checklist">{t("worklist.field.checklist")}</Label>
