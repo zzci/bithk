@@ -25,6 +25,7 @@ import {
   ContextMenuTrigger,
 } from "@/shared/components/ui/context-menu";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { formatDate } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import {
   ItemContextMenu,
@@ -36,7 +37,7 @@ import {
   LIST_COLUMNS_CLASS,
   LIST_SKELETON_KEYS,
 } from "./-drive-file-list-types";
-import { FILE_ICONS, formatDate, formatSize } from "./-file-browser-types";
+import { FILE_ICONS, formatSize } from "./-file-browser-types";
 
 export function FileList({
   displayItems,

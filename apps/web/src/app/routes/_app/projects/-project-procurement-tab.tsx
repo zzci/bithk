@@ -12,12 +12,13 @@ import type {
 } from "@/shared/lib/api/procurement";
 import type { ProjectMemberView, ProjectTag } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
-import { Pin, PinOff } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
+import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
+import { PinToggle } from "@/shared/components/pin-toggle";
 import { PrioritySignal } from "@/shared/components/priority-signal";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { Badge } from "@/shared/components/ui/badge";
@@ -218,7 +219,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
       {procurementsQuery.error && <ErrorBanner message={errorMessage(procurementsQuery.error, t("common:common.error.loadFailed"))} />}
 
       {procurementsQuery.isLoading
-        ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("procurement.loading")}</p>
+        ? <ListRowsSkeleton label={t("procurement.loading")} />
         : rows.length === 0
           ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("procurement.empty")}</p>
           : (
@@ -304,24 +305,17 @@ function ProcurementPinToggle({ projectId, row }: ProcurementPinToggleProps) {
   const { t } = useTranslation(["projects", "common"]);
   const togglePin = useToggleProcurementPin();
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
+    <PinToggle
+      pinned={row.pinned}
+      pending={togglePin.isPending}
       className="size-8"
-      aria-pressed={row.pinned}
-      aria-label={t(row.pinned ? "overview.unpinAction" : "overview.pinAction")}
-      disabled={togglePin.isPending}
-      onClick={() => {
-        const willPin = !row.pinned;
+      onToggle={(willPin) => {
         togglePin.mutate({ projectId, id: row.id, pin: willPin }, {
           onSuccess: () => toast.success(t(willPin ? "toast.procurementPinned" : "toast.procurementUnpinned")),
           onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
         });
       }}
-    >
-      {row.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
-    </Button>
+    />
   );
 }
 

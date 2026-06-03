@@ -1,6 +1,6 @@
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import { describe, expect, it } from "vitest";
-import { detectFileType, entryToDisplayItem, formatDate, formatSize } from "./-file-browser-types";
+import { detectFileType, entryToDisplayItem, formatSize } from "./-file-browser-types";
 
 describe("detectFileType", () => {
   it("classifies common mime types", () => {
@@ -20,16 +20,6 @@ describe("formatSize", () => {
     expect(formatSize(2048)).toBe("2.0 KB");
     expect(formatSize(5 * 1024 * 1024)).toBe("5.0 MB");
     expect(formatSize(3 * 1024 * 1024 * 1024)).toBe("3.0 GB");
-  });
-});
-
-describe("formatDate", () => {
-  it("formats an ISO date as YYYY-MM-DD", () => {
-    expect(formatDate("2026-05-23T10:00:00.000Z")).toMatch(/^2026-05-2\d$/);
-  });
-
-  it("returns the input unchanged when it is not a valid date", () => {
-    expect(formatDate("not-a-date")).toBe("not-a-date");
   });
 });
 

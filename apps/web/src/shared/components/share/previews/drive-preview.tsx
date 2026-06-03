@@ -6,14 +6,13 @@ import type { FormEvent } from "react";
 import type { FileType } from "@/app/routes/_app/-file-browser-types";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { PublicDriveContent, PublicShareEntry, PublicShareListing, PublicShareMeta } from "@/shared/lib/api/share";
-import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileText, Folder, Loader2, Lock } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileText, Folder, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { detectFileType, FILE_ICONS } from "@/app/routes/_app/-file-browser-types";
 import { FilePreviewDialog, resolvePreviewKind } from "@/app/routes/_app/-file-preview-dialog";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import {
   accessPublicShare,
   downloadPublicShareChild,
@@ -26,7 +25,7 @@ import { errorMessage } from "@/shared/lib/errors";
 import { HttpError } from "@/shared/lib/http";
 
 import { formatBytes } from "../share-helpers";
-import { ShareShell } from "./shell";
+import { PasswordPrompt, ShareIconHeader, ShareShell } from "./shell";
 
 /** Minimal `DriveEntry` the in-app viewer needs; bytes come from a fetch override. */
 function buildPreviewEntry(parts: { id: string; name: string; mimetype: string; size: number }): DriveEntry {
@@ -133,26 +132,14 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
   if (!unlocked) {
     return (
       <ShareShell>
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void load(password);
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <FileText className="size-5" />
-            </div>
-            <p className="min-w-0 truncate text-base font-medium">{meta.name}</p>
-          </div>
-          <PasswordField value={password} onChange={setPassword} />
-          {authError && <p className="text-sm text-destructive">{authError}</p>}
-          <Button type="submit" disabled={!password}>
-            <Lock className="size-4" />
-            {t("public.open")}
-          </Button>
-        </form>
+        <PasswordPrompt
+          icon={<FileText className="size-5" />}
+          name={meta.name}
+          value={password}
+          onChange={setPassword}
+          error={authError}
+          onSubmit={() => void load(password)}
+        />
       </ShareShell>
     );
   }
@@ -160,15 +147,11 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
   return (
     <ShareShell>
       <div className="flex flex-col gap-5">
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <FileText className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-base font-medium">{file?.filename ?? meta.name}</p>
-            {file && <p className="text-sm text-muted-foreground">{formatBytes(file.size)}</p>}
-          </div>
-        </div>
+        <ShareIconHeader
+          icon={<FileText className="size-5" />}
+          name={file?.filename ?? meta.name}
+          subtitle={file ? <p className="text-sm text-muted-foreground">{formatBytes(file.size)}</p> : null}
+        />
 
         <form className="flex flex-col gap-3" onSubmit={handleDownload}>
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -248,26 +231,15 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
   if (!unlocked) {
     return (
       <ShareShell>
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void load(undefined, password);
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Folder className="size-5" />
-            </div>
-            <p className="truncate text-base font-medium">{meta.name}</p>
-          </div>
-          <PasswordField value={password} onChange={setPassword} />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={loading || !password}>
-            {loading ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
-            {t("public.open")}
-          </Button>
-        </form>
+        <PasswordPrompt
+          icon={<Folder className="size-5" />}
+          name={meta.name}
+          value={password}
+          onChange={setPassword}
+          error={error}
+          loading={loading}
+          onSubmit={() => void load(undefined, password)}
+        />
       </ShareShell>
     );
   }
@@ -370,24 +342,5 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
         />
       )}
     </ShareShell>
-  );
-}
-
-function PasswordField({ value, onChange }: { readonly value: string; readonly onChange: (v: string) => void }) {
-  const { t } = useTranslation("share");
-  return (
-    <label className="flex flex-col gap-1.5 text-sm font-medium">
-      <span className="flex items-center gap-1.5">
-        <Lock className="size-3.5" />
-        {t("public.password")}
-      </span>
-      <Input
-        type="password"
-        value={value}
-        onChange={e => onChange(e.currentTarget.value)}
-        placeholder={t("public.passwordPlaceholder")}
-        autoComplete="off"
-      />
-    </label>
   );
 }
