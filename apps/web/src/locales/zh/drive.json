@@ -27,6 +27,8 @@
     "newFolder": "新建文件夹",
     "newTextFile": "新建文本文件",
     "newMarkdownFile": "新建 Markdown 文件",
+    "newSpreadsheet": "新建表格",
+    "importCsv": "导入 CSV",
     "importFromDrive": "从网盘导入",
     "create": "创建",
     "createButton": "新建",
@@ -98,6 +100,9 @@
       "markdownFileTitle": "新建 Markdown 文件",
       "markdownFileDescription": "在当前位置创建 Markdown 文件。",
       "markdownFileNamePlaceholder": "文件名.md",
+      "spreadsheetTitle": "新建表格",
+      "spreadsheetDescription": "在当前位置创建一个表格。",
+      "spreadsheetNamePlaceholder": "文件名.sheet",
       "renameTitle": "重命名",
       "renameDescription": "更新此条目的名称。",
       "moveTitle": "移动",
@@ -162,6 +167,8 @@
     "download": "下载",
     "unsupportedTitle": "无法预览",
     "unsupportedDescription": "此文件类型无法预览，请下载后查看。",
+    "spreadsheetTitle": "表格",
+    "openInEditor": "在编辑器中打开",
     "tools": {
       "edit": "编辑",
       "save": "保存",
@@ -189,5 +196,18 @@
     "title": "选择文件",
     "description": "浏览你的云盘并选择一个文件。",
     "root": "我的云盘"
+  },
+  "sheet": {
+    "back": "返回云盘",
+    "loading": "正在加载表格…",
+    "loadError": "无法加载该表格。",
+    "saveError": "无法保存该表格。",
+    "saved": "已保存",
+    "untitled": "未命名表格",
+    "versions": "版本历史"
+  },
+  "csv": {
+    "importError": "无法导入该 CSV 文件。",
+    "empty": "CSV 文件为空。"
   }
 }

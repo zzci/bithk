@@ -9,6 +9,10 @@ import { isWithinFileSize } from "@/shared/lib/upload-limits";
  * `allowAnyType: true`). Type-based restrictions are intentionally NOT applied:
  * downloads are served as attachments for everything except a small
  * inline-safe media set, so arbitrary uploads cannot execute inline.
+ *
+ * Univer spreadsheet snapshots (`application/x-univer-sheet`) flow through this
+ * guard unchanged when the web saves a new version: only size/empty are gated,
+ * never the mimetype, so no whitelist entry is needed.
  */
 export function validateDriveUpload(
   file: File,

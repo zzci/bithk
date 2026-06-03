@@ -27,6 +27,8 @@
     "newFolder": "New folder",
     "newTextFile": "New text file",
     "newMarkdownFile": "New Markdown file",
+    "newSpreadsheet": "New spreadsheet",
+    "importCsv": "Import CSV",
     "importFromDrive": "Import from Drive",
     "create": "Create",
     "createButton": "New",
@@ -98,6 +100,9 @@
       "markdownFileTitle": "New Markdown file",
       "markdownFileDescription": "Create a Markdown file in the current location.",
       "markdownFileNamePlaceholder": "filename.md",
+      "spreadsheetTitle": "New spreadsheet",
+      "spreadsheetDescription": "Create a spreadsheet in the current location.",
+      "spreadsheetNamePlaceholder": "filename.sheet",
       "renameTitle": "Rename",
       "renameDescription": "Update the name of this entry.",
       "moveTitle": "Move",
@@ -162,6 +167,8 @@
     "download": "Download",
     "unsupportedTitle": "Preview not available",
     "unsupportedDescription": "This file type can't be previewed. Download it to view.",
+    "spreadsheetTitle": "Spreadsheet",
+    "openInEditor": "Open in editor",
     "tools": {
       "edit": "Edit",
       "save": "Save",
@@ -189,5 +196,18 @@
     "title": "Select a file",
     "description": "Browse your drive and choose a file.",
     "root": "My Drive"
+  },
+  "sheet": {
+    "back": "Back to Drive",
+    "loading": "Loading spreadsheet…",
+    "loadError": "Could not load this spreadsheet.",
+    "saveError": "Could not save this spreadsheet.",
+    "saved": "Saved",
+    "untitled": "Untitled spreadsheet",
+    "versions": "Version history"
+  },
+  "csv": {
+    "importError": "Could not import this CSV file.",
+    "empty": "The CSV file is empty."
   }
 }

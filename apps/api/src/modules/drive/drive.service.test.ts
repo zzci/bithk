@@ -19,6 +19,7 @@ import { AppError } from "@/shared/lib/errors";
 import {
   buildDriveEntryDownloadResponse,
   createDriveFolder,
+  createDriveSpreadsheet,
   createDriveTextFile,
   emptyDriveTrash,
   getDriveEntry,
@@ -34,7 +35,7 @@ import {
   uploadDriveFile,
 } from "./drive.service";
 import { createTeamDirectory } from "./drive.team-directory.service";
-import { driveEntries } from "./schema";
+import { driveEntries, UNIVER_SHEET_MIME } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -193,6 +194,25 @@ describe("createDriveTextFile", () => {
     await expect(create(".")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(create("..")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(create(`${"a".repeat(256)}.txt`)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+});
+
+describe("createDriveSpreadsheet", () => {
+  test("persists an application/x-univer-sheet file entry with v1 and the snapshot verbatim", async () => {
+    const owner = await seedUser("Owner");
+    const snapshot = JSON.stringify({ id: "wb1", sheets: {} });
+    const entry = await createDriveSpreadsheet(db, config, { ...personal(owner), createdBy: owner, name: "Plan", content: snapshot });
+    expect(entry.type).toBe("file");
+    expect(entry.file?.mimetype).toBe(UNIVER_SHEET_MIME);
+    expect(entry.file?.size).toBe(snapshot.length);
+  });
+
+  test("rejects a duplicate name in the same folder", async () => {
+    const owner = await seedUser("Owner");
+    await createDriveSpreadsheet(db, config, { ...personal(owner), createdBy: owner, name: "Plan", content: "{}" });
+    await expect(
+      createDriveSpreadsheet(db, config, { ...personal(owner), createdBy: owner, name: "Plan", content: "{}" }),
+    ).rejects.toThrow(/already exists/i);
   });
 });
 

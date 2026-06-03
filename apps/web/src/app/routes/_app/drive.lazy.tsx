@@ -6,7 +6,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { DriveView } from "./-drive-sidebar";
 import type { DriveEntry, TeamDirectory } from "@/shared/lib/api/drive";
-import { createLazyFileRoute } from "@tanstack/react-router";
+import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import { useShare } from "@/shared/components/share";
 import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
+import { isUniverSheetEntry } from "@/shared/lib/api/drive";
 import { useAuthStore } from "@/shared/stores/auth";
 
 import { DriveEntryListView } from "./-drive-entry-list";
@@ -63,6 +64,7 @@ function useSidebarWidth() {
 
 function DrivePage() {
   const { t } = useTranslation("drive");
+  const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
   const { openShare } = useShare();
 
@@ -78,12 +80,19 @@ function DrivePage() {
     [openShare],
   );
   const [previewEditing, setPreviewEditing] = useState(false);
-  // Open the preview viewer; `edit` starts it in edit mode (used after
-  // creating a blank file so creation reuses the viewer's editor).
+  // Single open-routing chokepoint for every drive list (file browser, recent,
+  // favorites, share lists — they all funnel through here). Univer spreadsheets
+  // open in their dedicated editor route; everything else uses the preview
+  // viewer. `edit` starts the viewer in edit mode (used after creating a blank
+  // file so creation reuses the viewer's editor).
   const openPreview = useCallback((entry: DriveEntry, edit = false) => {
+    if (isUniverSheetEntry(entry)) {
+      void navigate({ to: "/drive/sheet/$entryId", params: { entryId: entry.id } });
+      return;
+    }
     setPreviewEntry(entry);
     setPreviewEditing(edit);
-  }, []);
+  }, [navigate]);
 
   const startSidebarResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

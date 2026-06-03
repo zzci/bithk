@@ -282,6 +282,8 @@ export function DriveFileListSurface({
               onCreateFolder={actions.onCreateFolder}
               onUploadClick={actions.onUploadClick}
               onUploadFolderClick={actions.onUploadFolderClick}
+              onCreateSpreadsheet={resolvedCapabilities.createTextFile ? actions.onCreateSpreadsheet : undefined}
+              onImportCsv={resolvedCapabilities.createTextFile ? actions.onImportCsv : undefined}
               onImportFromDrive={toolbar.onImportFromDrive}
             />
           )
@@ -325,6 +327,8 @@ export function DriveFileListSurface({
                 onCreateFolder={resolvedCapabilities.createFolder ? actions.onCreateFolder : undefined}
                 onUploadClick={resolvedCapabilities.upload ? actions.onUploadClick : undefined}
                 onCreateTextFile={resolvedCapabilities.createTextFile ? actions.onCreateTextFile : undefined}
+                onCreateSpreadsheet={resolvedCapabilities.createTextFile ? actions.onCreateSpreadsheet : undefined}
+                onImportCsv={resolvedCapabilities.createTextFile ? actions.onImportCsv : undefined}
                 getCustomActions={actions.getCustomActions}
               />
             )}
