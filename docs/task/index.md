@@ -102,4 +102,4 @@
 | [UI-022](UI-022.md) | Project overview 2-column pinned/description + single-line pinned rows | [PLAN-059](../plan/PLAN-059.md) | Completed | 2026-06-03 |
 | [FIX-035](FIX-035.md) | FileBrowser renders file preview internally | [PLAN-060](../plan/PLAN-060.md) | Superseded | 2026-06-03 |
 | [REFACTOR-019](REFACTOR-019.md) | Global toggle-driven FileBrowser (features config) + built-in preview + consumer migration | [PLAN-061](../plan/PLAN-061.md) | Completed | 2026-06-03 |
-| [FIX-036](FIX-036.md) | Issues tab tag-filter label 按标签筛选 -> 标签 | [PLAN-062](../plan/PLAN-062.md) | Implementing | 2026-06-03 |
+| [FIX-036](FIX-036.md) | Issues tab tag-filter label 按标签筛选 -> 标签 | [PLAN-062](../plan/PLAN-062.md) | Completed | 2026-06-03 |

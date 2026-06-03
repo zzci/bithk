@@ -1,6 +1,6 @@
 # PLAN-062 Issues tab tag-filter label: 按标签筛选 -> 标签
 
-- **status**: Implementing
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 v7tozyh2
 - **campaignId**: l1-75ymcfnr-isstag-20260603191110
 - **tasks**: [FIX-036](../task/FIX-036.md)
