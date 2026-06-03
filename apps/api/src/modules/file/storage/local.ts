@@ -86,7 +86,13 @@ function resolveKey(key: string): string {
   if (isAbsolute(key) || key.split(/[/\\]/).includes("..")) {
     throw new Error(`Invalid storage key: ${key}`);
   }
-  return resolve(localRoot, key.split("/").join(sep));
+  const resolved = resolve(localRoot, key.split("/").join(sep));
+  // Final guard: assert the resolved path is still under localRoot so no key
+  // can escape the blob tree even if the prefix checks above are ever loosened.
+  if (resolved !== localRoot && !resolved.startsWith(localRoot + sep)) {
+    throw new Error(`Invalid storage key: ${key}`);
+  }
+  return resolved;
 }
 
 // Self-register at module load. Downstream drivers (S3 / Azure / GCS)

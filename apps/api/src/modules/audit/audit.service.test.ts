@@ -212,6 +212,31 @@ describe("listAuditEvents", () => {
     expect(r.data.every(d => d.action.startsWith("issues."))).toBe(true);
   });
 
+  test("treats `_` in the wildcard prefix as a literal (ESCAPE clause)", async () => {
+    // Two actions differing only at the position an unescaped `_` would treat
+    // as a single-char wildcard. The `a_b.*` filter must match ONLY `a_b.*`.
+    const base = Date.parse("2026-05-02T00:00:00Z");
+    for (const [id, action] of [["e_u1", "a_b.created"], ["e_u2", "axb.created"]] as const) {
+      await db.insert(auditEvents).values({
+        id,
+        actorId: "u",
+        actorName: "u",
+        action,
+        resourceType: "x",
+        resourceId: "x",
+        resourceName: "x",
+        detail: null,
+        ip: "0",
+        userAgent: "x",
+        result: "success",
+        createdAt: new Date(base).toISOString(),
+      }).run();
+    }
+    const r = await listAuditEvents(db, { action: "a_b.*" });
+    expect(r.total).toBe(1);
+    expect(r.data[0]!.action).toBe("a_b.created");
+  });
+
   test("filters by resourceType / resourceId", async () => {
     const r1 = await listAuditEvents(db, { resourceType: "issue" });
     expect(r1.total).toBe(2);

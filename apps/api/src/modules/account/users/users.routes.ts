@@ -208,7 +208,7 @@ export function userRoutes() {
     return c.json({ success: true, data: null });
   });
 
-  router.delete("/account/me/totp/:deviceId", async (c) => {
+  router.delete("/account/me/totp/:deviceId", rateLimit({ windowMs: 5 * 60 * 1000, max: 10, bucket: "totp-stepup" }), async (c) => {
     const db = c.get("db");
     const user = c.get("user");
     const deviceId = c.req.param("deviceId");

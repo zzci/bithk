@@ -212,14 +212,64 @@ describe("getClientIp (TRUST_PROXY=true with TRUSTED_PROXY_IPS allow-list)", () 
     ).toBe("1.1.1.1");
   });
 
-  test("a non-IPv4 peer is never matched by an IPv4 allow-list", () => {
-    // IPv6 peers cannot be matched at this layer, so headers are dropped.
+  test("an IPv6 peer is never matched by an IPv4 allow-list (version isolation)", () => {
+    // IPv4 and IPv6 share no comparable network space, so an IPv6 peer against
+    // an IPv4-only allow-list is dropped and the peer itself is returned.
     expect(
       getClientIp(
         ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "2001:db8::1" } }),
         { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "10.0.0.0/8" },
       ),
     ).toBe("2001:db8::1");
+  });
+
+  test("honours forwarding headers when an IPv6 peer is inside an allowed IPv6 CIDR", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "2001:db8::dead:beef" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "2001:db8::/32" },
+      ),
+    ).toBe("203.0.113.5");
+  });
+
+  test("drops forwarding headers when an IPv6 peer is OUTSIDE the allowed IPv6 CIDR", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "2001:dead::1" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "2001:db8::/32" },
+      ),
+    ).toBe("2001:dead::1");
+  });
+
+  test("matches a bare IPv6 literal (implicit /128)", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "2001:db8::1" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "2001:db8::1" },
+      ),
+    ).toBe("203.0.113.5");
+  });
+
+  test("an IPv4 peer is never matched by an IPv6 allow-list (version isolation)", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "10.0.0.7" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "2001:db8::/32" },
+      ),
+    ).toBe("10.0.0.7");
+  });
+
+  test("mixes IPv4 and IPv6 entries in one allow-list", () => {
+    const cfg = { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "10.0.0.0/8, fd00::/8" } as const;
+    expect(
+      getClientIp(ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "fd00::42" } }), cfg),
+    ).toBe("1.1.1.1");
+    expect(
+      getClientIp(ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "10.5.5.5" } }), cfg),
+    ).toBe("1.1.1.1");
+    expect(
+      getClientIp(ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "fe80::1" } }), cfg),
+    ).toBe("fe80::1");
   });
 
   test("an all-invalid allow-list collapses to empty → any peer trusted", () => {

@@ -75,7 +75,7 @@ const updateProjectSchema = z.object({
 
 const listSchema = z.object({
   status: z.enum(PROJECT_STATUSES).optional(),
-  q: z.string().min(1).optional(),
+  q: z.string().min(1).max(200).optional(),
   tagId: z.string().min(1).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),

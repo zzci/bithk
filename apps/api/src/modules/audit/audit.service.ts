@@ -1,8 +1,17 @@
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
-import { and, count, desc, eq, gte, like, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { auditEvents } from "@/modules/audit/schema";
 import { ulid } from "@/shared/lib/id";
+
+// Escape SQLite LIKE wildcards (`%`, `_`) and the backslash escape char in a
+// user-supplied prefix so the `action=foo.*` filter matches literally; the
+// LIKE must carry an explicit `ESCAPE '\'` clause.
+const LIKE_SPECIAL_RE = /[\\%_]/g;
+
+function escapeLike(v: string): string {
+  return v.replace(LIKE_SPECIAL_RE, "\\$&");
+}
 
 export interface AuditParams {
   readonly actorId: string;
@@ -95,7 +104,8 @@ export async function listAuditEvents(db: AppDatabase, params: ListAuditParams =
   }
   if (action) {
     if (action.endsWith(".*")) {
-      conditions.push(like(auditEvents.action, `${action.slice(0, -1)}%`));
+      const prefix = escapeLike(action.slice(0, -1));
+      conditions.push(sql`${auditEvents.action} LIKE ${`${prefix}%`} ESCAPE '\\'`);
     }
     else {
       conditions.push(eq(auditEvents.action, action));

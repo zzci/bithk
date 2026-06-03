@@ -123,7 +123,9 @@ export async function deleteTag(db: AppDatabase, type: TagType, id: string): Pro
   const existing = await db.select({ id: tags.id }).from(tags).where(and(eq(tags.id, id), eq(tags.type, type))).get();
   if (!existing)
     return false;
-  await db.delete(tags).where(eq(tags.id, id)).run();
+  // Scope the delete by (id, type) too — defence in depth, mirroring the
+  // existence check (id is PK so type is redundant, but keeps the two aligned).
+  await db.delete(tags).where(and(eq(tags.id, id), eq(tags.type, type))).run();
   return true;
 }
 

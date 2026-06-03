@@ -384,6 +384,9 @@ export async function softDeleteIssue(db: AppDatabase, shortId: string): Promise
   ).get();
   if (!item)
     return;
+  // Already soft-deleted: nothing to stamp and the tuple cleanup already ran.
+  if (item.deletedAt)
+    return;
   const now = new Date().toISOString();
   db.transaction((tx) => {
     tx.update(items)

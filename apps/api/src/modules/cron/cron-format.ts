@@ -70,5 +70,13 @@ export function isValidCron(expr: string): boolean {
   if (parts.length !== 5 && parts.length !== 6)
     return false;
 
-  return Cron.isValid(normalizeCron(trimmed));
+  // `Cron.isValid` is expected to return false on bad input, but guard against
+  // a library throw on a pathological expression so the create route surfaces a
+  // clean 400 INVALID_CRON instead of an unhandled 500.
+  try {
+    return Cron.isValid(normalizeCron(trimmed));
+  }
+  catch {
+    return false;
+  }
 }
