@@ -236,14 +236,13 @@ function ProjectsGrid({
                   stretches over the whole card so clicking anywhere (except the
                   Settings button, raised with z-10) opens the project. */}
               <CardTitle className="min-w-0">
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  className="line-clamp-2 h-auto whitespace-normal rounded-none px-0 text-left after:absolute after:inset-0 after:rounded-[inherit] hover:bg-transparent"
+                  className="line-clamp-2 text-left after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none"
                   onClick={() => openProject(project.id)}
                 >
                   {project.name}
-                </Button>
+                </button>
               </CardTitle>
               <div className="relative z-10 flex shrink-0 items-center gap-1">
                 {project.status === "archived" && (
