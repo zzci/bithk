@@ -10,7 +10,7 @@ import { ListFilter } from "@/shared/components/list-filter";
 import { CardGridSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
-import { TagBadgeList } from "@/shared/components/tag-badge-list";
+import { TagChips, tagFilterDimension } from "@/shared/components/tags";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDebounce } from "@/shared/hooks/use-debounce";
@@ -80,6 +80,16 @@ export function ShipsListPage() {
     archived: archivedCount,
   };
 
+  const tagDim = tagFilterDimension({
+    tags: shipTags,
+    value: tagIds,
+    onChange: (value) => {
+      setTagIds(value);
+      setPage(1);
+    },
+    label: t("field.tags"),
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -115,17 +125,7 @@ export function ShipsListPage() {
                 count: statusCounts[s],
               })),
             },
-            {
-              key: "tags",
-              label: t("field.tags"),
-              mode: "multi",
-              value: tagIds,
-              onChange: (value) => {
-                setTagIds(value);
-                setPage(1);
-              },
-              options: shipTags.map(tag => ({ value: tag.id, label: tag.name })),
-            },
+            ...(tagDim ? [tagDim] : []),
           ]}
         />
         <SearchCreateBar
@@ -249,10 +249,10 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
 
         {ship.tags.length > 0 && (
           <div className="flex flex-wrap items-center gap-1">
-            <TagBadgeList
+            <TagChips
               tags={ship.tags}
               max={3}
-              badgeClassName="text-[10px] font-medium"
+              className="text-[10px] font-medium"
               moreClassName="self-center text-[10px] font-medium text-muted-foreground"
               renderMore={count => t("list.moreTags", { count })}
             />
