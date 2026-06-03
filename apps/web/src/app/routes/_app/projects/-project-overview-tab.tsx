@@ -26,7 +26,7 @@ import { formatDate } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 
-export type ProjectTab = "issues" | "procurement";
+type ProjectTab = "issues" | "procurement";
 
 interface ProjectOverviewTabProps {
   readonly project: ProjectView;
@@ -55,6 +55,8 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
           onViewAll={() => onOpenTab("issues")}
           isLoading={latestIssuesQuery.isLoading}
           loadingText={t("issues.loading")}
+          isError={latestIssuesQuery.isError}
+          onRetry={() => void latestIssuesQuery.refetch()}
           isEmpty={(latestIssuesQuery.data?.data.length ?? 0) === 0}
           emptyText={t("issues.empty")}
         >
@@ -79,6 +81,8 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
             onViewAll={() => onOpenTab("procurement")}
             isLoading={latestProcurementsQuery.isLoading}
             loadingText={t("procurement.loading")}
+            isError={latestProcurementsQuery.isError}
+            onRetry={() => void latestProcurementsQuery.refetch()}
             isEmpty={(latestProcurementsQuery.data?.data.length ?? 0) === 0}
             emptyText={t("procurement.empty")}
           >
@@ -124,11 +128,23 @@ function ProjectInfoCard({ description }: ProjectInfoCardProps) {
 // rhythm (title first, then a wrapping metadata line) and intentional muted
 // loading/empty states instead of loose body text.
 const ROW_BUTTON_CLASS
-  = "group flex w-full flex-col items-start gap-1.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  = "group flex h-auto w-full flex-col items-start gap-1.5 rounded-md px-2 py-2 text-left font-normal transition-colors hover:bg-muted/40";
 
 function ListState({ children }: { readonly children: ReactNode }) {
   return (
     <p className="px-2 py-6 text-center text-sm text-pretty text-muted-foreground">{children}</p>
+  );
+}
+
+// Failed-to-load state: distinct from the muted empty state so a fetch failure
+// never masquerades as "no data". Offers a retry.
+function ListErrorState({ onRetry }: { readonly onRetry: () => void }) {
+  const { t } = useTranslation("common");
+  return (
+    <div className="flex flex-col items-center gap-2 px-2 py-6 text-center">
+      <p className="text-sm text-destructive">{t("common.error.loadFailed")}</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>{t("common.retry")}</Button>
+    </div>
   );
 }
 
@@ -162,15 +178,17 @@ function ProjectPinnedCard({ projectId, caps, onOpenTab }: ProjectPinnedCardProp
       <CardContent>
         {pinnedQuery.isLoading
           ? <ListState>{t("overview.pinnedLoading")}</ListState>
-          : pinned.length === 0
-            ? <ListState>{t("overview.noPinned")}</ListState>
-            : (
-                <ul aria-label={t("overview.pinned")} className="-mx-2 space-y-0.5">
-                  {pinned.map(item => (
-                    <PinnedRow key={item.id} item={item} caps={caps} onOpenTab={onOpenTab} />
-                  ))}
-                </ul>
-              )}
+          : pinnedQuery.isError
+            ? <ListErrorState onRetry={() => void pinnedQuery.refetch()} />
+            : pinned.length === 0
+              ? <ListState>{t("overview.noPinned")}</ListState>
+              : (
+                  <ul aria-label={t("overview.pinned")} className="-mx-2 space-y-0.5">
+                    {pinned.map(item => (
+                      <PinnedRow key={item.id} item={item} caps={caps} onOpenTab={onOpenTab} />
+                    ))}
+                  </ul>
+                )}
       </CardContent>
     </Card>
   );
@@ -192,8 +210,9 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
 
   return (
     <li>
-      <button
+      <Button
         type="button"
+        variant="ghost"
         disabled={!canOpen}
         className={cn(ROW_BUTTON_CLASS, "disabled:pointer-events-none disabled:opacity-60")}
         onClick={() => onOpenTab(target)}
@@ -219,7 +238,7 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
           </Badge>
           <span className="ml-auto shrink-0">{formatDate(item.pinnedAt)}</span>
         </RowMeta>
-      </button>
+      </Button>
     </li>
   );
 }
@@ -230,12 +249,14 @@ interface LatestActivityCardProps {
   readonly onViewAll: () => void;
   readonly isLoading: boolean;
   readonly loadingText: string;
+  readonly isError: boolean;
+  readonly onRetry: () => void;
   readonly isEmpty: boolean;
   readonly emptyText: string;
   readonly children?: ReactNode;
 }
 
-function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, isEmpty, emptyText, children }: LatestActivityCardProps) {
+function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, isError, onRetry, isEmpty, emptyText, children }: LatestActivityCardProps) {
   const { t } = useTranslation("projects");
 
   return (
@@ -254,9 +275,11 @@ function LatestActivityCard({ icon, title, onViewAll, isLoading, loadingText, is
       <CardContent>
         {isLoading
           ? <ListState>{loadingText}</ListState>
-          : isEmpty
-            ? <ListState>{emptyText}</ListState>
-            : <ul className="-mx-2 space-y-0.5">{children}</ul>}
+          : isError
+            ? <ListErrorState onRetry={onRetry} />
+            : isEmpty
+              ? <ListState>{emptyText}</ListState>
+              : <ul className="-mx-2 space-y-0.5">{children}</ul>}
       </CardContent>
     </Card>
   );
@@ -272,19 +295,20 @@ interface ActivityRowProps {
 // share one horizontal row. Distinct from ROW_BUTTON_CLASS so the pinned
 // card keeps its two-line rhythm.
 const ACTIVITY_ROW_CLASS
-  = "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  = "group flex h-auto w-full items-center gap-2 rounded-md px-2 py-1.5 text-left font-normal transition-colors hover:bg-muted/40";
 
 function ActivityRow({ title, badge, onClick }: ActivityRowProps) {
   return (
     <li>
-      <button
+      <Button
         type="button"
+        variant="ghost"
         className={ACTIVITY_ROW_CLASS}
         onClick={onClick}
       >
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
         <span className="ml-auto shrink-0">{badge}</span>
-      </button>
+      </Button>
     </li>
   );
 }

@@ -3,7 +3,7 @@ import type { ResourceAccess } from "./permission";
 import type { PolicyContext, PolicyRequest, ResourceRouteSpec } from "./registry";
 import type { RouteBinding } from "./route-registry";
 import type { AppError } from "@/shared/lib/errors";
-import type { AppEnv } from "@/shared/lib/types";
+import type { AppEnv, RequestEnv } from "@/shared/lib/types";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { ForbiddenError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
 import { getAuthProvider } from "@/shared/middleware/auth-registry";
@@ -11,7 +11,7 @@ import { getAccessByName } from "./permission";
 import { getResource } from "./registry";
 import { getAllRouteBindings } from "./route-registry";
 
-function buildPolicyRequest(c: Context<AppEnv>): PolicyRequest {
+function buildPolicyRequest<E extends RequestEnv>(c: Context<E>): PolicyRequest {
   const userAgent = c.req.header("user-agent");
   const correlationId = c.get("requestId");
   // `+?` preserves the optional modifier; the default mapped type drops `?`
@@ -24,7 +24,11 @@ function buildPolicyRequest(c: Context<AppEnv>): PolicyRequest {
   return req;
 }
 
-export function policyContext(c: Context<AppEnv>): PolicyContext | null {
+// Generic over `E extends RequestEnv` so both `Context<AppEnv>` (the global
+// policy middleware) and `Context<ProtectedEnv>` (protected route handlers)
+// can resolve a policy context — Hono's `Context` is invariant in its env, so
+// a fixed `Context<AppEnv>` signature would reject the narrower protected env.
+export function policyContext<E extends RequestEnv>(c: Context<E>): PolicyContext | null {
   const user = c.get("user");
   if (!user)
     return null;

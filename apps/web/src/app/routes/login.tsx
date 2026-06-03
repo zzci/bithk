@@ -41,7 +41,7 @@ function isSafeRedirect(url: string | undefined): string {
   return url;
 }
 
-export function toRouterPath(url: string): string {
+function toRouterPath(url: string): string {
   if (!BASE_PATH)
     return url;
   if (url === BASE_PATH)

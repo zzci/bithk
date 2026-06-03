@@ -40,13 +40,14 @@ export default mergeConfig(
         // Thresholds are percentages (0-100). Floors track the current
         // suite with a small headroom so routine churn doesn't trip the
         // gate — raise as coverage improves, never lower. Current actuals
-        // (2026-05, after F1/F2/F3 UI suites merged):
-        // lines ~30.0, statements ~29.9, functions ~30.1, branches ~25.0.
+        // (2026-06, after FIX-027 added pure-logic suites — tag-utils,
+        // status-colors, errors, use-debounce):
+        // lines ~42.2, statements ~42.2, functions ~42.7, branches ~36.5.
         thresholds: {
-          lines: 29,
-          functions: 29,
-          statements: 29,
-          branches: 24,
+          lines: 38,
+          functions: 38,
+          statements: 38,
+          branches: 33,
         },
       },
     },

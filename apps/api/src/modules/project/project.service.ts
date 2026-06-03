@@ -1,9 +1,10 @@
 import type { ProjectCapability, ProjectStatus } from "./schema";
 import type { Config } from "@/config";
-import type { AppDatabase, AppTransaction, RunResult } from "@/db";
+import type { AppDatabase, AppTransaction } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
 import type { ResourceTagUsageView } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
@@ -445,7 +446,7 @@ export async function updateProject(db: AppDatabase, shortId: string, input: Upd
     const where = input.expectedVersion !== undefined
       ? and(eq(projects.id, project.id), eq(projects.version, input.expectedVersion))
       : eq(projects.id, project.id);
-    const result = tx.update(projects).set(patch).where(where).run() as unknown as RunResult;
+    const result = runWrite(() => tx.update(projects).set(patch).where(where).run());
     if (input.expectedVersion !== undefined && result.changes === 0)
       return true;
     if (input.tags !== undefined)
@@ -480,10 +481,10 @@ export async function softDeleteProject(db: AppDatabase, shortId: string): Promi
     return;
   const now = new Date().toISOString();
   db.transaction((tx) => {
-    const updated = tx.update(projects)
+    const updated = runWrite(() => tx.update(projects)
       .set({ deletedAt: now, updatedAt: now, version: sql`${projects.version} + 1` })
       .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
-      .run() as unknown as RunResult;
+      .run());
 
     // Already soft-deleted — don't re-stamp the children.
     if (updated.changes === 0)
@@ -794,9 +795,9 @@ export async function removeMember(db: AppDatabase, projectId: string, memberId:
   if (role?.kind === "owner" && await countOwnerMembers(db, projectId) <= 1)
     throw new ValidationError("Cannot remove the last owner", { memberId: "At least one owner must remain" });
 
-  const result = await db.delete(projectMembers)
+  const result = runWrite(() => db.delete(projectMembers)
     .where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)))
-    .run() as unknown as { changes: number };
+    .run());
   return result.changes > 0;
 }
 

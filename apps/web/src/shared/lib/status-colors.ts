@@ -4,6 +4,7 @@
 // `.dark`). Ship, project, and contact modules all read from here so the same
 // status reads the same color everywhere.
 
+import type { ContactVisibility } from "@/shared/lib/api/contacts";
 import type { ProcurementStatus } from "@/shared/lib/api/procurement";
 import type { IssueStatus } from "@/shared/lib/api/projects";
 
@@ -12,6 +13,15 @@ export const RECORD_STATUS_BADGE: Record<"active" | "archived", string> = {
   active: "bg-success/10 text-success",
   archived: "bg-muted text-muted-foreground",
 };
+
+/** Contact visibility chip: public is highlighted, private reads muted. */
+export const CONTACT_VISIBILITY_BADGE: Record<ContactVisibility, string> = {
+  public: "bg-info/10 text-info",
+  private: "bg-muted text-muted-foreground",
+};
+
+/** Confidential-contact marker chip. */
+export const CONTACT_CONFIDENTIAL_BADGE = "bg-warning/10 text-warning";
 
 /** Issue status chip. */
 export const ISSUE_STATUS_BADGE: Record<IssueStatus, string> = {

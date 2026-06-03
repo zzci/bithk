@@ -1,6 +1,7 @@
-import type { AppDatabase, RunResult } from "@/db";
+import type { AppDatabase } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { groups } from "@/modules/account/groups/schema";
 import { documentAccess } from "@/modules/document/document.permission";
 import { documentDetails, documentPins } from "@/modules/document/schema";
@@ -11,6 +12,7 @@ import { listUserResources } from "@/modules/policy/zanzibar.engine";
 import { deleteSharesForResource } from "@/modules/share";
 import { tags, tagsRefs } from "@/modules/tag/schema";
 import { listResourceIdsByTag, listResourceTagNames, syncResourceTagsTx } from "@/modules/tag/tag.service";
+import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 
 // Document tag binding for the shared tag helpers. Scopes every helper call to
@@ -121,7 +123,7 @@ export async function createDocument(db: AppDatabase, input: CreateDocumentInput
   if (input.parentId) {
     const parentItem = await getItemByShortId(db, input.parentId);
     if (!parentItem)
-      throw new Error(`Parent document ${input.parentId} not found`);
+      throw new NotFoundError("Parent document", input.parentId);
     parentItemId = parentItem.id;
   }
 
@@ -233,7 +235,7 @@ export async function updateDocument(
     else {
       const parent = await getItemByShortId(db, input.parentId);
       if (!parent)
-        throw new Error(`Parent document ${input.parentId} not found`);
+        throw new NotFoundError("Parent document", input.parentId);
       parentItemIdSpec = parent.id;
     }
   }
@@ -256,7 +258,7 @@ export async function updateDocument(
     const itemPatch: Record<string, unknown> = { updatedAt: now, version: sql`${items.version} + 1` };
     if (input.title !== undefined)
       itemPatch.title = input.title;
-    const res = tx.update(items).set(itemPatch).where(where).run() as unknown as RunResult;
+    const res = runWrite(() => tx.update(items).set(itemPatch).where(where).run());
     if (input.expectedVersion !== undefined && res.changes === 0) {
       const current = tx.select().from(items).where(eq(items.id, item.id)).get();
       if (current && current.version !== input.expectedVersion) {
@@ -706,7 +708,7 @@ export interface AddShareInput {
 export async function addDocumentShare(ctx: PolicyContext, input: AddShareInput) {
   const item = await getItemByShortId(ctx.db, input.documentId);
   if (!item)
-    throw new Error("Document not found");
+    throw new NotFoundError("Document");
 
   await ctx.db.delete(relationTuples).where(and(
     eq(relationTuples.namespace, "item"),

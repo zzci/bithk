@@ -124,7 +124,7 @@ const authRateBuckets = new Map<string, RateBucket>();
  * key per-end-user IP (X-Real-IP / right-most X-Forwarded-For) instead of
  * collapsing the entire tenant onto the proxy's peer IP.
  */
-export function rateLimitKey(c: Context<AppEnv>): string {
+function rateLimitKey(c: Context<AppEnv>): string {
   return getClientIp(c, c.get("config"));
 }
 
@@ -679,7 +679,13 @@ export function authRoutes() {
       return c.json({ success: false, error: { code: "NO_PENDING_TOTP", message: "No pending TOTP challenge" } }, 400);
     }
 
-    const body = await c.req.json();
+    let body: { code?: unknown };
+    try {
+      body = await c.req.json();
+    }
+    catch {
+      return c.json({ success: false, error: { code: "INVALID_BODY", message: "Invalid JSON body" } }, 400);
+    }
     const code = typeof body.code === "string" ? body.code : "";
     if (code.length !== 6) {
       return c.json({ success: false, error: { code: "INVALID_CODE", message: "Code must be 6 digits" } }, 400);

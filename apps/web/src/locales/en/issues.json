@@ -11,8 +11,6 @@
   "deleteTitle": "Delete Issue",
   "deleteConfirm": "Are you sure you want to delete the issue \"{{title}}\"? This action cannot be undone.",
   "searchPlaceholder": "Search by title...",
-  "allStatuses": "All Statuses",
-  "allPriorities": "All Priorities",
   "statusTodo": "To Do",
   "statusWorking": "In Progress",
   "statusReview": "In Review",
@@ -27,12 +25,8 @@
   "unassigned": "Unassigned",
   "notSet": "Not set",
   "col": {
-    "title": "Title",
     "status": "Status",
-    "priority": "Priority",
-    "assignee": "Assignee",
     "creator": "Creator",
-    "dueDate": "Due Date",
     "createdAt": "Created",
     "actions": "Actions"
   },

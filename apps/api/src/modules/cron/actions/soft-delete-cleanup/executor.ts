@@ -1,6 +1,7 @@
 import type { ActionExecutor } from "../types";
 import { and, count, eq, lt } from "drizzle-orm";
 import { cronJobLogs, cronJobs } from "@/modules/cron/schema";
+import { ValidationError } from "@/shared/lib/errors";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -15,7 +16,19 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * schedules.
  */
 export const execute: ActionExecutor = async (ctx, config) => {
+  // `undefined` keeps the documented default (`0` = purge every soft-deleted
+  // row immediately, matching the action spec's `default: 0`). A *present*
+  // value must be a finite number >= 0: otherwise `Number(...)` could yield
+  // `NaN` (e.g. a hand-edited config) or a negative number, either of which
+  // makes the `> 0` test below false, nulls the cutoff, and silently purges
+  // ALL tombstones regardless of the intended grace window. Reject instead.
   const olderThanDays = config.olderThanDays === undefined ? 0 : Number(config.olderThanDays);
+  if (!Number.isFinite(olderThanDays) || olderThanDays < 0) {
+    throw new ValidationError(
+      `soft-delete-cleanup: olderThanDays must be a finite number >= 0 (got ${JSON.stringify(config.olderThanDays)})`,
+      { olderThanDays: config.olderThanDays },
+    );
+  }
   const cutoffIso = olderThanDays > 0
     ? new Date(Date.now() - olderThanDays * MS_PER_DAY).toISOString()
     : null;

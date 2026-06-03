@@ -21,7 +21,7 @@ export function ResourceGroupManager() {
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceGroup | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: groupsData, isLoading } = useQuery({
+  const { data: groupsData, isLoading, isError, refetch } = useQuery({
     queryKey: ["resource-groups"],
     queryFn: () => http<ResourceGroupsResponse>("/policy/resource-groups"),
   });
@@ -57,64 +57,71 @@ export function ResourceGroupManager() {
         <CardContent>
           {isLoading
             ? <p className="text-sm text-muted-foreground">{t("loading")}</p>
-            : groups.length === 0
-              ? <p className="text-sm text-muted-foreground">{t("noResourceGroups")}</p>
-              : (
-                  <div className="space-y-1.5">
-                    {groups.map((group) => {
-                      const active = selectedId === group.id;
-                      return (
-                        <div
-                          key={group.id}
-                          className={cn(
-                            "group flex items-center gap-3 rounded-md border px-3 py-2.5 cursor-pointer transition-colors",
-                            active ? "border-primary bg-primary/5" : "hover:bg-muted/50",
-                          )}
-                          role="button"
-                          tabIndex={0}
-                          aria-pressed={active}
-                          onClick={() => setSelectedId(group.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setSelectedId(group.id);
-                            }
-                          }}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{group.name}</p>
-                            {group.description && (
-                              <p className="text-xs text-muted-foreground truncate">{group.description}</p>
-                            )}
-                          </div>
-                          <div
-                            className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[active=true]:opacity-100"
-                            data-active={active}
-                            onClick={e => e.stopPropagation()}
-                          >
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={t("common.edit")}
-                              onClick={() => setEditGroup(group)}
-                            >
-                              <Pencil className="size-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={t("common.delete")}
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => setDeleteConfirm(group)}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
+            : isError
+              ? (
+                  <div className="flex flex-col items-start gap-2">
+                    <p className="text-sm text-destructive">{t("common.error.loadFailed", { ns: "common" })}</p>
+                    <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("common.retry", { ns: "common" })}</Button>
                   </div>
-                )}
+                )
+              : groups.length === 0
+                ? <p className="text-sm text-muted-foreground">{t("noResourceGroups")}</p>
+                : (
+                    <div className="space-y-1.5">
+                      {groups.map((group) => {
+                        const active = selectedId === group.id;
+                        return (
+                          <div
+                            key={group.id}
+                            className={cn(
+                              "group flex items-center gap-3 rounded-md border px-3 py-2.5 cursor-pointer transition-colors",
+                              active ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+                            )}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={active}
+                            onClick={() => setSelectedId(group.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setSelectedId(group.id);
+                              }
+                            }}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{group.name}</p>
+                              {group.description && (
+                                <p className="text-xs text-muted-foreground truncate">{group.description}</p>
+                              )}
+                            </div>
+                            <div
+                              className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[active=true]:opacity-100"
+                              data-active={active}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={t("common.edit")}
+                                onClick={() => setEditGroup(group)}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={t("common.delete")}
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setDeleteConfirm(group)}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
         </CardContent>
       </Card>
 
@@ -300,7 +307,7 @@ function ResourceGroupMemberList({ groupId }: { readonly groupId: string }) {
   const { t } = useTranslation("policies");
   const queryClient = useQueryClient();
 
-  const { data: membersData, isLoading } = useQuery({
+  const { data: membersData, isLoading, isError, refetch } = useQuery({
     queryKey: ["resource-group-members", groupId],
     queryFn: () => http<ResourceGroupMembersResponse>(`/policy/resource-groups/${groupId}/members`),
   });
@@ -322,28 +329,35 @@ function ResourceGroupMemberList({ groupId }: { readonly groupId: string }) {
     <div className="space-y-4">
       {isLoading
         ? <p className="text-sm text-muted-foreground">{t("loading")}</p>
-        : members.length === 0
-          ? <p className="text-sm text-muted-foreground">{t("noMembers")}</p>
-          : (
-              <div className="space-y-2">
-                {members.map(member => (
-                  <div key={member.tupleId} className="flex items-center justify-between rounded-md border px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{t(`ns.${member.namespace}`)}</Badge>
-                      <span className="text-sm">{member.objectName ?? member.objectId}</span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => removeMutation.mutate(member.tupleId)}
-                      disabled={removeMutation.isPending}
-                    >
-                      {t("common.delete")}
-                    </Button>
-                  </div>
-                ))}
+        : isError
+          ? (
+              <div className="flex flex-col items-start gap-2">
+                <p className="text-sm text-destructive">{t("common.error.loadFailed", { ns: "common" })}</p>
+                <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("common.retry", { ns: "common" })}</Button>
               </div>
-            )}
+            )
+          : members.length === 0
+            ? <p className="text-sm text-muted-foreground">{t("noMembers")}</p>
+            : (
+                <div className="space-y-2">
+                  {members.map(member => (
+                    <div key={member.tupleId} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{t(`ns.${member.namespace}`)}</Badge>
+                        <span className="text-sm">{member.objectName ?? member.objectId}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => removeMutation.mutate(member.tupleId)}
+                        disabled={removeMutation.isPending}
+                      >
+                        {t("common.delete")}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
     </div>
   );
 }

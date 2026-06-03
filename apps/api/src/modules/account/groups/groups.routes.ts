@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getUserById } from "@/modules/account/users/users.service";
@@ -35,7 +35,7 @@ const addMemberSchema = z.object({
 });
 
 export function groupRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   router.use("*", authRequired);
 
@@ -60,7 +60,7 @@ export function groupRoutes() {
       name: body.name,
       ...body.description ? { description: body.description } : {},
     });
-    const actor = c.get("user")!;
+    const actor = c.get("user");
     await audit(db, c.get("logger"), {
       actorId: actor.id,
       actorName: actor.name,
@@ -108,7 +108,7 @@ export function groupRoutes() {
       ...body.name ? { name: body.name } : {},
       ...body.description !== undefined ? { description: body.description } : {},
     });
-    const actor = c.get("user")!;
+    const actor = c.get("user");
     await audit(db, c.get("logger"), {
       actorId: actor.id,
       actorName: actor.name,
@@ -134,7 +134,7 @@ export function groupRoutes() {
     }
 
     await deleteGroup(db, id);
-    const actor = c.get("user")!;
+    const actor = c.get("user");
     await audit(db, c.get("logger"), {
       actorId: actor.id,
       actorName: actor.name,
@@ -184,7 +184,7 @@ export function groupRoutes() {
       throw new AppError("User is already a member of this group", 409, "CONFLICT");
     }
 
-    const actor = c.get("user")!;
+    const actor = c.get("user");
     await audit(db, c.get("logger"), {
       actorId: actor.id,
       actorName: actor.name,
@@ -216,7 +216,7 @@ export function groupRoutes() {
       throw new NotFoundError("Member", userId);
     }
 
-    const actor = c.get("user")!;
+    const actor = c.get("user");
     await audit(db, c.get("logger"), {
       actorId: actor.id,
       actorName: actor.name,

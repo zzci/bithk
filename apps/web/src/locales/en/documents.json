@@ -13,17 +13,18 @@
   "searchPlaceholder": "Search by title or content...",
   "untitledPlaceholder": "Untitled",
   "tagsPlaceholder": "Add tag...",
+  "removeTag": "Remove tag",
   "totalCount": "{{count}} documents",
   "noResults": "No documents found.",
   "selectToView": "Select a document to view",
   "col": {
-    "title": "Title",
     "creator": "Creator",
     "createdAt": "Created",
     "actions": "Actions"
   },
   "field": {
     "title": "Title",
+    "documentTitle": "Document title",
     "contentPlaceholder": "Start writing your document...",
     "titleRequired": "Title is required.",
     "noContent": "No content yet."
@@ -85,7 +86,6 @@
     "title": "Pinned"
   },
   "conflict": {
-    "title": "Document changed elsewhere",
     "body": "This document was updated in another session. Your draft is preserved here — copy your changes, then reload to merge."
   }
 }

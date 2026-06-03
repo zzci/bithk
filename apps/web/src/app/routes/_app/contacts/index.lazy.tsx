@@ -5,10 +5,13 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { Edit3, Share2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
+import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
+import { TagBadgeList } from "@/shared/components/tag-badge-list";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -17,6 +20,7 @@ import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
 import { useContactsList, useContactTags, useCreateContact, useDeleteContact, useUpdateContact } from "@/shared/lib/api/contacts";
 import { errorMessage } from "@/shared/lib/errors";
+import { CONTACT_CONFIDENTIAL_BADGE, CONTACT_VISIBILITY_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { contactFormToInput, isMasked } from "./-contact-form-logic";
 import { ContactFieldValue, ContactPanel } from "./-contact-panel";
@@ -169,7 +173,7 @@ export function ContactsListPage() {
       </div>
 
       {contactsQuery.isLoading
-        ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("list.loading")}</p>
+        ? <ListRowsSkeleton label={t("list.loading")} bordered />
         : rows.length === 0
           ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("list.empty")}</p>
           : (
@@ -196,10 +200,11 @@ export function ContactsListPage() {
                     const status = contact.status ? t(`status.${contact.status}` as const) : null;
                     return (
                       <li key={contact.id} className="group flex items-stretch border-b border-border/40 transition-colors last:border-b-0 hover:bg-muted/50">
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           aria-label={contact.name}
-                          className={cn(CONTACT_GRID, "min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
+                          className={cn(CONTACT_GRID, "h-auto min-w-0 flex-1 shrink rounded-none px-3 py-2 text-left font-normal hover:bg-transparent")}
                           onClick={() => setDrawer({ mode: "view", contact })}
                         >
                           <span className="flex min-w-0 items-center gap-2">
@@ -212,10 +217,10 @@ export function ContactsListPage() {
                             <span className="flex min-w-0 flex-col gap-1">
                               <span className="truncate text-sm font-medium">{contact.name}</span>
                               <span className="flex flex-wrap items-center gap-1">
-                                <Badge variant="secondary" className={contact.visibility === "public" ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"}>
+                                <Badge variant="secondary" className={CONTACT_VISIBILITY_BADGE[contact.visibility]}>
                                   {t(`visibility.${contact.visibility}` as const)}
                                 </Badge>
-                                {contact.confidential && <Badge variant="secondary" className="bg-warning/10 text-warning">{t("field.confidential")}</Badge>}
+                                {contact.confidential && <Badge variant="secondary" className={CONTACT_CONFIDENTIAL_BADGE}>{t("field.confidential")}</Badge>}
                               </span>
                             </span>
                           </span>
@@ -231,14 +236,13 @@ export function ContactsListPage() {
                           <span className="hidden min-w-0 items-center gap-1 md:flex">
                             {contact.tags.length > 0
                               ? (
-                                  <>
-                                    {contact.tags.slice(0, 2).map(tg => (
-                                      <Badge key={tg.id} variant="outline" className="max-w-full truncate">{tg.name}</Badge>
-                                    ))}
-                                    {contact.tags.length > 2 && (
-                                      <span className="text-xs text-muted-foreground">{`+${contact.tags.length - 2}`}</span>
-                                    )}
-                                  </>
+                                  <TagBadgeList
+                                    tags={contact.tags}
+                                    max={2}
+                                    badgeVariant="outline"
+                                    badgeClassName="max-w-full truncate"
+                                    moreClassName="text-xs text-muted-foreground"
+                                  />
                                 )
                               : <span className="text-muted-foreground">—</span>}
                           </span>
@@ -250,7 +254,7 @@ export function ContactsListPage() {
                           <span className="truncate text-xs">
                             <ContactFieldValue value={status} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
                           </span>
-                        </button>
+                        </Button>
                         <div className="flex w-28 shrink-0 items-center justify-end gap-1 pr-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                           {contact.canManage && (
                             <>
@@ -347,7 +351,10 @@ export function ContactsListPage() {
         onConfirm={() => {
           if (!deleteTarget)
             return;
-          deleteContact.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+          deleteContact.mutate(deleteTarget.id, {
+            onSuccess: () => setDeleteTarget(null),
+            onError: err => toast.error(errorMessage(err, t("common:common.error.deleteFailed"))),
+          });
         }}
       />
 

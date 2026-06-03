@@ -212,14 +212,64 @@ describe("getClientIp (TRUST_PROXY=true with TRUSTED_PROXY_IPS allow-list)", () 
     ).toBe("1.1.1.1");
   });
 
-  test("a non-IPv4 peer is never matched by an IPv4 allow-list", () => {
-    // IPv6 peers cannot be matched at this layer, so headers are dropped.
+  test("an IPv6 peer is never matched by an IPv4 allow-list (version isolation)", () => {
+    // IPv4 and IPv6 share no comparable network space, so an IPv6 peer against
+    // an IPv4-only allow-list is dropped and the peer itself is returned.
     expect(
       getClientIp(
         ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "2001:db8::1" } }),
         { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "10.0.0.0/8" },
       ),
     ).toBe("2001:db8::1");
+  });
+
+  test("honours forwarding headers when an IPv6 peer is inside an allowed IPv6 CIDR", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "2001:db8::dead:beef" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "2001:db8::/32" },
+      ),
+    ).toBe("203.0.113.5");
+  });
+
+  test("drops forwarding headers when an IPv6 peer is OUTSIDE the allowed IPv6 CIDR", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "2001:dead::1" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "2001:db8::/32" },
+      ),
+    ).toBe("2001:dead::1");
+  });
+
+  test("matches a bare IPv6 literal (implicit /128)", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "2001:db8::1" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "2001:db8::1" },
+      ),
+    ).toBe("203.0.113.5");
+  });
+
+  test("an IPv4 peer is never matched by an IPv6 allow-list (version isolation)", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "10.0.0.7" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "2001:db8::/32" },
+      ),
+    ).toBe("10.0.0.7");
+  });
+
+  test("mixes IPv4 and IPv6 entries in one allow-list", () => {
+    const cfg = { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "10.0.0.0/8, fd00::/8" } as const;
+    expect(
+      getClientIp(ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "fd00::42" } }), cfg),
+    ).toBe("1.1.1.1");
+    expect(
+      getClientIp(ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "10.5.5.5" } }), cfg),
+    ).toBe("1.1.1.1");
+    expect(
+      getClientIp(ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "fe80::1" } }), cfg),
+    ).toBe("fe80::1");
   });
 
   test("an all-invalid allow-list collapses to empty → any peer trusted", () => {
@@ -231,6 +281,58 @@ describe("getClientIp (TRUST_PROXY=true with TRUSTED_PROXY_IPS allow-list)", () 
         { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "/99, garbage, 300.0.0.1" },
       ),
     ).toBe("1.1.1.1");
+  });
+});
+
+describe("getClientIp (production fail-closed — TRUST_PROXY=true, empty allow-list)", () => {
+  const prodCfg = { TRUST_PROXY: true, NODE_ENV: "production" } as const;
+
+  test("ignores X-Forwarded-For and returns the socket peer IP", () => {
+    // The spoofable case the audit flagged: an exposed process trusting
+    // forwarding headers from any peer. In production this must fail closed.
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5, 10.0.0.1" }, { IP: { address: "8.8.8.8" } }),
+        prodCfg,
+      ),
+    ).toBe("8.8.8.8");
+  });
+
+  test("ignores X-Real-IP and returns the socket peer IP", () => {
+    expect(
+      getClientIp(ctx({ "x-real-ip": "203.0.113.5" }, { IP: { address: "8.8.8.8" } }), prodCfg),
+    ).toBe("8.8.8.8");
+  });
+
+  test("returns 'unknown' when no socket peer IP is available", () => {
+    expect(getClientIp(ctx({ "x-forwarded-for": "203.0.113.5" }, {}), prodCfg)).toBe("unknown");
+  });
+
+  test("an all-invalid allow-list still fails closed in production", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "1.1.1.1" }, { IP: { address: "8.8.8.8" } }),
+        { TRUST_PROXY: true, NODE_ENV: "production", TRUSTED_PROXY_IPS: "garbage, /99" },
+      ),
+    ).toBe("8.8.8.8");
+  });
+
+  test("a valid allow-list is still honoured in production (not over-blocked)", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "10.0.0.42" } }),
+        { TRUST_PROXY: true, NODE_ENV: "production", TRUSTED_PROXY_IPS: "10.0.0.0/8" },
+      ),
+    ).toBe("203.0.113.5");
+  });
+
+  test("dev/test stay usable: an empty allow-list still honours X-Forwarded-For", () => {
+    expect(
+      getClientIp(
+        ctx({ "x-forwarded-for": "203.0.113.5" }, { IP: { address: "8.8.8.8" } }),
+        { TRUST_PROXY: true, NODE_ENV: "development" },
+      ),
+    ).toBe("203.0.113.5");
   });
 });
 

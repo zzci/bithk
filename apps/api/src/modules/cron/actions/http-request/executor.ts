@@ -1,4 +1,5 @@
 import type { ActionExecutor } from "../types";
+import type { Config } from "@/config";
 import { promises as dns } from "node:dns";
 import { z } from "zod";
 import { DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS, MIN_TIMEOUT_MS } from "./spec";
@@ -21,11 +22,6 @@ type HttpRequestConfig = z.infer<typeof httpRequestConfigSchema>;
 function parseConfig(config: Record<string, unknown>): HttpRequestConfig {
   return httpRequestConfigSchema.parse(config);
 }
-
-// Cap how much of the response body we read into the result string so
-// a 100 MB endpoint can't blow up cron_job_logs.result. Body is only
-// surfaced for debugging; status assertions use the prefix.
-const MAX_BODY_PREVIEW_BYTES = 2048;
 
 // IPv4 literal regex; captured groups are the four octets.
 const RE_IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
@@ -120,52 +116,49 @@ export function isPrivateDestination(hostname: string): boolean {
 }
 
 /**
- * Issue one HTTP request against the configured URL. The returned
- * status string lands in `cron_job_logs.result` (on success) or in the
- * thrown `Error.message` → `cron_job_logs.error` (on failure / wrong
- * status).
+ * Validate one request target against the SSRF gate and, when we resolve
+ * the hostname ourselves, PIN the connection to a vetted IP so `fetch`
+ * cannot re-resolve to a rebound (private) address between our check and
+ * the socket connect — closing the TOCTOU window. Run for the initial URL
+ * AND for every redirect hop, so a 3xx pointing at a private host cannot
+ * bypass the guard.
  *
- * Use cases: external health pings, webhook fan-out, third-party API
- * keep-alives. NOT a replacement for a real HTTP monitoring tool —
- * there's no retry, no backoff, and no SLO bookkeeping. Pair with the
- * audit + run-history surface for visibility.
+ * Throws on a private destination, an unsupported protocol, an invalid
+ * URL, or a failed lookup. `HTTP_ACTION_ALLOW_PRIVATE=true` lets operators
+ * opt out for legitimate sidecar / loopback pings.
  */
-export const execute: ActionExecutor = async (ctx, config) => {
-  const cfg = parseConfig(config);
-  const method = (cfg.method ?? "GET").toUpperCase();
-  const timeoutMs = cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const expectStatus = cfg.expectStatus;
+export interface ResolvedTarget {
+  /** URL `fetch` connects to — host rewritten to the pinned IP when we resolved DNS ourselves. */
+  readonly requestUrl: string;
+  /** Original authority for the `Host` header (only meaningful when pinned). */
+  readonly host: string;
+  /** SNI / cert hostname for HTTPS when pinned; null otherwise. */
+  readonly serverName: string | null;
+  /** True when the authority was rewritten to a pinned IP. */
+  readonly pinned: boolean;
+}
 
-  // SSRF gate. `ctx.config.HTTP_ACTION_ALLOW_PRIVATE` lets operators opt
-  // out for legitimate sidecar / loopback pings; default-deny keeps a
-  // compromised admin session from reaching the cloud metadata endpoint
-  // or internal-only services.
+export async function resolveTarget(config: Config, rawUrl: string): Promise<ResolvedTarget> {
   let parsedUrl: URL;
   try {
-    parsedUrl = new URL(cfg.url);
+    parsedUrl = new URL(rawUrl);
   }
   catch {
-    throw new Error(`invalid URL: ${cfg.url}`);
+    throw new Error(`invalid URL: ${rawUrl}`);
   }
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:")
     throw new Error(`unsupported protocol: ${parsedUrl.protocol}`);
-  }
-  // The hostname `fetch` actually connects to. When we resolve+validate
-  // a DNS name ourselves we PIN this to the vetted IP so `fetch` cannot
-  // re-resolve to a rebound (private) address between our check and the
-  // socket connect — closing the TOCTOU window. For IP literals and the
-  // allow-private path it stays the original host.
+
   let connectHost = parsedUrl.hostname;
-  if (!ctx.config.HTTP_ACTION_ALLOW_PRIVATE) {
+  if (!config.HTTP_ACTION_ALLOW_PRIVATE) {
     if (isPrivateDestination(parsedUrl.hostname))
       throw new Error(`refused private destination ${parsedUrl.hostname} (set HTTP_ACTION_ALLOW_PRIVATE=true to allow)`);
     // Resolve the hostname ONCE, validate every returned address, then
-    // connect to the validated IP directly (see `connectHost` use
-    // below). `fetch` is given the IP, not the name, so it performs no
-    // second resolution — a rebind to a private address after this
-    // check can no longer take effect. The DNS lookup also catches IPv6
-    // link-local / unique-local destinations the hostname-literal check
-    // above cannot.
+    // connect to the validated IP directly. `fetch` is given the IP, not
+    // the name, so it performs no second resolution — a rebind to a
+    // private address after this check can no longer take effect. The DNS
+    // lookup also catches IPv6 link-local / unique-local destinations the
+    // hostname-literal check above cannot.
     if (!isIpLiteral(parsedUrl.hostname)) {
       let addrs: readonly { address: string; family: number }[];
       try {
@@ -187,59 +180,105 @@ export const execute: ActionExecutor = async (ctx, config) => {
     }
   }
 
-  const startedAt = Date.now();
-  const init: RequestInit = {
-    method,
-    signal: AbortSignal.timeout(Math.min(timeoutMs, ctx.config.HTTP_ACTION_TIMEOUT_SECONDS * 1000)),
+  if (connectHost === parsedUrl.hostname)
+    return { requestUrl: rawUrl, host: parsedUrl.host, serverName: null, pinned: false };
+
+  const pinnedUrl = new URL(rawUrl);
+  pinnedUrl.hostname = connectHost;
+  return {
+    requestUrl: pinnedUrl.toString(),
+    host: parsedUrl.host,
+    serverName: parsedUrl.protocol === "https:" ? parsedUrl.hostname : null,
+    pinned: true,
   };
-  if (cfg.headers !== undefined)
-    init.headers = cfg.headers;
-  if (method !== "GET" && method !== "HEAD" && cfg.body !== undefined)
-    init.body = cfg.body;
+}
 
-  // Build the request target. When the host was pinned to a resolved IP
-  // we rewrite the URL authority to that IP and:
-  //   - set `Host` to the original hostname so virtual-host routing and
-  //     the IdP's expectations still work, and
-  //   - for HTTPS, set `tls.serverName` so SNI + certificate validation
-  //     still run against the original hostname (the cert is NOT
-  //     validated against the bare IP).
-  let requestUrl = cfg.url;
-  if (connectHost !== parsedUrl.hostname) {
-    const pinnedUrl = new URL(cfg.url);
-    pinnedUrl.hostname = connectHost;
-    requestUrl = pinnedUrl.toString();
-    const headers = new Headers(init.headers);
-    headers.set("Host", parsedUrl.host);
-    init.headers = headers;
-    if (parsedUrl.protocol === "https:") {
-      (init as RequestInit & { tls?: { serverName: string } }).tls = {
-        serverName: parsedUrl.hostname,
-      };
-    }
-  }
+// Cap how many 3xx hops we chase. Every hop is re-vetted by
+// `resolveTarget`, so this only bounds redirect loops / long chains.
+const MAX_REDIRECTS = 5;
 
+/**
+ * Issue one HTTP request against the configured URL, following up to
+ * `MAX_REDIRECTS` redirects MANUALLY so every hop is re-checked against
+ * the SSRF gate. `fetch`'s default `redirect: "follow"` would only vet
+ * the first hop, letting a vetted public URL bounce us to
+ * `169.254.169.254` (cloud metadata) or an internal host. The returned
+ * status string lands in `cron_job_logs.result` (on success) or in the
+ * thrown `Error.message` → `cron_job_logs.error` (on failure / wrong
+ * status).
+ *
+ * Use cases: external health pings, webhook fan-out, third-party API
+ * keep-alives. NOT a replacement for a real HTTP monitoring tool —
+ * there's no retry, no backoff, and no SLO bookkeeping. Pair with the
+ * audit + run-history surface for visibility.
+ */
+export const execute: ActionExecutor = async (ctx, config) => {
+  const cfg = parseConfig(config);
+  const method = (cfg.method ?? "GET").toUpperCase();
+  const timeoutMs = cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const expectStatus = cfg.expectStatus;
+
+  const startedAt = Date.now();
+  // One deadline shared across every hop so a redirect chain cannot
+  // multiply the configured timeout.
+  const signal = AbortSignal.timeout(Math.min(timeoutMs, ctx.config.HTTP_ACTION_TIMEOUT_SECONDS * 1000));
+
+  // `currentUrl` is always the LOGICAL url (original hostname); redirect
+  // `Location`s resolve against it, and `resolveTarget` re-pins per hop.
+  let currentUrl = cfg.url;
   let res: Response;
-  try {
-    res = await fetch(requestUrl, init);
-  }
-  catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`${method} ${cfg.url} failed: ${msg}`);
+  for (let hop = 0; ; hop++) {
+    const target = await resolveTarget(ctx.config, currentUrl);
+
+    const init: RequestInit = {
+      method,
+      // Never let `fetch` follow on its own — see `resolveTarget`.
+      redirect: "manual",
+      signal,
+    };
+    const headers = new Headers(cfg.headers);
+    if (target.pinned) {
+      // Pinned to a resolved IP: keep `Host` so virtual-host routing and
+      // the IdP's expectations still work; for HTTPS set SNI + the
+      // cert-validation hostname (the cert is NOT validated against the IP).
+      headers.set("Host", target.host);
+      if (target.serverName) {
+        (init as RequestInit & { tls?: { serverName: string } }).tls = {
+          serverName: target.serverName,
+        };
+      }
+    }
+    init.headers = headers;
+    if (method !== "GET" && method !== "HEAD" && cfg.body !== undefined)
+      init.body = cfg.body;
+
+    try {
+      res = await fetch(target.requestUrl, init);
+    }
+    catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`${method} ${cfg.url} failed: ${msg}`);
+    }
+
+    const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+    if (!location)
+      break;
+    if (hop >= MAX_REDIRECTS)
+      throw new Error(`${method} ${cfg.url} → exceeded ${MAX_REDIRECTS} redirects`);
+
+    let nextUrl: string;
+    try {
+      nextUrl = new URL(location, currentUrl).toString();
+    }
+    catch {
+      throw new Error(`${method} ${cfg.url} → ${res.status} with invalid redirect Location`);
+    }
+    // Release the intermediate connection before chasing the next hop.
+    await res.body?.cancel().catch(() => {});
+    currentUrl = nextUrl;
   }
 
   const durationMs = Date.now() - startedAt;
-  let bodyPreview = "";
-  try {
-    const text = await res.text();
-    bodyPreview = text.length > MAX_BODY_PREVIEW_BYTES
-      ? `${text.slice(0, MAX_BODY_PREVIEW_BYTES)}…(${text.length - MAX_BODY_PREVIEW_BYTES} bytes truncated)`
-      : text;
-  }
-  catch {
-    // Body read failures aren't fatal — status is the primary signal.
-  }
-
   const expected = expectStatus ?? null;
   const ok = expected === null ? res.ok : res.status === expected;
   if (!ok) {
@@ -247,8 +286,12 @@ export const execute: ActionExecutor = async (ctx, config) => {
       { url: cfg.url, method, status: res.status, durationMs, expected },
       "cron_http_request_unexpected_status",
     );
+    // The response body is deliberately NOT persisted: a target that
+    // reflects tokens/secrets would otherwise leak them into
+    // cron_job_logs.error and the trigger response. Status + duration is
+    // the persisted signal.
     throw new Error(
-      `${method} ${cfg.url} → ${res.status} (expected ${expected ?? "2xx"}, ${durationMs}ms) body: ${bodyPreview}`,
+      `${method} ${cfg.url} → ${res.status} (expected ${expected ?? "2xx"}, ${durationMs}ms)`,
     );
   }
 

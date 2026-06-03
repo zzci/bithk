@@ -6,6 +6,7 @@ const RE_BAD_PEER = /^(?:unknown|::)$/i;
 interface ClientIpConfig {
   readonly TRUST_PROXY: boolean;
   readonly TRUSTED_PROXY_IPS?: string;
+  readonly NODE_ENV?: "development" | "production" | "test";
 }
 
 /**
@@ -21,11 +22,14 @@ interface ClientIpConfig {
  * XFF, because in most production stacks the proxy explicitly sets XFF
  * and `X-Real-IP` is either absent or operator-defined.
  *
- * If `TRUSTED_PROXY_IPS` is set (a comma-separated list of CIDR / IP
- * literals — IPv4 only at this layer), forwarding headers are accepted
- * only when the immediate peer matches one of those ranges. Empty
- * (default) means "any peer is trusted" — preserves the pre-flag
- * behaviour.
+ * If `TRUSTED_PROXY_IPS` is set (a comma-separated list of IPv4 or IPv6
+ * CIDR / IP literals), forwarding headers are accepted only when the
+ * immediate peer matches one of those ranges. When the
+ * allow-list is empty (default), behaviour splits by environment: in
+ * production forwarding headers are IGNORED and the socket peer IP is
+ * used (fail closed — an exposed `TRUST_PROXY=true` must not let any
+ * direct caller forge a client IP), while in dev/test they are honoured
+ * from any peer so local proxy setups stay testable.
  */
 export function getClientIp(c: Context, config?: ClientIpConfig): string {
   const peerIp = c.env?.IP?.address;
@@ -34,12 +38,23 @@ export function getClientIp(c: Context, config?: ClientIpConfig): string {
     return peerIp ?? "unknown";
   }
 
+  const proxyAllowList = parseProxyAllowList(config.TRUSTED_PROXY_IPS);
+
+  // Fail closed in production: `TRUST_PROXY=true` with no usable allow-list
+  // means any caller reaching the process directly could forge
+  // `X-Forwarded-For` and defeat every IP-keyed limiter / spoof audit IPs.
+  // Ignore forwarding headers entirely and use the socket peer IP. Dev/test
+  // keep the permissive path so local proxy setups stay testable; the boot
+  // warning (`isSpoofableProxyConfig`) flags the prod misconfiguration.
+  if (config.NODE_ENV === "production" && proxyAllowList.length === 0) {
+    return peerIp ?? "unknown";
+  }
+
   // Per-peer gate: when the operator has supplied an allow-list,
   // forwarding headers from an unknown peer are dropped on the floor
   // (returns the peer itself). This stops a misconfigured `TRUST_PROXY`
   // (e.g. exposed to the open internet without a proxy in front of it)
   // from letting any caller forge a client IP.
-  const proxyAllowList = parseProxyAllowList(config.TRUSTED_PROXY_IPS);
   if (proxyAllowList.length > 0 && peerIp && !isAllowedPeer(peerIp, proxyAllowList)) {
     return peerIp;
   }
@@ -85,9 +100,19 @@ function isSentinel(v: string): boolean {
   return RE_BAD_PEER.test(v);
 }
 
+// IP version tag so an IPv4 peer is never matched against an IPv6 range and
+// vice versa (different bit widths share no comparable network space).
+type IpVersion = 4 | 6;
+
+interface ParsedIp {
+  readonly version: IpVersion;
+  readonly bits: bigint;
+}
+
 interface ParsedCidr {
-  readonly ipBits: number;
-  readonly mask: number;
+  readonly version: IpVersion;
+  readonly network: bigint;
+  readonly mask: bigint;
 }
 
 function parseProxyAllowList(raw: string | undefined): readonly ParsedCidr[] {
@@ -105,40 +130,105 @@ function parseProxyAllowList(raw: string | undefined): readonly ParsedCidr[] {
 function parseCidr(entry: string): ParsedCidr | undefined {
   const slash = entry.indexOf("/");
   const ipStr = slash === -1 ? entry : entry.slice(0, slash);
-  const prefix = slash === -1 ? 32 : Number(entry.slice(slash + 1));
-  if (!Number.isFinite(prefix) || prefix < 0 || prefix > 32)
+  const ip = parseIp(ipStr);
+  if (!ip)
     return undefined;
-  const ipBits = ipv4ToInt(ipStr);
-  if (ipBits === undefined)
+  const width = ip.version === 4 ? 32 : 128;
+  const prefix = slash === -1 ? width : Number(entry.slice(slash + 1));
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > width)
     return undefined;
-  const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
-  // `&` yields a signed int32; normalise to unsigned so the stored network
-  // address matches the unsigned value `isAllowedPeer` derives. Without this
-  // any range whose network address has its high bit set (first octet >= 128,
-  // e.g. 172.16.0.0/12 or 192.168.0.0/16) would never match its own peers.
-  return { ipBits: (ipBits & mask) >>> 0, mask };
+  // Top `prefix` bits set: full mask with the low (width - prefix) host bits
+  // cleared. BigInt keeps this exact for the 128-bit IPv6 case.
+  const full = (1n << BigInt(width)) - 1n;
+  const host = (1n << BigInt(width - prefix)) - 1n;
+  const mask = full ^ host;
+  return { version: ip.version, network: ip.bits & mask, mask };
 }
 
-function ipv4ToInt(ip: string): number | undefined {
+function parseIp(ip: string): ParsedIp | undefined {
+  // A `:` marks an IPv6 literal (possibly with an IPv4-mapped tail / zone id).
+  if (ip.includes(":"))
+    return parseIpv6(ip);
+  const bits = ipv4ToBits(ip);
+  return bits === undefined ? undefined : { version: 4, bits };
+}
+
+function ipv4ToBits(ip: string): bigint | undefined {
   const parts = ip.split(".");
   if (parts.length !== 4)
     return undefined;
-  let acc = 0;
+  let acc = 0n;
   for (const p of parts) {
     const n = Number(p);
     if (!Number.isInteger(n) || n < 0 || n > 255)
       return undefined;
-    acc = (acc << 8 | n) >>> 0;
+    acc = (acc << 8n) | BigInt(n);
   }
   return acc;
 }
 
+function parseIpv6(input: string): ParsedIp | undefined {
+  // Drop an optional zone id (`fe80::1%eth0`) — irrelevant to range matching.
+  const pct = input.indexOf("%");
+  const ip = pct === -1 ? input : input.slice(0, pct);
+
+  // `::` (one allowed) compresses a run of zero groups.
+  const halves = ip.split("::");
+  if (halves.length > 2)
+    return undefined;
+
+  const head = parseHextets(halves[0] ?? "");
+  if (head === undefined)
+    return undefined;
+  let groups: number[];
+  if (halves.length === 2) {
+    const tail = parseHextets(halves[1] ?? "");
+    if (tail === undefined)
+      return undefined;
+    const fill = 8 - head.length - tail.length;
+    if (fill < 0)
+      return undefined;
+    groups = [...head, ...Array.from<number>({ length: fill }).fill(0), ...tail];
+  }
+  else {
+    groups = head;
+  }
+  if (groups.length !== 8)
+    return undefined;
+
+  let bits = 0n;
+  for (const g of groups)
+    bits = (bits << 16n) | BigInt(g);
+  return { version: 6, bits };
+}
+
+// Parse one half of an IPv6 address into 16-bit groups. An embedded IPv4 tail
+// (`::ffff:1.2.3.4`) expands to its two 16-bit halves. Empty segment → [].
+function parseHextets(segment: string): number[] | undefined {
+  if (segment === "")
+    return [];
+  const out: number[] = [];
+  for (const g of segment.split(":")) {
+    if (g.includes(".")) {
+      const v4 = ipv4ToBits(g);
+      if (v4 === undefined)
+        return undefined;
+      out.push(Number((v4 >> 16n) & 0xFFFFn), Number(v4 & 0xFFFFn));
+      continue;
+    }
+    if (!/^[0-9a-f]{1,4}$/i.test(g))
+      return undefined;
+    out.push(Number.parseInt(g, 16));
+  }
+  return out;
+}
+
 function isAllowedPeer(peer: string, allowList: readonly ParsedCidr[]): boolean {
-  const bits = ipv4ToInt(peer);
-  if (bits === undefined)
+  const ip = parseIp(peer);
+  if (!ip)
     return false;
   for (const entry of allowList) {
-    if ((bits & entry.mask) >>> 0 === entry.ipBits)
+    if (entry.version === ip.version && (ip.bits & entry.mask) === entry.network)
       return true;
   }
   return false;

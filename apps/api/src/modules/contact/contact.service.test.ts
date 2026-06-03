@@ -270,6 +270,49 @@ describe("contact service", () => {
     expect(hits.total).toBe(3);
   });
 
+  test("non-privileged q cannot probe masked confidential fields but privileged search still matches", async () => {
+    const owner = await seedUser("owner-a");
+    const stranger = await seedUser("stranger-a");
+    const explicitViewer = await seedUser("viewer-a");
+    const admin = await seedUser("admin-a", "admin");
+    const secret = await contactService.create(db, actor(owner), {
+      name: "Visible Name",
+      contactPerson: "SecretPerson",
+      note: "secret-note",
+      visibility: "public",
+      confidential: true,
+    });
+
+    // A stranger sees the row (public) but its confidential fields are masked,
+    // so searching them must yield no hit — closing the oracle.
+    expect((await contactService.list(db, actor(stranger), { q: "SecretPerson" })).data).toEqual([]);
+    expect((await contactService.list(db, actor(stranger), { q: "secret-note" })).data).toEqual([]);
+    // The always-visible `name` stays searchable.
+    expect((await contactService.list(db, actor(stranger), { q: "Visible" })).data.map(c => c.id)).toEqual([secret.id]);
+
+    // Owner and admin see the fields, so their search still matches them.
+    expect((await contactService.list(db, actor(owner), { q: "SecretPerson" })).data.map(c => c.id)).toEqual([secret.id]);
+    expect((await contactService.list(db, actor(admin, "admin"), { q: "secret-note" })).data.map(c => c.id)).toEqual([secret.id]);
+
+    // An explicit viewer is un-masked, so its confidential-field search matches too.
+    await contactService.grant(db, actor(owner), secret.id, { type: "user", id: explicitViewer });
+    expect((await contactService.list(db, actor(explicitViewer), { q: "SecretPerson" })).data.map(c => c.id)).toEqual([secret.id]);
+  });
+
+  test("non-confidential public contacts stay fully searchable by strangers", async () => {
+    const owner = await seedUser("owner-a");
+    const stranger = await seedUser("stranger-a");
+    const open = await contactService.create(db, actor(owner), {
+      name: "Open Co",
+      contactPerson: "PublicBob",
+      visibility: "public",
+      confidential: false,
+    });
+
+    // Fields are visible here, so matching on contactPerson is not an oracle.
+    expect((await contactService.list(db, actor(stranger), { q: "PublicBob" })).data.map(c => c.id)).toEqual([open.id]);
+  });
+
   test("q escapes LIKE wildcards so they match literally", async () => {
     const owner = await seedUser("owner-a");
     const literal = await contactService.create(db, actor(owner), { name: "50% discount" });

@@ -98,7 +98,12 @@ export async function resolveEntryCapabilities(
   }
 
   const share = await db
-    .select({ permission: shares.permission })
+    .select({
+      permission: shares.permission,
+      expiresAt: shares.expiresAt,
+      maxDownloads: shares.maxDownloads,
+      downloadCount: shares.downloadCount,
+    })
     .from(shares)
     .where(and(
       eq(shares.resourceType, "drive_entry"),
@@ -108,7 +113,11 @@ export async function resolveEntryCapabilities(
       eq(shares.isActive, 1),
     ))
     .get();
-  if (share) {
+  // An active share only confers capability while it is still within its
+  // expiry window and has not exhausted its download budget — mirroring the
+  // public gate. Otherwise an expired/exhausted direct share would keep
+  // granting access through the authenticated drive routes.
+  if (share && !isShareExpired(share) && !isShareExhausted(share)) {
     caps.add("read");
     caps.add("download");
     if (share.permission === "edit")
@@ -116,6 +125,14 @@ export async function resolveEntryCapabilities(
   }
 
   return caps;
+}
+
+function isShareExpired(share: { expiresAt: string | null }): boolean {
+  return share.expiresAt !== null && new Date(share.expiresAt).getTime() < Date.now();
+}
+
+function isShareExhausted(share: { maxDownloads: number | null; downloadCount: number }): boolean {
+  return share.maxDownloads !== null && share.downloadCount >= share.maxDownloads;
 }
 
 /**

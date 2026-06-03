@@ -13,17 +13,18 @@
   "searchPlaceholder": "按标题或内容搜索...",
   "untitledPlaceholder": "无标题",
   "tagsPlaceholder": "添加标签...",
+  "removeTag": "移除标签",
   "totalCount": "{{count}} 个文档",
   "noResults": "未找到文档。",
   "selectToView": "请选择一个文档查看",
   "col": {
-    "title": "标题",
     "creator": "创建人",
     "createdAt": "创建时间",
     "actions": "操作"
   },
   "field": {
     "title": "标题",
+    "documentTitle": "文档标题",
     "contentPlaceholder": "开始编写您的文档...",
     "titleRequired": "标题不能为空",
     "noContent": "暂无内容。"
@@ -85,7 +86,6 @@
     "title": "置顶文档"
   },
   "conflict": {
-    "title": "文档已在别处被修改",
     "body": "此文档已在另一个会话中被更新。您的草稿已保留在此——请复制您的更改，然后重新加载以合并。"
   }
 }

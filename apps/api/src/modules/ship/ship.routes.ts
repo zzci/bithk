@@ -1,9 +1,10 @@
 import type { Context } from "hono";
 import type { ShipRow } from "./ship.service";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { parsePageQuery } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { EQUIPMENT_STATUSES, SHIP_STATUSES } from "./schema";
 import {
@@ -40,7 +41,9 @@ import {
 } from "./ship.worklist.service";
 
 const shipCoreShape = {
-  tags: z.array(z.string()).optional(),
+  // Per-tag length + array-size caps (mirrors the project tag bound) so
+  // unbounded tag count/length cannot flow into syncResourceTagsTx.
+  tags: z.array(z.string().min(1).max(50)).max(50).optional(),
   model: z.string().max(255).nullable().optional(),
   builder: z.string().max(255).nullable().optional(),
   buildYear: z.number().int().min(1800).max(2200).nullable().optional(),
@@ -76,10 +79,8 @@ const updateShipSchema = z.object({
 
 const listSchema = z.object({
   status: z.enum(SHIP_STATUSES).optional(),
-  tagId: z.string().optional(),
+  tagId: z.string().max(100).optional(),
   q: z.string().max(200).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 const bindProjectSchema = z.object({ projectShortId: z.string().min(1) });
@@ -109,8 +110,8 @@ const updateEquipmentSchema = z.object({
   { message: "At least one field must be provided" },
 );
 
-function actorId(c: Context<AppEnv>): string {
-  return c.get("user")!.id;
+function actorId(c: Context<ProtectedEnv>): string {
+  return c.get("user").id;
 }
 
 /**
@@ -118,9 +119,9 @@ function actorId(c: Context<AppEnv>): string {
  * member of the base project). Fail-closed: an unknown ship and a ship the
  * caller cannot read both surface as 404, so membership is never leaked.
  */
-async function requireShipRead(c: Context<AppEnv>, shortId: string): Promise<{ ship: ShipRow }> {
+async function requireShipRead(c: Context<ProtectedEnv>, shortId: string): Promise<{ ship: ShipRow }> {
   const db = c.get("db");
-  const user = c.get("user")!;
+  const user = c.get("user");
   const ship = await getShipByShortId(db, shortId);
   if (!ship)
     throw new NotFoundError("Ship", shortId);
@@ -130,39 +131,40 @@ async function requireShipRead(c: Context<AppEnv>, shortId: string): Promise<{ s
 }
 
 /** Read access first (404 fail-closed), then `project.manage` on the base project (else 403). */
-async function requireShipManage(c: Context<AppEnv>, shortId: string): Promise<{ ship: ShipRow }> {
+async function requireShipManage(c: Context<ProtectedEnv>, shortId: string): Promise<{ ship: ShipRow }> {
   const { ship } = await requireShipRead(c, shortId);
   const db = c.get("db");
-  const user = c.get("user")!;
+  const user = c.get("user");
   if (await userCanManageShip(db, ship, user.id, user.role === "admin"))
     return { ship };
   throw new ForbiddenError("Capability 'project.manage' required");
 }
 
 export function shipRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
   // GET /ships — list. Admins see all; others see only ships whose base
   // project they belong to.
   router.get("/ships", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const query = listSchema.parse({
       status: c.req.query("status"),
       tagId: c.req.query("tagId"),
       q: c.req.query("q") || undefined,
-      page: c.req.query("page"),
-      limit: c.req.query("limit"),
     });
+    const { page, limit } = parsePageQuery(c, { limit: 20 });
     const result = await listShips(db, {
       ...query,
+      page,
+      limit,
       memberUserId: user.role === "admin" ? undefined : user.id,
     });
     return c.json({
       success: true,
       data: result.data,
-      meta: { total: result.total, page: query.page ?? 1, limit: query.limit ?? 20 },
+      meta: { total: result.total, page, limit },
     });
   });
 

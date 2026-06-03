@@ -100,3 +100,15 @@ export interface RunResult {
   readonly changes: number;
   readonly lastInsertRowid: number | bigint;
 }
+
+/**
+ * Execute a Drizzle bun-sqlite write statement and return its affected-row
+ * metadata. Drizzle types `.run()` / `db.run()` as `void` but threads the
+ * underlying bun:sqlite `Changes` object through at runtime (see `RunResult`).
+ * Running the write through this helper confines the otherwise-unsafe
+ * `as unknown as RunResult` reinterpretation to this single audited spot, so
+ * callers read `.changes` / `.lastInsertRowid` without re-casting.
+ */
+export function runWrite(stmt: () => void): RunResult {
+  return stmt() as unknown as RunResult;
+}

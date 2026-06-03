@@ -1,9 +1,10 @@
 import type { Context, Hono } from "hono";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { requireParam } from "@/shared/lib/route-params";
 import { resolveIssueItem, resolveIssueProjectId, resolveProjectIssueAccess } from "./issue.service";
 import {
   addReference,
@@ -34,10 +35,10 @@ function auditMeta(c: Context) {
  * rights (pm or creator); read requires membership. Fail-closed: an unknown
  * issue and a non-member both surface as 404 so issue existence never leaks.
  */
-async function requireIssueAccess(c: Context<AppEnv>, mutating: boolean) {
+async function requireIssueAccess(c: Context<ProtectedEnv>, mutating: boolean) {
   const db = c.get("db");
-  const user = c.get("user")!;
-  const issueShort = c.req.param("issueShortId")!;
+  const user = c.get("user");
+  const issueShort = requireParam(c, "issueShortId");
 
   const item = await resolveIssueItem(db, issueShort);
   if (!item)
@@ -59,7 +60,7 @@ async function requireIssueAccess(c: Context<AppEnv>, mutating: boolean) {
  * Mount the generic-reference routes onto the issue router. Additive — issue
  * core routes are untouched.
  */
-export function mountIssueReferenceRoutes(router: Hono<AppEnv>): void {
+export function mountIssueReferenceRoutes(router: Hono<ProtectedEnv>): void {
   // ─── List ──────────────────────────────────────────────────────────
   router.get("/issues/:issueShortId/references", async (c) => {
     const { db, item } = await requireIssueAccess(c, false);

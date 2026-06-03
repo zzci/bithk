@@ -7,9 +7,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
 import { ListFilter } from "@/shared/components/list-filter";
+import { CardGridSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
+import { TagBadgeList } from "@/shared/components/tag-badge-list";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -140,7 +142,7 @@ export function ProjectsListPage() {
       </div>
 
       {projectsQuery.isLoading
-        ? <p className="text-sm text-muted-foreground">{t("list.loading")}</p>
+        ? <CardGridSkeleton label={t("list.loading")} />
         : visibleProjects.length === 0
           ? <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
           : <ProjectsGrid projects={visibleProjects} isAdmin={isAdmin} openProject={openProject} openSettings={setSettingsProjectId} />}
@@ -236,13 +238,14 @@ function ProjectsGrid({
                   stretches over the whole card so clicking anywhere (except the
                   Settings button, raised with z-10) opens the project. */}
               <CardTitle className="min-w-0">
-                <button
+                <Button
                   type="button"
-                  className="line-clamp-2 text-left after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none"
+                  variant="ghost"
+                  className="line-clamp-2 h-auto whitespace-normal rounded-none px-0 text-left after:absolute after:inset-0 after:rounded-[inherit] hover:bg-transparent"
                   onClick={() => openProject(project.id)}
                 >
                   {project.name}
-                </button>
+                </Button>
               </CardTitle>
               <div className="relative z-10 flex shrink-0 items-center gap-1">
                 {project.status === "archived" && (
@@ -273,16 +276,13 @@ function ProjectsGrid({
                 bottom space (min-h-5 matches the Badge height), keeping card
                 heights and action alignment stable across the grid. */}
             <div className="flex min-h-5 flex-wrap items-center gap-1">
-              {project.tags.slice(0, 3).map(tag => (
-                <Badge key={tag.id} variant="secondary" className="text-[10px] font-medium">
-                  {tag.name}
-                </Badge>
-              ))}
-              {project.tags.length > 3 && (
-                <span className="self-center text-[10px] font-medium text-muted-foreground">
-                  {t("list.moreTags", { count: project.tags.length - 3 })}
-                </span>
-              )}
+              <TagBadgeList
+                tags={project.tags}
+                max={3}
+                badgeClassName="text-[10px] font-medium"
+                moreClassName="self-center text-[10px] font-medium text-muted-foreground"
+                renderMore={count => t("list.moreTags", { count })}
+              />
             </div>
           </CardContent>
         </Card>

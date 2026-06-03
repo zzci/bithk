@@ -1,5 +1,6 @@
 import type { AppDatabase } from "@/db";
 import { desc, eq } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { nanoid } from "@/shared/lib/id";
 import { contactCategories } from "./schema";
 
@@ -80,8 +81,8 @@ export async function updateContactCategory(
 }
 
 export async function deleteContactCategory(db: AppDatabase, id: string): Promise<boolean> {
-  const result = await db.delete(contactCategories)
+  const result = runWrite(() => db.delete(contactCategories)
     .where(eq(contactCategories.id, id))
-    .run() as unknown as { changes: number };
+    .run());
   return result.changes > 0;
 }

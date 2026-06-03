@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import type { TaskConfig } from "./executor";
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -20,11 +20,27 @@ import { getScheduler } from "./cron.service";
 import { executeTask } from "./executor";
 import { serializeJob } from "./serialize";
 
+// Outer guardrails on the free-form action `config` payload (FIX-AUDIT-016).
+// The per-action validator (`validateActionConfig`) checks field *shape*;
+// these cap the raw payload so an admin can't persist a multi-megabyte or
+// thousand-key blob into `cron_jobs.task_config`.
+const MAX_CONFIG_KEYS = 50;
+const MAX_CONFIG_KEY_LENGTH = 100;
+const MAX_CONFIG_BYTES = 16 * 1024;
+
 const createJobSchema = z.object({
   name: z.string().min(1).max(100).regex(/^[\w-]+$/, "Name must be alphanumeric, underscore, or hyphen only"),
   cron: z.string().min(1).max(200),
   action: z.string().min(1).max(100),
-  config: z.record(z.string(), z.unknown()).optional(),
+  config: z
+    .record(z.string().min(1).max(MAX_CONFIG_KEY_LENGTH), z.unknown())
+    .refine(c => Object.keys(c).length <= MAX_CONFIG_KEYS, {
+      message: `config may not exceed ${MAX_CONFIG_KEYS} keys`,
+    })
+    .refine(c => JSON.stringify(c).length <= MAX_CONFIG_BYTES, {
+      message: `config exceeds the ${MAX_CONFIG_BYTES}-byte size limit`,
+    })
+    .optional(),
   // Retry budget: N consecutive failures flip `enabled=false`. `0`
   // disables auto-pause for jobs that must keep retrying. Cap matches
   // the executor's intent (the limit is the LIMIT clause on the recent
@@ -77,7 +93,7 @@ function auditMeta(c: Context) {
 }
 
 export function cronRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   // Admin-only: operators that can edit schedules can also execute
   // arbitrary actions, so the gate matches the blast radius of the
@@ -87,7 +103,7 @@ export function cronRoutes() {
   router.use("*", authRequired);
   router.use("*", adminRequired);
 
-  async function findJob(c: Context<AppEnv>, identifier: string) {
+  async function findJob(c: Context<ProtectedEnv>, identifier: string) {
     const db = c.get("db");
     const byId = await db
       .select()
@@ -171,7 +187,7 @@ export function cronRoutes() {
   // POST /cron/jobs — create
   router.post("/cron/jobs", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const body = createJobSchema.parse(await c.req.json());
 
     if (!isValidCron(body.cron)) {
@@ -239,7 +255,7 @@ export function cronRoutes() {
   // DELETE /cron/jobs/:id — soft delete (also detaches from Baker)
   router.delete("/cron/jobs/:id", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const identifier = c.req.param("id");
     const row = await findJob(c, identifier);
     if (!row)
@@ -323,7 +339,7 @@ export function cronRoutes() {
   // POST /cron/jobs/:id/trigger — manual run (rejects when already running)
   router.post("/cron/jobs/:id/trigger", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const identifier = c.req.param("id");
     const row = await findJob(c, identifier);
     if (!row)
@@ -397,7 +413,7 @@ export function cronRoutes() {
   // POST /cron/jobs/:id/pause — disable + stop ticking
   router.post("/cron/jobs/:id/pause", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const identifier = c.req.param("id");
     const row = await findJob(c, identifier);
     if (!row)
@@ -429,7 +445,7 @@ export function cronRoutes() {
   // POST /cron/jobs/:id/resume — re-enable + re-sync into Baker
   router.post("/cron/jobs/:id/resume", async (c) => {
     const db = c.get("db");
-    const user = c.get("user")!;
+    const user = c.get("user");
     const identifier = c.req.param("id");
     const row = await findJob(c, identifier);
     if (!row)

@@ -295,9 +295,15 @@ export async function upsertSingleUser(
   input: SingleUserInput,
 ): Promise<typeof users.$inferSelect> {
   const now = new Date().toISOString();
+  // Take-over fallback (step 2): match by username, and by email only when a
+  // non-blank email is configured. A blank `input.email` would otherwise match
+  // any legacy row with an empty email and take over an unintended account.
+  const takeoverMatch = input.email === ""
+    ? eq(users.username, input.username)
+    : or(eq(users.username, input.username), eq(users.email, input.email));
   const existing
     = (await db.select().from(users).where(eq(users.oauthSub, SINGLE_USER_OAUTH_SUB)).get())
-      ?? (await db.select().from(users).where(or(eq(users.username, input.username), eq(users.email, input.email))).get());
+      ?? (await db.select().from(users).where(takeoverMatch).get());
 
   if (existing) {
     await db.update(users)
@@ -375,7 +381,7 @@ export async function getSessionWithUser(db: AppDatabase, sessionId: string) {
   return row;
 }
 
-export async function updateSessionTokens(
+async function updateSessionTokens(
   db: AppDatabase,
   sessionId: string,
   accessToken: string,
@@ -404,7 +410,7 @@ export async function deleteUserSessions(db: AppDatabase, userId: string) {
   await db.delete(sessions).where(eq(sessions.userId, userId)).run();
 }
 
-export function isSessionExpired(expiresAt: string): boolean {
+function isSessionExpired(expiresAt: string): boolean {
   return new Date(expiresAt).getTime() <= Date.now();
 }
 

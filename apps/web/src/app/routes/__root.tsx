@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,8 +12,44 @@ import { useSystemStore } from "@/shared/stores/system";
 
 export const Route = createRootRoute({
   component: RootLayout,
+  errorComponent: RootErrorComponent,
   notFoundComponent: NotFoundPage,
 });
+
+// Root-level router error boundary. TanStack Router renders this in place of a
+// route subtree whose render/loader throws, so an uncaught error degrades to a
+// friendly, reloadable panel instead of a white screen (the standalone
+// `/error` route is only reached by explicit navigation). Mirrors the
+// `status === "db-error"` panel pattern below; `providers.tsx` adds an outer
+// React error boundary as the catch-all above the router.
+function RootErrorComponent({ error }: ErrorComponentProps) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex min-h-svh items-center justify-center bg-background">
+      <div className="mx-auto max-w-md text-center space-y-4 p-6">
+        <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-destructive/10">
+          <span className="text-2xl">⚠</span>
+        </div>
+        <h1 className="text-xl font-bold text-destructive">{t("common.error.systemUnavailable")}</h1>
+        {error.message && (
+          <details className="text-left">
+            <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+              {t("common.errorDetails")}
+            </summary>
+            <pre className="mt-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground whitespace-pre-wrap break-words">{error.message}</pre>
+          </details>
+        )}
+        <Button
+          variant="default"
+          className="px-4 py-2"
+          onClick={() => window.location.reload()}
+        >
+          {t("common.retry")}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const BYPASS_SUFFIXES = ["/denied", "/login", "/totp-verify", "/error"];
 

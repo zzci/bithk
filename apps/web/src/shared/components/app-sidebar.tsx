@@ -125,11 +125,12 @@ function LogoToggle() {
     <Tooltip>
       <TooltipTrigger
         render={(
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={toggleSidebar}
             aria-label={label}
-            className="group/logo-toggle relative hidden size-full items-center justify-start pl-2.5 outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:flex"
+            className="group/logo-toggle relative hidden size-full items-center justify-start rounded-none pl-2.5 transition-colors hover:bg-sidebar-accent group-data-[collapsible=icon]:flex"
           />
         )}
       >

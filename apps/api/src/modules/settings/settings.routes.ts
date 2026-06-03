@@ -1,4 +1,4 @@
-import type { AppEnv } from "@/shared/lib/types";
+import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
@@ -21,8 +21,13 @@ import {
 const SETTING_KEY_RE = /^[a-z0-9][\w.-]{0,127}$/i;
 const LIKE_SPECIAL_RE = /[%_]/g;
 
+// Upper bound (64 KiB) on a stored setting value. The column is TEXT NOT NULL,
+// so without this an admin could persist an unbounded blob that every
+// `GET /settings` then reads into memory.
+const MAX_SETTING_VALUE_LENGTH = 64 * 1024;
+
 const putSettingSchema = z.object({
-  value: z.string().min(1),
+  value: z.string().min(1).max(MAX_SETTING_VALUE_LENGTH),
 });
 
 function validateSettingKey(key: string): void {
@@ -32,7 +37,7 @@ function validateSettingKey(key: string): void {
 }
 
 export function settingsRoutes() {
-  const router = new Hono<AppEnv>();
+  const router = new Hono<ProtectedEnv>();
 
   router.use("*", authRequired);
 
@@ -65,7 +70,7 @@ export function settingsRoutes() {
     const key = c.req.param("key");
     validateSettingKey(key);
     const body = putSettingSchema.parse(await c.req.json());
-    const user = c.get("user")!;
+    const user = c.get("user");
 
     // Reject saving the masked placeholder for sensitive keys
     if (isSensitiveKey(key) && body.value === MASKED_VALUE) {
@@ -90,7 +95,7 @@ export function settingsRoutes() {
       resourceId: key,
       resourceName: key,
       detail: { previousValue, newValue: maskValue(key, body.value) },
-      ip: getClientIp(c),
+      ip: getClientIp(c, c.get("config")),
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
     });
@@ -103,7 +108,7 @@ export function settingsRoutes() {
     const db = c.get("db");
     const key = c.req.param("key");
     validateSettingKey(key);
-    const user = c.get("user")!;
+    const user = c.get("user");
 
     const deleted = await deleteSetting(db, key);
     if (!deleted) {
@@ -117,7 +122,7 @@ export function settingsRoutes() {
       resourceType: "setting",
       resourceId: key,
       resourceName: key,
-      ip: getClientIp(c),
+      ip: getClientIp(c, c.get("config")),
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
     });

@@ -16,10 +16,8 @@ import {
   buildDownloadResponse,
   getFileById,
   getReferenceById,
-  listReferencesByOwner,
   releaseAllByOwner,
   releaseReference,
-  totalStoredBytes,
   uploadAndReference,
 } from "./file.service";
 import { runFileGcOnce } from "./gc";
@@ -319,7 +317,13 @@ describe("releaseAllByOwner", () => {
     // Second blob still alive — owner-2 holds a reference.
     expect((await getFileById(db, b.file.id))?.refCount).toBe(1);
     // owner-1 has no remaining references.
-    expect(await listReferencesByOwner(db, "item_attachment", "owner-1")).toEqual([]);
+    expect(
+      await db
+        .select()
+        .from(fileReferences)
+        .where(and(eq(fileReferences.ownerType, "item_attachment"), eq(fileReferences.ownerId, "owner-1")))
+        .all(),
+    ).toEqual([]);
   });
 });
 
@@ -348,8 +352,8 @@ describe("async GC sweeper", () => {
   });
 });
 
-describe("listReferencesByOwner + getReferenceById", () => {
-  test("listReferencesByOwner returns the owner's references newest-first", async () => {
+describe("getReferenceById", () => {
+  test("returns the stored reference row by id", async () => {
     const userId = await seedUser();
     const a = await uploadAndReference(db, testConfig, {
       file: pngFile("a.txt", "first"),
@@ -357,14 +361,6 @@ describe("listReferencesByOwner + getReferenceById", () => {
       ownerId: "item-1",
       uploadedBy: userId,
     });
-    const b = await uploadAndReference(db, testConfig, {
-      file: pngFile("b.txt", "second"),
-      ownerType: "item_attachment",
-      ownerId: "item-1",
-      uploadedBy: userId,
-    });
-    const list = await listReferencesByOwner(db, "item_attachment", "item-1");
-    expect(list.map(r => r.id)).toEqual([b.reference.id, a.reference.id]);
     expect(await getReferenceById(db, a.reference.id)).toMatchObject({ id: a.reference.id });
   });
 });
@@ -459,33 +455,6 @@ describe("buildDownloadResponse", () => {
     const resp = await buildDownloadResponse(presignOnConfig, fileRow, refRow, { inline: true });
     expect(resp.status).toBe(302);
     expect(resp.headers.get("Location")).toContain("blob.example.com");
-  });
-});
-
-describe("totalStoredBytes", () => {
-  test("sums size across distinct files (deduped content counted once)", async () => {
-    const userId = await seedUser();
-    await uploadAndReference(db, testConfig, {
-      file: pngFile("a.txt", "one"),
-      ownerType: "item_attachment",
-      ownerId: "i1",
-      uploadedBy: userId,
-    });
-    await uploadAndReference(db, testConfig, {
-      file: pngFile("b.txt", "one"), // identical content
-      ownerType: "item_attachment",
-      ownerId: "i2",
-      uploadedBy: userId,
-    });
-    await uploadAndReference(db, testConfig, {
-      file: pngFile("c.txt", "different"),
-      ownerType: "item_attachment",
-      ownerId: "i3",
-      uploadedBy: userId,
-    });
-    const total = await totalStoredBytes(db);
-    // First two share a blob (3 bytes); third blob is 9 bytes.
-    expect(total).toBe(3 + 9);
   });
 });
 

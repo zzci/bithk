@@ -1,7 +1,8 @@
 import type { ContactAccessActor, ContactCapability } from "./contact.permission";
 import type { ContactStatus, ContactVisibility } from "./schema";
-import type { AppDatabase, RunResult } from "@/db";
-import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
+import type { AppDatabase } from "@/db";
+import { and, count, desc, eq, inArray, not, or, sql } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { createTuple, deleteTupleByKey } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
@@ -162,8 +163,10 @@ export async function list(
 ): Promise<ListContactsResult> {
   const conditions = [];
 
-  if (actor.role !== "admin") {
-    const explicitIds = await listUserResources(db, actor.id, "contact", "viewer");
+  const isAdmin = actor.role === "admin";
+  let explicitIds: readonly string[] = [];
+  if (!isAdmin) {
+    explicitIds = await listUserResources(db, actor.id, "contact", "viewer");
     const access = [
       eq(contacts.ownerId, actor.id),
       eq(contacts.visibility, "public" as const),
@@ -187,7 +190,29 @@ export async function list(
     conditions.push(eq(contacts.status, params.status));
   if (params.q && params.q.length > 0) {
     const like = `%${escapeLike(params.q)}%`;
-    conditions.push(sql`(${contacts.name} LIKE ${like} ESCAPE '\\' OR ${contacts.contactPerson} LIKE ${like} ESCAPE '\\' OR ${contacts.note} LIKE ${like} ESCAPE '\\')`);
+    const nameMatch = sql`${contacts.name} LIKE ${like} ESCAPE '\\'`;
+    const confidentialMatch = or(
+      sql`${contacts.contactPerson} LIKE ${like} ESCAPE '\\'`,
+      sql`${contacts.note} LIKE ${like} ESCAPE '\\'`,
+    )!;
+    if (isAdmin) {
+      conditions.push(or(nameMatch, confidentialMatch)!);
+    }
+    else {
+      // `name` is always visible; `contactPerson`/`note` are masked by
+      // `composeWithCapabilities` for non-privileged actors on public+confidential
+      // rows. Gating the confidential-field match to rows whose fields this actor
+      // can actually see (owner / explicit viewer / not public-confidential —
+      // mirrors `canSeeConfidentialFields`) stops a search hit/miss oracle that
+      // would otherwise leak the masked values character-by-character.
+      const fieldsVisible = [
+        eq(contacts.ownerId, actor.id),
+        not(and(eq(contacts.visibility, "public" as const), eq(contacts.confidential, true))!),
+      ];
+      if (explicitIds.length > 0)
+        fieldsVisible.push(inArray(contacts.id, [...explicitIds]));
+      conditions.push(or(nameMatch, and(or(...fieldsVisible)!, confidentialMatch)!)!);
+    }
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -276,7 +301,7 @@ async function deleteContact(
   // no FK and no `type` column, so they are never reachable for cleanup again).
   // Run the deletes synchronously inside the tx — see bun:sqlite tx note.
   const changes = db.transaction((tx) => {
-    const result = tx.delete(contacts).where(eq(contacts.id, id)).run() as unknown as RunResult;
+    const result = runWrite(() => tx.delete(contacts).where(eq(contacts.id, id)).run());
     if (result.changes === 0)
       return 0;
 

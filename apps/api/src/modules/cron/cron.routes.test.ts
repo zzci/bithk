@@ -8,7 +8,7 @@ import { createDb } from "@/db";
 import { auditEvents } from "@/modules/audit/schema";
 import { cronJobLogs, cronJobs } from "@/modules/cron/schema";
 import { mountRoutes, sessionCookieFor, testNanoid } from "@/shared/test/route-harness";
-import { __resetAndReinitActionsForTests } from "./actions";
+import { __resetAndReinitActionsForTests, defineAction, registerAction } from "./actions";
 import { cronRoutes } from "./cron.routes";
 import { __resetCronForTests } from "./cron.service";
 import "@/modules/account";
@@ -204,6 +204,82 @@ describe("POST /cron/jobs/:id/trigger", () => {
     const { cookie } = await sessionCookieFor(db, "admin");
     const res = await buildApp().request("/cron/jobs/missing/trigger", { method: "POST", headers: { Cookie: cookie } });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("secret redaction in responses (FIX-AUDIT-005)", () => {
+  test("redacts a Bearer token nested in http-request headers (create + list)", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const secret = "top-secret-bearer-token";
+    const created = await createJob(cookie, {
+      name: "http-secret",
+      action: "http-request",
+      config: { url: "https://example.com/health", headers: { Authorization: `Bearer ${secret}` } },
+    });
+    expect(created.status).toBe(201);
+
+    const createBody = await created.json() as { data: { taskConfig: { headers: Record<string, string> } } };
+    expect(createBody.data.taskConfig.headers.Authorization).toBe("[REDACTED]");
+    // The token must not appear anywhere in the create response.
+    expect(JSON.stringify(createBody)).not.toContain(secret);
+
+    // The listing endpoint must redact too.
+    const list = await buildApp().request("/cron/jobs", { headers: { Cookie: cookie } });
+    expect(JSON.stringify(await list.json())).not.toContain(secret);
+
+    // Redaction is response-only: the row keeps the plaintext so the
+    // execution path (which reads `task_config` directly) still works.
+    // At-rest encryption is tracked as remaining (FIX-AUDIT-005).
+    const row = await db.select().from(cronJobs).where(eq(cronJobs.name, "http-secret")).get();
+    expect(row!.taskConfig).toContain(secret);
+  });
+
+  test("redacts a secret-typed action input by its declared key", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    registerAction(defineAction({
+      spec: {
+        name: "secret-probe",
+        displayName: "Secret probe",
+        description: "test-only action with a secret input",
+        category: "custom",
+        inputs: [{ key: "apiCredential", label: "API credential", type: "secret", required: true }],
+      },
+      execute: async () => "ok",
+    }));
+
+    const created = await createJob(cookie, {
+      name: "with-secret",
+      action: "secret-probe",
+      config: { apiCredential: "supersecret-value" },
+    });
+    expect(created.status).toBe(201);
+
+    const body = await created.json() as { data: { taskConfig: Record<string, unknown> } };
+    expect(body.data.taskConfig.apiCredential).toBe("[REDACTED]");
+    expect(JSON.stringify(body)).not.toContain("supersecret-value");
+  });
+});
+
+describe("POST /cron/jobs config bounds (FIX-AUDIT-016)", () => {
+  test("rejects a config with too many keys (422)", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const config: Record<string, number> = {};
+    for (let i = 0; i < 51; i++)
+      config[`k${i}`] = i;
+    const res = await createJob(cookie, { action: "log-cleanup", config });
+    expect(res.status).toBe(422);
+  });
+
+  test("rejects a config key longer than the limit (422)", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const res = await createJob(cookie, { action: "log-cleanup", config: { ["x".repeat(101)]: 1 } });
+    expect(res.status).toBe(422);
+  });
+
+  test("rejects an oversized config payload (422)", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const res = await createJob(cookie, { action: "log-cleanup", config: { blob: "a".repeat(17 * 1024) } });
+    expect(res.status).toBe(422);
   });
 });
 
