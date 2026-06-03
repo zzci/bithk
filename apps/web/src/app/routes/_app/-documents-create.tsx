@@ -65,7 +65,7 @@ export function CreateForm({
           onChange={e => setDraft(prev => ({ ...prev, title: e.target.value }))}
           placeholder={t("untitledPlaceholder")}
           className="min-w-0 flex-1 truncate border-0 bg-transparent px-0 text-lg font-semibold tracking-tight outline-none placeholder:text-muted-foreground/40"
-          aria-label="Document title"
+          aria-label={t("field.documentTitle")}
           autoFocus
         />
         <div className="flex shrink-0 items-center gap-1">

@@ -90,7 +90,7 @@ export function TagsRow({
               size="icon-xs"
               onClick={() => onChange(tags.filter(t2 => t2 !== tag))}
               className="ml-0.5 size-3 rounded-full text-muted-foreground/70 hover:bg-foreground/10 hover:text-foreground"
-              aria-label="Remove tag"
+              aria-label={t("removeTag")}
             >
               <X className="size-2" />
             </Button>
