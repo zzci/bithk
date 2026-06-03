@@ -6,7 +6,25 @@
   "searchPlaceholder": "Search by name, email, or username...",
   "field": {
     "role": "Role",
-    "status": "Status"
+    "status": "Status",
+    "username": "Username",
+    "name": "Name"
+  },
+  "virtual": {
+    "badge": "Virtual",
+    "create": "Create virtual user",
+    "createTitle": "Create virtual user",
+    "editTitle": "Edit virtual user",
+    "dialogDescription": "Virtual users are managed accounts that cannot sign in.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete virtual user",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+    "toast": {
+      "created": "Virtual user created",
+      "updated": "Virtual user updated",
+      "deleted": "Virtual user deleted"
+    }
   },
   "roleAdmin": "Admin",
   "roleUser": "User",
