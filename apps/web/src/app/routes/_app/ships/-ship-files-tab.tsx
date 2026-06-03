@@ -33,8 +33,7 @@ export function ShipFilesTab({ ship }: ShipFilesTabProps) {
         ownerId={ship.baseProjectId}
         canManage={caps.canManageProject}
         rootLabel={ship.name}
-        showTitle={false}
-        showSearch={false}
+        features={{ breadcrumb: false, search: false }}
       />
     </div>
   );
