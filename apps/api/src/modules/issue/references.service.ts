@@ -8,7 +8,6 @@ import { nanoid } from "@/shared/lib/id";
 export interface ResolvedWorklist {
   readonly id: string;
   readonly name: string;
-  readonly category: string | null;
   readonly checklist: string | null;
   readonly precautions: string | null;
 }
@@ -68,7 +67,6 @@ async function resolveWorklists(db: AppDatabase, refIds: readonly string[]): Pro
   const rows = await db.select({
     id: worklists.id,
     name: worklists.name,
-    category: worklists.category,
     checklist: worklists.checklist,
     precautions: worklists.precautions,
   }).from(worklists).where(inArray(worklists.id, [...refIds])).all();

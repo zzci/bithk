@@ -32,6 +32,7 @@ import { registerTagSource, tagRoutes } from "@/modules/tag";
 registerTagSource({ type: "project" });
 registerTagSource({ type: "contact" });
 registerTagSource({ type: "document" });
+registerTagSource({ type: "worklist" });
 registerTagSource(issueTagBinding);
 registerTagSource(procurementTagBinding);
 
