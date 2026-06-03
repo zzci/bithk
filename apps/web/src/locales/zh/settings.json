@@ -146,9 +146,9 @@
       "deleted": "工作清单「{{name}}」已删除。"
     }
   },
-  "equipmentCategories": {
-    "title": "设备分类",
-    "description": "用于对船舶设备进行分类的双语词汇表。",
+  "globalEquipmentCategories": {
+    "title": "设备分类模板",
+    "description": "每艘船舶在创建时从中复制设备分类的全局模板。",
     "add": "添加分类",
     "colNameZh": "中文名称",
     "colNameEn": "英文名称",
@@ -156,14 +156,14 @@
     "actions": "操作",
     "edit": "编辑",
     "delete": "删除",
-    "empty": "暂无设备分类。",
+    "empty": "暂无模板分类。",
     "fieldDescription": "描述",
     "dialog": {
       "createTitle": "添加分类",
       "editTitle": "编辑分类",
       "deleteTitle": "删除分类",
       "deleteConfirm": "删除分类「{{name}}」？",
-      "description": "设备分类是船舶用于对设备进行分类的共享双语词汇表。"
+      "description": "模板分类是每艘船舶在创建时复制到自身分类集合中的双语词汇表。"
     },
     "placeholders": {
       "nameZh": "中文名称",

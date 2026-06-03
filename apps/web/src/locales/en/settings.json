@@ -146,9 +146,9 @@
       "deleted": "Worklist \"{{name}}\" deleted."
     }
   },
-  "equipmentCategories": {
-    "title": "Equipment Categories",
-    "description": "The bilingual vocabulary used to classify ship equipment.",
+  "globalEquipmentCategories": {
+    "title": "Equipment Category Template",
+    "description": "The global template each ship copies its equipment categories from on creation.",
     "add": "Add Category",
     "colNameZh": "Chinese name",
     "colNameEn": "English name",
@@ -156,14 +156,14 @@
     "actions": "Actions",
     "edit": "Edit",
     "delete": "Delete",
-    "empty": "No equipment categories yet.",
+    "empty": "No template categories yet.",
     "fieldDescription": "Description",
     "dialog": {
       "createTitle": "Add Category",
       "editTitle": "Edit Category",
       "deleteTitle": "Delete category",
       "deleteConfirm": "Delete the category \"{{name}}\"?",
-      "description": "Equipment categories are a shared bilingual vocabulary ships use to classify their equipment."
+      "description": "Template categories are the bilingual vocabulary each ship copies into its own category set on creation."
     },
     "placeholders": {
       "nameZh": "Chinese name",

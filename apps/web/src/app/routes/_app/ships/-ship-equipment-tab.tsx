@@ -32,7 +32,8 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { resolveCategoryName, useEquipmentCategories } from "@/shared/lib/api/equipment-categories";
+import { resolveCategoryName } from "@/shared/lib/api/global-equipment-categories";
+import { useShipEquipmentCategories } from "@/shared/lib/api/ship-equipment-categories";
 import {
   EQUIPMENT_STATUSES,
   useCreateShipEquipment,
@@ -43,6 +44,7 @@ import {
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
 import { EQUIPMENT_STATUS_BADGE } from "./-ship-colors";
+import { ShipEquipmentCategoriesManager } from "./-ship-equipment-categories";
 
 interface ShipEquipmentTabProps {
   readonly ship: ShipView;
@@ -178,10 +180,13 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-medium text-muted-foreground">{t("equipment.title")}</h2>
         {canManage && (
-          <Button onClick={openCreate}>
-            <Plus aria-hidden="true" />
-            {t("equipment.create")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <ShipEquipmentCategoriesManager shipShortId={ship.id} />
+            <Button onClick={openCreate}>
+              <Plus aria-hidden="true" />
+              {t("equipment.create")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -297,6 +302,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
 
       {canManage && (
         <EquipmentDialog
+          shipShortId={ship.id}
           open={dialogMode !== null}
           mode={dialogMode ?? "create"}
           initial={editTarget}
@@ -332,6 +338,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
 }
 
 function EquipmentDialog({
+  shipShortId,
   open,
   onOpenChange,
   mode,
@@ -339,6 +346,7 @@ function EquipmentDialog({
   pending,
   onSubmit,
 }: {
+  readonly shipShortId: string;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly mode: "create" | "edit";
@@ -348,7 +356,7 @@ function EquipmentDialog({
 }) {
   const { t, i18n } = useTranslation(["ships", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
-  const categories = useEquipmentCategories().data ?? [];
+  const categories = useShipEquipmentCategories(shipShortId).data ?? [];
   const [form, setForm] = useState(EMPTY_FORM);
 
   /* eslint-disable react/set-state-in-effect -- reseed the form whenever the dialog opens. */
