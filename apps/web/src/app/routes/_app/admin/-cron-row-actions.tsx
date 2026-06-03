@@ -40,7 +40,7 @@ export function CronRowActions({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={(
-          <Button variant="ghost" size="icon" aria-label="open actions">
+          <Button variant="ghost" size="icon" aria-label={t("common.openActions")}>
             <ChevronDown className="size-4" />
           </Button>
         )}

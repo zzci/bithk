@@ -13,6 +13,7 @@
   "searchPlaceholder": "按标题或内容搜索...",
   "untitledPlaceholder": "无标题",
   "tagsPlaceholder": "添加标签...",
+  "removeTag": "移除标签",
   "totalCount": "{{count}} 个文档",
   "noResults": "未找到文档。",
   "selectToView": "请选择一个文档查看",
@@ -23,6 +24,7 @@
   },
   "field": {
     "title": "标题",
+    "documentTitle": "文档标题",
     "contentPlaceholder": "开始编写您的文档...",
     "titleRequired": "标题不能为空",
     "noContent": "暂无内容。"

@@ -242,7 +242,7 @@ export function DocumentDetail({
                     onChange={e => setDraft(prev => prev ? { ...prev, title: e.target.value } : prev)}
                     placeholder={t("untitledPlaceholder")}
                     className="min-w-0 flex-1 border-0 bg-transparent px-0 text-lg font-semibold tracking-tight outline-none placeholder:text-muted-foreground/40"
-                    aria-label="Document title"
+                    aria-label={t("field.documentTitle")}
                   />
                 </>
               )
