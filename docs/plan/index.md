@@ -54,3 +54,4 @@
 | [PLAN-053](PLAN-053.md) | Tag-filter pinned-chip reliability + projects-home order correction | Superseded | 2026-06-02 |
 | [PLAN-054](PLAN-054.md) | Generic unified filter component + projects-list adoption | Completed | 2026-06-02 |
 | [PLAN-055](PLAN-055.md) | Drive-style multi-dropdown unified ListFilter + full adoption | Completed | 2026-06-03 |
+| [PLAN-056](PLAN-056.md) | Restore whole-card navigation on the projects list | Planned | 2026-06-03 |
