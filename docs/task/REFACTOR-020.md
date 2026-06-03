@@ -1,6 +1,6 @@
 # REFACTOR-020 — Virtual users first-class: backend (users.isVirtual + members userId-only)
 
-- Status: In Progress
+- Status: Completed (merged into bkd/fto2m2se)
 - Plan: [PLAN-063](../plan/PLAN-063.md)
 - Campaign: l1-75ymcfnr-vuser-20260603200111
 - Owner: L2 fto2m2se dispatch → L3-1
@@ -42,3 +42,19 @@ Backend core of the virtual-users-as-first-class-rows refactor:
 
 - 2026-06-03: Created + dispatched as L3-1 (backend first; L3-2/L3-3 frontend
   depend on it).
+- 2026-06-03: **L3-1 (fxm1cqys) MERGED** into bkd/fto2m2se (--no-ff, merge
+  6ca3e1f; L3 commit 2abcf5f). users.isVirtual (+forward migration
+  0001_equal_stephen_strange.sql recreating project_members w/o display_name +
+  user_id NOT NULL); createVirtualUser (oauthSub=virtual:<id>,
+  email=<username>@virtual.local, role=user/active/isVirtual=1) +
+  updateVirtualUser/deleteVirtualUser w/ global username uniqueness (409);
+  admin POST/PATCH/DELETE /account/users (virtual) + GET /account/assignable-users
+  (auth, real+virtual) + visible-users real-only; ProjectMemberView drops
+  displayName, adds name+isVirtual (users join); member add/update userId-only.
+  Post-merge `bun run check` EXIT 0 (api 1450/0, build/i18n[26 heuristic-unused
+  non-blocking]/env/api-docs green; web vitest @milkdown teardown flake only).
+  Forced out-of-scope edits (disjoint from frontend lanes): auth.service.ts
+  (+isVirtual:false ×2), issue.test.ts (DDL bootstrap + 2 obsolete virtual tests
+  rewritten), docs/reference/api-routes.md (regenerated). Dev DB must be reset on
+  next boot (destructive recreate). L3-2 (0iipd539) + L3-3 (r0qlbvyo) dispatched
+  (working).
