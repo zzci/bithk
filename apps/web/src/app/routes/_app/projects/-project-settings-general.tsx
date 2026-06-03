@@ -9,6 +9,7 @@ import type {
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { TagInput } from "@/shared/components/tags";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
@@ -20,7 +21,6 @@ import {
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { ProjectCoverField } from "./-project-cover-field";
-import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 interface ProjectSettingsGeneralProps {
   readonly project: ProjectView;
@@ -83,7 +83,7 @@ export function ProjectSettingsGeneral({ project }: ProjectSettingsGeneralProps)
 
         <div className="space-y-1.5">
           <Label>{t("field.tags")}</Label>
-          <ProjectTagsCombobox value={tags} onChange={setTags} suggestions={suggestions} />
+          <TagInput value={tags} onChange={setTags} suggestions={suggestions} />
         </div>
 
         <div className="flex justify-end">

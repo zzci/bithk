@@ -31,7 +31,7 @@ import {
   useResourceAttachmentUpload,
   validateAttachmentSelection,
 } from "@/shared/components/resource";
-import { TagsCombobox } from "@/shared/components/tags-combobox";
+import { TagInput } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -321,7 +321,7 @@ export function ProjectIssuePanel({
         <div className="flex flex-wrap items-center gap-1.5">
           {permissions.canEditAll
             ? (
-                <TagsCombobox
+                <TagInput
                   value={currentTagNames}
                   suggestions={tagVocabulary}
                   onChange={next => patch({ tags: [...next] })}
