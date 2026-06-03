@@ -196,7 +196,7 @@ describe("project mutations", () => {
     // Fresh Response per call — a Response body can only be read once.
     fetchMock.mockImplementation(async () => jsonResponse({ success: true, data: { id: "x" } }));
     const member = renderHook(() => useAddProjectMember(), { wrapper: makeWrapper() });
-    await member.result.current.mutateAsync({ projectId: "p1", roleId: "r1" });
+    await member.result.current.mutateAsync({ projectId: "p1", roleId: "r1", userId: "u1" });
     const role = renderHook(() => useCreateProjectRole(), { wrapper: makeWrapper() });
     await role.result.current.mutateAsync({ projectId: "p1", name: "Lead" });
     const category = renderHook(() => useCreateProcurementCategory(), { wrapper: makeWrapper() });

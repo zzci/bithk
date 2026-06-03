@@ -1,10 +1,10 @@
-// Members settings section: add real (user) or virtual (displayName) members,
-// assign a role from the project's role set, set an optional title, edit
-// (including promoting a virtual member by assigning a userId), and remove.
+// Members settings section: add a member by selecting a unified user (real or
+// virtual) from the assignable-users list, assign a role from the project's
+// role set, set an optional title, edit (role + title), and remove.
 
-import type { SimpleUser } from "@/shared/lib/api/documents";
 import type {
   AddProjectMemberInput,
+  AssignableUser,
   ProjectMemberView,
   ProjectRoleView,
   UpdateProjectMemberInput,
@@ -13,7 +13,6 @@ import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -45,14 +44,13 @@ import {
 } from "@/shared/components/ui/table";
 import {
   useAddProjectMember,
+  useAssignableUsers,
   useProjectRoles,
   useRemoveProjectMember,
   useUpdateProjectMember,
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
-import { memberLabel } from "./-member-helpers";
-
-type MemberKind = "real" | "virtual";
+import { memberLabel, systemRoleLabel } from "./-member-helpers";
 
 interface ProjectSettingsMembersProps {
   readonly projectId: string;
@@ -71,15 +69,15 @@ export function ProjectSettingsMembers({ projectId, members, userNames, canManag
   const [deleteTarget, setDeleteTarget] = useState<ProjectMemberView | null>(null);
 
   const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
-  // The system owner role is presented as "Project Owner"; custom roles keep
-  // their stored name.
+  // System roles resolve their label by kind (owner -> "Project Owner",
+  // guest -> "Guest"); custom roles keep their stored name.
   const roleNames = useMemo(
-    () => new Map(roles.map(r => [r.id, r.isSystem ? t("roles.owner") : r.name])),
+    () => new Map(roles.map(r => [r.id, r.isSystem ? systemRoleLabel(r, t("roles.owner"), t("roles.guest")) : r.name])),
     [roles, t],
   );
 
   const existingUserIds = useMemo(
-    () => new Set(members.map(m => m.userId).filter((id): id is string => id !== null)),
+    () => new Set(members.map(m => m.userId)),
     [members],
   );
 
@@ -112,7 +110,7 @@ export function ProjectSettingsMembers({ projectId, members, userNames, canManag
                     <TableCell className="font-medium">
                       <span className="flex items-center gap-2">
                         {memberLabel(member, userNames)}
-                        {member.userId === null && (
+                        {member.isVirtual && (
                           <Badge variant="outline" className="text-xs">{t("members.virtual")}</Badge>
                         )}
                       </span>
@@ -191,36 +189,35 @@ interface AddMemberDialogProps {
 function AddMemberDialog({ projectId, roles, open, onOpenChange, existingUserIds }: AddMemberDialogProps) {
   const { t } = useTranslation(["projects", "common"]);
   const addMember = useAddProjectMember();
-  const usersQuery = useVisibleUsers();
+  const usersQuery = useAssignableUsers();
 
-  const [kind, setKind] = useState<MemberKind>("real");
   const [roleId, setRoleId] = useState("");
   const [userId, setUserId] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [title, setTitle] = useState("");
 
-  const availableUsers = useMemo<readonly SimpleUser[]>(
+  // Candidate users: unified real + virtual, minus those already a member.
+  const availableUsers = useMemo<readonly AssignableUser[]>(
     () => (usersQuery.data ?? []).filter(u => !existingUserIds.has(u.id)),
     [usersQuery.data, existingUserIds],
   );
 
   const reset = () => {
-    setKind("real");
     setRoleId("");
     setUserId("");
-    setDisplayName("");
     setTitle("");
   };
 
-  const valid = !!roleId && (kind === "real" ? !!userId : !!displayName.trim());
+  const valid = !!roleId && !!userId;
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!valid || addMember.isPending)
       return;
-    const body: AddProjectMemberInput = kind === "real"
-      ? { roleId, userId, ...(title.trim() ? { title: title.trim() } : {}) }
-      : { roleId, displayName: displayName.trim(), ...(title.trim() ? { title: title.trim() } : {}) };
+    const body: AddProjectMemberInput = {
+      roleId,
+      userId,
+      ...(title.trim() ? { title: title.trim() } : {}),
+    };
     addMember.mutate({ projectId, ...body }, {
       onSuccess: () => {
         toast.success(t("toast.memberAdded"));
@@ -243,44 +240,27 @@ function AddMemberDialog({ projectId, roles, open, onOpenChange, existingUserIds
           {addMember.error && <ErrorBanner message={errorMessage(addMember.error, t("common:common.error.operationFailed"))} />}
 
           <div className="space-y-1.5">
-            <Label>{t("members.field.kind")}</Label>
-            <Select value={kind} onValueChange={v => v !== null && setKind(v as MemberKind)}>
+            <Label>{t("members.field.user")}</Label>
+            <Select value={userId} onValueChange={v => v !== null && setUserId(v)}>
               <SelectTrigger className="w-full">
-                <SelectValue>
-                  {(v: string) => t(`members.kind.${v}` as const)}
+                <SelectValue placeholder={t("members.selectUser")}>
+                  {(v: string) => availableUsers.find(u => u.id === v)?.name ?? v}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="real">{t("members.kind.real")}</SelectItem>
-                <SelectItem value="virtual">{t("members.kind.virtual")}</SelectItem>
+                {availableUsers.map(u => (
+                  <SelectItem key={u.id} value={u.id}>
+                    <span className="flex items-center gap-2">
+                      {`${u.name} (${u.username})`}
+                      {u.isVirtual && (
+                        <Badge variant="outline" className="text-xs">{t("members.virtual")}</Badge>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-
-          {kind === "real"
-            ? (
-                <div className="space-y-1.5">
-                  <Label>{t("members.field.user")}</Label>
-                  <Select value={userId} onValueChange={v => v !== null && setUserId(v)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={t("members.selectUser")}>
-                        {(v: string) => availableUsers.find(u => u.id === v)?.name ?? v}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableUsers.map(u => (
-                        <SelectItem key={u.id} value={u.id}>{`${u.name} (${u.username})`}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )
-            : (
-                <div className="space-y-1.5">
-                  <Label htmlFor="member-display">{t("members.field.displayName")}</Label>
-                  <Input id="member-display" required value={displayName} onChange={e => setDisplayName(e.target.value)} />
-                </div>
-              )}
 
           <div className="space-y-1.5">
             <Label htmlFor="member-title">{t("members.field.title")}</Label>
@@ -314,15 +294,9 @@ interface EditMemberDialogProps {
 function EditMemberDialog({ projectId, member, roles, open, onOpenChange }: EditMemberDialogProps) {
   const { t } = useTranslation(["projects", "common"]);
   const updateMember = useUpdateProjectMember();
-  const usersQuery = useVisibleUsers();
 
   const [roleId, setRoleId] = useState(member.roleId);
   const [title, setTitle] = useState(member.title ?? "");
-  const [displayName, setDisplayName] = useState(member.displayName ?? "");
-  // Promotion: virtual -> real by assigning a user id.
-  const [promoteUserId, setPromoteUserId] = useState("");
-
-  const isVirtual = member.userId === null;
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -331,12 +305,6 @@ function EditMemberDialog({ projectId, member, roles, open, onOpenChange }: Edit
     const body: UpdateProjectMemberInput = {
       roleId,
       title: title.trim() || null,
-      ...(isVirtual
-        ? {
-            displayName: displayName.trim() || null,
-            ...(promoteUserId ? { userId: promoteUserId } : {}),
-          }
-        : {}),
     };
     updateMember.mutate({ projectId, memberId: member.id, ...body }, {
       onSuccess: () => {
@@ -365,30 +333,6 @@ function EditMemberDialog({ projectId, member, roles, open, onOpenChange }: Edit
             <Input id="edit-title" value={title} onChange={e => setTitle(e.target.value)} />
           </div>
 
-          {isVirtual && (
-            <>
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-display">{t("members.field.displayName")}</Label>
-                <Input id="edit-display" value={displayName} onChange={e => setDisplayName(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>{t("members.promote")}</Label>
-                <Select value={promoteUserId} onValueChange={v => v !== null && setPromoteUserId(v)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t("members.selectUser")}>
-                      {(v: string) => (usersQuery.data ?? []).find(u => u.id === v)?.name ?? v}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(usersQuery.data ?? []).map(u => (
-                      <SelectItem key={u.id} value={u.id}>{`${u.name} (${u.username})`}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
@@ -411,9 +355,13 @@ interface RoleSelectProps {
 
 function RoleSelect({ roles, value, onChange }: RoleSelectProps) {
   const { t } = useTranslation("projects");
-  // System owner role displays as "Project Owner"; custom roles keep their name.
+  // System roles resolve their label by kind; custom roles keep their name.
   const roleLabel = (role: ProjectRoleView | undefined) =>
-    role ? (role.isSystem ? t("roles.owner") : role.name) : value;
+    role ? (role.isSystem ? systemRoleLabel(role, t("roles.owner"), t("roles.guest")) : role.name) : value;
+  // The Guest system role is not directly assignable, so exclude it from the
+  // options. The trigger label still resolves against the full `roles` list so
+  // a member already on the guest role displays correctly.
+  const assignableRoles = roles.filter(r => r.kind !== "guest");
   return (
     <div className="space-y-1.5">
       <Label>{t("members.field.role")}</Label>
@@ -424,7 +372,7 @@ function RoleSelect({ roles, value, onChange }: RoleSelectProps) {
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {roles.map(r => (
+          {assignableRoles.map(r => (
             <SelectItem key={r.id} value={r.id}>{roleLabel(r)}</SelectItem>
           ))}
         </SelectContent>

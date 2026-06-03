@@ -5,8 +5,9 @@ import { buildMemberLabelMap, memberLabel } from "./-member-helpers";
 function member(overrides: Partial<ProjectMemberView> = {}): ProjectMemberView {
   return {
     id: "m1",
-    userId: null,
-    displayName: null,
+    userId: "u1",
+    name: "Alice",
+    isVirtual: false,
     roleId: "r1",
     title: null,
     createdAt: "2026-05-23T00:00:00.000Z",
@@ -16,34 +17,24 @@ function member(overrides: Partial<ProjectMemberView> = {}): ProjectMemberView {
 }
 
 describe("memberLabel", () => {
-  it("prefers an explicit displayName", () => {
-    const m = member({ displayName: "Site Office", userId: "u1" });
-    expect(memberLabel(m, new Map([["u1", "Alice"]]))).toBe("Site Office");
+  it("returns the member's resolved name", () => {
+    const m = member({ name: "Site Office" });
+    expect(memberLabel(m)).toBe("Site Office");
   });
 
-  it("resolves a real member to its user name", () => {
-    const m = member({ userId: "u1" });
-    expect(memberLabel(m, new Map([["u1", "Alice"]]))).toBe("Alice");
-  });
-
-  it("falls back to the userId when the name is unknown", () => {
-    const m = member({ userId: "u9" });
-    expect(memberLabel(m, new Map())).toBe("u9");
-  });
-
-  it("falls back to the member id when there is neither name nor user", () => {
-    const m = member({ id: "m42" });
-    expect(memberLabel(m, new Map())).toBe("m42");
+  it("returns the name for a virtual member too", () => {
+    const m = member({ name: "Crew B", isVirtual: true });
+    expect(memberLabel(m)).toBe("Crew B");
   });
 });
 
 describe("buildMemberLabelMap", () => {
-  it("maps each member id to its resolved label", () => {
+  it("maps each member id to its name", () => {
     const members = [
-      member({ id: "m1", userId: "u1" }),
-      member({ id: "m2", displayName: "Crew B" }),
+      member({ id: "m1", name: "Alice" }),
+      member({ id: "m2", name: "Crew B", isVirtual: true }),
     ];
-    const map = buildMemberLabelMap(members, new Map([["u1", "Alice"]]));
+    const map = buildMemberLabelMap(members);
     expect(map.get("m1")).toBe("Alice");
     expect(map.get("m2")).toBe("Crew B");
     expect(map.size).toBe(2);
