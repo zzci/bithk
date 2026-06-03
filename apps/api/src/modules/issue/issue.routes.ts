@@ -411,7 +411,7 @@ export function issueRoutes() {
   });
 
   router.delete("/projects/:projectId/issues/:id/attachments/:aid", async (c) => {
-    const { db, user, item, access, isAdmin } = await loadProjectIssue(c);
+    const { db, user, issueShort, item, access, isAdmin } = await loadProjectIssue(c);
     const aid = c.req.param("aid");
     const ref = await getReferenceById(db, aid);
     if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
@@ -424,7 +424,7 @@ export function issueRoutes() {
       actorName: user.name,
       action: "issue.attachment_deleted",
       resourceType: "issue",
-      resourceId: c.req.param("id"),
+      resourceId: issueShort,
       resourceName: item.title,
       detail: { attachmentId: aid, filename: ref.filename },
       ...auditMeta(c),

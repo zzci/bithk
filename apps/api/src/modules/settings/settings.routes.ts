@@ -95,7 +95,7 @@ export function settingsRoutes() {
       resourceId: key,
       resourceName: key,
       detail: { previousValue, newValue: maskValue(key, body.value) },
-      ip: getClientIp(c),
+      ip: getClientIp(c, c.get("config")),
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
     });
@@ -122,7 +122,7 @@ export function settingsRoutes() {
       resourceType: "setting",
       resourceId: key,
       resourceName: key,
-      ip: getClientIp(c),
+      ip: getClientIp(c, c.get("config")),
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
     });
