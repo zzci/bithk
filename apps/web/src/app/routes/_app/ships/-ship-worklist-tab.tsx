@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ListFilter } from "@/shared/components/list-filter";
+import { TagInput } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
@@ -36,7 +37,6 @@ import {
   useWorklistTags,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
-import { WorklistTagsCombobox } from "./-worklist-tags-combobox";
 
 interface ShipWorklistTabProps {
   readonly ship: ShipView;
@@ -349,7 +349,7 @@ function WorklistDialog({
           </div>
           <div className="space-y-1.5">
             <Label>{t("worklist.tags")}</Label>
-            <WorklistTagsCombobox value={form.tags} onChange={tags => set("tags", tags)} availableTags={availableTags} />
+            <TagInput value={form.tags} onChange={tags => set("tags", tags)} suggestions={availableTags} namespace="ships" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="worklist-checklist">{t("worklist.field.checklist")}</Label>

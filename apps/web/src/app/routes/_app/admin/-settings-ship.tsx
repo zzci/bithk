@@ -14,6 +14,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { TagInput } from "@/shared/components/tags";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
@@ -51,7 +52,6 @@ import {
   useWorklistTags,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
-import { WorklistTagsCombobox } from "../ships/-worklist-tags-combobox";
 
 export function ShipSettingsTab() {
   return (
@@ -226,7 +226,7 @@ function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogPr
 
           <div className="space-y-1.5">
             <Label>{t("settings:globalWorklists.fieldTags")}</Label>
-            <WorklistTagsCombobox value={tags} onChange={setTags} availableTags={worklistTags.map(tag => tag.name)} />
+            <TagInput value={tags} onChange={setTags} suggestions={worklistTags.map(tag => tag.name)} namespace="ships" />
           </div>
 
           <div className="space-y-1.5">
