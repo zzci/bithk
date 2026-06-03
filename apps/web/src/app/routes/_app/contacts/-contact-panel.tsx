@@ -12,9 +12,10 @@
 
 import type { ContactFormState } from "./-contact-form-logic";
 import type { ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
-import { Edit3, Lock, Share2, Trash2, X } from "lucide-react";
+import { Edit3, Lock, Share2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -85,6 +86,8 @@ interface ContactPanelProps {
   readonly onEdit: () => void;
   readonly onShare: () => void;
   readonly onDelete: () => void;
+  /** Commit a view-mode inline title rename (name only). Form mode ignores it. */
+  readonly onRename: (name: string) => void;
   readonly onSubmit: (state: ContactFormState) => void;
 }
 
@@ -104,6 +107,7 @@ function ContactPanelView({
   onEdit,
   onShare,
   onDelete,
+  onRename,
 }: ContactPanelProps) {
   const { t } = useTranslation(["contacts", "common"]);
   const categoriesQuery = useContactCategories();
@@ -119,27 +123,44 @@ function ContactPanelView({
 
   return (
     <div className="flex h-full flex-col bg-background outline-none">
-      <header className="flex items-start gap-3 border-b border-border/60 px-5 py-4 shrink-0">
-        <span
-          aria-hidden="true"
-          className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-base font-semibold text-primary"
-        >
-          {contact.name.slice(0, 1).toUpperCase()}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold break-words leading-tight">{contact.name}</h2>
-        </div>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="size-8 shrink-0"
-          aria-label={t("common:common.close")}
-          onClick={onClose}
-        >
-          <X data-icon="inline" />
-        </Button>
-      </header>
+      <DetailPanelHeader
+        variant="drawer"
+        title={contact.name}
+        {...(contact.canManage
+          ? { titleEdit: { canEdit: true, onSave: (next: string) => onRename(next) } }
+          : {})}
+        labels={{ close: t("common:common.close"), delete: t("common:common.delete") }}
+        onClose={onClose}
+        {...(contact.canManage ? { onDelete } : {})}
+        {...(contact.canManage
+          ? {
+              extraActions: (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("common:common.edit")}
+                    title={t("common:common.edit")}
+                    onClick={onEdit}
+                  >
+                    <Edit3 className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("share.title")}
+                    title={t("share.title")}
+                    onClick={onShare}
+                  >
+                    <Share2 className="size-4" />
+                  </Button>
+                </>
+              ),
+            }
+          : {})}
+      />
 
       <div className="@container flex-1 space-y-7 overflow-y-auto px-5 py-5">
         <PanelSection title={t("drawer.contactMethods")}>
@@ -209,28 +230,6 @@ function ContactPanelView({
           </div>
         </PanelSection>
       </div>
-
-      {contact.canManage && (
-        <footer className="flex flex-wrap gap-2 border-t border-border/60 px-5 py-3 shrink-0">
-          <Button type="button" onClick={onEdit}>
-            <Edit3 data-icon="inline-start" />
-            {t("form.editTitle")}
-          </Button>
-          <Button type="button" variant="outline" onClick={onShare}>
-            <Share2 data-icon="inline-start" />
-            {t("share.title")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-            onClick={onDelete}
-          >
-            <Trash2 data-icon="inline-start" />
-            {t("delete.title")}
-          </Button>
-        </footer>
-      )}
     </div>
   );
 }
@@ -273,26 +272,12 @@ function ContactPanelForm({
 
   return (
     <form onSubmit={submit} className="flex h-full flex-col bg-background outline-none">
-      <header className="flex items-center gap-3 border-b border-border/60 px-5 py-4 shrink-0">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold leading-tight">
-            {mode === "create" ? t("form.createTitle") : t("form.editTitle")}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "create" ? t("form.createDescription") : t("form.editDescription")}
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="size-8 shrink-0"
-          aria-label={t("common:common.close")}
-          onClick={onClose}
-        >
-          <X data-icon="inline" />
-        </Button>
-      </header>
+      <DetailPanelHeader
+        variant="drawer"
+        title={mode === "create" ? t("form.createTitle") : t("form.editTitle")}
+        labels={{ close: t("common:common.close") }}
+        onClose={onClose}
+      />
 
       <div className="@container flex-1 space-y-7 overflow-y-auto px-5 py-5">
         {errorMessage && <ErrorBanner message={errorMessage} />}
