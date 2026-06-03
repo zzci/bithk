@@ -482,7 +482,7 @@ CREATE INDEX `shares_created_by_idx` ON `shares` (`created_by`);--> statement-br
 CREATE INDEX `shares_shared_with_idx` ON `shares` (`shared_with_user_id`);--> statement-breakpoint
 CREATE INDEX `shares_share_type_idx` ON `shares` (`share_type`);--> statement-breakpoint
 CREATE INDEX `shares_active_expires_idx` ON `shares` (`is_active`,`expires_at`);--> statement-breakpoint
-CREATE TABLE `equipment_categories` (
+CREATE TABLE `global_equipment_categories` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name_zh` text NOT NULL,
 	`name_en` text NOT NULL,
@@ -492,8 +492,8 @@ CREATE TABLE `equipment_categories` (
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `equipment_categories_name_zh_idx` ON `equipment_categories` (`name_zh`);--> statement-breakpoint
-CREATE UNIQUE INDEX `equipment_categories_name_en_idx` ON `equipment_categories` (`name_en`);--> statement-breakpoint
+CREATE UNIQUE INDEX `global_equipment_categories_name_zh_idx` ON `global_equipment_categories` (`name_zh`);--> statement-breakpoint
+CREATE UNIQUE INDEX `global_equipment_categories_name_en_idx` ON `global_equipment_categories` (`name_en`);--> statement-breakpoint
 CREATE TABLE `ship_equipment` (
 	`id` text PRIMARY KEY NOT NULL,
 	`ship_id` text NOT NULL,
@@ -509,11 +509,26 @@ CREATE TABLE `ship_equipment` (
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`ship_id`) REFERENCES `ships`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`category_id`) REFERENCES `equipment_categories`(`id`) ON UPDATE no action ON DELETE set null
+	FOREIGN KEY (`category_id`) REFERENCES `ship_equipment_categories`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `ship_equipment_ship_idx` ON `ship_equipment` (`ship_id`);--> statement-breakpoint
 CREATE INDEX `ship_equipment_category_idx` ON `ship_equipment` (`category_id`);--> statement-breakpoint
+CREATE TABLE `ship_equipment_categories` (
+	`id` text PRIMARY KEY NOT NULL,
+	`ship_id` text NOT NULL,
+	`name_zh` text NOT NULL,
+	`name_en` text NOT NULL,
+	`code` text,
+	`description` text,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`ship_id`) REFERENCES `ships`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `ship_equipment_categories_ship_idx` ON `ship_equipment_categories` (`ship_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `ship_equipment_categories_ship_name_zh_idx` ON `ship_equipment_categories` (`ship_id`,`name_zh`);--> statement-breakpoint
+CREATE UNIQUE INDEX `ship_equipment_categories_ship_name_en_idx` ON `ship_equipment_categories` (`ship_id`,`name_en`);--> statement-breakpoint
 CREATE TABLE `ships` (
 	`id` text PRIMARY KEY NOT NULL,
 	`short_id` text NOT NULL,

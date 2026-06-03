@@ -1,14 +1,15 @@
 import type { BackupContribution } from "@/modules/backup/registry";
-import { equipmentCategories, shipEquipment, ships, worklists } from "./schema";
+import { globalEquipmentCategories, shipEquipment, shipEquipmentCategories, ships, worklists } from "./schema";
 
 export const shipBackupContribution: BackupContribution = {
   name: "ships",
-  // Parent tables first: equipment_categories and ships both precede
-  // ship_equipment, which carries FKs to each (category_id, ship_id), so both
-  // parents are restored before the child. `projects` is a dep both ways
-  // (nullable circular FK ships.base_project_id ↔ projects.ship_id); restore
-  // defers FK checks to COMMIT, and the registry tolerates the
-  // projects ↔ ships dependency cycle.
-  tables: [equipmentCategories, ships, shipEquipment, worklists],
+  // Parent tables first. `global_equipment_categories` is a standalone template
+  // (no FKs). `ships` precedes both `ship_equipment_categories` and
+  // `ship_equipment` (each carries a ship_id FK), and
+  // `ship_equipment_categories` precedes `ship_equipment` (its category_id FK
+  // points there). `projects` is a dep both ways (nullable circular FK
+  // ships.base_project_id ↔ projects.ship_id); restore defers FK checks to
+  // COMMIT, and the registry tolerates the projects ↔ ships dependency cycle.
+  tables: [globalEquipmentCategories, ships, shipEquipmentCategories, shipEquipment, worklists],
   deps: ["users", "projects"],
 };

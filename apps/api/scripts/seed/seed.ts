@@ -46,9 +46,10 @@ import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject, listMembers, setProjectCover } from "@/modules/project/project.service";
 import { setSetting } from "@/modules/settings/settings.service";
 import { createShare } from "@/modules/share/share.service";
-import { createEquipmentCategory } from "@/modules/ship/ship.equipment-category.service";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
+import { createGlobalEquipmentCategory } from "@/modules/ship/ship.global-equipment-category.service";
 import { bindProject, createShip, setShipCover } from "@/modules/ship/ship.service";
+import { listShipEquipmentCategories } from "@/modules/ship/ship.ship-equipment-category.service";
 import { createGlobalWorklist, createShipWorklist } from "@/modules/ship/ship.worklist.service";
 import { ROOT_DIR } from "@/root";
 import { nanoid, ulid } from "@/shared/lib/id";
@@ -115,17 +116,16 @@ const contactId = new Map<string, string>();
 const shipInternalId = new Map<string, string>();
 const shipShortId = new Map<string, string>();
 const globalWorklistId = new Map<string, string>();
-// Slug (the free-text key used by the equipment records in ships.json) → the
-// produced bilingual ship-equipment-category id.
-const equipmentCategoryId = new Map<string, string>();
 interface ProjectInfo { id: string; shortId: string; creatorUserId: string; memberRoleId: string; members: { memberId: string; userId: string }[]; categoryIds: Map<string, string> }
 const projectInfo = new Map<string, ProjectInfo>();
 
 const ADMIN_KEY = "admin";
 
-// Starter bilingual ship-equipment-category vocabulary. The `slug` matches the
-// free-text `category` field carried by the equipment records in ships.json so
-// each seeded item can resolve to a real category id.
+// Starter bilingual equipment-category template. Seeded into the GLOBAL
+// template (`global_equipment_categories`); each new ship gets its own copy on
+// create. The `slug` is stored as the row `code` and matches the free-text
+// `category` field carried by the equipment records in ships.json, so each
+// seeded item can resolve to its ship's own copied category id.
 const SHIP_EQUIPMENT_CATEGORIES: { slug: string; nameZh: string; nameEn: string }[] = [
   { slug: "propulsion", nameZh: "推进系统", nameEn: "Propulsion" },
   { slug: "navigation", nameZh: "导航设备", nameEn: "Navigation" },
@@ -189,10 +189,8 @@ async function importContacts(db: AppDatabase): Promise<void> {
 }
 
 async function importEquipmentCategories(db: AppDatabase): Promise<number> {
-  for (const cat of SHIP_EQUIPMENT_CATEGORIES) {
-    const row = await createEquipmentCategory(db, { nameZh: cat.nameZh, nameEn: cat.nameEn, code: cat.slug });
-    equipmentCategoryId.set(cat.slug, row.id);
-  }
+  for (const cat of SHIP_EQUIPMENT_CATEGORIES)
+    await createGlobalEquipmentCategory(db, { nameZh: cat.nameZh, nameEn: cat.nameEn, code: cat.slug });
   return SHIP_EQUIPMENT_CATEGORIES.length;
 }
 
@@ -223,10 +221,19 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
     shipInternalId.set(s.key, ship.id);
     shipShortId.set(s.key, ship.shortId);
 
+    // createShip copied the global template into this ship's own categories;
+    // resolve each equipment's category against that per-ship set (keyed by the
+    // `code` slug carried over from the template).
+    const perShipCategoryIdByCode = new Map<string, string>();
+    for (const cat of await listShipEquipmentCategories(db, ship.id)) {
+      if (cat.code)
+        perShipCategoryIdByCode.set(cat.code, cat.id);
+    }
+
     for (const e of s.equipment ?? []) {
       await createEquipment(db, ship.id, {
         name: e.name,
-        categoryId: (e.category ? equipmentCategoryId.get(e.category) : undefined) ?? null,
+        categoryId: (e.category ? perShipCategoryIdByCode.get(e.category) : undefined) ?? null,
         manufacturer: e.manufacturer ?? null,
         model: e.model ?? null,
         serialNumber: e.serialNumber ?? null,

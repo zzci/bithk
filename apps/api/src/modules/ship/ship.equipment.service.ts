@@ -2,7 +2,7 @@ import type { EquipmentStatus } from "./schema";
 import type { AppDatabase } from "@/db";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "@/shared/lib/id";
-import { equipmentCategories, shipEquipment } from "./schema";
+import { shipEquipment, shipEquipmentCategories } from "./schema";
 
 export type ShipEquipmentRow = typeof shipEquipment.$inferSelect;
 
@@ -10,9 +10,9 @@ export type ShipEquipmentRow = typeof shipEquipment.$inferSelect;
 // `shipId` is the internal ship ULID and never leaves the API: equipment is
 // always addressed through its parent ship's short id in the URL, so the view
 // omits it and exposes only the equipment's own (nanoid) id. The category is a
-// reference into the global `equipment_categories` vocabulary; the view carries
-// both the id and the resolved bilingual names (null when unset or the
-// referenced row is gone).
+// reference into the ship's own `ship_equipment_categories` vocabulary; the
+// view carries both the id and the resolved bilingual names (null when unset or
+// the referenced row is gone).
 
 export interface ShipEquipmentView {
   readonly id: string;
@@ -58,9 +58,9 @@ export function composeEquipment(
 
 export async function listEquipment(db: AppDatabase, shipInternalId: string): Promise<readonly ShipEquipmentView[]> {
   const rows = await db
-    .select({ equipment: shipEquipment, category: equipmentCategories })
+    .select({ equipment: shipEquipment, category: shipEquipmentCategories })
     .from(shipEquipment)
-    .leftJoin(equipmentCategories, eq(shipEquipment.categoryId, equipmentCategories.id))
+    .leftJoin(shipEquipmentCategories, eq(shipEquipment.categoryId, shipEquipmentCategories.id))
     .where(eq(shipEquipment.shipId, shipInternalId))
     .orderBy(desc(shipEquipment.id))
     .all();
@@ -76,9 +76,9 @@ async function getEquipmentRow(db: AppDatabase, shipInternalId: string, equipmen
 
 export async function getEquipment(db: AppDatabase, shipInternalId: string, equipmentId: string): Promise<ShipEquipmentView | undefined> {
   const row = await db
-    .select({ equipment: shipEquipment, category: equipmentCategories })
+    .select({ equipment: shipEquipment, category: shipEquipmentCategories })
     .from(shipEquipment)
-    .leftJoin(equipmentCategories, eq(shipEquipment.categoryId, equipmentCategories.id))
+    .leftJoin(shipEquipmentCategories, eq(shipEquipment.categoryId, shipEquipmentCategories.id))
     .where(and(eq(shipEquipment.shipId, shipInternalId), eq(shipEquipment.id, equipmentId)))
     .get();
   if (!row)

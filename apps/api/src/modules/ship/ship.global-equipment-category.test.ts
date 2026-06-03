@@ -15,7 +15,6 @@ import { users } from "@/modules/account/users/schema";
 import { auditEvents } from "@/modules/audit/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { shipRoutes } from "./ship.routes";
-import { getShipByShortId } from "./ship.service";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
 
@@ -100,7 +99,7 @@ async function dataOf<T>(r: Response): Promise<T> {
 }
 
 async function createCategory(app: Hono<AppEnv>, cookie: string, body: Record<string, unknown>): Promise<CategoryView> {
-  const res = await app.request("/equipment-categories", jsonReq("POST", cookie, body));
+  const res = await app.request("/global-equipment-categories", jsonReq("POST", cookie, body));
   expect(res.status).toBe(201);
   return dataOf<CategoryView>(res);
 }
@@ -119,19 +118,19 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-describe("equipment category vocabulary (admin only)", () => {
+describe("global equipment category template (admin only)", () => {
   test("non-admin is rejected with 403 on every verb", async () => {
     const app = buildApp(db);
     const { cookie } = await sessionFor("user");
-    expect((await app.request("/equipment-categories", { headers: { Cookie: cookie } })).status).toBe(403);
-    expect((await app.request("/equipment-categories/x", { headers: { Cookie: cookie } })).status).toBe(403);
-    expect((await app.request("/equipment-categories", jsonReq("POST", cookie, { nameZh: "主机", nameEn: "Main Engine" }))).status).toBe(403);
-    expect((await app.request("/equipment-categories/x", jsonReq("PATCH", cookie, { nameEn: "X" }))).status).toBe(403);
-    expect((await app.request("/equipment-categories/x", jsonReq("DELETE", cookie))).status).toBe(403);
+    expect((await app.request("/global-equipment-categories", { headers: { Cookie: cookie } })).status).toBe(403);
+    expect((await app.request("/global-equipment-categories/x", { headers: { Cookie: cookie } })).status).toBe(403);
+    expect((await app.request("/global-equipment-categories", jsonReq("POST", cookie, { nameZh: "主机", nameEn: "Main Engine" }))).status).toBe(403);
+    expect((await app.request("/global-equipment-categories/x", jsonReq("PATCH", cookie, { nameEn: "X" }))).status).toBe(403);
+    expect((await app.request("/global-equipment-categories/x", jsonReq("DELETE", cookie))).status).toBe(403);
   });
 
   test("unauthenticated is rejected with 401", async () => {
-    const res = await buildApp(db).request("/equipment-categories");
+    const res = await buildApp(db).request("/global-equipment-categories");
     expect(res.status).toBe(401);
   });
 
@@ -147,34 +146,34 @@ describe("equipment category vocabulary (admin only)", () => {
     expect(created.description).toBe("Bridge nav gear");
 
     // List (ordered by createdAt desc).
-    const list = await dataOf<CategoryView[]>(await app.request("/equipment-categories", { headers: { Cookie: admin.cookie } }));
+    const list = await dataOf<CategoryView[]>(await app.request("/global-equipment-categories", { headers: { Cookie: admin.cookie } }));
     expect(list).toHaveLength(1);
     expect(list[0]!.id).toBe(created.id);
 
     // Get :id.
-    const getRes = await app.request(`/equipment-categories/${created.id}`, { headers: { Cookie: admin.cookie } });
+    const getRes = await app.request(`/global-equipment-categories/${created.id}`, { headers: { Cookie: admin.cookie } });
     expect(getRes.status).toBe(200);
     expect((await dataOf<CategoryView>(getRes)).nameEn).toBe("Navigation");
 
     // Patch (partial — only nameEn).
-    const patchRes = await app.request(`/equipment-categories/${created.id}`, jsonReq("PATCH", admin.cookie, { nameEn: "Nav Systems" }));
+    const patchRes = await app.request(`/global-equipment-categories/${created.id}`, jsonReq("PATCH", admin.cookie, { nameEn: "Nav Systems" }));
     expect(patchRes.status).toBe(200);
     const patched = await dataOf<CategoryView>(patchRes);
     expect(patched.nameEn).toBe("Nav Systems");
     expect(patched.nameZh).toBe("导航设备");
 
     // Delete → then 404 on get.
-    const delRes = await app.request(`/equipment-categories/${created.id}`, jsonReq("DELETE", admin.cookie));
+    const delRes = await app.request(`/global-equipment-categories/${created.id}`, jsonReq("DELETE", admin.cookie));
     expect(delRes.status).toBe(200);
-    expect((await app.request(`/equipment-categories/${created.id}`, { headers: { Cookie: admin.cookie } })).status).toBe(404);
+    expect((await app.request(`/global-equipment-categories/${created.id}`, { headers: { Cookie: admin.cookie } })).status).toBe(404);
   });
 
   test("patch / delete / get of a missing category → 404", async () => {
     const app = buildApp(db);
     const admin = await sessionFor("admin");
-    expect((await app.request("/equipment-categories/nope", { headers: { Cookie: admin.cookie } })).status).toBe(404);
-    expect((await app.request("/equipment-categories/nope", jsonReq("PATCH", admin.cookie, { nameEn: "X" }))).status).toBe(404);
-    expect((await app.request("/equipment-categories/nope", jsonReq("DELETE", admin.cookie))).status).toBe(404);
+    expect((await app.request("/global-equipment-categories/nope", { headers: { Cookie: admin.cookie } })).status).toBe(404);
+    expect((await app.request("/global-equipment-categories/nope", jsonReq("PATCH", admin.cookie, { nameEn: "X" }))).status).toBe(404);
+    expect((await app.request("/global-equipment-categories/nope", jsonReq("DELETE", admin.cookie))).status).toBe(404);
   });
 
   test("create writes an audit event with nameZh as resource name", async () => {
@@ -183,8 +182,8 @@ describe("equipment category vocabulary (admin only)", () => {
     const created = await createCategory(app, admin.cookie, { nameZh: "消防设备", nameEn: "Fire-fighting" });
     const events = await db.select().from(auditEvents).where(eq(auditEvents.resourceId, created.id)).all();
     expect(events).toHaveLength(1);
-    expect(events[0]!.action).toBe("equipment_category.created");
-    expect(events[0]!.resourceType).toBe("equipment_category");
+    expect(events[0]!.action).toBe("global_equipment_category.created");
+    expect(events[0]!.resourceType).toBe("global_equipment_category");
     expect(events[0]!.resourceName).toBe("消防设备");
   });
 
@@ -192,14 +191,14 @@ describe("equipment category vocabulary (admin only)", () => {
     test("blank / whitespace name rejected with 422", async () => {
       const app = buildApp(db);
       const admin = await sessionFor("admin");
-      expect((await app.request("/equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "   ", nameEn: "Steering" }))).status).toBe(422);
-      expect((await app.request("/equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "舵机", nameEn: "" }))).status).toBe(422);
+      expect((await app.request("/global-equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "   ", nameEn: "Steering" }))).status).toBe(422);
+      expect((await app.request("/global-equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "舵机", nameEn: "" }))).status).toBe(422);
     });
 
     test("names longer than 100 chars rejected with 422", async () => {
       const app = buildApp(db);
       const admin = await sessionFor("admin");
-      const res = await app.request("/equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "舵", nameEn: "S".repeat(101) }));
+      const res = await app.request("/global-equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "舵", nameEn: "S".repeat(101) }));
       expect(res.status).toBe(422);
     });
 
@@ -216,37 +215,10 @@ describe("equipment category vocabulary (admin only)", () => {
       const admin = await sessionFor("admin");
       await createCategory(app, admin.cookie, { nameZh: "主机", nameEn: "Main Engine" });
 
-      const dupZh = await app.request("/equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "主机", nameEn: "Different" }));
+      const dupZh = await app.request("/global-equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "主机", nameEn: "Different" }));
       expect(dupZh.status).toBe(422);
-      const dupEn = await app.request("/equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "不同", nameEn: "Main Engine" }));
+      const dupEn = await app.request("/global-equipment-categories", jsonReq("POST", admin.cookie, { nameZh: "不同", nameEn: "Main Engine" }));
       expect(dupEn.status).toBe(422);
     });
-  });
-
-  test("deleting a referenced category nulls the equipment's category (set null)", async () => {
-    const app = buildApp(db);
-    const admin = await sessionFor("admin");
-    const category = await createCategory(app, admin.cookie, { nameZh: "推进系统", nameEn: "Propulsion" });
-
-    // Create a ship + a piece of equipment referencing the category.
-    const shipRes = await app.request("/ships", jsonReq("POST", admin.cookie, { name: "Aurora" }));
-    const shipShortId = (await dataOf<{ id: string }>(shipRes)).id;
-    const ship = await getShipByShortId(db, shipShortId);
-    expect(ship).toBeTruthy();
-
-    const eqRes = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", admin.cookie, { name: "Main Engine", categoryId: category.id }));
-    expect(eqRes.status).toBe(201);
-    const equipmentId = (await dataOf<{ id: string; categoryId: string | null }>(eqRes)).id;
-
-    // Delete the category → equipment.category_id becomes null (ON DELETE SET NULL).
-    const delRes = await app.request(`/equipment-categories/${category.id}`, jsonReq("DELETE", admin.cookie));
-    expect(delRes.status).toBe(200);
-
-    const after = await dataOf<{ categoryId: string | null; categoryNameZh: string | null; categoryNameEn: string | null }>(
-      await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: admin.cookie } }),
-    );
-    expect(after.categoryId).toBeNull();
-    expect(after.categoryNameZh).toBeNull();
-    expect(after.categoryNameEn).toBeNull();
   });
 });

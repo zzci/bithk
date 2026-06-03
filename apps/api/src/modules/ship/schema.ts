@@ -53,12 +53,14 @@ export const ships = sqliteTable("ships", {
   index("ships_base_project_idx").on(t.baseProjectId),
 ]);
 
-// Global, admin-maintained equipment categories. A standalone bilingual
-// vocabulary (Chinese + English name per row) referenced by
-// `ship_equipment.category_id`. Declared above `ship_equipment` so the FK
-// resolves. Mirrors the `contact_categories` vocabulary pattern; the bilingual
-// names are each unique so the vocabulary stays free of duplicates.
-export const equipmentCategories = sqliteTable("equipment_categories", {
+// GLOBAL equipment-category template: an admin-maintained bilingual vocabulary
+// (Chinese + English name per row). It is NOT referenced directly by equipment;
+// instead its rows are copied per-ship into `ship_equipment_categories` on ship
+// create (copy-on-create — mirrors the project `global_procurement_categories`
+// → `procurement_categories` pattern). Later edits here never touch existing
+// ships. The bilingual names are each globally unique so the template stays
+// free of duplicates.
+export const globalEquipmentCategories = sqliteTable("global_equipment_categories", {
   id: text("id").primaryKey(), // nanoid
   nameZh: text("name_zh").notNull(),
   nameEn: text("name_en").notNull(),
@@ -67,8 +69,27 @@ export const equipmentCategories = sqliteTable("equipment_categories", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, t => [
-  uniqueIndex("equipment_categories_name_zh_idx").on(t.nameZh),
-  uniqueIndex("equipment_categories_name_en_idx").on(t.nameEn),
+  uniqueIndex("global_equipment_categories_name_zh_idx").on(t.nameZh),
+  uniqueIndex("global_equipment_categories_name_en_idx").on(t.nameEn),
+]);
+
+// Per-ship equipment categories. Seeded from the global template on ship
+// create, then independently editable per ship. `ship_equipment.category_id`
+// references THIS table, so each ship owns its own category set. Names are
+// unique *within* a ship; different ships may reuse the same names.
+export const shipEquipmentCategories = sqliteTable("ship_equipment_categories", {
+  id: text("id").primaryKey(), // nanoid
+  shipId: text("ship_id").notNull().references(() => ships.id, { onDelete: "cascade" }),
+  nameZh: text("name_zh").notNull(),
+  nameEn: text("name_en").notNull(),
+  code: text("code"),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, t => [
+  index("ship_equipment_categories_ship_idx").on(t.shipId),
+  uniqueIndex("ship_equipment_categories_ship_name_zh_idx").on(t.shipId, t.nameZh),
+  uniqueIndex("ship_equipment_categories_ship_name_en_idx").on(t.shipId, t.nameEn),
 ]);
 
 // Equipment inventory for a ship. CRUD routes land in a later phase; the table
@@ -77,7 +98,7 @@ export const shipEquipment = sqliteTable("ship_equipment", {
   id: text("id").primaryKey(), // nanoid
   shipId: text("ship_id").notNull().references(() => ships.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  categoryId: text("category_id").references(() => equipmentCategories.id, { onDelete: "set null" }),
+  categoryId: text("category_id").references(() => shipEquipmentCategories.id, { onDelete: "set null" }),
   manufacturer: text("manufacturer"),
   model: text("model"),
   serialNumber: text("serial_number"),

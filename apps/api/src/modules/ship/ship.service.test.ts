@@ -14,6 +14,7 @@ import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { addMember, getMemberCapabilities } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
+import { globalEquipmentCategories, shipEquipmentCategories, ships } from "./schema";
 import {
   bindProject,
   composeShipWithBase,
@@ -161,6 +162,64 @@ describe("createShip", () => {
     const listed = await listShips(db, {});
     const row = listed.data.find(s => s.id === ship.shortId)!;
     expect(row.tags.map(t => t.name).sort()).toEqual(["charter", "flagship"]);
+  });
+});
+
+describe("equipment-category copy-on-create", () => {
+  async function seedGlobalCategory(nameZh: string, nameEn: string, code: string | null = null): Promise<void> {
+    const now = new Date().toISOString();
+    await db.insert(globalEquipmentCategories).values({
+      id: nanoid(),
+      nameZh,
+      nameEn,
+      code,
+      description: null,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+  }
+
+  test("createShip copies the global template into the new ship's own category set", async () => {
+    await seedGlobalCategory("推进系统", "Propulsion", "propulsion");
+    await seedGlobalCategory("导航设备", "Navigation", "navigation");
+    const creator = await seedUser("Alice");
+    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+
+    const rows = await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.shipId, ship.id)).all();
+    expect(rows).toHaveLength(2);
+    expect(rows.map(r => r.nameEn).sort()).toEqual(["Navigation", "Propulsion"]);
+
+    // Copies carry fresh per-ship ids, never the global template ids.
+    const globalIds = new Set((await db.select().from(globalEquipmentCategories).all()).map(g => g.id));
+    for (const r of rows) {
+      expect(r.shipId).toBe(ship.id);
+      expect(globalIds.has(r.id)).toBe(false);
+    }
+  });
+
+  test("each ship snapshots independently; later global edits do not touch existing ships", async () => {
+    await seedGlobalCategory("推进系统", "Propulsion", "propulsion");
+    const creator = await seedUser("Alice");
+    const shipA = await createShip(db, { name: "A", creatorId: creator });
+
+    // Edit the global template AFTER ship A exists, then create ship B.
+    await db.update(globalEquipmentCategories).set({ nameEn: "Main Propulsion" }).run();
+    const shipB = await createShip(db, { name: "B", creatorId: creator });
+
+    const aRows = await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.shipId, shipA.id)).all();
+    const bRows = await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.shipId, shipB.id)).all();
+    expect(aRows[0]!.nameEn).toBe("Propulsion"); // A keeps its create-time snapshot
+    expect(bRows[0]!.nameEn).toBe("Main Propulsion"); // B sees the later edit
+  });
+
+  test("hard-deleting a ship cascades its equipment categories", async () => {
+    await seedGlobalCategory("推进系统", "Propulsion", "propulsion");
+    const creator = await seedUser("Alice");
+    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+    expect(await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.shipId, ship.id)).all()).toHaveLength(1);
+
+    await db.delete(ships).where(eq(ships.id, ship.id)).run();
+    expect(await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.shipId, ship.id)).all()).toHaveLength(0);
   });
 });
 

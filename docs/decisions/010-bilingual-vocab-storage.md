@@ -93,3 +93,29 @@ normalized **translations table `(entity_id, locale, value)`** with a unique
 supersede this decision rather than adding a `name_xx` column per language. This
 is a dev-phase decision: breaking changes are acceptable and the DB may be reset
 freely, so the migration would carry no backfill obligation.
+
+## Addendum (2026-06-03) — Global template + per-instance copy
+
+Equipment categories are no longer a single global vocabulary referenced
+directly by equipment. They now follow the project `procurement_categories`
+pattern of an **admin global template copied per-instance on create**:
+
+- `global_equipment_categories` — the admin-maintained template (the original
+  `equipment_categories` table, renamed). Admin-only CRUD under
+  `/global-equipment-categories`. Bilingual names are globally unique here.
+- `ship_equipment_categories` — a **per-ship** copy of the template, seeded into
+  each ship inside its `createShip` transaction (copy-on-create). Names are
+  unique **within a ship** (`(ship_id, name_zh)` / `(ship_id, name_en)`); two
+  different ships may reuse the same names. CRUD is ship-access-scoped under
+  `/ships/:shortId/equipment-categories` (read = base-project member, write =
+  `project.manage`).
+- `ship_equipment.category_id` references `ship_equipment_categories` (set null
+  on delete), so each ship owns its own category set.
+
+Later edits to the global template **do not** propagate to existing ships;
+deleting a ship cascades its own category rows. This mirrors
+`global_procurement_categories` → `procurement_categories` for projects.
+
+The bilingual **parallel-columns** storage decision above (and the third-locale
+sunset / review) is unchanged — both `global_equipment_categories` and
+`ship_equipment_categories` carry the same `name_zh` / `name_en` columns.
