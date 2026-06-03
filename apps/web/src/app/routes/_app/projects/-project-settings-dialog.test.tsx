@@ -82,8 +82,10 @@ describe("projectSettingsDialog", () => {
     expect(screen.getByRole("tab", { name: "Roles" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Danger zone" })).not.toBeInTheDocument();
-    // The roles-only viewer lands on the roles section by default.
-    expect(screen.getByRole("button", { name: "Add role" })).toBeInTheDocument();
+    // The roles-only viewer lands on the roles section by default: the in-page
+    // role editor renders its role-selector dropdown and a create action.
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
   });
 
   it("shows only the members tab to a members-only member", () => {
