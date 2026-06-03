@@ -15,10 +15,9 @@ import type {
 } from "./-drive-file-list-surface";
 import type { DisplayItem } from "./-file-browser-types";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
-import { useNavigate } from "@tanstack/react-router";
 import { FolderInput, History, Upload } from "lucide-react";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useShare } from "@/shared/components/share";
@@ -51,6 +50,12 @@ import {
 import { entryToDisplayItem } from "./-file-browser-types";
 import { FilePreviewDialog } from "./-file-preview-dialog";
 
+// Univer ships in its own async chunk: the editor dialog is the sole
+// `@univerjs` importer and is loaded lazily so the engine is fetched only when
+// a sheet is opened (created, imported, or clicked), never in the file-list
+// bundle.
+const UniverSheetEditorDialog = lazy(() => import("./-univer-sheet-editor-dialog"));
+
 /**
  * Declarative feature toggles for the one global file browser. Every key is
  * optional and defaults to ENABLED — a surface opts OUT of what it doesn't
@@ -74,8 +79,6 @@ export interface FileBrowserFeatures {
   readonly versionHistory?: boolean;
   /** Rename / move / trash / favorite (also gated by `canManage`). */
   readonly manage?: boolean;
-  /** Univer `.sheet` open routing to /drive/sheet/$entryId. */
-  readonly spreadsheetRoute?: boolean;
 }
 
 export interface FileBrowserProps {
@@ -118,7 +121,6 @@ export function FileBrowser({
   features,
 }: FileBrowserProps) {
   const { t } = useTranslation("drive");
-  const navigate = useNavigate();
   const { openShare } = useShare();
 
   // Resolve feature toggles once; every key defaults to enabled.
@@ -131,7 +133,6 @@ export function FileBrowser({
     share: features?.share ?? true,
     versionHistory: features?.versionHistory ?? true,
     manage: features?.manage ?? true,
-    spreadsheetRoute: features?.spreadsheetRoute ?? true,
   };
 
   const [folderStack, setFolderStack] = useState<readonly FolderCrumb[]>([]);
@@ -142,6 +143,9 @@ export function FileBrowser({
   // `onPreviewEntry` (project/ship files tabs); drive overrides it.
   const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
   const [previewEditing, setPreviewEditing] = useState(false);
+  // Internal Univer editor target, used when this browser owns preview (no
+  // parent handler). Drive renders its own editor dialog via `onPreviewEntry`.
+  const [sheetEntry, setSheetEntry] = useState<DriveEntry | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
@@ -169,24 +173,17 @@ export function FileBrowser({
     ?? updateEntry.error
     ?? trashEntry.error;
 
-  // Created spreadsheets open straight in the dedicated editor route; the
-  // open-routing chokepoint in `drive.lazy.tsx` handles existing entries.
-  const openSheet = useCallback(
-    (entry: DriveEntry) => void navigate({ to: "/drive/sheet/$entryId", params: { entryId: entry.id } }),
-    [navigate],
-  );
-
   // Default preview handler, mirroring `drive.lazy.tsx`'s openPreview: Univer
-  // spreadsheets open the dedicated editor route; everything else opens the
-  // in-app preview dialog rendered below.
+  // spreadsheets open the state-driven editor dialog (rendered below);
+  // everything else opens the in-app preview dialog.
   const internalOpenPreview = useCallback((entry: DriveEntry, edit = false) => {
-    if (f.spreadsheetRoute && isUniverSheetEntry(entry)) {
-      openSheet(entry);
+    if (isUniverSheetEntry(entry)) {
+      setSheetEntry(entry);
       return;
     }
     setPreviewEntry(entry);
     setPreviewEditing(edit);
-  }, [f.spreadsheetRoute, openSheet]);
+  }, []);
 
   // Parent-supplied handler wins (drive routes everything through its own
   // chokepoint); otherwise the browser previews internally when preview is on.
@@ -232,7 +229,7 @@ export function FileBrowser({
 
   // Read a picked CSV, convert it to a Univer snapshot, create the spreadsheet
   // entry, then open it in the editor. Parsing happens client-side (no Univer
-  // import) so the heavy editor engine only loads on the editor route.
+  // import) so the heavy editor engine only loads when the editor dialog opens.
   const onCsvInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
@@ -254,7 +251,7 @@ export function FileBrowser({
     }
     createSpreadsheet.mutate(
       { name: `${baseName}.sheet`, content, parentEntryId, ownerType, ownerId },
-      { onSuccess: openSheet },
+      { onSuccess: entry => handlePreview?.(entry) },
     );
   };
 
@@ -477,7 +474,7 @@ export function FileBrowser({
           createSpreadsheet.mutate({ name, content: emptyUniverSnapshotJson(name), parentEntryId, ownerType, ownerId }, {
             onSuccess: (entry) => {
               closeDialog();
-              openSheet(entry);
+              handlePreview?.(entry);
             },
           })}
       />
@@ -538,6 +535,18 @@ export function FileBrowser({
           readOnly={!canManage}
           onOpenChange={open => !open && setPreviewEntry(null)}
         />
+      )}
+
+      {/* Built-in Univer editor — same ownership rule as the preview dialog;
+          drive opens spreadsheets through its own dialog via onPreviewEntry. */}
+      {!onPreviewEntry && sheetEntry && (
+        <Suspense fallback={null}>
+          <UniverSheetEditorDialog
+            entry={sheetEntry}
+            open
+            onOpenChange={open => !open && setSheetEntry(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -38,7 +38,6 @@ import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/user
 import { Route as AppProjectsProjectIdProcurementsRouteImport } from './routes/_app/projects/$projectId.procurements'
 import { Route as AppProjectsProjectIdIssuesRouteImport } from './routes/_app/projects/$projectId.issues'
 import { Route as AppProjectsProjectIdFilesRouteImport } from './routes/_app/projects/$projectId.files'
-import { Route as AppDriveSheetEntryIdRouteImport } from './routes/_app/drive_.sheet.$entryId'
 import { Route as AppAdminUsersGroupsRouteImport } from './routes/_app/admin/users/groups'
 import { Route as AppProjectsProjectIdProcurementsProcurementIdRouteImport } from './routes/_app/projects/$projectId.procurements.$procurementId'
 import { Route as AppProjectsProjectIdIssuesIssueIdRouteImport } from './routes/_app/projects/$projectId.issues.$issueId'
@@ -234,13 +233,6 @@ const AppProjectsProjectIdFilesRoute =
   } as any).lazy(() =>
     import('./routes/_app/projects/$projectId.files.lazy').then((d) => d.Route),
   )
-const AppDriveSheetEntryIdRoute = AppDriveSheetEntryIdRouteImport.update({
-  id: '/drive_/sheet/$entryId',
-  path: '/drive/sheet/$entryId',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/drive_.sheet.$entryId.lazy').then((d) => d.Route),
-)
 const AppAdminUsersGroupsRoute = AppAdminUsersGroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
@@ -324,7 +316,6 @@ export interface FileRoutesByFullPath {
   '/projects/': typeof AppProjectsIndexRoute
   '/ships/': typeof AppShipsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
-  '/drive/sheet/$entryId': typeof AppDriveSheetEntryIdRoute
   '/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
@@ -358,7 +349,6 @@ export interface FileRoutesByTo {
   '/projects': typeof AppProjectsIndexRoute
   '/ships': typeof AppShipsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
-  '/drive/sheet/$entryId': typeof AppDriveSheetEntryIdRoute
   '/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
@@ -397,7 +387,6 @@ export interface FileRoutesById {
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/ships/': typeof AppShipsIndexRoute
   '/_app/admin/users/groups': typeof AppAdminUsersGroupsRoute
-  '/_app/drive_/sheet/$entryId': typeof AppDriveSheetEntryIdRoute
   '/_app/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/_app/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/_app/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
@@ -436,7 +425,6 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/ships/'
     | '/admin/users/groups'
-    | '/drive/sheet/$entryId'
     | '/projects/$projectId/files'
     | '/projects/$projectId/issues'
     | '/projects/$projectId/procurements'
@@ -470,7 +458,6 @@ export interface FileRouteTypes {
     | '/projects'
     | '/ships'
     | '/admin/users/groups'
-    | '/drive/sheet/$entryId'
     | '/projects/$projectId/files'
     | '/projects/$projectId/issues'
     | '/projects/$projectId/procurements'
@@ -508,7 +495,6 @@ export interface FileRouteTypes {
     | '/_app/projects/'
     | '/_app/ships/'
     | '/_app/admin/users/groups'
-    | '/_app/drive_/sheet/$entryId'
     | '/_app/projects/$projectId/files'
     | '/_app/projects/$projectId/issues'
     | '/_app/projects/$projectId/procurements'
@@ -736,13 +722,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdFilesRouteImport
       parentRoute: typeof AppProjectsProjectIdRoute
     }
-    '/_app/drive_/sheet/$entryId': {
-      id: '/_app/drive_/sheet/$entryId'
-      path: '/drive/sheet/$entryId'
-      fullPath: '/drive/sheet/$entryId'
-      preLoaderRoute: typeof AppDriveSheetEntryIdRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/admin/users/groups': {
       id: '/_app/admin/users/groups'
       path: '/groups'
@@ -898,7 +877,6 @@ interface AppRouteChildren {
   AppContactsIndexRoute: typeof AppContactsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppShipsIndexRoute: typeof AppShipsIndexRoute
-  AppDriveSheetEntryIdRoute: typeof AppDriveSheetEntryIdRoute
   AppProjectsProjectIdIssuesIssueIdFullRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRoute
   AppProjectsProjectIdProcurementsProcurementIdFullRoute: typeof AppProjectsProjectIdProcurementsProcurementIdFullRoute
 }
@@ -913,7 +891,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppContactsIndexRoute: AppContactsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppShipsIndexRoute: AppShipsIndexRoute,
-  AppDriveSheetEntryIdRoute: AppDriveSheetEntryIdRoute,
   AppProjectsProjectIdIssuesIssueIdFullRoute:
     AppProjectsProjectIdIssuesIssueIdFullRoute,
   AppProjectsProjectIdProcurementsProcurementIdFullRoute:
