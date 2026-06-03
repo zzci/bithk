@@ -2,27 +2,25 @@
 // + attachments. A link on a folder document grants the same view-only access
 // to every descendant; the returned subtree is navigable on the same token.
 
-import type { FormEvent } from "react";
 import type {
   PublicDocumentAttachment,
   PublicDocumentContent,
   PublicDocumentNode,
   PublicShareMeta,
 } from "@/shared/lib/api/share";
-import { FileText, Loader2, Lock, Paperclip } from "lucide-react";
+import { FileText, Loader2, Paperclip } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/shared/components/editor";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import { accessPublicShare, fetchPublicShareChild } from "@/shared/lib/api/share";
 import { errorMessage } from "@/shared/lib/errors";
 import { HttpError } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 
 import { formatBytes } from "../share-helpers";
-import { ShareShell, ShareStatus } from "./shell";
+import { PasswordPrompt, ShareShell, ShareStatus } from "./shell";
 
 export function DocumentPublicPreview({ meta, token }: { readonly meta: PublicShareMeta; readonly token: string }) {
   const { t } = useTranslation("share");
@@ -75,7 +73,8 @@ export function DocumentPublicPreview({ meta, token }: { readonly meta: PublicSh
     return (
       <ShareShell>
         <PasswordPrompt
-          title={meta.name}
+          icon={<FileText className="size-5" />}
+          name={meta.name}
           value={password}
           onChange={setPassword}
           error={authError}
@@ -158,58 +157,6 @@ export function DocumentPublicPreview({ meta, token }: { readonly meta: PublicSh
 
 function rootId(nodes: readonly PublicDocumentNode[]): string | undefined {
   return nodes.find(n => n.parentId === null)?.id;
-}
-
-function PasswordPrompt({
-  title,
-  value,
-  onChange,
-  error,
-  loading,
-  onSubmit,
-}: {
-  readonly title: string;
-  readonly value: string;
-  readonly onChange: (v: string) => void;
-  readonly error: string | null;
-  readonly loading: boolean;
-  readonly onSubmit: () => void;
-}) {
-  const { t } = useTranslation("share");
-  return (
-    <form
-      className="flex flex-col gap-4"
-      onSubmit={(e: FormEvent) => {
-        e.preventDefault();
-        onSubmit();
-      }}
-    >
-      <div className="flex items-center gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <FileText className="size-5" />
-        </div>
-        <p className="min-w-0 truncate text-base font-medium">{title}</p>
-      </div>
-      <label className="flex flex-col gap-1.5 text-sm font-medium">
-        <span className="flex items-center gap-1.5">
-          <Lock className="size-3.5" />
-          {t("public.password")}
-        </span>
-        <Input
-          type="password"
-          value={value}
-          onChange={e => onChange(e.currentTarget.value)}
-          placeholder={t("public.passwordPlaceholder")}
-          autoComplete="off"
-        />
-      </label>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading || !value}>
-        {loading ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
-        {t("public.open")}
-      </Button>
-    </form>
-  );
 }
 
 interface TreeItem extends PublicDocumentNode {

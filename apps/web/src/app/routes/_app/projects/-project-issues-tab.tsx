@@ -22,8 +22,6 @@ import {
   Maximize2,
   Minimize2,
   Paperclip,
-  Pin,
-  PinOff,
   User,
   X,
 } from "lucide-react";
@@ -31,6 +29,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
+import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
+import { PinToggle } from "@/shared/components/pin-toggle";
 import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-signal";
 import { validateAttachmentSelection } from "@/shared/components/resource";
 import { formatFileSize } from "@/shared/components/resource/attachment-section";
@@ -342,7 +342,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
       {loadError && <ErrorBanner message={errorMessage(loadError, t("common:common.error.loadFailed"))} />}
 
       {isInitialLoading
-        ? <p className="py-10 text-center text-sm text-muted-foreground">{t("issues.loading")}</p>
+        ? <ListRowsSkeleton label={t("issues.loading")} />
         : loadError
           ? null
           : !hasAnyIssue
@@ -470,24 +470,17 @@ function IssuePinToggle({ projectId, issue }: IssuePinToggleProps) {
   const { t } = useTranslation(["projects", "common"]);
   const togglePin = useToggleIssuePin();
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      aria-pressed={issue.pinned}
-      aria-label={t(issue.pinned ? "overview.unpinAction" : "overview.pinAction")}
-      disabled={togglePin.isPending}
-      onClick={(event) => {
-        event.stopPropagation();
-        const willPin = !issue.pinned;
+    <PinToggle
+      pinned={issue.pinned}
+      pending={togglePin.isPending}
+      stopPropagation
+      onToggle={(willPin) => {
         togglePin.mutate({ projectId, id: issue.id, pin: willPin }, {
           onSuccess: () => toast.success(t(willPin ? "toast.issuePinned" : "toast.issueUnpinned")),
           onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
         });
       }}
-    >
-      {issue.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
-    </Button>
+    />
   );
 }
 

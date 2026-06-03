@@ -30,6 +30,7 @@ import {
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
+import { CONTACT_CONFIDENTIAL_BADGE, CONTACT_VISIBILITY_BADGE } from "@/shared/lib/status-colors";
 import { addTag, removeTag } from "@/shared/lib/tag-utils";
 import {
   CONTACT_STATUSES,
@@ -158,7 +159,7 @@ function ContactPanelView({
             <div className="space-y-1.5">
               <dt className="text-xs font-medium text-muted-foreground">{t("field.visibility")}</dt>
               <dd>
-                <Badge variant="secondary" className={contact.visibility === "public" ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"}>
+                <Badge variant="secondary" className={CONTACT_VISIBILITY_BADGE[contact.visibility]}>
                   {t(`visibility.${contact.visibility}` as const)}
                 </Badge>
               </dd>
@@ -167,7 +168,7 @@ function ContactPanelView({
               <dt className="text-xs font-medium text-muted-foreground">{t("field.confidential")}</dt>
               <dd>
                 {contact.confidential
-                  ? <Badge variant="secondary" className="bg-warning/10 text-warning">{t("field.confidential")}</Badge>
+                  ? <Badge variant="secondary" className={CONTACT_CONFIDENTIAL_BADGE}>{t("field.confidential")}</Badge>
                   : <span className="text-sm text-muted-foreground">—</span>}
               </dd>
             </div>
