@@ -243,7 +243,6 @@ function ContactPanelForm({
   contact,
   pending,
   errorMessage,
-  onClose,
   onSubmit,
   onCancel,
 }: ContactPanelProps) {
@@ -279,7 +278,7 @@ function ContactPanelForm({
         variant="drawer"
         title={mode === "create" ? t("form.createTitle") : t("form.editTitle")}
         labels={{ close: t("common:common.close") }}
-        onClose={onClose}
+        onClose={onCancel}
       />
 
       <div className="@container flex-1 space-y-7 overflow-y-auto px-5 py-5">
