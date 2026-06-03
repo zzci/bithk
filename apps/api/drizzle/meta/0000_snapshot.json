@@ -1,9 +1,61 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a99a1578-7c51-4e09-85c9-15ccf921b98c",
+  "id": "9150efe8-aaec-40f3-9147-9c9a263b0d3a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
+    "contact_categories": {
+      "name": "contact_categories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "contacts": {
       "name": "contacts",
       "columns": {
@@ -70,6 +122,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -118,7 +177,21 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "contacts_category_id_contact_categories_id_fk": {
+          "name": "contacts_category_id_contact_categories_id_fk",
+          "tableFrom": "contacts",
+          "tableTo": "contact_categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -1873,7 +1946,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'medium'"
+          "default": "'low'"
         },
         "due_date": {
           "name": "due_date",
@@ -2291,7 +2364,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -2496,7 +2569,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'medium'"
+          "default": "'low'"
         },
         "due_date": {
           "name": "due_date",
@@ -2791,6 +2864,13 @@
           "name": "project_members_role_idx",
           "columns": [
             "role_id"
+          ],
+          "isUnique": false
+        },
+        "project_members_user_idx": {
+          "name": "project_members_user_idx",
+          "columns": [
+            "user_id"
           ],
           "isUnique": false
         },
@@ -3096,7 +3176,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -3335,94 +3415,6 @@
           "tableTo": "users",
           "columnsFrom": [
             "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "worklists": {
-      "name": "worklists",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "ship_id": {
-          "name": "ship_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "checklist": {
-          "name": "checklist",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "precautions": {
-          "name": "precautions",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "worklists_ship_idx": {
-          "name": "worklists_ship_idx",
-          "columns": [
-            "ship_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "worklists_ship_id_ships_id_fk": {
-          "name": "worklists_ship_id_ships_id_fk",
-          "tableFrom": "worklists",
-          "tableTo": "ships",
-          "columnsFrom": [
-            "ship_id"
           ],
           "columnsTo": [
             "id"
@@ -3804,6 +3796,94 @@
           "tableTo": "users",
           "columnsFrom": [
             "creator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "worklists": {
+      "name": "worklists",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ship_id": {
+          "name": "ship_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "checklist": {
+          "name": "checklist",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "precautions": {
+          "name": "precautions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "worklists_ship_idx": {
+          "name": "worklists_ship_idx",
+          "columns": [
+            "ship_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "worklists_ship_id_ships_id_fk": {
+          "name": "worklists_ship_id_ships_id_fk",
+          "tableFrom": "worklists",
+          "tableTo": "ships",
+          "columnsFrom": [
+            "ship_id"
           ],
           "columnsTo": [
             "id"
