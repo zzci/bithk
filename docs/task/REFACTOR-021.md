@@ -1,8 +1,8 @@
 # REFACTOR-021 Migrate project + procurement tag surfaces to shared family
 
-- Status: Todo
+- Status: Completed
 - Plan: [PLAN-062](../plan/PLAN-062.md)
-- Owner: BKD L3 (campaign l1-75ymcfnr-gtag-20260603191645)
+- Owner: BKD L3 9e40u92a (campaign l1-75ymcfnr-gtag-20260603191645)
 - Campaign: l1-75ymcfnr-gtag-20260603191645
 - Depends on: [REFACTOR-020](REFACTOR-020.md)
 - Updated: 2026-06-03
@@ -46,4 +46,11 @@ switch to `field.tags`; non-blocking). Keep en↔zh parity.
 - `bun run check` EXIT 0 (modulo @milkdown flake); behavior parity (filtering
   semantics, create where allowed, hide-when-empty).
 
-> Full self-contained implementation spec delivered to the L3 via BKD follow-up.
+> **Completed 2026-06-03** — L3 `bkd/9e40u92a` migration commit `8bfed9c`
+> cherry-picked into `bkd/lc757j1x` @b31fd33 (12 files); plus the stale-on-my-branch
+> `-project-issues-tab.test.tsx` label assertions + `issues.tagFilter` en/zh
+> adopted from the L3 tree (those were already `Tags`/`标签` on the L3's
+> main-based branch via the foreign isstag campaign; my older base lacked them).
+> Verified: web typecheck EXIT 0 + projects/tags targeted tests 199/199 +
+> check:i18n in sync. (L3 needed 2 reworks: a commit-gap, then the test-vs-base
+> mismatch diagnosis.)

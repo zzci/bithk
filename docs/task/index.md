@@ -103,7 +103,7 @@
 | [FIX-035](FIX-035.md) | FileBrowser renders file preview internally | [PLAN-060](../plan/PLAN-060.md) | Superseded | 2026-06-03 |
 | [REFACTOR-019](REFACTOR-019.md) | Global toggle-driven FileBrowser (features config) + built-in preview + consumer migration | [PLAN-061](../plan/PLAN-061.md) | Completed | 2026-06-03 |
 | [REFACTOR-020](REFACTOR-020.md) | Create shared tag component family (TagChip/TagChips/TagInput/TagFilter) | [PLAN-062](../plan/PLAN-062.md) | Completed | 2026-06-03 |
-| [REFACTOR-021](REFACTOR-021.md) | Migrate project + procurement tag surfaces to shared family | [PLAN-062](../plan/PLAN-062.md) | Todo | 2026-06-03 |
+| [REFACTOR-021](REFACTOR-021.md) | Migrate project + procurement tag surfaces to shared family | [PLAN-062](../plan/PLAN-062.md) | Completed | 2026-06-03 |
 | [REFACTOR-022](REFACTOR-022.md) | Migrate contacts tag surfaces to shared family | [PLAN-062](../plan/PLAN-062.md) | Completed | 2026-06-03 |
 | [REFACTOR-023](REFACTOR-023.md) | Migrate ships tag surfaces to shared family | [PLAN-062](../plan/PLAN-062.md) | Completed | 2026-06-03 |
 | [REFACTOR-024](REFACTOR-024.md) | Remove dead shared tag-badge-list + tags-combobox after migration | [PLAN-062](../plan/PLAN-062.md) | Todo | 2026-06-03 |
