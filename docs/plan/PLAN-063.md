@@ -1,6 +1,6 @@
 # PLAN-063 Project overview description+pinned grid 2:1 responsive ratio
 
-- **status**: Implementing
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 to81pc78
 - **campaignId**: l1-75ymcfnr-ovratio-20260603200526
 - **tasks**: [UI-023](../task/UI-023.md)
