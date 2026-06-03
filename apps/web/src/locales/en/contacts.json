@@ -58,7 +58,9 @@
     }
   },
   "tags": {
-    "placeholder": "Add a tag and press Enter",
+    "searchPlaceholder": "Search or create tags",
+    "create": "Create \"{{name}}\"",
+    "empty": "No tags yet",
     "remove": "Remove tag {{name}}"
   },
   "actions": {

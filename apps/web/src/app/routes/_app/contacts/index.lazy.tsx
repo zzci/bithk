@@ -11,7 +11,7 @@ import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
-import { TagBadgeList } from "@/shared/components/tag-badge-list";
+import { TagChips, tagFilterDimension } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -108,6 +108,16 @@ export function ContactsListPage() {
   const lockedLabel = t("masked.locked");
   const hiddenLabel = t("masked.hiddenValue");
 
+  const tagDim = tagFilterDimension({
+    tags: tagsQuery.data ?? [],
+    value: tagIds,
+    onChange: (value) => {
+      setTagIds(value);
+      setPage(1);
+    },
+    label: t("field.tags"),
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -152,17 +162,7 @@ export function ContactsListPage() {
                 },
                 options: categories.map(c => ({ value: c.id, label: c.name })),
               },
-              {
-                key: "tags",
-                label: t("field.tags"),
-                mode: "multi",
-                value: tagIds,
-                onChange: (value) => {
-                  setTagIds(value);
-                  setPage(1);
-                },
-                options: (tagsQuery.data ?? []).map(tg => ({ value: tg.id, label: tg.name })),
-              },
+              ...(tagDim ? [tagDim] : []),
             ]}
           />
         </div>
@@ -243,11 +243,11 @@ export function ContactsListPage() {
                           <span className="hidden min-w-0 items-center gap-1 md:flex">
                             {contact.tags.length > 0
                               ? (
-                                  <TagBadgeList
+                                  <TagChips
                                     tags={contact.tags}
                                     max={2}
-                                    badgeVariant="outline"
-                                    badgeClassName="max-w-full truncate"
+                                    variant="outline"
+                                    className="max-w-full truncate"
                                     moreClassName="text-xs text-muted-foreground"
                                   />
                                 )
