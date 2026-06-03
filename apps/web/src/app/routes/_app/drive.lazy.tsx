@@ -6,9 +6,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { DriveView } from "./-drive-sidebar";
 import type { DriveEntry, TeamDirectory } from "@/shared/lib/api/drive";
-import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
+import { createLazyFileRoute } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
-import { useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useShare } from "@/shared/components/share";
@@ -24,6 +24,11 @@ import { DriveUploadPanel } from "./-drive-upload-panel";
 import { FileBrowser } from "./-file-browser";
 import { FilePreviewDialog } from "./-file-preview-dialog";
 import { OutgoingSharesList, ReceivedSharesList } from "./-share-lists";
+
+// Univer (and the heavy spreadsheet engine) ships in its own async chunk: the
+// editor dialog is the sole `@univerjs` importer and is loaded lazily so the
+// engine is fetched only when a sheet is opened, never in the drive bundle.
+const UniverSheetEditorDialog = lazy(() => import("./-univer-sheet-editor-dialog"));
 
 export const Route = createLazyFileRoute("/_app/drive")({
   component: DrivePage,
@@ -64,7 +69,6 @@ function useSidebarWidth() {
 
 function DrivePage() {
   const { t } = useTranslation("drive");
-  const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
   const { openShare } = useShare();
 
@@ -75,6 +79,7 @@ function DrivePage() {
 
   // Page-level dialog targets, driven by the file browser / list callbacks.
   const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
+  const [sheetEntry, setSheetEntry] = useState<DriveEntry | null>(null);
   const shareEntry = useCallback(
     (entry: DriveEntry) => openShare({ resourceType: "drive_entry", resourceId: entry.id, name: entry.name }),
     [openShare],
@@ -82,17 +87,17 @@ function DrivePage() {
   const [previewEditing, setPreviewEditing] = useState(false);
   // Single open-routing chokepoint for every drive list (file browser, recent,
   // favorites, share lists — they all funnel through here). Univer spreadsheets
-  // open in their dedicated editor route; everything else uses the preview
-  // viewer. `edit` starts the viewer in edit mode (used after creating a blank
-  // file so creation reuses the viewer's editor).
+  // open the state-driven editor dialog (closing stays in the current folder);
+  // everything else uses the preview viewer. `edit` starts the viewer in edit
+  // mode (used after creating a blank file so creation reuses the editor).
   const openPreview = useCallback((entry: DriveEntry, edit = false) => {
     if (isUniverSheetEntry(entry)) {
-      void navigate({ to: "/drive/sheet/$entryId", params: { entryId: entry.id } });
+      setSheetEntry(entry);
       return;
     }
     setPreviewEntry(entry);
     setPreviewEditing(edit);
-  }, [navigate]);
+  }, []);
 
   const startSidebarResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -193,6 +198,16 @@ function DrivePage() {
           initialEditing={previewEditing}
           onOpenChange={open => !open && setPreviewEntry(null)}
         />
+      )}
+
+      {sheetEntry && (
+        <Suspense fallback={null}>
+          <UniverSheetEditorDialog
+            entry={sheetEntry}
+            open
+            onOpenChange={open => !open && setSheetEntry(null)}
+          />
+        </Suspense>
       )}
 
       <DriveUploadPanel />

@@ -9,8 +9,9 @@ import { renderWithProviders } from "@/test/utils";
 
 const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }));
 
-// FileBrowser calls useNavigate() for the spreadsheet open-route; the rest of
-// the router is left intact so co-imported modules keep their exports.
+// Spreadsheets now open a state-driven dialog (no route navigation); the
+// useNavigate stub stays as a guard so any co-imported module that resolves it
+// gets a no-op, and the tests can assert navigation never fires.
 vi.mock("@tanstack/react-router", async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useNavigate: () => navigateMock,
@@ -40,6 +41,15 @@ vi.mock("./-drive-file-list-surface", () => ({
 vi.mock("./-file-preview-dialog", () => ({
   FilePreviewDialog: ({ entry, readOnly }: { entry: DriveEntry; readOnly?: boolean }) => (
     <div data-testid="preview-dialog">{`preview:${entry.name}:${readOnly ? "ro" : "rw"}`}</div>
+  ),
+}));
+
+// Stub the lazy Univer editor dialog (default export, loaded via React.lazy)
+// with a marker so the spreadsheet open path can be asserted without pulling
+// in @univerjs.
+vi.mock("./-univer-sheet-editor-dialog", () => ({
+  default: ({ entry }: { entry: DriveEntry }) => (
+    <div data-testid="sheet-editor-dialog">{`sheet:${entry.name}`}</div>
   ),
 }));
 
@@ -94,13 +104,14 @@ describe("fileBrowser internal preview", () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it("navigates to the sheet editor for a Univer spreadsheet instead of previewing", async () => {
+  it("opens the spreadsheet editor dialog for a Univer spreadsheet instead of previewing", async () => {
     const user = userEvent.setup();
     renderWithProviders(<FileBrowser ownerType="user" ownerId="self" />);
 
     await user.click(await screen.findByText("open:budget.sheet"));
-    expect(navigateMock).toHaveBeenCalledWith({ to: "/drive/sheet/$entryId", params: { entryId: "sheet1" } });
+    expect(await screen.findByTestId("sheet-editor-dialog")).toHaveTextContent("sheet:budget.sheet");
     expect(screen.queryByTestId("preview-dialog")).not.toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it("opens the preview read-only for a viewer (canManage=false)", async () => {
