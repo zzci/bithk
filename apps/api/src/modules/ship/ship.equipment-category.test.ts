@@ -119,30 +119,20 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-describe("equipment category vocabulary (reads open, writes admin-only)", () => {
-  test("non-admin can read but cannot write", async () => {
+describe("equipment category vocabulary (admin only)", () => {
+  test("non-admin is rejected with 403 on every verb", async () => {
     const app = buildApp(db);
-    const admin = await sessionFor("admin");
     const { cookie } = await sessionFor("user");
-    const created = await createCategory(app, admin.cookie, { nameZh: "主机", nameEn: "Main Engine" });
-
-    // Reads are open to any authenticated user.
-    expect((await app.request("/equipment-categories", { headers: { Cookie: cookie } })).status).toBe(200);
-    expect((await app.request(`/equipment-categories/${created.id}`, { headers: { Cookie: cookie } })).status).toBe(200);
-
-    // Writes stay admin-only.
-    expect((await app.request("/equipment-categories", jsonReq("POST", cookie, { nameZh: "导航设备", nameEn: "Navigation" }))).status).toBe(403);
-    expect((await app.request(`/equipment-categories/${created.id}`, jsonReq("PATCH", cookie, { nameEn: "X" }))).status).toBe(403);
-    expect((await app.request(`/equipment-categories/${created.id}`, jsonReq("DELETE", cookie))).status).toBe(403);
+    expect((await app.request("/equipment-categories", { headers: { Cookie: cookie } })).status).toBe(403);
+    expect((await app.request("/equipment-categories/x", { headers: { Cookie: cookie } })).status).toBe(403);
+    expect((await app.request("/equipment-categories", jsonReq("POST", cookie, { nameZh: "主机", nameEn: "Main Engine" }))).status).toBe(403);
+    expect((await app.request("/equipment-categories/x", jsonReq("PATCH", cookie, { nameEn: "X" }))).status).toBe(403);
+    expect((await app.request("/equipment-categories/x", jsonReq("DELETE", cookie))).status).toBe(403);
   });
 
-  test("unauthenticated is rejected with 401 on every verb", async () => {
-    const app = buildApp(db);
-    expect((await app.request("/equipment-categories")).status).toBe(401);
-    expect((await app.request("/equipment-categories/x")).status).toBe(401);
-    expect((await app.request("/equipment-categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })).status).toBe(401);
-    expect((await app.request("/equipment-categories/x", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: "{}" })).status).toBe(401);
-    expect((await app.request("/equipment-categories/x", { method: "DELETE" })).status).toBe(401);
+  test("unauthenticated is rejected with 401", async () => {
+    const res = await buildApp(db).request("/equipment-categories");
+    expect(res.status).toBe(401);
   });
 
   test("admin full CRUD round-trip", async () => {

@@ -182,12 +182,12 @@ export function shipRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
-  // ─── Global equipment categories (bilingual vocabulary) ───
+  // ─── Global equipment categories (bilingual vocabulary, admin only) ───
   // A standalone, admin-maintained vocabulary referenced by
-  // `ship_equipment.category_id`. Reads are open to any authenticated user so
-  // equipment forms can resolve category names; writes stay admin-only and are
-  // audited, matching the global worklist knowledge-base routes.
-  router.get("/equipment-categories", async (c) => {
+  // `ship_equipment.category_id`. Every verb is admin-only and mutations are
+  // audited, matching the global worklist knowledge-base routes. Mirrors the
+  // contact-categories audit pattern.
+  router.get("/equipment-categories", adminRequired, async (c) => {
     const db = c.get("db");
     return c.json({ success: true, data: (await listEquipmentCategories(db)).map(composeEquipmentCategory) });
   });
@@ -210,7 +210,7 @@ export function shipRoutes() {
     return c.json({ success: true, data: composeEquipmentCategory(category) }, 201);
   });
 
-  router.get("/equipment-categories/:id", async (c) => {
+  router.get("/equipment-categories/:id", adminRequired, async (c) => {
     const db = c.get("db");
     const id = idSchema.parse(c.req.param("id"));
     const category = await resolveEquipmentCategory(db, id);
