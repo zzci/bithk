@@ -8,15 +8,13 @@ import type { ProjectStatus } from "@/shared/lib/api/projects";
 export { addTag, removeTag } from "@/shared/lib/tag-utils";
 
 /**
- * Map the single list-filter chip selection to query params. The list uses one
- * mutually-exclusive control: "__active__" (active projects, the default),
- * "__archived__" (archived projects), or a tag id. There is no unfiltered
- * option — the list never shows archived projects by default.
+ * Map the single status-filter chip to query params. The list shows active
+ * projects by default ("__active__"); "__archived__" switches to archived ones.
+ * There is no unfiltered option. Tag filtering is multi-select and threaded
+ * separately by the caller, so it is not handled here.
  */
-export function projectsFilterToQuery(filter: string): { status?: ProjectStatus; tagId?: string } {
-  if (filter === "__active__")
-    return { status: "active" };
+export function projectsFilterToQuery(filter: "__active__" | "__archived__"): { status?: ProjectStatus } {
   if (filter === "__archived__")
     return { status: "archived" };
-  return { tagId: filter };
+  return { status: "active" };
 }

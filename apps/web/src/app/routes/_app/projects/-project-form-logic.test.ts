@@ -9,10 +9,6 @@ describe("projectsFilterToQuery", () => {
   it("maps __archived__ to an archived status filter", () => {
     expect(projectsFilterToQuery("__archived__")).toEqual({ status: "archived" });
   });
-
-  it("maps any other value to a tag id filter", () => {
-    expect(projectsFilterToQuery("tag123")).toEqual({ tagId: "tag123" });
-  });
 });
 
 describe("addTag / removeTag", () => {
