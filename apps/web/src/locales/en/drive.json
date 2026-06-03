@@ -96,13 +96,13 @@
       "namePlaceholder": "Name",
       "textFileTitle": "New text file",
       "textFileDescription": "Create a text file in the current location.",
-      "textFileNamePlaceholder": "filename.txt",
+      "textFileNamePlaceholder": "filename",
       "markdownFileTitle": "New Markdown file",
       "markdownFileDescription": "Create a Markdown file in the current location.",
-      "markdownFileNamePlaceholder": "filename.md",
+      "markdownFileNamePlaceholder": "filename",
       "spreadsheetTitle": "New spreadsheet",
       "spreadsheetDescription": "Create a spreadsheet in the current location.",
-      "spreadsheetNamePlaceholder": "filename.sheet",
+      "spreadsheetNamePlaceholder": "filename",
       "renameTitle": "Rename",
       "renameDescription": "Update the name of this entry.",
       "moveTitle": "Move",
@@ -198,13 +198,11 @@
     "root": "My Drive"
   },
   "sheet": {
-    "back": "Back to Drive",
     "loading": "Loading spreadsheet…",
     "loadError": "Could not load this spreadsheet.",
     "saveError": "Could not save this spreadsheet.",
     "saved": "Saved",
-    "untitled": "Untitled spreadsheet",
-    "versions": "Version history"
+    "untitled": "Untitled spreadsheet"
   },
   "csv": {
     "importError": "Could not import this CSV file.",

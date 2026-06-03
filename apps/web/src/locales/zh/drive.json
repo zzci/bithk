@@ -96,13 +96,13 @@
       "namePlaceholder": "名称",
       "textFileTitle": "新建文本文件",
       "textFileDescription": "在当前位置创建文本文件。",
-      "textFileNamePlaceholder": "文件名.txt",
+      "textFileNamePlaceholder": "文件名",
       "markdownFileTitle": "新建 Markdown 文件",
       "markdownFileDescription": "在当前位置创建 Markdown 文件。",
-      "markdownFileNamePlaceholder": "文件名.md",
+      "markdownFileNamePlaceholder": "文件名",
       "spreadsheetTitle": "新建表格",
       "spreadsheetDescription": "在当前位置创建一个表格。",
-      "spreadsheetNamePlaceholder": "文件名.sheet",
+      "spreadsheetNamePlaceholder": "文件名",
       "renameTitle": "重命名",
       "renameDescription": "更新此条目的名称。",
       "moveTitle": "移动",
@@ -198,13 +198,11 @@
     "root": "我的云盘"
   },
   "sheet": {
-    "back": "返回云盘",
     "loading": "正在加载表格…",
     "loadError": "无法加载该表格。",
     "saveError": "无法保存该表格。",
     "saved": "已保存",
-    "untitled": "未命名表格",
-    "versions": "版本历史"
+    "untitled": "未命名表格"
   },
   "csv": {
     "importError": "无法导入该 CSV 文件。",
