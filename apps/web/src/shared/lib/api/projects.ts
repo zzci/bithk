@@ -176,7 +176,8 @@ export interface ProjectsQuery {
   readonly status?: ProjectStatus | undefined;
   // Full-text search over project name/code (matched server-side, whole-list).
   readonly q?: string | undefined;
-  readonly tagId?: string | undefined;
+  // Union (OR) filter: a project matches when it carries ANY of these tag ids.
+  readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -189,19 +190,25 @@ export interface ProjectsListResult {
 export function useProjects(query: ProjectsQuery = {}) {
   const status = query.status;
   const q = query.q;
-  const tagId = query.tagId;
+  const tagIds = query.tagIds;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
+  // Sorted, comma-joined tag ids keep the cache key stable regardless of
+  // selection order (the backend union semantics are order-independent).
+  const tagsKey = tagIds && tagIds.length > 0 ? [...tagIds].sort().join(",") : "all";
   return useQuery<ProjectsListResult>({
-    queryKey: projectKeys.list(status ?? "all", tagId ?? "all", q ?? "", page, limit),
+    queryKey: projectKeys.list(status ?? "all", tagsKey, q ?? "", page, limit),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
       if (q)
         params.set("q", q);
-      if (tagId)
-        params.set("tagId", tagId);
+      // Repeatable tagIds params, sorted so the request matches the cache key.
+      if (tagIds && tagIds.length > 0) {
+        for (const id of [...tagIds].sort())
+          params.append("tagIds", id);
+      }
       params.set("page", String(page));
       params.set("limit", String(limit));
       const res = await http<ApiListEnvelope<ProjectView>>(`/projects?${params.toString()}`);

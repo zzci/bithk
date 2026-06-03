@@ -40,7 +40,8 @@ export function ProjectsListPage() {
   const navigate = useNavigate();
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
-  const [filter, setFilter] = useState<string>("__active__");
+  const [status, setStatus] = useState<"__active__" | "__archived__">("__active__");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
@@ -49,7 +50,7 @@ export function ProjectsListPage() {
   // input before it drives the query to avoid a request per keystroke.
   const debouncedSearch = useDebounce(search, 300);
 
-  const projectsQuery = useProjects({ ...projectsFilterToQuery(filter), q: debouncedSearch.trim() || undefined, page });
+  const projectsQuery = useProjects({ ...projectsFilterToQuery(status), tagIds: selectedTagIds, q: debouncedSearch.trim() || undefined, page });
   // Count chips only need `meta.total`, so request a single row instead of a
   // full 20-row page (the `limit` is part of the query key, so these stay
   // distinct from the main list query).
@@ -103,9 +104,9 @@ export function ProjectsListPage() {
               label: t("field.status"),
               mode: "single",
               defaultValue: "__active__",
-              value: tags.some(tag => tag.id === filter) ? "__active__" : filter,
+              value: status,
               onChange: (value) => {
-                setFilter(value ?? "__active__");
+                setStatus(value === "__archived__" ? "__archived__" : "__active__");
                 setPage(1);
               },
               options: [
@@ -116,10 +117,10 @@ export function ProjectsListPage() {
             {
               key: "tags",
               label: t("field.tags"),
-              mode: "single",
-              value: tags.some(tag => tag.id === filter) ? filter : null,
-              onChange: (value) => {
-                setFilter(value ?? "__active__");
+              mode: "multi",
+              value: selectedTagIds,
+              onChange: (ids) => {
+                setSelectedTagIds(ids);
                 setPage(1);
               },
               options: tags.map(tag => ({ value: tag.id, label: tag.name })),
