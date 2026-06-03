@@ -16,14 +16,16 @@ vi.mock("@tanstack/react-router", async importOriginal => ({
   useNavigate: () => navigateMock,
 }));
 
-// Thin surface harness exposing just the preview action per item — keeps the
-// test focused on the browser's preview wiring.
+// Thin surface harness exposing the preview action per item and reflecting the
+// search toggle — keeps the test focused on the browser's own wiring.
 vi.mock("./-drive-file-list-surface", () => ({
-  DriveFileListSurface: ({ items, actions }: {
+  DriveFileListSurface: ({ items, actions, showSearch }: {
     items: readonly DisplayItem[];
     actions: DriveFileListSurfaceActions;
+    showSearch?: boolean;
   }) => (
     <div>
+      {showSearch && <input aria-label="search" />}
       {items.map(item => (
         <button key={item.id} type="button" onClick={() => actions.onPreview?.(item)}>
           {`open:${item.name}`}
@@ -107,5 +109,17 @@ describe("fileBrowser internal preview", () => {
 
     await user.click(await screen.findByText("open:report.pdf"));
     expect(screen.getByTestId("preview-dialog")).toHaveTextContent("preview:report.pdf:ro");
+  });
+
+  it("renders the search box by default", async () => {
+    renderWithProviders(<FileBrowser ownerType="user" ownerId="self" />);
+    expect(await screen.findByLabelText("search")).toBeInTheDocument();
+  });
+
+  it("hides the search box when the search feature is disabled", async () => {
+    renderWithProviders(<FileBrowser ownerType="user" ownerId="self" features={{ search: false }} />);
+    // Wait for the listing to render, then assert the toggle removed the box.
+    await screen.findByText("open:report.pdf");
+    expect(screen.queryByLabelText("search")).not.toBeInTheDocument();
   });
 });
