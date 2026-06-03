@@ -47,7 +47,9 @@ import { addMember, createProject, listMembers, setProjectCover } from "@/module
 import { setSetting } from "@/modules/settings/settings.service";
 import { createShare } from "@/modules/share/share.service";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
+import { createGlobalEquipmentCategory } from "@/modules/ship/ship.global-equipment-category.service";
 import { bindProject, createShip, setShipCover } from "@/modules/ship/ship.service";
+import { listShipEquipmentCategories } from "@/modules/ship/ship.ship-equipment-category.service";
 import { createGlobalWorklist, createShipWorklist } from "@/modules/ship/ship.worklist.service";
 import { ROOT_DIR } from "@/root";
 import { nanoid, ulid } from "@/shared/lib/id";
@@ -119,6 +121,20 @@ const projectInfo = new Map<string, ProjectInfo>();
 
 const ADMIN_KEY = "admin";
 
+// Starter bilingual equipment-category template. Seeded into the GLOBAL
+// template (`global_equipment_categories`); each new ship gets its own copy on
+// create. The `slug` is stored as the row `code` and matches the free-text
+// `category` field carried by the equipment records in ships.json, so each
+// seeded item can resolve to its ship's own copied category id.
+const SHIP_EQUIPMENT_CATEGORIES: { slug: string; nameZh: string; nameEn: string }[] = [
+  { slug: "propulsion", nameZh: "推进系统", nameEn: "Propulsion" },
+  { slug: "navigation", nameZh: "导航设备", nameEn: "Navigation" },
+  { slug: "electrical", nameZh: "电气设备", nameEn: "Electrical" },
+  { slug: "deck", nameZh: "甲板设备", nameEn: "Deck" },
+  { slug: "safety", nameZh: "安全设备", nameEn: "Safety" },
+  { slug: "hvac", nameZh: "空调通风", nameEn: "HVAC" },
+];
+
 function uId(key: string): string {
   const id = userId.get(key);
   if (!id)
@@ -172,6 +188,12 @@ async function importContacts(db: AppDatabase): Promise<void> {
   }
 }
 
+async function importEquipmentCategories(db: AppDatabase): Promise<number> {
+  for (const cat of SHIP_EQUIPMENT_CATEGORIES)
+    await createGlobalEquipmentCategory(db, { nameZh: cat.nameZh, nameEn: cat.nameEn, code: cat.slug });
+  return SHIP_EQUIPMENT_CATEGORIES.length;
+}
+
 async function importShips(db: AppDatabase, config: Config): Promise<number> {
   const recs = await readJson<ShipRec[]>("ships");
   let equipment = 0;
@@ -199,10 +221,19 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
     shipInternalId.set(s.key, ship.id);
     shipShortId.set(s.key, ship.shortId);
 
+    // createShip copied the global template into this ship's own categories;
+    // resolve each equipment's category against that per-ship set (keyed by the
+    // `code` slug carried over from the template).
+    const perShipCategoryIdByCode = new Map<string, string>();
+    for (const cat of await listShipEquipmentCategories(db, ship.id)) {
+      if (cat.code)
+        perShipCategoryIdByCode.set(cat.code, cat.id);
+    }
+
     for (const e of s.equipment ?? []) {
       await createEquipment(db, ship.id, {
         name: e.name,
-        category: e.category ?? null,
+        categoryId: (e.category ? perShipCategoryIdByCode.get(e.category) : undefined) ?? null,
         manufacturer: e.manufacturer ?? null,
         model: e.model ?? null,
         serialNumber: e.serialNumber ?? null,
@@ -652,6 +683,7 @@ async function main(): Promise<void> {
     await importUsers(db);
     await importGroups(db);
     await importContacts(db);
+    const equipmentCategories = await importEquipmentCategories(db);
     const equipment = await importShips(db, config);
     const worklistCount = await importWorklists(db);
     await importProjects(db, config);
@@ -667,6 +699,7 @@ async function main(): Promise<void> {
     console.log(`  users:        ${userId.size}`);
     console.log(`  groups:       (with members)`);
     console.log(`  contacts:     ${contactId.size}`);
+    console.log(`  equip cats:   ${equipmentCategories} (bilingual)`);
     console.log(`  ships:        ${shipInternalId.size} (+ base projects, ${equipment} equipment)`);
     console.log(`  worklists:    ${worklistCount}`);
     console.log(`  projects:     ${projectInfo.size} standalone (+ ship base projects)`);

@@ -122,6 +122,8 @@
     "noMatches": "No equipment matches the filters.",
     "searchPlaceholder": "Search name, serial, or location",
     "filterAll": "All",
+    "categoryPlaceholder": "Select a category",
+    "categoryNone": "No category",
     "createTitle": "Add equipment",
     "editTitle": "Edit equipment",
     "dialogDescription": "Track the equipment installed on this ship.",
@@ -141,6 +143,40 @@
     "status": {
       "active": "Active",
       "retired": "Retired"
+    }
+  },
+  "equipmentCategories": {
+    "manage": "Manage categories",
+    "title": "Equipment categories",
+    "description": "This ship's own equipment categories, seeded from the global template on creation.",
+    "add": "Add category",
+    "colNameZh": "Chinese name",
+    "colNameEn": "English name",
+    "colCode": "Code",
+    "actions": "Actions",
+    "edit": "Edit",
+    "delete": "Delete",
+    "empty": "No equipment categories yet.",
+    "fieldDescription": "Description",
+    "dialog": {
+      "createTitle": "Add category",
+      "editTitle": "Edit category",
+      "deleteTitle": "Delete category",
+      "deleteConfirm": "Delete the category \"{{name}}\"?",
+      "description": "Categories classify this ship's equipment."
+    },
+    "placeholders": {
+      "nameZh": "Chinese name",
+      "nameEn": "English name"
+    },
+    "validation": {
+      "nameZhRequired": "Chinese name is required.",
+      "nameEnRequired": "English name is required."
+    },
+    "toast": {
+      "created": "Category created.",
+      "updated": "Category updated.",
+      "deleted": "Category \"{{name}}\" deleted."
     }
   },
   "worklist": {

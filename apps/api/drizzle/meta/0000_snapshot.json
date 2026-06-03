@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9150efe8-aaec-40f3-9147-9c9a263b0d3a",
+  "id": "3908dec9-8a30-4d20-8735-540491189b12",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "contact_categories": {
@@ -3427,6 +3427,80 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "global_equipment_categories": {
+      "name": "global_equipment_categories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name_zh": {
+          "name": "name_zh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "global_equipment_categories_name_zh_idx": {
+          "name": "global_equipment_categories_name_zh_idx",
+          "columns": [
+            "name_zh"
+          ],
+          "isUnique": true
+        },
+        "global_equipment_categories_name_en_idx": {
+          "name": "global_equipment_categories_name_en_idx",
+          "columns": [
+            "name_en"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "ship_equipment": {
       "name": "ship_equipment",
       "columns": {
@@ -3451,8 +3525,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "category": {
-          "name": "category",
+        "category_id": {
+          "name": "category_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3530,12 +3604,136 @@
             "ship_id"
           ],
           "isUnique": false
+        },
+        "ship_equipment_category_idx": {
+          "name": "ship_equipment_category_idx",
+          "columns": [
+            "category_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
         "ship_equipment_ship_id_ships_id_fk": {
           "name": "ship_equipment_ship_id_ships_id_fk",
           "tableFrom": "ship_equipment",
+          "tableTo": "ships",
+          "columnsFrom": [
+            "ship_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ship_equipment_category_id_ship_equipment_categories_id_fk": {
+          "name": "ship_equipment_category_id_ship_equipment_categories_id_fk",
+          "tableFrom": "ship_equipment",
+          "tableTo": "ship_equipment_categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "ship_equipment_categories": {
+      "name": "ship_equipment_categories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ship_id": {
+          "name": "ship_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name_zh": {
+          "name": "name_zh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "ship_equipment_categories_ship_idx": {
+          "name": "ship_equipment_categories_ship_idx",
+          "columns": [
+            "ship_id"
+          ],
+          "isUnique": false
+        },
+        "ship_equipment_categories_ship_name_zh_idx": {
+          "name": "ship_equipment_categories_ship_name_zh_idx",
+          "columns": [
+            "ship_id",
+            "name_zh"
+          ],
+          "isUnique": true
+        },
+        "ship_equipment_categories_ship_name_en_idx": {
+          "name": "ship_equipment_categories_ship_name_en_idx",
+          "columns": [
+            "ship_id",
+            "name_en"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "ship_equipment_categories_ship_id_ships_id_fk": {
+          "name": "ship_equipment_categories_ship_id_ships_id_fk",
+          "tableFrom": "ship_equipment_categories",
           "tableTo": "ships",
           "columnsFrom": [
             "ship_id"
