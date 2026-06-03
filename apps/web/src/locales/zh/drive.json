@@ -198,13 +198,11 @@
     "root": "我的云盘"
   },
   "sheet": {
-    "back": "返回云盘",
     "loading": "正在加载表格…",
     "loadError": "无法加载该表格。",
     "saveError": "无法保存该表格。",
     "saved": "已保存",
-    "untitled": "未命名表格",
-    "versions": "版本历史"
+    "untitled": "未命名表格"
   },
   "csv": {
     "importError": "无法导入该 CSV 文件。",
