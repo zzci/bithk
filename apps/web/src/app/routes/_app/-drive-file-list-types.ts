@@ -185,6 +185,7 @@ export interface FileToolbarProps {
   readonly onCreateFolder?: (() => void) | undefined;
   readonly onUploadClick?: (() => void) | undefined;
   readonly onUploadFolderClick?: (() => void) | undefined;
+  readonly onCreateTextFile?: ((kind: "markdown" | "text") => void) | undefined;
   readonly onCreateSpreadsheet?: (() => void) | undefined;
   readonly onImportCsv?: (() => void) | undefined;
   readonly onImportFromDrive?: (() => void) | undefined;

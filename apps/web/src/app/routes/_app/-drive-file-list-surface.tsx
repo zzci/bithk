@@ -282,6 +282,7 @@ export function DriveFileListSurface({
               onCreateFolder={actions.onCreateFolder}
               onUploadClick={actions.onUploadClick}
               onUploadFolderClick={actions.onUploadFolderClick}
+              onCreateTextFile={resolvedCapabilities.createTextFile ? actions.onCreateTextFile : undefined}
               onCreateSpreadsheet={resolvedCapabilities.createTextFile ? actions.onCreateSpreadsheet : undefined}
               onImportCsv={resolvedCapabilities.createTextFile ? actions.onImportCsv : undefined}
               onImportFromDrive={toolbar.onImportFromDrive}
