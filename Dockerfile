@@ -23,7 +23,6 @@ WORKDIR /app
 COPY package.json bun.lock bunfig.toml ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-COPY packages/shared/package.json packages/shared/
 COPY packages/tsconfig/package.json packages/tsconfig/
 RUN bun install --frozen-lockfile
 
