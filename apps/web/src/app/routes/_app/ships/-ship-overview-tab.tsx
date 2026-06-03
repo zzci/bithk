@@ -19,6 +19,7 @@ import {
   CardTitle,
   Card as UICard,
 } from "@/shared/components/ui/card";
+import { resolveCategoryName } from "@/shared/lib/api/ship-equipment-categories";
 import {
   useShipEquipment,
   useShipProjects,
@@ -63,7 +64,8 @@ function Field({ label, children }: { readonly label: string; readonly children:
 }
 
 export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
-  const { t } = useTranslation(["ships", "projects", "common"]);
+  const { t, i18n } = useTranslation(["ships", "projects", "common"]);
+  const isZh = i18n.language?.startsWith("zh") ?? false;
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
   const updateShip = useUpdateShip();
@@ -80,11 +82,11 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
   const equipmentCategories = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of equipment) {
-      const key = item.category?.trim() || t("overview.uncategorized");
+      const key = (item.categoryId ? resolveCategoryName({ nameZh: item.categoryNameZh, nameEn: item.categoryNameEn }, isZh) : "") || t("overview.uncategorized");
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [equipment, t]);
+  }, [equipment, t, isZh]);
 
   const equipmentCategoryMax = Math.max(1, ...equipmentCategories.map(([, count]) => count));
 

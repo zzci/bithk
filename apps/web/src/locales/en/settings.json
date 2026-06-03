@@ -146,6 +146,28 @@
       "deleted": "Worklist \"{{name}}\" deleted."
     }
   },
+  "shipEquipmentCategories": {
+    "title": "Equipment Categories",
+    "description": "The bilingual vocabulary used to classify ship equipment.",
+    "add": "Add Category",
+    "addTitle": "Add Category",
+    "editTitle": "Edit Category",
+    "dialogDescription": "Equipment categories are a shared bilingual vocabulary ships use to classify their equipment.",
+    "fieldNameZh": "Chinese name",
+    "fieldNameEn": "English name",
+    "colNameZh": "Chinese name",
+    "colNameEn": "English name",
+    "empty": "No equipment categories yet.",
+    "delete": {
+      "title": "Delete category",
+      "confirm": "Delete the category \"{{name}}\"?"
+    },
+    "toast": {
+      "created": "Category created.",
+      "updated": "Category updated.",
+      "deleted": "Category \"{{name}}\" deleted."
+    }
+  },
   "contactCategories": {
     "title": "Contact Categories",
     "description": "The global category vocabulary used to classify contacts.",

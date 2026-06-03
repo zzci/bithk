@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { resolveCategoryName, useShipEquipmentCategories } from "@/shared/lib/api/ship-equipment-categories";
 import {
   EQUIPMENT_STATUSES,
   useCreateShipEquipment,
@@ -50,7 +51,7 @@ interface ShipEquipmentTabProps {
 
 interface EquipmentFormState {
   readonly name: string;
-  readonly category: string;
+  readonly categoryId: string;
   readonly manufacturer: string;
   readonly model: string;
   readonly serialNumber: string;
@@ -61,7 +62,7 @@ interface EquipmentFormState {
 
 const EMPTY_FORM: EquipmentFormState = {
   name: "",
-  category: "",
+  categoryId: "",
   manufacturer: "",
   model: "",
   serialNumber: "",
@@ -70,14 +71,14 @@ const EMPTY_FORM: EquipmentFormState = {
   note: "",
 };
 
-const TEXT_FIELDS = ["category", "manufacturer", "model", "serialNumber", "location"] as const;
+const TEXT_FIELDS = ["manufacturer", "model", "serialNumber", "location"] as const;
 
 function formFromEquipment(row: ShipEquipmentView | null): EquipmentFormState {
   if (!row)
     return EMPTY_FORM;
   return {
     name: row.name,
-    category: row.category ?? "",
+    categoryId: row.categoryId ?? "",
     manufacturer: row.manufacturer ?? "",
     model: row.model ?? "",
     serialNumber: row.serialNumber ?? "",
@@ -91,7 +92,7 @@ function toPayload(form: EquipmentFormState): { name: string } & EquipmentInput 
   const nullable = (value: string) => value.trim() ? value.trim() : null;
   return {
     name: form.name.trim(),
-    category: nullable(form.category),
+    categoryId: form.categoryId || null,
     manufacturer: nullable(form.manufacturer),
     model: nullable(form.model),
     serialNumber: nullable(form.serialNumber),
@@ -102,9 +103,11 @@ function toPayload(form: EquipmentFormState): { name: string } & EquipmentInput 
 }
 
 const CATEGORY_ALL = "__all__";
+const CATEGORY_NONE = "__none__";
 
 export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
-  const { t } = useTranslation(["ships", "common"]);
+  const { t, i18n } = useTranslation(["ships", "common"]);
+  const isZh = i18n.language?.startsWith("zh") ?? false;
   const equipmentQuery = useShipEquipment(ship.id);
   const createEquipment = useCreateShipEquipment();
   const updateEquipment = useUpdateShipEquipment();
@@ -117,18 +120,20 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
   const [search, setSearch] = useState("");
   const equipment = useMemo(() => equipmentQuery.data ?? [], [equipmentQuery.data]);
 
+  // Filter chips are built from the category ids actually present on the rows,
+  // labelled with each row's resolved bilingual name.
   const categories = useMemo(() => {
-    const set = new Set<string>();
+    const map = new Map<string, string>();
     for (const row of equipment) {
-      if (row.category?.trim())
-        set.add(row.category.trim());
+      if (row.categoryId && !map.has(row.categoryId))
+        map.set(row.categoryId, resolveCategoryName({ nameZh: row.categoryNameZh, nameEn: row.categoryNameEn }, isZh) || row.categoryId);
     }
-    return [...set].sort();
-  }, [equipment]);
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [equipment, isZh]);
 
   /* eslint-disable react/set-state-in-effect -- reset the filter when its category disappears. */
   useEffect(() => {
-    if (category !== CATEGORY_ALL && !categories.includes(category))
+    if (category !== CATEGORY_ALL && !categories.some(([id]) => id === category))
       setCategory(CATEGORY_ALL);
   }, [categories, category]);
   /* eslint-enable react/set-state-in-effect */
@@ -136,7 +141,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return equipment.filter((row) => {
-      if (category !== CATEGORY_ALL && (row.category?.trim() ?? "") !== category)
+      if (category !== CATEGORY_ALL && row.categoryId !== category)
         return false;
       if (!q)
         return true;
@@ -183,7 +188,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
       {equipment.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            {[{ key: CATEGORY_ALL, label: t("equipment.filterAll") }, ...categories.map(c => ({ key: c, label: c }))].map(opt => (
+            {[{ key: CATEGORY_ALL, label: t("equipment.filterAll") }, ...categories.map(([id, label]) => ({ key: id, label }))].map(opt => (
               <Button
                 key={opt.key}
                 variant={category === opt.key ? "default" : "outline"}
@@ -253,7 +258,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                   : filtered.map(row => (
                       <TableRow key={row.id} className="border-0">
                         <TableCell className="font-medium">{row.name}</TableCell>
-                        <TableCell>{row.category || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
+                        <TableCell>{(row.categoryId && resolveCategoryName({ nameZh: row.categoryNameZh, nameEn: row.categoryNameEn }, isZh)) || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
                         <TableCell>
                           <div className="min-w-32">
                             <p>{row.manufacturer || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</p>
@@ -341,7 +346,9 @@ function EquipmentDialog({
   readonly pending: boolean;
   readonly onSubmit: (form: EquipmentFormState) => void;
 }) {
-  const { t } = useTranslation(["ships", "common"]);
+  const { t, i18n } = useTranslation(["ships", "common"]);
+  const isZh = i18n.language?.startsWith("zh") ?? false;
+  const categories = useShipEquipmentCategories().data ?? [];
   const [form, setForm] = useState(EMPTY_FORM);
 
   /* eslint-disable react/set-state-in-effect -- reseed the form whenever the dialog opens. */
@@ -376,6 +383,27 @@ function EquipmentDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="equipment-category">{t("equipment.field.category")}</Label>
+              <Select
+                value={form.categoryId || CATEGORY_NONE}
+                onValueChange={v => v !== null && set("categoryId", v === CATEGORY_NONE ? "" : v)}
+              >
+                <SelectTrigger id="equipment-category" className="w-full">
+                  <SelectValue placeholder={t("equipment.categoryPlaceholder")}>
+                    {(v: string) => (v === CATEGORY_NONE
+                      ? t("equipment.categoryNone")
+                      : resolveCategoryName(categories.find(c => c.id === v) ?? { nameZh: null, nameEn: null }, isZh) || v)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={CATEGORY_NONE}>{t("equipment.categoryNone")}</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{resolveCategoryName(c, isZh)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {TEXT_FIELDS.map(key => (
               <div key={key} className="space-y-1.5">
                 <Label htmlFor={`equipment-${key}`}>{t(`equipment.field.${key}` as const)}</Label>

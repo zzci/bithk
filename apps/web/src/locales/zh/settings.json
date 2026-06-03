@@ -146,6 +146,28 @@
       "deleted": "工作清单「{{name}}」已删除。"
     }
   },
+  "shipEquipmentCategories": {
+    "title": "设备分类",
+    "description": "用于对船舶设备进行分类的双语词汇表。",
+    "add": "添加分类",
+    "addTitle": "添加分类",
+    "editTitle": "编辑分类",
+    "dialogDescription": "设备分类是船舶用于对设备进行分类的共享双语词汇表。",
+    "fieldNameZh": "中文名称",
+    "fieldNameEn": "英文名称",
+    "colNameZh": "中文名称",
+    "colNameEn": "英文名称",
+    "empty": "暂无设备分类。",
+    "delete": {
+      "title": "删除分类",
+      "confirm": "删除分类「{{name}}」？"
+    },
+    "toast": {
+      "created": "分类已创建。",
+      "updated": "分类已更新。",
+      "deleted": "分类「{{name}}」已删除。"
+    }
+  },
   "contactCategories": {
     "title": "联系人分类",
     "description": "用于对联系人进行分类的全局分类词汇表。",

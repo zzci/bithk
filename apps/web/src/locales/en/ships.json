@@ -122,6 +122,8 @@
     "noMatches": "No equipment matches the filters.",
     "searchPlaceholder": "Search name, serial, or location",
     "filterAll": "All",
+    "categoryPlaceholder": "Select a category",
+    "categoryNone": "No category",
     "createTitle": "Add equipment",
     "editTitle": "Edit equipment",
     "dialogDescription": "Track the equipment installed on this ship.",

@@ -1,9 +1,13 @@
-// Body of the admin "Ship" settings tab. Manages the GLOBAL WORKLISTS — the
-// knowledge-base worklist templates (rows in the `worklists` table with
-// shipId NULL) that ships copy from. A worklist IS the template; there is no
-// separate category vocabulary, so `category` is plain free text. Structured as
-// a container so future ship-scoped settings sections can be added alongside.
+// Body of the admin "Ship" settings tab. Manages two global vocabularies used
+// across the ship module:
+//   1. GLOBAL WORKLISTS — knowledge-base worklist templates (rows in the
+//      `worklists` table with shipId NULL) that ships copy from. A worklist IS
+//      the template; its `category` is plain free text.
+//   2. EQUIPMENT CATEGORIES — the bilingual vocabulary ship equipment is
+//      classified by (categoryId references). Each entry holds a Chinese and an
+//      English name; equipment views resolve the locale-appropriate one.
 
+import type { ShipEquipmentCategory } from "@/shared/lib/api/ship-equipment-categories";
 import type { WorklistInput, WorklistView } from "@/shared/lib/api/ships";
 import { Plus } from "lucide-react";
 import { useState } from "react";
@@ -32,6 +36,13 @@ import {
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
+  resolveCategoryName,
+  useCreateShipEquipmentCategory,
+  useDeleteShipEquipmentCategory,
+  useShipEquipmentCategories,
+  useUpdateShipEquipmentCategory,
+} from "@/shared/lib/api/ship-equipment-categories";
+import {
   useCreateGlobalWorklist,
   useDeleteGlobalWorklist,
   useGlobalWorklists,
@@ -43,6 +54,7 @@ export function ShipSettingsTab() {
   return (
     <div className="space-y-8 pt-4">
       <GlobalWorklistsSection />
+      <EquipmentCategoriesSection />
     </div>
   );
 }
@@ -228,6 +240,180 @@ function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogPr
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
+              {mode === "create" ? t("common:common.add") : t("common:common.save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EquipmentCategoriesSection() {
+  const { t, i18n } = useTranslation(["settings", "common"]);
+  const isZh = i18n.language?.startsWith("zh") ?? false;
+  const categoriesQuery = useShipEquipmentCategories();
+  const deleteCategory = useDeleteShipEquipmentCategory();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<ShipEquipmentCategory | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ShipEquipmentCategory | null>(null);
+
+  const categories = categoriesQuery.data ?? [];
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">{t("settings:shipEquipmentCategories.title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("settings:shipEquipmentCategories.description")}</p>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-1 size-3" />
+          {t("settings:shipEquipmentCategories.add")}
+        </Button>
+      </div>
+
+      {categoriesQuery.error && <ErrorBanner message={errorMessage(categoriesQuery.error, t("common:common.error.loadFailed"))} />}
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("settings:shipEquipmentCategories.colNameZh")}</TableHead>
+              <TableHead>{t("settings:shipEquipmentCategories.colNameEn")}</TableHead>
+              <TableHead className="w-32">{t("settings:col.actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {categories.length === 0
+              ? <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">{t("settings:shipEquipmentCategories.empty")}</TableCell></TableRow>
+              : categories.map(category => (
+                  <TableRow key={category.id}>
+                    <TableCell className="font-medium">{category.nameZh}</TableCell>
+                    <TableCell className="font-medium">{category.nameEn}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" onClick={() => setEditTarget(category)}>
+                          {t("common:common.edit")}
+                        </Button>
+                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(category)}>
+                          {t("common:common.delete")}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <ConfirmDeleteDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open)
+            setDeleteTarget(null);
+        }}
+        title={t("settings:shipEquipmentCategories.delete.title")}
+        description={t("settings:shipEquipmentCategories.delete.confirm", { name: deleteTarget ? resolveCategoryName(deleteTarget, isZh) : "" })}
+        pending={deleteCategory.isPending}
+        onConfirm={() => {
+          if (!deleteTarget)
+            return;
+          const name = resolveCategoryName(deleteTarget, isZh);
+          deleteCategory.mutate(deleteTarget.id, {
+            onSuccess: () => {
+              toast.success(t("settings:shipEquipmentCategories.toast.deleted", { name }));
+              setDeleteTarget(null);
+            },
+            onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+          });
+        }}
+      />
+
+      <EquipmentCategoryDialog mode="create" open={createOpen} onOpenChange={setCreateOpen} />
+      {editTarget && (
+        <EquipmentCategoryDialog
+          mode="edit"
+          category={editTarget}
+          open
+          onOpenChange={open => !open && setEditTarget(null)}
+        />
+      )}
+    </section>
+  );
+}
+
+interface EquipmentCategoryDialogProps {
+  readonly mode: "create" | "edit";
+  readonly category?: ShipEquipmentCategory;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}
+
+function EquipmentCategoryDialog({ mode, category, open, onOpenChange }: EquipmentCategoryDialogProps) {
+  const { t } = useTranslation(["settings", "common"]);
+  const createCategory = useCreateShipEquipmentCategory();
+  const updateCategory = useUpdateShipEquipmentCategory();
+
+  const [nameZh, setNameZh] = useState(category?.nameZh ?? "");
+  const [nameEn, setNameEn] = useState(category?.nameEn ?? "");
+
+  const pending = createCategory.isPending || updateCategory.isPending;
+  const error = createCategory.error ?? updateCategory.error;
+  const valid = nameZh.trim().length > 0 && nameEn.trim().length > 0;
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!valid || pending)
+      return;
+    const body = { nameZh: nameZh.trim(), nameEn: nameEn.trim() };
+    if (mode === "create") {
+      createCategory.mutate(body, {
+        onSuccess: () => {
+          toast.success(t("settings:shipEquipmentCategories.toast.created"));
+          onOpenChange(false);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+      });
+    }
+    else if (category) {
+      updateCategory.mutate({ id: category.id, ...body }, {
+        onSuccess: () => {
+          toast.success(t("settings:shipEquipmentCategories.toast.updated"));
+          onOpenChange(false);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={submit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>{mode === "create" ? t("settings:shipEquipmentCategories.addTitle") : t("settings:shipEquipmentCategories.editTitle")}</DialogTitle>
+            <DialogDescription>{t("settings:shipEquipmentCategories.dialogDescription")}</DialogDescription>
+          </DialogHeader>
+
+          {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ship-equipment-category-zh">{t("settings:shipEquipmentCategories.fieldNameZh")}</Label>
+            <Input id="ship-equipment-category-zh" autoFocus required maxLength={255} value={nameZh} onChange={e => setNameZh(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ship-equipment-category-en">{t("settings:shipEquipmentCategories.fieldNameEn")}</Label>
+            <Input id="ship-equipment-category-en" required maxLength={255} value={nameEn} onChange={e => setNameEn(e.target.value)} />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t("common:common.cancel")}
+            </Button>
+            <Button type="submit" disabled={pending || !valid}>
               {mode === "create" ? t("common:common.add") : t("common:common.save")}
             </Button>
           </DialogFooter>

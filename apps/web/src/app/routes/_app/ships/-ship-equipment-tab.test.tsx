@@ -21,11 +21,20 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
+function categoryList() {
+  return [
+    { id: "ec1", nameZh: "电力", nameEn: "Power", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+    { id: "ec2", nameZh: "发动机", nameEn: "Engine", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+  ];
+}
+
 function equipmentList() {
   return [{
     id: "eq1",
     name: "Generator",
-    category: "Power",
+    categoryId: "ec1",
+    categoryNameZh: "电力",
+    categoryNameEn: "Power",
     manufacturer: "Volt",
     model: "G1",
     serialNumber: "SN-1",
@@ -42,6 +51,8 @@ function routeFetch() {
   fetchMock.mockImplementation(async (input, init) => {
     const path = String(input).replace("/api", "");
     const method = init?.method ?? "GET";
+    if (method === "GET" && path === "/ship-equipment-categories")
+      return jsonResponse({ success: true, data: categoryList() });
     if (method === "GET" && path === "/ships/s1/equipment")
       return jsonResponse({ success: true, data: equipmentList() });
     if (method === "POST" && path === "/ships/s1/equipment")
@@ -83,12 +94,14 @@ describe("shipEquipmentTab", () => {
   it("resets the category filter when its category disappears", async () => {
     const base = equipmentList()[0];
     let rows = [
-      { ...base, id: "eq1", name: "Generator", category: "Power" },
-      { ...base, id: "eq2", name: "Pump", category: "Engine" },
+      { ...base, id: "eq1", name: "Generator", categoryId: "ec1", categoryNameZh: "电力", categoryNameEn: "Power" },
+      { ...base, id: "eq2", name: "Pump", categoryId: "ec2", categoryNameZh: "发动机", categoryNameEn: "Engine" },
     ];
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input).replace("/api", "");
       const method = init?.method ?? "GET";
+      if (method === "GET" && path === "/ship-equipment-categories")
+        return jsonResponse({ success: true, data: categoryList() });
       if (method === "GET" && path === "/ships/s1/equipment")
         return jsonResponse({ success: true, data: rows });
       if (method === "DELETE" && path === "/ships/s1/equipment/eq2") {
@@ -122,6 +135,36 @@ describe("shipEquipmentTab", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByLabelText("Status")).toBeInTheDocument();
+  });
+
+  it("resolves the equipment category by its bilingual name", async () => {
+    routeFetch();
+    renderWithProviders(<ShipEquipmentTab ship={ship} canManage={false} />);
+    await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
+    // The row carries categoryId + bilingual names; the English name shows under en.
+    expect(screen.getByRole("cell", { name: "Power" })).toBeInTheDocument();
+  });
+
+  it("sends the chosen category id when creating equipment", async () => {
+    routeFetch();
+    renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);
+    await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText("Name"), "Pump");
+
+    // Pick a category from the bilingual vocabulary loaded into the select.
+    await userEvent.click(within(dialog).getByLabelText("Category"));
+    await userEvent.click(await screen.findByRole("option", { name: "Engine" }));
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add equipment" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
+      expect(post).toBeDefined();
+      expect(JSON.parse(post![1]!.body as string)).toMatchObject({ name: "Pump", categoryId: "ec2" });
+    });
   });
 
   it("creates, edits, and deletes equipment through the scoped API", async () => {

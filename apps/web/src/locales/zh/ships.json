@@ -122,6 +122,8 @@
     "noMatches": "没有符合筛选条件的设备。",
     "searchPlaceholder": "搜索名称、序列号或位置",
     "filterAll": "全部",
+    "categoryPlaceholder": "选择分类",
+    "categoryNone": "无分类",
     "createTitle": "添加设备",
     "editTitle": "编辑设备",
     "dialogDescription": "记录该船舶已安装的设备。",
