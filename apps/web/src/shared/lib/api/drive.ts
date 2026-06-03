@@ -89,6 +89,7 @@ export interface DriveEntriesQuery {
 
 export const driveKeys = {
   all: ["drive"] as const,
+  detail: (id: string) => ["drive", "entries", id, "detail"] as const,
   entries: (query: DriveEntriesQuery) => [
     "drive",
     "entries",
@@ -156,6 +157,32 @@ export function parseContentDispositionFilename(header: string | null): string |
   return plain?.[1]?.trim();
 }
 
+// ── Univer spreadsheets ──
+
+/** Mimetype of the Univer spreadsheet snapshot stored as a drive file. */
+export const UNIVER_SHEET_MIME = "application/x-univer-sheet";
+
+/**
+ * True when the entry is a Univer spreadsheet. Matches the stored mimetype;
+ * when that is empty, falls back to the `.sheet` filename suffix.
+ */
+export function isUniverSheetEntry(entry: DriveEntry): boolean {
+  const mimetype = entry.file?.mimetype;
+  if (mimetype)
+    return mimetype === UNIVER_SHEET_MIME;
+  return entry.name.toLowerCase().endsWith(".sheet");
+}
+
+/**
+ * Fetch the raw file content of an entry as text. The editor uses this to load
+ * a spreadsheet's snapshot JSON. `inline=true` keeps the response in-band
+ * (no download disposition).
+ */
+export async function fetchDriveEntryContent(entryId: string): Promise<string> {
+  const res = await httpRaw(`/drive/entries/${encodeURIComponent(entryId)}/content?inline=true`);
+  return res.text();
+}
+
 // ── Entries: queries ──
 
 /**
@@ -210,6 +237,16 @@ export function useFavoriteEntries() {
   return useQuery({
     queryKey: driveKeys.favorites(),
     queryFn: () => rawJson<ApiEnvelope<readonly DriveEntry[]>>("/drive/entries/favorites").then(r => r.data),
+    staleTime: 5_000,
+  });
+}
+
+/** Fetch a single entry by id. Used to resolve a spreadsheet before editing. */
+export function useDriveEntry(entryId: string | undefined) {
+  return useQuery({
+    queryKey: driveKeys.detail(entryId ?? ""),
+    queryFn: () => rawJson<ApiEnvelope<DriveEntry>>(`/drive/entries/${encodeURIComponent(entryId!)}`).then(r => r.data),
+    enabled: !!entryId,
     staleTime: 5_000,
   });
 }
@@ -275,6 +312,25 @@ export function useCreateTextFile(): UseMutationResult<DriveEntry, Error, Create
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: payload => rawJson<ApiEnvelope<DriveEntry>>("/drive/entries/text-file", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: driveKeys.all }),
+  });
+}
+
+export interface CreateSpreadsheetInput {
+  readonly name: string;
+  readonly content: string;
+  readonly parentEntryId: string | null;
+  readonly ownerType?: DriveOwnerType | undefined;
+  readonly ownerId?: string | undefined;
+}
+
+export function useCreateSpreadsheet(): UseMutationResult<DriveEntry, Error, CreateSpreadsheetInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: payload => rawJson<ApiEnvelope<DriveEntry>>("/drive/entries/spreadsheet", {
       method: "POST",
       body: JSON.stringify(payload),
     }).then(r => r.data),
