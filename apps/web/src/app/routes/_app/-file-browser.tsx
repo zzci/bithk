@@ -26,6 +26,7 @@ import { ErrorBanner } from "@/shared/components/ui/error-banner";
 
 import {
   downloadDriveEntry,
+  isUniverSheetEntry,
   useCreateDriveFolder,
   useCreateSpreadsheet,
   useCreateTextFile,
@@ -47,6 +48,7 @@ import {
   RenameDialog,
 } from "./-entry-create-dialogs";
 import { entryToDisplayItem } from "./-file-browser-types";
+import { FilePreviewDialog } from "./-file-preview-dialog";
 
 export interface FileBrowserProps {
   readonly ownerType: DriveOwnerType;
@@ -93,6 +95,10 @@ export function FileBrowser({
   const [dialog, setDialog] = useState<DialogState>(null);
   const [dragDepth, setDragDepth] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  // Internal preview state — used when the parent does not supply its own
+  // `onPreviewEntry` (project/ship files tabs); drive overrides it.
+  const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
+  const [previewEditing, setPreviewEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
@@ -126,6 +132,22 @@ export function FileBrowser({
     (entry: DriveEntry) => void navigate({ to: "/drive/sheet/$entryId", params: { entryId: entry.id } }),
     [navigate],
   );
+
+  // Default preview handler, mirroring `drive.lazy.tsx`'s openPreview: Univer
+  // spreadsheets open the dedicated editor route; everything else opens the
+  // in-app preview dialog rendered below.
+  const internalOpenPreview = useCallback((entry: DriveEntry, edit = false) => {
+    if (isUniverSheetEntry(entry)) {
+      openSheet(entry);
+      return;
+    }
+    setPreviewEntry(entry);
+    setPreviewEditing(edit);
+  }, [openSheet]);
+
+  // Parent-supplied handler wins (drive routes everything through its own
+  // chokepoint); otherwise the browser previews internally.
+  const handlePreview = onPreviewEntry ?? internalOpenPreview;
 
   // Look up the source entry behind a surface item: the surface passes back an
   // entry id (preview/rename/favorite) or a file id (download/share) only.
@@ -298,7 +320,7 @@ export function FileBrowser({
     onPreview: (item) => {
       const entry = entryById.get(item.id);
       if (entry)
-        onPreviewEntry?.(entry);
+        handlePreview(entry);
     },
     onRename: (item) => {
       const entry = entryById.get(item.id);
@@ -387,7 +409,7 @@ export function FileBrowser({
           createTextFile.mutate({ name, content: "", parentEntryId, ownerType, ownerId }, {
             onSuccess: (entry) => {
               closeDialog();
-              onPreviewEntry?.(entry, true);
+              handlePreview(entry, true);
             },
           })}
       />
@@ -448,6 +470,18 @@ export function FileBrowser({
           closeDialog();
         }}
       />
+
+      {/* Internal preview — only when the parent did not supply its own handler
+          (drive renders its own dialog and passes onPreviewEntry). */}
+      {!onPreviewEntry && previewEntry && (
+        <FilePreviewDialog
+          entry={previewEntry}
+          open
+          initialEditing={previewEditing}
+          readOnly={!canManage}
+          onOpenChange={open => !open && setPreviewEntry(null)}
+        />
+      )}
     </div>
   );
 }
