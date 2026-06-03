@@ -24,6 +24,7 @@ import {
   useUpdateShip,
   useUpdateShipEquipment,
   useUpdateShipWorklist,
+  useWorklistTags,
 } from "./ships";
 
 function jsonResponse(body: unknown) {
@@ -126,6 +127,16 @@ describe("ship equipment hooks", () => {
   });
 });
 
+describe("useWorklistTags", () => {
+  it("fetches the worklist tag vocabulary from /tags?type=worklist", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [{ id: "t1", name: "Engine" }] }));
+    const { result } = renderHook(() => useWorklistTags(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain("/api/tags?type=worklist");
+  });
+});
+
 describe("ship worklist hooks", () => {
   it("lists ship worklists, global worklists, and issue references", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "wl1", name: "Quarterly" }] }));
@@ -142,6 +153,16 @@ describe("ship worklist hooks", () => {
     const refs = renderHook(() => useIssueReferences("wo1"), { wrapper: makeWrapper() });
     await waitFor(() => expect(refs.result.current.isSuccess).toBe(true));
     expect(String(fetchMock.mock.calls[2]![0])).toBe("/api/issues/wo1/references");
+  });
+
+  it("encodes the worklist tag filter (repeated tagId for OR semantics)", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
+    const { result } = renderHook(() => useShipWorklists("s1", ["t1", "t2"]), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url).toContain("/api/ships/s1/worklists?");
+    expect(url).toContain("tagId=t1");
+    expect(url).toContain("tagId=t2");
   });
 
   it("creates ship worklists from scratch and from a global source", async () => {

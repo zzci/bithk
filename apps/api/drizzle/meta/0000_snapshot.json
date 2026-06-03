@@ -4030,13 +4030,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "checklist": {
           "name": "checklist",
           "type": "text",

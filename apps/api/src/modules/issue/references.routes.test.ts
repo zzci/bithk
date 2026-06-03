@@ -110,7 +110,6 @@ async function seedWorklist(shipId: string | null, name = "Annual Service"): Pro
     id,
     shipId,
     name,
-    category: "engine",
     checklist: "step 1\nstep 2",
     precautions: "wear gloves",
     createdAt: now,

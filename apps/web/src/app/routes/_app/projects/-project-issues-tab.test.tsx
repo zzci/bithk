@@ -468,7 +468,7 @@ describe("projectIssuesTab", () => {
     return {
       id: "wl1",
       name: "Annual Service",
-      category: "Engine",
+      tags: [{ id: "t1", name: "Engine" }],
       checklist: JSON.stringify(["Check oil", "Inspect filter"]),
       precautions: "Wear gloves",
       createdAt: "2026-05-23T00:00:00.000Z",

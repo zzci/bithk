@@ -119,7 +119,6 @@ export const worklists = sqliteTable("worklists", {
   id: text("id").primaryKey(), // nanoid
   shipId: text("ship_id").references(() => ships.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  category: text("category"),
   checklist: text("checklist"),
   precautions: text("precautions"),
   createdAt: text("created_at").notNull(),

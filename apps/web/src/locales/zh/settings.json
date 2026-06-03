@@ -130,11 +130,11 @@
     "editTitle": "编辑工作清单",
     "dialogDescription": "全局工作清单是可复用的模板，船舶可将其复制为自己的工作清单。",
     "fieldName": "名称",
-    "fieldCategory": "分类",
+    "fieldTags": "标签",
     "fieldChecklist": "检查项",
     "fieldPrecautions": "注意事项",
     "colName": "名称",
-    "colCategory": "分类",
+    "colTags": "标签",
     "empty": "暂无全局工作清单。",
     "delete": {
       "title": "删除工作清单",

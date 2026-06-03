@@ -582,7 +582,8 @@ interface IssueReferenceInput {
 export interface ReferenceableWorklist {
   readonly id: string;
   readonly name: string;
-  readonly category: string | null;
+  // Worklists carry tags (not a single category); the API resolves names.
+  readonly tags: readonly { id: string; name: string }[];
   readonly checklist: string | null;
   readonly precautions: string | null;
   readonly createdAt: string;
