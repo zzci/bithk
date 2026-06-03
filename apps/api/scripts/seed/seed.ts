@@ -46,6 +46,7 @@ import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject, listMembers, setProjectCover } from "@/modules/project/project.service";
 import { setSetting } from "@/modules/settings/settings.service";
 import { createShare } from "@/modules/share/share.service";
+import { createEquipmentCategory } from "@/modules/ship/ship.equipment-category.service";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
 import { bindProject, createShip, setShipCover } from "@/modules/ship/ship.service";
 import { createGlobalWorklist, createShipWorklist } from "@/modules/ship/ship.worklist.service";
@@ -114,10 +115,25 @@ const contactId = new Map<string, string>();
 const shipInternalId = new Map<string, string>();
 const shipShortId = new Map<string, string>();
 const globalWorklistId = new Map<string, string>();
+// Slug (the free-text key used by the equipment records in ships.json) → the
+// produced bilingual ship-equipment-category id.
+const equipmentCategoryId = new Map<string, string>();
 interface ProjectInfo { id: string; shortId: string; creatorUserId: string; memberRoleId: string; members: { memberId: string; userId: string }[]; categoryIds: Map<string, string> }
 const projectInfo = new Map<string, ProjectInfo>();
 
 const ADMIN_KEY = "admin";
+
+// Starter bilingual ship-equipment-category vocabulary. The `slug` matches the
+// free-text `category` field carried by the equipment records in ships.json so
+// each seeded item can resolve to a real category id.
+const SHIP_EQUIPMENT_CATEGORIES: { slug: string; nameZh: string; nameEn: string }[] = [
+  { slug: "propulsion", nameZh: "推进系统", nameEn: "Propulsion" },
+  { slug: "navigation", nameZh: "导航设备", nameEn: "Navigation" },
+  { slug: "electrical", nameZh: "电气设备", nameEn: "Electrical" },
+  { slug: "deck", nameZh: "甲板设备", nameEn: "Deck" },
+  { slug: "safety", nameZh: "安全设备", nameEn: "Safety" },
+  { slug: "hvac", nameZh: "空调通风", nameEn: "HVAC" },
+];
 
 function uId(key: string): string {
   const id = userId.get(key);
@@ -172,6 +188,14 @@ async function importContacts(db: AppDatabase): Promise<void> {
   }
 }
 
+async function importEquipmentCategories(db: AppDatabase): Promise<number> {
+  for (const cat of SHIP_EQUIPMENT_CATEGORIES) {
+    const row = await createEquipmentCategory(db, { nameZh: cat.nameZh, nameEn: cat.nameEn, code: cat.slug });
+    equipmentCategoryId.set(cat.slug, row.id);
+  }
+  return SHIP_EQUIPMENT_CATEGORIES.length;
+}
+
 async function importShips(db: AppDatabase, config: Config): Promise<number> {
   const recs = await readJson<ShipRec[]>("ships");
   let equipment = 0;
@@ -202,7 +226,7 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
     for (const e of s.equipment ?? []) {
       await createEquipment(db, ship.id, {
         name: e.name,
-        category: e.category ?? null,
+        categoryId: (e.category ? equipmentCategoryId.get(e.category) : undefined) ?? null,
         manufacturer: e.manufacturer ?? null,
         model: e.model ?? null,
         serialNumber: e.serialNumber ?? null,
@@ -652,6 +676,7 @@ async function main(): Promise<void> {
     await importUsers(db);
     await importGroups(db);
     await importContacts(db);
+    const equipmentCategories = await importEquipmentCategories(db);
     const equipment = await importShips(db, config);
     const worklistCount = await importWorklists(db);
     await importProjects(db, config);
@@ -667,6 +692,7 @@ async function main(): Promise<void> {
     console.log(`  users:        ${userId.size}`);
     console.log(`  groups:       (with members)`);
     console.log(`  contacts:     ${contactId.size}`);
+    console.log(`  equip cats:   ${equipmentCategories} (bilingual)`);
     console.log(`  ships:        ${shipInternalId.size} (+ base projects, ${equipment} equipment)`);
     console.log(`  worklists:    ${worklistCount}`);
     console.log(`  projects:     ${projectInfo.size} standalone (+ ship base projects)`);

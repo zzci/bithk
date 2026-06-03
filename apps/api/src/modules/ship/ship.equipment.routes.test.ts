@@ -118,9 +118,21 @@ interface EquipmentBody {
     id: string;
     name: string;
     status: string;
-    category: string | null;
+    categoryId: string | null;
+    categoryNameZh: string | null;
+    categoryNameEn: string | null;
     note: string | null;
   };
+}
+
+interface CategoryBody {
+  data: { id: string; nameZh: string; nameEn: string };
+}
+
+async function createCategory(app: Hono<AppEnv>, cookie: string, nameZh: string, nameEn: string): Promise<string> {
+  const res = await app.request("/equipment-categories", jsonReq("POST", cookie, { nameZh, nameEn }));
+  expect(res.status).toBe(201);
+  return ((await res.json()) as CategoryBody).data.id;
 }
 
 async function createEquipment(app: Hono<AppEnv>, shipShortId: string, cookie: string, body: unknown): Promise<string> {
@@ -147,18 +159,21 @@ describe("equipment CRUD", () => {
   test("PM creates, lists, gets, updates and deletes equipment", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+    const categoryId = await createCategory(app, adminCookie, "推进系统", "Propulsion");
 
     // Create.
     const createRes = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", adminCookie, {
       name: "Main Engine",
-      category: "propulsion",
+      categoryId,
       manufacturer: "MTU",
       status: "active",
     }));
     expect(createRes.status).toBe(201);
     const created = (await createRes.json()) as EquipmentBody;
     expect(created.data.name).toBe("Main Engine");
-    expect(created.data.category).toBe("propulsion");
+    expect(created.data.categoryId).toBe(categoryId);
+    expect(created.data.categoryNameZh).toBe("推进系统");
+    expect(created.data.categoryNameEn).toBe("Propulsion");
     expect(created.data.status).toBe("active");
     const equipmentId = created.data.id;
 
@@ -190,6 +205,33 @@ describe("equipment CRUD", () => {
     expect(delRes.status).toBe(200);
     const afterRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
     expect(afterRes.status).toBe(404);
+  });
+
+  test("equipment without a category resolves null names", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+    const equipmentId = await createEquipment(app, shipShortId, adminCookie, { name: "Radar" });
+    const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
+    const view = (await getRes.json()) as EquipmentBody;
+    expect(view.data.categoryId).toBeNull();
+    expect(view.data.categoryNameZh).toBeNull();
+    expect(view.data.categoryNameEn).toBeNull();
+  });
+
+  test("deleting a referenced category nulls the equipment's category (set null)", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+    const categoryId = await createCategory(app, adminCookie, "导航设备", "Navigation");
+    const equipmentId = await createEquipment(app, shipShortId, adminCookie, { name: "Chartplotter", categoryId });
+
+    const delRes = await app.request(`/equipment-categories/${categoryId}`, jsonReq("DELETE", adminCookie));
+    expect(delRes.status).toBe(200);
+
+    const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
+    const view = (await getRes.json()) as EquipmentBody;
+    expect(view.data.categoryId).toBeNull();
+    expect(view.data.categoryNameZh).toBeNull();
+    expect(view.data.categoryNameEn).toBeNull();
   });
 
   test("rejects an empty name with 422", async () => {
