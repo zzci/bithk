@@ -43,9 +43,9 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ProjectInfoCard description={project.description} />
-        <ProjectPinnedCard projectId={project.id} caps={caps} onOpenTab={onOpenTab} />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <ProjectInfoCard description={project.description} className="lg:col-span-2" />
+        <ProjectPinnedCard projectId={project.id} caps={caps} onOpenTab={onOpenTab} className="lg:col-span-1" />
       </div>
 
       <div className={cn("grid gap-4", showProcurement && "lg:grid-cols-2")}>
@@ -107,13 +107,14 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
 
 interface ProjectInfoCardProps {
   readonly description: string | null;
+  readonly className?: string;
 }
 
-function ProjectInfoCard({ description }: ProjectInfoCardProps) {
+function ProjectInfoCard({ description, className }: ProjectInfoCardProps) {
   const { t } = useTranslation("projects");
 
   return (
-    <Card size="sm">
+    <Card size="sm" className={cn(className)}>
       <CardContent className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-muted-foreground">{t("overview.description")}</span>
         <p className="max-w-prose text-sm leading-relaxed break-words whitespace-pre-wrap">
@@ -151,15 +152,16 @@ interface ProjectPinnedCardProps {
   readonly projectId: string;
   readonly caps: ProjectCapabilityInfo;
   readonly onOpenTab: (tab: ProjectTab) => void;
+  readonly className?: string;
 }
 
-function ProjectPinnedCard({ projectId, caps, onOpenTab }: ProjectPinnedCardProps) {
+function ProjectPinnedCard({ projectId, caps, onOpenTab, className }: ProjectPinnedCardProps) {
   const { t } = useTranslation("projects");
   const pinnedQuery = usePinnedItems(projectId);
   const pinned = pinnedQuery.data ?? [];
 
   return (
-    <Card size="sm">
+    <Card size="sm" className={cn(className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm text-muted-foreground">
           <Pin className="size-4" aria-hidden="true" />
