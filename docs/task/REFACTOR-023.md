@@ -1,8 +1,8 @@
 # REFACTOR-023 Migrate ships tag surfaces to shared family
 
-- Status: Todo
+- Status: Completed
 - Plan: [PLAN-062](../plan/PLAN-062.md)
-- Owner: BKD L3 (campaign l1-75ymcfnr-gtag-20260603191645)
+- Owner: BKD L3 7lmp8t6x (campaign l1-75ymcfnr-gtag-20260603191645)
 - Campaign: l1-75ymcfnr-gtag-20260603191645
 - Depends on: [REFACTOR-020](REFACTOR-020.md)
 - Updated: 2026-06-03
@@ -26,4 +26,8 @@ family, then delete the ship-local adapter.
 - No remaining import of `TagBadgeList` or `-ship-tags-combobox` under `ships/`.
 - `bun run check` EXIT 0 (modulo @milkdown flake); behavior parity.
 
-> Full self-contained implementation spec delivered to the L3 via BKD follow-up.
+> **Completed 2026-06-03** — L3 `bkd/7lmp8t6x` migration commit `4e93225`
+> cherry-picked (`-x`) into `bkd/lc757j1x` @f7e24af (3 ships files; adapter
+> deleted). Verified: web typecheck EXIT 0 + ships/tags targeted tests 68/68.
+> Cherry-pick (not branch merge) used because BKD branched the L3 from a moved
+> main (foreign isstag campaign @178af74); keeps `bkd/lc757j1x` isolated.

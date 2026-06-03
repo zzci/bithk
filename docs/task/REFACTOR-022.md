@@ -1,8 +1,8 @@
 # REFACTOR-022 Migrate contacts tag surfaces to shared family
 
-- Status: Todo
+- Status: Completed
 - Plan: [PLAN-062](../plan/PLAN-062.md)
-- Owner: BKD L3 (campaign l1-75ymcfnr-gtag-20260603191645)
+- Owner: BKD L3 zt1lsqub (campaign l1-75ymcfnr-gtag-20260603191645)
 - Campaign: l1-75ymcfnr-gtag-20260603191645
 - Depends on: [REFACTOR-020](REFACTOR-020.md)
 - Updated: 2026-06-03
@@ -33,4 +33,9 @@ Keep `shared/lib/tag-utils.ts` (still used by `-contact-form-logic.ts`).
   input is the shared `TagInput`.
 - `bun run check` EXIT 0 (modulo @milkdown flake); i18n parity gate green.
 
-> Full self-contained implementation spec delivered to the L3 via BKD follow-up.
+> **Completed 2026-06-03** — L3 `bkd/zt1lsqub` migration commit `13c5b95`
+> cherry-picked (`-x`) into `bkd/lc757j1x` @5f5c96f (contact-panel + index.lazy
+> + en/zh contacts.json; added tags.searchPlaceholder/create/empty, dropped
+> tags.placeholder). Verified: web typecheck EXIT 0 + contacts/tags targeted
+> tests 42/42 + check:i18n in sync (20 namespaces). (L3 had a commit-gap on its
+> first run → re-dispatched to commit; retry 1.)
