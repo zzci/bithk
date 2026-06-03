@@ -166,6 +166,18 @@
       "tomorrow": "明天",
       "inDays": "{{count}} 天后",
       "overdue": "逾期 {{count}} 天"
+    },
+    "worklist": {
+      "button": "清单",
+      "pickerTitle": "引用清单",
+      "searchPlaceholder": "搜索清单",
+      "groupShip": "本船",
+      "groupGlobal": "全局",
+      "loading": "正在加载清单...",
+      "empty": "暂无可引用的清单",
+      "referenced": "引用清单",
+      "remove": "移除清单引用",
+      "precautionsLabel": "注意事项"
     }
   },
   "procurement": {

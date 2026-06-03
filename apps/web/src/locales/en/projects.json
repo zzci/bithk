@@ -166,6 +166,18 @@
       "tomorrow": "Tomorrow",
       "inDays": "In {{count}}d",
       "overdue": "{{count}}d overdue"
+    },
+    "worklist": {
+      "button": "Worklist",
+      "pickerTitle": "Reference worklist",
+      "searchPlaceholder": "Search worklists",
+      "groupShip": "This ship",
+      "groupGlobal": "Global",
+      "loading": "Loading worklists...",
+      "empty": "No worklists available",
+      "referenced": "Referenced worklist",
+      "remove": "Remove worklist reference",
+      "precautionsLabel": "Precautions"
     }
   },
   "procurement": {
