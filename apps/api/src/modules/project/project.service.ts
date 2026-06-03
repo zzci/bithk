@@ -16,7 +16,7 @@ import { settings } from "@/modules/settings/schema";
 import { getSetting } from "@/modules/settings/settings.service";
 import { ships } from "@/modules/ship/schema";
 import {
-  listResourceIdsByTag,
+  listResourceIdsByAnyTag,
   loadResourceTagsByResource,
   syncResourceTagsTx,
 } from "@/modules/tag/tag.service";
@@ -339,7 +339,9 @@ export async function resolveProjectId(db: AppDatabase, shortId: string): Promis
 export interface ListProjectParams {
   readonly status?: ProjectStatus | undefined;
   readonly q?: string | undefined;
-  readonly tagId?: string | undefined;
+  // Multi-tag filter (tag type 'project'). OR / union semantics: a project
+  // matches if it carries ANY of these tags. Empty/omitted = no tag filter.
+  readonly tagIds?: readonly string[] | undefined;
   // Hide archived projects (the default list view shows them only when the
   // caller explicitly filters `status: "archived"`). No effect when `status`
   // is set. Defaults to off so other callers (e.g. search) are unchanged.
@@ -371,8 +373,8 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
       sql`${projects.code} LIKE ${pattern} ESCAPE '\\'`,
     )!);
   }
-  if (params.tagId) {
-    const taggedIds = await listResourceIdsByTag(db, PROJECT_TAG_BINDING, params.tagId);
+  if (params.tagIds && params.tagIds.length > 0) {
+    const taggedIds = await listResourceIdsByAnyTag(db, PROJECT_TAG_BINDING, params.tagIds);
     if (taggedIds.length === 0)
       return { data: [], total: 0 };
     conditions.push(inArray(projects.id, taggedIds));

@@ -410,9 +410,30 @@ describe("listProjects", () => {
 
     const listed = await listProjects(db, {});
     const tag = listed.data.flatMap(p => p.tags).find(t => t.name === "alpha")!;
-    const byTag = await listProjects(db, { tagId: tag.id });
+    const byTag = await listProjects(db, { tagIds: [tag.id] });
     expect(byTag.total).toBe(1);
     expect(byTag.data[0]!.name).toBe("Tagged");
+  });
+
+  test("tagIds filters by OR/union, not AND", async () => {
+    const creator = await seedUser("Alice");
+    await createProject(db, { name: "A", creatorId: creator, tags: ["alpha"] });
+    await createProject(db, { name: "B", creatorId: creator, tags: ["beta", "alpha"] });
+    await createProject(db, { name: "C", creatorId: creator, tags: ["gamma"] });
+
+    // 0 tags → no filter (all projects)
+    expect((await listProjects(db, { tagIds: [] })).total).toBe(3);
+
+    // 1 tag → just that project
+    expect((await listProjects(db, { tagIds: ["gamma"] })).data.map(p => p.name)).toEqual(["C"]);
+
+    // many tags → OR: alpha∪gamma = A,B,C (AND would be empty)
+    expect((await listProjects(db, { tagIds: ["alpha", "gamma"] })).data.map(p => p.name).sort())
+      .toEqual(["A", "B", "C"]);
+
+    // AND-not-applied: alpha∪beta = A (alpha) and B (both); not just B
+    expect((await listProjects(db, { tagIds: ["alpha", "beta"] })).data.map(p => p.name).sort())
+      .toEqual(["A", "B"]);
   });
 
   test("a literal % or _ in the query is matched literally, not as a wildcard", async () => {
