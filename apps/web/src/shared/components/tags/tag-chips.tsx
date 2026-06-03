@@ -1,7 +1,7 @@
 // Read-only "first N tags + overflow" renderer. Renders each tag as a
 // non-removable TagChip; when `max` is set and exceeded, the remainder
 // collapses into a `+N` (or caller-supplied) overflow indicator. Returns a
-// Fragment so callers control layout. Subsumes tag-badge-list.tsx.
+// Fragment so callers control layout.
 
 import type { ReactNode } from "react";
 import type { BadgeVariant } from "./tag-chip";
