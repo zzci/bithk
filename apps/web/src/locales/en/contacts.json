@@ -85,5 +85,9 @@
   "masked": {
     "locked": "Masked field",
     "hiddenValue": "Hidden"
+  },
+  "toast": {
+    "created": "Contact created",
+    "updated": "Contact updated"
   }
 }

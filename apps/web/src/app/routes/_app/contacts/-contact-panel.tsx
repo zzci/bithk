@@ -89,6 +89,8 @@ interface ContactPanelProps {
   /** Commit a view-mode inline title rename (name only). Form mode ignores it. */
   readonly onRename: (name: string) => void;
   readonly onSubmit: (state: ContactFormState) => void;
+  /** Cancel the form: edit returns to view of the same contact, create closes the drawer. */
+  readonly onCancel: () => void;
 }
 
 export function ContactPanel(props: ContactPanelProps) {
@@ -243,6 +245,7 @@ function ContactPanelForm({
   errorMessage,
   onClose,
   onSubmit,
+  onCancel,
 }: ContactPanelProps) {
   const { t } = useTranslation(["contacts", "common"]);
   const [form, setForm] = useState<ContactFormState>(EMPTY_CONTACT_FORM);
@@ -414,7 +417,7 @@ function ContactPanelForm({
       </div>
 
       <footer className="flex justify-end gap-2 border-t border-border/60 px-5 py-3 shrink-0">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="outline" onClick={onCancel}>
           {t("common:common.cancel")}
         </Button>
         <Button type="submit" disabled={pending || !form.name.trim()}>

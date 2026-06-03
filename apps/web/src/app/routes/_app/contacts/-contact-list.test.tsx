@@ -3,12 +3,17 @@ import type { ContactView } from "@/shared/lib/api/contacts";
 import type { ProjectTag } from "@/shared/lib/api/projects";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
 import { ContactsListPage } from "./index.lazy";
 
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: unknown) => opts,
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 function jsonResponse(body: unknown) {
@@ -24,6 +29,8 @@ beforeEach(() => {
 
 afterEach(() => {
   fetchMock.mockReset();
+  vi.mocked(toast.success).mockClear();
+  vi.mocked(toast.error).mockClear();
 });
 
 function contact(overrides: Partial<ContactView> = {}): ContactView {
@@ -88,6 +95,11 @@ function routeFetch(
     }
     if (path.includes("/tags") && method === "GET") {
       return ok(tags);
+    }
+    // An edit save (PATCH) returns the updated row; the panel re-renders it in
+    // read-only view, so hand back a complete ContactView.
+    if (path.includes("/contacts/") && method === "PATCH") {
+      return ok(contacts[0] ?? contact());
     }
     if (path.includes("/contacts") && method === "GET") {
       const parsed = new URL(path, "http://test.local");
@@ -356,5 +368,47 @@ describe("contactsListPage", () => {
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(c => String(c[0]).includes("page=2"))).toBe(true);
     });
+  });
+
+  it("saves an edit, toasts success, and returns to the contact view", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Edit Acme Marine" }));
+
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByRole("heading", { name: "Edit contact" })).toBeInTheDocument();
+    await user.click(within(drawer).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const patched = fetchMock.mock.calls.find(c => String(c[0]).endsWith("/api/contacts/c1") && c[1]?.method === "PATCH");
+      expect(patched).toBeDefined();
+    });
+    expect(toast.success).toHaveBeenCalledWith("Contact updated");
+    // Drawer stays open, returned to the read-only view (edit heading gone, the
+    // view-only edit icon action is back).
+    await waitFor(() => expect(within(drawer).queryByRole("heading", { name: "Edit contact" })).not.toBeInTheDocument());
+    expect(within(drawer).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+  });
+
+  it("creates a contact, toasts success, and closes the drawer", async () => {
+    routeFetch([]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await user.click(screen.getByRole("button", { name: "Create contact" }));
+
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Name"), "Beta Yard");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      const created = fetchMock.mock.calls.find(c => String(c[0]).endsWith("/api/contacts") && c[1]?.method === "POST");
+      expect(created).toBeDefined();
+    });
+    expect(toast.success).toHaveBeenCalledWith("Contact created");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });
