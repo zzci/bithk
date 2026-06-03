@@ -1,6 +1,7 @@
 import type * as ReactPdf from "react-pdf";
 import type * as ReactZoomPanPinch from "react-zoom-pan-pinch";
 import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
+import { UNIVER_SHEET_MIME } from "@/shared/lib/api/drive";
 
 export type PdfModule = typeof ReactPdf;
 export type ZoomModule = typeof ReactZoomPanPinch;
@@ -88,6 +89,12 @@ export function resolvePreviewKind(mimetype: string, filename: string): PreviewK
   const mime = mimetype.toLowerCase();
   const ext = extensionOf(filename);
 
+  // Univer spreadsheets render in their dedicated editor route; authenticated
+  // opens are redirected before this dialog mounts. Classify as unsupported so
+  // any stray open (e.g. a public share) shows the download card, never a
+  // broken in-dialog render.
+  if (mime === UNIVER_SHEET_MIME)
+    return "unsupported";
   if (mime.startsWith("image/"))
     return "image";
   if (mime === "application/pdf" || ext === "pdf")

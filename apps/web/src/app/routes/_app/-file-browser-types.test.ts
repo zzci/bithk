@@ -8,6 +8,7 @@ describe("detectFileType", () => {
     expect(detectFileType("image/png")).toBe("image");
     expect(detectFileType("application/vnd.ms-excel")).toBe("spreadsheet");
     expect(detectFileType("text/csv")).toBe("spreadsheet");
+    expect(detectFileType("application/x-univer-sheet")).toBe("spreadsheet");
     expect(detectFileType("application/msword")).toBe("document");
     expect(detectFileType("text/plain")).toBe("document");
     expect(detectFileType("application/octet-stream")).toBe("file");

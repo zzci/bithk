@@ -14,6 +14,7 @@ import {
   Folder,
 } from "lucide-react";
 import { createElement } from "react";
+import { isUniverSheetEntry, UNIVER_SHEET_MIME } from "@/shared/lib/api/drive";
 import { BASE_PATH } from "@/shared/lib/http";
 
 // ── Types ──
@@ -47,6 +48,8 @@ export interface DisplayItem {
 // ── Helpers ──
 
 export function detectFileType(mimeType: string): FileType {
+  if (mimeType === UNIVER_SHEET_MIME)
+    return "spreadsheet";
   if (mimeType.includes("pdf"))
     return "pdf";
   if (mimeType.startsWith("image/"))
@@ -102,7 +105,9 @@ export function entryToDisplayItem(entry: DriveEntry): DisplayItem {
   return {
     id: entry.id,
     name: entry.name || (entry.file?.filename ?? ""),
-    type: entry.file ? detectFileType(entry.file.mimetype) : "file",
+    // Univer sheets carry the `UNIVER_SHEET_MIME` mimetype, but fall back to the
+    // `.sheet` suffix when an entry has no stored mimetype.
+    type: isUniverSheetEntry(entry) ? "spreadsheet" : entry.file ? detectFileType(entry.file.mimetype) : "file",
     modified: entry.updatedAt || entry.createdAt,
     ownerType,
     ownerId: entry.ownerId,

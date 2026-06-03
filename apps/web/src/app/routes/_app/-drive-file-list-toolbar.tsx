@@ -2,6 +2,8 @@
 import type { DriveFileListCapabilities, FileToolbarProps } from "./-drive-file-list-types";
 import {
   Download,
+  FileSpreadsheet,
+  FileUp,
   FolderInput,
   FolderPlus,
   FolderUp,
@@ -140,6 +142,8 @@ export function FileToolbar({
   onCreateFolder,
   onUploadClick,
   onUploadFolderClick,
+  onCreateSpreadsheet,
+  onImportCsv,
   onImportFromDrive,
 }: FileToolbarProps) {
   const { t } = useTranslation("drive");
@@ -238,6 +242,12 @@ export function FileToolbar({
                               {t("browser.newFolder")}
                             </DropdownMenuItem>
                           )}
+                          {onCreateSpreadsheet && (
+                            <DropdownMenuItem onClick={onCreateSpreadsheet}>
+                              <FileSpreadsheet className="mr-2 size-4" />
+                              {t("browser.newSpreadsheet")}
+                            </DropdownMenuItem>
+                          )}
                           {onUploadClick && (
                             <DropdownMenuItem onClick={onUploadClick}>
                               <Upload className="mr-2 size-4" />
@@ -248,6 +258,12 @@ export function FileToolbar({
                             <DropdownMenuItem onClick={onUploadFolderClick}>
                               <FolderUp className="mr-2 size-4" />
                               {t("browser.uploadFolder")}
+                            </DropdownMenuItem>
+                          )}
+                          {onImportCsv && (
+                            <DropdownMenuItem onClick={onImportCsv}>
+                              <FileUp className="mr-2 size-4" />
+                              {t("browser.importCsv")}
                             </DropdownMenuItem>
                           )}
                           {ownerType === "project" && onImportFromDrive && (

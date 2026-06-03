@@ -155,6 +155,68 @@ function CreateTextFileForm({
   );
 }
 
+// ── Create spreadsheet ──
+
+interface CreateSpreadsheetDialogProps {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly pending: boolean;
+  readonly onCreate: (input: { readonly name: string }) => void;
+}
+
+export function CreateSpreadsheetDialog({ open, onOpenChange, pending, onCreate }: CreateSpreadsheetDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <CreateSpreadsheetForm pending={pending} onCreate={onCreate} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateSpreadsheetForm({
+  pending,
+  onCreate,
+}: {
+  readonly pending: boolean;
+  readonly onCreate: (input: { readonly name: string }) => void;
+}) {
+  const { t } = useTranslation("drive");
+  const [name, setName] = useState("");
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed)
+      onCreate({ name: withExtension(trimmed, ".sheet") });
+  };
+
+  return (
+    <form className="grid gap-4" onSubmit={submit}>
+      <DialogHeader>
+        <DialogTitle>{t("browser.dialog.spreadsheetTitle")}</DialogTitle>
+        <DialogDescription>{t("browser.dialog.spreadsheetDescription")}</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-2">
+        <Label htmlFor="drive-spreadsheet-name">{t("browser.dialog.nameLabel")}</Label>
+        <Input
+          id="drive-spreadsheet-name"
+          autoFocus
+          value={name}
+          onChange={event => setName(event.currentTarget.value)}
+          placeholder={t("browser.dialog.spreadsheetNamePlaceholder")}
+        />
+      </div>
+      <DialogFooter>
+        <DialogClose render={<Button type="button" variant="outline">{t("common.cancel")}</Button>} />
+        <Button type="submit" disabled={pending || !name.trim()}>
+          {pending ? t("common.saving") : t("browser.create")}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
 // ── Rename ──
 
 interface RenameDialogProps {

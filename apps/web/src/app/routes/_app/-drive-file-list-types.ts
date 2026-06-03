@@ -79,6 +79,8 @@ export interface DriveFileListSurfaceActions {
   readonly onUploadClick?: () => void;
   readonly onUploadFolderClick?: () => void;
   readonly onCreateTextFile?: (kind: "markdown" | "text") => void;
+  readonly onCreateSpreadsheet?: () => void;
+  readonly onImportCsv?: () => void;
   readonly getCustomActions?: (item: DisplayItem) => FileListAction[];
 }
 
@@ -183,6 +185,8 @@ export interface FileToolbarProps {
   readonly onCreateFolder?: (() => void) | undefined;
   readonly onUploadClick?: (() => void) | undefined;
   readonly onUploadFolderClick?: (() => void) | undefined;
+  readonly onCreateSpreadsheet?: (() => void) | undefined;
+  readonly onImportCsv?: (() => void) | undefined;
   readonly onImportFromDrive?: (() => void) | undefined;
 }
 
@@ -239,6 +243,8 @@ export interface FileListProps {
   readonly onCreateFolder?: (() => void) | undefined;
   readonly onUploadClick?: (() => void) | undefined;
   readonly onCreateTextFile?: ((kind: "markdown" | "text") => void) | undefined;
+  readonly onCreateSpreadsheet?: (() => void) | undefined;
+  readonly onImportCsv?: (() => void) | undefined;
   readonly getCustomActions?: ((item: DisplayItem) => FileListAction[]) | undefined;
 }
 
