@@ -21,6 +21,7 @@ import type { ShareView } from "@/shared/lib/api/share";
 import { Copy, Download, Inbox, Link2, Share2, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { useClipboard, useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -202,7 +203,9 @@ function ShareListSurface({
       label: t("action.revoke"),
       icon: <Trash2 className="mr-2 size-4" />,
       variant: "destructive",
-      onSelect: () => revoke.mutate(share.id),
+      onSelect: () => revoke.mutate(share.id, {
+        onError: err => toast.error(errorMessage(err, t("common.error.operationFailed", { ns: "common" }))),
+      }),
     });
     return actions;
   }, [copy, mode, revoke, shareMap, t]);

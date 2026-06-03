@@ -5,6 +5,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { Edit3, Share2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
 import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
@@ -350,7 +351,10 @@ export function ContactsListPage() {
         onConfirm={() => {
           if (!deleteTarget)
             return;
-          deleteContact.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+          deleteContact.mutate(deleteTarget.id, {
+            onSuccess: () => setDeleteTarget(null),
+            onError: err => toast.error(errorMessage(err, t("common:common.error.deleteFailed"))),
+          });
         }}
       />
 

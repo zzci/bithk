@@ -2,6 +2,7 @@ import type { EntitiesResponse, RelationTuple, TuplesResponse } from "./-policie
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -17,6 +18,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { errorMessage } from "@/shared/lib/errors";
 import { formatDate } from "@/shared/lib/format";
 import { http } from "@/shared/lib/http";
 import { handleSelect, NAMESPACES, RELATIONS, SUBJECT_NAMESPACES, useEntities, useEntityNameMap } from "./-policies-shared";
@@ -43,6 +45,7 @@ export function TupleManager() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => http(`/tuples/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tuples"] }),
+    onError: err => toast.error(errorMessage(err, t("common.error.deleteFailed", { ns: "common" }))),
   });
 
   const tuples = data?.data ?? [];
