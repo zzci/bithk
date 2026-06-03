@@ -169,7 +169,7 @@ describe("projectIssuesTab", () => {
 
     // The tag filter is a multi-select dropdown trigger on the left of the
     // toolbar (its label is the dimension name until values are selected).
-    const tagFilter = await screen.findByRole("button", { name: "Filter by tag" });
+    const tagFilter = await screen.findByRole("button", { name: "Tags" });
     const search = screen.getByPlaceholderText("Search work orders...");
     const create = screen.getByRole("button", { name: "New" });
 
@@ -258,7 +258,7 @@ describe("projectIssuesTab", () => {
     expect(screen.getByText("Other task")).toBeInTheDocument();
 
     // Open the tag dropdown and select "alpha" via its checkbox item.
-    await user.click(await screen.findByRole("button", { name: "Filter by tag" }));
+    await user.click(await screen.findByRole("button", { name: "Tags" }));
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "alpha" }));
 
     // tagIds reaches the single issues query (one repeatable param per tag id).
@@ -284,7 +284,7 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Fix leak");
 
-    await user.click(screen.getByRole("button", { name: "Filter by tag" }));
+    await user.click(screen.getByRole("button", { name: "Tags" }));
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "gamma" }));
 
     await waitFor(() => {
