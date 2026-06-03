@@ -296,3 +296,80 @@ describe("per-ship equipment categories (ship-access)", () => {
     });
   });
 });
+
+// Permission PARITY with ship-level worklists: per-ship equipment categories
+// reuse the SAME gates (requireShipRead for GET, requireShipManage for writes),
+// anchored on the ship's base project — they invent no separate membership or
+// capability. Each test drives BOTH `/ships/:shortId/worklists` and
+// `/ships/:shortId/equipment-categories` with the SAME actor and asserts the
+// status codes match verb-for-verb, so the equivalence is literal (both routers
+// are mounted by shipRoutes()).
+describe("permission parity with ship worklists", () => {
+  async function status(app: Hono<AppEnv>, method: string, cookie: string, path: string, body?: unknown): Promise<number> {
+    return (await app.request(path, jsonReq(method, cookie, body))).status;
+  }
+
+  test("a ship-worklist reader/writer has identical access to equipment-categories", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
+
+    // Admin (PM) can write both — POST parity.
+    const wlPost = await status(app, "POST", adminCookie, `/ships/${shipShortId}/worklists`, { name: "WL" });
+    const catPost = await status(app, "POST", adminCookie, `/ships/${shipShortId}/equipment-categories`, { nameZh: "主机", nameEn: "Main Engine" });
+    expect(catPost).toBe(wlPost);
+    expect(catPost).toBe(201);
+
+    // A plain base-project member (Reader) — same read=200 / write=403 on both.
+    const member = await seedUser("user");
+    await addMember(db, baseProjectInternalId, { roleId: await memberRoleId(baseProjectInternalId), userId: member });
+    const memberCookie = await cookieForUser(member);
+
+    const wlRead = await status(app, "GET", memberCookie, `/ships/${shipShortId}/worklists`);
+    const catRead = await status(app, "GET", memberCookie, `/ships/${shipShortId}/equipment-categories`);
+    expect(catRead).toBe(wlRead);
+    expect(catRead).toBe(200);
+
+    const wlWrite = await status(app, "POST", memberCookie, `/ships/${shipShortId}/worklists`, { name: "Nope" });
+    const catWrite = await status(app, "POST", memberCookie, `/ships/${shipShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
+    expect(catWrite).toBe(wlWrite);
+    expect(catWrite).toBe(403);
+  });
+
+  test("a user who cannot access ship worklists is rejected identically on equipment-categories", async () => {
+    const app = buildApp(db);
+    const { shipShortId } = await createShipAsAdmin(app);
+    const outsider = await sessionFor("user"); // not a base-project member
+
+    const wlRead = await status(app, "GET", outsider.cookie, `/ships/${shipShortId}/worklists`);
+    const catRead = await status(app, "GET", outsider.cookie, `/ships/${shipShortId}/equipment-categories`);
+    expect(catRead).toBe(wlRead);
+    expect(catRead).toBe(404); // fail-closed, identical to worklists
+
+    const wlWrite = await status(app, "POST", outsider.cookie, `/ships/${shipShortId}/worklists`, { name: "Nope" });
+    const catWrite = await status(app, "POST", outsider.cookie, `/ships/${shipShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
+    expect(catWrite).toBe(wlWrite);
+    expect(catWrite).toBe(404);
+  });
+
+  test("a member of ship A is rejected identically on ship B worklists and equipment-categories", async () => {
+    const app = buildApp(db);
+    const shipA = await createShipAsAdmin(app, "A");
+    const resB = await app.request("/ships", jsonReq("POST", shipA.adminCookie, { name: "B" }));
+    const shipBShortId = ((await resB.json()) as { data: { id: string } }).data.id;
+
+    // A user who is a member of ship A's base project ONLY.
+    const userA = await seedUser("user");
+    await addMember(db, shipA.baseProjectInternalId, { roleId: await memberRoleId(shipA.baseProjectInternalId), userId: userA });
+    const cookieA = await cookieForUser(userA);
+
+    const wlRead = await status(app, "GET", cookieA, `/ships/${shipBShortId}/worklists`);
+    const catRead = await status(app, "GET", cookieA, `/ships/${shipBShortId}/equipment-categories`);
+    expect(catRead).toBe(wlRead);
+    expect(catRead).toBe(404);
+
+    const wlWrite = await status(app, "POST", cookieA, `/ships/${shipBShortId}/worklists`, { name: "Nope" });
+    const catWrite = await status(app, "POST", cookieA, `/ships/${shipBShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
+    expect(catWrite).toBe(wlWrite);
+    expect(catWrite).toBe(404);
+  });
+});
