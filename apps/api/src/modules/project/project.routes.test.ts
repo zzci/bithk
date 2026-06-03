@@ -294,6 +294,26 @@ describe("GET /projects (list scoping)", () => {
     expect(body.data.map(p => p.name)).toEqual(["Atlas Refit"]);
     expect(body.meta.total).toBe(1);
   });
+
+  test("the tagIds param filters by OR/union (repeated + comma forms)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionFor("admin");
+    await createProject(db, { name: "A", creatorId: admin.userId, tags: ["alpha"] });
+    await createProject(db, { name: "B", creatorId: admin.userId, tags: ["beta"] });
+    await createProject(db, { name: "C", creatorId: admin.userId, tags: ["gamma"] });
+
+    // comma form, OR / union semantics: alpha∪gamma = A,C
+    const comma = await app.request("/projects?tagIds=alpha,gamma", { headers: { Cookie: admin.cookie } });
+    expect(comma.status).toBe(200);
+    const commaBody = await comma.json() as { data: { name: string }[]; meta: { total: number } };
+    expect(commaBody.meta.total).toBe(2);
+    expect(commaBody.data.map(p => p.name).sort()).toEqual(["A", "C"]);
+
+    // repeated form resolves to the same union
+    const repeated = await app.request("/projects?tagIds=alpha&tagIds=gamma", { headers: { Cookie: admin.cookie } });
+    const repeatedBody = await repeated.json() as { data: { name: string }[] };
+    expect(repeatedBody.data.map(p => p.name).sort()).toEqual(["A", "C"]);
+  });
 });
 
 describe("GET /projects/:id (detail + fail-closed)", () => {

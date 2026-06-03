@@ -76,10 +76,26 @@ const updateProjectSchema = z.object({
 const listSchema = z.object({
   status: z.enum(PROJECT_STATUSES).optional(),
   q: z.string().min(1).max(200).optional(),
-  tagId: z.string().min(1).optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
+
+// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
+// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
+// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
+function parseTagIds(raw: string[] | undefined): string[] {
+  if (!raw || raw.length === 0)
+    return [];
+  const out = new Set<string>();
+  for (const part of raw) {
+    for (const value of part.split(",")) {
+      const trimmed = value.trim();
+      if (trimmed)
+        out.add(trimmed);
+    }
+  }
+  return [...out].slice(0, 50);
+}
 
 const addMemberSchema = z.object({
   roleId: z.string().min(1),
@@ -278,12 +294,13 @@ export function projectRoutes() {
     const query = listSchema.parse({
       status: c.req.query("status"),
       q: c.req.query("q"),
-      tagId: c.req.query("tagId"),
       page: c.req.query("page"),
       limit: c.req.query("limit"),
     });
+    const tagIds = parseTagIds(c.req.queries("tagIds"));
     const result = await listProjects(db, {
       ...query,
+      tagIds,
       // Archived projects are hidden unless explicitly requested via the
       // `status=archived` filter (the "Archived" chip on the list).
       excludeArchived: query.status === undefined,
