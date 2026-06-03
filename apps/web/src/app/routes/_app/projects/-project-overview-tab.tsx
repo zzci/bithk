@@ -209,8 +209,8 @@ function PinnedRow({ item, caps, onOpenTab }: PinnedRowProps) {
         onClick={() => onOpenTab(target)}
       >
         {isIssue
-          ? <ClipboardList className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          : <Package className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+          ? <ClipboardList role="img" aria-label={t("overview.pinKind.issue")} className="size-4 shrink-0 text-muted-foreground" />
+          : <Package role="img" aria-label={t("overview.pinKind.procurement")} className="size-4 shrink-0 text-muted-foreground" />}
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</span>
         <span className="ml-auto shrink-0">
           <Badge

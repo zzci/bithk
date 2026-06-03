@@ -111,8 +111,10 @@ describe("projectOverviewTab", () => {
     const pinnedList = within(await screen.findByRole("list", { name: "Pinned" }));
     expect(pinnedList.getByText("Fix pump")).toBeInTheDocument();
     expect(pinnedList.getByText("Buy steel")).toBeInTheDocument();
-    // The kind is now a leading aria-hidden icon (not assertable text); the
-    // status badge still renders on each single-line row.
+    // The kind is now a leading icon labelled by accessible name (not text);
+    // the status badge still renders on each single-line row.
+    expect(pinnedList.getByRole("img", { name: "Work order" })).toBeInTheDocument();
+    expect(pinnedList.getByRole("img", { name: "Procurement" })).toBeInTheDocument();
     expect(pinnedList.getByText("To Do")).toBeInTheDocument();
   });
 
