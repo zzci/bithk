@@ -191,14 +191,14 @@
     "dialogDescription": "Define the checklist and precautions for this worklist.",
     "deleteTitle": "Delete worklist",
     "deleteConfirm": "Delete \"{{name}}\"?",
-    "copyFromGlobal": "Copy from global knowledge base",
-    "copyPlaceholder": "Select a global worklist",
-    "copy": "Copy worklist",
-    "categoryPlaceholder": "Select or type a category",
+    "startFromTemplate": "Start from template",
+    "startFromTemplateBlank": "Blank",
+    "startFromTemplatePlaceholder": "Select a template",
+    "tags": "Tags",
+    "tagFilter": "Tags",
     "noChecklist": "No checklist provided.",
     "field": {
       "name": "Name",
-      "category": "Category",
       "checklist": "Checklist",
       "precautions": "Precautions"
     }

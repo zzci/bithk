@@ -32,6 +32,8 @@ function routeFetch(opts: { worklists?: unknown[]; categories?: unknown[] } = {}
     const method = init?.method ?? "GET";
     if (method === "GET" && path === "/worklists")
       return jsonResponse({ success: true, data: worklists });
+    if (method === "GET" && path === "/tags?type=worklist")
+      return jsonResponse({ success: true, data: [] });
     if (method === "GET" && path === "/global-equipment-categories")
       return jsonResponse({ success: true, data: categories });
     if (method === "POST" && path === "/global-equipment-categories")
@@ -44,7 +46,7 @@ describe("shipSettingsTab", () => {
   it("renders the global worklists section with its rows", async () => {
     routeFetch({
       worklists: [
-        { id: "wl1", name: "Engine service", category: "Engine", checklist: "oil; filter", precautions: "cool down", createdAt: "2026-06-02T00:00:00.000Z", updatedAt: "2026-06-02T00:00:00.000Z" },
+        { id: "wl1", name: "Engine service", tags: [{ id: "t1", name: "Engine" }], checklist: "oil; filter", precautions: "cool down", createdAt: "2026-06-02T00:00:00.000Z", updatedAt: "2026-06-02T00:00:00.000Z" },
       ],
     });
 
@@ -72,7 +74,9 @@ describe("shipSettingsTab", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add Worklist" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByLabelText("Name")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Category")).toBeInTheDocument();
+    // The category field is replaced by a tags picker (a combobox, not an input).
+    expect(within(dialog).getByRole("combobox")).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Category")).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("Checklist")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Precautions")).toBeInTheDocument();
   });

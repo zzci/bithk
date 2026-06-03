@@ -2,7 +2,7 @@
 // across the ship module:
 //   1. GLOBAL WORKLISTS — knowledge-base worklist templates (rows in the
 //      `worklists` table with shipId NULL) that ships copy from. A worklist IS
-//      the template; its `category` is plain free text.
+//      the template; it carries tags that are snapshotted into each ship copy.
 //   2. EQUIPMENT CATEGORY TEMPLATE — the bilingual vocabulary template each
 //      ship copies into its own category set on creation. Each entry holds a
 //      Chinese and an English name; ships then manage their own copies and
@@ -48,8 +48,10 @@ import {
   useDeleteGlobalWorklist,
   useGlobalWorklists,
   useUpdateGlobalWorklist,
+  useWorklistTags,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
+import { WorklistTagsCombobox } from "../ships/-worklist-tags-combobox";
 
 export function ShipSettingsTab() {
   return (
@@ -91,7 +93,7 @@ function GlobalWorklistsSection() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("settings:globalWorklists.colName")}</TableHead>
-              <TableHead>{t("settings:globalWorklists.colCategory")}</TableHead>
+              <TableHead>{t("settings:globalWorklists.colTags")}</TableHead>
               <TableHead className="w-32">{t("settings:col.actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -101,7 +103,7 @@ function GlobalWorklistsSection() {
               : worklists.map(worklist => (
                   <TableRow key={worklist.id}>
                     <TableCell className="font-medium">{worklist.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{worklist.category ?? "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{worklist.tags.map(tag => tag.name).join(", ") || "—"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" onClick={() => setEditTarget(worklist)}>
@@ -167,15 +169,16 @@ function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogPr
   const updateWorklist = useUpdateGlobalWorklist();
 
   const [name, setName] = useState(worklist?.name ?? "");
-  const [category, setCategory] = useState(worklist?.category ?? "");
+  const [tags, setTags] = useState<readonly string[]>(worklist?.tags.map(tag => tag.name) ?? []);
   const [checklist, setChecklist] = useState(worklist?.checklist ?? "");
   const [precautions, setPrecautions] = useState(worklist?.precautions ?? "");
+  const worklistTags = useWorklistTags().data ?? [];
 
   const pending = createWorklist.isPending || updateWorklist.isPending;
   const error = createWorklist.error ?? updateWorklist.error;
 
   const buildInput = (): WorklistInput => ({
-    category: category.trim() || null,
+    tags,
     checklist: checklist.trim() || null,
     precautions: precautions.trim() || null,
   });
@@ -222,8 +225,8 @@ function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogPr
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="global-worklist-cat">{t("settings:globalWorklists.fieldCategory")}</Label>
-            <Input id="global-worklist-cat" maxLength={255} value={category} onChange={e => setCategory(e.target.value)} />
+            <Label>{t("settings:globalWorklists.fieldTags")}</Label>
+            <WorklistTagsCombobox value={tags} onChange={setTags} availableTags={worklistTags.map(tag => tag.name)} />
           </div>
 
           <div className="space-y-1.5">
