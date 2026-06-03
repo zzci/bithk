@@ -206,7 +206,6 @@ function AuditPage() {
               key: "result",
               label: t("col.result"),
               mode: "single",
-              resident: true,
               defaultValue: "__all__",
               value: resultFilter,
               onChange: (value) => {

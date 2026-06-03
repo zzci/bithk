@@ -261,7 +261,6 @@ function CronPage() {
               key: "status",
               label: t("filter.label"),
               mode: "single",
-              resident: true,
               defaultValue: "active",
               value: statusFilter,
               onChange: (value) => {

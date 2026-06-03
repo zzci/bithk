@@ -164,7 +164,6 @@ function UsersTab() {
               key: "role",
               label: t("field.role"),
               mode: "single",
-              resident: true,
               defaultValue: ALL,
               value: roleFilter,
               onChange: (value) => {
@@ -180,7 +179,6 @@ function UsersTab() {
               key: "status",
               label: t("field.status"),
               mode: "single",
-              resident: true,
               defaultValue: ALL,
               value: statusFilter,
               onChange: (value) => {

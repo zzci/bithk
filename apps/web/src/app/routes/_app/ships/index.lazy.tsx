@@ -103,7 +103,6 @@ export function ShipsListPage() {
               key: "status",
               label: t("field.status"),
               mode: "single",
-              resident: true,
               defaultValue: "active",
               value: status,
               onChange: (value) => {
@@ -120,7 +119,6 @@ export function ShipsListPage() {
               key: "tags",
               label: t("field.tags"),
               mode: "single",
-              residentCount: 5,
               value: tagId,
               onChange: (value) => {
                 setTagId(value);

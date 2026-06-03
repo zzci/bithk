@@ -4,6 +4,7 @@
 // so it assumes read access; create/pin need canManage. Procurement is
 // non-deletable — retire a record via the `cancelled` status instead.
 
+import type { FilterDimension } from "@/shared/components/list-filter";
 import type {
   CreateProcurementInput,
   ProcurementPriority,
@@ -57,7 +58,6 @@ import { errorMessage } from "@/shared/lib/errors";
 import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { buildMemberLabelMap } from "./-member-helpers";
-import { ProjectTagFilter } from "./-project-tag-filter";
 import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 // Shared grid template so the header row and every data row align on the same
@@ -95,10 +95,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
 
   const procurementTagsQuery = useProcurementTags();
   const procurementTags = useMemo(() => procurementTagsQuery.data ?? [], [procurementTagsQuery.data]);
-  const toggleTag = useCallback((tagId: string) => {
-    setSelectedTagIds(prev => (prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]));
-    setPage(1);
-  }, []);
 
   const categoriesQuery = useProcurementCategories(projectId);
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
@@ -147,47 +143,63 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
     return row.currency ? `${row.amount} ${row.currency}` : String(row.amount);
   };
 
+  // Filter dimensions: status / priority / category single-selects, plus a tags
+  // multi-select (union semantics) whose selected values surface as removable
+  // chips in the shared Drive-style ListFilter.
+  const dimensions: FilterDimension[] = [
+    {
+      key: "status",
+      label: t("procurement.allStatuses"),
+      mode: "single",
+      value: statusFilter === "__all__" ? null : statusFilter,
+      onChange: (value) => {
+        setStatusFilter(value ?? "__all__");
+        setPage(1);
+      },
+      options: PROCUREMENT_STATUSES.map(s => ({ value: s, label: t(`procurement.status.${s}` as const) })),
+    },
+    {
+      key: "priority",
+      label: t("procurement.allPriorities"),
+      mode: "single",
+      value: priorityFilter === "__all__" ? null : priorityFilter,
+      onChange: (value) => {
+        setPriorityFilter(value ?? "__all__");
+        setPage(1);
+      },
+      options: PROCUREMENT_PRIORITIES.map(p => ({ value: p, label: t(`procurement.priority.${p}` as const) })),
+    },
+    {
+      key: "category",
+      label: t("procurement.allCategories"),
+      mode: "single",
+      value: effectiveCategory === "__all__" ? null : effectiveCategory,
+      onChange: (value) => {
+        setCategoryFilter(value ?? "__all__");
+        setPage(1);
+      },
+      options: categories.map(c => ({ value: c.id, label: c.name })),
+    },
+    ...(procurementTags.length > 0
+      ? [{
+        key: "tags",
+        label: t("procurement.tagFilter"),
+        mode: "multi",
+        value: selectedTagIds,
+        onChange: (value: string[]) => {
+          setSelectedTagIds(value);
+          setPage(1);
+        },
+        options: procurementTags.map(tag => ({ value: tag.id, label: tag.name })),
+      } satisfies FilterDimension]
+      : []),
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <ListFilter
-            dimensions={[
-              {
-                key: "status",
-                label: t("procurement.allStatuses"),
-                mode: "single",
-                value: statusFilter === "__all__" ? null : statusFilter,
-                onChange: (value) => {
-                  setStatusFilter(value ?? "__all__");
-                  setPage(1);
-                },
-                options: PROCUREMENT_STATUSES.map(s => ({ value: s, label: t(`procurement.status.${s}` as const) })),
-              },
-              {
-                key: "priority",
-                label: t("procurement.allPriorities"),
-                mode: "single",
-                value: priorityFilter === "__all__" ? null : priorityFilter,
-                onChange: (value) => {
-                  setPriorityFilter(value ?? "__all__");
-                  setPage(1);
-                },
-                options: PROCUREMENT_PRIORITIES.map(p => ({ value: p, label: t(`procurement.priority.${p}` as const) })),
-              },
-              {
-                key: "category",
-                label: t("procurement.allCategories"),
-                mode: "single",
-                value: effectiveCategory === "__all__" ? null : effectiveCategory,
-                onChange: (value) => {
-                  setCategoryFilter(value ?? "__all__");
-                  setPage(1);
-                },
-                options: categories.map(c => ({ value: c.id, label: c.name })),
-              },
-            ]}
-          />
+          <ListFilter dimensions={dimensions} />
         </div>
         <SearchCreateBar
           search={{
@@ -201,20 +213,6 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
           {...(canManage ? { create: { label: t("procurement.createButton"), onClick: () => setCreateOpen(true) } } : {})}
         />
       </div>
-
-      {/* Tag filter bar — responsive multi-select chips. Union semantics:
-          selecting tags narrows the list to procurements carrying any selected
-          tag. */}
-      {procurementTags.length > 0 && (
-        <div role="group" aria-label={t("procurement.tagFilter")}>
-          <ProjectTagFilter
-            multiple
-            tags={procurementTags}
-            selectedTagIds={selectedTagIds}
-            onToggle={toggleTag}
-          />
-        </div>
-      )}
 
       {procurementsQuery.error && <ErrorBanner message={errorMessage(procurementsQuery.error, t("common:common.error.loadFailed"))} />}
 

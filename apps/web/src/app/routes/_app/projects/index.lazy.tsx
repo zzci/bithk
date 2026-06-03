@@ -102,7 +102,6 @@ export function ProjectsListPage() {
               key: "status",
               label: t("field.status"),
               mode: "single",
-              resident: true,
               defaultValue: "__active__",
               value: tags.some(tag => tag.id === filter) ? "__active__" : filter,
               onChange: (value) => {
@@ -118,7 +117,6 @@ export function ProjectsListPage() {
               key: "tags",
               label: t("field.tags"),
               mode: "single",
-              residentCount: 5,
               value: tags.some(tag => tag.id === filter) ? filter : null,
               onChange: (value) => {
                 setFilter(value ?? "__active__");

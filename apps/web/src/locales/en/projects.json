@@ -34,6 +34,7 @@
     "total_other": "{{count}} projects",
     "filter": "Filter",
     "filterRemove": "Remove {{label}}",
+    "clearFilters": "Clear filters",
     "searchPlaceholder": "Search projects",
     "openSettings": "Project settings",
     "moreTags": "+{{count}}",

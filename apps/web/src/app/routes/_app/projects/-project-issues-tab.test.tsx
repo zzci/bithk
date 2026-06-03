@@ -161,23 +161,23 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Fix leak");
 
-    // Tag vocabulary loads asynchronously; the single tag pins as a resident
-    // ListFilter toggle chip on the left of the toolbar.
-    const tagChip = await screen.findByRole("button", { name: "electrical" });
+    // The tag filter is a multi-select dropdown trigger on the left of the
+    // toolbar (its label is the dimension name until values are selected).
+    const tagFilter = await screen.findByRole("button", { name: "Filter by tag" });
     const search = screen.getByPlaceholderText("Search work orders...");
     const create = screen.getByRole("button", { name: "New" });
 
     // Search + create share a right-side bar that excludes the tag filter.
     const rightGroup = create.parentElement!;
     expect(rightGroup).toContainElement(search);
-    expect(rightGroup).not.toContainElement(tagChip);
+    expect(rightGroup).not.toContainElement(tagFilter);
 
     // The toolbar row holds the left filter cluster and the right bar as adjacent
-    // siblings; the tag chip lives inside the left filter cluster.
+    // siblings; the tag filter lives inside the left filter cluster.
     const toolbar = rightGroup.parentElement!;
-    expect(toolbar).toContainElement(tagChip);
+    expect(toolbar).toContainElement(tagFilter);
     const filtersWrapper = rightGroup.previousElementSibling!;
-    expect(filtersWrapper).toContainElement(tagChip);
+    expect(filtersWrapper).toContainElement(tagFilter);
   });
 
   it("no longer renders the status-filter chip row", async () => {
@@ -251,8 +251,9 @@ describe("projectIssuesTab", () => {
     await screen.findByText("Fix leak");
     expect(screen.getByText("Other task")).toBeInTheDocument();
 
-    // With only two tags both pin as resident chips; select "alpha" via its chip.
-    await user.click(await screen.findByRole("button", { name: "alpha" }));
+    // Open the tag dropdown and select "alpha" via its checkbox item.
+    await user.click(await screen.findByRole("button", { name: "Filter by tag" }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "alpha" }));
 
     // tagIds reaches the single issues query (one repeatable param per tag id).
     await waitFor(() => {
@@ -262,15 +263,14 @@ describe("projectIssuesTab", () => {
     await waitFor(() => expect(screen.queryByText("Other task")).not.toBeInTheDocument());
     expect(screen.getByText("Fix leak")).toBeInTheDocument();
 
-    // Toggling the active chip off clears the filter.
-    await user.click(screen.getByRole("button", { name: "alpha" }));
+    // Removing the selected tag via its chip clears the filter.
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Remove alpha" }));
     await waitFor(() => expect(screen.getByText("Other task")).toBeInTheDocument());
   });
 
-  it("opens the Filter dropdown for non-pinned tags and toggles via it", async () => {
+  it("filters via the tag dropdown", async () => {
     const user = userEvent.setup();
-    // Six tags: the first five pin as resident chips, leaving "gamma" (t6)
-    // behind the shared Filter dropdown remainder.
     routeFetch(
       [issue({ id: "i1", title: "Fix leak", status: "todo", tags: [{ id: "t6", name: "gamma" }] })],
       tags("alpha", "beta", "delta", "epsilon", "zeta", "gamma"),
@@ -278,7 +278,7 @@ describe("projectIssuesTab", () => {
     renderWithProviders(<ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage />);
     await screen.findByText("Fix leak");
 
-    await user.click(screen.getByRole("button", { name: "Filter" }));
+    await user.click(screen.getByRole("button", { name: "Filter by tag" }));
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "gamma" }));
 
     await waitFor(() => {

@@ -305,10 +305,10 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
     <div className="space-y-5">
       {/* Top toolbar — tag filter on the left, search + create grouped on the
           right, on a single row that wraps gracefully on narrow widths. The tag
-          filter pins the most-used tags as resident toggle chips and folds the
-          rest behind the shared Filter dropdown; union semantics narrow the list
-          to issues carrying any selected tag. Omitted when the project has no
-          tags, keeping search + create right-aligned. */}
+          filter is a multi-select dropdown whose selected tags surface as
+          removable chips; union semantics narrow the list to issues carrying any
+          selected tag. Omitted when the project has no tags, keeping search +
+          create right-aligned. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {issueTags.length > 0
           ? (
@@ -319,7 +319,6 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                       key: "tags",
                       label: t("issues.tagFilter"),
                       mode: "multi",
-                      residentCount: 5,
                       value: selectedTagIds,
                       onChange: value => setSelectedTagIds(value),
                       options: issueTags.map(tag => ({ value: tag.id, label: tag.name })),

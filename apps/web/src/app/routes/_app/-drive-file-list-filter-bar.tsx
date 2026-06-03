@@ -1,25 +1,18 @@
 import type { ReactNode } from "react";
 import type { DriveFilterBarProps } from "./-drive-file-list-types";
-// Filter bar (type / owner / modified / source) for the drive file-list surface.
+// Filter bar (type / owner / modified / source [+ extra]) for the drive
+// file-list surface. Thin adapter that maps the drive string-union filters onto
+// the shared, Drive-style `ListFilter` (one independent dropdown per dimension).
 import type {
   DriveModifiedFilter,
   DriveOwnerFilter,
   DriveSourceFilter,
   DriveTypeFilter,
 } from "./-file-browser-types";
-import { ChevronDown } from "lucide-react";
-import { Fragment } from "react";
+import type { FilterDimension } from "@/shared/components/list-filter";
 import { useTranslation } from "react-i18next";
 
-import { Button } from "@/shared/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
-import { cn } from "@/shared/lib/utils";
+import { ListFilter } from "@/shared/components/list-filter";
 import { FILE_ICONS } from "./-file-browser-types";
 
 export function DriveFilterBar({
@@ -35,122 +28,74 @@ export function DriveFilterBar({
 }: DriveFilterBarProps) {
   const { t } = useTranslation("drive");
 
-  const typeFilterLabels: Record<DriveTypeFilter, string> = {
-    all: t("browser.filter.all"),
-    folders: t("browser.filter.folders"),
-    files: t("browser.filter.files"),
-    pdf: "PDF",
-    image: t("browser.filter.images"),
-    document: t("browser.filter.documents"),
-    spreadsheet: t("browser.filter.spreadsheets"),
-  };
+  const typeOptions: { value: DriveTypeFilter; label: string; icon?: ReactNode }[] = [
+    { value: "all", label: t("browser.filter.all") },
+    { value: "folders", label: t("browser.filter.folders"), icon: FILE_ICONS.folder("size-4") },
+    { value: "files", label: t("browser.filter.files"), icon: FILE_ICONS.file("size-4") },
+    { value: "pdf", label: "PDF", icon: FILE_ICONS.pdf("size-4") },
+    { value: "image", label: t("browser.filter.images"), icon: FILE_ICONS.image("size-4") },
+    { value: "document", label: t("browser.filter.documents"), icon: FILE_ICONS.document("size-4") },
+    { value: "spreadsheet", label: t("browser.filter.spreadsheets"), icon: FILE_ICONS.spreadsheet("size-4") },
+  ];
 
-  const typeFilterIcons: Record<DriveTypeFilter, ReactNode> = {
-    all: null,
-    folders: FILE_ICONS.folder("size-4"),
-    files: FILE_ICONS.file("size-4"),
-    pdf: FILE_ICONS.pdf("size-4"),
-    image: FILE_ICONS.image("size-4"),
-    document: FILE_ICONS.document("size-4"),
-    spreadsheet: FILE_ICONS.spreadsheet("size-4"),
-  };
+  const dimensions: FilterDimension[] = [
+    {
+      key: "type",
+      label: t("browser.filter.typeLabel"),
+      mode: "single",
+      defaultValue: "all",
+      value: typeFilter,
+      onChange: value => onTypeFilterChange((value ?? "all") as DriveTypeFilter),
+      options: typeOptions,
+    },
+    {
+      key: "owner",
+      label: t("browser.filter.people"),
+      mode: "single",
+      defaultValue: "all",
+      value: ownerFilter,
+      onChange: value => onOwnerFilterChange((value ?? "all") as DriveOwnerFilter),
+      options: [
+        { value: "all", label: t("browser.filter.all") },
+        { value: "me", label: t("browser.filter.ownedByMe") },
+      ],
+    },
+    {
+      key: "modified",
+      label: t("browser.filter.modified"),
+      mode: "single",
+      defaultValue: "all",
+      value: modifiedFilter,
+      onChange: value => onModifiedFilterChange((value ?? "all") as DriveModifiedFilter),
+      options: [
+        { value: "all", label: t("browser.filter.all") },
+        { value: "today", label: t("browser.filter.modifiedToday") },
+        { value: "7d", label: t("browser.filter.modified7Days") },
+        { value: "30d", label: t("browser.filter.modified30Days") },
+      ],
+    },
+    {
+      key: "source",
+      label: t("browser.filter.source"),
+      mode: "single",
+      defaultValue: "all",
+      value: sourceFilter,
+      onChange: value => onSourceFilterChange((value ?? "all") as DriveSourceFilter),
+      options: [
+        { value: "all", label: t("browser.filter.all") },
+        { value: "current", label: t("browser.filter.currentSource") },
+      ],
+    },
+    ...(extraFilters ?? []).map((filter): FilterDimension => ({
+      key: filter.label,
+      label: filter.label,
+      mode: "single",
+      defaultValue: "all",
+      value: filter.value,
+      onChange: value => filter.onChange(value ?? "all"),
+      options: [...filter.options],
+    })),
+  ];
 
-  const ownerFilterLabels: Record<DriveOwnerFilter, string> = {
-    all: t("browser.filter.all"),
-    me: t("browser.filter.ownedByMe"),
-  };
-
-  const modifiedFilterLabels: Record<DriveModifiedFilter, string> = {
-    "all": t("browser.filter.all"),
-    "today": t("browser.filter.modifiedToday"),
-    "7d": t("browser.filter.modified7Days"),
-    "30d": t("browser.filter.modified30Days"),
-  };
-
-  const sourceFilterLabels: Record<DriveSourceFilter, string> = {
-    all: t("browser.filter.all"),
-    current: t("browser.filter.currentSource"),
-  };
-
-  const filterMenu = <T extends string>(
-    label: string,
-    value: T,
-    options: { value: T; label: string; icon?: ReactNode }[],
-    onChange: (value: T) => void,
-  ) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={(
-          <Button
-            variant="outline"
-            className={cn(
-              "shrink-0 whitespace-nowrap",
-              value !== "all" && "bg-accent",
-            )}
-          />
-        )}
-      >
-        <span>{label}</span>
-        {value !== "all" && (
-          <span className="text-muted-foreground">
-            {options.find(option => option.value === value)?.label}
-          </span>
-        )}
-        {value !== "all" && options.find(option => option.value === value)?.icon}
-        <ChevronDown className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuGroup>
-          {options.map(option => (
-            <DropdownMenuItem key={option.value} className="gap-3" onClick={() => onChange(option.value)}>
-              {options.some(item => item.icon) && (
-                <span className="flex size-5 shrink-0 items-center justify-center">
-                  {option.icon}
-                </span>
-              )}
-              {option.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-
-  return (
-    <div className="flex shrink-0 items-center gap-2">
-      {filterMenu(
-        t("browser.filter.typeLabel"),
-        typeFilter,
-        (Object.keys(typeFilterLabels) as DriveTypeFilter[]).map(value => ({
-          value,
-          label: typeFilterLabels[value],
-          icon: typeFilterIcons[value],
-        })),
-        onTypeFilterChange,
-      )}
-      {filterMenu(
-        t("browser.filter.people"),
-        ownerFilter,
-        (Object.keys(ownerFilterLabels) as DriveOwnerFilter[]).map(value => ({ value, label: ownerFilterLabels[value] })),
-        onOwnerFilterChange,
-      )}
-      {filterMenu(
-        t("browser.filter.modified"),
-        modifiedFilter,
-        (Object.keys(modifiedFilterLabels) as DriveModifiedFilter[]).map(value => ({ value, label: modifiedFilterLabels[value] })),
-        onModifiedFilterChange,
-      )}
-      {filterMenu(
-        t("browser.filter.source"),
-        sourceFilter,
-        (Object.keys(sourceFilterLabels) as DriveSourceFilter[]).map(value => ({ value, label: sourceFilterLabels[value] })),
-        onSourceFilterChange,
-      )}
-      {(extraFilters ?? []).map(filter => (
-        <Fragment key={filter.label}>
-          {filterMenu(filter.label, filter.value, [...filter.options], filter.onChange)}
-        </Fragment>
-      ))}
-    </div>
-  );
+  return <ListFilter dimensions={dimensions} className="shrink-0" />;
 }

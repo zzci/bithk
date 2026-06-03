@@ -34,6 +34,7 @@
     "total_other": "{{count}} 个项目",
     "filter": "筛选",
     "filterRemove": "移除 {{label}}",
+    "clearFilters": "清除过滤条件",
     "searchPlaceholder": "搜索项目",
     "openSettings": "项目设置",
     "moreTags": "+{{count}}",

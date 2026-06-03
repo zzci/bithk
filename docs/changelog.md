@@ -73,6 +73,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Reworked the shared `ListFilter` into a Google-Drive-style filter bar where
+  each dimension is its own independent dropdown (REFACTOR-018 / PLAN-055).
+  Selecting a single-select value highlights that dropdown, swaps its trigger
+  label to the chosen value, and adds a connected × button; multi-select
+  dimensions surface each chosen value as its own removable chip; a trailing
+  "Clear filters" button resets every dimension at once. Removed the previous
+  aggregated single-"Filter" dropdown and the always-visible "resident" toggle
+  chips. The drive file/share filter bar (`DriveFilterBar`) and the procurement
+  tag filter now both render through `ListFilter`; the standalone
+  `ProjectTagFilter` (and its `-project-tag-filter.fit` measurement helper) were
+  deleted. Resolves the filter-control fragmentation flagged in the UI
+  consistency audit (P4).
+
 - Unified all interactive buttons onto one app-wide sizing standard: non-icon
   buttons use the `Button` default size (`h-8`) and icon-only buttons use
   `size="icon"` (`size-8`), replacing scattered `size="sm"` / `size="lg"` /

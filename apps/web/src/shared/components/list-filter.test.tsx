@@ -9,13 +9,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// A fully-resident single-select dimension (matches the projects status filter).
-function statusDim(overrides: Partial<Extract<FilterDimension, { mode: "single" }>> = {}): FilterDimension {
+// A single-select dimension (matches a status filter): default "__active__".
+function singleDim(overrides: Partial<Extract<FilterDimension, { mode: "single" }>> = {}): FilterDimension {
   return {
     key: "status",
     label: "Status",
     mode: "single",
-    resident: true,
     defaultValue: "__active__",
     value: "__active__",
     onChange: () => {},
@@ -27,23 +26,7 @@ function statusDim(overrides: Partial<Extract<FilterDimension, { mode: "single" 
   };
 }
 
-// Eight tags, residentCount 5: t0..t4 pinned inline, t5..t7 in the dropdown.
-const EIGHT = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"];
-
-function tagDim(overrides: Partial<Extract<FilterDimension, { mode: "single" }>> = {}): FilterDimension {
-  return {
-    key: "tags",
-    label: "Tags",
-    mode: "single",
-    residentCount: 5,
-    value: null,
-    onChange: () => {},
-    options: EIGHT.map((name, i) => ({ value: `t${i}`, label: name })),
-    ...overrides,
-  };
-}
-
-// A non-resident multi-select dimension (everything lives in the dropdown).
+// A multi-select dimension (everything lives in the dropdown).
 function multiDim(overrides: Partial<Extract<FilterDimension, { mode: "multi" }>> = {}): FilterDimension {
   return {
     key: "labels",
@@ -59,92 +42,60 @@ function multiDim(overrides: Partial<Extract<FilterDimension, { mode: "multi" }>
   };
 }
 
-describe("listFilter (resident dimension)", () => {
-  it("renders the whole resident group inline as toggle chips with counts", () => {
-    renderWithProviders(<ListFilter dimensions={[statusDim()]} />);
+describe("listFilter (single-select dimension)", () => {
+  it("shows the dimension label and no remove/clear while at the default", () => {
+    renderWithProviders(<ListFilter dimensions={[singleDim()]} />);
 
-    // Both options are inline toggle buttons; the default is pressed.
-    expect(screen.getByRole("button", { name: /Active/, pressed: true })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Archived/, pressed: false })).toBeInTheDocument();
-    // A fully-resident dimension contributes no dropdown trigger.
-    expect(screen.queryByRole("button", { name: "Filter" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Status" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
   });
 
-  it("selects an inactive resident option via its inline chip", async () => {
+  it("opens its own dropdown and selects an option", async () => {
     const onChange = vi.fn();
-    renderWithProviders(<ListFilter dimensions={[statusDim({ onChange })]} />);
+    renderWithProviders(<ListFilter dimensions={[singleDim({ onChange })]} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /Archived/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Status" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Archived/ }));
     expect(onChange).toHaveBeenCalledWith("__archived__");
   });
 
-  it("re-selecting the active resident option resets to the default", async () => {
+  it("when active, shows the selected value and a connected remove that resets to default", async () => {
     const onChange = vi.fn();
-    renderWithProviders(<ListFilter dimensions={[statusDim({ value: "__archived__", onChange })]} />);
+    renderWithProviders(<ListFilter dimensions={[singleDim({ value: "__archived__", onChange })]} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /Archived/, pressed: true }));
+    // Trigger now reads the selected value rather than the dimension label.
+    expect(screen.getByRole("button", { name: "Archived" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Remove Archived" }));
     expect(onChange).toHaveBeenCalledWith("__active__");
   });
 
-  it("shows no removable chip for a resident selection (highlight conveys state)", () => {
-    renderWithProviders(<ListFilter dimensions={[statusDim({ value: "__archived__" })]} />);
-    expect(screen.queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
-  });
-});
-
-describe("listFilter (residentCount split)", () => {
-  it("pins the first N options inline and puts the remainder in the dropdown", async () => {
-    renderWithProviders(<ListFilter dimensions={[tagDim()]} />);
-
-    // t0..t4 pinned inline.
-    for (const name of ["alpha", "beta", "gamma", "delta", "epsilon"])
-      expect(screen.getByRole("button", { name, pressed: false })).toBeInTheDocument();
-    // t5 is not pinned; it lives behind the Filter dropdown.
-    expect(screen.queryByRole("button", { name: "zeta" })).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Filter" }));
-    expect(await screen.findByRole("menuitemcheckbox", { name: "zeta" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitemcheckbox", { name: "theta" })).toBeInTheDocument();
-  });
-
-  it("toggles a resident tag chip", async () => {
+  it("resets to null when no defaultValue is configured", async () => {
     const onChange = vi.fn();
-    renderWithProviders(<ListFilter dimensions={[tagDim({ onChange })]} />);
+    const dim: FilterDimension = {
+      key: "status",
+      label: "Status",
+      mode: "single",
+      value: "__archived__",
+      onChange,
+      options: [
+        { value: "__active__", label: "Active" },
+        { value: "__archived__", label: "Archived" },
+      ],
+    };
+    renderWithProviders(<ListFilter dimensions={[dim]} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "alpha" }));
-    expect(onChange).toHaveBeenCalledWith("t0");
-  });
-
-  it("selects a non-resident option from the dropdown", async () => {
-    const onChange = vi.fn();
-    renderWithProviders(<ListFilter dimensions={[tagDim({ onChange })]} />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Filter" }));
-    await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "zeta" }));
-    expect(onChange).toHaveBeenCalledWith("t5");
-  });
-
-  it("renders a non-resident selection as a removable chip that clears it", async () => {
-    const onChange = vi.fn();
-    renderWithProviders(<ListFilter dimensions={[tagDim({ value: "t5", onChange })]} />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Remove zeta" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove Archived" }));
     expect(onChange).toHaveBeenCalledWith(null);
   });
-
-  it("shows no removable chip when the selection is a resident (pinned) tag", () => {
-    renderWithProviders(<ListFilter dimensions={[tagDim({ value: "t0" })]} />);
-    expect(screen.getByRole("button", { name: "alpha", pressed: true })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
-  });
 });
 
-describe("listFilter (non-resident multi-select)", () => {
-  it("lists options in the dropdown and toggles them in/out immutably", async () => {
+describe("listFilter (multi-select dimension)", () => {
+  it("keeps the dimension label on the trigger and toggles options immutably", async () => {
     const onChange = vi.fn();
     renderWithProviders(<ListFilter dimensions={[multiDim({ value: ["l0"], onChange })]} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Filter" }));
+    await userEvent.click(screen.getByRole("button", { name: /Labels/ }));
     expect(await screen.findByRole("menuitemcheckbox", { name: "red", checked: true })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "green", checked: false }));
     expect(onChange).toHaveBeenCalledWith(["l0", "l1"]);
@@ -160,20 +111,30 @@ describe("listFilter (non-resident multi-select)", () => {
   });
 });
 
-describe("listFilter (multiple dimensions)", () => {
-  it("renders resident chips, a shared dropdown for remainders, and cross-dimension chips", async () => {
+describe("listFilter (clear all)", () => {
+  it("renders an independent trigger per dimension", () => {
     renderWithProviders(
-      <ListFilter dimensions={[statusDim({ value: "__archived__" }), tagDim({ value: "t5" })]} />,
+      <ListFilter dimensions={[singleDim(), singleDim({ key: "role", label: "Role" })]} />,
     );
 
-    // Status is resident → inline highlighted chip, no removable chip.
-    expect(screen.getByRole("button", { name: /Archived/, pressed: true })).toBeInTheDocument();
-    // Tag t5 is non-resident → removable chip.
-    expect(screen.getByRole("button", { name: "Remove zeta" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Status" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Role" })).toBeInTheDocument();
+  });
 
-    // The single dropdown only carries the tag remainder (status is resident).
-    await userEvent.click(screen.getByRole("button", { name: "Filter" }));
-    expect(await screen.findByRole("menuitemcheckbox", { name: "zeta", checked: true })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitemcheckbox", { name: /Archived/ })).not.toBeInTheDocument();
+  it("clears every active dimension at once", async () => {
+    const onSingle = vi.fn();
+    const onMulti = vi.fn();
+    renderWithProviders(
+      <ListFilter
+        dimensions={[
+          singleDim({ value: "__archived__", onChange: onSingle }),
+          multiDim({ value: ["l0"], onChange: onMulti }),
+        ]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(onSingle).toHaveBeenCalledWith("__active__");
+    expect(onMulti).toHaveBeenCalledWith([]);
   });
 });

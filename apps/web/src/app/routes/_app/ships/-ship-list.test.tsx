@@ -96,17 +96,16 @@ describe("shipsListPage", () => {
     expect(screen.getByRole("button", { name: "Create ship" })).toBeInTheDocument();
   });
 
-  it("renders the status filter chips with fleet counts", async () => {
+  it("renders the status filter options with fleet counts", async () => {
     fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    // The KPI count comes from a dedicated count query that resolves
-    // independently of the list, so wait for it to land on the active chip
-    // (the default selection; there is no "all" chip anymore). The shared
-    // ListFilter resident chip concatenates label + count badge with no space,
-    // so match "Active" followed by the count.
-    await waitFor(() => expect(screen.getByRole("button", { name: /Active\s*1/ })).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: /^All/ })).not.toBeInTheDocument();
+    // The status dimension is its own dropdown (default "active", so the trigger
+    // shows the dimension label). Its options carry the per-status fleet counts
+    // from the dedicated count query; there is no "all" option.
+    await userEvent.click(screen.getByRole("button", { name: "Status" }));
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: /Active\s*1/ })).toBeInTheDocument());
+    expect(screen.queryByRole("menuitem", { name: /^All/ })).not.toBeInTheDocument();
   });
 
   it("defaults to the active status and renders the tag filter with no tag applied", async () => {
@@ -118,12 +117,11 @@ describe("shipsListPage", () => {
       const call = fetchMock.mock.calls.find(c => String(c[0]).includes("/ships?") && String(c[0]).includes("status=active") && !String(c[0]).includes("tagId="));
       expect(call).toBeDefined();
     });
-    // The shared ListFilter renders the (single, residentCount-pinned) ship tag
-    // as an inline resident toggle chip — not applied (not pressed) — replacing
-    // the old standalone tag-filter / vessel-type control.
-    expect(screen.getByRole("button", { name: "Refit", pressed: false })).toBeInTheDocument();
-    // The ship card also surfaces its tag as a badge (scoped to the card so it
-    // is not confused with the filter chip of the same name).
+    // The shared ListFilter renders the ship tag dimension as its own dropdown
+    // trigger (no tag applied yet), replacing the old standalone tag-filter /
+    // vessel-type control.
+    expect(screen.getByRole("button", { name: "Tags" })).toBeInTheDocument();
+    // The ship card surfaces its tag as a badge (scoped to the card).
     expect(within(screen.getByRole("button", { name: "Serenity" })).getByText("Refit")).toBeInTheDocument();
   });
 
@@ -159,7 +157,8 @@ describe("shipsListPage", () => {
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: /Archived/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Status" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Archived/ }));
     await waitFor(() => {
       const filtered = fetchMock.mock.calls.find(c => String(c[0]).includes("status=archived"));
       expect(filtered).toBeDefined();

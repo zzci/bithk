@@ -121,7 +121,6 @@ export function ContactsListPage() {
                 key: "status",
                 label: t("field.status"),
                 mode: "single",
-                resident: true,
                 defaultValue: ALL,
                 value: statusFilter,
                 onChange: (value) => {

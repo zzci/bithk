@@ -67,7 +67,6 @@ export function TupleManager() {
                 key: "namespace",
                 label: t("namespace"),
                 mode: "single",
-                resident: true,
                 defaultValue: "__all__",
                 value: filterNs,
                 onChange: (value) => {

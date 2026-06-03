@@ -95,3 +95,4 @@
 | [FIX-032](FIX-032.md) | Projects home: tag filter to the RIGHT of status chips | [PLAN-053](../plan/PLAN-053.md) | Superseded | 2026-06-02 |
 | [FIX-033](FIX-033.md) | Generic unified ListFilter component + projects-list adoption | [PLAN-054](../plan/PLAN-054.md) | Completed | 2026-06-02 |
 | [DOCS-002](DOCS-002.md) | Global UI components reference | - | Completed | 2026-06-02 |
+| [REFACTOR-018](REFACTOR-018.md) | Drive-style multi-dropdown unified ListFilter + full adoption | [PLAN-055](../plan/PLAN-055.md) | Done | 2026-06-03 |
