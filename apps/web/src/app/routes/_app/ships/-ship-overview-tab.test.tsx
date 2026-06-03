@@ -33,7 +33,7 @@ function routeFetch() {
     if (path === "/ships/s1/projects")
       return jsonResponse({ success: true, data: [{ id: "p1", name: "Base ops", code: "OPS", isBase: true, status: "active" }] });
     if (path === "/ships/s1/equipment")
-      return jsonResponse({ success: true, data: [{ id: "eq1", name: "Generator", category: "Power", status: "active" }] });
+      return jsonResponse({ success: true, data: [{ id: "eq1", name: "Generator", categoryId: "ec1", categoryNameZh: "电力", categoryNameEn: "Power", status: "active" }] });
     if (path === "/ships/s1/worklists")
       return jsonResponse({ success: true, data: [{ id: "wl1", name: "Quarterly" }] });
     return new Response("not found", { status: 404 });

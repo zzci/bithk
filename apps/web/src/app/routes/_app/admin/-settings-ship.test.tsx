@@ -22,24 +22,41 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
+// The tab loads two independent vocabularies (global worklists + equipment
+// categories); route each so both sections render deterministic data.
+function routeFetch(opts: { worklists?: unknown[]; categories?: unknown[] } = {}) {
+  const worklists = opts.worklists ?? [];
+  const categories = opts.categories ?? [];
+  fetchMock.mockImplementation(async (input, init) => {
+    const path = String(input).replace("/api", "");
+    const method = init?.method ?? "GET";
+    if (method === "GET" && path === "/worklists")
+      return jsonResponse({ success: true, data: worklists });
+    if (method === "GET" && path === "/equipment-categories")
+      return jsonResponse({ success: true, data: categories });
+    if (method === "POST" && path === "/equipment-categories")
+      return jsonResponse({ success: true, data: { id: "ec9", nameZh: "电力", nameEn: "Power", code: null, description: null, createdAt: "2026-06-03T00:00:00.000Z", updatedAt: "2026-06-03T00:00:00.000Z" } });
+    return new Response("not found", { status: 404 });
+  });
+}
+
 describe("shipSettingsTab", () => {
   it("renders the global worklists section with its rows", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({
-      success: true,
-      data: [
+    routeFetch({
+      worklists: [
         { id: "wl1", name: "Engine service", category: "Engine", checklist: "oil; filter", precautions: "cool down", createdAt: "2026-06-02T00:00:00.000Z", updatedAt: "2026-06-02T00:00:00.000Z" },
       ],
-    }));
+    });
 
     renderWithProviders(<ShipSettingsTab />);
 
     expect(screen.getByText("Global Worklists")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Engine service")).toBeInTheDocument());
-    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/worklists");
+    expect(fetchMock.mock.calls.some(c => String(c[0]) === "/api/worklists")).toBe(true);
   });
 
   it("shows the empty state when there are no global worklists", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
+    routeFetch();
 
     renderWithProviders(<ShipSettingsTab />);
 
@@ -47,7 +64,7 @@ describe("shipSettingsTab", () => {
   });
 
   it("opens the create dialog with the worklist fields", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
+    routeFetch();
 
     renderWithProviders(<ShipSettingsTab />);
     await waitFor(() => expect(screen.getByText("No global worklists yet.")).toBeInTheDocument());
@@ -58,5 +75,66 @@ describe("shipSettingsTab", () => {
     expect(within(dialog).getByLabelText("Category")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Checklist")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Precautions")).toBeInTheDocument();
+  });
+
+  it("renders the equipment categories section with name and code columns", async () => {
+    routeFetch({
+      categories: [
+        { id: "ec1", nameZh: "电力", nameEn: "Power", code: "PWR", description: "Generators", createdAt: "2026-06-02T00:00:00.000Z", updatedAt: "2026-06-02T00:00:00.000Z" },
+      ],
+    });
+
+    renderWithProviders(<ShipSettingsTab />);
+
+    expect(screen.getByText("Equipment Categories")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Power")).toBeInTheDocument());
+    expect(screen.getByText("电力")).toBeInTheDocument();
+    expect(screen.getByText("PWR")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(c => String(c[0]) === "/api/equipment-categories")).toBe(true);
+  });
+
+  it("shows the empty state when there are no equipment categories", async () => {
+    routeFetch();
+
+    renderWithProviders(<ShipSettingsTab />);
+
+    await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
+  });
+
+  it("creates an equipment category through the two-name dialog", async () => {
+    routeFetch();
+
+    renderWithProviders(<ShipSettingsTab />);
+    await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Add Category" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Chinese name")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("English name")).toBeInTheDocument();
+
+    await userEvent.type(within(dialog).getByLabelText("Chinese name"), "电力");
+    await userEvent.type(within(dialog).getByLabelText("English name"), "Power");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST" && String(call[0]) === "/api/equipment-categories");
+      expect(post).toBeDefined();
+      expect(JSON.parse(post![1]!.body as string)).toMatchObject({ nameZh: "电力", nameEn: "Power" });
+    });
+  });
+
+  it("blocks submit and shows inline errors when required names are empty", async () => {
+    routeFetch();
+
+    renderWithProviders(<ShipSettingsTab />);
+    await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Add Category" }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+
+    expect(within(dialog).getByText("Chinese name is required.")).toBeInTheDocument();
+    expect(within(dialog).getByText("English name is required.")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(call => call[1]?.method === "POST")).toBe(false);
   });
 });
