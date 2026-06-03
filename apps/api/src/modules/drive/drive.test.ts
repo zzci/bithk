@@ -28,7 +28,7 @@ import {
   uploadDriveFile,
 } from "./drive.service";
 import { addTeamMember, createTeamDirectory } from "./drive.team-directory.service";
-import { driveEntries } from "./schema";
+import { driveEntries, UNIVER_SHEET_MIME } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -497,5 +497,43 @@ describe("drive routes owner scope", () => {
       body: JSON.stringify({ name: "TdFolder", ownerType: "team_directory", ownerId: dir.id }),
     });
     expect(tdCreate.status).toBe(201);
+  });
+
+  test("creates a Univer spreadsheet entry whose content round-trips and accepts a new snapshot version", async () => {
+    const userId = await seedUser("Sheet");
+    const app = buildApp();
+
+    const snapshot = JSON.stringify({ id: "wb1", sheets: { s1: { name: "Sheet1" } } });
+    const created = await app.request("/drive/entries/spreadsheet", {
+      method: "POST",
+      headers: { "x-uid": userId, "content-type": "application/json" },
+      body: JSON.stringify({ name: "Budget", content: snapshot }),
+    });
+    expect(created.status).toBe(201);
+    const entry = (await created.json()).data;
+    expect(entry.type).toBe("file");
+    expect(entry.file.mimetype).toBe(UNIVER_SHEET_MIME);
+    expect(entry.file.mimetype).toBe("application/x-univer-sheet");
+    expect(entry.file.size).toBe(snapshot.length);
+
+    // The JSON snapshot round-trips byte-for-byte through the download endpoint.
+    const content = await app.request(`/drive/entries/${entry.id}/content`, { headers: { "x-uid": userId } });
+    expect(content.status).toBe(200);
+    expect(await content.text()).toBe(snapshot);
+
+    // Saving from the editor appends a new snapshot version through the
+    // standard version-upload path (validateDriveUpload accepts the mimetype).
+    const nextSnapshot = JSON.stringify({ id: "wb1", sheets: { s1: { name: "Renamed" } } });
+    const form = new FormData();
+    form.set("file", new File([nextSnapshot], "Budget", { type: UNIVER_SHEET_MIME }));
+    const versioned = await app.request(`/drive/entries/${entry.id}/versions`, {
+      method: "POST",
+      headers: { "x-uid": userId },
+      body: form,
+    });
+    expect(versioned.status).toBe(201);
+    const versions = (await versioned.json()).data;
+    expect(versions.map((v: { versionNo: number }) => v.versionNo)).toEqual([2, 1]);
+    expect(versions[0].isCurrent).toBe(true);
   });
 });
