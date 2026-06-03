@@ -14,6 +14,7 @@ import { assertEntryCapability, driveAccess } from "./drive.permission";
 import {
   buildDriveEntryDownloadResponse,
   createDriveFolder,
+  createDriveSpreadsheet,
   createDriveTextFile,
   deleteDriveEntryPermanently,
   emptyDriveTrash,
@@ -75,6 +76,14 @@ const updateEntrySchema = z.object({
 });
 
 const createTextFileSchema = z.object({
+  parentEntryId: z.string().nullable().optional(),
+  name: z.string().min(1).max(255),
+  content: z.string(),
+  ownerType: z.enum(["user", "team_directory", "project"]).optional(),
+  ownerId: z.string().optional(),
+});
+
+const createSpreadsheetSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   name: z.string().min(1).max(255),
   content: z.string(),
@@ -199,6 +208,30 @@ export function driveRoutes() {
     const body = createTextFileSchema.parse(await c.req.json());
     const owner = await resolveCreateOwner(c, body.ownerType, body.ownerId);
     const entry = await createDriveTextFile(c.get("db"), c.get("config"), {
+      ...owner,
+      createdBy: user.id,
+      parentEntryId: body.parentEntryId,
+      name: body.name,
+      content: body.content,
+    });
+    await audit(c.get("db"), c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "drive.file.created",
+      resourceType: "drive_entry",
+      resourceId: entry.id,
+      resourceName: entry.name,
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data: entry }, 201);
+  });
+
+  router.post("/drive/entries/spreadsheet", async (c) => {
+    const user = c.get("user");
+    const body = createSpreadsheetSchema.parse(await c.req.json());
+    const owner = await resolveCreateOwner(c, body.ownerType, body.ownerId);
+    const entry = await createDriveSpreadsheet(c.get("db"), c.get("config"), {
       ...owner,
       createdBy: user.id,
       parentEntryId: body.parentEntryId,

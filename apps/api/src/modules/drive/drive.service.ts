@@ -13,7 +13,7 @@ import { fileReferences, files } from "@/modules/file/schema";
 import { deleteSharesForResource } from "@/modules/share";
 import { AppError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
-import { driveEntries, driveFileVersions } from "./schema";
+import { driveEntries, driveFileVersions, UNIVER_SHEET_MIME } from "./schema";
 
 export type DriveEntryRow = typeof driveEntries.$inferSelect;
 
@@ -380,6 +380,69 @@ export async function createDriveTextFile(
   const id = nanoid();
   const name = normalizeEntryName(input.name);
   const file = new File([input.content], name, { type: "text/plain" });
+  const uploaded = await uploadAndReference(db, config, {
+    file,
+    ownerType: "drive_entry",
+    ownerId: id,
+    uploadedBy: input.createdBy,
+    allowAnyType: true,
+    allowEmpty: true,
+  });
+
+  try {
+    db.transaction((tx) => {
+      tx.insert(driveEntries).values({
+        id,
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        parentEntryId,
+        entryType: "file",
+        name,
+        fileReferenceId: uploaded.reference.id,
+        createdBy: input.createdBy,
+      }).run();
+      tx.insert(driveFileVersions).values({
+        id: nanoid(),
+        driveEntryId: id,
+        fileReferenceId: uploaded.reference.id,
+        versionNo: 1,
+        uploadedBy: input.createdBy,
+      }).run();
+    });
+  }
+  catch (err) {
+    await releaseReference(db, config, { referenceId: uploaded.reference.id });
+    throwDuplicateName(err);
+    throw err;
+  }
+
+  return requireDriveEntry(db, owner, id);
+}
+
+export interface CreateDriveSpreadsheetInput extends DriveOwner {
+  readonly createdBy: string;
+  readonly parentEntryId?: string | null | undefined;
+  readonly name: string;
+  readonly content: string;
+}
+
+/**
+ * Create a server-generated Univer spreadsheet entry. Identical to
+ * `createDriveTextFile` except the file mimetype is `UNIVER_SHEET_MIME`: the
+ * `content` JSON snapshot is persisted through the file module exactly like an
+ * upload (so dedupe / GC / download all work uniformly) and a version-1 row is
+ * recorded. Subsequent saves append versions via the version-upload path.
+ */
+export async function createDriveSpreadsheet(
+  db: AppDatabase,
+  config: Pick<Config, "MAX_UPLOAD_BYTES" | "MAX_ATTACHMENTS_PER_RESOURCE" | "UPLOADS_TOTAL_BYTES" | "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS">,
+  input: CreateDriveSpreadsheetInput,
+): Promise<DriveEntryView> {
+  const owner: DriveOwner = { ownerType: input.ownerType, ownerId: input.ownerId };
+  const parentEntryId = await validateParent(db, owner, input.parentEntryId);
+  const id = nanoid();
+  const name = normalizeEntryName(input.name);
+  const file = new File([input.content], name, { type: UNIVER_SHEET_MIME });
   const uploaded = await uploadAndReference(db, config, {
     file,
     ownerType: "drive_entry",

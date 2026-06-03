@@ -15,6 +15,11 @@ export type DriveOwnerType = typeof DRIVE_OWNER_TYPES[number];
 export const TEAM_DIRECTORY_ROLES = ["admin", "editor", "viewer"] as const;
 export type TeamDirectoryRole = typeof TEAM_DIRECTORY_ROLES[number];
 
+// Mimetype of a server-generated Univer spreadsheet entry. Its file body is a
+// JSON snapshot string; downloads/versions flow through the same file pipeline
+// as any other drive upload.
+export const UNIVER_SHEET_MIME = "application/x-univer-sheet";
+
 export const driveEntries = sqliteTable("drive_entries", {
   id: text("id").primaryKey(),
   ownerType: text("owner_type", { enum: DRIVE_OWNER_TYPES }).notNull(),
