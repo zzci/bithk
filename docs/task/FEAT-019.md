@@ -41,3 +41,13 @@ project list query (backend) and the projects-list page state + API client
   (issues + procurement), and `ListFilter` already supports `mode: "multi"` with
   removable chips. Backend and frontend files are disjoint. L3-1 dispatched
   (working); L3-2 created (planned, deps=L3-1).
+- 2026-06-03: **L3-1 (y8sp6fr1) MERGED** into bkd/t48nsbav (--no-ff, merge
+  63e554f; L3 commit 22fd187). `GET /projects` drops the single `tagId` and now
+  parses repeatable + comma `tagIds` (via a `parseTagIds` helper mirroring
+  `issue.routes.ts`) filtered by OR/union through `listResourceIdsByAnyTag`;
+  `ListProjectParams.tagId` → `tagIds[]`; tests cover empty/single/union/AND-not-
+  applied (service) + repeated+comma route form. 4 files, all apps/api project
+  module. Post-merge `bun run check` EXIT 0 (api 1439, web 665, build/i18n/env/
+  api-docs green). NOTE: the L3 ran check green but forgot to commit; L2
+  committed its in-scope working-tree changes on the L3 branch (sanctioned git
+  op) then merged — BKD commit-gap pattern. L3-2 (jyv3hgu6) dispatched (working).
