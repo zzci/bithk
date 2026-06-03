@@ -129,8 +129,8 @@ interface CategoryBody {
   data: { id: string; nameZh: string; nameEn: string };
 }
 
-async function createCategory(app: Hono<AppEnv>, cookie: string, nameZh: string, nameEn: string): Promise<string> {
-  const res = await app.request("/equipment-categories", jsonReq("POST", cookie, { nameZh, nameEn }));
+async function createCategory(app: Hono<AppEnv>, shipShortId: string, cookie: string, nameZh: string, nameEn: string): Promise<string> {
+  const res = await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", cookie, { nameZh, nameEn }));
   expect(res.status).toBe(201);
   return ((await res.json()) as CategoryBody).data.id;
 }
@@ -159,7 +159,7 @@ describe("equipment CRUD", () => {
   test("PM creates, lists, gets, updates and deletes equipment", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const categoryId = await createCategory(app, adminCookie, "推进系统", "Propulsion");
+    const categoryId = await createCategory(app, shipShortId, adminCookie, "推进系统", "Propulsion");
 
     // Create.
     const createRes = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", adminCookie, {
@@ -221,10 +221,10 @@ describe("equipment CRUD", () => {
   test("deleting a referenced category nulls the equipment's category (set null)", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const categoryId = await createCategory(app, adminCookie, "导航设备", "Navigation");
+    const categoryId = await createCategory(app, shipShortId, adminCookie, "导航设备", "Navigation");
     const equipmentId = await createEquipment(app, shipShortId, adminCookie, { name: "Chartplotter", categoryId });
 
-    const delRes = await app.request(`/equipment-categories/${categoryId}`, jsonReq("DELETE", adminCookie));
+    const delRes = await app.request(`/ships/${shipShortId}/equipment-categories/${categoryId}`, jsonReq("DELETE", adminCookie));
     expect(delRes.status).toBe(200);
 
     const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });

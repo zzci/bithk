@@ -21,6 +21,7 @@ import {
 } from "@/modules/tag/tag.service";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { ships } from "./schema";
+import { seedShipEquipmentCategoriesTx } from "./ship.ship-equipment-category.service";
 
 /** Ship tag binding (tag type='ship'), passed to the shared tag helpers. */
 const SHIP_TAG_BINDING = {
@@ -231,6 +232,10 @@ export async function createShip(db: AppDatabase, input: CreateShipInput): Promi
     });
 
     tx.update(ships).set({ baseProjectId: project.id }).where(eq(ships.id, id)).run();
+
+    // Copy-on-create: snapshot the global equipment-category template into this
+    // ship's own category set. Later global edits never touch this ship.
+    seedShipEquipmentCategoriesTx(tx, id, now);
 
     if (input.tags && input.tags.length > 0)
       syncResourceTagsTx(tx, SHIP_TAG_BINDING, id, input.tags, now);

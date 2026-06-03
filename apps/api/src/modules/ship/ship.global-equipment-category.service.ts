@@ -3,11 +3,11 @@ import { desc, eq } from "drizzle-orm";
 import { runWrite } from "@/db";
 import { ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
-import { equipmentCategories } from "./schema";
+import { globalEquipmentCategories } from "./schema";
 
-export type EquipmentCategoryRow = typeof equipmentCategories.$inferSelect;
+export type GlobalEquipmentCategoryRow = typeof globalEquipmentCategories.$inferSelect;
 
-export interface EquipmentCategoryView {
+export interface GlobalEquipmentCategoryView {
   readonly id: string;
   readonly nameZh: string;
   readonly nameEn: string;
@@ -17,7 +17,7 @@ export interface EquipmentCategoryView {
   readonly updatedAt: string;
 }
 
-export function composeEquipmentCategory(row: EquipmentCategoryRow): EquipmentCategoryView {
+export function composeGlobalEquipmentCategory(row: GlobalEquipmentCategoryRow): GlobalEquipmentCategoryView {
   return {
     id: row.id,
     nameZh: row.nameZh,
@@ -49,26 +49,26 @@ function rethrowUnique(err: unknown): never {
   throw err;
 }
 
-export async function listEquipmentCategories(db: AppDatabase): Promise<readonly EquipmentCategoryRow[]> {
-  return await db.select().from(equipmentCategories).orderBy(desc(equipmentCategories.createdAt)).all();
+export async function listGlobalEquipmentCategories(db: AppDatabase): Promise<readonly GlobalEquipmentCategoryRow[]> {
+  return await db.select().from(globalEquipmentCategories).orderBy(desc(globalEquipmentCategories.createdAt)).all();
 }
 
-export async function resolveEquipmentCategory(db: AppDatabase, id: string): Promise<EquipmentCategoryRow | undefined> {
-  return await db.select().from(equipmentCategories).where(eq(equipmentCategories.id, id)).get();
+export async function resolveGlobalEquipmentCategory(db: AppDatabase, id: string): Promise<GlobalEquipmentCategoryRow | undefined> {
+  return await db.select().from(globalEquipmentCategories).where(eq(globalEquipmentCategories.id, id)).get();
 }
 
-export interface CreateEquipmentCategoryInput {
+export interface CreateGlobalEquipmentCategoryInput {
   readonly nameZh: string;
   readonly nameEn: string;
   readonly code?: string | null | undefined;
   readonly description?: string | null | undefined;
 }
 
-export async function createEquipmentCategory(db: AppDatabase, input: CreateEquipmentCategoryInput): Promise<EquipmentCategoryRow> {
+export async function createGlobalEquipmentCategory(db: AppDatabase, input: CreateGlobalEquipmentCategoryInput): Promise<GlobalEquipmentCategoryRow> {
   const id = nanoid();
   const now = new Date().toISOString();
   try {
-    await db.insert(equipmentCategories).values({
+    await db.insert(globalEquipmentCategories).values({
       id,
       nameZh: input.nameZh.trim(),
       nameEn: input.nameEn.trim(),
@@ -81,22 +81,22 @@ export async function createEquipmentCategory(db: AppDatabase, input: CreateEqui
   catch (err) {
     rethrowUnique(err);
   }
-  return (await db.select().from(equipmentCategories).where(eq(equipmentCategories.id, id)).get())!;
+  return (await db.select().from(globalEquipmentCategories).where(eq(globalEquipmentCategories.id, id)).get())!;
 }
 
-export interface UpdateEquipmentCategoryInput {
+export interface UpdateGlobalEquipmentCategoryInput {
   readonly nameZh?: string | undefined;
   readonly nameEn?: string | undefined;
   readonly code?: string | null | undefined;
   readonly description?: string | null | undefined;
 }
 
-export async function updateEquipmentCategory(
+export async function updateGlobalEquipmentCategory(
   db: AppDatabase,
   id: string,
-  input: UpdateEquipmentCategoryInput,
-): Promise<EquipmentCategoryRow | undefined> {
-  const existing = await resolveEquipmentCategory(db, id);
+  input: UpdateGlobalEquipmentCategoryInput,
+): Promise<GlobalEquipmentCategoryRow | undefined> {
+  const existing = await resolveGlobalEquipmentCategory(db, id);
   if (!existing)
     return undefined;
   const now = new Date().toISOString();
@@ -110,17 +110,17 @@ export async function updateEquipmentCategory(
   if (input.description !== undefined)
     patch.description = trimOptional(input.description);
   try {
-    await db.update(equipmentCategories).set(patch).where(eq(equipmentCategories.id, id)).run();
+    await db.update(globalEquipmentCategories).set(patch).where(eq(globalEquipmentCategories.id, id)).run();
   }
   catch (err) {
     rethrowUnique(err);
   }
-  return await db.select().from(equipmentCategories).where(eq(equipmentCategories.id, id)).get();
+  return await db.select().from(globalEquipmentCategories).where(eq(globalEquipmentCategories.id, id)).get();
 }
 
-export async function deleteEquipmentCategory(db: AppDatabase, id: string): Promise<boolean> {
-  const result = runWrite(() => db.delete(equipmentCategories)
-    .where(eq(equipmentCategories.id, id))
+export async function deleteGlobalEquipmentCategory(db: AppDatabase, id: string): Promise<boolean> {
+  const result = runWrite(() => db.delete(globalEquipmentCategories)
+    .where(eq(globalEquipmentCategories.id, id))
     .run());
   return result.changes > 0;
 }

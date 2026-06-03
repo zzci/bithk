@@ -10,20 +10,20 @@ import { parsePageQuery } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { EQUIPMENT_STATUSES, SHIP_STATUSES } from "./schema";
 import {
-  composeEquipmentCategory,
-  createEquipmentCategory,
-  deleteEquipmentCategory,
-  listEquipmentCategories,
-  resolveEquipmentCategory,
-  updateEquipmentCategory,
-} from "./ship.equipment-category.service";
-import {
   createEquipment,
   deleteEquipment,
   getEquipment,
   listEquipment,
   updateEquipment,
 } from "./ship.equipment.service";
+import {
+  composeGlobalEquipmentCategory,
+  createGlobalEquipmentCategory,
+  deleteGlobalEquipmentCategory,
+  listGlobalEquipmentCategories,
+  resolveGlobalEquipmentCategory,
+  updateGlobalEquipmentCategory,
+} from "./ship.global-equipment-category.service";
 import {
   bindProject,
   composeShipWithBase,
@@ -39,6 +39,14 @@ import {
   userCanManageShip,
   userCanReadShip,
 } from "./ship.service";
+import {
+  composeShipEquipmentCategory,
+  createShipEquipmentCategory,
+  deleteShipEquipmentCategory,
+  listShipEquipmentCategories,
+  resolveShipEquipmentCategory,
+  updateShipEquipmentCategory,
+} from "./ship.ship-equipment-category.service";
 import {
   createShipWorklist,
   createShipWorklistSchema,
@@ -182,76 +190,76 @@ export function shipRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
-  // ─── Global equipment categories (bilingual vocabulary, admin only) ───
-  // A standalone, admin-maintained vocabulary referenced by
-  // `ship_equipment.category_id`. Every verb is admin-only and mutations are
-  // audited, matching the global worklist knowledge-base routes. Mirrors the
-  // contact-categories audit pattern.
-  router.get("/equipment-categories", adminRequired, async (c) => {
+  // ─── Global equipment-category template (bilingual vocabulary, admin only) ───
+  // The admin-maintained template set copied per-ship into
+  // `ship_equipment_categories` on ship create (copy-on-create). Every verb is
+  // admin-only and mutations are audited, matching the global worklist
+  // knowledge-base routes. Mirrors the global procurement-categories pattern.
+  router.get("/global-equipment-categories", adminRequired, async (c) => {
     const db = c.get("db");
-    return c.json({ success: true, data: (await listEquipmentCategories(db)).map(composeEquipmentCategory) });
+    return c.json({ success: true, data: (await listGlobalEquipmentCategories(db)).map(composeGlobalEquipmentCategory) });
   });
 
-  router.post("/equipment-categories", adminRequired, async (c) => {
+  router.post("/global-equipment-categories", adminRequired, async (c) => {
     const user = c.get("user");
     const db = c.get("db");
     const body = createEquipmentCategorySchema.parse(await c.req.json());
-    const category = await createEquipmentCategory(db, body);
+    const category = await createGlobalEquipmentCategory(db, body);
     await audit(db, c.get("logger"), {
       actorId: user.id,
       actorName: user.name,
-      action: "equipment_category.created",
-      resourceType: "equipment_category",
+      action: "global_equipment_category.created",
+      resourceType: "global_equipment_category",
       resourceId: category.id,
       resourceName: category.nameZh,
       ...auditMeta(c),
       result: "success",
     });
-    return c.json({ success: true, data: composeEquipmentCategory(category) }, 201);
+    return c.json({ success: true, data: composeGlobalEquipmentCategory(category) }, 201);
   });
 
-  router.get("/equipment-categories/:id", adminRequired, async (c) => {
+  router.get("/global-equipment-categories/:id", adminRequired, async (c) => {
     const db = c.get("db");
     const id = idSchema.parse(c.req.param("id"));
-    const category = await resolveEquipmentCategory(db, id);
+    const category = await resolveGlobalEquipmentCategory(db, id);
     if (!category)
       throw new NotFoundError("Equipment category", id);
-    return c.json({ success: true, data: composeEquipmentCategory(category) });
+    return c.json({ success: true, data: composeGlobalEquipmentCategory(category) });
   });
 
-  router.patch("/equipment-categories/:id", adminRequired, async (c) => {
+  router.patch("/global-equipment-categories/:id", adminRequired, async (c) => {
     const user = c.get("user");
     const db = c.get("db");
     const id = idSchema.parse(c.req.param("id"));
     const body = updateEquipmentCategorySchema.parse(await c.req.json());
-    const category = await updateEquipmentCategory(db, id, body);
+    const category = await updateGlobalEquipmentCategory(db, id, body);
     if (!category)
       throw new NotFoundError("Equipment category", id);
     await audit(db, c.get("logger"), {
       actorId: user.id,
       actorName: user.name,
-      action: "equipment_category.updated",
-      resourceType: "equipment_category",
+      action: "global_equipment_category.updated",
+      resourceType: "global_equipment_category",
       resourceId: category.id,
       resourceName: category.nameZh,
       ...auditMeta(c),
       result: "success",
     });
-    return c.json({ success: true, data: composeEquipmentCategory(category) });
+    return c.json({ success: true, data: composeGlobalEquipmentCategory(category) });
   });
 
-  router.delete("/equipment-categories/:id", adminRequired, async (c) => {
+  router.delete("/global-equipment-categories/:id", adminRequired, async (c) => {
     const user = c.get("user");
     const db = c.get("db");
     const id = idSchema.parse(c.req.param("id"));
-    const category = await resolveEquipmentCategory(db, id);
-    if (!category || !await deleteEquipmentCategory(db, id))
+    const category = await resolveGlobalEquipmentCategory(db, id);
+    if (!category || !await deleteGlobalEquipmentCategory(db, id))
       throw new NotFoundError("Equipment category", id);
     await audit(db, c.get("logger"), {
       actorId: user.id,
       actorName: user.name,
-      action: "equipment_category.deleted",
-      resourceType: "equipment_category",
+      action: "global_equipment_category.deleted",
+      resourceType: "global_equipment_category",
       resourceId: category.id,
       resourceName: category.nameZh,
       ...auditMeta(c),
@@ -427,6 +435,56 @@ export function shipRoutes() {
     const equipmentId = c.req.param("equipmentId");
     if (!await deleteEquipment(db, ship.id, equipmentId))
       throw new NotFoundError("Equipment", equipmentId);
+    return c.json({ success: true, data: null });
+  });
+
+  // ─── Per-ship equipment categories ───────────────────────────────────────
+  // Each ship owns its own category set (seeded from the global template on
+  // create). Read = base-project member (404 fail-closed via requireShipRead);
+  // write = project.manage (403 via requireShipManage). Categories are scoped to
+  // their parent ship's internal id, so a category id from another ship resolves
+  // to 404 and one ship cannot touch another's categories.
+  router.get("/ships/:shortId/equipment-categories", async (c) => {
+    const { ship } = await requireShipRead(c, c.req.param("shortId"));
+    const db = c.get("db");
+    return c.json({ success: true, data: (await listShipEquipmentCategories(db, ship.id)).map(composeShipEquipmentCategory) });
+  });
+
+  router.post("/ships/:shortId/equipment-categories", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const body = createEquipmentCategorySchema.parse(await c.req.json());
+    const category = await createShipEquipmentCategory(db, ship.id, body);
+    return c.json({ success: true, data: composeShipEquipmentCategory(category) }, 201);
+  });
+
+  router.get("/ships/:shortId/equipment-categories/:categoryId", async (c) => {
+    const { ship } = await requireShipRead(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const categoryId = c.req.param("categoryId");
+    const category = await resolveShipEquipmentCategory(db, ship.id, categoryId);
+    if (!category)
+      throw new NotFoundError("Equipment category", categoryId);
+    return c.json({ success: true, data: composeShipEquipmentCategory(category) });
+  });
+
+  router.patch("/ships/:shortId/equipment-categories/:categoryId", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const categoryId = c.req.param("categoryId");
+    const body = updateEquipmentCategorySchema.parse(await c.req.json());
+    const category = await updateShipEquipmentCategory(db, ship.id, categoryId, body);
+    if (!category)
+      throw new NotFoundError("Equipment category", categoryId);
+    return c.json({ success: true, data: composeShipEquipmentCategory(category) });
+  });
+
+  router.delete("/ships/:shortId/equipment-categories/:categoryId", async (c) => {
+    const { ship } = await requireShipManage(c, c.req.param("shortId"));
+    const db = c.get("db");
+    const categoryId = c.req.param("categoryId");
+    if (!await deleteShipEquipmentCategory(db, ship.id, categoryId))
+      throw new NotFoundError("Equipment category", categoryId);
     return c.json({ success: true, data: null });
   });
   // ─── Ship-level worklists ────────────────────────────────────────────────
