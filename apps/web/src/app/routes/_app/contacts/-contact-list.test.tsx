@@ -302,7 +302,10 @@ describe("contactsListPage", () => {
     await user.click(screen.getByRole("button", { name: "Acme Marine" }));
 
     const drawer = await screen.findByRole("dialog");
-    await user.click(within(drawer).getByRole("button", { name: "Edit contact" }));
+    // The view-mode edit action is now an icon button in the panel header
+    // (labelled with the shared common.edit copy) instead of the old footer
+    // "Edit contact" button.
+    await user.click(within(drawer).getByRole("button", { name: "Edit" }));
 
     expect(await screen.findByRole("heading", { name: "Edit contact" })).toBeInTheDocument();
   });

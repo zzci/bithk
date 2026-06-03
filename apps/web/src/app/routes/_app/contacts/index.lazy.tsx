@@ -337,6 +337,13 @@ export function ContactsListPage() {
                 setDeleteTarget(target);
               }
             }}
+            onRename={(name) => {
+              if (drawer.mode !== "create") {
+                updateContact.mutate({ id: drawer.contact.id, name }, {
+                  onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+                });
+              }
+            }}
             onSubmit={handleSubmit}
           />
         </ResizableDrawer>
