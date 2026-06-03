@@ -123,9 +123,10 @@ export async function serializeJob(
   // `headers.Authorization` Bearer token) are stored in `task_config`
   // plaintext but MUST NOT be echoed back to the listing/create responses —
   // the `secret` input type is UI-masking only. Redact before returning.
-  // NOTE: at-rest encryption of these fields remains TODO (FIX-AUDIT-005) —
-  // it requires a decrypt step in the scheduled-execution path
-  // (`cron.service.ts`/`executor.ts`), out of this change's scope.
+  // NOTE: at-rest encryption of these fields is INTENTIONALLY NOT implemented
+  // (per project decision, FIX-AUDIT-005). The chosen mitigation is response
+  // redaction here in `serializeJob` plus the task-config payload/size bounds
+  // enforced in `cron.routes.ts`; plaintext at rest is accepted.
   let taskConfig: Record<string, unknown>;
   try {
     const parsed = JSON.parse(row.taskConfig) as Record<string, unknown>;
