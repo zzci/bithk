@@ -83,12 +83,20 @@ export function ContactsListPage() {
   const handleSubmit = (state: ContactFormState) => {
     if (drawer?.mode === "edit") {
       updateContact.mutate({ id: drawer.contact.id, ...contactFormToInput(state) }, {
-        onSuccess: () => setDrawer(null),
+        onSuccess: (updated) => {
+          toast.success(t("toast.updated"));
+          setDrawer({ mode: "view", contact: updated });
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
       });
       return;
     }
     createContact.mutate(contactFormToInput(state), {
-      onSuccess: () => setDrawer(null),
+      onSuccess: () => {
+        toast.success(t("toast.created"));
+        setDrawer(null);
+      },
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
   };
 
@@ -345,6 +353,12 @@ export function ContactsListPage() {
               }
             }}
             onSubmit={handleSubmit}
+            onCancel={() => {
+              if (drawer.mode === "edit")
+                setDrawer({ mode: "view", contact: drawer.contact });
+              else
+                setDrawer(null);
+            }}
           />
         </ResizableDrawer>
       )}

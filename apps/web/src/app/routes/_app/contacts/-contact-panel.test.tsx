@@ -1,6 +1,7 @@
 import type { ContactView } from "@/shared/lib/api/contacts";
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
 import { ContactPanel } from "./-contact-panel";
 
@@ -44,6 +45,31 @@ function renderView(contact: ContactView) {
       onDelete={noop}
       onRename={noop}
       onSubmit={noop}
+      onCancel={noop}
+    />,
+  );
+}
+
+function renderForm(
+  mode: "edit" | "create",
+  contact: ContactView | null,
+  spies: { onCancel: () => void; onClose: () => void },
+) {
+  return renderWithProviders(
+    <ContactPanel
+      mode={mode}
+      contact={contact}
+      pending={false}
+      errorMessage={null}
+      lockedLabel="Masked field"
+      hiddenLabel="Hidden"
+      onClose={spies.onClose}
+      onEdit={noop}
+      onShare={noop}
+      onDelete={noop}
+      onRename={noop}
+      onSubmit={noop}
+      onCancel={spies.onCancel}
     />,
   );
 }
@@ -67,5 +93,30 @@ describe("contactPanel (view) header migration", () => {
     expect(screen.queryByRole("button", { name: "Share contact" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+});
+
+describe("contactPanel (form) cancel", () => {
+  it("edit mode: cancel calls onCancel without closing the drawer", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    const onClose = vi.fn();
+    renderForm("edit", makeContact(), { onCancel, onClose });
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("create mode: cancel calls onCancel", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    const onClose = vi.fn();
+    renderForm("create", null, { onCancel, onClose });
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

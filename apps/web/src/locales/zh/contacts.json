@@ -85,5 +85,9 @@
   "masked": {
     "locked": "已脱敏字段",
     "hiddenValue": "已隐藏"
+  },
+  "toast": {
+    "created": "联系人已创建",
+    "updated": "联系人已更新"
   }
 }
