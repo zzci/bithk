@@ -1,6 +1,6 @@
 # PLAN-059 Project overview 2-column pinned/description + minimal pinned rows
 
-- **status**: Implementing
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 0n0nesqv
 - **campaignId**: l1-75ymcfnr-ovlay-20260603171713
 - **tasks**: [UI-022](../task/UI-022.md)
