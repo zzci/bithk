@@ -1,7 +1,7 @@
 # REFACTOR-020 Create shared tag component family (TagChip/TagChips/TagInput/TagFilter)
 
 - Status: Completed
-- Plan: [PLAN-062](../plan/PLAN-062.md)
+- Plan: [PLAN-066](../plan/PLAN-066.md)
 - Owner: BKD L3 msitkgis (campaign l1-75ymcfnr-gtag-20260603191645)
 - Campaign: l1-75ymcfnr-gtag-20260603191645
 - Updated: 2026-06-03

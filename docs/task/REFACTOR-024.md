@@ -1,7 +1,7 @@
 # REFACTOR-024 Remove dead shared tag-badge-list + tags-combobox after migration
 
 - Status: Completed
-- Plan: [PLAN-062](../plan/PLAN-062.md)
+- Plan: [PLAN-066](../plan/PLAN-066.md)
 - Owner: BKD L3 p3r1oer8 (campaign l1-75ymcfnr-gtag-20260603191645)
 - Campaign: l1-75ymcfnr-gtag-20260603191645
 - Depends on: [REFACTOR-021](REFACTOR-021.md), [REFACTOR-022](REFACTOR-022.md), [REFACTOR-023](REFACTOR-023.md)

@@ -1,7 +1,7 @@
 # REFACTOR-021 Migrate project + procurement tag surfaces to shared family
 
 - Status: Completed
-- Plan: [PLAN-062](../plan/PLAN-062.md)
+- Plan: [PLAN-066](../plan/PLAN-066.md)
 - Owner: BKD L3 9e40u92a (campaign l1-75ymcfnr-gtag-20260603191645)
 - Campaign: l1-75ymcfnr-gtag-20260603191645
 - Depends on: [REFACTOR-020](REFACTOR-020.md)
