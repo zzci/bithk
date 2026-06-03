@@ -15,10 +15,12 @@ import type {
   IssueStatus,
   ProjectIssueRow,
   ProjectMemberView,
+  ReferenceableWorklist,
 } from "@/shared/lib/api/projects";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ChevronRight,
+  ClipboardList,
   Maximize2,
   Minimize2,
   Paperclip,
@@ -64,6 +66,7 @@ import { http } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
+import { WorklistPicker } from "./-worklist-picker";
 
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
 const ISSUE_STATUSES: readonly IssueStatus[] = ["todo", "working", "review", "done", "cancel"];
@@ -222,9 +225,11 @@ interface ProjectIssuesTabProps {
   readonly userNames: ReadonlyMap<string, string>;
   /** Holds `issue.manage` (admins included). Combined with the creator check to gate the pin toggle. */
   readonly canManage?: boolean;
+  /** The project's ship id when it is a ship base project; enables worklist referencing. */
+  readonly shipId?: string | null;
 }
 
-export function ProjectIssuesTab({ projectId, members, userNames, canManage = false }: ProjectIssuesTabProps) {
+export function ProjectIssuesTab({ projectId, members, userNames, canManage = false, shipId = null }: ProjectIssuesTabProps) {
   const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
   const currentUserId = useAuthStore(s => s.user?.id);
@@ -453,6 +458,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
           initialStatus={createStatus}
           open={createOpen}
           onOpenChange={setCreateOpen}
+          shipId={shipId}
         />
       )}
     </div>
@@ -490,9 +496,27 @@ interface CreateIssueDialogProps {
   readonly initialStatus: IssueStatus;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
+  /** When set, a "清单" pill lets the work order reference one of the ship's worklists. */
+  readonly shipId?: string | null;
 }
 
-function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, open, onOpenChange }: CreateIssueDialogProps) {
+// Render a worklist's free-form `checklist` defensively: a JSON array of strings
+// becomes a markdown bullet list; anything else is used verbatim.
+function renderChecklist(checklist: string | null): string {
+  if (!checklist)
+    return "";
+  try {
+    const parsed = JSON.parse(checklist) as unknown;
+    if (Array.isArray(parsed) && parsed.every(item => typeof item === "string"))
+      return parsed.map(item => `- ${item}`).join("\n");
+  }
+  catch {
+    // Not JSON — fall through to the raw text.
+  }
+  return checklist;
+}
+
+function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, open, onOpenChange, shipId = null }: CreateIssueDialogProps) {
   const { t } = useTranslation(["projects", "common", "issues"]);
   const createIssue = useCreateProjectIssue();
   const limits = useUploadLimits();
@@ -510,8 +534,27 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
   const [keepOpen, setKeepOpen] = useState(false);
   // Toggles the dialog between its default width and a roomy maximized size.
   const [maximized, setMaximized] = useState(false);
+  // The referenced worklist (id + name), set when one is picked. Recorded as a
+  // reference on submit; clearing the chip drops the reference but keeps the
+  // already-filled title/description.
+  const [selectedWorklist, setSelectedWorklist] = useState<{ id: string; name: string } | null>(null);
+  const [worklistPickerOpen, setWorklistPickerOpen] = useState(false);
   const dueDateInputRef = useRef<HTMLInputElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
+
+  // Picking a worklist pre-fills the title (its name) and the description
+  // (rendered checklist + precautions), and records the reference.
+  const onSelectWorklist = (worklist: ReferenceableWorklist) => {
+    setTitle(worklist.name);
+    const checklistRendered = renderChecklist(worklist.checklist);
+    const precautions = worklist.precautions?.trim() ?? "";
+    const blocks = [checklistRendered];
+    if (precautions)
+      blocks.push(`${t("issues.worklist.precautionsLabel")}:\n${precautions}`);
+    setDescription(blocks.filter(Boolean).join("\n\n"));
+    setSelectedWorklist({ id: worklist.id, name: worklist.name });
+    setWorklistPickerOpen(false);
+  };
 
   // Stage a file selection: validate against the same limits the issue panel
   // enforces (count + per-file size), then keep accepted files in state.
@@ -562,6 +605,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
     setAssigneeMemberId("__none__");
     setDueDate("");
     setFiles([]);
+    setSelectedWorklist(null);
   };
 
   const submit = (event: React.FormEvent) => {
@@ -575,6 +619,9 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(assigneeMemberId !== "__none__" ? { assigneeMemberId } : {}),
       ...(dueDate ? { dueDate } : {}),
+      ...(selectedWorklist
+        ? { references: [{ refType: "worklist", refId: selectedWorklist.id, label: selectedWorklist.name }] as const }
+        : {}),
     };
     const staged = files;
     createIssue.mutate({ projectId, ...body }, {
@@ -767,7 +814,41 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
               onChange={onPickFiles}
               className="sr-only"
             />
+
+            {/* Worklist pill: only on a ship base project. Opens the picker; a
+                selected worklist switches it to the solid/foreground state and
+                shows its name. Mirrors the attachment pill's styling/states. */}
+            {shipId && (
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(pillBase, "border", selectedWorklist ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+                onClick={() => setWorklistPickerOpen(true)}
+              >
+                <ClipboardList aria-hidden="true" className={selectedWorklist ? "text-info" : undefined} />
+                {selectedWorklist ? selectedWorklist.name : t("issues.worklist.button")}
+              </Button>
+            )}
           </div>
+
+          {/* Removable reference chip — clearing it drops the reference but keeps
+              the already-filled title/description. */}
+          {selectedWorklist && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/40 py-0.5 pr-1 pl-2.5 text-xs">
+                <span className="truncate">{`${t("issues.worklist.referenced")}: ${selectedWorklist.name}`}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={t("issues.worklist.remove")}
+                  onClick={() => setSelectedWorklist(null)}
+                >
+                  <X aria-hidden="true" />
+                </Button>
+              </span>
+            </div>
+          )}
 
           {/* Staged attachments: visible before submit so files can be removed.
               Cleared by reset() after a successful create. */}
@@ -810,6 +891,17 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
             </Button>
           </div>
         </form>
+
+        {/* Worklist picker — only mounted on a ship base project. Portals out of
+            this dialog, so it overlays cleanly on top of the composer. */}
+        {shipId && (
+          <WorklistPicker
+            projectId={projectId}
+            open={worklistPickerOpen}
+            onOpenChange={setWorklistPickerOpen}
+            onSelect={onSelectWorklist}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

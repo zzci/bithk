@@ -45,6 +45,7 @@ function ProjectIssuesRoute() {
         members={members}
         userNames={userNames}
         canManage={caps.canManageIssues}
+        shipId={projectQuery.data?.shipId ?? null}
       />
       <Outlet />
     </>

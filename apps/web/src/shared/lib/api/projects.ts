@@ -51,6 +51,10 @@ export interface ProjectView {
   readonly description: string | null;
   readonly tags: readonly ProjectTag[];
   readonly coverImageUrl: string | null;
+  // The ship this project is the base project of, or null for a standalone
+  // project. Mirrors the backend ProjectView; optional here so existing fixtures
+  // that predate the field stay valid (the API always supplies it).
+  readonly shipId?: string | null;
   // Present only on the detail endpoint: the caller's effective capabilities.
   readonly capabilities?: readonly ProjectCapability[];
   readonly creatorId: string;
@@ -134,6 +138,11 @@ export const projectKeys = {
   roles: (id: string) => ["projects", id, "roles"] as const,
   categories: (id: string) => ["projects", id, "categories"] as const,
   issues: (id: string, query: string) => ["projects", id, "issues", query] as const,
+  referenceableWorklists: (id: string) => ["projects", id, "referenceable-worklists"] as const,
+};
+
+export const issueKeys = {
+  references: (issueId: string) => ["issues", issueId, "references"] as const,
 };
 
 export const tagKeys = {
@@ -536,6 +545,68 @@ interface IssueReferenceInput {
   readonly refType: "worklist" | "url" | "document";
   readonly refId: string;
   readonly label?: string | null;
+}
+
+// ── Referenceable worklists & issue references ──
+
+// A worklist (ship knowledge-base entry) that a work order can reference. Mirrors
+// the backend WorklistView. `checklist` is free-form text that MAY hold a JSON
+// array of strings; callers render it defensively.
+export interface ReferenceableWorklist {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string | null;
+  readonly checklist: string | null;
+  readonly precautions: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+// Resolved worklist payload carried on a worklist reference. Null when the soft
+// reference is dangling (target worklist deleted).
+export interface ReferencedWorklist {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string | null;
+  readonly checklist: string | null;
+  readonly precautions: string | null;
+}
+
+// A generic reference attached to an issue. For `worklist` refs the `worklist`
+// field carries the resolved payload (or null when dangling).
+export interface IssueReferenceView {
+  readonly id: string;
+  readonly refType: "worklist" | "url" | "document";
+  readonly refId: string;
+  readonly label: string | null;
+  readonly createdAt: string;
+  readonly worklist?: ReferencedWorklist | null;
+}
+
+// The worklists a project may reference: its ship's worklists (empty when the
+// project is not a ship base project) plus the global knowledge base.
+export function useReferenceableWorklists(projectId: string | undefined) {
+  return useQuery<{ ship: readonly ReferenceableWorklist[]; global: readonly ReferenceableWorklist[] }>({
+    queryKey: projectKeys.referenceableWorklists(projectId ?? ""),
+    queryFn: () => http<ApiEnvelope<{ ship: readonly ReferenceableWorklist[]; global: readonly ReferenceableWorklist[] }>>(
+      `/projects/${encodeURIComponent(projectId!)}/referenceable-worklists`,
+    ).then(r => r.data),
+    enabled: !!projectId,
+    staleTime: 30_000,
+  });
+}
+
+// References attached to an issue (by issue short id). Used by the detail panel
+// to surface referenced worklists.
+export function useIssueReferences(issueId: string | undefined) {
+  return useQuery<readonly IssueReferenceView[]>({
+    queryKey: issueKeys.references(issueId ?? ""),
+    queryFn: () => http<ApiEnvelope<readonly IssueReferenceView[]>>(
+      `/issues/${encodeURIComponent(issueId!)}/references`,
+    ).then(r => r.data),
+    enabled: !!issueId,
+    staleTime: 5_000,
+  });
 }
 
 export function useCreateProjectIssue(): UseMutationResult<ProjectIssueRow, Error, { projectId: string } & CreateProjectIssueInput> {

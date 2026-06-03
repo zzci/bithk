@@ -1,4 +1,4 @@
-import type { ProjectIssueRow, ProjectMemberView, ProjectTag } from "@/shared/lib/api/projects";
+import type { ProjectIssueRow, ProjectMemberView, ProjectTag, ReferenceableWorklist } from "@/shared/lib/api/projects";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,9 +56,15 @@ function issue(overrides: Partial<ProjectIssueRow> = {}): ProjectIssueRow {
 // query param and returns only the matching issues (with a matching total). The
 // selectable issue-tag vocabulary is served from `/tags`, and repeatable
 // `tagIds` params narrow the list to the union of the selected tags.
-function routeFetch(issues: ProjectIssueRow[], issueTags: ProjectTag[] = []) {
+function routeFetch(
+  issues: ProjectIssueRow[],
+  issueTags: ProjectTag[] = [],
+  worklists: { ship?: ReferenceableWorklist[]; global?: ReferenceableWorklist[] } = {},
+) {
   fetchMock.mockImplementation(async (input) => {
     const url = new URL(String(input), "http://localhost");
+    if (url.pathname.endsWith("/referenceable-worklists"))
+      return jsonResponse({ success: true, data: { ship: worklists.ship ?? [], global: worklists.global ?? [] } });
     if (url.pathname.endsWith("/tags"))
       return jsonResponse({ success: true, data: issueTags });
     const status = url.searchParams.get("status");
@@ -456,4 +462,97 @@ describe("projectIssuesTab", () => {
     await screen.findByText("Fix leak");
     expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument();
   });
+
+  function worklist(overrides: Partial<ReferenceableWorklist> = {}): ReferenceableWorklist {
+    return {
+      id: "wl1",
+      name: "Annual Service",
+      category: "Engine",
+      checklist: JSON.stringify(["Check oil", "Inspect filter"]),
+      precautions: "Wear gloves",
+      createdAt: "2026-05-23T00:00:00.000Z",
+      updatedAt: "2026-05-23T00:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("shows the worklist pill in the composer only on a ship base project", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    renderWithProviders(
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage shipId="s1" />,
+    );
+    await screen.findByText("No work orders found.");
+    await user.click(screen.getByRole("button", { name: "New" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "Worklist" })).toBeInTheDocument();
+  });
+
+  it("hides the worklist pill when the project is not a ship base project", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    renderWithProviders(
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage shipId={null} />,
+    );
+    await screen.findByText("No work orders found.");
+    await user.click(screen.getByRole("button", { name: "New" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByRole("button", { name: "Worklist" })).not.toBeInTheDocument();
+  });
+
+  it("references a worklist: fills title + description and records the reference on create", async () => {
+    const user = userEvent.setup();
+    routeFetch([], [], { ship: [worklist()], global: [] });
+    renderWithProviders(
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage shipId="s1" />,
+    );
+    await screen.findByText("No work orders found.");
+    await user.click(screen.getByRole("button", { name: "New" }));
+    const dialog = await screen.findByRole("dialog");
+
+    // Open the picker and choose the ship worklist (grouped under "This ship").
+    await user.click(within(dialog).getByRole("button", { name: "Worklist" }));
+    await user.click(await screen.findByRole("button", { name: /Annual Service/ }));
+
+    // Title is set to the worklist name; the description renders the checklist
+    // (JSON array -> bullet list) plus the precautions block.
+    await waitFor(() => expect(within(dialog).getByLabelText("Title")).toHaveValue("Annual Service"));
+    const description = within(dialog).getByLabelText("Description") as HTMLTextAreaElement;
+    expect(description.value).toContain("- Check oil");
+    expect(description.value).toContain("- Inspect filter");
+    expect(description.value).toContain("Wear gloves");
+
+    // A removable reference chip surfaces the selection.
+    expect(within(dialog).getByText("Referenced worklist: Annual Service")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Create issue" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "POST");
+      expect(post).toBeDefined();
+      const body = JSON.parse(String(post![1]!.body)) as Record<string, unknown>;
+      expect(body.title).toBe("Annual Service");
+      expect(body.references).toEqual([{ refType: "worklist", refId: "wl1", label: "Annual Service" }]);
+    });
+  }, 15000);
+
+  it("clears the worklist reference chip without wiping the filled title", async () => {
+    const user = userEvent.setup();
+    routeFetch([], [], { ship: [worklist()], global: [] });
+    renderWithProviders(
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage shipId="s1" />,
+    );
+    await screen.findByText("No work orders found.");
+    await user.click(screen.getByRole("button", { name: "New" }));
+    const dialog = await screen.findByRole("dialog");
+
+    await user.click(within(dialog).getByRole("button", { name: "Worklist" }));
+    await user.click(await screen.findByRole("button", { name: /Annual Service/ }));
+    await waitFor(() => expect(within(dialog).getByLabelText("Title")).toHaveValue("Annual Service"));
+
+    // Removing the chip drops the reference but keeps the already-filled title.
+    await user.click(within(dialog).getByRole("button", { name: "Remove worklist reference" }));
+    expect(within(dialog).queryByText("Referenced worklist: Annual Service")).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Title")).toHaveValue("Annual Service");
+  }, 15000);
 });

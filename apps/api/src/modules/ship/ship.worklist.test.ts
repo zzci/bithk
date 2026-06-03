@@ -12,7 +12,7 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
-import { addMember } from "@/modules/project/project.service";
+import { addMember, createProject } from "@/modules/project/project.service";
 import { projectRoles } from "@/modules/project/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { shipRoutes } from "./ship.routes";
@@ -24,6 +24,7 @@ import {
   getGlobalWorklist,
   getShipWorklist,
   listGlobalWorklists,
+  listReferenceableWorklists,
   updateGlobalWorklist,
   worklistRoutes,
 } from "./ship.worklist.service";
@@ -294,6 +295,34 @@ describe("global worklist getters: isNull(shipId) guard", () => {
     // The ship-level row survives untouched.
     const survivor = await getShipWorklist(db, ship.id, shipWorklistId);
     expect(survivor?.name).toBe("Ship local");
+  });
+});
+
+// The references a project may attach to a work order: its ship's worklists
+// (when it is a ship base project) plus the global knowledge base.
+describe("listReferenceableWorklists", () => {
+  test("a ship base project returns its ship worklists + all globals", async () => {
+    const creator = await seedUser("admin");
+    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+
+    const shipLevel = await createShipWorklist(db, ship.id, { name: "Ship local", category: "engine" });
+    expect(shipLevel.status).toBe("ok");
+    const g1 = await createGlobalWorklist(db, { name: "Global one" });
+    const g2 = await createGlobalWorklist(db, { name: "Global two" });
+
+    const result = await listReferenceableWorklists(db, ship.baseProjectId!);
+    expect(result.ship.map(w => w.name)).toEqual(["Ship local"]);
+    expect(result.global.map(w => w.id).sort()).toEqual([g1.id, g2.id].sort());
+  });
+
+  test("a project that is not a ship base project returns ship:[] + all globals", async () => {
+    const creator = await seedUser("user");
+    const project = await createProject(db, { name: "Plain", creatorId: creator });
+    const g = await createGlobalWorklist(db, { name: "Global only" });
+
+    const result = await listReferenceableWorklists(db, project.id);
+    expect(result.ship).toEqual([]);
+    expect(result.global.map(w => w.id)).toEqual([g.id]);
   });
 });
 

@@ -7,6 +7,7 @@
 
 import type { UpdateProjectIssueInput } from "./-project-issue-hooks";
 import type { ProjectIssueRow, ProjectMemberView } from "@/shared/lib/api/projects";
+import { ClipboardList } from "lucide-react";
 import {
   useEffect,
   useMemo,
@@ -35,7 +36,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import { useIssueTags } from "@/shared/lib/api/projects";
+import { useIssueReferences, useIssueTags } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
@@ -93,6 +94,7 @@ export function ProjectIssuePanel({
 
   const issueQuery = useProjectIssue(projectId, issueId);
   const issueTagsQuery = useIssueTags();
+  const referencesQuery = useIssueReferences(issueId);
   const updateIssue = useUpdateProjectIssue();
   const deleteIssue = useDeleteProjectIssue();
   const issue: ProjectIssueRow | null = issueQuery.data ?? null;
@@ -223,6 +225,7 @@ export function ProjectIssuePanel({
   const issueTags = issue.tags ?? [];
   const tagVocabulary = (issueTagsQuery.data ?? []).map(tag => tag.name);
   const currentTagNames = issueTags.map(tag => tag.name);
+  const worklistReferences = (referencesQuery.data ?? []).filter(ref => ref.refType === "worklist");
 
   return (
     <div
@@ -346,6 +349,20 @@ export function ProjectIssuePanel({
           onSave={saveDesc}
           onCancel={cancelDesc}
         />
+
+        {/* Referenced worklists — surfaces a work order's worklist references.
+            Degrades to the raw refId when the soft reference is dangling. */}
+        {worklistReferences.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1">
+            {worklistReferences.map(ref => (
+              <div key={ref.id} className="flex items-center gap-1.5 text-sm">
+                <ClipboardList aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                <span className="text-muted-foreground">{`${t("projects:issues.worklist.referenced")}:`}</span>
+                <span className="truncate text-foreground">{ref.worklist?.name ?? ref.refId}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Creator + timestamps — subtle footer-style strip above the
             attachments section, right-aligned and toned down so it

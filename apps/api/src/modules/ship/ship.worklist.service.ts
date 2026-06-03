@@ -3,6 +3,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
+import { projects } from "@/modules/project/schema";
 import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
@@ -109,6 +110,22 @@ export async function deleteGlobalWorklist(db: AppDatabase, id: string): Promise
 export async function listShipWorklists(db: AppDatabase, shipInternalId: string): Promise<readonly WorklistView[]> {
   const rows = await db.select().from(worklists).where(eq(worklists.shipId, shipInternalId)).orderBy(desc(worklists.createdAt)).all();
   return rows.map(composeWorklist);
+}
+
+/**
+ * List the worklists a project may reference when creating a work order: the
+ * worklists of the ship this project is the base project of (empty when the
+ * project is not linked to a ship) plus the global knowledge-base entries.
+ * `projectInternalId` is the internal project ULID.
+ */
+export async function listReferenceableWorklists(
+  db: AppDatabase,
+  projectInternalId: string,
+): Promise<{ ship: readonly WorklistView[]; global: readonly WorklistView[] }> {
+  const proj = await db.select({ shipId: projects.shipId }).from(projects).where(eq(projects.id, projectInternalId)).get();
+  const ship = proj?.shipId ? await listShipWorklists(db, proj.shipId) : [];
+  const global = await listGlobalWorklists(db);
+  return { ship, global };
 }
 
 // `name` is optional here (unlike the global `WorklistInput`): when
