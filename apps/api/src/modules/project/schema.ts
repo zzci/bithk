@@ -78,15 +78,13 @@ export const projectRoles = sqliteTable("project_roles", {
   updatedAt: text("updated_at").notNull(),
 }, t => [index("project_roles_project_idx").on(t.projectId)]);
 
-// Members are OPERATORS — they can be assigned issues / procurement. A member
-// is either a real user (`userId` set) or a virtual user (own staff without a
-// login account: `userId` null, `displayName` set). `id` is the canonical
-// assignment target.
+// Members are OPERATORS — they can be assigned issues / procurement. Every
+// member maps to a `users` row (real or virtual); `userId` is required. `id` is
+// the canonical assignment target. Member display name comes from the joined user.
 export const projectMembers = sqliteTable("project_members", {
   id: text("id").primaryKey(), // nanoid — assignment target for issues/procurement
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }), // null = virtual member
-  displayName: text("display_name"), // required for virtual members
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   roleId: text("role_id").notNull().references(() => projectRoles.id, { onDelete: "restrict" }),
   title: text("title"), // job title / trade, display only
   createdAt: text("created_at").notNull(),
@@ -98,8 +96,7 @@ export const projectMembers = sqliteTable("project_members", {
   // member scope, issue search scope, isMember) cannot use the composite unique
   // index below where userId is the trailing column.
   index("project_members_user_idx").on(t.userId),
-  // One row per real user per project. Virtual members carry NULL userId, which
-  // SQLite treats as mutually distinct, so multiple virtual members coexist.
+  // One row per user per project.
   uniqueIndex("project_members_project_user_idx").on(t.projectId, t.userId),
 ]);
 

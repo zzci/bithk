@@ -99,19 +99,13 @@ function parseTagIds(raw: string[] | undefined): string[] {
 
 const addMemberSchema = z.object({
   roleId: z.string().min(1),
-  userId: z.string().min(1).nullable().optional(),
-  displayName: z.string().max(255).nullable().optional(),
+  userId: z.string().min(1),
   title: z.string().max(100).nullable().optional(),
-}).refine(
-  v => (v.userId != null && v.userId !== "") || (v.displayName != null && v.displayName.trim() !== ""),
-  { message: "A member needs a userId (real) or a displayName (virtual)" },
-);
+});
 
 const updateMemberSchema = z.object({
   roleId: z.string().min(1).optional(),
-  displayName: z.string().max(255).nullable().optional(),
   title: z.string().max(100).nullable().optional(),
-  userId: z.string().min(1).nullable().optional(),
 }).refine(
   v => Object.values(v).some(value => value !== undefined),
   { message: "At least one field must be provided" },

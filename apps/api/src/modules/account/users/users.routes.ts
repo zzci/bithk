@@ -19,7 +19,16 @@ import {
   validateStepUpToken,
   verifyTotpCode,
 } from "./totp.service";
-import { getUserById, getUserGroups, listActiveUsers, listUsers } from "./users.service";
+import {
+  createVirtualUser,
+  deleteVirtualUser,
+  getUserById,
+  getUserGroups,
+  listActiveUsers,
+  listAssignableUsers,
+  listUsers,
+  updateVirtualUser,
+} from "./users.service";
 
 const listQuerySchema = z.object({
   q: z.string().max(200).optional(),
@@ -30,11 +39,24 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+// `username` matches the virtual-user create rule: lowercase handle of
+// [a-z0-9_.-]. `name`/`username` are only honoured for virtual targets (the
+// handler rejects them for real users).
+const usernameSchema = z.string().min(1).max(100).regex(/^[a-z0-9_.-]+$/);
+
 const updateBodySchema = z.object({
   role: z.enum(["admin", "user"]).optional(),
   status: z.enum(["active", "disabled"]).optional(),
-}).refine(d => d.role !== undefined || d.status !== undefined, {
-  message: "At least one of role or status must be provided",
+  name: z.string().min(1).max(255).optional(),
+  username: usernameSchema.optional(),
+}).refine(
+  d => d.role !== undefined || d.status !== undefined || d.name !== undefined || d.username !== undefined,
+  { message: "At least one of role, status, name or username must be provided" },
+);
+
+const createVirtualUserSchema = z.object({
+  username: usernameSchema,
+  name: z.string().min(1).max(255),
 });
 
 export function userRoutes() {
@@ -262,7 +284,36 @@ export function userRoutes() {
     return c.json({ success: true, data, meta: { total: data.length } });
   });
 
+  // GET /account/assignable-users — active real AND virtual users, the source
+  // for the project member-add picker. Authenticated (NOT admin-gated) like
+  // /visible-users; differs only by including virtual users.
+  router.get("/account/assignable-users", async (c) => {
+    const db = c.get("db");
+    const data = await listAssignableUsers(db);
+    return c.json({ success: true, data, meta: { total: data.length } });
+  });
+
   // ── /account/users — admin endpoints ──
+
+  // POST /users — create a virtual user (no login identity)
+  router.post("/account/users", adminRequired, async (c) => {
+    const db = c.get("db");
+    const currentUser = c.get("user");
+    const body = createVirtualUserSchema.parse(await c.req.json());
+    const created = await createVirtualUser(db, body);
+    await audit(db, c.get("logger"), {
+      actorId: currentUser.id,
+      actorName: currentUser.name,
+      action: "user.virtual_created",
+      resourceType: "user",
+      resourceId: created!.id,
+      resourceName: created!.username,
+      ip: getClientIp(c),
+      userAgent: c.req.header("user-agent") ?? "unknown",
+      result: "success",
+    });
+    return c.json({ success: true, data: created }, 201);
+  });
 
   // GET /users — list with pagination, search, filter
   router.get("/account/users", adminRequired, async (c) => {
@@ -299,7 +350,8 @@ export function userRoutes() {
     return c.json({ success: true, data: user });
   });
 
-  // PATCH /users/:id — update role/status
+  // PATCH /users/:id — update role/status (any user) and, for VIRTUAL users,
+  // their display name / username (with global username-uniqueness on rename).
   router.patch("/account/users/:id", adminRequired, async (c) => {
     const db = c.get("db");
     const id = c.req.param("id");
@@ -315,49 +367,61 @@ export function userRoutes() {
     }
 
     const body = updateBodySchema.parse(await c.req.json());
+
+    // name / username are display edits reserved for virtual users — a real
+    // user's username/name are owned by the IdP and must not be overwritten.
+    const renaming = body.name !== undefined || body.username !== undefined;
+    if (renaming && !existing.isVirtual) {
+      throw new AppError("Only virtual users can be renamed", 400, "BAD_REQUEST");
+    }
+
     const roleChanged = body.role !== undefined && body.role !== existing.role;
     const statusChanged = body.status !== undefined && body.status !== existing.status;
 
-    // Atomic: either both the user mutation AND the session purge land, or
-    // neither does. Without a tx an admin demote could persist while the
-    // user keeps an existing admin session live.
-    const updated = db.transaction((tx) => {
-      const now = new Date().toISOString();
-      const setData: Record<string, unknown> = { updatedAt: now };
-      if (body.role !== undefined)
-        setData.role = body.role;
-      if (body.status !== undefined)
-        setData.status = body.status;
+    if (body.role !== undefined || body.status !== undefined) {
+      // Atomic: either both the user mutation AND the session purge land, or
+      // neither does. Without a tx an admin demote could persist while the
+      // user keeps an existing admin session live.
+      db.transaction((tx) => {
+        const now = new Date().toISOString();
+        const setData: Record<string, unknown> = { updatedAt: now };
+        if (body.role !== undefined)
+          setData.role = body.role;
+        if (body.status !== undefined)
+          setData.status = body.status;
 
-      tx.update(users).set(setData).where(eq(users.id, id)).run();
+        tx.update(users).set(setData).where(eq(users.id, id)).run();
 
-      if (roleChanged || statusChanged) {
-        tx.delete(sessions).where(eq(sessions.userId, id)).run();
+        if (roleChanged || statusChanged) {
+          tx.delete(sessions).where(eq(sessions.userId, id)).run();
+        }
+      });
+
+      // Re-validate the acting admin's authority post-commit. If their role was
+      // revoked concurrently we must not report success on a privileged op.
+      const refreshedActor = await getUserById(db, currentUser.id);
+      if (!refreshedActor || refreshedActor.role !== "admin") {
+        throw new AppError("Admin privileges revoked during operation", 403, "FORBIDDEN");
       }
-
-      return tx.select({
-        id: users.id,
-        username: users.username,
-        name: users.name,
-        email: users.email,
-        avatar: users.avatar,
-        role: users.role,
-        status: users.status,
-        lastLoginAt: users.lastLoginAt,
-        createdAt: users.createdAt,
-        updatedAt: users.updatedAt,
-      }).from(users).where(eq(users.id, id)).get();
-    });
-
-    // Re-validate the acting admin's authority post-commit. If their role was
-    // revoked concurrently we must not report success on a privileged op.
-    const refreshedActor = await getUserById(db, currentUser.id);
-    if (!refreshedActor || refreshedActor.role !== "admin") {
-      throw new AppError("Admin privileges revoked during operation", 403, "FORBIDDEN");
     }
 
     const ip = getClientIp(c);
     const userAgent = c.req.header("user-agent") ?? "unknown";
+
+    if (renaming) {
+      await updateVirtualUser(db, id, { name: body.name, username: body.username });
+      await audit(db, c.get("logger"), {
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+        action: "user.virtual_updated",
+        resourceType: "user",
+        resourceId: id,
+        resourceName: body.username ?? existing.username,
+        ip,
+        userAgent,
+        result: "success",
+      });
+    }
 
     if (roleChanged) {
       await audit(db, c.get("logger"), {
@@ -388,6 +452,7 @@ export function userRoutes() {
       });
     }
 
+    const updated = await getUserById(db, id);
     return c.json({ success: true, data: updated });
   });
 
@@ -403,6 +468,32 @@ export function userRoutes() {
 
     const userGroupsList = await getUserGroups(db, id);
     return c.json({ success: true, data: userGroupsList });
+  });
+
+  // DELETE /users/:id — hard-delete a virtual user (real users are rejected)
+  router.delete("/account/users/:id", adminRequired, async (c) => {
+    const db = c.get("db");
+    const id = c.req.param("id");
+
+    const currentUser = c.get("user");
+    if (id === currentUser.id) {
+      throw new AppError("Cannot modify your own account", 403, "FORBIDDEN");
+    }
+
+    const existing = await getUserById(db, id);
+    await deleteVirtualUser(db, id);
+    await audit(db, c.get("logger"), {
+      actorId: currentUser.id,
+      actorName: currentUser.name,
+      action: "user.virtual_deleted",
+      resourceType: "user",
+      resourceId: id,
+      resourceName: existing?.username ?? id,
+      ip: getClientIp(c),
+      userAgent: c.req.header("user-agent") ?? "unknown",
+      result: "success",
+    });
+    return c.json({ success: true, data: null });
   });
 
   return router;

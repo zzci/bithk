@@ -9,6 +9,10 @@ export const users = sqliteTable("users", {
   avatar: text("avatar"),
   role: text("role", { enum: ["admin", "user"] }).notNull().default("user"),
   status: text("status", { enum: ["active", "disabled"] }).notNull().default("active"),
+  // Virtual users are first-class rows without a login identity (own staff
+  // assignable to projects). They carry a synthetic `oauth_sub`/`email`, are
+  // always active, and are hidden from sharing/comment pickers (`listActiveUsers`).
+  isVirtual: integer("is_virtual", { mode: "boolean" }).notNull().default(false),
   lastLoginAt: text("last_login_at"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()).$onUpdateFn(() => new Date().toISOString()),

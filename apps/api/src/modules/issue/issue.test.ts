@@ -9,6 +9,7 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { customAlphabet } from "nanoid";
 import * as schema from "@/db/schema";
 import { users } from "@/modules/account/users/schema";
+import { createVirtualUser } from "@/modules/account/users/users.service";
 import { items } from "@/modules/item/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { relationTuples } from "@/modules/policy/schema";
@@ -56,6 +57,7 @@ const SCHEMA_DDL: readonly string[] = [
     avatar TEXT,
     role TEXT NOT NULL DEFAULT 'user',
     status TEXT NOT NULL DEFAULT 'active',
+    is_virtual INTEGER NOT NULL DEFAULT false,
     last_login_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -103,8 +105,7 @@ const SCHEMA_DDL: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS project_members (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
-    display_name TEXT,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role_id TEXT NOT NULL REFERENCES project_roles(id),
     title TEXT,
     created_at TEXT NOT NULL,
@@ -257,10 +258,11 @@ describe("createIssue", () => {
     expect(tuples[0]!.subjectId).toBe(bob);
   });
 
-  test("external assignee writes ONLY the column (no user tuple)", async () => {
+  test("a virtual-user assignee writes the user tuple like a real user", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
-    const ext = await addMember(db, project.id, { roleId: await memberRoleId(project.id), displayName: "Supplier" });
+    const vuser = await createVirtualUser(db, { username: "supplier", name: "Supplier" });
+    const ext = await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: vuser!.id });
 
     const issue = await createIssue(db, {
       title: "External order",
@@ -269,7 +271,8 @@ describe("createIssue", () => {
       assigneeMemberId: ext.id,
     });
     expect(issue.assigneeMemberId).toBe(ext.id);
-    expect(issue.assigneeId).toBeNull();
+    // A virtual user is a first-class user row, so it backs the assignee tuple.
+    expect(issue.assigneeId).toBe(vuser!.id);
 
     const item = await db.select().from(items).where(eq(items.shortId, issue.id)).get();
     const tuples = await db.select().from(relationTuples).where(and(
@@ -277,7 +280,8 @@ describe("createIssue", () => {
       eq(relationTuples.objectId, item!.id),
       eq(relationTuples.relation, "assignee"),
     )).all();
-    expect(tuples).toHaveLength(0);
+    expect(tuples).toHaveLength(1);
+    expect(tuples[0]!.subjectId).toBe(vuser!.id);
   });
 
   test("rejects an assignee member that is not on the project", async () => {
@@ -305,35 +309,6 @@ describe("updateIssue", () => {
     const updated = await updateIssue(db, issue.id, { status: "working" });
     expect(updated?.status).toBe("working");
     expect(updated!.version).toBeGreaterThan(1);
-  });
-
-  test("reassigning resyncs the user tuple (internal → external)", async () => {
-    const creator = await seedUser("Alice");
-    const bob = await seedUser("Bob");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const roleId = await memberRoleId(project.id);
-    const internal = await addMember(db, project.id, { roleId, userId: bob });
-    const external = await addMember(db, project.id, { roleId, displayName: "Ext" });
-
-    const issue = await createIssue(db, {
-      title: "Order",
-      creatorId: creator,
-      projectId: project.id,
-      assigneeMemberId: internal.id,
-    });
-    expect(issue.assigneeId).toBe(bob);
-
-    const updated = await updateIssue(db, issue.id, { assigneeMemberId: external.id });
-    expect(updated?.assigneeMemberId).toBe(external.id);
-    expect(updated?.assigneeId).toBeNull();
-
-    const item = await db.select().from(items).where(eq(items.shortId, issue.id)).get();
-    const tuples = await db.select().from(relationTuples).where(and(
-      eq(relationTuples.namespace, "item"),
-      eq(relationTuples.objectId, item!.id),
-      eq(relationTuples.relation, "assignee"),
-    )).all();
-    expect(tuples).toHaveLength(0);
   });
 
   test("setting assigneeMemberId=null drops the tuple", async () => {
