@@ -3,6 +3,7 @@ import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-rou
 import { ArrowLeft, MapPin, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -20,6 +21,7 @@ import {
   useShipProjects,
   useShipWorklists,
 } from "@/shared/lib/api/ships";
+import { errorMessage } from "@/shared/lib/errors";
 import { useProjectCapabilities } from "../projects/-use-project-role";
 import { visibleShipTabs } from "./-ship-tabs";
 import { ShipStatusBadge } from "./-ship-visuals";
@@ -86,6 +88,9 @@ function ShipDetailPage() {
       onSuccess: () => {
         setDeleteOpen(false);
         void navigate({ to: "/ships" });
+      },
+      onError: (err) => {
+        toast.error(errorMessage(err, t("common:common.error.deleteFailed")));
       },
     });
   };
