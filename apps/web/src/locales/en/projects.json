@@ -127,7 +127,7 @@
     "empty": "No work orders found.",
     "loading": "Loading work orders...",
     "searchPlaceholder": "Search work orders...",
-    "tagFilter": "Filter by tag",
+    "tagFilter": "Tags",
     "toggleSection": "Toggle section",
     "emptyColumn": "No work orders",
     "unassigned": "Unassigned",
