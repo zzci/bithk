@@ -568,7 +568,6 @@ CREATE TABLE `worklists` (
 	`id` text PRIMARY KEY NOT NULL,
 	`ship_id` text,
 	`name` text NOT NULL,
-	`category` text,
 	`checklist` text,
 	`precautions` text,
 	`created_at` text NOT NULL,
