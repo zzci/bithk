@@ -288,6 +288,8 @@
   },
   "roles": {
     "add": "Add role",
+    "newRole": "New role",
+    "selectRole": "Role",
     "empty": "No roles defined.",
     "owner": "Project Owner",
     "guest": "Guest",

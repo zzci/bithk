@@ -105,3 +105,4 @@
 | [FIX-036](FIX-036.md) | Issues tab tag-filter label 按标签筛选 -> 标签 | [PLAN-062](../plan/PLAN-062.md) | Completed | 2026-06-03 |
 | [FIX-037](FIX-037.md) | Fix duplicate 项目所有者 in member role select | [PLAN-063](../plan/PLAN-063.md) | Completed | 2026-06-03 |
 | [UI-023](UI-023.md) | Project overview description+pinned grid 2:1 responsive ratio | [PLAN-064](../plan/PLAN-064.md) | Completed | 2026-06-03 |
+| [UI-024](UI-024.md) | Project role create/edit in-page editor (dropdown + permissions table) | [PLAN-065](../plan/PLAN-065.md) | Completed | 2026-06-03 |

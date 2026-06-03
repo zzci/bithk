@@ -12,6 +12,11 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
   });
 }
 
+// The inline editor renders many base-ui radios/switches; driving them through
+// the dropdown is slow in jsdom and can exceed the 5s default under parallel
+// CPU contention. Give the whole file generous headroom.
+vi.setConfig({ testTimeout: 20_000 });
+
 const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
@@ -45,59 +50,72 @@ function routeFetch(roles: ProjectRoleView[]) {
   });
 }
 
+type User = ReturnType<typeof userEvent.setup>;
+
+/** Open the role selector dropdown and load the named role into the editor. */
+async function pickRole(user: User, name: string | RegExp) {
+  await user.click(screen.getByRole("combobox"));
+  await user.click(await screen.findByRole("option", { name }));
+}
+
 describe("projectSettingsRoles", () => {
-  it("shows the empty state when no roles exist", async () => {
+  it("shows the empty state when no roles exist and the viewer cannot manage", async () => {
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
     expect(await screen.findByText("No roles defined.")).toBeInTheDocument();
   });
 
-  it("renders custom-role capability badges but hides them for the system owner role", async () => {
-    routeFetch([
-      role({ id: "r1", name: "Engineer", capabilities: ["procurement.view"] }),
-      // Give the system role capabilities to prove they are still hidden.
-      role({ id: "sys", name: "Project Manager", isSystem: true, capabilities: ["project.manage"] }),
-    ]);
+  it("defaults to the inline create editor when the viewer can manage", async () => {
+    routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    expect(await screen.findByText("Engineer")).toBeInTheDocument();
-    // Custom roles keep their capability badge list.
-    expect(screen.getByText("View procurement")).toBeInTheDocument();
-    // The system role is always presented as "Project Owner", never its stored name.
-    expect(screen.getByText("Project Owner")).toBeInTheDocument();
-    expect(screen.queryByText("Project Manager")).not.toBeInTheDocument();
-    expect(screen.getByText("System")).toBeInTheDocument();
-    // The system owner role is capability-locked, so its capability badges and
-    // the "No capabilities" placeholder are both suppressed.
-    expect(screen.queryByText("Manage project")).not.toBeInTheDocument();
-    expect(screen.queryByText("No capabilities")).not.toBeInTheDocument();
+    // The editor is rendered in-page (no modal): the Name field and the module
+    // permission rows are present immediately.
+    expect(await screen.findByLabelText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Work orders")).toBeInTheDocument();
+    expect(screen.getByText("Procurement")).toBeInTheDocument();
+    expect(screen.getByText("Files")).toBeInTheDocument();
+    expect(screen.getByText("Administration")).toBeInTheDocument();
+    // Create mode shows an Add action, not a dialog.
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("hides management controls when the viewer cannot manage", async () => {
+  it("hides write controls when the viewer cannot manage", async () => {
     routeFetch([role()]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
-    await screen.findByText("Engineer");
-    expect(screen.queryByRole("button", { name: "Add role" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-  });
-
-  it("does not offer edit/delete for system roles", async () => {
-    routeFetch([role({ id: "sys", name: "Project Manager", isSystem: true, capabilities: [] })]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("Project Owner");
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    // The first role loads read-only by default.
+    await waitFor(() => expect(screen.getByLabelText("Name")).toBeDisabled());
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
-  it("creates a role through the dialog", async () => {
-    const user = userEvent.setup();
+  it("shows a selected system role read-only with no save/delete", async () => {
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
+    routeFetch([role({ id: "sys", name: "Project Manager", isSystem: true, kind: "owner", capabilities: ["project.manage"] })]);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    await screen.findByLabelText("Name");
+
+    // System roles surface under their canonical label, never their stored name.
+    await pickRole(user, "Project Owner");
+
+    expect(screen.getByText("System")).toBeInTheDocument();
+    // The stored name is never shown; the canonical label is used instead.
+    expect(screen.queryByText("Project Manager")).not.toBeInTheDocument();
+    // Read-only: no write actions, and the name field is disabled.
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("creates a role through the inline editor", async () => {
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
 
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "Reviewer");
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.type(await screen.findByLabelText("Name"), "Reviewer");
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -107,38 +125,17 @@ describe("projectSettingsRoles", () => {
     });
   });
 
-  it("shows module radio group sections in the create dialog", async () => {
-    const user = userEvent.setup();
-    routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
-
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-
-    // Module group headers rendered as fieldset legends.
-    expect(within(dialog).getByText("Work orders")).toBeInTheDocument();
-    expect(within(dialog).getByText("Procurement")).toBeInTheDocument();
-    expect(within(dialog).getByText("Files")).toBeInTheDocument();
-    // Administration section for non-tiered caps.
-    expect(within(dialog).getByText("Administration")).toBeInTheDocument();
-  });
-
   it("selecting issue=View tier produces [issue.view] caps on submit", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
+    await user.type(await screen.findByLabelText("Name"), "Reviewer");
 
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "Reviewer");
+    // All modules default to "None". Click "View" in the Work orders row.
+    const issueRow = screen.getByText("Work orders").closest("tr")!;
+    await user.click(within(issueRow).getByText("View"));
 
-    // All modules default to "None". Click "View" in the Work orders section.
-    const issueSection = within(dialog).getByText("Work orders").closest("fieldset")!;
-    await user.click(within(issueSection).getByText("View"));
-
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -149,19 +146,15 @@ describe("projectSettingsRoles", () => {
   });
 
   it("selecting issue=Manage tier produces cumulative [issue.view, issue.comment, issue.manage]", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
+    await user.type(await screen.findByLabelText("Name"), "Admin");
 
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "Admin");
+    const issueRow = screen.getByText("Work orders").closest("tr")!;
+    await user.click(within(issueRow).getByText("Manage"));
 
-    const issueSection = within(dialog).getByText("Work orders").closest("fieldset")!;
-    await user.click(within(issueSection).getByText("Manage"));
-
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -172,66 +165,51 @@ describe("projectSettingsRoles", () => {
   });
 
   it("files module has no Comment tier option", async () => {
-    const user = userEvent.setup();
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
+    await screen.findByLabelText("Name");
 
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-
-    const filesSection = within(dialog).getByText("Files").closest("fieldset")!;
-    // Files section should have None, View, Manage but NOT Comment.
-    expect(within(filesSection).getByText("None")).toBeInTheDocument();
-    expect(within(filesSection).getByText("View")).toBeInTheDocument();
-    expect(within(filesSection).getByText("Manage")).toBeInTheDocument();
-    expect(within(filesSection).queryByText("Comment")).not.toBeInTheDocument();
+    const filesRow = screen.getByText("Files").closest("tr")!;
+    // Files row should have None, View, Manage but NOT Comment.
+    expect(within(filesRow).getByText("None")).toBeInTheDocument();
+    expect(within(filesRow).getByText("View")).toBeInTheDocument();
+    expect(within(filesRow).getByText("Manage")).toBeInTheDocument();
+    expect(within(filesRow).queryByText("Comment")).not.toBeInTheDocument();
   });
 
   it("loading a role with procurement.manage preselects Procurement=Manage tier", async () => {
-    const user = userEvent.setup();
+    // A single role with canManage=false loads as the default selection, so the
+    // derived tier is observable without opening the dropdown.
     routeFetch([role({ id: "r1", name: "Buyer", capabilities: ["procurement.view", "procurement.comment", "procurement.manage"] })]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("Buyer");
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
+    await screen.findByLabelText("Name");
 
-    await user.click(screen.getByRole("button", { name: "Edit" }));
-    const dialog = await screen.findByRole("dialog");
-
-    const procSection = within(dialog).getByText("Procurement").closest("fieldset")!;
-    // The "Manage" radio should be selected (checked).
-    const manageRadio = within(procSection).getByText("Manage").closest("[data-slot='radio-group-item']");
+    const procRow = screen.getByText("Procurement").closest("tr")!;
+    const manageRadio = within(procRow).getByText("Manage").closest("[data-slot='radio-group-item']");
     expect(manageRadio).toHaveAttribute("data-checked");
   });
 
   it("loading a role with only issue.view preselects Issue=View tier", async () => {
-    const user = userEvent.setup();
     routeFetch([role({ id: "r1", name: "Viewer", capabilities: ["issue.view"] })]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("Viewer");
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
+    await screen.findByLabelText("Name");
 
-    await user.click(screen.getByRole("button", { name: "Edit" }));
-    const dialog = await screen.findByRole("dialog");
-
-    const issueSection = within(dialog).getByText("Work orders").closest("fieldset")!;
-    const viewRadio = within(issueSection).getByText("View").closest("[data-slot='radio-group-item']");
+    const issueRow = screen.getByText("Work orders").closest("tr")!;
+    const viewRadio = within(issueRow).getByText("View").closest("[data-slot='radio-group-item']");
     expect(viewRadio).toHaveAttribute("data-checked");
   });
 
   it("admin toggles are independent from module tiers", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
-
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "Admin");
+    await user.type(await screen.findByLabelText("Name"), "Admin");
 
     // Toggle project.manage and members.manage on.
-    await user.click(within(dialog).getByRole("switch", { name: "Manage project" }));
-    await user.click(within(dialog).getByRole("switch", { name: "Manage members" }));
+    await user.click(screen.getByRole("switch", { name: "Manage project" }));
+    await user.click(screen.getByRole("switch", { name: "Manage members" }));
 
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -243,17 +221,13 @@ describe("projectSettingsRoles", () => {
   });
 
   it("reader preset sets all modules to View and no admin caps", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
+    await user.type(await screen.findByLabelText("Name"), "ReadOnly");
 
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "ReadOnly");
-
-    await user.click(within(dialog).getByRole("button", { name: "Reader" }));
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Reader" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -264,17 +238,13 @@ describe("projectSettingsRoles", () => {
   });
 
   it("commenter preset sets issue=Comment, procurement=Comment, files=View", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
+    await user.type(await screen.findByLabelText("Name"), "Commenter");
 
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "Commenter");
-
-    await user.click(within(dialog).getByRole("button", { name: "Commenter" }));
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Commenter" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -291,17 +261,13 @@ describe("projectSettingsRoles", () => {
   });
 
   it("writer preset sets all modules to Manage + categories.manage", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
+    await user.type(await screen.findByLabelText("Name"), "Writer");
 
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "Writer");
-
-    await user.click(within(dialog).getByRole("button", { name: "Writer" }));
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Writer" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -322,24 +288,20 @@ describe("projectSettingsRoles", () => {
   });
 
   it("mixing module tiers independently (Issue=Manage, Procurement=View, Files=None)", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("No roles defined.");
+    await user.type(await screen.findByLabelText("Name"), "Mixed");
 
-    await user.click(screen.getByRole("button", { name: "Add role" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "Mixed");
+    const issueRow = screen.getByText("Work orders").closest("tr")!;
+    await user.click(within(issueRow).getByText("Manage"));
 
-    const issueSection = within(dialog).getByText("Work orders").closest("fieldset")!;
-    await user.click(within(issueSection).getByText("Manage"));
-
-    const procSection = within(dialog).getByText("Procurement").closest("fieldset")!;
-    await user.click(within(procSection).getByText("View"));
+    const procRow = screen.getByText("Procurement").closest("tr")!;
+    await user.click(within(procRow).getByText("View"));
 
     // Files stays None (default).
 
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -354,13 +316,32 @@ describe("projectSettingsRoles", () => {
     });
   });
 
-  it("deletes a role after confirmation", async () => {
-    const user = userEvent.setup();
+  it("updates a custom role loaded through the dropdown", async () => {
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
+    routeFetch([role({ id: "r1", name: "Engineer", capabilities: ["issue.view"] })]);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    await screen.findByLabelText("Name");
+
+    await pickRole(user, "Engineer");
+    // Edit mode exposes a Save action, not Add.
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "PATCH");
+      expect(patch).toBeTruthy();
+      expect(String(patch![0])).toBe("/api/projects/p1/roles/r1");
+    });
+  });
+
+  it("deletes a custom role after confirmation", async () => {
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([role({ id: "r1", name: "Engineer" })]);
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
-    await screen.findByText("Engineer");
+    await screen.findByLabelText("Name");
 
+    await pickRole(user, "Engineer");
     await user.click(screen.getByRole("button", { name: "Delete" }));
+
     const dialog = await screen.findByRole("alertdialog").catch(() => screen.getByRole("dialog"));
     const confirm = within(dialog).getAllByRole("button").find(b => /delete/i.test(b.textContent ?? ""));
     await user.click(confirm!);
