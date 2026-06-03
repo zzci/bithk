@@ -20,7 +20,8 @@ components.
 - `-project-form-dialog.tsx` — picker → `TagInput`.
 - `-project-settings-general.tsx` — picker → `TagInput`.
 - `-project-issue-panel.tsx` — picker → `TagInput`.
-- `-project-issues-tab.tsx` — tag filter → `tagFilterDimension`.
+- `-project-issues-tab.tsx` — tag filter → `tagFilterDimension` with
+  `label: t("field.tags")` (replaces the inline `issues.tagFilter` label).
 - `-project-procurement-tab.tsx` — form picker → `TagInput`; filter →
   `tagFilterDimension` (already hides when empty).
 - `-project-procurement-panel.tsx` — picker → `TagInput`.
@@ -28,6 +29,14 @@ components.
   `-project-tags-combobox.tsx` (adapter).
 
 Keep `shared/lib/tag-utils.ts` (still used by `-project-form-logic.ts`).
+
+### Label consistency (user-approved scope add 2026-06-03)
+
+Every tag FILTER must read `标签`/`Tags`, never `按标签筛选`/`Filter by tag`. All
+migrated filter dimensions use `label: t("field.tags")`. Also set the stale
+keys in `locales/{en,zh}/projects.json` to `Tags`/`标签`:
+`procurement.tagFilter` and `issues.tagFilter` (both become unused after the
+switch to `field.tags`; non-blocking). Keep en↔zh parity.
 
 ## Acceptance
 
