@@ -53,13 +53,31 @@ export const ships = sqliteTable("ships", {
   index("ships_base_project_idx").on(t.baseProjectId),
 ]);
 
+// Global, admin-maintained equipment categories. A standalone bilingual
+// vocabulary (Chinese + English name per row) referenced by
+// `ship_equipment.category_id`. Declared above `ship_equipment` so the FK
+// resolves. Mirrors the `contact_categories` vocabulary pattern; the bilingual
+// names are each unique so the vocabulary stays free of duplicates.
+export const equipmentCategories = sqliteTable("equipment_categories", {
+  id: text("id").primaryKey(), // nanoid
+  nameZh: text("name_zh").notNull(),
+  nameEn: text("name_en").notNull(),
+  code: text("code"),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, t => [
+  uniqueIndex("equipment_categories_name_zh_idx").on(t.nameZh),
+  uniqueIndex("equipment_categories_name_en_idx").on(t.nameEn),
+]);
+
 // Equipment inventory for a ship. CRUD routes land in a later phase; the table
 // is defined now so the single foundation migration covers it.
 export const shipEquipment = sqliteTable("ship_equipment", {
   id: text("id").primaryKey(), // nanoid
   shipId: text("ship_id").notNull().references(() => ships.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  category: text("category"),
+  categoryId: text("category_id").references(() => equipmentCategories.id, { onDelete: "set null" }),
   manufacturer: text("manufacturer"),
   model: text("model"),
   serialNumber: text("serial_number"),
@@ -69,7 +87,10 @@ export const shipEquipment = sqliteTable("ship_equipment", {
   note: text("note"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-}, t => [index("ship_equipment_ship_idx").on(t.shipId)]);
+}, t => [
+  index("ship_equipment_ship_idx").on(t.shipId),
+  index("ship_equipment_category_idx").on(t.categoryId),
+]);
 
 // Worklists. `shipId` NULL = a global knowledge-base entry (copy source only);
 // a value = a ship-level copy the ship actually uses.
