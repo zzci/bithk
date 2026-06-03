@@ -90,7 +90,8 @@ function member(overrides: Partial<ProjectMemberView> = {}): ProjectMemberView {
   return {
     id: "m1",
     userId: "u1",
-    displayName: null,
+    name: "Alice",
+    isVirtual: false,
     roleId: "r1",
     title: null,
     createdAt: "2026-05-23T00:00:00.000Z",

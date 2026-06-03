@@ -6,8 +6,9 @@ import { computeCapabilities } from "./-use-project-role";
 function member(overrides: Partial<ProjectMemberView>): ProjectMemberView {
   return {
     id: "m1",
-    userId: null,
-    displayName: null,
+    userId: "u1",
+    name: "Alice",
+    isVirtual: false,
     roleId: "r1",
     title: null,
     createdAt: "2026-05-23T00:00:00.000Z",
@@ -49,28 +50,17 @@ describe("computeCapabilities", () => {
 });
 
 describe("memberLabel / buildMemberLabelMap", () => {
-  const names = new Map([["u1", "Alice"]]);
-
-  it("prefers the explicit displayName", () => {
-    expect(memberLabel(member({ displayName: "Acme Corp", userId: "u1" }), names)).toBe("Acme Corp");
+  it("returns the member's resolved name", () => {
+    expect(memberLabel(member({ name: "Acme Corp" }))).toBe("Acme Corp");
   });
 
-  it("resolves a real member to the user name", () => {
-    expect(memberLabel(member({ userId: "u1" }), names)).toBe("Alice");
-  });
-
-  it("falls back to the user id when the name is unknown", () => {
-    expect(memberLabel(member({ userId: "u2" }), names)).toBe("u2");
-  });
-
-  it("falls back to the member id when there is no name or user", () => {
-    expect(memberLabel(member({ id: "m9", userId: null, displayName: null }), names)).toBe("m9");
+  it("returns the name for a virtual member too", () => {
+    expect(memberLabel(member({ name: "Crew B", isVirtual: true }))).toBe("Crew B");
   });
 
   it("builds a label map keyed by member id", () => {
     const map = buildMemberLabelMap(
-      [member({ id: "a", displayName: "Ext" }), member({ id: "b", userId: "u1" })],
-      names,
+      [member({ id: "a", name: "Ext", isVirtual: true }), member({ id: "b", name: "Alice" })],
     );
     expect(map.get("a")).toBe("Ext");
     expect(map.get("b")).toBe("Alice");

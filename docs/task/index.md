@@ -111,3 +111,6 @@
 | [REFACTOR-022](REFACTOR-022.md) | Migrate contacts tag surfaces to shared family | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
 | [REFACTOR-023](REFACTOR-023.md) | Migrate ships tag surfaces to shared family | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
 | [REFACTOR-024](REFACTOR-024.md) | Remove dead shared tag-badge-list + tags-combobox after migration | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
+| [REFACTOR-025](REFACTOR-025.md) | Virtual users first-class: backend (users.isVirtual + members userId-only) | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
+| [FEAT-020](FEAT-020.md) | Admin Users: create / edit / delete virtual users | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
+| [REFACTOR-026](REFACTOR-026.md) | Project member/assignee pickers → unified users (drop displayName) | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |

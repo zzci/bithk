@@ -65,3 +65,4 @@
 | [PLAN-064](PLAN-064.md) | Project overview description+pinned grid 2:1 responsive ratio | Completed | 2026-06-03 |
 | [PLAN-065](PLAN-065.md) | Project role editor: in-page dropdown + table (replace modal) | Completed | 2026-06-03 |
 | [PLAN-066](PLAN-066.md) | Global unified tag component family | Completed | 2026-06-03 |
+| [PLAN-067](PLAN-067.md) | Virtual users as first-class user rows | Completed | 2026-06-03 |

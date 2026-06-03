@@ -263,22 +263,15 @@
       "role": "Role",
       "actions": "Actions"
     },
-    "kind": {
-      "real": "Existing user",
-      "virtual": "Virtual member"
-    },
     "addTitle": "Add member",
-    "addDescription": "Add an existing user or a virtual member to this project.",
+    "addDescription": "Select a user (real or virtual) to add to this project.",
     "editTitle": "Edit member",
     "editDescription": "Update the member's role and details.",
     "field": {
-      "kind": "Member type",
       "user": "User",
       "role": "Role",
-      "title": "Title",
-      "displayName": "Display name"
+      "title": "Title"
     },
-    "promote": "Link to a user",
     "selectUser": "Select a user",
     "selectRole": "Select a role",
     "delete": {

@@ -7,6 +7,8 @@ import {
   listGroupMembershipsForUsers,
   listUserIdsInGroup,
 } from "@/modules/policy/policy.service";
+import { AppError, NotFoundError } from "@/shared/lib/errors";
+import { nanoid } from "@/shared/lib/id";
 
 type UserRole = "admin" | "user";
 type UserStatus = "active" | "disabled";
@@ -19,6 +21,7 @@ const userColumns = {
   avatar: users.avatar,
   role: users.role,
   status: users.status,
+  isVirtual: users.isVirtual,
   lastLoginAt: users.lastLoginAt,
   createdAt: users.createdAt,
   updatedAt: users.updatedAt,
@@ -179,11 +182,94 @@ export async function getUserGroups(db: AppDatabase, userId: string) {
   }));
 }
 
+/**
+ * Active REAL users only. Backs the sharing / comment / assignment pickers that
+ * must never surface virtual users (they have no login identity), so the filter
+ * excludes `isVirtual` rows.
+ */
 export async function listActiveUsers(db: AppDatabase) {
   return await db
     .select({ id: users.id, name: users.name, username: users.username })
     .from(users)
+    .where(and(eq(users.status, "active"), eq(users.isVirtual, false)))
+    .orderBy(users.name)
+    .all();
+}
+
+/**
+ * Active real AND virtual users — the source for the project member-add picker.
+ * Virtual users are assignable operators, so they belong here even though they
+ * are hidden from {@link listActiveUsers}.
+ */
+export async function listAssignableUsers(db: AppDatabase) {
+  return await db
+    .select({ id: users.id, name: users.name, username: users.username, isVirtual: users.isVirtual })
+    .from(users)
     .where(eq(users.status, "active"))
     .orderBy(users.name)
     .all();
+}
+
+/**
+ * Create a virtual user: a first-class `users` row without a login identity.
+ * Username uniqueness is enforced GLOBALLY (against real and virtual users)
+ * before the insert so the collision surfaces as a clean 409, not a raw
+ * unique-constraint 500.
+ */
+export async function createVirtualUser(db: AppDatabase, input: { username: string; name: string }) {
+  const taken = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).get();
+  if (taken)
+    throw new AppError("Username already taken", 409, "CONFLICT");
+
+  const id = nanoid();
+  const now = new Date().toISOString();
+  await db.insert(users).values({
+    id,
+    oauthSub: `virtual:${id}`,
+    username: input.username,
+    name: input.name,
+    email: `${input.username}@virtual.local`,
+    role: "user",
+    status: "active",
+    isVirtual: true,
+    createdAt: now,
+    updatedAt: now,
+  }).run();
+  return await db.select(userColumns).from(users).where(eq(users.id, id)).get();
+}
+
+/**
+ * Update a virtual user's display fields. Rejects a rename that collides with
+ * any existing username (real or virtual), self excluded. Callers must ensure
+ * the target is virtual; renaming real users is not supported.
+ */
+export async function updateVirtualUser(db: AppDatabase, id: string, data: { name?: string | undefined; username?: string | undefined }) {
+  if (data.username !== undefined) {
+    const taken = await db.select({ id: users.id }).from(users).where(eq(users.username, data.username)).get();
+    if (taken && taken.id !== id)
+      throw new AppError("Username already taken", 409, "CONFLICT");
+  }
+  const now = new Date().toISOString();
+  const setData: Record<string, unknown> = { updatedAt: now };
+  if (data.name !== undefined)
+    setData.name = data.name;
+  if (data.username !== undefined)
+    setData.username = data.username;
+  await db.update(users).set(setData).where(eq(users.id, id)).run();
+  return await db.select(userColumns).from(users).where(eq(users.id, id)).get();
+}
+
+/**
+ * Hard-delete a virtual user. Real users cannot be deleted here (they own
+ * sessions / OAuth identity). `project_members.userId` cascades on delete, so
+ * the user's memberships drop with the row.
+ */
+export async function deleteVirtualUser(db: AppDatabase, id: string): Promise<boolean> {
+  const existing = await db.select({ id: users.id, isVirtual: users.isVirtual }).from(users).where(eq(users.id, id)).get();
+  if (!existing)
+    throw new NotFoundError("User", id);
+  if (!existing.isVirtual)
+    throw new AppError("Only virtual users can be deleted", 409, "CONFLICT");
+  await db.delete(users).where(eq(users.id, id)).run();
+  return true;
 }

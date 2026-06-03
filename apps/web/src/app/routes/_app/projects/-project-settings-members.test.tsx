@@ -27,7 +27,8 @@ function member(overrides: Partial<ProjectMemberView> = {}): ProjectMemberView {
   return {
     id: "m1",
     userId: "u1",
-    displayName: null,
+    name: "Alice",
+    isVirtual: false,
     roleId: "r1",
     title: "Engineer",
     createdAt: "2026-05-23T00:00:00.000Z",
@@ -42,15 +43,15 @@ const roles: ProjectRoleView[] = [
   { id: "r3", name: "Guest", capabilities: [], isSystem: true, kind: "guest", createdAt: "", updatedAt: "" },
 ];
 
-/** Route the roles GET, the visible-users GET, and any member mutation. */
+/** Route the roles GET, the assignable-users GET, and any member mutation. */
 function routeFetch() {
   fetchMock.mockImplementation(async (url, init) => {
     const path = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
     if (method === "GET" && path.includes("/roles"))
       return jsonResponse({ success: true, data: roles });
-    if (method === "GET" && path.includes("/visible-users"))
-      return jsonResponse({ success: true, data: [{ id: "u9", name: "Bob", username: "bob" }] });
+    if (method === "GET" && path.includes("/assignable-users"))
+      return jsonResponse({ success: true, data: [{ id: "u9", name: "Bob", username: "bob", isVirtual: false }], meta: { total: 1 } });
     if (method === "PATCH")
       return jsonResponse({ success: true, data: member({ title: "Lead" }) });
     if (method === "POST")
@@ -88,7 +89,7 @@ describe("projectSettingsMembers", () => {
     renderWithProviders(
       <ProjectSettingsMembers
         projectId="p1"
-        members={[member({ id: "m2", userId: null, displayName: "Crew B", roleId: "r2", title: null })]}
+        members={[member({ id: "m2", userId: "u2", name: "Crew B", isVirtual: true, roleId: "r2", title: null })]}
         userNames={userNames}
         canManage={false}
       />,
@@ -147,7 +148,7 @@ describe("projectSettingsMembers", () => {
     await screen.findByText("No members yet.");
     await user.click(screen.getByRole("button", { name: "Add member" }));
     const dialog = await screen.findByRole("dialog");
-    // The role select is the last combobox in the dialog (after kind + user).
+    // The role select is the last combobox in the dialog (after the user picker).
     const comboboxes = within(dialog).getAllByRole("combobox");
     await user.click(comboboxes[comboboxes.length - 1]!);
     const listbox = await screen.findByRole("listbox");

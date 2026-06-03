@@ -64,8 +64,11 @@ export interface ProjectView {
 
 export interface ProjectMemberView {
   readonly id: string;
-  readonly userId: string | null;
-  readonly displayName: string | null;
+  // A member is always a unified users row (real or virtual), referenced by id.
+  readonly userId: string;
+  // Display name + virtual flag are resolved from the users row server-side.
+  readonly name: string;
+  readonly isVirtual: boolean;
   readonly roleId: string;
   readonly title: string | null;
   readonly createdAt: string;
@@ -314,6 +317,25 @@ export function useDeleteProject(): UseMutationResult<null, Error, string> {
 
 // ── Members ──
 
+// A user (real or virtual) that can be added as a project member. Returned by
+// GET /account/assignable-users — the unified candidate source for the member
+// picker (distinct from /account/visible-users, which is real-users only).
+export interface AssignableUser {
+  readonly id: string;
+  readonly name: string;
+  readonly username: string;
+  readonly isVirtual: boolean;
+}
+
+/** Assignable users (real + virtual) for the member-add picker. */
+export function useAssignableUsers() {
+  return useQuery<readonly AssignableUser[]>({
+    queryKey: ["account", "assignable-users"],
+    queryFn: () => http<ApiListEnvelope<AssignableUser>>("/account/assignable-users").then(r => r.data),
+    staleTime: 30_000,
+  });
+}
+
 export function useProjectMembers(projectId: string | undefined) {
   return useQuery({
     queryKey: projectKeys.members(projectId ?? ""),
@@ -325,8 +347,8 @@ export function useProjectMembers(projectId: string | undefined) {
 
 export interface AddProjectMemberInput {
   readonly roleId: string;
-  readonly userId?: string;
-  readonly displayName?: string;
+  // The unified users row (real or virtual) to add as a member.
+  readonly userId: string;
   readonly title?: string;
 }
 
@@ -345,9 +367,7 @@ export function useAddProjectMember(): UseMutationResult<ProjectMemberView, Erro
 
 export interface UpdateProjectMemberInput {
   readonly roleId?: string;
-  readonly displayName?: string | null;
   readonly title?: string | null;
-  readonly userId?: string;
 }
 
 export function useUpdateProjectMember(): UseMutationResult<ProjectMemberView, Error, { projectId: string; memberId: string } & UpdateProjectMemberInput> {

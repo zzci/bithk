@@ -1,11 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
   Dialog,
   DialogClose,
@@ -16,6 +18,7 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
   Table,
   TableBody,
@@ -47,6 +50,7 @@ interface User {
   readonly email: string;
   readonly role: "admin" | "user";
   readonly status: "active" | "disabled";
+  readonly isVirtual: boolean;
   readonly groups?: UserGroup[];
   readonly lastLoginAt: string | null;
   readonly createdAt: string;
@@ -71,6 +75,10 @@ function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [roleConfirm, setRoleConfirm] = useState<User | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<User | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -131,6 +139,24 @@ function UsersTab() {
     }
     catch (err) {
       setError(err instanceof Error ? err.message : t("common.error.operationFailed"));
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget)
+      return;
+    setDeleting(true);
+    try {
+      await http(`/account/users/${deleteTarget.id}`, { method: "DELETE" });
+      toast.success(t("virtual.toast.deleted"));
+      setDeleteTarget(null);
+      void fetchUsers();
+    }
+    catch (err) {
+      toast.error(err instanceof Error ? err.message : t("common.error.operationFailed"));
+    }
+    finally {
+      setDeleting(false);
     }
   };
 
@@ -196,6 +222,11 @@ function UsersTab() {
         <span className="text-sm text-muted-foreground">
           {t("totalCount", { count: meta.total })}
         </span>
+
+        <Button className="ml-auto" onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-1 size-4" />
+          {t("virtual.create")}
+        </Button>
       </div>
 
       <div className="rounded-md border">
@@ -238,6 +269,11 @@ function UsersTab() {
                               {t("roleAdmin")}
                             </Badge>
                           )}
+                          {user.isVirtual && (
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                              {t("virtual.badge")}
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>{user.name}</TableCell>
@@ -261,20 +297,39 @@ function UsersTab() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            disabled={isSelf(user.id)}
-                            onClick={() => setRoleConfirm(user)}
-                          >
-                            {user.role === "admin" ? t("demote") : t("promote")}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            disabled={isSelf(user.id)}
-                            onClick={() => void toggleStatus(user)}
-                          >
-                            {user.status === "active" ? t("disable") : t("enable")}
-                          </Button>
+                          {user.isVirtual
+                            ? (
+                                <>
+                                  <Button variant="ghost" onClick={() => setEditTarget(user)}>
+                                    {t("virtual.edit")}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    className="text-destructive"
+                                    onClick={() => setDeleteTarget(user)}
+                                  >
+                                    {t("virtual.delete")}
+                                  </Button>
+                                </>
+                              )
+                            : (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    disabled={isSelf(user.id)}
+                                    onClick={() => setRoleConfirm(user)}
+                                  >
+                                    {user.role === "admin" ? t("demote") : t("promote")}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    disabled={isSelf(user.id)}
+                                    onClick={() => void toggleStatus(user)}
+                                  >
+                                    {user.status === "active" ? t("disable") : t("enable")}
+                                  </Button>
+                                </>
+                              )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -331,6 +386,137 @@ function UsersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {createOpen && (
+        <VirtualUserDialog
+          mode="create"
+          open
+          onOpenChange={open => !open && setCreateOpen(false)}
+          onSaved={() => void fetchUsers()}
+        />
+      )}
+      {editTarget && (
+        <VirtualUserDialog
+          mode="edit"
+          user={editTarget}
+          open
+          onOpenChange={open => !open && setEditTarget(null)}
+          onSaved={() => void fetchUsers()}
+        />
+      )}
+
+      <ConfirmDeleteDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open)
+            setDeleteTarget(null);
+        }}
+        title={t("virtual.deleteTitle")}
+        description={t("virtual.deleteConfirm", { name: deleteTarget?.name })}
+        pending={deleting}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
+  );
+}
+
+interface VirtualUserDialogProps {
+  readonly mode: "create" | "edit";
+  readonly user?: User;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onSaved: () => void;
+}
+
+function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualUserDialogProps) {
+  const { t } = useTranslation("users");
+  const [username, setUsername] = useState(user?.username ?? "");
+  const [name, setName] = useState(user?.name ?? "");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const trimmedUsername = username.trim();
+    const trimmedName = name.trim();
+    if (!trimmedUsername || !trimmedName || pending)
+      return;
+    setPending(true);
+    setError(null);
+    try {
+      if (mode === "create") {
+        await http("/account/users", {
+          method: "POST",
+          body: JSON.stringify({ username: trimmedUsername, name: trimmedName }),
+        });
+        toast.success(t("virtual.toast.created"));
+      }
+      else if (user) {
+        await http(`/account/users/${user.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ username: trimmedUsername, name: trimmedName }),
+        });
+        toast.success(t("virtual.toast.updated"));
+      }
+      onOpenChange(false);
+      onSaved();
+    }
+    catch (err) {
+      setError(err instanceof Error ? err.message : t("common.error.operationFailed"));
+    }
+    finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={submit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>{mode === "create" ? t("virtual.createTitle") : t("virtual.editTitle")}</DialogTitle>
+            <DialogDescription>{t("virtual.dialogDescription")}</DialogDescription>
+          </DialogHeader>
+
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="virtual-user-username">{t("field.username")}</Label>
+            <Input
+              id="virtual-user-username"
+              autoFocus
+              required
+              maxLength={50}
+              value={username}
+              onChange={e => setUsername(e.target.value.toLowerCase())}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="virtual-user-name">{t("field.name")}</Label>
+            <Input
+              id="virtual-user-name"
+              required
+              maxLength={255}
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={pending || !username.trim() || !name.trim()}>
+              {mode === "create" ? t("common.add") : t("common.save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

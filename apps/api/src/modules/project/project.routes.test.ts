@@ -457,7 +457,7 @@ describe("members (members.manage gate)", () => {
     expect(dup.status).toBe(409);
   });
 
-  test("a member with no userId and no displayName is rejected with 422", async () => {
+  test("a member with no userId is rejected with 422", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });

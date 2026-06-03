@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
+import { createVirtualUser } from "@/modules/account/users/users.service";
 import { fileReferences, files } from "@/modules/file/schema";
 import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
@@ -173,7 +174,7 @@ describe("createProject", () => {
 });
 
 describe("members", () => {
-  test("adds a real and a virtual member", async () => {
+  test("adds a real member and a virtual-user member, resolving name + isVirtual", async () => {
     const creator = await seedUser("Alice");
     const bob = await seedUser("Bob");
     const project = await createProject(db, { name: "P", creatorId: creator });
@@ -182,24 +183,17 @@ describe("members", () => {
     const real = await addMember(db, project.id, { roleId, userId: bob, title: "Engineer" });
     expect(real.userId).toBe(bob);
     expect(real.title).toBe("Engineer");
+    expect(real.name).toBe("Bob");
+    expect(real.isVirtual).toBe(false);
 
-    const virtual = await addMember(db, project.id, { roleId, displayName: "Field Worker" });
-    expect(virtual.userId).toBeNull();
-    expect(virtual.displayName).toBe("Field Worker");
+    const virtualUser = await createVirtualUser(db, { username: "field-worker", name: "Field Worker" });
+    const virtual = await addMember(db, project.id, { roleId, userId: virtualUser!.id });
+    expect(virtual.userId).toBe(virtualUser!.id);
+    expect(virtual.name).toBe("Field Worker");
+    expect(virtual.isVirtual).toBe(true);
 
     const members = await listMembers(db, project.id);
     expect(members).toHaveLength(3); // creator + 2
-  });
-
-  test("promotes a virtual member to a real user", async () => {
-    const creator = await seedUser("Alice");
-    const carol = await seedUser("Carol");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const roleId = await memberRoleId(project.id);
-
-    const virtual = await addMember(db, project.id, { roleId, displayName: "Ext" });
-    const promoted = await updateMember(db, project.id, virtual.id, { userId: carol });
-    expect(promoted?.userId).toBe(carol);
   });
 
   test("removeMember deletes the row", async () => {
@@ -229,14 +223,6 @@ describe("member authz guards (02-F3/F4)", () => {
     const roleId = await memberRoleId(project.id);
     await addMember(db, project.id, { roleId, userId: bob });
     expect(addMember(db, project.id, { roleId, userId: bob })).rejects.toThrow();
-  });
-
-  test("updateMember rejects promoting a virtual member onto a non-existent user (F4)", async () => {
-    const creator = await seedUser("Alice");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const roleId = await memberRoleId(project.id);
-    const virtual = await addMember(db, project.id, { roleId, displayName: "Ext" });
-    expect(updateMember(db, project.id, virtual.id, { userId: "ghost" })).rejects.toThrow();
   });
 
   test("removeMember refuses to remove the last owner (F3)", async () => {

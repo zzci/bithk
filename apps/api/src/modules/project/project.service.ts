@@ -59,7 +59,33 @@ function escapeLike(v: string): string {
 }
 
 export type ProjectRow = typeof projects.$inferSelect;
-export type ProjectMemberRow = typeof projectMembers.$inferSelect;
+
+// A member row joined with its backing user. `userId` is always set (every
+// member maps to a real or virtual `users` row); `name`/`isVirtual` come from
+// that join. This is what the member service functions return and what
+// `composeMember` consumes.
+export interface ProjectMemberWithUser {
+  readonly id: string;
+  readonly userId: string;
+  readonly name: string;
+  readonly isVirtual: boolean;
+  readonly roleId: string;
+  readonly title: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** Select shape for {@link ProjectMemberWithUser} — member columns + joined user fields. */
+const memberColumns = {
+  id: projectMembers.id,
+  userId: projectMembers.userId,
+  name: users.name,
+  isVirtual: users.isVirtual,
+  roleId: projectMembers.roleId,
+  title: projectMembers.title,
+  createdAt: projectMembers.createdAt,
+  updatedAt: projectMembers.updatedAt,
+} as const;
 
 // ─── External views ───────────────────────────────────────────────────────
 // Routes return these instead of raw rows: `shortId` is the sole external
@@ -91,8 +117,9 @@ export interface ProjectView {
 
 export interface ProjectMemberView {
   readonly id: string; // project_members nanoid — external assignment target
-  readonly userId: string | null; // null = virtual member
-  readonly displayName: string | null;
+  readonly userId: string; // backing user (real or virtual)
+  readonly name: string; // display name, from the joined user
+  readonly isVirtual: boolean; // true when the backing user has no login identity
   readonly roleId: string;
   readonly title: string | null;
   readonly createdAt: string;
@@ -119,11 +146,12 @@ export function composeProject(
   };
 }
 
-export function composeMember(row: ProjectMemberRow): ProjectMemberView {
+export function composeMember(row: ProjectMemberWithUser): ProjectMemberView {
   return {
     id: row.id,
     userId: row.userId,
-    displayName: row.displayName,
+    name: row.name,
+    isVirtual: row.isVirtual,
     roleId: row.roleId,
     title: row.title,
     createdAt: row.createdAt,
@@ -269,7 +297,6 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     id: nanoid(),
     projectId: id,
     userId: input.creatorId,
-    displayName: null,
     roleId: ownerRoleId,
     title: null,
     createdAt: now,
@@ -674,8 +701,7 @@ export async function removeDefaultProjectCover(db: AppDatabase, config: FileSer
 
 export interface AddMemberInput {
   readonly roleId: string;
-  readonly userId?: string | null | undefined; // real member
-  readonly displayName?: string | null | undefined; // virtual member
+  readonly userId: string; // backing user (real or virtual)
   readonly title?: string | null | undefined;
 }
 
@@ -717,33 +743,43 @@ async function assertAssignableUser(
     throw new AppError("User is already a member of this project", 409, "CONFLICT");
 }
 
-export async function addMember(db: AppDatabase, projectId: string, input: AddMemberInput): Promise<ProjectMemberRow> {
-  if (input.userId != null && input.userId !== "")
-    await assertAssignableUser(db, projectId, input.userId);
+/** Fetch a single member joined with its backing user. */
+async function getMemberWithUser(db: AppDatabase, memberId: string): Promise<ProjectMemberWithUser | undefined> {
+  return await db.select(memberColumns)
+    .from(projectMembers)
+    .innerJoin(users, eq(users.id, projectMembers.userId))
+    .where(eq(projectMembers.id, memberId))
+    .get();
+}
+
+export async function addMember(db: AppDatabase, projectId: string, input: AddMemberInput): Promise<ProjectMemberWithUser> {
+  await assertAssignableUser(db, projectId, input.userId);
   const id = nanoid();
   const now = new Date().toISOString();
   await db.insert(projectMembers).values({
     id,
     projectId,
-    userId: input.userId ?? null,
-    displayName: input.displayName ?? null,
+    userId: input.userId,
     roleId: input.roleId,
     title: input.title ?? null,
     createdAt: now,
     updatedAt: now,
   }).run();
-  return (await db.select().from(projectMembers).where(eq(projectMembers.id, id)).get())!;
+  return (await getMemberWithUser(db, id))!;
 }
 
-export async function listMembers(db: AppDatabase, projectId: string): Promise<readonly ProjectMemberRow[]> {
-  return await db.select().from(projectMembers).where(eq(projectMembers.projectId, projectId)).orderBy(desc(projectMembers.createdAt)).all();
+export async function listMembers(db: AppDatabase, projectId: string): Promise<readonly ProjectMemberWithUser[]> {
+  return await db.select(memberColumns)
+    .from(projectMembers)
+    .innerJoin(users, eq(users.id, projectMembers.userId))
+    .where(eq(projectMembers.projectId, projectId))
+    .orderBy(desc(projectMembers.createdAt))
+    .all();
 }
 
 export interface UpdateMemberInput {
   readonly roleId?: string | undefined;
-  readonly displayName?: string | null | undefined;
   readonly title?: string | null | undefined;
-  readonly userId?: string | null | undefined; // promote a virtual member to a real user
 }
 
 export async function updateMember(
@@ -751,17 +787,12 @@ export async function updateMember(
   projectId: string,
   memberId: string,
   input: UpdateMemberInput,
-): Promise<ProjectMemberRow | undefined> {
+): Promise<ProjectMemberWithUser | undefined> {
   const existing = await db.select().from(projectMembers).where(
     and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)),
   ).get();
   if (!existing)
     return undefined;
-
-  // Promotion / re-point to a real user: the user must exist and not already be
-  // a member (its own row excepted) — fail-closed with a clean 4xx (F4).
-  if (input.userId != null && input.userId !== "")
-    await assertAssignableUser(db, projectId, input.userId, memberId);
 
   // Last-owner guard (F3): changing the sole owner's role to a non-owner role
   // would leave the project with no owner. Block it.
@@ -778,15 +809,11 @@ export async function updateMember(
   const patch: Record<string, unknown> = { updatedAt: now };
   if (input.roleId !== undefined)
     patch.roleId = input.roleId;
-  if (input.displayName !== undefined)
-    patch.displayName = input.displayName;
   if (input.title !== undefined)
     patch.title = input.title;
-  if (input.userId !== undefined)
-    patch.userId = input.userId;
 
   await db.update(projectMembers).set(patch).where(eq(projectMembers.id, memberId)).run();
-  return await db.select().from(projectMembers).where(eq(projectMembers.id, memberId)).get();
+  return await getMemberWithUser(db, memberId);
 }
 
 export async function removeMember(db: AppDatabase, projectId: string, memberId: string): Promise<boolean> {

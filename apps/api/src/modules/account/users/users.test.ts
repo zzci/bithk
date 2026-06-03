@@ -3,11 +3,22 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { addGroupMember, createGroup } from "@/modules/account/groups/groups.service";
 import { users } from "@/modules/account/users/schema";
-import { getUserById, getUserGroups, listUsers, updateUser } from "./users.service";
+import {
+  createVirtualUser,
+  deleteVirtualUser,
+  getUserById,
+  getUserGroups,
+  listActiveUsers,
+  listAssignableUsers,
+  listUsers,
+  updateUser,
+  updateVirtualUser,
+} from "./users.service";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -168,5 +179,84 @@ describe("getUserGroups", () => {
     const userGroupsList = await getUserGroups(db, userId);
     expect(userGroupsList.length).toBe(2);
     expect(userGroupsList.map(g => g.name).sort()).toEqual(["group-a", "group-b"]);
+  });
+});
+
+describe("createVirtualUser", () => {
+  test("mints a virtual user with synthetic identity fields", async () => {
+    const created = await createVirtualUser(db, { username: "vstaff", name: "Virtual Staff" });
+    expect(created?.username).toBe("vstaff");
+    expect(created?.name).toBe("Virtual Staff");
+    expect(created?.email).toBe("vstaff@virtual.local");
+    expect(created?.role).toBe("user");
+    expect(created?.status).toBe("active");
+    expect(created?.isVirtual).toBe(true);
+
+    // oauthSub is not exposed via userColumns — assert it directly on the row.
+    const row = await db.select().from(users).where(eq(users.id, created!.id)).get();
+    expect(row?.oauthSub).toBe(`virtual:${created!.id}`);
+  });
+
+  test("rejects a username already used by a REAL user (409)", async () => {
+    await seedUser({ username: "taken" });
+    await expect(createVirtualUser(db, { username: "taken", name: "Dup" }))
+      .rejects
+      .toMatchObject({ statusCode: 409 });
+  });
+
+  test("rejects a username already used by a VIRTUAL user (409)", async () => {
+    await createVirtualUser(db, { username: "vdup", name: "First" });
+    await expect(createVirtualUser(db, { username: "vdup", name: "Second" }))
+      .rejects
+      .toMatchObject({ statusCode: 409 });
+  });
+});
+
+describe("updateVirtualUser", () => {
+  test("renames a virtual user", async () => {
+    const created = await createVirtualUser(db, { username: "rename-me", name: "Old" });
+    const updated = await updateVirtualUser(db, created!.id, { name: "New", username: "renamed" });
+    expect(updated?.name).toBe("New");
+    expect(updated?.username).toBe("renamed");
+  });
+
+  test("rejects a rename that collides with another user (409)", async () => {
+    await seedUser({ username: "occupied" });
+    const created = await createVirtualUser(db, { username: "free", name: "V" });
+    await expect(updateVirtualUser(db, created!.id, { username: "occupied" }))
+      .rejects
+      .toMatchObject({ statusCode: 409 });
+  });
+});
+
+describe("deleteVirtualUser", () => {
+  test("refuses to delete a real user", async () => {
+    const realId = await seedUser({ username: "real-keep" });
+    await expect(deleteVirtualUser(db, realId)).rejects.toMatchObject({ statusCode: 409 });
+    expect(await getUserById(db, realId)).toBeDefined();
+  });
+
+  test("hard-deletes a virtual user", async () => {
+    const created = await createVirtualUser(db, { username: "v-del", name: "Gone" });
+    expect(await deleteVirtualUser(db, created!.id)).toBe(true);
+    expect(await getUserById(db, created!.id)).toBeUndefined();
+  });
+
+  test("throws NotFound for an unknown id", async () => {
+    await expect(deleteVirtualUser(db, "ghost")).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("assignable vs visible users", () => {
+  test("visible-users excludes virtual; assignable-users includes them", async () => {
+    await seedUser({ name: "Real One", username: "real-one" });
+    await createVirtualUser(db, { username: "virtual-one", name: "Virtual One" });
+
+    const visible = await listActiveUsers(db);
+    expect(visible.map(u => u.username).sort()).toEqual(["real-one"]);
+
+    const assignable = await listAssignableUsers(db);
+    expect(assignable.map(u => u.username).sort()).toEqual(["real-one", "virtual-one"]);
+    expect(assignable.find(u => u.username === "virtual-one")?.isVirtual).toBe(true);
   });
 });
