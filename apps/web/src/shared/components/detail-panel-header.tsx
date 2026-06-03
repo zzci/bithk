@@ -8,6 +8,7 @@
 // namespace assumptions) and renders no domain logic. The delete *confirmation*
 // dialog stays in the calling panel — this only triggers `onDelete`.
 
+import type { ReactNode } from "react";
 import { ArrowLeft, Maximize2, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/button";
@@ -42,6 +43,12 @@ interface DetailPanelHeaderProps {
   readonly onMaximize?: () => void;
   /** Delete button shown when provided. */
   readonly onDelete?: () => void;
+  /**
+   * Extra leading action(s) (e.g. icon buttons) rendered in the right-side
+   * action group before the delete button. Optional and additive: consumers
+   * that omit it render exactly as before.
+   */
+  readonly extraActions?: ReactNode;
 }
 
 export function DetailPanelHeader({
@@ -52,6 +59,7 @@ export function DetailPanelHeader({
   onClose,
   onMaximize,
   onDelete,
+  extraActions,
 }: DetailPanelHeaderProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
@@ -122,6 +130,7 @@ export function DetailPanelHeader({
             )}
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
+        {extraActions}
         {onDelete && (
           <Button variant="ghost" size="icon" onClick={onDelete} title={labels?.delete}>
             <Trash2 className="size-4 text-destructive" />
