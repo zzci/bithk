@@ -3,6 +3,7 @@ import type { DriveFileListCapabilities, FileToolbarProps } from "./-drive-file-
 import {
   Download,
   FileSpreadsheet,
+  FileText,
   FileUp,
   FolderInput,
   FolderPlus,
@@ -142,6 +143,7 @@ export function FileToolbar({
   onCreateFolder,
   onUploadClick,
   onUploadFolderClick,
+  onCreateTextFile,
   onCreateSpreadsheet,
   onImportCsv,
   onImportFromDrive,
@@ -241,6 +243,18 @@ export function FileToolbar({
                               <FolderPlus className="mr-2 size-4" />
                               {t("browser.newFolder")}
                             </DropdownMenuItem>
+                          )}
+                          {onCreateTextFile && (
+                            <>
+                              <DropdownMenuItem onClick={() => onCreateTextFile("text")}>
+                                <FileText className="mr-2 size-4" />
+                                {t("browser.newTextFile")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onCreateTextFile("markdown")}>
+                                <FileText className="mr-2 size-4" />
+                                {t("browser.newMarkdownFile")}
+                              </DropdownMenuItem>
+                            </>
                           )}
                           {onCreateSpreadsheet && (
                             <DropdownMenuItem onClick={onCreateSpreadsheet}>
