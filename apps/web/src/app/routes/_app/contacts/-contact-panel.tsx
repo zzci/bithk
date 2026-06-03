@@ -12,10 +12,11 @@
 
 import type { ContactFormState } from "./-contact-form-logic";
 import type { ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
-import { Edit3, Lock, Share2, X } from "lucide-react";
+import { Edit3, Lock, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
+import { TagChips, TagInput } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -32,7 +33,6 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
 import { CONTACT_CONFIDENTIAL_BADGE, CONTACT_VISIBILITY_BADGE } from "@/shared/lib/status-colors";
-import { addTag, removeTag } from "@/shared/lib/tag-utils";
 import {
   CONTACT_STATUSES,
   CONTACT_VISIBILITIES,
@@ -215,9 +215,7 @@ function ContactPanelView({
                 {contact.tags.length > 0
                   ? (
                       <div className="flex flex-wrap gap-1.5">
-                        {contact.tags.map(tag => (
-                          <Badge key={tag.id} variant="outline">{tag.name}</Badge>
-                        ))}
+                        <TagChips tags={contact.tags} variant="outline" />
                       </div>
                     )
                   : <span className="text-sm text-muted-foreground">—</span>}
@@ -248,22 +246,15 @@ function ContactPanelForm({
 }: ContactPanelProps) {
   const { t } = useTranslation(["contacts", "common"]);
   const [form, setForm] = useState<ContactFormState>(EMPTY_CONTACT_FORM);
-  const [tagDraft, setTagDraft] = useState("");
 
   /* eslint-disable react/set-state-in-effect -- seed the form when the drawer opens or its target/mode changes. */
   useEffect(() => {
     setForm(mode === "edit" && contact ? contactFormFromView(contact) : EMPTY_CONTACT_FORM);
-    setTagDraft("");
   }, [mode, contact]);
   /* eslint-enable react/set-state-in-effect */
 
   const set = <K extends keyof ContactFormState>(key: K, value: ContactFormState[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
-
-  const commitTag = (raw: string) => {
-    set("tags", addTag(form.tags, raw));
-    setTagDraft("");
-  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -318,44 +309,7 @@ function ContactPanelForm({
             <CategoryField value={form.categoryId} onChange={id => set("categoryId", id)} />
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="contact-tags">{t("field.tags")}</Label>
-              {form.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {form.tags.map(tag => (
-                    <Badge key={tag} variant="secondary" className="gap-1 pr-1 text-xs">
-                      {tag}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={t("tags.remove", { name: tag })}
-                        onClick={() => set("tags", removeTag(form.tags, tag))}
-                        className="rounded-sm hover:text-destructive"
-                      >
-                        <X data-icon="inline" />
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              <Input
-                id="contact-tags"
-                value={tagDraft}
-                onChange={e => setTagDraft(e.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === ",") {
-                    event.preventDefault();
-                    commitTag(tagDraft);
-                  }
-                  else if (event.key === "Backspace" && tagDraft === "" && form.tags.length > 0) {
-                    set("tags", removeTag(form.tags, form.tags[form.tags.length - 1]!));
-                  }
-                }}
-                onBlur={() => {
-                  if (tagDraft.trim())
-                    commitTag(tagDraft);
-                }}
-                placeholder={t("tags.placeholder")}
-              />
+              <TagInput value={form.tags} onChange={tags => set("tags", [...tags])} namespace="contacts" />
             </div>
           </div>
         </PanelSection>

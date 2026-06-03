@@ -10,6 +10,7 @@
 import type { CreateProjectInput } from "@/shared/lib/api/projects";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { TagInput } from "@/shared/components/tags";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -19,7 +20,6 @@ import {
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 interface ProjectFormDialogProps {
   readonly open: boolean;
@@ -95,7 +95,7 @@ export function ProjectFormDialog({
             />
 
             <div className="pt-2">
-              <ProjectTagsCombobox value={tags} onChange={setTags} suggestions={availableTags} />
+              <TagInput value={tags} onChange={setTags} suggestions={availableTags} />
             </div>
           </div>
 

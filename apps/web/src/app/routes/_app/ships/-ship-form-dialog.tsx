@@ -7,6 +7,7 @@ import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { TagInput } from "@/shared/components/tags";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -29,7 +30,6 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { SHIP_STATUSES, useShipTags } from "@/shared/lib/api/ships";
 import { EMPTY_SHIP_FORM, SHIP_NUMBER_FIELD_RANGES, shipFormFromView, shipFormNumberErrors } from "./-ship-form-logic";
-import { ShipTagsCombobox } from "./-ship-tags-combobox";
 
 // Descriptive (edit-only) fields, rendered from a config so the markup stays
 // flat. `kind` drives the input type; the label comes from `ships:field.*`.
@@ -149,10 +149,11 @@ export function ShipFormDialog({
 
           <div className="space-y-1.5">
             <Label>{t("field.tags")}</Label>
-            <ShipTagsCombobox
+            <TagInput
               value={form.tags}
               onChange={tags => set("tags", tags)}
-              availableTags={shipTags.map(tag => tag.name)}
+              suggestions={shipTags.map(tag => tag.name)}
+              namespace="ships"
             />
           </div>
 

@@ -58,7 +58,9 @@
     }
   },
   "tags": {
-    "placeholder": "输入标签后按 Enter",
+    "searchPlaceholder": "搜索或创建标签",
+    "create": "创建 \"{{name}}\"",
+    "empty": "暂无标签",
     "remove": "移除标签 {{name}}"
   },
   "actions": {

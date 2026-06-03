@@ -64,3 +64,4 @@
 | [PLAN-063](PLAN-063.md) | Fix duplicate 项目所有者 in member role select | Completed | 2026-06-03 |
 | [PLAN-064](PLAN-064.md) | Project overview description+pinned grid 2:1 responsive ratio | Completed | 2026-06-03 |
 | [PLAN-065](PLAN-065.md) | Project role editor: in-page dropdown + table (replace modal) | Completed | 2026-06-03 |
+| [PLAN-066](PLAN-066.md) | Global unified tag component family | Completed | 2026-06-03 |

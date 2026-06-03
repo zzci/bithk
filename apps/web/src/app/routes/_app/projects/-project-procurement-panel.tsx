@@ -35,7 +35,7 @@ import {
   useResourceAttachmentUpload,
   validateAttachmentSelection,
 } from "@/shared/components/resource";
-import { TagsCombobox } from "@/shared/components/tags-combobox";
+import { TagInput } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
@@ -337,7 +337,7 @@ export function ProjectProcurementPanel({
         <div className="flex flex-wrap items-center gap-1.5">
           {canEdit
             ? (
-                <TagsCombobox
+                <TagInput
                   value={currentTagNames}
                   suggestions={tagVocabulary}
                   onChange={next => patch({ tags: [...next] })}

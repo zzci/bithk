@@ -22,6 +22,7 @@ import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { PinToggle } from "@/shared/components/pin-toggle";
 import { PrioritySignal } from "@/shared/components/priority-signal";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
+import { tagFilterDimension, TagInput } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -58,7 +59,6 @@ import { errorMessage } from "@/shared/lib/errors";
 import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { buildMemberLabelMap } from "./-member-helpers";
-import { ProjectTagsCombobox } from "./-project-tags-combobox";
 
 // Shared grid template so the header row and every data row align on the same
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
@@ -145,7 +145,17 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
 
   // Filter dimensions: status / priority / category single-selects, plus a tags
   // multi-select (union semantics) whose selected values surface as removable
-  // chips in the shared Drive-style ListFilter.
+  // chips in the shared Drive-style ListFilter. The tag dimension hides itself
+  // when there is no tag vocabulary (consistent hide-when-empty).
+  const tagDim = tagFilterDimension({
+    tags: procurementTags,
+    value: selectedTagIds,
+    onChange: (value) => {
+      setSelectedTagIds(value);
+      setPage(1);
+    },
+    label: t("field.tags"),
+  });
   const dimensions: FilterDimension[] = [
     {
       key: "status",
@@ -180,19 +190,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
       },
       options: categories.map(c => ({ value: c.id, label: c.name })),
     },
-    ...(procurementTags.length > 0
-      ? [{
-        key: "tags",
-        label: t("procurement.tagFilter"),
-        mode: "multi",
-        value: selectedTagIds,
-        onChange: (value: string[]) => {
-          setSelectedTagIds(value);
-          setPage(1);
-        },
-        options: procurementTags.map(tag => ({ value: tag.id, label: tag.name })),
-      } satisfies FilterDimension]
-      : []),
+    ...(tagDim ? [tagDim] : []),
   ];
 
   return (
@@ -529,7 +527,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
 
           <div className="space-y-1.5">
             <Label>{t("procurement.field.tags")}</Label>
-            <ProjectTagsCombobox
+            <TagInput
               value={tags}
               onChange={setTags}
               suggestions={tagSuggestions}

@@ -106,3 +106,8 @@
 | [FIX-037](FIX-037.md) | Fix duplicate 项目所有者 in member role select | [PLAN-063](../plan/PLAN-063.md) | Completed | 2026-06-03 |
 | [UI-023](UI-023.md) | Project overview description+pinned grid 2:1 responsive ratio | [PLAN-064](../plan/PLAN-064.md) | Completed | 2026-06-03 |
 | [UI-024](UI-024.md) | Project role create/edit in-page editor (dropdown + permissions table) | [PLAN-065](../plan/PLAN-065.md) | Completed | 2026-06-03 |
+| [REFACTOR-020](REFACTOR-020.md) | Create shared tag component family (TagChip/TagChips/TagInput/TagFilter) | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
+| [REFACTOR-021](REFACTOR-021.md) | Migrate project + procurement tag surfaces to shared family | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
+| [REFACTOR-022](REFACTOR-022.md) | Migrate contacts tag surfaces to shared family | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
+| [REFACTOR-023](REFACTOR-023.md) | Migrate ships tag surfaces to shared family | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |
+| [REFACTOR-024](REFACTOR-024.md) | Remove dead shared tag-badge-list + tags-combobox after migration | [PLAN-066](../plan/PLAN-066.md) | Completed | 2026-06-03 |

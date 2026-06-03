@@ -11,7 +11,7 @@ import { CardGridSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
-import { TagBadgeList } from "@/shared/components/tag-badge-list";
+import { TagChips, tagFilterDimension } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
@@ -85,6 +85,16 @@ export function ProjectsListPage() {
     void navigate({ to: "/projects/$projectId", params: { projectId } });
   };
 
+  const tagDim = tagFilterDimension({
+    tags,
+    value: selectedTagIds,
+    onChange: (ids) => {
+      setSelectedTagIds(ids);
+      setPage(1);
+    },
+    label: t("field.tags"),
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -114,17 +124,7 @@ export function ProjectsListPage() {
                 { value: "__archived__", label: t("status.archived"), count: archivedCount },
               ],
             },
-            {
-              key: "tags",
-              label: t("field.tags"),
-              mode: "multi",
-              value: selectedTagIds,
-              onChange: (ids) => {
-                setSelectedTagIds(ids);
-                setPage(1);
-              },
-              options: tags.map(tag => ({ value: tag.id, label: tag.name })),
-            },
+            ...(tagDim ? [tagDim] : []),
           ]}
         />
         <SearchCreateBar
@@ -274,10 +274,10 @@ function ProjectsGrid({
                 bottom space (min-h-5 matches the Badge height), keeping card
                 heights and action alignment stable across the grid. */}
             <div className="flex min-h-5 flex-wrap items-center gap-1">
-              <TagBadgeList
+              <TagChips
                 tags={project.tags}
                 max={3}
-                badgeClassName="text-[10px] font-medium"
+                className="text-[10px] font-medium"
                 moreClassName="self-center text-[10px] font-medium text-muted-foreground"
                 renderMore={count => t("list.moreTags", { count })}
               />

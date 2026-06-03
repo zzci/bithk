@@ -1,15 +1,13 @@
-// Linear-style tag picker shared by the project (issue / procurement) and ship
-// tag fields. Selected tags render as removable chips; a dashed "Tags" pill opens
-// a popup with a search box that lists the existing tag vocabulary and offers to
-// create a new tag from the typed query. Values are plain tag names — the
-// create/update APIs accept names. `namespace` selects the i18n namespace that
-// supplies the (identical) `field.tags` + `tags.*` labels.
+// Linear-style tag picker. Selected tags render as removable TagChips; a dashed
+// "Tags" pill opens a popup with a search box that lists the existing tag
+// vocabulary and (when `allowCreate`) offers to create a new tag from the typed
+// query. Values are plain tag names. `namespace` selects the i18n namespace that
+// supplies the (identical) `field.tags` + `tags.*` labels. Subsumes
+// tags-combobox.tsx and the per-domain tags-combobox wrappers.
 
-import { TagIcon, X } from "lucide-react";
+import { TagIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
 import {
   Combobox,
   ComboboxContent,
@@ -18,16 +16,18 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@/shared/components/ui/combobox";
+import { TagChip } from "./tag-chip";
 
-interface TagsComboboxProps {
+export interface TagInputProps {
   readonly value: readonly string[];
   readonly onChange: (value: readonly string[]) => void;
-  readonly suggestions: readonly string[];
+  readonly suggestions?: readonly string[];
   /** i18n namespace providing `field.tags` + `tags.*` (projects / ships share identical values). */
   readonly namespace?: string;
+  readonly allowCreate?: boolean;
 }
 
-export function TagsCombobox({ value, onChange, suggestions, namespace = "projects" }: TagsComboboxProps) {
+export function TagInput({ value, onChange, suggestions = [], namespace = "projects", allowCreate = true }: TagInputProps) {
   const { t } = useTranslation(namespace);
   const [query, setQuery] = useState("");
 
@@ -37,28 +37,21 @@ export function TagsCombobox({ value, onChange, suggestions, namespace = "projec
   // list works as a multi-select toggle.
   const matches = suggestions.filter(s => s.toLowerCase().includes(q));
   const canCreate
-    = trimmed.length > 0
+    = allowCreate
+      && trimmed.length > 0
       && !suggestions.some(s => s.toLowerCase() === q)
       && !value.some(v => v.toLowerCase() === q);
-
-  const remove = (tag: string) => onChange(value.filter(v => v !== tag));
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {value.map(tag => (
-        <Badge key={tag} variant="secondary" className="gap-1 pr-1 text-xs font-normal">
-          {tag}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={t("tags.remove", { name: tag })}
-            onClick={() => remove(tag)}
-            className="-mr-0.5 rounded-sm hover:text-destructive"
-          >
-            <X className="size-3" />
-          </Button>
-        </Badge>
+        <TagChip
+          key={tag}
+          label={tag}
+          removable
+          removeLabel={t("tags.remove", { name: tag })}
+          onRemove={() => onChange(value.filter(v => v !== tag))}
+        />
       ))}
 
       <Combobox

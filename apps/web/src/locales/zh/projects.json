@@ -189,7 +189,7 @@
     "allStatuses": "状态",
     "allPriorities": "优先级",
     "allCategories": "分类",
-    "tagFilter": "按标签筛选",
+    "tagFilter": "标签",
     "total": "{{count}} 条记录",
     "total_one": "{{count}} 条记录",
     "total_other": "{{count}} 条记录",

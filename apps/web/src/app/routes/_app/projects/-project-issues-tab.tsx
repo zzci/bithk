@@ -37,6 +37,7 @@ import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-sign
 import { validateAttachmentSelection } from "@/shared/components/resource";
 import { formatFileSize } from "@/shared/components/resource/attachment-section";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
+import { tagFilterDimension } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -306,6 +307,13 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
   const toggleCollapse = useCallback((status: IssueStatus) =>
     setCollapsed(prev => ({ ...prev, [status]: !prev[status] })), []);
 
+  const tagDim = tagFilterDimension({
+    tags: issueTags,
+    value: selectedTagIds,
+    onChange: setSelectedTagIds,
+    label: t("field.tags"),
+  });
+
   return (
     <div className="space-y-5">
       {/* Top toolbar — tag filter on the left, search + create grouped on the
@@ -318,18 +326,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
         {issueTags.length > 0
           ? (
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                <ListFilter
-                  dimensions={[
-                    {
-                      key: "tags",
-                      label: t("issues.tagFilter"),
-                      mode: "multi",
-                      value: selectedTagIds,
-                      onChange: value => setSelectedTagIds(value),
-                      options: issueTags.map(tag => ({ value: tag.id, label: tag.name })),
-                    },
-                  ]}
-                />
+                <ListFilter dimensions={tagDim ? [tagDim] : []} />
               </div>
             )
           : <div />}
