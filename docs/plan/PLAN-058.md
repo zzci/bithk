@@ -1,6 +1,6 @@
 # PLAN-058 Projects list tag filter multi-select
 
-- **status**: In Progress
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 t48nsbav
 - **campaignId**: l1-75ymcfnr-projmtag-20260603162708
 - **tasks**: [FEAT-019](../task/FEAT-019.md)

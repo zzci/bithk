@@ -56,4 +56,4 @@
 | [PLAN-055](PLAN-055.md) | Drive-style multi-dropdown unified ListFilter + full adoption | Completed | 2026-06-03 |
 | [PLAN-056](PLAN-056.md) | Restore whole-card navigation on the projects list | Completed | 2026-06-03 |
 | [PLAN-057](PLAN-057.md) | Project work orders reference ship worklists | Completed | 2026-06-03 |
-| [PLAN-058](PLAN-058.md) | Projects list tag filter multi-select | In Progress | 2026-06-03 |
+| [PLAN-058](PLAN-058.md) | Projects list tag filter multi-select | Completed | 2026-06-03 |

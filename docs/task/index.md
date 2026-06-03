@@ -98,4 +98,4 @@
 | [REFACTOR-018](REFACTOR-018.md) | Drive-style multi-dropdown unified ListFilter + full adoption | [PLAN-055](../plan/PLAN-055.md) | Done | 2026-06-03 |
 | [FIX-034](FIX-034.md) | Whole project card clickable to detail | [PLAN-056](../plan/PLAN-056.md) | Completed | 2026-06-03 |
 | [FEAT-018](FEAT-018.md) | Project work orders reference ship worklists | [PLAN-057](../plan/PLAN-057.md) | Completed | 2026-06-03 |
-| [FEAT-019](FEAT-019.md) | Projects list tag filter multi-select | [PLAN-058](../plan/PLAN-058.md) | In Progress | 2026-06-03 |
+| [FEAT-019](FEAT-019.md) | Projects list tag filter multi-select | [PLAN-058](../plan/PLAN-058.md) | Completed | 2026-06-03 |
