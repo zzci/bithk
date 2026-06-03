@@ -51,7 +51,7 @@ function routeFetch() {
   fetchMock.mockImplementation(async (input, init) => {
     const path = String(input).replace("/api", "");
     const method = init?.method ?? "GET";
-    if (method === "GET" && path === "/equipment-categories")
+    if (method === "GET" && path === "/ships/s1/equipment-categories")
       return jsonResponse({ success: true, data: categoryList() });
     if (method === "GET" && path === "/ships/s1/equipment")
       return jsonResponse({ success: true, data: equipmentList() });
@@ -100,7 +100,7 @@ describe("shipEquipmentTab", () => {
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input).replace("/api", "");
       const method = init?.method ?? "GET";
-      if (method === "GET" && path === "/equipment-categories")
+      if (method === "GET" && path === "/ships/s1/equipment-categories")
         return jsonResponse({ success: true, data: categoryList() });
       if (method === "GET" && path === "/ships/s1/equipment")
         return jsonResponse({ success: true, data: rows });

@@ -3,11 +3,12 @@
 //   1. GLOBAL WORKLISTS — knowledge-base worklist templates (rows in the
 //      `worklists` table with shipId NULL) that ships copy from. A worklist IS
 //      the template; its `category` is plain free text.
-//   2. EQUIPMENT CATEGORIES — the bilingual vocabulary ship equipment is
-//      classified by (categoryId references). Each entry holds a Chinese and an
-//      English name; equipment views resolve the locale-appropriate one.
+//   2. EQUIPMENT CATEGORY TEMPLATE — the bilingual vocabulary template each
+//      ship copies into its own category set on creation. Each entry holds a
+//      Chinese and an English name; ships then manage their own copies and
+//      equipment views resolve the locale-appropriate name from the per-ship row.
 
-import type { EquipmentCategory } from "@/shared/lib/api/equipment-categories";
+import type { GlobalEquipmentCategory } from "@/shared/lib/api/global-equipment-categories";
 import type { WorklistInput, WorklistView } from "@/shared/lib/api/ships";
 import { Plus } from "lucide-react";
 import { useState } from "react";
@@ -37,11 +38,11 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
   resolveCategoryName,
-  useCreateEquipmentCategory,
-  useDeleteEquipmentCategory,
-  useEquipmentCategories,
-  useUpdateEquipmentCategory,
-} from "@/shared/lib/api/equipment-categories";
+  useCreateGlobalEquipmentCategory,
+  useDeleteGlobalEquipmentCategory,
+  useGlobalEquipmentCategories,
+  useUpdateGlobalEquipmentCategory,
+} from "@/shared/lib/api/global-equipment-categories";
 import {
   useCreateGlobalWorklist,
   useDeleteGlobalWorklist,
@@ -54,7 +55,7 @@ export function ShipSettingsTab() {
   return (
     <div className="space-y-8 pt-4">
       <GlobalWorklistsSection />
-      <EquipmentCategoriesSection />
+      <GlobalEquipmentCategoriesSection />
     </div>
   );
 }
@@ -249,15 +250,15 @@ function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogPr
   );
 }
 
-function EquipmentCategoriesSection() {
+function GlobalEquipmentCategoriesSection() {
   const { t, i18n } = useTranslation(["settings", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
-  const categoriesQuery = useEquipmentCategories();
-  const deleteCategory = useDeleteEquipmentCategory();
+  const categoriesQuery = useGlobalEquipmentCategories();
+  const deleteCategory = useDeleteGlobalEquipmentCategory();
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<EquipmentCategory | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<EquipmentCategory | null>(null);
+  const [editTarget, setEditTarget] = useState<GlobalEquipmentCategory | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GlobalEquipmentCategory | null>(null);
 
   const categories = categoriesQuery.data ?? [];
 
@@ -265,12 +266,12 @@ function EquipmentCategoriesSection() {
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">{t("settings:equipmentCategories.title")}</h2>
-          <p className="text-sm text-muted-foreground">{t("settings:equipmentCategories.description")}</p>
+          <h2 className="text-lg font-semibold">{t("settings:globalEquipmentCategories.title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("settings:globalEquipmentCategories.description")}</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
-          {t("settings:equipmentCategories.add")}
+          {t("settings:globalEquipmentCategories.add")}
         </Button>
       </div>
 
@@ -280,15 +281,15 @@ function EquipmentCategoriesSection() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("settings:equipmentCategories.colNameZh")}</TableHead>
-              <TableHead>{t("settings:equipmentCategories.colNameEn")}</TableHead>
-              <TableHead>{t("settings:equipmentCategories.colCode")}</TableHead>
-              <TableHead className="w-32">{t("settings:equipmentCategories.actions")}</TableHead>
+              <TableHead>{t("settings:globalEquipmentCategories.colNameZh")}</TableHead>
+              <TableHead>{t("settings:globalEquipmentCategories.colNameEn")}</TableHead>
+              <TableHead>{t("settings:globalEquipmentCategories.colCode")}</TableHead>
+              <TableHead className="w-32">{t("settings:globalEquipmentCategories.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {categories.length === 0
-              ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("settings:equipmentCategories.empty")}</TableCell></TableRow>
+              ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("settings:globalEquipmentCategories.empty")}</TableCell></TableRow>
               : categories.map(category => (
                   <TableRow key={category.id}>
                     <TableCell className="font-medium">{category.nameZh}</TableCell>
@@ -297,10 +298,10 @@ function EquipmentCategoriesSection() {
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" onClick={() => setEditTarget(category)}>
-                          {t("settings:equipmentCategories.edit")}
+                          {t("settings:globalEquipmentCategories.edit")}
                         </Button>
                         <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(category)}>
-                          {t("settings:equipmentCategories.delete")}
+                          {t("settings:globalEquipmentCategories.delete")}
                         </Button>
                       </div>
                     </TableCell>
@@ -316,8 +317,8 @@ function EquipmentCategoriesSection() {
           if (!open)
             setDeleteTarget(null);
         }}
-        title={t("settings:equipmentCategories.dialog.deleteTitle")}
-        description={t("settings:equipmentCategories.dialog.deleteConfirm", { name: deleteTarget ? resolveCategoryName(deleteTarget, isZh) : "" })}
+        title={t("settings:globalEquipmentCategories.dialog.deleteTitle")}
+        description={t("settings:globalEquipmentCategories.dialog.deleteConfirm", { name: deleteTarget ? resolveCategoryName(deleteTarget, isZh) : "" })}
         pending={deleteCategory.isPending}
         onConfirm={() => {
           if (!deleteTarget)
@@ -325,7 +326,7 @@ function EquipmentCategoriesSection() {
           const name = resolveCategoryName(deleteTarget, isZh);
           deleteCategory.mutate(deleteTarget.id, {
             onSuccess: () => {
-              toast.success(t("settings:equipmentCategories.toast.deleted", { name }));
+              toast.success(t("settings:globalEquipmentCategories.toast.deleted", { name }));
               setDeleteTarget(null);
             },
             onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
@@ -333,9 +334,9 @@ function EquipmentCategoriesSection() {
         }}
       />
 
-      <EquipmentCategoryDialog mode="create" open={createOpen} onOpenChange={setCreateOpen} />
+      <GlobalEquipmentCategoryDialog mode="create" open={createOpen} onOpenChange={setCreateOpen} />
       {editTarget && (
-        <EquipmentCategoryDialog
+        <GlobalEquipmentCategoryDialog
           mode="edit"
           category={editTarget}
           open
@@ -346,17 +347,17 @@ function EquipmentCategoriesSection() {
   );
 }
 
-interface EquipmentCategoryDialogProps {
+interface GlobalEquipmentCategoryDialogProps {
   readonly mode: "create" | "edit";
-  readonly category?: EquipmentCategory;
+  readonly category?: GlobalEquipmentCategory;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
 
-function EquipmentCategoryDialog({ mode, category, open, onOpenChange }: EquipmentCategoryDialogProps) {
+function GlobalEquipmentCategoryDialog({ mode, category, open, onOpenChange }: GlobalEquipmentCategoryDialogProps) {
   const { t } = useTranslation(["settings", "common"]);
-  const createCategory = useCreateEquipmentCategory();
-  const updateCategory = useUpdateEquipmentCategory();
+  const createCategory = useCreateGlobalEquipmentCategory();
+  const updateCategory = useUpdateGlobalEquipmentCategory();
 
   const [nameZh, setNameZh] = useState(category?.nameZh ?? "");
   const [nameEn, setNameEn] = useState(category?.nameEn ?? "");
@@ -384,7 +385,7 @@ function EquipmentCategoryDialog({ mode, category, open, onOpenChange }: Equipme
     if (mode === "create") {
       createCategory.mutate(body, {
         onSuccess: () => {
-          toast.success(t("settings:equipmentCategories.toast.created"));
+          toast.success(t("settings:globalEquipmentCategories.toast.created"));
           onOpenChange(false);
         },
         onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
@@ -393,7 +394,7 @@ function EquipmentCategoryDialog({ mode, category, open, onOpenChange }: Equipme
     else if (category) {
       updateCategory.mutate({ id: category.id, ...body }, {
         onSuccess: () => {
-          toast.success(t("settings:equipmentCategories.toast.updated"));
+          toast.success(t("settings:globalEquipmentCategories.toast.updated"));
           onOpenChange(false);
         },
         onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
@@ -406,44 +407,44 @@ function EquipmentCategoryDialog({ mode, category, open, onOpenChange }: Equipme
       <DialogContent>
         <form onSubmit={submit} className="space-y-4" noValidate>
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:equipmentCategories.dialog.createTitle") : t("settings:equipmentCategories.dialog.editTitle")}</DialogTitle>
-            <DialogDescription>{t("settings:equipmentCategories.dialog.description")}</DialogDescription>
+            <DialogTitle>{mode === "create" ? t("settings:globalEquipmentCategories.dialog.createTitle") : t("settings:globalEquipmentCategories.dialog.editTitle")}</DialogTitle>
+            <DialogDescription>{t("settings:globalEquipmentCategories.dialog.description")}</DialogDescription>
           </DialogHeader>
 
           {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
 
           <div className="space-y-1.5">
-            <Label htmlFor="equipment-category-zh">{t("settings:equipmentCategories.colNameZh")}</Label>
+            <Label htmlFor="equipment-category-zh">{t("settings:globalEquipmentCategories.colNameZh")}</Label>
             <Input
               id="equipment-category-zh"
               autoFocus
               maxLength={255}
-              placeholder={t("settings:equipmentCategories.placeholders.nameZh")}
+              placeholder={t("settings:globalEquipmentCategories.placeholders.nameZh")}
               value={nameZh}
               onChange={e => setNameZh(e.target.value)}
             />
-            {submitted && nameZhMissing && <p className="text-xs text-destructive">{t("settings:equipmentCategories.validation.nameZhRequired")}</p>}
+            {submitted && nameZhMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentCategories.validation.nameZhRequired")}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="equipment-category-en">{t("settings:equipmentCategories.colNameEn")}</Label>
+            <Label htmlFor="equipment-category-en">{t("settings:globalEquipmentCategories.colNameEn")}</Label>
             <Input
               id="equipment-category-en"
               maxLength={255}
-              placeholder={t("settings:equipmentCategories.placeholders.nameEn")}
+              placeholder={t("settings:globalEquipmentCategories.placeholders.nameEn")}
               value={nameEn}
               onChange={e => setNameEn(e.target.value)}
             />
-            {submitted && nameEnMissing && <p className="text-xs text-destructive">{t("settings:equipmentCategories.validation.nameEnRequired")}</p>}
+            {submitted && nameEnMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentCategories.validation.nameEnRequired")}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="equipment-category-code">{t("settings:equipmentCategories.colCode")}</Label>
+            <Label htmlFor="equipment-category-code">{t("settings:globalEquipmentCategories.colCode")}</Label>
             <Input id="equipment-category-code" maxLength={100} value={code} onChange={e => setCode(e.target.value)} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="equipment-category-description">{t("settings:equipmentCategories.fieldDescription")}</Label>
+            <Label htmlFor="equipment-category-description">{t("settings:globalEquipmentCategories.fieldDescription")}</Label>
             <Textarea id="equipment-category-description" rows={2} maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} />
           </div>
 

@@ -32,9 +32,9 @@ function routeFetch(opts: { worklists?: unknown[]; categories?: unknown[] } = {}
     const method = init?.method ?? "GET";
     if (method === "GET" && path === "/worklists")
       return jsonResponse({ success: true, data: worklists });
-    if (method === "GET" && path === "/equipment-categories")
+    if (method === "GET" && path === "/global-equipment-categories")
       return jsonResponse({ success: true, data: categories });
-    if (method === "POST" && path === "/equipment-categories")
+    if (method === "POST" && path === "/global-equipment-categories")
       return jsonResponse({ success: true, data: { id: "ec9", nameZh: "电力", nameEn: "Power", code: null, description: null, createdAt: "2026-06-03T00:00:00.000Z", updatedAt: "2026-06-03T00:00:00.000Z" } });
     return new Response("not found", { status: 404 });
   });
@@ -86,11 +86,11 @@ describe("shipSettingsTab", () => {
 
     renderWithProviders(<ShipSettingsTab />);
 
-    expect(screen.getByText("Equipment Categories")).toBeInTheDocument();
+    expect(screen.getByText("Equipment Category Template")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Power")).toBeInTheDocument());
     expect(screen.getByText("电力")).toBeInTheDocument();
     expect(screen.getByText("PWR")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(c => String(c[0]) === "/api/equipment-categories")).toBe(true);
+    expect(fetchMock.mock.calls.some(c => String(c[0]) === "/api/global-equipment-categories")).toBe(true);
   });
 
   it("shows the empty state when there are no equipment categories", async () => {
@@ -98,14 +98,14 @@ describe("shipSettingsTab", () => {
 
     renderWithProviders(<ShipSettingsTab />);
 
-    await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No template categories yet.")).toBeInTheDocument());
   });
 
   it("creates an equipment category through the two-name dialog", async () => {
     routeFetch();
 
     renderWithProviders(<ShipSettingsTab />);
-    await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No template categories yet.")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "Add Category" }));
     const dialog = screen.getByRole("dialog");
@@ -117,7 +117,7 @@ describe("shipSettingsTab", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
 
     await waitFor(() => {
-      const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST" && String(call[0]) === "/api/equipment-categories");
+      const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST" && String(call[0]) === "/api/global-equipment-categories");
       expect(post).toBeDefined();
       expect(JSON.parse(post![1]!.body as string)).toMatchObject({ nameZh: "电力", nameEn: "Power" });
     });
@@ -127,7 +127,7 @@ describe("shipSettingsTab", () => {
     routeFetch();
 
     renderWithProviders(<ShipSettingsTab />);
-    await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No template categories yet.")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "Add Category" }));
     const dialog = screen.getByRole("dialog");
