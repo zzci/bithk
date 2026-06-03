@@ -50,7 +50,7 @@ import {
   useUpdateProjectMember,
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
-import { memberLabel } from "./-member-helpers";
+import { memberLabel, systemRoleLabel } from "./-member-helpers";
 
 type MemberKind = "real" | "virtual";
 
@@ -71,10 +71,10 @@ export function ProjectSettingsMembers({ projectId, members, userNames, canManag
   const [deleteTarget, setDeleteTarget] = useState<ProjectMemberView | null>(null);
 
   const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
-  // The system owner role is presented as "Project Owner"; custom roles keep
-  // their stored name.
+  // System roles resolve their label by kind (owner -> "Project Owner",
+  // guest -> "Guest"); custom roles keep their stored name.
   const roleNames = useMemo(
-    () => new Map(roles.map(r => [r.id, r.isSystem ? t("roles.owner") : r.name])),
+    () => new Map(roles.map(r => [r.id, r.isSystem ? systemRoleLabel(r, t("roles.owner"), t("roles.guest")) : r.name])),
     [roles, t],
   );
 
@@ -411,9 +411,13 @@ interface RoleSelectProps {
 
 function RoleSelect({ roles, value, onChange }: RoleSelectProps) {
   const { t } = useTranslation("projects");
-  // System owner role displays as "Project Owner"; custom roles keep their name.
+  // System roles resolve their label by kind; custom roles keep their name.
   const roleLabel = (role: ProjectRoleView | undefined) =>
-    role ? (role.isSystem ? t("roles.owner") : role.name) : value;
+    role ? (role.isSystem ? systemRoleLabel(role, t("roles.owner"), t("roles.guest")) : role.name) : value;
+  // The Guest system role is not directly assignable, so exclude it from the
+  // options. The trigger label still resolves against the full `roles` list so
+  // a member already on the guest role displays correctly.
+  const assignableRoles = roles.filter(r => r.kind !== "guest");
   return (
     <div className="space-y-1.5">
       <Label>{t("members.field.role")}</Label>
@@ -424,7 +428,7 @@ function RoleSelect({ roles, value, onChange }: RoleSelectProps) {
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {roles.map(r => (
+          {assignableRoles.map(r => (
             <SelectItem key={r.id} value={r.id}>{roleLabel(r)}</SelectItem>
           ))}
         </SelectContent>
