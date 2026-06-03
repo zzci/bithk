@@ -122,3 +122,96 @@ describe("PUT /account/me/preferences/:key bounds (FIX-AUDIT-016)", () => {
     expect(res.status).toBe(413);
   });
 });
+
+async function sessionForRole(role: "admin" | "user"): Promise<{ id: string; cookie: string }> {
+  const id = nanoid();
+  const now = new Date().toISOString();
+  await db.insert(users).values({
+    id,
+    oauthSub: `sub-${id}`,
+    username: `user-${id}`,
+    name: `User ${id}`,
+    email: `${id}@test.com`,
+    role,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  }).run();
+  const sessionId = await createSession(db, id, "access-token", undefined, 3600);
+  return { id, cookie: `session_id=${sessionId}` };
+}
+
+function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
+  return {
+    method,
+    headers: { "Content-Type": "application/json", "Cookie": cookie },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  };
+}
+
+describe("virtual user admin endpoints", () => {
+  test("admin creates a virtual user (201); a plain user is forbidden (403)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const plain = await sessionForRole("user");
+
+    const denied = await app.request("/account/users", jsonReq("POST", plain.cookie, { username: "vx", name: "Vx" }));
+    expect(denied.status).toBe(403);
+
+    const res = await app.request("/account/users", jsonReq("POST", admin.cookie, { username: "vstaff", name: "Virtual Staff" }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { data: { id: string; isVirtual: boolean; username: string } };
+    expect(body.data.isVirtual).toBe(true);
+    expect(body.data.username).toBe("vstaff");
+  });
+
+  test("rejects an invalid username (422)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const res = await app.request("/account/users", jsonReq("POST", admin.cookie, { username: "Bad Name!", name: "X" }));
+    expect(res.status).toBe(422);
+  });
+
+  test("assignable-users includes virtual users; visible-users excludes them", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    await app.request("/account/users", jsonReq("POST", admin.cookie, { username: "vpick", name: "V Pick" }));
+
+    const visible = await (await app.request("/account/visible-users", { headers: { Cookie: admin.cookie } })).json() as { data: { username: string }[] };
+    expect(visible.data.some(u => u.username === "vpick")).toBe(false);
+
+    const assignable = await (await app.request("/account/assignable-users", { headers: { Cookie: admin.cookie } })).json() as { data: { username: string; isVirtual: boolean }[] };
+    expect(assignable.data.some(u => u.username === "vpick" && u.isVirtual)).toBe(true);
+  });
+
+  test("DELETE refuses a real user (409) but removes a virtual one (200)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const real = await sessionForRole("user");
+
+    const refuse = await app.request(`/account/users/${real.id}`, jsonReq("DELETE", admin.cookie));
+    expect(refuse.status).toBe(409);
+
+    const created = await app.request("/account/users", jsonReq("POST", admin.cookie, { username: "vgone", name: "Gone" }));
+    const cbody = await created.json() as { data: { id: string } };
+    const del = await app.request(`/account/users/${cbody.data.id}`, jsonReq("DELETE", admin.cookie));
+    expect(del.status).toBe(200);
+  });
+
+  test("PATCH renames a virtual user; rejects renaming a real user (400)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const real = await sessionForRole("user");
+
+    const created = await app.request("/account/users", jsonReq("POST", admin.cookie, { username: "vren", name: "Old" }));
+    const cbody = await created.json() as { data: { id: string } };
+    const patched = await app.request(`/account/users/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, { name: "New", username: "vren2" }));
+    expect(patched.status).toBe(200);
+    const pbody = await patched.json() as { data: { username: string; name: string } };
+    expect(pbody.data.username).toBe("vren2");
+    expect(pbody.data.name).toBe("New");
+
+    const realRename = await app.request(`/account/users/${real.id}`, jsonReq("PATCH", admin.cookie, { username: "hacker" }));
+    expect(realRename.status).toBe(400);
+  });
+});
