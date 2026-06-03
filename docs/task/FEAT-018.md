@@ -31,3 +31,8 @@ migration — see PLAN-057 "Key design decision".
   reference infra (table/service/routes/create-path + web client type) already
   exists; backend work reduced to `shipId` exposure + a referenceable-worklists
   endpoint. L3-1 dispatched; L3-2 created (planned, deps=L3-1).
+- 2026-06-03: **L3-1 (h1rn6c3s) MERGED** into bkd/52r11h7b (--no-ff, merge
+  e1411fc; L3 commit 75f4766). Adds `ProjectView.shipId` and
+  `GET /projects/:projectId/referenceable-worklists` (`{ship,global}`,
+  issue.view-gated); no migration. Post-merge `bun run check` EXIT 0 (api 1437,
+  web 659, build/i18n/env/api-docs green). L3-2 (njrg8zcq) dispatched (working).
