@@ -67,23 +67,46 @@ describe("useProjects", () => {
     expect(url).toContain("page=1");
     expect(url).toContain("limit=20");
     expect(url).not.toContain("status=");
-    expect(url).not.toContain("tagId=");
+    expect(url).not.toContain("tagIds=");
     expect(url).not.toContain("q=");
   });
 
   it("serialises status, tag and search filters", async () => {
     fetchMock.mockResolvedValue(jsonResponse(listEnvelope));
     const { result } = renderHook(
-      () => useProjects({ status: "archived", q: "atlas", tagId: "t9", page: 2, limit: 10 }),
+      () => useProjects({ status: "archived", q: "atlas", tagIds: ["t9"], page: 2, limit: 10 }),
       { wrapper: makeWrapper() },
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const url = calledUrl();
     expect(url).toContain("status=archived");
     expect(url).toContain("q=atlas");
-    expect(url).toContain("tagId=t9");
+    expect(url).toContain("tagIds=t9");
     expect(url).toContain("page=2");
     expect(url).toContain("limit=10");
+  });
+
+  it("appends each selected tag as a repeatable, sorted tagIds param", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(listEnvelope));
+    const { result } = renderHook(
+      () => useProjects({ tagIds: ["t9", "t2"] }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = calledUrl();
+    // Both ids surface as separate repeatable params, sorted for a stable key.
+    expect(url).toContain("tagIds=t2");
+    expect(url).toContain("tagIds=t9");
+    expect(url.indexOf("tagIds=t2")).toBeLessThan(url.indexOf("tagIds=t9"));
+    // The legacy single-tag param is gone.
+    expect(url).not.toContain("tagId=");
+  });
+
+  it("sends no tagIds param when the selection is empty", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(listEnvelope));
+    const { result } = renderHook(() => useProjects({ tagIds: [] }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(calledUrl()).not.toContain("tagIds=");
   });
 });
 

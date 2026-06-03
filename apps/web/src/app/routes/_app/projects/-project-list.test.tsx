@@ -137,6 +137,42 @@ describe("projectsListPage", () => {
     });
   });
 
+  it("threads multiple selected tags into the list query as removable chips", async () => {
+    // Route the tag vocabulary to /tags and the project rows to /projects so the
+    // multi-select tags filter has options to pick from.
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/tags"))
+        return jsonResponse({ success: true, data: [{ id: "t1", name: "refit" }, { id: "t2", name: "deck" }] });
+      return jsonResponse({
+        success: true,
+        data: [project()],
+        meta: { total: 1, page: 1, limit: 20 },
+      });
+    });
+    renderWithProviders(<ProjectsListPage />);
+    await waitFor(() => expect(screen.getByText("Atlas Refit")).toBeInTheDocument());
+
+    // Open the multi-select tags dropdown and check two tags (the menu stays
+    // open between checkbox toggles).
+    await userEvent.click(await screen.findByRole("button", { name: "Tags" }));
+    await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "refit" }));
+    await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "deck" }));
+
+    // Both ids reach the list endpoint as repeatable (OR/union) tagIds params.
+    await waitFor(() => {
+      const listUrls = fetchMock.mock.calls
+        .map(call => String(call[0]))
+        .filter(url => url.includes("/projects?"));
+      expect(listUrls.some(url => /[?&]tagIds=t1\b/.test(url) && /[?&]tagIds=t2\b/.test(url))).toBe(true);
+    });
+
+    // Each selected tag surfaces as its own removable chip.
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Remove refit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove deck" })).toBeInTheDocument();
+  });
+
   it("keeps existing tag chip rendering for tagged projects", async () => {
     mockList([
       project({
