@@ -127,7 +127,7 @@
     "empty": "未找到工单。",
     "loading": "正在加载工单...",
     "searchPlaceholder": "搜索工单...",
-    "tagFilter": "按标签筛选",
+    "tagFilter": "标签",
     "toggleSection": "折叠/展开分组",
     "emptyColumn": "暂无工单",
     "unassigned": "未分配",
