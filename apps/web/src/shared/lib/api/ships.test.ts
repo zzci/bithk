@@ -72,15 +72,17 @@ describe("useShips", () => {
     expect(url).toContain("page=1");
   });
 
-  it("encodes the tag filter", async () => {
+  it("encodes the tag filter (repeated tagId for OR semantics)", async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
       data: [],
       meta: { total: 0, page: 1, limit: 20 },
     }));
-    const { result } = renderHook(() => useShips({ status: "active", tagId: "t1", page: 1 }), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useShips({ status: "active", tagIds: ["t1", "t2"], page: 1 }), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(String(fetchMock.mock.calls[0]![0])).toContain("tagId=t1");
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url).toContain("tagId=t1");
+    expect(url).toContain("tagId=t2");
   });
 });
 

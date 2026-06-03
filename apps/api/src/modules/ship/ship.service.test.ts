@@ -361,23 +361,34 @@ describe("listShips", () => {
     expect(archived.data[0]!.name).toBe("B");
   });
 
-  test("filters by tagId", async () => {
+  test("filters by tagIds (OR semantics)", async () => {
     const creator = await seedUser("Alice");
     await createShip(db, { name: "Charter", tags: ["charter"], creatorId: creator });
+    await createShip(db, { name: "Refit", tags: ["refit"], creatorId: creator });
     await createShip(db, { name: "Plain", creatorId: creator });
 
-    // Resolve the tag id from a listed ship's embedded tags.
+    // Resolve tag ids from listed ships' embedded tags.
     const listed = await listShips(db, {});
-    const tag = listed.data.flatMap(s => s.tags).find(t => t.name === "charter")!;
-    expect(tag).toBeDefined();
+    const charterTag = listed.data.flatMap(s => s.tags).find(t => t.name === "charter")!;
+    const refitTag = listed.data.flatMap(s => s.tags).find(t => t.name === "refit")!;
 
-    const byTag = await listShips(db, { tagId: tag.id });
-    expect(byTag.total).toBe(1);
-    expect(byTag.data[0]!.name).toBe("Charter");
+    // Single tag selection narrows to that one ship.
+    const onlyCharter = await listShips(db, { tagIds: [charterTag.id] });
+    expect(onlyCharter.total).toBe(1);
+    expect(onlyCharter.data[0]!.name).toBe("Charter");
 
-    // An unknown tag yields an empty result, not an unfiltered list.
-    const none = await listShips(db, { tagId: "no-such-tag" });
+    // Multiple tags union: ships carrying ANY of the selected tags.
+    const charterOrRefit = await listShips(db, { tagIds: [charterTag.id, refitTag.id] });
+    expect(charterOrRefit.total).toBe(2);
+    expect(charterOrRefit.data.map(s => s.name).sort()).toEqual(["Charter", "Refit"]);
+
+    // Unknown tags yield an empty result, not an unfiltered list.
+    const none = await listShips(db, { tagIds: ["no-such-tag"] });
     expect(none.total).toBe(0);
+
+    // An empty array applies no filter (treated as "no tag dimension selected").
+    const all = await listShips(db, { tagIds: [] });
+    expect(all.total).toBe(3);
   });
 
   test("memberUserId scopes to ships whose base project the user belongs to", async () => {

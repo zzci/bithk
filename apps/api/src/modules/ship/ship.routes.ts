@@ -96,7 +96,8 @@ const updateShipSchema = z.object({
 
 const listSchema = z.object({
   status: z.enum(SHIP_STATUSES).optional(),
-  tagId: z.string().max(100).optional(),
+  // Repeated `tagId=` query params combine with OR semantics (any-of).
+  tagIds: z.array(z.string().min(1).max(100)).max(20).optional(),
   q: z.string().max(200).optional(),
 });
 
@@ -273,9 +274,10 @@ export function shipRoutes() {
   router.get("/ships", async (c) => {
     const db = c.get("db");
     const user = c.get("user");
+    const rawTagIds = c.req.queries("tagId") ?? [];
     const query = listSchema.parse({
       status: c.req.query("status"),
-      tagId: c.req.query("tagId"),
+      tagIds: rawTagIds.length > 0 ? rawTagIds : undefined,
       q: c.req.query("q") || undefined,
     });
     const { page, limit } = parsePageQuery(c, { limit: 20 });

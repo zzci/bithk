@@ -15,7 +15,7 @@ import {
 import { projectMembers, projects } from "@/modules/project/schema";
 import {
   deleteResourceTags,
-  listResourceIdsByTag,
+  listResourceIdsByAnyTag,
   loadResourceTagsByResource,
   syncResourceTagsTx,
 } from "@/modules/tag/tag.service";
@@ -260,7 +260,7 @@ export async function resolveShipId(db: AppDatabase, shortId: string): Promise<s
 
 export interface ListShipParams {
   readonly status?: ShipStatus | undefined;
-  readonly tagId?: string | undefined;
+  readonly tagIds?: readonly string[] | undefined;
   readonly q?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
@@ -281,8 +281,9 @@ export async function listShips(db: AppDatabase, params: ListShipParams = {}): P
   const conditions = [isNull(ships.deletedAt)];
   if (params.status)
     conditions.push(eq(ships.status, params.status));
-  if (params.tagId) {
-    const taggedIds = await listResourceIdsByTag(db, SHIP_TAG_BINDING, params.tagId);
+  if (params.tagIds && params.tagIds.length > 0) {
+    // OR semantics: ships carrying ANY of the selected tags.
+    const taggedIds = await listResourceIdsByAnyTag(db, SHIP_TAG_BINDING, params.tagIds);
     if (taggedIds.length === 0)
       return { data: [], total: 0 };
     conditions.push(inArray(ships.id, taggedIds));

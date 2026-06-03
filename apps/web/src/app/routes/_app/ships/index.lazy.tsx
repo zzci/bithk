@@ -33,7 +33,7 @@ export function ShipsListPage() {
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
   const [status, setStatus] = useState<ShipStatus>("active");
-  const [tagId, setTagId] = useState<string | null>(null);
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -49,7 +49,7 @@ export function ShipsListPage() {
 
   const shipsQuery = useShips({
     status,
-    tagId: tagId ?? undefined,
+    tagIds: tagIds.length > 0 ? tagIds : undefined,
     page,
     q: debouncedSearch,
   });
@@ -118,10 +118,10 @@ export function ShipsListPage() {
             {
               key: "tags",
               label: t("field.tags"),
-              mode: "single",
-              value: tagId,
+              mode: "multi",
+              value: tagIds,
               onChange: (value) => {
-                setTagId(value);
+                setTagIds(value);
                 setPage(1);
               },
               options: shipTags.map(tag => ({ value: tag.id, label: tag.name })),

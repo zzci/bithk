@@ -117,8 +117,8 @@ interface ListMeta {
 export const shipKeys = {
   all: ["ships"] as const,
   lists: () => ["ships", "list"] as const,
-  list: (status: string, tagId: string, page: number, q?: string) =>
-    q ? ["ships", "list", status, tagId, page, q] as const : ["ships", "list", status, tagId, page] as const,
+  list: (status: string, tagKey: string, page: number, q?: string) =>
+    q ? ["ships", "list", status, tagKey, page, q] as const : ["ships", "list", status, tagKey, page] as const,
   tags: () => ["ships", "tags"] as const,
   counts: () => ["ships", "count"] as const,
   count: (status: string) => ["ships", "count", status] as const,
@@ -134,7 +134,8 @@ export const shipKeys = {
 
 export interface ShipsQuery {
   readonly status?: ShipStatus | undefined;
-  readonly tagId?: string | undefined;
+  /** OR semantics: list ships carrying ANY of these tag ids. */
+  readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
   /** Server-side name/code search; reaches the whole fleet, not just the page. */
@@ -148,18 +149,21 @@ export interface ShipsListResult {
 
 export function useShips(query: ShipsQuery = {}) {
   const status = query.status;
-  const tagId = query.tagId;
+  const tagIds = query.tagIds ?? [];
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   const q = query.q?.trim() || undefined;
+  // Sort to keep the query key stable regardless of selection order.
+  const tagKey = tagIds.length === 0 ? "all" : [...tagIds].sort().join(",");
   return useQuery<ShipsListResult>({
-    queryKey: shipKeys.list(status ?? "all", tagId ?? "all", page, q),
+    queryKey: shipKeys.list(status ?? "all", tagKey, page, q),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
-      if (tagId)
-        params.set("tagId", tagId);
+      // Repeated `tagId=` params: backend reads via `c.req.queries("tagId")`.
+      for (const id of tagIds)
+        params.append("tagId", id);
       if (q)
         params.set("q", q);
       params.set("page", String(page));
