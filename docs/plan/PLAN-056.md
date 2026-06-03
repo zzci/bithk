@@ -1,6 +1,6 @@
 # PLAN-056 Restore whole-card navigation on the projects list
 
-- **status**: Planned
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 cjeubt6k
 - **campaignId**: l1-75ymcfnr-cardnav-20260603114731
 - **tasks**: [FIX-034](../task/FIX-034.md)
