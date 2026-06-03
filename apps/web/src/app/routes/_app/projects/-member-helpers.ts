@@ -1,6 +1,14 @@
 // Shared helpers for rendering project members in pickers and tables.
 
-import type { ProjectMemberView } from "@/shared/lib/api/projects";
+import type { ProjectMemberView, ProjectRoleView } from "@/shared/lib/api/projects";
+
+/** Resolve the display label for a system role based on its `kind` field. */
+export function systemRoleLabel(role: ProjectRoleView, ownerLabel: string, guestLabel: string): string {
+  if (role.kind === "guest")
+    return guestLabel;
+  // kind==="owner" or legacy system roles with no kind
+  return ownerLabel;
+}
 
 /**
  * Build a lookup from member id to a human label. Internal members fall back
