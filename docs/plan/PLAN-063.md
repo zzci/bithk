@@ -1,6 +1,6 @@
 # PLAN-063 Fix duplicate 项目所有者 in member role select
 
-- **status**: Implementing
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 lv35gmya
 - **campaignId**: l1-75ymcfnr-roledup-20260603194527
 - **tasks**: [FIX-037](../task/FIX-037.md)

@@ -61,4 +61,4 @@
 | [PLAN-060](PLAN-060.md) | File preview built into the shared FileBrowser | Superseded | 2026-06-03 |
 | [PLAN-061](PLAN-061.md) | Global toggle-driven FileBrowser module | Completed | 2026-06-03 |
 | [PLAN-062](PLAN-062.md) | Issues tab tag-filter label 按标签筛选 -> 标签 | Completed | 2026-06-03 |
-| [PLAN-063](PLAN-063.md) | Fix duplicate 项目所有者 in member role select | Implementing | 2026-06-03 |
+| [PLAN-063](PLAN-063.md) | Fix duplicate 项目所有者 in member role select | Completed | 2026-06-03 |

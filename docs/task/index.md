@@ -103,4 +103,4 @@
 | [FIX-035](FIX-035.md) | FileBrowser renders file preview internally | [PLAN-060](../plan/PLAN-060.md) | Superseded | 2026-06-03 |
 | [REFACTOR-019](REFACTOR-019.md) | Global toggle-driven FileBrowser (features config) + built-in preview + consumer migration | [PLAN-061](../plan/PLAN-061.md) | Completed | 2026-06-03 |
 | [FIX-036](FIX-036.md) | Issues tab tag-filter label 按标签筛选 -> 标签 | [PLAN-062](../plan/PLAN-062.md) | Completed | 2026-06-03 |
-| [FIX-037](FIX-037.md) | Fix duplicate 项目所有者 in member role select | [PLAN-063](../plan/PLAN-063.md) | Todo | 2026-06-03 |
+| [FIX-037](FIX-037.md) | Fix duplicate 项目所有者 in member role select | [PLAN-063](../plan/PLAN-063.md) | Completed | 2026-06-03 |
