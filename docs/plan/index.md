@@ -60,3 +60,4 @@
 | [PLAN-059](PLAN-059.md) | Project overview 2-column pinned/description + minimal pinned rows | Completed | 2026-06-03 |
 | [PLAN-060](PLAN-060.md) | File preview built into the shared FileBrowser | Superseded | 2026-06-03 |
 | [PLAN-061](PLAN-061.md) | Global toggle-driven FileBrowser module | Completed | 2026-06-03 |
+| [PLAN-062](PLAN-062.md) | Global unified tag component family | Implementing | 2026-06-03 |
