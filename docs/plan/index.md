@@ -57,3 +57,4 @@
 | [PLAN-056](PLAN-056.md) | Restore whole-card navigation on the projects list | Completed | 2026-06-03 |
 | [PLAN-057](PLAN-057.md) | Project work orders reference ship worklists | Completed | 2026-06-03 |
 | [PLAN-058](PLAN-058.md) | Projects list tag filter multi-select | Completed | 2026-06-03 |
+| [PLAN-059](PLAN-059.md) | Project overview 2-column pinned/description + minimal pinned rows | Implementing | 2026-06-03 |
