@@ -38,10 +38,18 @@ icon; line 2 = `RowMeta` with [kind badge][status badge][`formatDate(pinnedAt)`]
   latest-activity grid row below unchanged.
 - `PinnedRow` becomes a single horizontal line mirroring `ActivityRow`
   (`ACTIVITY_ROW_CLASS`): leading type icon (`ClipboardList` for issue /
-  `Package` for procurement, muted, `aria-hidden`) + title (`min-w-0 flex-1
-  truncate`) + trailing status `Badge` (reuse the existing status-badge logic).
-  Remove the `pinnedAt` span, the kind text badge, the trailing `Pin` icon, and
-  the two-line `RowMeta` wrapper from the pinned row.
+  `Package` for procurement) + title (`min-w-0 flex-1 truncate`) + trailing
+  status `Badge` (reuse the existing status-badge logic). Remove the `pinnedAt`
+  span, the kind text badge, the trailing `Pin` icon, and the two-line `RowMeta`
+  wrapper from the pinned row.
+- The leading type icon is the sole at-a-glance type indicator, so it carries an
+  ACCESSIBLE NAME rather than `aria-hidden`: `role="img"` + `aria-label`
+  reusing the existing i18n keys `overview.pinKind.issue` ("Work order") /
+  `overview.pinKind.procurement` ("Procurement"). Those keys move from the
+  removed text badge onto the icon (still used → not removed; no new keys). The
+  `item.type` discriminator is the strict union `"issue" | "procurement"`, so
+  the mapping is binary (no dead third branch); only widen to a neutral `Pin`
+  fallback if the union is actually wider.
 - Surgical cleanup: remove now-unused module members — `formatDate` import,
   `RowMeta` helper, `ROW_BUTTON_CLASS` (all become unused once `PinnedRow`
   switches to the single-line `ActivityRow` shape). Keep the `Pin` import (still
@@ -65,6 +73,9 @@ icon; line 2 = `RowMeta` with [kind badge][status badge][`formatDate(pinnedAt)`]
   procurement tab; disabled when procurement not viewable).
 - `formatDate` / `RowMeta` / `ROW_BUTTON_CLASS` are removed as unused; no other
   unused symbols introduced.
+- Each pinned row's leading type icon has an accessible name ("Work order" /
+  "Procurement"); the test asserts the icon by role+name
+  (`getByRole("img", { name: ... })`) within the "Pinned" list.
 - Test updated for the new pinned-row content + 2-col layout; `bun run check`
   EXIT=0 (modulo the @milkdown flake).
 
