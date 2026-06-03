@@ -1,8 +1,8 @@
 # REFACTOR-020 Create shared tag component family (TagChip/TagChips/TagInput/TagFilter)
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-062](../plan/PLAN-062.md)
-- Owner: BKD L3 (campaign l1-75ymcfnr-gtag-20260603191645)
+- Owner: BKD L3 msitkgis (campaign l1-75ymcfnr-gtag-20260603191645)
 - Campaign: l1-75ymcfnr-gtag-20260603191645
 - Updated: 2026-06-03
 
@@ -48,4 +48,8 @@ tag components stay in place so the build remains green; migration L3s
   shape when non-empty.
 - `bun run check` EXIT 0 (modulo @milkdown flake).
 
-> Full self-contained implementation spec delivered to the L3 via BKD follow-up.
+> **Completed 2026-06-03** — L3 `bkd/msitkgis` @6dec901 (9 files, +352, purely
+> additive) merged `--no-ff` into `bkd/lc757j1x` @4dd1602; post-merge
+> `bun run check` EXIT 0 (web 683/683, api green, build/i18n/env/api-docs all
+> pass; only noise = 6 pre-existing lint warnings + 26 heuristic-unused i18n
+> keys, non-blocking). Web tests use vitest (not bun:test).
