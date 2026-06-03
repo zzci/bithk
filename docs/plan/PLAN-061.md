@@ -1,9 +1,10 @@
 # PLAN-061 Global toggle-driven FileBrowser module
 
-- **status**: In Progress
+- **status**: Completed
 - **owner**: l1-75ymcfnr / L2 lkiwea9v
 - **campaignId**: l1-75ymcfnr-filprev-20260603172034
 - **supersedes**: [PLAN-060](PLAN-060.md)
+- **mergedInto**: bkd/lkiwea9v @d1838a0 (L3 bkd/1tlij9eu, `bun run check` EXIT 0)
 - **tasks**: [REFACTOR-019](../task/REFACTOR-019.md)
 - **createdAt**: 2026-06-03
 

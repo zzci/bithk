@@ -1,11 +1,18 @@
 # REFACTOR-019 Global toggle-driven FileBrowser (features config) + built-in preview + consumer migration
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-061](../plan/PLAN-061.md)
 - Owner: BKD L3 1tlij9eu (campaign l1-75ymcfnr-filprev-20260603172034)
 - Campaign: l1-75ymcfnr-filprev-20260603172034
 - Supersedes: [FIX-035](FIX-035.md)
 - Updated: 2026-06-03
+
+> **Completed 2026-06-03** — L3 `bkd/1tlij9eu` (commits 01a733c + 19f8247)
+> merged `--no-ff` into `bkd/lkiwea9v` @d1838a0; post-merge `bun run check`
+> EXIT 0 (lint 0 err, typecheck, tests incl. 5 new FileBrowser tests,
+> check:routes, build, i18n, env-docs, api-docs all green; only noise = 6
+> pre-existing foreign lint warnings + 26 heuristic-unused i18n keys, both
+> non-blocking).
 
 ## Goal
 
