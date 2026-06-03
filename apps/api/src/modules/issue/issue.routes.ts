@@ -15,6 +15,7 @@ import {
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
 import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
+import { listReferenceableWorklists } from "@/modules/ship/ship.worklist.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { parsePageQuery } from "@/shared/lib/pagination";
@@ -166,6 +167,17 @@ export function issueRoutes() {
       data: result.data,
       meta: { total: result.total, page, limit },
     });
+  });
+
+  // ─── Referenceable worklists ───────────────────────────────────────
+  // The worklists this project may reference when creating a work order: its
+  // ship's worklists (when it is a ship base project) plus the global KB.
+  // Member-gated via requireProjectMember (issue.view); non-members get a
+  // fail-closed 404.
+  router.get("/projects/:projectId/referenceable-worklists", async (c) => {
+    const projectId = await requireProjectMember(c, c.req.param("projectId"));
+    const db = c.get("db");
+    return c.json({ success: true, data: await listReferenceableWorklists(db, projectId) });
   });
 
   // ─── Create ────────────────────────────────────────────────────────

@@ -78,6 +78,10 @@ export interface ProjectView {
   readonly name: string;
   readonly status: ProjectStatus;
   readonly description: string | null;
+  // Internal ULID of the ship this project is the base project of (or an extra
+  // bound project). Null for ordinary projects. Lets the web tell a ship base
+  // project apart so it can offer the ship's worklists as work-order references.
+  readonly shipId: string | null;
   readonly tags: readonly ProjectTagView[];
   readonly coverImageUrl: string | null;
   readonly creatorId: string;
@@ -106,6 +110,7 @@ export function composeProject(
     name: row.name,
     status: row.status,
     description: row.description,
+    shipId: row.shipId,
     tags: projectTagList,
     coverImageUrl,
     creatorId: row.creatorId,
