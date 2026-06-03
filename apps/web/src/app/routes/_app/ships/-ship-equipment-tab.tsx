@@ -32,7 +32,7 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { resolveCategoryName, useShipEquipmentCategories } from "@/shared/lib/api/ship-equipment-categories";
+import { resolveCategoryName, useEquipmentCategories } from "@/shared/lib/api/equipment-categories";
 import {
   EQUIPMENT_STATUSES,
   useCreateShipEquipment,
@@ -348,7 +348,7 @@ function EquipmentDialog({
 }) {
   const { t, i18n } = useTranslation(["ships", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
-  const categories = useShipEquipmentCategories().data ?? [];
+  const categories = useEquipmentCategories().data ?? [];
   const [form, setForm] = useState(EMPTY_FORM);
 
   /* eslint-disable react/set-state-in-effect -- reseed the form whenever the dialog opens. */

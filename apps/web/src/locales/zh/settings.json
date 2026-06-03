@@ -146,21 +146,32 @@
       "deleted": "工作清单「{{name}}」已删除。"
     }
   },
-  "shipEquipmentCategories": {
+  "equipmentCategories": {
     "title": "设备分类",
     "description": "用于对船舶设备进行分类的双语词汇表。",
     "add": "添加分类",
-    "addTitle": "添加分类",
-    "editTitle": "编辑分类",
-    "dialogDescription": "设备分类是船舶用于对设备进行分类的共享双语词汇表。",
-    "fieldNameZh": "中文名称",
-    "fieldNameEn": "英文名称",
     "colNameZh": "中文名称",
     "colNameEn": "英文名称",
+    "colCode": "编码",
+    "actions": "操作",
+    "edit": "编辑",
+    "delete": "删除",
     "empty": "暂无设备分类。",
-    "delete": {
-      "title": "删除分类",
-      "confirm": "删除分类「{{name}}」？"
+    "fieldDescription": "描述",
+    "dialog": {
+      "createTitle": "添加分类",
+      "editTitle": "编辑分类",
+      "deleteTitle": "删除分类",
+      "deleteConfirm": "删除分类「{{name}}」？",
+      "description": "设备分类是船舶用于对设备进行分类的共享双语词汇表。"
+    },
+    "placeholders": {
+      "nameZh": "中文名称",
+      "nameEn": "英文名称"
+    },
+    "validation": {
+      "nameZhRequired": "请输入中文名称。",
+      "nameEnRequired": "请输入英文名称。"
     },
     "toast": {
       "created": "分类已创建。",

@@ -19,7 +19,7 @@ import {
   CardTitle,
   Card as UICard,
 } from "@/shared/components/ui/card";
-import { resolveCategoryName } from "@/shared/lib/api/ship-equipment-categories";
+import { resolveCategoryName } from "@/shared/lib/api/equipment-categories";
 import {
   useShipEquipment,
   useShipProjects,

@@ -146,21 +146,32 @@
       "deleted": "Worklist \"{{name}}\" deleted."
     }
   },
-  "shipEquipmentCategories": {
+  "equipmentCategories": {
     "title": "Equipment Categories",
     "description": "The bilingual vocabulary used to classify ship equipment.",
     "add": "Add Category",
-    "addTitle": "Add Category",
-    "editTitle": "Edit Category",
-    "dialogDescription": "Equipment categories are a shared bilingual vocabulary ships use to classify their equipment.",
-    "fieldNameZh": "Chinese name",
-    "fieldNameEn": "English name",
     "colNameZh": "Chinese name",
     "colNameEn": "English name",
+    "colCode": "Code",
+    "actions": "Actions",
+    "edit": "Edit",
+    "delete": "Delete",
     "empty": "No equipment categories yet.",
-    "delete": {
-      "title": "Delete category",
-      "confirm": "Delete the category \"{{name}}\"?"
+    "fieldDescription": "Description",
+    "dialog": {
+      "createTitle": "Add Category",
+      "editTitle": "Edit Category",
+      "deleteTitle": "Delete category",
+      "deleteConfirm": "Delete the category \"{{name}}\"?",
+      "description": "Equipment categories are a shared bilingual vocabulary ships use to classify their equipment."
+    },
+    "placeholders": {
+      "nameZh": "Chinese name",
+      "nameEn": "English name"
+    },
+    "validation": {
+      "nameZhRequired": "Chinese name is required.",
+      "nameEnRequired": "English name is required."
     },
     "toast": {
       "created": "Category created.",

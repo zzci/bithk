@@ -23,8 +23,8 @@ afterEach(() => {
 
 function categoryList() {
   return [
-    { id: "ec1", nameZh: "电力", nameEn: "Power", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
-    { id: "ec2", nameZh: "发动机", nameEn: "Engine", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+    { id: "ec1", nameZh: "电力", nameEn: "Power", code: "PWR", description: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+    { id: "ec2", nameZh: "发动机", nameEn: "Engine", code: null, description: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
   ];
 }
 
@@ -51,7 +51,7 @@ function routeFetch() {
   fetchMock.mockImplementation(async (input, init) => {
     const path = String(input).replace("/api", "");
     const method = init?.method ?? "GET";
-    if (method === "GET" && path === "/ship-equipment-categories")
+    if (method === "GET" && path === "/equipment-categories")
       return jsonResponse({ success: true, data: categoryList() });
     if (method === "GET" && path === "/ships/s1/equipment")
       return jsonResponse({ success: true, data: equipmentList() });
@@ -100,7 +100,7 @@ describe("shipEquipmentTab", () => {
     fetchMock.mockImplementation(async (input, init) => {
       const path = String(input).replace("/api", "");
       const method = init?.method ?? "GET";
-      if (method === "GET" && path === "/ship-equipment-categories")
+      if (method === "GET" && path === "/equipment-categories")
         return jsonResponse({ success: true, data: categoryList() });
       if (method === "GET" && path === "/ships/s1/equipment")
         return jsonResponse({ success: true, data: rows });
