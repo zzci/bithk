@@ -11,7 +11,7 @@ import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
-import { TagChips, tagFilterDimension } from "@/shared/components/tags";
+import { tagFilterDimension } from "@/shared/components/tags";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -37,13 +37,12 @@ const ALL = "__all__";
 // Shared grid template so the header row and every data row align on the same
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
-// mobile. Person-primary: column 1 is the avatar + name. Columns:
-// name+avatar+kind | organization(sm) | phone | email(md) | tags(md) |
-// category(md) | status.
+// mobile. Person-primary: column 1 is the avatar + name + inline badges.
+// Columns: name+avatar+badges | organization(sm) | category(md) | status.
 const CONTACT_GRID = [
-  "grid grid-cols-[minmax(0,1fr)_6rem_5rem] items-center gap-3",
-  "sm:grid-cols-[minmax(0,1fr)_9rem_6rem_5rem]",
-  "md:grid-cols-[minmax(0,1fr)_9rem_6rem_9rem_8rem_8rem_5rem]",
+  "grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-3",
+  "sm:grid-cols-[minmax(0,1fr)_9rem_5rem]",
+  "md:grid-cols-[minmax(0,1fr)_9rem_8rem_5rem]",
 ].join(" ");
 
 type DrawerState
@@ -210,9 +209,6 @@ export function ContactsListPage() {
                   <div className={cn(CONTACT_GRID, "min-w-0 flex-1 px-3 py-2 text-xs font-medium text-muted-foreground")}>
                     <span className="truncate">{t("field.name")}</span>
                     <span className="hidden truncate sm:block">{t("field.organization")}</span>
-                    <span className="truncate">{t("field.phone")}</span>
-                    <span className="hidden truncate md:block">{t("field.email")}</span>
-                    <span className="hidden truncate md:block">{t("field.tags")}</span>
                     <span className="hidden truncate md:block">{t("field.category")}</span>
                     <span className="truncate">{t("field.status")}</span>
                   </div>
@@ -244,39 +240,18 @@ export function ContactsListPage() {
                                     : <User className="size-3.5" aria-hidden="true" />}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="flex min-w-0 flex-col gap-1">
-                              <span className="truncate text-sm font-medium">{contact.name}</span>
-                              <span className="flex flex-wrap items-center gap-1">
-                                <Badge variant="outline">{t(`kind.${contact.kind}` as const)}</Badge>
-                                <Badge variant="secondary" className={CONTACT_VISIBILITY_BADGE[contact.visibility]}>
-                                  {t(`visibility.${contact.visibility}` as const)}
-                                </Badge>
-                                {contact.confidential && <Badge variant="secondary" className={CONTACT_CONFIDENTIAL_BADGE}>{t("field.confidential")}</Badge>}
-                              </span>
-                            </span>
+                            <span className="truncate text-sm font-medium">{contact.name}</span>
+                            <Badge variant="outline" className="shrink-0">{t(`kind.${contact.kind}` as const)}</Badge>
+                            <Badge variant="secondary" className={cn("shrink-0", CONTACT_VISIBILITY_BADGE[contact.visibility])}>
+                              {t(`visibility.${contact.visibility}` as const)}
+                            </Badge>
+                            {contact.confidential && (
+                              <Badge variant="secondary" className={cn("shrink-0", CONTACT_CONFIDENTIAL_BADGE)}>{t("field.confidential")}</Badge>
+                            )}
                           </span>
                           <span className="hidden truncate text-xs sm:block">
                             {contact.kind === "individual" && contact.organizationName
                               ? contact.organizationName
-                              : <span className="text-muted-foreground">—</span>}
-                          </span>
-                          <span className="truncate text-xs">
-                            <ContactFieldValue value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                          </span>
-                          <span className="hidden truncate text-xs md:block">
-                            <ContactFieldValue value={contact.email} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                          </span>
-                          <span className="hidden min-w-0 items-center gap-1 md:flex">
-                            {contact.tags.length > 0
-                              ? (
-                                  <TagChips
-                                    tags={contact.tags}
-                                    max={2}
-                                    variant="outline"
-                                    className="max-w-full truncate"
-                                    moreClassName="text-xs text-muted-foreground"
-                                  />
-                                )
                               : <span className="text-muted-foreground">—</span>}
                           </span>
                           <span className="hidden truncate text-xs md:block">

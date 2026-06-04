@@ -127,7 +127,6 @@ describe("contactsListPage", () => {
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Acme HQ")).toBeInTheDocument();
-    expect(screen.getByText("supplier")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Acme Marine" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete Acme Marine" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
@@ -245,8 +244,8 @@ describe("contactsListPage", () => {
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    // The dense row surfaces phone, email, and status as sensitive columns.
-    expect(screen.getAllByLabelText("Masked field")).toHaveLength(3);
+    // The slimmed row surfaces only status as a sensitive column.
+    expect(screen.getAllByLabelText("Masked field")).toHaveLength(1);
     expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
   });
 
