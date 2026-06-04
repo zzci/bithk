@@ -658,6 +658,19 @@ export async function buildDriveEntryDownloadResponse(
   if (!file)
     throw new AppError("File not found", 404, "NOT_FOUND");
 
+  // Prefer the live, mutable content body (Google-Sheets-style autosave) when
+  // present so GET /content, downloads and previews all reflect in-progress
+  // edits before they are snapshotted into a version. The editor reads
+  // `.text()`, so the body + content-type are what matter here.
+  if (entry.currentContentBody != null) {
+    return new Response(entry.currentContentBody, {
+      headers: {
+        "Content-Type": file.mimetype || "application/octet-stream",
+        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(ref.filename)}`,
+      },
+    });
+  }
+
   return buildDownloadResponse(config, file, ref, { inline });
 }
 

@@ -12,7 +12,7 @@ import { fileReferences, files } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
-import { createDriveFolder, deleteDriveEntryPermanently, uploadDriveFile } from "./drive.service";
+import { buildDriveEntryDownloadResponse, createDriveFolder, deleteDriveEntryPermanently, uploadDriveFile } from "./drive.service";
 import { listEntryVersions, switchEntryVersion, uploadEntryVersion } from "./drive.version.service";
 import { driveEntries } from "./schema";
 
@@ -115,6 +115,10 @@ describe("uploadEntryVersion", () => {
       (await db.select().from(fileReferences).where(eq(fileReferences.id, refreshed.fileReferenceId!)).get())!.id,
     );
     expect(versions[0]!.size).toBe("second body".length);
+
+    // The live content slot now mirrors the just-saved snapshot so a
+    // content-read (which prefers the live body) returns the saved version.
+    expect(refreshed.currentContentBody).toBe("second body");
   });
 });
 
@@ -132,6 +136,13 @@ describe("switchEntryVersion", () => {
     const switched = await switchEntryVersion(db, await rowOf(entry.id), v1.id);
     const current = switched.find(v => v.isCurrent)!;
     expect(current.versionNo).toBe(1);
+
+    // Switching clears the live slot; the content-read then falls back to the
+    // switched (v1) versioned blob.
+    const refreshed = await rowOf(entry.id);
+    expect(refreshed.currentContentBody).toBeNull();
+    const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await res.text()).toBe("first");
   });
 
   test("rejects an unknown version id", async () => {

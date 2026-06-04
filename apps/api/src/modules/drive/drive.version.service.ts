@@ -75,6 +75,10 @@ export async function uploadEntryVersion(
   input: UploadEntryVersionInput,
 ): Promise<readonly DriveVersionView[]> {
   assertFileEntry(input.entry);
+  // Read the snapshot text before the transaction so the live content slot can
+  // be set to the just-saved version — GET /content (which prefers the live
+  // body) then returns this snapshot instead of a now-stale autosave draft.
+  const body = await input.file.text();
   const uploaded = await uploadAndReference(db, config, {
     file: input.file,
     ownerType: "drive_entry",
@@ -99,7 +103,7 @@ export async function uploadEntryVersion(
         uploadedBy: input.uploadedBy,
       }).run();
       tx.update(driveEntries)
-        .set({ fileReferenceId: uploaded.reference.id, updatedAt: new Date().toISOString() })
+        .set({ fileReferenceId: uploaded.reference.id, currentContentBody: body, updatedAt: new Date().toISOString() })
         .where(eq(driveEntries.id, input.entry.id))
         .run();
     });
@@ -128,8 +132,13 @@ export async function switchEntryVersion(
   if (!version)
     throw new AppError("Version not found", 404, "NOT_FOUND");
 
+  // Clear the live content slot on switch: with `currentContentBody = null` the
+  // content-read path falls back to the (now-switched) versioned blob, so
+  // GET /content returns the chosen version. This also discards any unsaved
+  // autosave draft — switching versions is an explicit overwrite. Avoids
+  // re-reading the blob bytes here (no file-module text helper is exported).
   await db.update(driveEntries)
-    .set({ fileReferenceId: version.fileReferenceId, updatedAt: new Date().toISOString() })
+    .set({ fileReferenceId: version.fileReferenceId, currentContentBody: null, updatedAt: new Date().toISOString() })
     .where(eq(driveEntries.id, entry.id))
     .run();
 
