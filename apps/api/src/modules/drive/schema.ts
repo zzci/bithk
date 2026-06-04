@@ -33,6 +33,15 @@ export const driveEntries = sqliteTable("drive_entries", {
   createdBy: text("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: text("created_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text("updated_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  // Google-Sheets-style autosave: a live, mutable content body written outside
+  // the immutable version/blob pipeline. Null until the first autosave.
+  currentContentBody: text("current_content_body"),
+  // Exclusive edit lock. `editLockId` is the holder's per-session edit token,
+  // `editLockBy` the holder's userId, `editLockAt` the epoch-ms of the last
+  // heartbeat. All null when the entry is unlocked. See drive.edit-lock.service.
+  editLockId: text("edit_lock_id"),
+  editLockBy: text("edit_lock_by"),
+  editLockAt: integer("edit_lock_at"),
 }, table => [
   index("drive_entries_owner_parent_status_idx").on(table.ownerType, table.ownerId, table.parentEntryId, table.status),
   index("drive_entries_owner_status_favorite_idx").on(table.ownerType, table.ownerId, table.status, table.favorite),
