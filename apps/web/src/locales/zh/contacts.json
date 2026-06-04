@@ -23,6 +23,7 @@
     "organization": "所属单位",
     "phone": "电话",
     "email": "邮箱",
+    "website": "网址",
     "address": "地址",
     "taxId": "税号",
     "attributes": "自定义属性",
@@ -32,6 +33,9 @@
     "confidential": "保密",
     "tags": "标签",
     "category": "分类"
+  },
+  "company": {
+    "title": "公司信息"
   },
   "kind": {
     "individual": "个人",

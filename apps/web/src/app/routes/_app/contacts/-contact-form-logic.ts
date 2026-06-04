@@ -10,7 +10,7 @@ export const CONTACT_VISIBILITIES: readonly ContactVisibility[] = ["private", "p
 
 // Fields the backend nulls out for confidential public contacts the caller may
 // not manage. When every one is null on such a read the row is "masked".
-const SENSITIVE_FIELDS = ["phone", "email", "position", "taxId", "address", "note", "status"] as const;
+const SENSITIVE_FIELDS = ["phone", "email", "website", "position", "taxId", "address", "note", "status"] as const;
 
 export function isMasked(contact: ContactView): boolean {
   return contact.visibility === "public"
@@ -32,19 +32,40 @@ export function createAttributeRow(key = "", value = ""): AttributeRow {
   return { id: crypto.randomUUID(), key, value };
 }
 
+// Company fields seeded onto an organization created inline from a typed name
+// (individual form only). Kept as strings ("" default) and only emitted when the
+// form is creating a brand-new organization.
+export interface OrganizationAttributesState {
+  readonly website: string;
+  readonly email: string;
+  readonly phone: string;
+  readonly address: string;
+  readonly taxId: string;
+}
+
+const EMPTY_ORGANIZATION_ATTRIBUTES: OrganizationAttributesState = {
+  website: "",
+  email: "",
+  phone: "",
+  address: "",
+  taxId: "",
+};
+
 export interface ContactFormState {
   readonly kind: ContactKind;
   readonly name: string;
   // Individual-only.
   readonly position: string;
-  readonly email: string;
   readonly organizationId: string | null;
   readonly organizationName: string;
-  // Organization-only.
-  readonly taxId: string;
-  readonly address: string;
+  // Company fields for a new inline-created organization (individual-only).
+  readonly organizationAttributes: OrganizationAttributesState;
   // Shared by both kinds.
   readonly phone: string;
+  readonly email: string;
+  readonly website: string;
+  readonly taxId: string;
+  readonly address: string;
   readonly note: string;
   readonly attributes: readonly AttributeRow[];
   readonly status: ContactStatus;
@@ -58,12 +79,14 @@ export const EMPTY_CONTACT_FORM: ContactFormState = {
   kind: "individual",
   name: "",
   position: "",
-  email: "",
   organizationId: null,
   organizationName: "",
+  organizationAttributes: EMPTY_ORGANIZATION_ATTRIBUTES,
+  phone: "",
+  email: "",
+  website: "",
   taxId: "",
   address: "",
-  phone: "",
   note: "",
   attributes: [],
   status: "active",
@@ -97,12 +120,16 @@ export function contactFormFromView(contact: ContactView): ContactFormState {
     kind: contact.kind,
     name: contact.name,
     position: contact.position ?? "",
-    email: contact.email ?? "",
     organizationId: contact.organizationId,
     organizationName: contact.organizationName ?? "",
+    // Company attributes only seed a freshly created organization, so editing an
+    // existing contact always starts them empty.
+    organizationAttributes: EMPTY_ORGANIZATION_ATTRIBUTES,
+    phone: contact.phone ?? "",
+    email: contact.email ?? "",
+    website: contact.website ?? "",
     taxId: contact.taxId ?? "",
     address: contact.address ?? "",
-    phone: contact.phone ?? "",
     note: contact.note ?? "",
     attributes: attributesToRows(contact.attributes),
     status: contact.status ?? "active",
@@ -118,13 +145,32 @@ function textOrNull(value: string): string | null {
   return trimmed || null;
 }
 
-// Build the kind-appropriate API payload. `kind` is included (the create route's
-// discriminated union requires it; the update route omits/ignores it). Only the
-// fields valid for the kind are emitted, mirroring the backend's two body shapes.
+// Collapse the org-attribute strings into the API shape, keeping only non-empty
+// fields. Returns undefined when nothing was filled so the key is omitted.
+function organizationAttributesToInput(
+  attrs: OrganizationAttributesState,
+): ContactInput["organizationAttributes"] {
+  const out: Record<string, string> = {};
+  for (const key of ["website", "email", "phone", "address", "taxId"] as const) {
+    const value = textOrNull(attrs[key]);
+    if (value)
+      out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+// Build the API payload. The shared set (phone/email/website/taxId/address/note
+// plus classification) is emitted for both kinds; only individuals carry the
+// person fields (position + organization link). `kind` is included for the
+// create route's discriminated union; the update route omits/ignores it.
 export function contactFormToInput(state: ContactFormState): ContactInput {
   const common = {
     name: state.name.trim(),
     phone: textOrNull(state.phone),
+    email: textOrNull(state.email),
+    website: textOrNull(state.website),
+    address: textOrNull(state.address),
+    taxId: textOrNull(state.taxId),
     note: textOrNull(state.note),
     attributes: rowsToAttributes(state.attributes),
     status: state.status,
@@ -134,21 +180,24 @@ export function contactFormToInput(state: ContactFormState): ContactInput {
     tags: state.tags,
   };
   if (state.kind === "individual") {
+    // Link to the picked organization, or create one on the fly from the typed
+    // name. The two are mutually exclusive: an id always wins.
+    const organizationName = state.organizationId ? null : textOrNull(state.organizationName);
+    // Company seed fields only apply to a brand-new (unlinked) organization.
+    const organizationAttributes = organizationName
+      ? organizationAttributesToInput(state.organizationAttributes)
+      : undefined;
     return {
       kind: "individual",
       ...common,
       position: textOrNull(state.position),
-      email: textOrNull(state.email),
-      // Link to the picked organization, or create one on the fly from the typed
-      // name. The two are mutually exclusive: an id always wins.
       organizationId: state.organizationId,
-      organizationName: state.organizationId ? null : textOrNull(state.organizationName),
+      organizationName,
+      ...(organizationAttributes ? { organizationAttributes } : {}),
     };
   }
   return {
     kind: "organization",
     ...common,
-    taxId: textOrNull(state.taxId),
-    address: textOrNull(state.address),
   };
 }

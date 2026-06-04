@@ -81,6 +81,13 @@ describe("contactFormFromView", () => {
     expect(form.phone).toBe("");
     expect(form.attributes.map(r => [r.key, r.value])).toEqual([["role", "lead"]]);
     expect(form.tags).toEqual(["supplier"]);
+    // Company seed fields always reset; they only apply to a new inline org.
+    expect(form.organizationAttributes).toEqual({ website: "", email: "", phone: "", address: "", taxId: "" });
+  });
+
+  it("round-trips the website through the form state", () => {
+    expect(contactFormFromView(contact({ website: "https://acme.test" })).website).toBe("https://acme.test");
+    expect(contactFormFromView(contact({ website: null })).website).toBe("");
   });
 
   it("seeds an organization with its tax id and address", () => {
@@ -99,13 +106,16 @@ describe("contactFormFromView", () => {
 });
 
 describe("contactFormToInput", () => {
-  it("builds an individual payload, creating the org from a typed name", () => {
+  it("builds an individual payload with the shared field set, creating the org from a typed name", () => {
     const out = contactFormToInput({
       ...EMPTY_CONTACT_FORM,
       kind: "individual",
       name: "  Jane Doe  ",
       position: " Manager ",
       email: " jane@example.com ",
+      website: " https://jane.test ",
+      taxId: " TAX-2 ",
+      address: " Dock 3 ",
       phone: "",
       organizationId: null,
       organizationName: " Acme Co ",
@@ -119,6 +129,10 @@ describe("contactFormToInput", () => {
       kind: "individual",
       name: "Jane Doe",
       phone: null,
+      email: "jane@example.com",
+      website: "https://jane.test",
+      address: "Dock 3",
+      taxId: "TAX-2",
       note: null,
       attributes: { role: "lead" },
       status: "active",
@@ -127,10 +141,43 @@ describe("contactFormToInput", () => {
       categoryId: null,
       tags: ["supplier"],
       position: "Manager",
-      email: "jane@example.com",
       organizationId: null,
       organizationName: "Acme Co",
     });
+  });
+
+  it("emits organizationAttributes only when creating a new org, dropping all-empty seeds", () => {
+    // New org + filled seeds -> organizationAttributes object with non-empty keys.
+    const withSeeds = contactFormToInput({
+      ...EMPTY_CONTACT_FORM,
+      kind: "individual",
+      name: "Jane",
+      organizationId: null,
+      organizationName: "Beta Yard",
+      organizationAttributes: { website: " https://beta.test ", email: "", phone: " 555 ", address: "", taxId: "" },
+    });
+    expect(withSeeds.organizationAttributes).toEqual({ website: "https://beta.test", phone: "555" });
+
+    // New org but no seeds -> key omitted entirely.
+    const noSeeds = contactFormToInput({
+      ...EMPTY_CONTACT_FORM,
+      kind: "individual",
+      name: "Jane",
+      organizationId: null,
+      organizationName: "Beta Yard",
+    });
+    expect(noSeeds).not.toHaveProperty("organizationAttributes");
+
+    // Existing org pick -> seeds never apply even if present.
+    const picked = contactFormToInput({
+      ...EMPTY_CONTACT_FORM,
+      kind: "individual",
+      name: "Jane",
+      organizationId: "org-1",
+      organizationName: "Acme",
+      organizationAttributes: { website: "https://acme.test", email: "", phone: "", address: "", taxId: "" },
+    });
+    expect(picked).not.toHaveProperty("organizationAttributes");
   });
 
   it("prefers a picked organization id over the name", () => {
@@ -145,13 +192,15 @@ describe("contactFormToInput", () => {
     expect(out.organizationName).toBeNull();
   });
 
-  it("builds an organization payload without person-only fields", () => {
+  it("builds an organization payload carrying the shared field set without person-only fields", () => {
     const out = contactFormToInput({
       ...EMPTY_CONTACT_FORM,
       kind: "organization",
       name: "Acme Yard",
       taxId: "TAX-9",
       address: "Dock 7",
+      email: " ops@acme.test ",
+      website: " https://acme.test ",
       phone: "555",
       note: " hi ",
     });
@@ -160,6 +209,10 @@ describe("contactFormToInput", () => {
       kind: "organization",
       name: "Acme Yard",
       phone: "555",
+      email: "ops@acme.test",
+      website: "https://acme.test",
+      address: "Dock 7",
+      taxId: "TAX-9",
       note: "hi",
       attributes: null,
       status: "active",
@@ -167,10 +220,8 @@ describe("contactFormToInput", () => {
       confidential: false,
       categoryId: null,
       tags: [],
-      taxId: "TAX-9",
-      address: "Dock 7",
     });
-    expect(out).not.toHaveProperty("email");
+    expect(out).not.toHaveProperty("position");
     expect(out).not.toHaveProperty("organizationId");
   });
 });
