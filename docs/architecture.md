@@ -164,6 +164,9 @@ module. Because `resource_id` has no FK cascade, each domain removes its
   case so new buttons inherit the right size by default. The size tokens in
   `apps/web/src/shared/components/ui/button.tsx` are the source of truth. See
   [decision 007](decisions/007-button-sizing-standard.md).
+- **Mobile / responsive.** Breakpoints, touch targets, toolbar/table/drawer/
+  dialog patterns are documented in
+  [develop/mobile-responsive.md](develop/mobile-responsive.md).
 
 ## Request Flow
 
