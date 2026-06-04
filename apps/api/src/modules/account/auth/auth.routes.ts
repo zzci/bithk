@@ -128,8 +128,21 @@ function rateLimitKey(c: Context<AppEnv>): string {
   return getClientIp(c, c.get("config"));
 }
 
+/**
+ * True for loopback peers (`127.0.0.0/8`, `::1`, IPv4-mapped loopback).
+ * Genuine loopback callers — the e2e suite, local integration runs — share one
+ * IP and would trip the per-IP bucket; production traffic never reaches the
+ * process from loopback (a reverse proxy forwards a real client IP, which
+ * `rateLimitKey` resolves), so exempting it does not weaken the limiter.
+ */
+function isLoopback(ip: string): boolean {
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip.startsWith("127.");
+}
+
 /** Returns 0 when allowed, else seconds remaining until the bucket resets. */
 function checkAuthRateLimit(ip: string): number {
+  if (isLoopback(ip))
+    return 0;
   const now = Date.now();
   const bucket = authRateBuckets.get(ip);
   if (bucket && now < bucket.resetAt) {

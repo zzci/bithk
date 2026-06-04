@@ -44,7 +44,13 @@ export function sharePublicRoutes() {
   // network speed. Apply an IP-keyed limiter across every public share path,
   // mirroring the 120/min window the public auth routes use (comfortably above
   // human browsing throughput, far below brute-force throughput).
-  router.use("*", rateLimit({ windowMs: 60_000, max: 120, bucket: "share-public" }));
+  //
+  // Scope to `/shared/*` — NOT `*`. Hono flattens a sub-app's middleware onto
+  // the parent at mount time, and a bare `*` here would attach to every route
+  // registered after this router (all of `protectedRoutes`, including
+  // `/account/auth/login`), making them share the "share-public" bucket. The
+  // path scope keys the limiter to share endpoints only.
+  router.use("/shared/*", rateLimit({ windowMs: 60_000, max: 120, bucket: "share-public" }));
 
   router.get("/shared/:token", async (c) => {
     const data = await getPublicShareMeta(c.get("db"), c.req.param("token"));
