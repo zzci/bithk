@@ -125,7 +125,7 @@ describe("shipFormFromView", () => {
 describe("shipFormToCreate", () => {
   it("trims the name and omits a blank code (API auto-generates it)", () => {
     const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "  Aurora  " });
-    expect(out).toEqual({ name: "Aurora", status: "active" });
+    expect(out).toEqual({ name: "Aurora", status: "laid_up" });
     expect("code" in out).toBe(false);
   });
 

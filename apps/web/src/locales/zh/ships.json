@@ -20,8 +20,12 @@
     }
   },
   "status": {
-    "active": "在用",
-    "archived": "已归档"
+    "under_construction": "制造中",
+    "active": "正常",
+    "underway": "航行中",
+    "in_maintenance": "维修",
+    "laid_up": "停航",
+    "retired": "退役"
   },
   "tags": {
     "searchPlaceholder": "搜索或创建标签",

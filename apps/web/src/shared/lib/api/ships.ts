@@ -12,13 +12,13 @@
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ProjectView } from "./projects";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
 
-export type ShipStatus = "active" | "archived";
-export const SHIP_STATUSES: readonly ShipStatus[] = ["active", "archived"];
+export type ShipStatus = "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
+export const SHIP_STATUSES: readonly ShipStatus[] = ["under_construction", "active", "underway", "in_maintenance", "laid_up", "retired"];
 
 export type EquipmentStatus = "active" | "retired";
 export const EQUIPMENT_STATUSES: readonly EquipmentStatus[] = ["active", "retired"];
@@ -199,6 +199,26 @@ export function useShipCount(status?: ShipStatus) {
     },
     staleTime: 5_000,
   });
+}
+
+/**
+ * Per-status fleet counts, stable across the main list's pagination + search.
+ * A single `useQueries` call keeps the hook count constant (one hook, not one
+ * per status) so the rules-of-hooks order never shifts as statuses change.
+ */
+export function useShipStatusCounts(): Record<ShipStatus, number | undefined> {
+  const results = useQueries({
+    queries: SHIP_STATUSES.map(status => ({
+      queryKey: shipKeys.count(status),
+      queryFn: async () => {
+        const params = new URLSearchParams({ status, page: "1", limit: "1" });
+        const res = await http<ApiListEnvelope<ShipView>>(`/ships?${params.toString()}`);
+        return res.meta.total;
+      },
+      staleTime: 5_000,
+    })),
+  });
+  return Object.fromEntries(SHIP_STATUSES.map((s, i) => [s, results[i]?.data])) as Record<ShipStatus, number | undefined>;
 }
 
 export function useShip(id: string | undefined) {

@@ -14,7 +14,7 @@ import { TagChips, tagFilterDimension } from "@/shared/components/tags";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDebounce } from "@/shared/hooks/use-debounce";
-import { SHIP_STATUSES, useCreateShip, useShipCount, useShips, useShipTags } from "@/shared/lib/api/ships";
+import { SHIP_STATUSES, useCreateShip, useShips, useShipStatusCounts, useShipTags } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { ShipFormDialog } from "./-ship-form-dialog";
@@ -30,7 +30,8 @@ export function ShipsListPage() {
   const navigate = useNavigate();
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
 
-  const [status, setStatus] = useState<ShipStatus>("active");
+  // null = no status filter → backend default view (every status except retired).
+  const [status, setStatus] = useState<ShipStatus | null>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -46,7 +47,7 @@ export function ShipsListPage() {
   }, [debouncedSearch]);
 
   const shipsQuery = useShips({
-    status,
+    status: status ?? undefined,
     tagIds: tagIds.length > 0 ? tagIds : undefined,
     page,
     q: debouncedSearch,
@@ -54,10 +55,9 @@ export function ShipsListPage() {
   const createShip = useCreateShip();
   const shipTags = useShipTags().data ?? [];
 
-  // Fleet KPIs from a dedicated status-keyed count query, stable across the
-  // main list's pagination and search.
-  const activeCount = useShipCount("active").data;
-  const archivedCount = useShipCount("archived").data;
+  // Per-status fleet KPIs from a dedicated status-keyed count query, stable
+  // across the main list's pagination and search.
+  const statusCounts = useShipStatusCounts();
   const ships = useMemo(() => shipsQuery.data?.data ?? [], [shipsQuery.data]);
   const meta = shipsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
@@ -71,11 +71,6 @@ export function ShipsListPage() {
         void navigate({ to: "/ships/$shipId", params: { shipId: ship.id } });
       },
     });
-  };
-
-  const statusCounts: Record<string, number | undefined> = {
-    active: activeCount,
-    archived: archivedCount,
   };
 
   const tagDim = tagFilterDimension({
@@ -111,10 +106,9 @@ export function ShipsListPage() {
               key: "status",
               label: t("field.status"),
               mode: "single",
-              defaultValue: "active",
               value: status,
               onChange: (value) => {
-                setStatus((value ?? "active") as ShipStatus);
+                setStatus(value as ShipStatus | null);
                 setPage(1);
               },
               options: SHIP_STATUSES.map(s => ({

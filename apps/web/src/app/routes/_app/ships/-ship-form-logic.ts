@@ -28,7 +28,7 @@ export interface ShipFormState {
 export const EMPTY_SHIP_FORM: ShipFormState = {
   name: "",
   code: "",
-  status: "active",
+  status: "laid_up",
   tags: [],
   model: "",
   builder: "",
