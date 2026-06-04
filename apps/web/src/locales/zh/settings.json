@@ -179,6 +179,37 @@
       "deleted": "分类「{{name}}」已删除。"
     }
   },
+  "globalEquipmentManufacturers": {
+    "title": "设备制造商",
+    "description": "船舶设备按制造商引用的全局品牌词汇表。",
+    "add": "新增制造商",
+    "colName": "名称",
+    "colCode": "编码",
+    "actions": "操作",
+    "edit": "编辑",
+    "delete": "删除",
+    "empty": "暂无制造商。",
+    "dialog": {
+      "createTitle": "新增制造商",
+      "editTitle": "编辑制造商",
+      "deleteTitle": "删除制造商",
+      "deleteConfirm": "删除制造商「{{name}}」？引用它的设备将失去关联。",
+      "description": "制造商是船舶设备引用的全局品牌词汇表。"
+    },
+    "placeholders": {
+      "name": "制造商名称",
+      "code": "编码",
+      "description": "描述"
+    },
+    "validation": {
+      "nameRequired": "请输入名称。"
+    },
+    "toast": {
+      "created": "制造商已创建。",
+      "updated": "制造商已更新。",
+      "deleted": "制造商「{{name}}」已删除。"
+    }
+  },
   "contactCategories": {
     "title": "联系人分类",
     "description": "用于对联系人进行分类的全局分类词汇表。",

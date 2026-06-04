@@ -179,6 +179,37 @@
       "deleted": "Category \"{{name}}\" deleted."
     }
   },
+  "globalEquipmentManufacturers": {
+    "title": "Equipment Manufacturers",
+    "description": "The global brand vocabulary ship equipment references by manufacturer.",
+    "add": "New Manufacturer",
+    "colName": "Name",
+    "colCode": "Code",
+    "actions": "Actions",
+    "edit": "Edit",
+    "delete": "Delete",
+    "empty": "No manufacturers yet.",
+    "dialog": {
+      "createTitle": "New Manufacturer",
+      "editTitle": "Edit Manufacturer",
+      "deleteTitle": "Delete manufacturer",
+      "deleteConfirm": "Delete the manufacturer \"{{name}}\"? Equipment that references it will lose the link.",
+      "description": "Manufacturers are the global brand vocabulary that ship equipment references."
+    },
+    "placeholders": {
+      "name": "Manufacturer name",
+      "code": "Code",
+      "description": "Description"
+    },
+    "validation": {
+      "nameRequired": "Name is required."
+    },
+    "toast": {
+      "created": "Manufacturer created.",
+      "updated": "Manufacturer updated.",
+      "deleted": "Manufacturer \"{{name}}\" deleted."
+    }
+  },
   "contactCategories": {
     "title": "Contact Categories",
     "description": "The global category vocabulary used to classify contacts.",

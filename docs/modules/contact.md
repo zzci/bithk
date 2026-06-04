@@ -57,6 +57,16 @@ One table holds every party. `kind` selects which optional columns apply.
 | `organization_id` | nullable **self-FK** → `contacts.id` (a `kind = organization` row), `ON DELETE SET NULL`. The individual's employer. Individual-only. |
 | `created_at`, `updated_at` | timestamps. |
 
+**Sensitivity invariant.** `confidential = true` always implies
+`visibility = 'private'` — a contact is never both public and confidential at
+rest. The service enforces this on **every create and update**: whenever the
+effective `confidential` resolves to true it coerces `visibility` to `private`,
+overriding any supplied `public` (and re-coercing an already-confidential row
+that receives `visibility = 'public'`). The two columns are kept distinct (no
+migration); together they encode a derived three-state **sensitivity** concept —
+`public` / `private` / `confidential` — surfaced as a list filter (see the
+`GET /api/contacts` query params).
+
 The editable field set is unified across kinds: `phone`, `email`, `website`,
 `address`, `taxId`, and `note` are accepted on **both** individuals and
 organizations (plus `name`/`attributes`/`categoryId`/`status`/`visibility`/
@@ -163,13 +173,18 @@ actor may not see the org's confidential fields, `website`/`email`/`phone`/
 | `q` | Search across name and note (matches raw stored values, not masked response fields). |
 | `kind` | Filter by `individual` or `organization`. Omitted = all parties (all / individuals / organizations). |
 | `status` | Filter by `active` or `inactive`. |
+| `sensitivity` | Derived 3-state filter over `visibility`/`confidential`: `public` (visibility = public), `private` (visibility = private AND NOT confidential), `confidential` (confidential = true). Values outside this set are ignored. |
 | `tagIds` | Repeatable (`?tagIds=a&tagIds=b`) or comma-separated (`?tagIds=a,b`) tag ids or names. Any-of match (union/OR). Capped at 50 values. |
 | `categoryId` | Filter by contact category id. |
 | `page` | 1-based page number. Omitted = full visible set (no pagination). |
 | `limit` | Page size, default `20`, max `100`. |
 
-`visibility` and `confidential` are **not** user-facing list filters; they
-remain access-control attributes (see Permissions).
+Raw `visibility` and `confidential` are **not** directly user-facing list
+filters; the user-facing `sensitivity` param (above) maps the three valid states
+onto these two columns. The columns themselves remain access-control attributes
+(see Permissions); the derived `sensitivity` filter is AND-composed *after* the
+access-control clause, so it only ever narrows the caller's visible set, never
+widens it.
 
 Response envelope: `{ success, data, meta: { total, page, limit } }`. `data` is
 the array of visible contacts; `meta.total` is the total matching the filters.
