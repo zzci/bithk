@@ -122,7 +122,7 @@ describe("projectSettingsMembers", () => {
       <ProjectSettingsMembers projectId="p1" members={[member()]} userNames={userNames} canManage={false} />,
     );
     await screen.findByText("Alice");
-    expect(screen.queryByRole("button", { name: "Add member" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
 
@@ -133,10 +133,10 @@ describe("projectSettingsMembers", () => {
       <ProjectSettingsMembers projectId="p1" members={[]} userNames={userNames} canManage />,
     );
     await screen.findByText("No members yet.");
-    await user.click(screen.getByRole("button", { name: "Add member" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
     // Neither role nor user selected yet → submit must stay disabled.
-    expect(within(dialog).getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   it("excludes the Guest system role from the assignable role options", async () => {
@@ -146,7 +146,7 @@ describe("projectSettingsMembers", () => {
       <ProjectSettingsMembers projectId="p1" members={[]} userNames={userNames} canManage />,
     );
     await screen.findByText("No members yet.");
-    await user.click(screen.getByRole("button", { name: "Add member" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
     // The role select is the last combobox in the dialog (after the user picker).
     const comboboxes = within(dialog).getAllByRole("combobox");

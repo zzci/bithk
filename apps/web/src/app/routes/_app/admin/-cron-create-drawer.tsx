@@ -94,7 +94,7 @@ export function CreateJobDrawer({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t("createJob")}
+        aria-label={t("create")}
         className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l bg-background shadow-xl sm:w-[640px] md:w-[720px]"
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -108,7 +108,7 @@ export function CreateJobDrawer({
         {/* Header */}
         <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3 shrink-0">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold tracking-tight">{t("createJob")}</h2>
+            <h2 className="text-base font-semibold tracking-tight">{t("create")}</h2>
             <p className="text-xs text-muted-foreground">{t("drawer.subtitle")}</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label={t("common.close", { ns: "common" })}>

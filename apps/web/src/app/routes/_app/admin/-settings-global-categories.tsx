@@ -58,7 +58,7 @@ export function GlobalCategoriesSection() {
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
-          {t("settings:projectDefaults.categories.add")}
+          {t("settings:projectDefaults.categories.create")}
         </Button>
       </div>
 
@@ -188,7 +188,7 @@ function CategoryDialog({ mode, category, open, onOpenChange }: CategoryDialogPr
       <DialogContent>
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:projectDefaults.categories.addTitle") : t("settings:projectDefaults.categories.editTitle")}</DialogTitle>
+            <DialogTitle>{mode === "create" ? t("settings:projectDefaults.categories.createTitle") : t("settings:projectDefaults.categories.editTitle")}</DialogTitle>
             <DialogDescription>{t("settings:projectDefaults.categories.dialogDescription")}</DialogDescription>
           </DialogHeader>
 
@@ -214,7 +214,7 @@ function CategoryDialog({ mode, category, open, onOpenChange }: CategoryDialogPr
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {mode === "create" ? t("common:common.add") : t("common:common.save")}
+              {t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>

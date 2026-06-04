@@ -512,7 +512,7 @@ function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualU
               {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !username.trim() || !name.trim()}>
-              {mode === "create" ? t("common.add") : t("common.save")}
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </form>

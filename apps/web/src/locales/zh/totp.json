@@ -1,7 +1,7 @@
 {
   "title": "两步验证",
   "noDevices": "暂无 TOTP 设备。",
-  "addDevice": "添加设备",
+  "create": "新增",
   "deviceName": "设备名称",
   "deviceNamePlaceholder": "如：手机、Yubikey",
   "scanQr": "使用验证器应用扫描二维码，然后输入 6 位验证码进行确认。",

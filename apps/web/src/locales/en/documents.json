@@ -3,8 +3,8 @@
     "title": "My Documents",
     "description": "Create and manage your documents."
   },
-  "create": "Create Document",
-  "createTitle": "Create Document",
+  "create": "New",
+  "createTitle": "New Document",
   "createDescription": "Create a new document.",
   "editTitle": "Edit Document",
   "editDescription": "Update document details.",
@@ -62,7 +62,7 @@
   "share": "Share",
   "shareTitle": "Share Document",
   "shareDescription": "Manage sharing permissions for this document.",
-  "addShare": "Add",
+  "createShare": "New",
   "viewer": "Viewer",
   "editor": "Editor",
   "targetUser": "User",
@@ -71,7 +71,7 @@
   "inheritedFrom": "Inherited from \"{{title}}\"",
   "inheritedNotRemovable": "Inherited shares can only be removed from the source document",
   "tree": {
-    "newChild": "New child",
+    "create": "New",
     "expand": "Expand",
     "collapse": "Collapse",
     "menu": "More actions",

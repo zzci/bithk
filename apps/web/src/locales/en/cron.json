@@ -3,7 +3,7 @@
     "title": "Cron Jobs",
     "description": "Schedule background tasks: HTTP pings, shell commands, custom actions."
   },
-  "createJob": "New job",
+  "create": "New",
   "noJobs": "No cron jobs yet — click \"New job\" to add the first one.",
   "totalCount": "{{count}} jobs",
   "refresh": "Refresh",

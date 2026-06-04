@@ -299,7 +299,7 @@ function TotpTab() {
         </div>
         <Button variant="outline" onClick={() => setAddStep("name")}>
           <Plus className="mr-1 size-3.5" />
-          {t("totp:addDevice")}
+          {t("totp:create")}
         </Button>
       </div>
 

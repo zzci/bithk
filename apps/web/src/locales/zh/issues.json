@@ -3,8 +3,8 @@
     "title": "我的事项",
     "description": "查看和管理分配给您的事项。"
   },
-  "create": "创建事项",
-  "createTitle": "创建事项",
+  "create": "新增",
+  "createTitle": "新增事项",
   "createDescription": "添加一个新事项，可指定负责人。",
   "editTitle": "编辑事项",
   "editDescription": "更新事项详情。",

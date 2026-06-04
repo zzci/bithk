@@ -232,7 +232,7 @@ function CronPage() {
             }}
           >
             <Plus className="mr-1 size-3" />
-            {t("createJob")}
+            {t("create")}
           </Button>
         </div>
       </div>

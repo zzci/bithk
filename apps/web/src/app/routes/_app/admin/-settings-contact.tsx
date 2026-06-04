@@ -65,7 +65,7 @@ function ContactCategoriesSection() {
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
-          {t("settings:contactCategories.add")}
+          {t("settings:contactCategories.create")}
         </Button>
       </div>
 
@@ -195,7 +195,7 @@ function CategoryDialog({ mode, category, open, onOpenChange }: CategoryDialogPr
       <DialogContent>
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:contactCategories.addTitle") : t("settings:contactCategories.editTitle")}</DialogTitle>
+            <DialogTitle>{mode === "create" ? t("settings:contactCategories.createTitle") : t("settings:contactCategories.editTitle")}</DialogTitle>
             <DialogDescription>{t("settings:contactCategories.dialogDescription")}</DialogDescription>
           </DialogHeader>
 
@@ -221,7 +221,7 @@ function CategoryDialog({ mode, category, open, onOpenChange }: CategoryDialogPr
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {mode === "create" ? t("common:common.add") : t("common:common.save")}
+              {t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>

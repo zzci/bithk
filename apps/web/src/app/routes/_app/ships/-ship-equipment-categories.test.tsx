@@ -66,10 +66,10 @@ describe("shipEquipmentCategoriesManager", () => {
     await userEvent.click(screen.getByRole("button", { name: "Manage categories" }));
     await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: "Add category" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.type(screen.getByLabelText("Chinese name"), "导航");
     await userEvent.type(screen.getByLabelText("English name"), "Navigation");
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST" && String(call[0]) === "/api/ships/s1/equipment-categories");
@@ -85,8 +85,8 @@ describe("shipEquipmentCategoriesManager", () => {
     await userEvent.click(screen.getByRole("button", { name: "Manage categories" }));
     await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: "Add category" }));
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(screen.getByText("Chinese name is required.")).toBeInTheDocument();
     expect(screen.getByText("English name is required.")).toBeInTheDocument();

@@ -12,8 +12,8 @@
   },
   "virtual": {
     "badge": "虚拟",
-    "create": "创建虚拟用户",
-    "createTitle": "创建虚拟用户",
+    "create": "新增",
+    "createTitle": "新增虚拟用户",
     "editTitle": "编辑虚拟用户",
     "dialogDescription": "虚拟用户是无法登录的受管账号。",
     "edit": "编辑",

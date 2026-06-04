@@ -11,7 +11,7 @@ describe("projectFormDialog", () => {
       <ProjectFormDialog open onOpenChange={vi.fn()} pending={false} onSubmit={vi.fn()} />,
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Create project")).toBeInTheDocument();
+    expect(screen.getByText("New project")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeRequired();
   });
 

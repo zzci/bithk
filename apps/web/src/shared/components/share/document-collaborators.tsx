@@ -146,7 +146,7 @@ export function DocumentCollaboratorSection({ docId }: { readonly docId: string 
             </SelectContent>
           </Select>
           <Button disabled={!targetId || addShare.isPending} onClick={() => addShare.mutate()}>
-            {t("addShare")}
+            {t("createShare")}
           </Button>
         </div>
       </div>

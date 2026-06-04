@@ -1,7 +1,7 @@
 {
   "title": "Two-Factor Authentication",
   "noDevices": "No TOTP devices configured.",
-  "addDevice": "Add Device",
+  "create": "New",
   "deviceName": "Device Name",
   "deviceNamePlaceholder": "e.g. Phone, Yubikey",
   "scanQr": "Scan the QR code with your authenticator app, then enter the 6-digit code to verify.",

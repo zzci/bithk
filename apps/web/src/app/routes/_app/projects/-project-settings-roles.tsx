@@ -165,7 +165,7 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
     role.isSystem ? systemRoleLabel(role, t("roles.owner"), t("roles.guest")) : role.name;
   const labelForId = (id: string) => {
     if (id === NEW_ROLE)
-      return t("roles.newRole");
+      return t("roles.create");
     const role = roles.find(r => r.id === id);
     return role ? roleOptionLabel(role) : id;
   };
@@ -190,7 +190,7 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
                     {canManage && (
                       <SelectItem value={NEW_ROLE}>
                         <Plus className="size-4" />
-                        {t("roles.newRole")}
+                        {t("roles.create")}
                       </SelectItem>
                     )}
                     {roles.map(r => (
@@ -431,7 +431,7 @@ function RoleEditor({ projectId, role, canManage, onCreated, onRequestDelete }: 
               )
             : <span />}
           <Button type="submit" disabled={pending || !name.trim()}>
-            {isCreate ? t("common:common.add") : t("common:common.save")}
+            {t("common:common.save")}
           </Button>
         </div>
       )}
