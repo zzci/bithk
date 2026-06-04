@@ -152,16 +152,25 @@ function actorId(c: Context<ProtectedEnv>): string {
 }
 
 /**
- * Reject assigning a system role (the `kind='owner'` role or any `isSystem=1`
- * role) to a member (F1). `members.manage` is meant to delegate member
- * administration, not to hand out full ownership: letting it assign the Owner
- * role is a complete privilege escalation. Ownership is established only at
- * project creation; the Guest role is reached solely via the delete-fallback
- * path, never through the member endpoints.
+ * Gate which roles a member endpoint may assign, given the caller's own
+ * capabilities (F1). Two rules, both anti-escalation:
+ *   - The Guest role is never assignable through the member endpoints; it is
+ *     reached solely via the delete-fallback path.
+ *   - The Owner role (the `kind='owner'`, owner-defining role) is assignable
+ *     only by a caller who already holds `project.manage` — i.e. an existing
+ *     owner or an app admin. This supports multiple owners while ensuring a
+ *     `members.manage`-only delegate cannot promote anyone (themselves
+ *     included) to full ownership.
+ * Every other role (Reader / Commenter / Writer, `kind=null`) is assignable.
  */
-function assertAssignableRole(role: { isSystem: number; kind: "owner" | "guest" | null }): void {
-  if (role.isSystem === 1 || role.kind === "owner")
-    throw new ForbiddenError("System roles (Owner / Guest) cannot be assigned to members");
+function assertAssignableRole(
+  role: { isSystem: number; kind: "owner" | "guest" | null },
+  callerCaps: ReadonlySet<ProjectCapability>,
+): void {
+  if (role.kind === "guest")
+    throw new ForbiddenError("The Guest role cannot be assigned to members");
+  if (role.kind === "owner" && !callerCaps.has("project.manage"))
+    throw new ForbiddenError("Only an owner can assign the Owner role");
 }
 
 /**
@@ -393,26 +402,26 @@ export function projectRoutes() {
   });
 
   router.post("/projects/:id/members", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "members.manage");
+    const { projectId, capabilities } = await requireProject(c, c.req.param("id"), "members.manage");
     const db = c.get("db");
     const body = addMemberSchema.parse(await c.req.json());
     const role = await resolveRole(db, projectId, body.roleId);
     if (!role)
       throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
-    assertAssignableRole(role);
+    assertAssignableRole(role, capabilities);
     const member = await addMember(db, projectId, body);
     return c.json({ success: true, data: composeMember(member) }, 201);
   });
 
   router.patch("/projects/:id/members/:memberId", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "members.manage");
+    const { projectId, capabilities } = await requireProject(c, c.req.param("id"), "members.manage");
     const db = c.get("db");
     const body = updateMemberSchema.parse(await c.req.json());
     if (body.roleId !== undefined) {
       const role = await resolveRole(db, projectId, body.roleId);
       if (!role)
         throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
-      assertAssignableRole(role);
+      assertAssignableRole(role, capabilities);
     }
     const member = await updateMember(db, projectId, c.req.param("memberId"), body);
     if (!member)

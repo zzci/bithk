@@ -28,4 +28,22 @@ describe("public share routes — rate limiting", () => {
 
     expect(last.status).toBe(429);
   });
+
+  it("does not leak the per-IP limiter onto sibling routes mounted after it", async () => {
+    const app = new Hono<AppEnv>();
+    // Mirror the real mount order: the share router (carrying the limiter) is
+    // mounted before a sibling route, exactly as publicRoutes() lands before
+    // protectedRoutes() on the same app. A bare `use("*")` would attach to this
+    // later route too and rate-limit it via the shared "share-public" bucket.
+    app.route("/", sharePublicRoutes());
+    app.get("/account/auth/login", c => c.json({ success: true }));
+    app.onError((_err, c) => c.json({ success: false }, 500));
+
+    // Drive well past the 120/window cap; a leaked limiter would 429 here.
+    let last = await app.request("/account/auth/login");
+    for (let i = 0; i < 130; i++)
+      last = await app.request("/account/auth/login");
+
+    expect(last.status).toBe(200);
+  });
 });
