@@ -29,8 +29,6 @@
     "attributes": "Custom attributes",
     "note": "Note",
     "status": "Status",
-    "visibility": "Visibility",
-    "confidential": "Confidential",
     "tags": "Tags",
     "category": "Category"
   },
@@ -73,9 +71,11 @@
     "active": "Active",
     "inactive": "Inactive"
   },
-  "visibility": {
+  "sensitivity": {
+    "label": "Sensitivity",
+    "public": "Public",
     "private": "Private",
-    "public": "Public"
+    "confidential": "Confidential"
   },
   "form": {
     "createTitle": "New contact",
@@ -84,7 +84,6 @@
     "editDescription": "Update the contact details, tags and visibility.",
     "namePlaceholder": "e.g. Acme Marine",
     "kindLabel": "Type",
-    "confidentialHelp": "Public viewers see only the name and tags when this is enabled.",
     "submitCreate": "Create",
     "submitSave": "Save",
     "sections": {

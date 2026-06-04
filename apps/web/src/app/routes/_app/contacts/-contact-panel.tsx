@@ -11,7 +11,7 @@
 // Stays inside the locked stack — shadcn/ui + @base-ui/react + Tailwind only.
 
 import type { ContactFormState } from "./-contact-form-logic";
-import type { ContactKind, ContactOrganizationSummary, ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
+import type { ContactKind, ContactOrganizationSummary, ContactSensitivity, ContactStatus, ContactView } from "@/shared/lib/api/contacts";
 import { Building2, Edit3, Lock, Share2, Trash2, Upload, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -31,7 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
 import { useRemoveContactAvatar, useSetContactAvatar } from "@/shared/lib/api/contacts";
@@ -40,17 +39,26 @@ import { CONTACT_CONFIDENTIAL_BADGE, CONTACT_VISIBILITY_BADGE } from "@/shared/l
 import { ContactAttributesEditor } from "./-contact-attributes-editor";
 import {
   CONTACT_KINDS,
+  CONTACT_SENSITIVITIES,
   CONTACT_STATUSES,
-  CONTACT_VISIBILITIES,
   contactFormFromView,
   EMPTY_CONTACT_FORM,
   isMasked,
+  sensitivityOf,
 } from "./-contact-form-logic";
 import { ContactOrgCombobox } from "./-contact-org-combobox";
 
 type ContactPanelMode = "create" | "view" | "edit";
 
 const CATEGORY_NONE = "__none__";
+
+// Badge color per collapsed sensitivity state; confidential reuses the warning
+// marker, public/private reuse the visibility chip colors.
+const SENSITIVITY_BADGE_CLASS: Record<ContactSensitivity, string> = {
+  public: CONTACT_VISIBILITY_BADGE.public,
+  private: CONTACT_VISIBILITY_BADGE.private,
+  confidential: CONTACT_CONFIDENTIAL_BADGE,
+};
 
 /**
  * Renders a contact field value, the lock placeholder for masked reads, or an
@@ -127,6 +135,7 @@ function ContactPanelView({
     return null;
 
   const locked = isMasked(contact);
+  const sensitivity = sensitivityOf(contact.visibility, contact.confidential);
   const status = contact.status ? t(`status.${contact.status}` as const) : null;
   const categoryName = contact.categoryId
     ? (categoriesQuery.data ?? []).find(c => c.id === contact.categoryId)?.name ?? contact.categoryId
@@ -218,19 +227,11 @@ function ContactPanelView({
         <PanelSection title={t("drawer.classification")}>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-4 @sm:grid-cols-2">
             <div className="space-y-1.5">
-              <dt className="text-xs font-medium text-muted-foreground">{t("field.visibility")}</dt>
+              <dt className="text-xs font-medium text-muted-foreground">{t("sensitivity.label")}</dt>
               <dd>
-                <Badge variant="secondary" className={CONTACT_VISIBILITY_BADGE[contact.visibility]}>
-                  {t(`visibility.${contact.visibility}` as const)}
+                <Badge variant="secondary" className={SENSITIVITY_BADGE_CLASS[sensitivity]}>
+                  {t(`sensitivity.${sensitivity}` as const)}
                 </Badge>
-              </dd>
-            </div>
-            <div className="space-y-1.5">
-              <dt className="text-xs font-medium text-muted-foreground">{t("field.confidential")}</dt>
-              <dd>
-                {contact.confidential
-                  ? <Badge variant="secondary" className={CONTACT_CONFIDENTIAL_BADGE}>{t("field.confidential")}</Badge>
-                  : <span className="text-sm text-muted-foreground">—</span>}
               </dd>
             </div>
             <div className="space-y-1.5">
@@ -419,29 +420,18 @@ function ContactPanelForm({
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>{t("field.visibility")}</Label>
-                <Select value={form.visibility} onValueChange={v => v !== null && set("visibility", v as ContactVisibility)}>
+                <Label>{t("sensitivity.label")}</Label>
+                <Select value={form.sensitivity} onValueChange={v => v !== null && set("sensitivity", v as ContactSensitivity)}>
                   <SelectTrigger className="w-full">
-                    <SelectValue>{(v: string) => t(`visibility.${v}` as const)}</SelectValue>
+                    <SelectValue>{(v: string) => t(`sensitivity.${v}` as const)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {CONTACT_VISIBILITIES.map(v => (
-                      <SelectItem key={v} value={v}>{t(`visibility.${v}` as const)}</SelectItem>
+                    {CONTACT_SENSITIVITIES.map(s => (
+                      <SelectItem key={s} value={s}>{t(`sensitivity.${s}` as const)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
-              <div className="flex flex-col gap-0.5">
-                <Label htmlFor="contact-confidential">{t("field.confidential")}</Label>
-                <p className="text-xs text-muted-foreground">{t("form.confidentialHelp")}</p>
-              </div>
-              <Switch
-                id="contact-confidential"
-                checked={form.confidential}
-                onCheckedChange={value => set("confidential", value)}
-              />
             </div>
           </div>
         </PanelSection>
