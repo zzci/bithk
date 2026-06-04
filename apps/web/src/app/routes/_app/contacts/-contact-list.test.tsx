@@ -127,7 +127,6 @@ describe("contactsListPage", () => {
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Acme HQ")).toBeInTheDocument();
-    expect(screen.getByText("supplier")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Acme Marine" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete Acme Marine" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
@@ -227,7 +226,7 @@ describe("contactsListPage", () => {
     expect(screen.queryByRole("button", { name: "Share Acme Marine" })).not.toBeInTheDocument();
   });
 
-  it("renders locked placeholders for masked confidential public reads in the grid", async () => {
+  it("exposes no sensitive columns in the slimmed grid for masked confidential public reads", async () => {
     routeFetch([
       contact({
         phone: null,
@@ -245,8 +244,8 @@ describe("contactsListPage", () => {
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    // The dense row surfaces phone, email, and status as sensitive columns.
-    expect(screen.getAllByLabelText("Masked field")).toHaveLength(3);
+    // The slimmed grid drops every sensitive column, so no masked placeholders appear.
+    expect(screen.queryAllByLabelText("Masked field")).toHaveLength(0);
     expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
   });
 
