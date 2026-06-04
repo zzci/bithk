@@ -202,7 +202,16 @@
     "loadError": "无法加载该表格。",
     "saveError": "无法保存该表格。",
     "saved": "已保存",
-    "untitled": "未命名表格"
+    "untitled": "未命名表格",
+    "saving": "保存中…",
+    "savedAt": "已保存 {{time}}",
+    "readOnly": "只读",
+    "editingBy": "{{user}} 正在编辑",
+    "takenOver": "编辑权已被他人接管，你的更改无法保存。",
+    "takeOver": "接管编辑",
+    "retryEditing": "重试编辑",
+    "saveAsVersion": "另存为版本",
+    "lockError": "无法获取编辑锁"
   },
   "csv": {
     "importError": "无法导入该 CSV 文件。",
