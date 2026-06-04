@@ -10,6 +10,8 @@ import {
   isMasked,
   removeTag,
   rowsToAttributes,
+  sensitivityOf,
+  sensitivityToFields,
 } from "./-contact-form-logic";
 
 function contact(overrides: Partial<ContactView> = {}): ContactView {
@@ -81,6 +83,8 @@ describe("contactFormFromView", () => {
     expect(form.phone).toBe("");
     expect(form.attributes.map(r => [r.key, r.value])).toEqual([["role", "lead"]]);
     expect(form.tags).toEqual(["supplier"]);
+    // visibility:public + confidential:true collapses to the confidential state.
+    expect(form.sensitivity).toBe("confidential");
     // Company seed fields always reset; they only apply to a new inline org.
     expect(form.organizationAttributes).toEqual({ website: "", email: "", phone: "", address: "", taxId: "" });
   });
@@ -120,8 +124,7 @@ describe("contactFormToInput", () => {
       organizationId: null,
       organizationName: " Acme Co ",
       attributes: [createAttributeRow(" role ", "lead"), createAttributeRow("", "skip")],
-      visibility: "public",
-      confidential: true,
+      sensitivity: "confidential",
       tags: ["supplier"],
     });
 
@@ -136,7 +139,8 @@ describe("contactFormToInput", () => {
       note: null,
       attributes: { role: "lead" },
       status: "active",
-      visibility: "public",
+      // confidential collapses to private + confidential on the wire.
+      visibility: "private",
       confidential: true,
       categoryId: null,
       tags: ["supplier"],
@@ -223,6 +227,30 @@ describe("contactFormToInput", () => {
     });
     expect(out).not.toHaveProperty("position");
     expect(out).not.toHaveProperty("organizationId");
+  });
+});
+
+describe("sensitivity helpers", () => {
+  it("collapses (visibility, confidential) into a single state, confidential winning", () => {
+    expect(sensitivityOf("public", false)).toBe("public");
+    expect(sensitivityOf("private", false)).toBe("private");
+    expect(sensitivityOf("private", true)).toBe("confidential");
+    // confidential always wins, even on a public visibility.
+    expect(sensitivityOf("public", true)).toBe("confidential");
+  });
+
+  it("expands a collapsed state back to the two model fields", () => {
+    expect(sensitivityToFields("public")).toEqual({ visibility: "public", confidential: false });
+    expect(sensitivityToFields("private")).toEqual({ visibility: "private", confidential: false });
+    expect(sensitivityToFields("confidential")).toEqual({ visibility: "private", confidential: true });
+  });
+
+  it("emits the matching {visibility, confidential} for each sensitivity via contactFormToInput", () => {
+    const at = (sensitivity: "public" | "private" | "confidential") =>
+      contactFormToInput({ ...EMPTY_CONTACT_FORM, kind: "organization", name: "Acme", sensitivity });
+    expect(at("public")).toMatchObject({ visibility: "public", confidential: false });
+    expect(at("private")).toMatchObject({ visibility: "private", confidential: false });
+    expect(at("confidential")).toMatchObject({ visibility: "private", confidential: true });
   });
 });
 

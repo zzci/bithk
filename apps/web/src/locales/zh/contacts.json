@@ -29,8 +29,6 @@
     "attributes": "自定义属性",
     "note": "备注",
     "status": "状态",
-    "visibility": "可见范围",
-    "confidential": "保密",
     "tags": "标签",
     "category": "分类"
   },
@@ -73,9 +71,11 @@
     "active": "启用",
     "inactive": "停用"
   },
-  "visibility": {
+  "sensitivity": {
+    "label": "可见性",
+    "public": "公开",
     "private": "私有",
-    "public": "公开"
+    "confidential": "保密"
   },
   "form": {
     "createTitle": "新增联系人",
@@ -84,7 +84,6 @@
     "editDescription": "更新联系人详情、标签和可见范围。",
     "namePlaceholder": "例如：Acme Marine",
     "kindLabel": "类型",
-    "confidentialHelp": "启用后，公开查看者只能看到名称和标签。",
     "submitCreate": "创建",
     "submitSave": "保存",
     "sections": {
