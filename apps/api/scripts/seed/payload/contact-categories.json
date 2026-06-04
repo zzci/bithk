@@ -1,0 +1,7 @@
+[
+  { "key": "suppliers", "name": "Suppliers", "code": "SUP", "description": "Equipment, parts, paint, and consumables vendors." },
+  { "key": "shipyards", "name": "Shipyards", "code": "SHY", "description": "Refit, repair, and newbuild yards." },
+  { "key": "class-survey", "name": "Class & Survey", "code": "CLS", "description": "Classification societies and attending surveyors." },
+  { "key": "port-agents", "name": "Port Agents", "code": "PTA", "description": "Port agency, clearance, and logistics partners." },
+  { "key": "charter", "name": "Charter", "code": "CHT", "description": "Charter operators, brokers, and owner groups." }
+]

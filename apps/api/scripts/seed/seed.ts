@@ -27,7 +27,9 @@ import { loadConfigStrict } from "@/config";
 import { createDb } from "@/db";
 import { addGroupMember, createGroup } from "@/modules/account/groups/groups.service";
 import { users } from "@/modules/account/users/schema";
+import { createVirtualUser } from "@/modules/account/users/users.service";
 import { auditEvents } from "@/modules/audit/schema";
+import { createContactCategory } from "@/modules/contact/contact-category.service";
 import * as contactService from "@/modules/contact/contact.service";
 import { cronJobLogs, cronJobs } from "@/modules/cron/schema";
 import { createDocument, pinDocument } from "@/modules/document/document.service";
@@ -37,11 +39,13 @@ import { uploadEntryVersion } from "@/modules/drive/drive.version.service";
 import { driveEntries } from "@/modules/drive/schema";
 import { initFileModule, uploadAndReference } from "@/modules/file";
 import { createIssue, resolveIssueItem } from "@/modules/issue/issue.service";
+import { addReference } from "@/modules/issue/references.service";
 import { createComment } from "@/modules/item/comment.service";
 import { items } from "@/modules/item/schema";
 import { createTuple } from "@/modules/policy/policy.service";
 import { createProcurement } from "@/modules/procurement/procurement.service";
 import { createCategory } from "@/modules/project/project.categories";
+import { createGlobalCategory } from "@/modules/project/project.global-categories";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject, listMembers, setProjectCover } from "@/modules/project/project.service";
 import { setSetting } from "@/modules/settings/settings.service";
@@ -94,13 +98,15 @@ async function assetFile(dir: string, filename: string): Promise<File> {
 // ─── Dataset shapes (loose — JSON is the source of truth) ─────────────────
 interface UserRec { key: string; username: string; name: string; email: string; role: "admin" | "user" }
 interface GroupRec { key: string; name: string; description?: string; members: string[] }
-interface ContactRec { key: string; kind: "individual" | "organization"; name: string; phone?: string; email?: string; position?: string; org?: string; taxId?: string; address?: string; visibility?: "private" | "public"; tags?: string[]; note?: string; attributes?: Record<string, string> }
+interface ContactRec { key: string; kind: "individual" | "organization"; name: string; phone?: string; email?: string; position?: string; org?: string; taxId?: string; address?: string; category?: string; status?: "active" | "inactive"; confidential?: boolean; visibility?: "private" | "public"; tags?: string[]; note?: string; attributes?: Record<string, string> }
 interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; serialNumber?: string; installedAt?: string; note?: string; location?: string; status?: "active" | "retired" }
 interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; gt?: number | null; flagState?: string; registryPort?: string; status?: "active" | "archived"; tags?: string[]; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; ownerName?: string; equipment?: EquipmentRec[] }
 interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; ship?: string; fromGlobal?: string }
-interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; bindShip?: string | null; members?: { user: string; role: string }[]; categories?: string[] }
+interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; bindShip?: string | null; members?: { user?: string; username?: string; name?: string; title?: string; role: string }[]; categories?: string[] }
 interface IssueTemplate { key: string; title: string; status: string; priority: string; tags?: string[]; description?: string; assign?: boolean; dueOffsetDays?: number | null; attachment?: string | null; comments?: { text: string; internal?: boolean }[] }
-interface ProcTemplate { key: string; itemName: string; status: string; supplier?: string; category?: string; quantity?: number; amount?: number; currency?: string; priority?: string; description?: string; dueOffsetDays?: number | null; attachment?: string | null }
+interface ProcTemplate { key: string; itemName: string; status: string; supplier?: string; category?: string; tags?: string[]; quantity?: number; amount?: number; currency?: string; priority?: string; description?: string; dueOffsetDays?: number | null; attachment?: string | null }
+interface ContactCategoryRec { key: string; name: string; code?: string; description?: string }
+interface GlobalProcCategoryRec { name: string; code?: string; description?: string }
 interface DocRec { key: string; title: string; creator: string; tags?: string[]; content?: string; parent?: string | null; pinnedBy?: string[]; attachment?: string | null; shares?: { kind: "link" | "grant"; with?: string; permission?: "viewer" | "editor" }[] }
 interface DriveRec { teamDirectories: { key: string; name: string; description?: string; createdBy: string; members?: { user: string; role: string }[] }[]; entries: { key: string; ownerType: string; owner: string; createdBy: string; type: "folder" | "file" | "text"; name: string; parent?: string | null; asset?: string; content?: string; versions?: string[] }[]; shares?: { entry: string; by: string; type: "direct" | "public_link"; permission: "view" | "download" | "edit"; with?: string }[] }
 interface CronRec { jobs: { key: string; name: string; cron: string; taskType: string; taskConfig: Record<string, unknown>; enabled?: boolean; maxConsecutiveFailures?: number; logs?: { status: "running" | "success" | "failed"; durationMs?: number; result?: string; error?: string }[] }[] }
@@ -112,10 +118,16 @@ type Config = Awaited<ReturnType<typeof loadConfigStrict>>;
 // key → produced id maps
 const userId = new Map<string, string>();
 const userName = new Map<string, string>();
+const contactCategoryId = new Map<string, string>();
 const contactId = new Map<string, string>();
 const shipInternalId = new Map<string, string>();
 const shipShortId = new Map<string, string>();
 const globalWorklistId = new Map<string, string>();
+// Seeded worklist {id, name} pairs (global + ship) — valid `issue_references`
+// refIds for `refType:"worklist"`. Issue item ids collected during import so a
+// later pass can attach worklist references to them.
+const seededWorklistRefs: { id: string; name: string }[] = [];
+const seededIssueItemIds: string[] = [];
 interface ProjectInfo { id: string; shortId: string; creatorUserId: string; memberRoleId: string; members: { memberId: string; userId: string }[]; categoryIds: Map<string, string> }
 const projectInfo = new Map<string, ProjectInfo>();
 
@@ -170,6 +182,15 @@ async function importGroups(db: AppDatabase): Promise<void> {
   }
 }
 
+async function importContactCategories(db: AppDatabase): Promise<number> {
+  const recs = await readJson<ContactCategoryRec[]>("contact-categories");
+  for (const c of recs) {
+    const row = await createContactCategory(db, { name: c.name, code: c.code, description: c.description });
+    contactCategoryId.set(c.key, row.id);
+  }
+  return recs.length;
+}
+
 async function importContacts(db: AppDatabase): Promise<void> {
   const recs = await readJson<ContactRec[]>("contacts");
   const actor = { id: uId(ADMIN_KEY), role: "admin" };
@@ -194,6 +215,9 @@ async function importContacts(db: AppDatabase): Promise<void> {
       name: c.name,
       phone: c.phone ?? null,
       note: c.note ?? null,
+      categoryId: c.category ? contactCategoryId.get(c.category) ?? null : null,
+      status: c.status ?? "active",
+      confidential: c.confidential ?? false,
       visibility: c.visibility ?? "private",
       tags: c.tags ?? [],
       attributes: c.attributes ?? null,
@@ -201,6 +225,13 @@ async function importContacts(db: AppDatabase): Promise<void> {
     });
     contactId.set(c.key, contact.id);
   }
+}
+
+async function importGlobalProcurementCategories(db: AppDatabase): Promise<number> {
+  const recs = await readJson<GlobalProcCategoryRec[]>("global-procurement-categories");
+  for (const c of recs)
+    await createGlobalCategory(db, { name: c.name, code: c.code, description: c.description });
+  return recs.length;
 }
 
 async function importEquipmentCategories(db: AppDatabase): Promise<number> {
@@ -280,13 +311,14 @@ async function importWorklists(db: AppDatabase): Promise<number> {
       precautions: t.precautions,
     });
     globalWorklistId.set(t.key, wl.id);
+    seededWorklistRefs.push({ id: wl.id, name: wl.name });
     count++;
   }
   for (const t of recs.ship) {
     const internalId = shipInternalId.get(t.ship!);
     if (!internalId)
       throw new Error(`Worklist ${t.key} references unknown ship ${t.ship}`);
-    await createShipWorklist(db, internalId, {
+    const result = await createShipWorklist(db, internalId, {
       name: t.name,
       // The old free-text `category` maps to a single worklist tag.
       tags: t.category ? [t.category] : [],
@@ -294,6 +326,8 @@ async function importWorklists(db: AppDatabase): Promise<number> {
       precautions: t.precautions,
       fromGlobalId: t.fromGlobal ? globalWorklistId.get(t.fromGlobal) : undefined,
     });
+    if (result.status === "ok")
+      seededWorklistRefs.push({ id: result.worklist.id, name: result.worklist.name });
     count++;
   }
   return count;
@@ -317,10 +351,22 @@ async function importProjects(db: AppDatabase, config: Config): Promise<void> {
     if (!memberRole)
       throw new Error(`No Reader role on project ${p.key}`);
 
+    // Members map to a real or virtual `users` row (userId is required). Virtual
+    // members are external operators with no login identity: a `users` row with
+    // is_virtual=true is minted from the record's username/name, and the member
+    // row records its job `title`. Only real members rotate as issue/comment
+    // authors (virtual users are hidden from those pickers), so virtual members
+    // are not pushed onto `members`.
     const members: { memberId: string; userId: string }[] = [];
     for (const m of p.members ?? []) {
-      const member = await addMember(db, project.id, { roleId: memberRole.id, userId: uId(m.user) });
-      members.push({ memberId: member.id, userId: uId(m.user) });
+      if (m.user) {
+        const member = await addMember(db, project.id, { roleId: memberRole.id, userId: uId(m.user) });
+        members.push({ memberId: member.id, userId: uId(m.user) });
+      }
+      else {
+        const vUser = await createVirtualUser(db, { username: m.username!, name: m.name! });
+        await addMember(db, project.id, { roleId: memberRole.id, userId: vUser!.id, title: m.title ?? null });
+      }
     }
 
     const categoryIds = new Map<string, string>();
@@ -378,6 +424,7 @@ async function importIssues(db: AppDatabase, config: Config): Promise<{ issues: 
       const item = await resolveIssueItem(db, issue.id);
       if (!item)
         continue;
+      seededIssueItemIds.push(item.id);
 
       // Attachment on the issue (owner_type='item_attachment', owner=item.id).
       if (t.attachment) {
@@ -439,6 +486,7 @@ async function importProcurements(db: AppDatabase, config: Config): Promise<{ pr
         quantity: t.quantity ?? null,
         amount: t.amount ?? null,
         currency: t.currency ?? "USD",
+        tags: t.tags ?? [],
         ...(supplierId ? { supplierId } : {}),
         ...(categoryId ? { categoryId } : {}),
         ...(assignee ? { assigneeMemberId: assignee.id } : {}),
@@ -461,6 +509,25 @@ async function importProcurements(db: AppDatabase, config: Config): Promise<{ pr
     }
   }
   return { procurements, attachments };
+}
+
+/**
+ * Attach soft worklist references (issue_references.refType='worklist') to a
+ * handful of seeded issues. refIds cycle through the seeded worklist ids (global
+ * + ship), all valid rows in the `worklists` table.
+ */
+async function importIssueReferences(db: AppDatabase): Promise<number> {
+  if (seededWorklistRefs.length === 0)
+    return 0;
+  const targetCount = Math.min(6, seededIssueItemIds.length);
+  let count = 0;
+  for (let i = 0; i < targetCount; i++) {
+    const itemId = seededIssueItemIds[i]!;
+    const wl = seededWorklistRefs[i % seededWorklistRefs.length]!;
+    await addReference(db, itemId, { refType: "worklist", refId: wl.id, label: wl.name });
+    count++;
+  }
+  return count;
 }
 
 async function importDocuments(db: AppDatabase, config: Config): Promise<{ documents: number; pins: number; shares: number; attachments: number }> {
@@ -699,13 +766,18 @@ async function main(): Promise<void> {
   try {
     await importUsers(db);
     await importGroups(db);
+    const contactCategories = await importContactCategories(db);
     await importContacts(db);
     const equipmentCategories = await importEquipmentCategories(db);
     const equipment = await importShips(db, config);
     const worklistCount = await importWorklists(db);
     await importProjects(db, config);
+    // Admin vocab; seeded after projects so the copy-on-create in createProject
+    // does not duplicate the projects' own explicitly-seeded categories.
+    const globalProcCategories = await importGlobalProcurementCategories(db);
     const issues = await importIssues(db, config);
     const procurements = await importProcurements(db, config);
+    const issueRefs = await importIssueReferences(db);
     const documents = await importDocuments(db, config);
     const drive = await importDrive(db, config);
     const cron = await importCron(db);
@@ -715,12 +787,15 @@ async function main(): Promise<void> {
     console.log("Seed complete:");
     console.log(`  users:        ${userId.size}`);
     console.log(`  groups:       (with members)`);
+    console.log(`  contact cats: ${contactCategories}`);
     console.log(`  contacts:     ${contactId.size}`);
     console.log(`  equip cats:   ${equipmentCategories} (bilingual)`);
+    console.log(`  global proc cats: ${globalProcCategories}`);
     console.log(`  ships:        ${shipInternalId.size} (+ base projects, ${equipment} equipment)`);
     console.log(`  worklists:    ${worklistCount}`);
     console.log(`  projects:     ${projectInfo.size} standalone (+ ship base projects)`);
     console.log(`  issues:       ${issues.issues} (${issues.comments} comments, ${issues.attachments} attachments)`);
+    console.log(`  issue refs:   ${issueRefs} (worklist references)`);
     console.log(`  procurements: ${procurements.procurements} (${procurements.attachments} attachments)`);
     console.log(`  documents:    ${documents.documents} (${documents.pins} pins, ${documents.shares} shares, ${documents.attachments} attachments)`);
     console.log(`  drive:        ${drive.directories} team dirs, ${drive.entries} entries, ${drive.versions} extra versions, ${drive.shares} shares`);

@@ -67,3 +67,4 @@
 | [PLAN-066](PLAN-066.md) | Global unified tag component family | Completed | 2026-06-03 |
 | [PLAN-067](PLAN-067.md) | Virtual users as first-class user rows | Completed | 2026-06-03 |
 | [PLAN-068](PLAN-068-contact-party-model.md) | Contact module single-table Party model | Completed | 2026-06-03 |
+| [PLAN-069](PLAN-069.md) | Seed dataset full schema coverage on party-model main (G0–G6) | Completed | 2026-06-04 |
