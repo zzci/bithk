@@ -226,7 +226,7 @@ describe("contactsListPage", () => {
     expect(screen.queryByRole("button", { name: "Share Acme Marine" })).not.toBeInTheDocument();
   });
 
-  it("renders locked placeholders for masked confidential public reads in the grid", async () => {
+  it("exposes no sensitive columns in the slimmed grid for masked confidential public reads", async () => {
     routeFetch([
       contact({
         phone: null,
@@ -244,8 +244,8 @@ describe("contactsListPage", () => {
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    // The slimmed row surfaces only status as a sensitive column.
-    expect(screen.getAllByLabelText("Masked field")).toHaveLength(1);
+    // The slimmed grid drops every sensitive column, so no masked placeholders appear.
+    expect(screen.queryAllByLabelText("Masked field")).toHaveLength(0);
     expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
   });
 

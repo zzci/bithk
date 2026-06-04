@@ -23,8 +23,8 @@ import { useContactsList, useContactTags, useCreateContact, useDeleteContact, us
 import { errorMessage } from "@/shared/lib/errors";
 import { CONTACT_CONFIDENTIAL_BADGE, CONTACT_VISIBILITY_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
-import { contactFormToInput, isMasked } from "./-contact-form-logic";
-import { ContactFieldValue, ContactPanel } from "./-contact-panel";
+import { contactFormToInput } from "./-contact-form-logic";
+import { ContactPanel } from "./-contact-panel";
 import { ContactShareDialog } from "./-contact-share-dialog";
 
 export const Route = createLazyFileRoute("/_app/contacts/")({
@@ -38,11 +38,11 @@ const ALL = "__all__";
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
 // mobile. Person-primary: column 1 is the avatar + name + inline badges.
-// Columns: name+avatar+badges | organization(sm) | category(md) | status.
+// Columns: name+avatar+inline badges | organization(sm) | category(md).
 const CONTACT_GRID = [
-  "grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-3",
-  "sm:grid-cols-[minmax(0,1fr)_9rem_5rem]",
-  "md:grid-cols-[minmax(0,1fr)_9rem_8rem_5rem]",
+  "grid grid-cols-[minmax(0,1fr)] items-center gap-3",
+  "sm:grid-cols-[minmax(0,1fr)_9rem]",
+  "md:grid-cols-[minmax(0,1fr)_9rem_8rem]",
 ].join(" ");
 
 type DrawerState
@@ -210,7 +210,6 @@ export function ContactsListPage() {
                     <span className="truncate">{t("field.name")}</span>
                     <span className="hidden truncate sm:block">{t("field.organization")}</span>
                     <span className="hidden truncate md:block">{t("field.category")}</span>
-                    <span className="truncate">{t("field.status")}</span>
                   </div>
                   <div className="w-28 shrink-0">
                     <span className="sr-only">{t("list.colActions")}</span>
@@ -218,8 +217,6 @@ export function ContactsListPage() {
                 </div>
                 <ul>
                   {rows.map((contact) => {
-                    const locked = isMasked(contact);
-                    const status = contact.status ? t(`status.${contact.status}` as const) : null;
                     return (
                       <li key={contact.id} className="group flex items-stretch border-b border-border/40 transition-colors last:border-b-0 hover:bg-muted/50">
                         <Button
@@ -258,9 +255,6 @@ export function ContactsListPage() {
                             {contact.categoryId
                               ? (categoryNameById.get(contact.categoryId) ?? contact.categoryId)
                               : <span className="text-muted-foreground">{t("category.none")}</span>}
-                          </span>
-                          <span className="truncate text-xs">
-                            <ContactFieldValue value={status} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
                           </span>
                         </Button>
                         <div className="flex w-28 shrink-0 items-center justify-end gap-1 pr-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
