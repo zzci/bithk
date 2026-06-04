@@ -23,6 +23,7 @@
     "organization": "Organization",
     "phone": "Phone",
     "email": "Email",
+    "website": "Website",
     "address": "Address",
     "taxId": "Tax ID",
     "attributes": "Custom attributes",
@@ -32,6 +33,9 @@
     "confidential": "Confidential",
     "tags": "Tags",
     "category": "Category"
+  },
+  "company": {
+    "title": "Company"
   },
   "kind": {
     "individual": "Individual",

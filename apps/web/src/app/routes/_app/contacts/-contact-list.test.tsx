@@ -45,7 +45,7 @@ function contact(overrides: Partial<ContactView> = {}): ContactView {
     position: "Manager",
     organizationId: "org-1",
     organizationName: "Acme HQ",
-    organization: null,
+    organization: { id: "org-1", name: "Acme HQ", website: null, email: null, phone: null, address: null, taxId: null },
     taxId: null,
     address: null,
     note: "Preferred",
@@ -129,6 +129,8 @@ describe("contactsListPage", () => {
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Acme HQ")).toBeInTheDocument();
+    // Kind is shown as an accessible icon, not a text badge.
+    expect(screen.getByRole("img", { name: "Individual" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Acme Marine" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete Acme Marine" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
@@ -256,8 +258,12 @@ describe("contactsListPage", () => {
       contact({
         phone: null,
         email: null,
+        website: null,
         position: null,
         organizationName: null,
+        organization: null,
+        taxId: null,
+        address: null,
         note: null,
         status: null,
         visibility: "public",
@@ -272,8 +278,9 @@ describe("contactsListPage", () => {
     await user.click(screen.getByRole("button", { name: "Acme Marine" }));
 
     const drawer = await screen.findByRole("dialog");
-    // The individual detail surfaces position, phone, email plus the note.
-    expect(within(drawer).getAllByLabelText("Masked field")).toHaveLength(4);
+    // The individual detail surfaces position, phone, email, website, tax id,
+    // address plus the note — every shared field locked for a masked read.
+    expect(within(drawer).getAllByLabelText("Masked field")).toHaveLength(7);
   });
 
   it("opens a detail drawer that reuses the loaded contact data", async () => {
