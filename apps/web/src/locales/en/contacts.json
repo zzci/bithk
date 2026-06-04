@@ -12,24 +12,54 @@
     "colActions": "Actions"
   },
   "drawer": {
-    "contactMethods": "Contact methods",
+    "details": "Details",
     "classification": "Classification",
     "resize": "Resize panel"
   },
   "field": {
     "name": "Name",
-    "contactPerson": "Contact person",
+    "kind": "Kind",
+    "position": "Position",
+    "organization": "Organization",
     "phone": "Phone",
     "email": "Email",
     "address": "Address",
     "taxId": "Tax ID",
+    "attributes": "Custom attributes",
     "note": "Note",
     "status": "Status",
     "visibility": "Visibility",
     "confidential": "Confidential",
     "tags": "Tags",
-    "companyUnit": "Company / unit",
     "category": "Category"
+  },
+  "kind": {
+    "individual": "Individual",
+    "organization": "Organization"
+  },
+  "avatar": {
+    "photoLabel": "Photo",
+    "logoLabel": "Logo",
+    "upload": "Upload",
+    "replace": "Replace",
+    "remove": "Remove",
+    "createHint": "Save the contact first to add an image."
+  },
+  "org": {
+    "placeholder": "Select or create an organization",
+    "searchPlaceholder": "Search organizations…",
+    "empty": "No organizations found.",
+    "create": "Create \"{{name}}\"",
+    "newHint": "(new)",
+    "clear": "Clear organization"
+  },
+  "attributes": {
+    "keyLabel": "Attribute name",
+    "valueLabel": "Attribute value",
+    "keyPlaceholder": "Name",
+    "valuePlaceholder": "Value",
+    "add": "Add attribute",
+    "remove": "Remove attribute"
   },
   "category": {
     "none": "Uncategorized",
@@ -49,6 +79,7 @@
     "createDescription": "Add a global contact. Private contacts are visible only to you and explicitly granted viewers.",
     "editDescription": "Update the contact details, tags and visibility.",
     "namePlaceholder": "e.g. Acme Marine",
+    "kindLabel": "Type",
     "confidentialHelp": "Public viewers see only the name and tags when this is enabled.",
     "submitCreate": "Create",
     "submitSave": "Save",

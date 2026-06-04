@@ -94,7 +94,7 @@ async function assetFile(dir: string, filename: string): Promise<File> {
 // ─── Dataset shapes (loose — JSON is the source of truth) ─────────────────
 interface UserRec { key: string; username: string; name: string; email: string; role: "admin" | "user" }
 interface GroupRec { key: string; name: string; description?: string; members: string[] }
-interface ContactRec { key: string; kind: string; name: string; contactPerson?: string; email?: string; phone?: string; address?: string; visibility?: "private" | "public"; tags?: string[]; note?: string }
+interface ContactRec { key: string; kind: "individual" | "organization"; name: string; phone?: string; email?: string; position?: string; org?: string; taxId?: string; address?: string; visibility?: "private" | "public"; tags?: string[]; note?: string; attributes?: Record<string, string> }
 interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; serialNumber?: string; installedAt?: string; note?: string; location?: string; status?: "active" | "retired" }
 interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; gt?: number | null; flagState?: string; registryPort?: string; status?: "active" | "archived"; tags?: string[]; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; ownerName?: string; equipment?: EquipmentRec[] }
 interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; ship?: string; fromGlobal?: string }
@@ -173,16 +173,31 @@ async function importGroups(db: AppDatabase): Promise<void> {
 async function importContacts(db: AppDatabase): Promise<void> {
   const recs = await readJson<ContactRec[]>("contacts");
   const actor = { id: uId(ADMIN_KEY), role: "admin" };
-  for (const c of recs) {
+  // Organizations first so individuals can link to them by key (sort is stable,
+  // so the within-kind order from the payload is preserved).
+  const ordered = [...recs].sort(
+    (a, b) => (a.kind === "organization" ? 0 : 1) - (b.kind === "organization" ? 0 : 1),
+  );
+  for (const c of ordered) {
+    const kindFields = c.kind === "individual"
+      ? {
+          email: c.email ?? null,
+          position: c.position ?? null,
+          organizationId: c.org ? contactId.get(c.org) ?? null : null,
+        }
+      : {
+          taxId: c.taxId ?? null,
+          address: c.address ?? null,
+        };
     const contact = await contactService.create(db, actor, {
+      kind: c.kind,
       name: c.name,
-      contactPerson: c.contactPerson ?? null,
-      email: c.email ?? null,
       phone: c.phone ?? null,
-      address: c.address ?? null,
       note: c.note ?? null,
       visibility: c.visibility ?? "private",
       tags: c.tags ?? [],
+      attributes: c.attributes ?? null,
+      ...kindFields,
     });
     contactId.set(c.key, contact.id);
   }

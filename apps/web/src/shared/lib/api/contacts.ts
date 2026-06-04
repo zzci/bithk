@@ -6,6 +6,7 @@ import { http } from "../http";
 
 // ── Types ──
 
+export type ContactKind = "individual" | "organization";
 export type ContactStatus = "active" | "inactive";
 export type ContactVisibility = "private" | "public";
 
@@ -22,18 +23,29 @@ interface ContactTagView {
 
 export interface ContactView {
   readonly id: string;
+  readonly kind: ContactKind;
   readonly ownerId: string;
   readonly name: string;
-  readonly contactPerson: string | null;
   readonly phone: string | null;
   readonly email: string | null;
-  readonly address: string | null;
+  readonly position: string | null;
+  // The linked employer (individuals only); `organizationName` is the resolved
+  // name of that organization, supplied by the API for display.
+  readonly organizationId: string | null;
+  readonly organizationName: string | null;
   readonly taxId: string | null;
+  readonly address: string | null;
   readonly note: string | null;
+  // Free-form flat string→string custom properties (null when none).
+  readonly attributes: Record<string, string> | null;
+  // Avatar (person) / logo (organization): the file_references id plus the
+  // resolved inline content URL the UI renders in an <img>.
+  readonly avatarReferenceId: string | null;
+  readonly avatarUrl: string | null;
+  readonly categoryId: string | null;
   readonly status: ContactStatus | null;
   readonly visibility: ContactVisibility;
   readonly confidential: boolean;
-  readonly categoryId: string | null;
   readonly tags: readonly ContactTagView[];
   readonly canManage: boolean;
   readonly createdAt: string;
@@ -41,13 +53,21 @@ export interface ContactView {
 }
 
 export interface ContactInput {
+  // Defaults to 'organization' on the backend when omitted; the create form
+  // always supplies it. Immutable after create (the update form omits it).
+  readonly kind?: ContactKind | undefined;
   readonly name: string;
-  readonly contactPerson?: string | null | undefined;
   readonly phone?: string | null | undefined;
   readonly email?: string | null | undefined;
-  readonly address?: string | null | undefined;
+  readonly position?: string | null | undefined;
+  // Link to an existing organization, or pass `organizationName` to create one
+  // on the fly and link to it.
+  readonly organizationId?: string | null | undefined;
+  readonly organizationName?: string | null | undefined;
   readonly taxId?: string | null | undefined;
+  readonly address?: string | null | undefined;
   readonly note?: string | null | undefined;
+  readonly attributes?: Record<string, string> | null | undefined;
   readonly status?: ContactStatus | undefined;
   readonly visibility?: ContactVisibility | undefined;
   readonly confidential?: boolean | undefined;
@@ -65,12 +85,15 @@ export type ContactRevokeTarget = ContactGrantTarget;
 
 export interface ContactsQuery {
   readonly tag?: string | undefined;
+  // Optional party-kind filter for the flat list; omitted ⇒ all kinds (no
+  // behaviour change for the supplier picker, which calls `useContacts()`).
+  readonly kind?: ContactKind | undefined;
 }
 
 export const contactKeys = {
   all: ["contacts"] as const,
   lists: () => ["contacts", "list"] as const,
-  list: (query: ContactsQuery = {}) => ["contacts", "list", query.tag ?? "all"] as const,
+  list: (query: ContactsQuery = {}) => ["contacts", "list", query.tag ?? "all", query.kind ?? "all"] as const,
   pagedList: (query: string) => ["contacts", "pagedList", query] as const,
   detail: (id: string) => ["contacts", "detail", id] as const,
 };
@@ -96,6 +119,8 @@ export function useContacts(query: ContactsQuery = {}) {
 
 export interface ContactsListQuery {
   readonly q?: string | undefined;
+  // Party-kind filter: all kinds when omitted, else only individuals or orgs.
+  readonly kind?: ContactKind | undefined;
   readonly status?: ContactStatus | undefined;
   readonly categoryId?: string | undefined;
   // Union (OR) filter: a contact matches when it carries ANY of these tag ids.
@@ -113,6 +138,8 @@ function contactsQueryString(query: ContactsListQuery): string {
   const params = new URLSearchParams();
   if (query.q)
     params.set("q", query.q);
+  if (query.kind)
+    params.set("kind", query.kind);
   if (query.status)
     params.set("status", query.status);
   if (query.categoryId)
@@ -207,6 +234,40 @@ export function useDeleteContact(): UseMutationResult<{ readonly id: string }, E
   });
 }
 
+// Set / replace a contact's avatar (person) or logo (organization). Mirrors
+// `useSetProjectCover`: a multipart POST carrying the image file.
+export function useSetContactAvatar(): UseMutationResult<ContactView, Error, { id: string; file: File }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return http<ApiEnvelope<ContactView>>(`/contacts/${encodeURIComponent(id)}/avatar`, {
+        method: "POST",
+        body: fd,
+      }).then(r => r.data);
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: contactKeys.detail(data.id) });
+      void queryClient.invalidateQueries({ queryKey: contactKeys.all });
+    },
+  });
+}
+
+// Remove a contact's avatar/logo (no-op server-side when it has none).
+export function useRemoveContactAvatar(): UseMutationResult<ContactView, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: id => http<ApiEnvelope<ContactView>>(`/contacts/${encodeURIComponent(id)}/avatar`, {
+      method: "DELETE",
+    }).then(r => r.data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: contactKeys.detail(data.id) });
+      void queryClient.invalidateQueries({ queryKey: contactKeys.all });
+    },
+  });
+}
+
 export function useGrantContact(): UseMutationResult<{
   readonly id: string;
   readonly target: { readonly type: "user" | "group"; readonly id: string };
@@ -253,6 +314,8 @@ function contactsPath(query: ContactsQuery): string {
   const params = new URLSearchParams();
   if (query.tag)
     params.set("tag", query.tag);
+  if (query.kind)
+    params.set("kind", query.kind);
   const qs = params.toString();
   return qs ? `/contacts?${qs}` : "/contacts";
 }

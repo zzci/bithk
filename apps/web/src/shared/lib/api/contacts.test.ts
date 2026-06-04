@@ -12,7 +12,9 @@ import {
   useCreateContact,
   useDeleteContact,
   useGrantContact,
+  useRemoveContactAvatar,
   useRevokeContact,
+  useSetContactAvatar,
   useUpdateContact,
 } from "./contacts";
 
@@ -37,18 +39,24 @@ afterEach(() => {
 function contact(overrides: Partial<ContactView> = {}): ContactView {
   return {
     id: "c1",
+    kind: "organization",
     ownerId: "u1",
     name: "Acme",
-    contactPerson: "Jane",
     phone: "123",
-    email: "jane@example.com",
-    address: "Dock 1",
+    email: null,
+    position: null,
+    organizationId: null,
+    organizationName: null,
     taxId: "tax-1",
+    address: "Dock 1",
     note: "Preferred",
+    attributes: null,
+    avatarReferenceId: null,
+    avatarUrl: null,
+    categoryId: null,
     status: "active",
     visibility: "private",
     confidential: false,
-    categoryId: null,
     tags: [{ id: "tag1", name: "supplier" }],
     canManage: true,
     createdAt: "2026-05-24T00:00:00.000Z",
@@ -79,8 +87,9 @@ function bodyOf(i = 0): unknown {
 
 describe("contactKeys", () => {
   it("namespaces list and detail keys deterministically", () => {
-    expect(contactKeys.list()).toEqual(["contacts", "list", "all"]);
-    expect(contactKeys.list({ tag: "supplier" })).toEqual(["contacts", "list", "supplier"]);
+    expect(contactKeys.list()).toEqual(["contacts", "list", "all", "all"]);
+    expect(contactKeys.list({ tag: "supplier" })).toEqual(["contacts", "list", "supplier", "all"]);
+    expect(contactKeys.list({ kind: "individual" })).toEqual(["contacts", "list", "all", "individual"]);
     expect(contactKeys.pagedList("page=1&limit=20")).toEqual(["contacts", "pagedList", "page=1&limit=20"]);
     expect(contactKeys.detail("c1")).toEqual(["contacts", "detail", "c1"]);
   });
@@ -108,6 +117,13 @@ describe("useContacts", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(urlOf()).toBe("/api/contacts?tag=ship+supplier");
   });
+
+  it("serializes the optional kind filter without breaking the supplier-picker default", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContacts({ kind: "organization" }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(urlOf()).toBe("/api/contacts?kind=organization");
+  });
 });
 
 describe("useContactsList", () => {
@@ -132,6 +148,22 @@ describe("useContactsList", () => {
     expect(url.searchParams.get("categoryId")).toBe("cat-1");
     expect(url.searchParams.get("page")).toBe("3");
     expect(url.searchParams.get("limit")).toBe("50");
+  });
+
+  it("serializes the kind filter when set", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContactsList({ kind: "individual" }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.get("kind")).toBe("individual");
+  });
+
+  it("omits the kind param when not set", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContactsList({ q: "acme" }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.has("kind")).toBe(false);
   });
 
   it("emits repeatable tagIds params sorted for a stable cache key", async () => {
@@ -267,5 +299,61 @@ describe("contact mutations", () => {
     expect(bodyOf()).toEqual({ groupId: "g2" });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: contactKeys.all });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: contactKeys.detail("c1") });
+  });
+
+  it("passes the party-model fields through the create body verbatim", async () => {
+    fetchMock.mockImplementation(ok(contact({ kind: "individual", name: "Jane" })));
+    const { result } = renderHook(() => useCreateContact(), { wrapper: makeWrapper() });
+
+    await result.current.mutateAsync({
+      kind: "individual",
+      name: "Jane",
+      position: "Captain",
+      organizationName: "Acme",
+      attributes: { wechat: "jane01" },
+    });
+
+    expect(urlOf()).toBe("/api/contacts");
+    expect(initOf()?.method).toBe("POST");
+    expect(bodyOf()).toEqual({
+      kind: "individual",
+      name: "Jane",
+      position: "Captain",
+      organizationName: "Acme",
+      attributes: { wechat: "jane01" },
+    });
+  });
+});
+
+describe("contact avatar mutations", () => {
+  it("uploads the avatar via a multipart POST and invalidates detail plus all", async () => {
+    fetchMock.mockImplementation(ok(contact({ id: "c 1", avatarUrl: "/api/files/f/content?ref=r&inline=true" })));
+    const queryClient = makeTestQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useSetContactAvatar(), { wrapper: makeWrapper(queryClient) });
+    const file = new File(["x"], "avatar.png", { type: "image/png" });
+
+    await result.current.mutateAsync({ id: "c 1", file });
+
+    expect(urlOf()).toBe("/api/contacts/c%201/avatar");
+    expect(initOf()?.method).toBe("POST");
+    expect(initOf()?.body).toBeInstanceOf(FormData);
+    expect((initOf()?.body as FormData).get("file")).toBe(file);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: contactKeys.detail("c 1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: contactKeys.all });
+  });
+
+  it("removes the avatar via DELETE and invalidates detail plus all", async () => {
+    fetchMock.mockImplementation(ok(contact({ avatarReferenceId: null, avatarUrl: null })));
+    const queryClient = makeTestQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useRemoveContactAvatar(), { wrapper: makeWrapper(queryClient) });
+
+    await result.current.mutateAsync("c1");
+
+    expect(urlOf()).toBe("/api/contacts/c1/avatar");
+    expect(initOf()?.method).toBe("DELETE");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: contactKeys.detail("c1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: contactKeys.all });
   });
 });

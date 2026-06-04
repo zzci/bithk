@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ContactFormState } from "./-contact-form-logic";
-import type { ContactStatus, ContactView } from "@/shared/lib/api/contacts";
+import type { ContactKind, ContactStatus, ContactView } from "@/shared/lib/api/contacts";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { Edit3, Share2, Trash2 } from "lucide-react";
+import { Building2, Edit3, Share2, Trash2, User } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { TagChips, tagFilterDimension } from "@/shared/components/tags";
+import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -36,12 +37,13 @@ const ALL = "__all__";
 // Shared grid template so the header row and every data row align on the same
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
-// mobile. Columns: name+badges | contactPerson | phone(sm) | email(md) |
-// tags(md) | category(md) | status.
+// mobile. Person-primary: column 1 is the avatar + name. Columns:
+// name+avatar+kind | organization(sm) | phone | email(md) | tags(md) |
+// category(md) | status.
 const CONTACT_GRID = [
-  "grid grid-cols-[minmax(0,1fr)_8rem_5rem] items-center gap-3",
-  "sm:grid-cols-[minmax(0,1fr)_8rem_7rem_5rem]",
-  "md:grid-cols-[minmax(0,1fr)_8rem_7rem_9rem_8rem_8rem_5rem]",
+  "grid grid-cols-[minmax(0,1fr)_6rem_5rem] items-center gap-3",
+  "sm:grid-cols-[minmax(0,1fr)_9rem_6rem_5rem]",
+  "md:grid-cols-[minmax(0,1fr)_9rem_6rem_9rem_8rem_8rem_5rem]",
 ].join(" ");
 
 type DrawerState
@@ -52,6 +54,7 @@ type DrawerState
 export function ContactsListPage() {
   const { t } = useTranslation(["contacts", "common"]);
   const [search, setSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [categoryFilter, setCategoryFilter] = useState(ALL);
   const [tagIds, setTagIds] = useState<readonly string[]>([]);
@@ -63,6 +66,7 @@ export function ContactsListPage() {
 
   const contactsQuery = useContactsList({
     q: debouncedSearch || undefined,
+    kind: kindFilter === ALL ? undefined : (kindFilter as ContactKind),
     status: statusFilter === ALL ? undefined : (statusFilter as ContactStatus),
     categoryId: categoryFilter === ALL ? undefined : categoryFilter,
     tagIds: tagIds.length > 0 ? tagIds : undefined,
@@ -136,6 +140,21 @@ export function ContactsListPage() {
           <ListFilter
             dimensions={[
               {
+                key: "kind",
+                label: t("field.kind"),
+                mode: "single",
+                defaultValue: ALL,
+                value: kindFilter,
+                onChange: (value) => {
+                  setKindFilter(value ?? ALL);
+                  setPage(1);
+                },
+                options: [
+                  { value: "individual", label: t("kind.individual") },
+                  { value: "organization", label: t("kind.organization") },
+                ],
+              },
+              {
                 key: "status",
                 label: t("field.status"),
                 mode: "single",
@@ -189,9 +208,9 @@ export function ContactsListPage() {
                     column tracks as every data row below. */}
                 <div className="flex items-stretch border-b border-border bg-muted/40">
                   <div className={cn(CONTACT_GRID, "min-w-0 flex-1 px-3 py-2 text-xs font-medium text-muted-foreground")}>
-                    <span className="truncate">{t("field.companyUnit")}</span>
-                    <span className="truncate">{t("field.contactPerson")}</span>
-                    <span className="hidden truncate sm:block">{t("field.phone")}</span>
+                    <span className="truncate">{t("field.name")}</span>
+                    <span className="hidden truncate sm:block">{t("field.organization")}</span>
+                    <span className="truncate">{t("field.phone")}</span>
                     <span className="hidden truncate md:block">{t("field.email")}</span>
                     <span className="hidden truncate md:block">{t("field.tags")}</span>
                     <span className="hidden truncate md:block">{t("field.category")}</span>
@@ -215,15 +234,20 @@ export function ContactsListPage() {
                           onClick={() => setDrawer({ mode: "view", contact })}
                         >
                           <span className="flex min-w-0 items-center gap-2">
-                            <span
-                              aria-hidden="true"
-                              className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-xs font-semibold text-primary"
-                            >
-                              {contact.name.slice(0, 1).toUpperCase()}
-                            </span>
+                            <Avatar size="sm" className="size-7">
+                              {contact.avatarUrl ? <AvatarImage src={contact.avatarUrl} alt="" /> : null}
+                              <AvatarFallback>
+                                {contact.name.trim()
+                                  ? contact.name.trim().slice(0, 1).toUpperCase()
+                                  : contact.kind === "organization"
+                                    ? <Building2 className="size-3.5" aria-hidden="true" />
+                                    : <User className="size-3.5" aria-hidden="true" />}
+                              </AvatarFallback>
+                            </Avatar>
                             <span className="flex min-w-0 flex-col gap-1">
                               <span className="truncate text-sm font-medium">{contact.name}</span>
                               <span className="flex flex-wrap items-center gap-1">
+                                <Badge variant="outline">{t(`kind.${contact.kind}` as const)}</Badge>
                                 <Badge variant="secondary" className={CONTACT_VISIBILITY_BADGE[contact.visibility]}>
                                   {t(`visibility.${contact.visibility}` as const)}
                                 </Badge>
@@ -231,10 +255,12 @@ export function ContactsListPage() {
                               </span>
                             </span>
                           </span>
-                          <span className="truncate text-xs">
-                            <ContactFieldValue value={contact.contactPerson} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                          </span>
                           <span className="hidden truncate text-xs sm:block">
+                            {contact.kind === "individual" && contact.organizationName
+                              ? contact.organizationName
+                              : <span className="text-muted-foreground">—</span>}
+                          </span>
+                          <span className="truncate text-xs">
                             <ContactFieldValue value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
                           </span>
                           <span className="hidden truncate text-xs md:block">
