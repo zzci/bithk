@@ -197,7 +197,7 @@ describe("downloadDriveEntry", () => {
     URL.createObjectURL = createUrl as unknown as typeof URL.createObjectURL;
     URL.revokeObjectURL = revokeUrl as unknown as typeof URL.revokeObjectURL;
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    fetchMock.mockResolvedValue(new Response(new Blob(["data"]), { status: 200 }));
+    fetchMock.mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(new Blob(["data"])) } as unknown as Response);
 
     await downloadDriveEntry({ id: "e9", name: "report.pdf", file: { fileId: "f1" } } as unknown as DriveEntry);
 
