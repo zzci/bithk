@@ -586,7 +586,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
           {kind === "markdown" && !loading && (
             markdownEditing
               ? (
-                  <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-background">
+                  <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain bg-background">
                     <MarkdownEditor
                       value={content}
                       onChange={setContent}
@@ -595,7 +595,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                   </div>
                 )
               : (
-                  <div className="h-full overflow-auto bg-background">
+                  <div className="h-full overflow-auto overscroll-contain bg-background">
                     <MarkdownEditor readOnly value={content} />
                   </div>
                 )
@@ -604,7 +604,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
           {kind === "text" && file && !loading && (
             <Suspense
               fallback={(
-                <pre className="h-full overflow-auto bg-background p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground">
+                <pre className="h-full overflow-auto overscroll-contain bg-background p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground">
                   {content}
                 </pre>
               )}

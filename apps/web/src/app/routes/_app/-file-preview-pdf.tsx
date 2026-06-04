@@ -51,7 +51,7 @@ export function PdfPreview({
     >
       <div className="flex h-full min-h-0 overflow-hidden rounded-md bg-muted/30">
         {sidebarOpen && (
-          <aside className="w-36 shrink-0 overflow-auto bg-background p-2">
+          <aside className="w-36 shrink-0 overflow-auto overscroll-contain bg-background p-2">
             <div className="space-y-2">
               {pageNumbers.map(page => (
                 <Button
@@ -74,7 +74,7 @@ export function PdfPreview({
           </aside>
         )}
 
-        <div ref={scrollRef} className="flex-1 overflow-auto" onWheel={onWheel}>
+        <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain" onWheel={onWheel}>
           <div className="flex min-h-full w-full flex-col items-center gap-4 px-6 py-4 pb-10">
             {pageNumbers.map(page => (
               <div
