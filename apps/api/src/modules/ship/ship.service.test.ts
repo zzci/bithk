@@ -111,7 +111,7 @@ describe("createShip", () => {
 
     expect(ship.shortId).toHaveLength(8);
     expect(ship.name).toBe("Aurora");
-    expect(ship.status).toBe("active");
+    expect(ship.status).toBe("laid_up");
     expect(ship.version).toBe(1);
     expect(ship.code).toContain("S-");
     expect(ship.baseProjectId).not.toBeNull();
@@ -120,6 +120,12 @@ describe("createShip", () => {
     const baseProject = await db.select().from(projects).where(eq(projects.id, ship.baseProjectId!)).get();
     expect(baseProject).toBeDefined();
     expect(baseProject!.shipId).toBe(ship.id);
+  });
+
+  test("defaults new ships to laid_up", async () => {
+    const creator = await seedUser("Alice");
+    const s = await createShip(db, { name: "Fresh", creatorId: creator });
+    expect(s.status).toBe("laid_up");
   });
 
   test("seeds the creator as Project Owner on the base project", async () => {
@@ -227,9 +233,9 @@ describe("updateShip", () => {
   test("bumps version and applies the patch", async () => {
     const creator = await seedUser("Alice");
     const ship = await createShip(db, { name: "P", creatorId: creator });
-    const updated = await updateShip(db, ship.shortId, { name: "P2", status: "archived", builder: "Acme" });
+    const updated = await updateShip(db, ship.shortId, { name: "P2", status: "in_maintenance", builder: "Acme" });
     expect(updated?.name).toBe("P2");
-    expect(updated?.status).toBe("archived");
+    expect(updated?.status).toBe("in_maintenance");
     expect(updated?.builder).toBe("Acme");
     expect(updated!.version).toBe(2);
   });
@@ -346,19 +352,23 @@ describe("softDeleteShip", () => {
 });
 
 describe("listShips", () => {
-  test("paginates, filters by status, excludes soft-deleted", async () => {
+  test("filters by status, excludes retired by default, and excludes soft-deleted", async () => {
     const creator = await seedUser("Alice");
     await createShip(db, { name: "A", status: "active", creatorId: creator });
-    await createShip(db, { name: "B", status: "archived", creatorId: creator });
-    const gone = await createShip(db, { name: "C", creatorId: creator });
+    await createShip(db, { name: "B", status: "retired", creatorId: creator });
+    const gone = await createShip(db, { name: "C", creatorId: creator }); // defaults to laid_up
     await softDeleteShip(db, fileConfig, gone.shortId);
 
-    const all = await listShips(db, {});
-    expect(all.total).toBe(2);
+    // Default view (no status param) excludes retired: only A (active) remains
+    // (C was soft-deleted, B is retired → both excluded).
+    const visible = await listShips(db, {});
+    expect(visible.total).toBe(1);
+    expect(visible.data[0]!.name).toBe("A");
 
-    const archived = await listShips(db, { status: "archived" });
-    expect(archived.total).toBe(1);
-    expect(archived.data[0]!.name).toBe("B");
+    // Explicit retired filter returns only retired ships.
+    const retired = await listShips(db, { status: "retired" });
+    expect(retired.total).toBe(1);
+    expect(retired.data[0]!.name).toBe("B");
   });
 
   test("filters by tagIds (OR semantics)", async () => {

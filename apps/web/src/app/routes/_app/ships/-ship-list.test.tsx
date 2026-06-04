@@ -113,7 +113,7 @@ describe("shipsListPage", () => {
     fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    // The status dimension is its own dropdown (default "active", so the trigger
+    // The status dimension is its own dropdown (default unset, so the trigger
     // shows the dimension label). Its options carry the per-status fleet counts
     // from the dedicated count query; there is no "all" option.
     await userEvent.click(screen.getByRole("button", { name: "Status" }));
@@ -121,13 +121,15 @@ describe("shipsListPage", () => {
     expect(screen.queryByRole("menuitem", { name: /^All/ })).not.toBeInTheDocument();
   });
 
-  it("defaults to the active status and renders the tag filter with no tag applied", async () => {
+  it("defaults to no status filter and renders the tag filter with no tag applied", async () => {
     fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    // The initial list request carries the default active status and no tag.
+    // The initial list request carries no status param (default view = every
+    // status except retired) and no tag. The per-status count queries DO carry
+    // `status=`, so match the list request by limit=20 (counts use limit=1).
     await waitFor(() => {
-      const call = fetchMock.mock.calls.find(c => String(c[0]).includes("/ships?") && String(c[0]).includes("status=active") && !String(c[0]).includes("tagId="));
+      const call = fetchMock.mock.calls.find(c => String(c[0]).includes("/ships?") && String(c[0]).includes("limit=20") && !String(c[0]).includes("status=") && !String(c[0]).includes("tagId="));
       expect(call).toBeDefined();
     });
     // The shared ListFilter renders the ship tag dimension as its own dropdown
@@ -171,9 +173,11 @@ describe("shipsListPage", () => {
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "Status" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Archived/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Retired/ }));
     await waitFor(() => {
-      const filtered = fetchMock.mock.calls.find(c => String(c[0]).includes("status=archived"));
+      // The main list refetches with the chosen status; limit=20 distinguishes
+      // it from the per-status count queries (limit=1), which also hit retired.
+      const filtered = fetchMock.mock.calls.find(c => String(c[0]).includes("status=retired") && String(c[0]).includes("limit=20"));
       expect(filtered).toBeDefined();
     });
   });

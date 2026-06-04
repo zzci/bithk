@@ -3,7 +3,7 @@ import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { DrainedBlob, FileServiceConfig } from "@/modules/file";
 import type { ProjectView } from "@/modules/project/project.service";
-import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { finalizeReleasedBlob, releaseReference, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
 import {
@@ -203,7 +203,7 @@ export async function createShip(db: AppDatabase, input: CreateShipInput): Promi
       shortId,
       code,
       name: input.name,
-      status: input.status ?? "active",
+      status: input.status ?? "laid_up",
       baseProjectId: null,
       model: input.model ?? null,
       builder: input.builder ?? null,
@@ -279,8 +279,12 @@ export async function listShips(db: AppDatabase, params: ListShipParams = {}): P
   const limit = Math.min(100, Math.max(1, params.limit ?? 20));
 
   const conditions = [isNull(ships.deletedAt)];
+  // No status param → default view excludes retired ships; an explicit status
+  // (retired included) narrows to that exact status.
   if (params.status)
     conditions.push(eq(ships.status, params.status));
+  else
+    conditions.push(ne(ships.status, "retired"));
   if (params.tagIds && params.tagIds.length > 0) {
     // OR semantics: ships carrying ANY of the selected tags.
     const taggedIds = await listResourceIdsByAnyTag(db, SHIP_TAG_BINDING, params.tagIds);
