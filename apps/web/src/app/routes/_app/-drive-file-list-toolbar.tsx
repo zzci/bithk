@@ -154,7 +154,7 @@ export function FileToolbar({
   return (
     <div className="flex shrink-0 flex-col bg-background">
       {(showTitle || showSearch) && (
-        <div className="flex h-14 items-center justify-between gap-4 px-4">
+        <div className="flex h-14 flex-wrap items-center justify-between gap-4 px-4">
           {showTitle
             ? (
                 <div className="flex min-w-0 items-center gap-2 text-lg">
@@ -190,7 +190,7 @@ export function FileToolbar({
             : <div />}
 
           {showSearch && (
-            <div className="relative w-[360px] max-w-[42vw] shrink-0">
+            <div className="relative w-[min(360px,calc(100vw-140px))] shrink-0">
               <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
