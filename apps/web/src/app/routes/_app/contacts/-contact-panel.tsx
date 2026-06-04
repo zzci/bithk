@@ -11,7 +11,7 @@
 // Stays inside the locked stack — shadcn/ui + @base-ui/react + Tailwind only.
 
 import type { ContactFormState } from "./-contact-form-logic";
-import type { ContactKind, ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
+import type { ContactKind, ContactOrganizationSummary, ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
 import { Building2, Edit3, Lock, Share2, Trash2, Upload, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -97,6 +97,8 @@ interface ContactPanelProps {
   readonly onSubmit: (state: ContactFormState) => void;
   /** Cancel the form: edit returns to view of the same contact, create closes the drawer. */
   readonly onCancel: () => void;
+  /** Open the linked organization in the drawer (view mode, individuals only). */
+  readonly onOpenOrganization?: (orgId: string) => void;
 }
 
 export function ContactPanel(props: ContactPanelProps) {
@@ -116,6 +118,7 @@ function ContactPanelView({
   onShare,
   onDelete,
   onRename,
+  onOpenOrganization,
 }: ContactPanelProps) {
   const { t } = useTranslation(["contacts", "common"]);
   const categoriesQuery = useContactCategories();
@@ -179,26 +182,25 @@ function ContactPanelView({
 
         <PanelSection title={t("drawer.details")}>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-4 @sm:grid-cols-2">
-            {contact.kind === "individual"
-              ? (
-                  <>
-                    <ViewField label={t("field.position")} value={contact.position} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                    <ViewField label={t("field.phone")} value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                    <ViewField label={t("field.email")} value={contact.email} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                    <ViewField label={t("field.organization")} value={contact.organizationName} locked={false} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                  </>
-                )
-              : (
-                  <>
-                    <ViewField label={t("field.taxId")} value={contact.taxId} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                    <ViewField label={t("field.phone")} value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                    <div className="@sm:col-span-2">
-                      <ViewField label={t("field.address")} value={contact.address} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-                    </div>
-                  </>
-                )}
+            {contact.kind === "individual" && (
+              <ViewField label={t("field.position")} value={contact.position} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+            )}
+            <ViewField label={t("field.phone")} value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+            <ViewField label={t("field.email")} value={contact.email} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+            <ViewField label={t("field.website")} value={contact.website} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+            <ViewField label={t("field.taxId")} value={contact.taxId} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+            <div className="@sm:col-span-2">
+              <ViewField label={t("field.address")} value={contact.address} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+            </div>
           </dl>
         </PanelSection>
+
+        {contact.kind === "individual" && contact.organization && (
+          <CompanyInfoSection
+            organization={contact.organization}
+            {...(onOpenOrganization ? { onOpenOrganization } : {})}
+          />
+        )}
 
         {attributes.length > 0 && (
           <PanelSection title={t("field.attributes")}>
@@ -361,32 +363,29 @@ function ContactPanelForm({
         </PanelSection>
 
         <PanelSection title={t("drawer.details")}>
-          {form.kind === "individual"
-            ? (
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
-                    <FieldInput id="contact-position" label={t("field.position")} value={form.position} onChange={value => set("position", value)} />
-                    <FieldInput id="contact-phone" label={t("field.phone")} value={form.phone} onChange={value => set("phone", value)} />
-                    <FieldInput id="contact-email" label={t("field.email")} type="email" value={form.email} onChange={value => set("email", value)} />
-                  </div>
-                  <ContactOrgCombobox
-                    organizationId={form.organizationId}
-                    organizationName={form.organizationName}
-                    onPick={org => setForm(prev => ({ ...prev, organizationId: org.id, organizationName: org.name }))}
-                    onCreate={name => setForm(prev => ({ ...prev, organizationId: null, organizationName: name }))}
-                    onClear={() => setForm(prev => ({ ...prev, organizationId: null, organizationName: "" }))}
-                  />
-                </div>
-              )
-            : (
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
-                    <FieldInput id="contact-taxId" label={t("field.taxId")} value={form.taxId} onChange={value => set("taxId", value)} />
-                    <FieldInput id="contact-phone" label={t("field.phone")} value={form.phone} onChange={value => set("phone", value)} />
-                  </div>
-                  <FieldInput id="contact-address" label={t("field.address")} value={form.address} onChange={value => set("address", value)} />
-                </div>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
+              {form.kind === "individual" && (
+                <FieldInput id="contact-position" label={t("field.position")} value={form.position} onChange={value => set("position", value)} />
               )}
+              <FieldInput id="contact-phone" label={t("field.phone")} value={form.phone} onChange={value => set("phone", value)} />
+              <FieldInput id="contact-email" label={t("field.email")} type="email" value={form.email} onChange={value => set("email", value)} />
+              <FieldInput id="contact-website" label={t("field.website")} value={form.website} onChange={value => set("website", value)} />
+              <FieldInput id="contact-taxId" label={t("field.taxId")} value={form.taxId} onChange={value => set("taxId", value)} />
+            </div>
+            <FieldInput id="contact-address" label={t("field.address")} value={form.address} onChange={value => set("address", value)} />
+            {form.kind === "individual" && (
+              <ContactOrgCombobox
+                organizationId={form.organizationId}
+                organizationName={form.organizationName}
+                organizationAttributes={form.organizationAttributes}
+                onOrganizationAttributesChange={next => set("organizationAttributes", next)}
+                onPick={org => setForm(prev => ({ ...prev, organizationId: org.id, organizationName: org.name }))}
+                onCreate={name => setForm(prev => ({ ...prev, organizationId: null, organizationName: name }))}
+                onClear={() => setForm(prev => ({ ...prev, organizationId: null, organizationName: "" }))}
+              />
+            )}
+          </div>
         </PanelSection>
 
         <PanelSection title={t("field.attributes")}>
@@ -536,6 +535,50 @@ function ViewField({
         <ContactFieldValue value={value} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
       </dd>
     </div>
+  );
+}
+
+// Read-only company card for an individual's linked organization. The embedded
+// summary is already masked server-side (sensitive fields nulled), so fields are
+// never locked here; the name is always present. When `onOpenOrganization` is
+// supplied the name becomes a link that opens the org in the drawer.
+function CompanyInfoSection({
+  organization,
+  onOpenOrganization,
+}: {
+  readonly organization: ContactOrganizationSummary;
+  readonly onOpenOrganization?: (orgId: string) => void;
+}) {
+  const { t } = useTranslation(["contacts"]);
+  return (
+    <PanelSection title={t("company.title")}>
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-4 @sm:grid-cols-2">
+        <div className="space-y-0.5 @sm:col-span-2">
+          <dt className="text-xs font-medium text-muted-foreground">{t("field.organization")}</dt>
+          <dd className="text-sm">
+            {onOpenOrganization
+              ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 text-sm font-normal"
+                    onClick={() => onOpenOrganization(organization.id)}
+                  >
+                    {organization.name}
+                  </Button>
+                )
+              : <span className="break-words text-foreground">{organization.name}</span>}
+          </dd>
+        </div>
+        <ViewField label={t("field.website")} value={organization.website} locked={false} lockedLabel="" hiddenLabel="" />
+        <ViewField label={t("field.email")} value={organization.email} locked={false} lockedLabel="" hiddenLabel="" />
+        <ViewField label={t("field.phone")} value={organization.phone} locked={false} lockedLabel="" hiddenLabel="" />
+        <ViewField label={t("field.taxId")} value={organization.taxId} locked={false} lockedLabel="" hiddenLabel="" />
+        <div className="@sm:col-span-2">
+          <ViewField label={t("field.address")} value={organization.address} locked={false} lockedLabel="" hiddenLabel="" />
+        </div>
+      </dl>
+    </PanelSection>
   );
 }
 

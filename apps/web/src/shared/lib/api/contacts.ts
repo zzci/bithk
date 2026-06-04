@@ -21,6 +21,20 @@ interface ContactTagView {
   readonly name: string;
 }
 
+// Embedded company summary for an individual's linked organization. Sensitive
+// fields are nulled by the backend when the reading actor may not see the org's
+// confidential fields; `name` is always present. Null for organization rows and
+// for individuals with no org link.
+export interface ContactOrganizationSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly website: string | null;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly address: string | null;
+  readonly taxId: string | null;
+}
+
 export interface ContactView {
   readonly id: string;
   readonly kind: ContactKind;
@@ -28,11 +42,16 @@ export interface ContactView {
   readonly name: string;
   readonly phone: string | null;
   readonly email: string | null;
+  // Masked like phone/email when the actor may not see confidential fields.
+  readonly website: string | null;
   readonly position: string | null;
   // The linked employer (individuals only); `organizationName` is the resolved
   // name of that organization, supplied by the API for display.
   readonly organizationId: string | null;
   readonly organizationName: string | null;
+  // Embedded company summary of the linked organization (individuals only);
+  // null for organization rows and for individuals with no org link.
+  readonly organization: ContactOrganizationSummary | null;
   readonly taxId: string | null;
   readonly address: string | null;
   readonly note: string | null;
@@ -52,18 +71,33 @@ export interface ContactView {
   readonly updatedAt: string;
 }
 
+// Company fields used to seed an organization created inline from
+// `organizationName`. Only meaningful alongside `organizationName`; ignored when
+// linking an existing `organizationId` or when no org link is requested.
+export interface ContactOrganizationAttributes {
+  readonly website?: string | null | undefined;
+  readonly email?: string | null | undefined;
+  readonly phone?: string | null | undefined;
+  readonly address?: string | null | undefined;
+  readonly taxId?: string | null | undefined;
+}
+
 export interface ContactInput {
   // Defaults to 'organization' on the backend when omitted; the create form
   // always supplies it. Immutable after create (the update form omits it).
   readonly kind?: ContactKind | undefined;
   readonly name: string;
+  // Shared by both kinds: phone, email, website, taxId, address, note.
   readonly phone?: string | null | undefined;
   readonly email?: string | null | undefined;
+  readonly website?: string | null | undefined;
   readonly position?: string | null | undefined;
   // Link to an existing organization, or pass `organizationName` to create one
-  // on the fly and link to it.
+  // on the fly and link to it. `organizationAttributes` seeds company fields
+  // onto that inline-created organization and only applies in that case.
   readonly organizationId?: string | null | undefined;
   readonly organizationName?: string | null | undefined;
+  readonly organizationAttributes?: ContactOrganizationAttributes | undefined;
   readonly taxId?: string | null | undefined;
   readonly address?: string | null | undefined;
   readonly note?: string | null | undefined;

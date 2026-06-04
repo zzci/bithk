@@ -382,6 +382,85 @@ describe("contact routes", () => {
     expect(((await orgs.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Oceanic Supplies"]);
   });
 
+  test("POST /contacts accepts the shared email/website on an organization and website/address/taxId on an individual", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+
+    const org = await createContact(app, owner, {
+      kind: "organization",
+      name: "Shared Org",
+      email: "info@shared-org.test",
+      website: "shared-org.test",
+      taxId: "SO-1",
+      address: "Dock 9",
+    });
+    expect(org.status).toBe(201);
+    const orgData = ((await org.json()) as { data: ContactView }).data;
+    expect(orgData.email).toBe("info@shared-org.test");
+    expect(orgData.website).toBe("shared-org.test");
+
+    const person = await createContact(app, owner, {
+      kind: "individual",
+      name: "Shared Person",
+      website: "shared-person.test",
+      address: "Pier 3",
+      taxId: "SP-1",
+    });
+    expect(person.status).toBe(201);
+    const personData = ((await person.json()) as { data: ContactView }).data;
+    expect(personData.website).toBe("shared-person.test");
+    expect(personData.address).toBe("Pier 3");
+    expect(personData.taxId).toBe("SP-1");
+  });
+
+  test("POST /contacts drops person-only fields from an organization body (schema omits them)", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+
+    // The organization body schema has no position/organizationName fields, so
+    // zod strips them rather than rejecting; the org is created without them.
+    const res = await app.request("/contacts", jsonReq(owner, "POST", {
+      kind: "organization",
+      name: "Stripped Org",
+      position: "CEO",
+      organizationName: "Parent",
+    }));
+    expect(res.status).toBe(201);
+    const data = ((await res.json()) as { data: ContactView }).data;
+    expect(data.kind).toBe("organization");
+    expect(data.position).toBeNull();
+    expect(data.organizationId).toBeNull();
+  });
+
+  test("POST /contacts creates an inline organization from organizationAttributes and embeds its summary", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+
+    const res = await createContact(app, owner, {
+      kind: "individual",
+      name: "Dana Reed",
+      organizationName: "Reed Holdings",
+      organizationAttributes: {
+        website: "reed-holdings.test",
+        email: "hi@reed-holdings.test",
+        phone: "+1 555 1212",
+        address: "Suite 100",
+        taxId: "RH-1",
+      },
+    });
+    expect(res.status).toBe(201);
+    const data = ((await res.json()) as { data: ContactView }).data;
+    expect(data.organizationId).toBeTruthy();
+    expect(data.organization).toMatchObject({
+      name: "Reed Holdings",
+      website: "reed-holdings.test",
+      email: "hi@reed-holdings.test",
+      phone: "+1 555 1212",
+      address: "Suite 100",
+      taxId: "RH-1",
+    });
+  });
+
   test("POST /contacts requires a valid kind discriminator", async () => {
     const app = buildContactApp();
     const owner = await seedUser("owner-a");
@@ -526,6 +605,16 @@ function pngFile(name = "avatar.png"): File {
   return new File([PNG_1X1], name, { type: "image/png" });
 }
 
+interface OrganizationSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly website: string | null;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly address: string | null;
+  readonly taxId: string | null;
+}
+
 interface ContactView {
   readonly id: string;
   readonly kind: string;
@@ -533,9 +622,11 @@ interface ContactView {
   readonly name: string;
   readonly phone: string | null;
   readonly email: string | null;
+  readonly website: string | null;
   readonly position: string | null;
   readonly organizationId: string | null;
   readonly organizationName: string | null;
+  readonly organization: OrganizationSummary | null;
   readonly taxId: string | null;
   readonly address: string | null;
   readonly note: string | null;

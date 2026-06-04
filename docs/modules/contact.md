@@ -48,13 +48,23 @@ One table holds every party. `kind` selects which optional columns apply.
 | `confidential` | boolean, default `false`. |
 | `avatar_reference_id` | nullable FK → `file_references.id`, `ON DELETE SET NULL`. Person avatar OR org logo (see Shared image). |
 | `attributes` | nullable TEXT, JSON object of flat `string -> string` custom properties (see Custom attributes). |
-| `phone` | nullable. Allowed on **both** kinds. |
-| `email` | nullable. Individual-only in the form. |
+| `phone` | nullable. Shared by **both** kinds. |
+| `email` | nullable. Shared by **both** kinds. |
+| `website` | nullable. Shared by **both** kinds. |
+| `tax_id` | nullable. Shared by **both** kinds. |
+| `address` | nullable. Shared by **both** kinds. |
 | `position` | nullable. Individual-only (job title / role). |
 | `organization_id` | nullable **self-FK** → `contacts.id` (a `kind = organization` row), `ON DELETE SET NULL`. The individual's employer. Individual-only. |
-| `tax_id` | nullable. Organization-only. |
-| `address` | nullable. Organization-only. |
 | `created_at`, `updated_at` | timestamps. |
+
+The editable field set is unified across kinds: `phone`, `email`, `website`,
+`address`, `taxId`, and `note` are accepted on **both** individuals and
+organizations (plus `name`/`attributes`/`categoryId`/`status`/`visibility`/
+`confidential`/`tags`). Only `position` and the organization link
+(`organizationId` / `organizationName` / `organizationAttributes`) remain
+individual-only. The service rejects `position` / `organizationId` /
+`organizationName` / `organizationAttributes` on an organization; an individual
+rejects nothing from the shared set.
 
 Indexed by `owner_id` and `organization_id`. The old `contact_person` column is
 **removed** — people are first-class `kind = individual` rows linked via
@@ -125,9 +135,26 @@ confidential masking.
 
 When creating an `individual`, the organization field accepts either an existing
 `organization_id` or a new organization **name**. Given a new name, the service
-creates a `kind = organization` contact carrying just that `name` (owned by the
+creates a `kind = organization` contact carrying that `name` (owned by the
 caller) and links the individual to it via `organization_id`, in one
-transaction — mirroring the tag combobox pick-or-create UX.
+transaction — mirroring the tag combobox pick-or-create UX. An optional
+`organizationAttributes` object (`website`, `email`, `phone`, `address`,
+`taxId`) seeds company fields onto the newly created organization; it is
+individual-only and ignored unless a new `organizationName` is supplied (an
+existing `organizationId` is linked as-is).
+
+### Embedded organization summary
+
+An individual's contact view embeds a read-only `organization` summary of its
+linked employer:
+`{ id, name, website, email, phone, address, taxId }`. Organization rows and
+unlinked individuals return `organization: null`. The summary respects the
+**organization's own** visibility/confidential masking for the reading actor —
+resolved independently of the individual being read (the same
+`canSeeConfidentialFields` rule used for a direct organization read). When the
+actor may not see the org's confidential fields, `website`/`email`/`phone`/
+`address`/`taxId` are nulled while `name` is always present. The flat
+`organizationId` and `organizationName` fields remain on the view unchanged.
 
 ### `GET /api/contacts` query params
 
@@ -150,6 +177,11 @@ the array of visible contacts; `meta.total` is the total matching the filters.
 person-primary in the UI (avatar + name), with organization name shown for
 individuals; organizations also appear and are filterable via `kind`.
 
+> **Frontend (web L3).** The contacts list renders as single-line rows with
+> columns `name | company | category`, and the person detail surfaces a
+> **Company info** section sourced from the embedded `organization` summary.
+> That UI work lands in the paired web L3 of this campaign.
+
 ## Permissions
 
 The module registers the `contact` policy namespace:
@@ -169,9 +201,10 @@ Private contacts are visible only to owners/admins and explicit viewers. Public
 contacts are readable by authenticated users. If a public contact is
 `confidential = true`, implicit public viewers receive only `name`, `kind`,
 `tags`, `visibility`, `confidential`, timestamps, and `canManage = false`;
-detail fields (`phone`, `email`, `position`, `organizationId`, `taxId`,
-`address`, `note`, `status`, `attributes`, `avatarReferenceId`) are masked to
-`null`. Owners, admins, and explicit viewers see the full row.
+detail fields (`phone`, `email`, `website`, `position`, `organizationId`,
+`taxId`, `address`, `note`, `status`, `attributes`, `avatarReferenceId`) are
+masked to `null`. Owners, admins, and explicit viewers see the full row. The
+embedded `organization` summary applies the org's own masking the same way.
 
 ## Procurement integration
 

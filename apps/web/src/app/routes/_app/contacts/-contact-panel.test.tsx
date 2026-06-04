@@ -16,9 +16,11 @@ function makeContact(overrides: Partial<ContactView> = {}): ContactView {
     name: "Jane Doe",
     phone: "123",
     email: "jane@acme.test",
+    website: null,
     position: "Manager",
     organizationId: "org-1",
     organizationName: "Acme Co",
+    organization: { id: "org-1", name: "Acme Co", website: null, email: null, phone: null, address: null, taxId: null },
     taxId: null,
     address: null,
     note: null,
@@ -103,19 +105,64 @@ describe("contactPanel (view)", () => {
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
-  it("shows individual details: kind, position, email and employer", () => {
+  it("shows individual details: kind, position, email and the linked company", () => {
     renderView(makeContact());
 
     expect(screen.getByText("Individual")).toBeInTheDocument();
     expect(screen.getByText("Manager")).toBeInTheDocument();
     expect(screen.getByText("jane@acme.test")).toBeInTheDocument();
+    // The linked organization surfaces in the dedicated Company section.
+    expect(screen.getByText("Company")).toBeInTheDocument();
     expect(screen.getByText("Acme Co")).toBeInTheDocument();
+  });
+
+  it("renders the company info section and opens the org when its name is clicked", async () => {
+    const onOpenOrganization = vi.fn();
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ContactPanel
+        mode="view"
+        contact={makeContact({
+          organization: {
+            id: "org-9",
+            name: "Acme HQ",
+            website: "https://acme.test",
+            email: "hq@acme.test",
+            phone: "555",
+            address: "Dock 1",
+            taxId: "TAX-7",
+          },
+        })}
+        pending={false}
+        errorMessage={null}
+        lockedLabel="Masked field"
+        hiddenLabel="Hidden"
+        onClose={noop}
+        onEdit={noop}
+        onShare={noop}
+        onDelete={noop}
+        onRename={noop}
+        onSubmit={noop}
+        onCancel={noop}
+        onOpenOrganization={onOpenOrganization}
+      />,
+    );
+
+    expect(screen.getByText("Company")).toBeInTheDocument();
+    expect(screen.getByText("https://acme.test")).toBeInTheDocument();
+    expect(screen.getByText("hq@acme.test")).toBeInTheDocument();
+    expect(screen.getByText("TAX-7")).toBeInTheDocument();
+    expect(screen.getByText("Dock 1")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Acme HQ" }));
+    expect(onOpenOrganization).toHaveBeenCalledWith("org-9");
   });
 
   it("shows organization details: tax id and address", () => {
     renderView(makeContact({
       kind: "organization",
       name: "Acme Yard",
+      organization: null,
       taxId: "TAX-1",
       address: "Dock 9",
       attributes: { region: "EU" },
@@ -129,24 +176,31 @@ describe("contactPanel (view)", () => {
     expect(screen.getByText("EU")).toBeInTheDocument();
     // Person-only fields are absent.
     expect(screen.queryByText("Manager")).not.toBeInTheDocument();
+    // No Company section for organization rows.
+    expect(screen.queryByText("Company")).not.toBeInTheDocument();
   });
 });
 
 describe("contactPanel (form) kind selector", () => {
-  it("create: switching kind toggles the section fields", async () => {
+  it("create: both kinds share contact fields; only individuals get the person-only ones", async () => {
     const user = userEvent.setup();
     renderForm("create", null);
 
-    // Individual is the default: employer + email fields are present.
+    // Individual default: shared fields plus the person-only position.
     expect(screen.getByRole("radio", { name: "Individual" })).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Tax ID")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Website")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tax ID")).toBeInTheDocument();
+    expect(screen.getByLabelText("Position")).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Organization" }));
 
+    // Shared fields persist across kinds; the person-only position drops.
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Website")).toBeInTheDocument();
     expect(screen.getByLabelText("Tax ID")).toBeInTheDocument();
     expect(screen.getByLabelText("Address")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
   });
 
   it("edit: the kind is read-only (no radios)", () => {
@@ -215,14 +269,19 @@ function orgContact(id: string, name: string): ContactView {
   return makeContact({ id, kind: "organization", name, organizationId: null, organizationName: null });
 }
 
+const EMPTY_ORG_ATTRS = { website: "", email: "", phone: "", address: "", taxId: "" };
+
 function OrgHarness() {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState("");
+  const [organizationAttributes, setOrganizationAttributes] = useState(EMPTY_ORG_ATTRS);
   return (
     <>
       <ContactOrgCombobox
         organizationId={organizationId}
         organizationName={organizationName}
+        organizationAttributes={organizationAttributes}
+        onOrganizationAttributesChange={setOrganizationAttributes}
         onPick={(org) => {
           setOrganizationId(org.id);
           setOrganizationName(org.name);
@@ -268,7 +327,7 @@ describe("contactOrgCombobox", () => {
     expect(screen.getByTestId("orgName")).toHaveTextContent("Acme Co");
   });
 
-  it("creates a new organization from the typed name", async () => {
+  it("creates a new organization from the typed name and exposes its company seed fields", async () => {
     routeOrgs([]);
     const user = userEvent.setup();
     renderWithProviders(<OrgHarness />);
@@ -279,5 +338,21 @@ describe("contactOrgCombobox", () => {
 
     expect(screen.getByTestId("orgId")).toHaveTextContent("");
     expect(screen.getByTestId("orgName")).toHaveTextContent("Beta Yard");
+    // A new org exposes optional company seed inputs; typing into one persists.
+    const website = screen.getByLabelText("Website");
+    await user.type(website, "https://beta.test");
+    expect(website).toHaveValue("https://beta.test");
+  });
+
+  it("hides the company seed fields when an existing org is picked", async () => {
+    routeOrgs([orgContact("org-1", "Acme Co")]);
+    const user = userEvent.setup();
+    renderWithProviders(<OrgHarness />);
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Acme Co" }));
+
+    expect(screen.getByTestId("orgId")).toHaveTextContent("org-1");
+    expect(screen.queryByLabelText("Website")).not.toBeInTheDocument();
   });
 });
