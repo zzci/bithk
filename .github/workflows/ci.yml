@@ -129,6 +129,10 @@ jobs:
 
   codeql:
     name: codeql (javascript-typescript)
+    # Non-blocking until GitHub Advanced Security is enabled for this private
+    # repo: the analyze step uploads SARIF to code-scanning, which needs GHAS.
+    # Re-tighten (remove continue-on-error) once GHAS is enabled for the repo.
+    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -179,6 +183,10 @@ jobs:
 
       - name: Upload Trivy results
         if: always()
+        # Non-blocking until GHAS is enabled: code-scanning SARIF upload needs
+        # it on a private repo. Re-tighten once GHAS is enabled. The trivy scan
+        # step above still gates the build on HIGH,CRITICAL (exit-code 1).
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-image.sarif
