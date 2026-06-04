@@ -85,7 +85,7 @@ export function WebhookSettingsTab() {
         : webhooks.length === 0
           ? <div className="rounded-md border py-8 text-center text-muted-foreground">{t("settings:webhook.noWebhooks")}</div>
           : (
-              <div className="rounded-md border">
+              <div className="overflow-x-auto rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>

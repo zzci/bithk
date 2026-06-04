@@ -106,7 +106,7 @@ export function CreateJobDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={t("create")}
-        className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l bg-background shadow-xl sm:w-[640px] md:w-[720px]"
+        className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l bg-background shadow-xl sm:w-[min(640px,90vw)] md:w-[min(720px,90vw)]"
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             const target = e.target as HTMLElement;

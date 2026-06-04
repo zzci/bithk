@@ -138,7 +138,7 @@ export function LogsDialog({
 
   return (
     <Dialog open={target !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="w-full sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("logs.title", { name: target?.name ?? "" })}</DialogTitle>
           <DialogDescription>
