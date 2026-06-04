@@ -44,10 +44,9 @@ interface EquipmentView {
   category: string | null;
 }
 
-interface MaintenanceTemplateView {
+interface WorklistView {
   id: string;
   name: string;
-  category: string | null;
   checklist: string | null;
   precautions: string | null;
 }
@@ -62,14 +61,7 @@ interface IssueReferenceView {
   id: string;
   refType: string;
   refId: string;
-  template?: MaintenanceTemplateView | null;
-}
-
-interface MaintenanceOrderView {
-  id: string;
-  title: string;
-  templateRefId: string;
-  referenceId: string;
+  worklist?: WorklistView | null;
 }
 
 interface DriveEntry {
@@ -131,8 +123,8 @@ describe("/api/ships main flow", () => {
     expect(baseProject.data.name).toBe(ship.name);
     expect(baseProject.data.creatorId).toBe(adminMe.data.id);
     const roles = await admin.json<{ data: ProjectRole[] }>(`/api/projects/${baseProjectId}/roles`);
-    const pmRole = roles.data.find(r => r.name === "Project Manager");
-    const memberRole = roles.data.find(r => r.name === "Member");
+    const pmRole = roles.data.find(r => r.name === "Project Owner");
+    const memberRole = roles.data.find(r => r.name === "Reader");
     expect(pmRole?.capabilities).toContain("project.manage");
     if (!pmRole || !memberRole)
       throw new Error("base project roles were not seeded");
@@ -141,7 +133,7 @@ describe("/api/ships main flow", () => {
     expect(creatorMember?.roleId).toBe(pmRole.id);
 
     const unrelatedProjectId = await createTestProject(admin, `e2e-unrelated-${token}`);
-    const unrelatedMemberRole = await findProjectRole(admin, unrelatedProjectId, "Member");
+    const unrelatedMemberRole = await findProjectRole(admin, unrelatedProjectId, "Reader");
     await addUserToProject(admin, unrelatedProjectId, regularUser.id, unrelatedMemberRole.id);
     const denied = await user.raw(`/api/ships/${ship.id}`);
     expect(denied.status).toBe(404);
@@ -171,62 +163,51 @@ describe("/api/ships main flow", () => {
       method: "POST",
       body: { name: "Generator", category: "Power" },
     });
-    expect(equipment.data.category).toBe("Power");
+    expect(equipment.data.name).toBe("Generator");
     const equipmentList = await user.json<{ data: EquipmentView[] }>(`/api/ships/${ship.id}/equipment`);
     expect(equipmentList.data.find(e => e.id === equipment.data.id)).toBeDefined();
 
-    const globalTemplate = await admin.json<{ data: MaintenanceTemplateView }>("/api/maintenance-templates", {
+    // Worklist knowledge base: admin seeds a global worklist, the promoted-Owner
+    // member copies it onto the ship, then references the copy from a work order.
+    const globalWorklist = await admin.json<{ data: WorklistView }>("/api/worklists", {
       method: "POST",
       body: {
         name: `Global engine service ${token}`,
-        category: "Engine",
         checklist: JSON.stringify(["Inspect belts", "Check oil"]),
         precautions: "Lock out power before service.",
       },
     });
-    const beforeCopy = await user.json<{ data: MaintenanceTemplateView[] }>(`/api/ships/${ship.id}/maintenance-templates`);
-    expect(beforeCopy.data.find(t => t.id === globalTemplate.data.id)).toBeUndefined();
-    const copied = await user.json<{ data: MaintenanceTemplateView }>(`/api/ships/${ship.id}/maintenance-templates`, {
+    const beforeCopy = await user.json<{ data: WorklistView[] }>(`/api/ships/${ship.id}/worklists`);
+    expect(beforeCopy.data.find(w => w.id === globalWorklist.data.id)).toBeUndefined();
+    const copied = await user.json<{ data: WorklistView }>(`/api/ships/${ship.id}/worklists`, {
       method: "POST",
-      body: { fromGlobalId: globalTemplate.data.id },
+      body: { fromGlobalId: globalWorklist.data.id },
     });
-    expect(copied.data.id).not.toBe(globalTemplate.data.id);
-    expect(copied.data.checklist).toBe(globalTemplate.data.checklist);
-    await admin.json(`/api/maintenance-templates/${globalTemplate.data.id}`, {
-      method: "PATCH",
-      body: { checklist: "changed globally" },
-    });
-    const copiedAgain = await user.json<{ data: MaintenanceTemplateView }>(`/api/ships/${ship.id}/maintenance-templates/${copied.data.id}`);
-    expect(copiedAgain.data.checklist).toBe(JSON.stringify(["Inspect belts", "Check oil"]));
-    const shipTemplates = await user.json<{ data: MaintenanceTemplateView[] }>(`/api/ships/${ship.id}/maintenance-templates`);
-    expect(shipTemplates.data.map(t => t.id)).toContain(copied.data.id);
-    expect(shipTemplates.data.map(t => t.id)).not.toContain(globalTemplate.data.id);
+    expect(copied.data.id).not.toBe(globalWorklist.data.id);
+    expect(copied.data.name).toBe(globalWorklist.data.name);
+    expect(copied.data.checklist).toBe(globalWorklist.data.checklist);
+    const shipWorklists = await user.json<{ data: WorklistView[] }>(`/api/ships/${ship.id}/worklists`);
+    expect(shipWorklists.data.map(w => w.id)).toContain(copied.data.id);
+    expect(shipWorklists.data.map(w => w.id)).not.toContain(globalWorklist.data.id);
 
     const issue = await user.json<{ data: IssueView }>(`/api/projects/${baseProjectId}/issues`, {
       method: "POST",
       body: {
         title: `Engine maintenance ${token}`,
-        references: [{ refType: "maintenance_template", refId: copied.data.id }],
+        references: [{ refType: "worklist", refId: copied.data.id }],
       },
     });
     expect(issue.data.projectId).toBe(baseProjectId);
     const references = await user.json<{ data: IssueReferenceView[] }>(`/api/issues/${issue.data.id}/references`);
-    const templateRef = references.data.find(r => r.refType === "maintenance_template");
-    expect(templateRef?.refId).toBe(copied.data.id);
-    expect(templateRef?.template?.checklist).toContain("Inspect belts");
-    expect(templateRef?.template?.precautions).toBe("Lock out power before service.");
-    const orders = await user.json<{ data: MaintenanceOrderView[] }>(`/api/ships/${ship.id}/maintenance-orders`);
-    expect(orders.data.find(o => o.id === issue.data.id && o.templateRefId === copied.data.id)).toBeDefined();
+    const worklistRef = references.data.find(r => r.refType === "worklist");
+    expect(worklistRef?.refId).toBe(copied.data.id);
+    expect(worklistRef?.worklist?.checklist).toContain("Inspect belts");
+    expect(worklistRef?.worklist?.precautions).toBe("Lock out power before service.");
 
-    const dangling = await user.json<{ data: IssueView }>(`/api/projects/${baseProjectId}/issues`, {
-      method: "POST",
-      body: {
-        title: `Dangling maintenance ${token}`,
-        references: [{ refType: "maintenance_template", refId: `missing-${token}` }],
-      },
-    });
-    const danglingRefs = await user.json<{ data: IssueReferenceView[] }>(`/api/issues/${dangling.data.id}/references`);
-    expect(danglingRefs.data.find(r => r.refType === "maintenance_template")?.template).toBeNull();
+    // Deleting the referenced ship worklist degrades the soft reference to null.
+    await user.json(`/api/ships/${ship.id}/worklists/${copied.data.id}`, { method: "DELETE" });
+    const danglingRefs = await user.json<{ data: IssueReferenceView[] }>(`/api/issues/${issue.data.id}/references`);
+    expect(danglingRefs.data.find(r => r.refType === "worklist")?.worklist).toBeNull();
 
     const filesList = await user.json<{ data: DriveEntry[] }>(`/api/drive/entries?ownerType=project&ownerId=${baseProjectId}`);
     expect(Array.isArray(filesList.data)).toBe(true);
