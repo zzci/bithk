@@ -2,7 +2,7 @@
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Calendar, Loader2, MapPin, Ship as ShipIcon } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CoverImage } from "@/shared/components/cover-image";
@@ -24,8 +24,6 @@ import { ShipStatusBadge } from "./-ship-visuals";
 export const Route = createLazyFileRoute("/_app/ships/")({
   component: ShipsListPage,
 });
-
-const CURRENT_YEAR = new Date().getUTCFullYear();
 
 export function ShipsListPage() {
   const { t } = useTranslation(["ships", "common"]);
@@ -177,10 +175,10 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
   const { t } = useTranslation("ships");
 
   const specs = [
-    { label: t("field.imoNumber"), value: ship.imoNumber },
     { label: t("field.lengthOverall"), value: ship.lengthOverall === null ? null : String(ship.lengthOverall) },
+    { label: t("field.beam"), value: ship.beam === null ? null : String(ship.beam) },
+    { label: t("field.draft"), value: ship.draft === null ? null : String(ship.draft) },
     { label: t("field.grossTonnage"), value: ship.grossTonnage === null ? null : String(ship.grossTonnage) },
-    { label: t("field.buildYear"), value: ship.buildYear === null ? null : String(ship.buildYear) },
   ];
 
   return (
@@ -221,25 +219,6 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
             </div>
           ))}
         </dl>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-            <ShipIcon className="size-3" />
-            {ship.flagState ?? t("overview.notSet")}
-          </span>
-          {ship.registryPort && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-              <MapPin className="size-3" />
-              {ship.registryPort}
-            </span>
-          )}
-          {ship.buildYear && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-              <Calendar className="size-3" />
-              {t("list.card.ageValue", { count: Math.max(0, CURRENT_YEAR - ship.buildYear) })}
-            </span>
-          )}
-        </div>
 
         {ship.tags.length > 0 && (
           <div className="flex flex-wrap items-center gap-1">

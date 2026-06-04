@@ -77,8 +77,21 @@ describe("shipsListPage", () => {
     expect(screen.getByRole("heading", { name: "Ships" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
     expect(screen.getByText("HULL-1")).toBeInTheDocument();
-    expect(screen.getByText("9876543")).toBeInTheDocument();
-    expect(screen.getByText("Shanghai")).toBeInTheDocument();
+    const card = screen.getByRole("button", { name: "Serenity" });
+    // Status badge restored.
+    expect(within(card).getByText("Active")).toBeInTheDocument();
+    // The four physical specs render their labels + values; IMO / build year / age / flag / registry are gone.
+    expect(within(card).getByText("Length overall (m)")).toBeInTheDocument();
+    expect(within(card).getByText("Beam (m)")).toBeInTheDocument();
+    expect(within(card).getByText("Draft (m)")).toBeInTheDocument();
+    expect(within(card).getByText("Gross tonnage")).toBeInTheDocument();
+    expect(within(card).getByText("299")).toBeInTheDocument();
+    expect(within(card).getByText("95500")).toBeInTheDocument();
+    // Removed bits no longer render in the card.
+    expect(within(card).queryByText("9876543")).not.toBeInTheDocument();
+    expect(within(card).queryByText("Shanghai")).not.toBeInTheDocument();
+    // Tag still shown.
+    expect(within(card).getByText("Refit")).toBeInTheDocument();
   });
 
   it("hides the create entry for non-admins", async () => {

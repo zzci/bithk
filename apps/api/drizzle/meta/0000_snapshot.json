@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b9ffc3b6-b90e-479e-873f-cf23086b57b5",
+  "id": "9879b716-dc83-447f-84bf-4e0ac8777563",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "contact_categories": {
@@ -108,15 +108,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "position": {
-          "name": "position",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "organization_id": {
-          "name": "organization_id",
+        "website": {
+          "name": "website",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -131,6 +124,20 @@
         },
         "address": {
           "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "organization_id": {
+          "name": "organization_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

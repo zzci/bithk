@@ -3,7 +3,7 @@ import type { ContactFormState } from "./-contact-form-logic";
 import type { ContactKind, ContactStatus, ContactView } from "@/shared/lib/api/contacts";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { Building2, Edit3, Share2, Trash2, User } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
@@ -19,7 +19,7 @@ import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialo
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
-import { useContactsList, useContactTags, useCreateContact, useDeleteContact, useUpdateContact } from "@/shared/lib/api/contacts";
+import { useContact, useContactsList, useContactTags, useCreateContact, useDeleteContact, useUpdateContact } from "@/shared/lib/api/contacts";
 import { errorMessage } from "@/shared/lib/errors";
 import { CONTACT_CONFIDENTIAL_BADGE, CONTACT_VISIBILITY_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
@@ -61,6 +61,10 @@ export function ContactsListPage() {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContactView | null>(null);
   const [shareTarget, setShareTarget] = useState<ContactView | null>(null);
+  // Pending "open the linked organization" request: fetch it, then swap the
+  // drawer to view it once resolved.
+  const [orgToOpen, setOrgToOpen] = useState<string | null>(null);
+  const orgQuery = useContact(orgToOpen ?? undefined);
   const debouncedSearch = useDebounce(search, 300);
 
   const contactsQuery = useContactsList({
@@ -82,6 +86,16 @@ export function ContactsListPage() {
   const rows = contactsQuery.data?.data ?? [];
   const meta = contactsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
+
+  // Once the requested organization resolves, swap the drawer to view it.
+  /* eslint-disable react/set-state-in-effect -- swap the drawer only when the fetched org matches the pending request. */
+  useEffect(() => {
+    if (orgToOpen && orgQuery.data && orgQuery.data.id === orgToOpen) {
+      setDrawer({ mode: "view", contact: orgQuery.data });
+      setOrgToOpen(null);
+    }
+  }, [orgToOpen, orgQuery.data]);
+  /* eslint-enable react/set-state-in-effect */
 
   const handleSubmit = (state: ContactFormState) => {
     if (drawer?.mode === "edit") {
@@ -202,7 +216,7 @@ export function ContactsListPage() {
         : rows.length === 0
           ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("list.empty")}</p>
           : (
-              <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-hidden">
                 {/* Header row — shares CONTACT_GRID so its labels sit over the same
                     column tracks as every data row below. */}
                 <div className="flex items-stretch border-b border-border bg-muted/40">
@@ -227,6 +241,9 @@ export function ContactsListPage() {
                           onClick={() => setDrawer({ mode: "view", contact })}
                         >
                           <span className="flex min-w-0 items-center gap-2">
+                            {contact.kind === "organization"
+                              ? <Building2 role="img" aria-label={t("kind.organization")} className="size-4 shrink-0 text-muted-foreground" />
+                              : <User role="img" aria-label={t("kind.individual")} className="size-4 shrink-0 text-muted-foreground" />}
                             <Avatar size="sm" className="size-7">
                               {contact.avatarUrl ? <AvatarImage src={contact.avatarUrl} alt="" /> : null}
                               <AvatarFallback>
@@ -238,7 +255,6 @@ export function ContactsListPage() {
                               </AvatarFallback>
                             </Avatar>
                             <span className="truncate text-sm font-medium">{contact.name}</span>
-                            <Badge variant="outline" className="shrink-0">{t(`kind.${contact.kind}` as const)}</Badge>
                             <Badge variant="secondary" className={cn("shrink-0", CONTACT_VISIBILITY_BADGE[contact.visibility])}>
                               {t(`visibility.${contact.visibility}` as const)}
                             </Badge>
@@ -353,6 +369,7 @@ export function ContactsListPage() {
               else
                 setDrawer(null);
             }}
+            onOpenOrganization={orgId => setOrgToOpen(orgId)}
           />
         </ResizableDrawer>
       )}

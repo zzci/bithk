@@ -228,3 +228,39 @@ gtag tag family.
   modules.
 - Adopts the shared gtag tag component family (PLAN-066,
   `@/shared/components/tags`).
+
+## 2026-06-04 contactfields addendum
+
+Campaign `l1-8odd9we3-contactfields-20260604081152` (backend L3) unifies the
+editable field set across both kinds and enriches the individual view with its
+employer's company data.
+
+- **Shared field set widened.** `email`, `website` (new column), `taxId`, and
+  `address` are now accepted on **both** kinds (joining `phone`/`note`). The
+  prior gating — `email` individual-only, `taxId`/`address` organization-only —
+  is removed. Only `position` and the organization link (`organizationId` /
+  `organizationName` / `organizationAttributes`) stay individual-only; an
+  individual now rejects nothing from the shared set, while an organization
+  rejects the four individual-only fields.
+- **`website` column.** Added to the `contacts` table (nullable, shared),
+  masked like the other detail fields on confidential public reads.
+- **Embedded `organization` summary.** An individual's view embeds a read-only
+  `{ id, name, website, email, phone, address, taxId }` summary of its linked
+  organization, masked by the **organization's own** visibility/confidential
+  rules for the reading actor (`name` always present). Organizations and
+  unlinked individuals return `null`.
+- **`organizationAttributes` on inline-create.** When an individual creates its
+  employer inline from `organizationName`, an optional `organizationAttributes`
+  object seeds `website`/`email`/`phone`/`address`/`taxId` onto the new org row.
+- **Migration.** The single `0000` baseline (collapsed on `main` at commit
+  `3d99768`) is regenerated to include `contacts.website`; the chain stays a
+  single baseline (no additive `0001`). This supersedes the original plan's
+  "additive forward migration `0002`" note, which assumed the pre-collapse
+  `0000`+`0001` chain.
+- **Seed.** Top-level `website` populated on sample rows (the old
+  `attributes.website` value moved out), and organization `email` seeded to
+  exercise the now-shared org email.
+- **Frontend (paired web L3).** The contacts list becomes single-line
+  (`name | company | category`) and the person detail gains a Company info
+  section fed by the embedded `organization` summary. Frontend work is owned by
+  the web L3; this L3 is backend + docs only.

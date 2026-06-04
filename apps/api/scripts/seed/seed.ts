@@ -98,7 +98,7 @@ async function assetFile(dir: string, filename: string): Promise<File> {
 // ─── Dataset shapes (loose — JSON is the source of truth) ─────────────────
 interface UserRec { key: string; username: string; name: string; email: string; role: "admin" | "user" }
 interface GroupRec { key: string; name: string; description?: string; members: string[] }
-interface ContactRec { key: string; kind: "individual" | "organization"; name: string; phone?: string; email?: string; position?: string; org?: string; taxId?: string; address?: string; category?: string; status?: "active" | "inactive"; confidential?: boolean; visibility?: "private" | "public"; tags?: string[]; note?: string; attributes?: Record<string, string> }
+interface ContactRec { key: string; kind: "individual" | "organization"; name: string; phone?: string; email?: string; website?: string; position?: string; org?: string; taxId?: string; address?: string; category?: string; status?: "active" | "inactive"; confidential?: boolean; visibility?: "private" | "public"; tags?: string[]; note?: string; attributes?: Record<string, string> }
 interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; serialNumber?: string; installedAt?: string; note?: string; location?: string; status?: "active" | "retired" }
 interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; gt?: number | null; flagState?: string; registryPort?: string; status?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired"; tags?: string[]; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; ownerName?: string; equipment?: EquipmentRec[] }
 interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; ship?: string; fromGlobal?: string }
@@ -200,20 +200,22 @@ async function importContacts(db: AppDatabase): Promise<void> {
     (a, b) => (a.kind === "organization" ? 0 : 1) - (b.kind === "organization" ? 0 : 1),
   );
   for (const c of ordered) {
+    // `position` + the org link are individual-only; everything else (phone,
+    // email, website, taxId, address, note) is shared by both kinds.
     const kindFields = c.kind === "individual"
       ? {
-          email: c.email ?? null,
           position: c.position ?? null,
           organizationId: c.org ? contactId.get(c.org) ?? null : null,
         }
-      : {
-          taxId: c.taxId ?? null,
-          address: c.address ?? null,
-        };
+      : {};
     const contact = await contactService.create(db, actor, {
       kind: c.kind,
       name: c.name,
       phone: c.phone ?? null,
+      email: c.email ?? null,
+      website: c.website ?? null,
+      taxId: c.taxId ?? null,
+      address: c.address ?? null,
       note: c.note ?? null,
       categoryId: c.category ? contactCategoryId.get(c.category) ?? null : null,
       status: c.status ?? "active",
