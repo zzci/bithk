@@ -12,12 +12,13 @@
 // plus a `$shipId.<seg>.{tsx,lazy.tsx}` pair.
 //
 // Reserved order slots (leave gaps so new tabs slot in cleanly):
+//    5  Projects   — promoted to the first trigger
 //   10  Overview   — index route (`/ships/$shipId`)
 //   20  Profile    — full read-only registry/spec fields
 //   30  Equipment
 //   40  Worklist
-//   50  Projects
 //   60  Files
+//   70  Settings
 //
 // Contract for new tabs:
 //   - `value`     stable id used for the Tabs value + React key; also the path
@@ -47,8 +48,9 @@ export const SHIP_TABS: readonly ShipTabDefinition[] = [
   { value: "profile", labelKey: "tabs.profile", order: 20 },
   { value: "equipment", labelKey: "tabs.equipment", order: 30 },
   { value: "worklist", labelKey: "tabs.worklist", order: 40 },
-  { value: "projects", labelKey: "tabs.projects", order: 50 },
+  { value: "projects", labelKey: "tabs.projects", order: 5 },
   { value: "files", labelKey: "tabs.files", order: 60 },
+  { value: "settings", labelKey: "tabs.settings", order: 70 },
 ];
 
 /** Registry entries visible for the given context, sorted by `order`. */
@@ -58,7 +60,7 @@ export function visibleShipTabs(ctx: ShipTabContext): readonly ShipTabDefinition
     .toSorted((a, b) => a.order - b.order);
 }
 
-export type ShipDetailTab = "overview" | "profile" | "equipment" | "worklist" | "projects" | "files";
+export type ShipDetailTab = "overview" | "profile" | "equipment" | "worklist" | "projects" | "files" | "settings";
 
 // TanStack `to` templates for each tab; `overview` is the ship index.
 export const SHIP_TAB_TO: Record<ShipDetailTab, string> = {
@@ -68,6 +70,7 @@ export const SHIP_TAB_TO: Record<ShipDetailTab, string> = {
   worklist: "/ships/$shipId/worklist",
   projects: "/ships/$shipId/projects",
   files: "/ships/$shipId/files",
+  settings: "/ships/$shipId/settings",
 };
 
 /**
@@ -89,5 +92,7 @@ export function activeShipTab(pathname: string, shipId: string): ShipDetailTab {
     return "projects";
   if (segment === "files")
     return "files";
+  if (segment === "settings")
+    return "settings";
   return "overview";
 }

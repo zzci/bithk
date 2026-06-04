@@ -1,14 +1,14 @@
-// Per-ship equipment-category management, surfaced from the equipment tab.
+// Per-ship equipment-category management, surfaced from the Settings tab.
 //
 // Mirrors the admin global-template section (-settings-ship.tsx) and the
 // per-project procurement-categories surface (-project-settings-categories.tsx),
-// but scoped to a single ship via the per-ship hooks. A "Manage categories"
-// button opens a dialog holding the ship's own category set (seeded from the
-// global template on creation); create/edit/delete all hit
-// `/ships/:shortId/equipment-categories`. Gated by the ship `canManage` flag.
+// but scoped to a single ship via the per-ship hooks. Rendered inline as a
+// section holding the ship's own category set (seeded from the global template
+// on creation); create/edit/delete all hit `/ships/:shortId/equipment-categories`.
+// All write affordances are gated by the ship `canManage` flag.
 
 import type { ShipEquipmentCategory } from "@/shared/lib/api/ship-equipment-categories";
-import { FolderTree, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -43,81 +43,78 @@ import {
 } from "@/shared/lib/api/ship-equipment-categories";
 import { errorMessage } from "@/shared/lib/errors";
 
-interface ShipEquipmentCategoriesManagerProps {
+interface ShipEquipmentCategoriesSectionProps {
   readonly shipShortId: string;
+  readonly canManage: boolean;
 }
 
-export function ShipEquipmentCategoriesManager({ shipShortId }: ShipEquipmentCategoriesManagerProps) {
+export function ShipEquipmentCategoriesSection({ shipShortId, canManage }: ShipEquipmentCategoriesSectionProps) {
   const { t, i18n } = useTranslation(["ships", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
   const categoriesQuery = useShipEquipmentCategories(shipShortId);
   const deleteCategory = useDeleteShipEquipmentCategory(shipShortId);
 
-  const [manageOpen, setManageOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ShipEquipmentCategory | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ShipEquipmentCategory | null>(null);
 
   const categories = categoriesQuery.data ?? [];
+  // The Actions column only exists for managers, so the empty-state row spans
+  // one fewer cell for read-only viewers.
+  const colSpan = canManage ? 4 : 3;
 
   return (
-    <>
-      <Button variant="outline" onClick={() => setManageOpen(true)}>
-        <FolderTree aria-hidden="true" />
-        {t("equipmentCategories.manage")}
-      </Button>
+    <section className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-sm font-medium text-muted-foreground">{t("equipmentCategories.title")}</h2>
+          <p className="text-xs text-muted-foreground">{t("equipmentCategories.description")}</p>
+        </div>
+        {canManage && (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus aria-hidden="true" />
+            {t("equipmentCategories.create")}
+          </Button>
+        )}
+      </div>
 
-      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t("equipmentCategories.title")}</DialogTitle>
-            <DialogDescription>{t("equipmentCategories.description")}</DialogDescription>
-          </DialogHeader>
+      {categoriesQuery.error && <ErrorBanner message={errorMessage(categoriesQuery.error, t("common:common.error.loadFailed"))} />}
 
-          <div className="flex justify-end">
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus aria-hidden="true" />
-              {t("equipmentCategories.create")}
-            </Button>
-          </div>
-
-          {categoriesQuery.error && <ErrorBanner message={errorMessage(categoriesQuery.error, t("common:common.error.loadFailed"))} />}
-
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("equipmentCategories.colNameZh")}</TableHead>
-                  <TableHead>{t("equipmentCategories.colNameEn")}</TableHead>
-                  <TableHead>{t("equipmentCategories.colCode")}</TableHead>
-                  <TableHead className="w-32">{t("equipmentCategories.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {categories.length === 0
-                  ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("equipmentCategories.empty")}</TableCell></TableRow>
-                  : categories.map(category => (
-                      <TableRow key={category.id}>
-                        <TableCell className="font-medium">{category.nameZh}</TableCell>
-                        <TableCell className="font-medium">{category.nameEn}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{category.code ?? "—"}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" onClick={() => setEditTarget(category)}>
-                              {t("equipmentCategories.edit")}
-                            </Button>
-                            <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(category)}>
-                              {t("equipmentCategories.delete")}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-              </TableBody>
-            </Table>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("equipmentCategories.colNameZh")}</TableHead>
+              <TableHead>{t("equipmentCategories.colNameEn")}</TableHead>
+              <TableHead>{t("equipmentCategories.colCode")}</TableHead>
+              {canManage && <TableHead className="w-32">{t("equipmentCategories.actions")}</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {categories.length === 0
+              ? <TableRow><TableCell colSpan={colSpan} className="h-24 text-center text-muted-foreground">{t("equipmentCategories.empty")}</TableCell></TableRow>
+              : categories.map(category => (
+                  <TableRow key={category.id}>
+                    <TableCell className="font-medium">{category.nameZh}</TableCell>
+                    <TableCell className="font-medium">{category.nameEn}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{category.code ?? "—"}</TableCell>
+                    {canManage && (
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" onClick={() => setEditTarget(category)}>
+                            {t("equipmentCategories.edit")}
+                          </Button>
+                          <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(category)}>
+                            {t("equipmentCategories.delete")}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+          </TableBody>
+        </Table>
+      </div>
 
       <ConfirmDeleteDialog
         open={deleteTarget !== null}
@@ -152,7 +149,7 @@ export function ShipEquipmentCategoriesManager({ shipShortId }: ShipEquipmentCat
           onOpenChange={open => !open && setEditTarget(null)}
         />
       )}
-    </>
+    </section>
   );
 }
 

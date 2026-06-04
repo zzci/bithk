@@ -34,7 +34,7 @@ const ship: ShipView = {
 
 describe("shipProfileTab", () => {
   it("renders read-only registry and specification fields from ShipView", () => {
-    renderWithProviders(<ShipProfileTab ship={ship} />);
+    renderWithProviders(<ShipProfileTab ship={ship} canManage={false} />);
 
     expect(screen.getByRole("heading", { name: "Vessel profile" })).toBeInTheDocument();
     expect(screen.getAllByText("ATL-001").length).toBeGreaterThan(0);
@@ -42,5 +42,13 @@ describe("shipProfileTab", () => {
     expect(screen.getAllByText("299").length).toBeGreaterThan(0);
     expect(screen.getByText("Container 300")).toBeInTheDocument();
     expect(screen.getAllByText("Shanghai").length).toBeGreaterThan(0);
+  });
+
+  it("shows the edit affordance only when the caller can manage", () => {
+    const { rerender } = renderWithProviders(<ShipProfileTab ship={ship} canManage />);
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+
+    rerender(<ShipProfileTab ship={ship} canManage={false} />);
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
 });

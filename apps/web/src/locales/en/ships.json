@@ -16,7 +16,10 @@
     "tagFilterSearchPlaceholder": "Search tags",
     "tagFilterNoMore": "No more tags",
     "card": {
-      "ageValue": "{{count}} yr"
+      "ageValue": "{{count}} yr",
+      "imo": "IMO",
+      "mmsi": "MMSI",
+      "location": "Location"
     }
   },
   "status": {
@@ -35,11 +38,12 @@
   },
   "tabs": {
     "overview": "Overview",
-    "profile": "Profile",
+    "profile": "Details",
     "equipment": "Equipment",
-    "worklist": "Worklist",
+    "worklist": "Checklists",
     "projects": "Projects",
-    "files": "Files"
+    "files": "Files",
+    "settings": "Settings"
   },
   "detail": {
     "back": "Back to ships",
@@ -153,7 +157,6 @@
     }
   },
   "equipmentCategories": {
-    "manage": "Manage categories",
     "title": "Equipment categories",
     "description": "This ship's own equipment categories, seeded from the global template on creation.",
     "create": "New",
@@ -212,9 +215,15 @@
   },
   "projects": {
     "callout": "Files and permissions are all anchored on this ship's base project. The base project cannot be unbound.",
-    "bindTitle": "Bind a project",
-    "bindPlaceholder": "Project ID",
+    "pickerTitle": "Bind a project",
+    "searchPlaceholder": "Search by name or code",
+    "bindFromExisting": "Select existing",
+    "bindCreateNew": "Create new",
+    "noCandidates": "No unbound projects.",
+    "newName": "Project name",
+    "newCode": "Code (optional)",
     "bind": "Bind",
+    "bound": "Project bound.",
     "empty": "No additional projects bound.",
     "baseBadge": "Base",
     "open": "Open",

@@ -1,23 +1,23 @@
 /* eslint-disable react-refresh/only-export-components */
-// Profile tab route: full read-only registry/spec fields.
+// Settings tab route: per-ship configuration (equipment categories, …).
 
 import { createLazyFileRoute, useParams } from "@tanstack/react-router";
 import { useProject } from "@/shared/lib/api/projects";
 import { useShip } from "@/shared/lib/api/ships";
 import { useProjectCapabilities } from "../projects/-use-project-role";
-import { ShipProfileTab } from "./-ship-profile-tab";
+import { ShipSettingsTab } from "./-ship-settings-tab";
 
-export const Route = createLazyFileRoute("/_app/ships/$shipId/profile")({
-  component: ShipProfileRoute,
+export const Route = createLazyFileRoute("/_app/ships/$shipId/settings")({
+  component: ShipSettingsRoute,
 });
 
-function ShipProfileRoute() {
-  const { shipId } = useParams({ from: "/_app/ships/$shipId/profile" });
+function ShipSettingsRoute() {
+  const { shipId } = useParams({ from: "/_app/ships/$shipId/settings" });
   const ship = useShip(shipId).data;
   const canManage = useProjectCapabilities(useProject(ship?.baseProjectId ?? undefined).data).canManageProject;
 
   if (!ship)
     return null;
 
-  return <ShipProfileTab ship={ship} canManage={canManage} />;
+  return <ShipSettingsTab ship={ship} canManage={canManage} />;
 }

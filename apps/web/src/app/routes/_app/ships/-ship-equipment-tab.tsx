@@ -45,7 +45,6 @@ import {
 import { errorMessage } from "@/shared/lib/errors";
 import { cn } from "@/shared/lib/utils";
 import { EQUIPMENT_STATUS_BADGE } from "./-ship-colors";
-import { ShipEquipmentCategoriesManager } from "./-ship-equipment-categories";
 
 interface ShipEquipmentTabProps {
   readonly ship: ShipView;
@@ -183,7 +182,6 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
         <h2 className="text-sm font-medium text-muted-foreground">{t("equipment.title")}</h2>
         {canManage && (
           <div className="flex items-center gap-2">
-            <ShipEquipmentCategoriesManager shipShortId={ship.id} />
             <Button onClick={openCreate}>
               <Plus aria-hidden="true" />
               {t("equipment.create")}

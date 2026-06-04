@@ -11,7 +11,7 @@ import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 export const SHIP_STATUS_BADGE: Record<ShipStatus, string> = {
   under_construction: "bg-primary/10 text-primary",
   active: "bg-success/10 text-success",
-  underway: "bg-info/10 text-info",
+  underway: "bg-info text-info-foreground",
   in_maintenance: "bg-warning/10 text-warning",
   laid_up: "bg-muted text-muted-foreground",
   retired: "bg-muted-foreground/15 text-muted-foreground",

@@ -77,11 +77,16 @@ describe("shipsListPage", () => {
     renderWithProviders(<ShipsListPage />);
     expect(screen.getByRole("heading", { name: "Ships" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    expect(screen.getByText("HULL-1")).toBeInTheDocument();
     const card = screen.getByRole("button", { name: "Serenity" });
+    // The header now surfaces three copyable identifiers: IMO, MMSI, and location.
+    expect(within(card).getByText("9876543")).toBeInTheDocument();
+    expect(within(card).getByText("413258900")).toBeInTheDocument();
+    expect(within(card).getByText("Shanghai")).toBeInTheDocument();
+    // Each identifier row carries a leading copy button.
+    expect(within(card).getAllByRole("button", { name: "Copy" }).length).toBeGreaterThanOrEqual(3);
     // Status badge restored.
     expect(within(card).getByText("Active")).toBeInTheDocument();
-    // The four physical specs render their labels + values; IMO / build year / age / flag / registry are gone.
+    // The four physical specs render their labels + values; build year / age / flag are gone.
     expect(within(card).getByText("Length overall (m)")).toBeInTheDocument();
     expect(within(card).getByText("Beam (m)")).toBeInTheDocument();
     expect(within(card).getByText("Draft (m)")).toBeInTheDocument();
@@ -90,9 +95,8 @@ describe("shipsListPage", () => {
     expect(within(card).getByText("Gross tonnage")).toBeInTheDocument();
     expect(within(card).getByText("299")).toBeInTheDocument();
     expect(within(card).getByText("95500")).toBeInTheDocument();
-    // Removed bits no longer render in the card.
-    expect(within(card).queryByText("9876543")).not.toBeInTheDocument();
-    expect(within(card).queryByText("Shanghai")).not.toBeInTheDocument();
+    // Hull code no longer renders on the card.
+    expect(within(card).queryByText("HULL-1")).not.toBeInTheDocument();
     // Tag still shown.
     expect(within(card).getByText("Refit")).toBeInTheDocument();
   });

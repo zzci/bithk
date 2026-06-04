@@ -16,7 +16,10 @@
     "tagFilterSearchPlaceholder": "搜索标签",
     "tagFilterNoMore": "没有更多标签",
     "card": {
-      "ageValue": "{{count}} 年"
+      "ageValue": "{{count}} 年",
+      "imo": "IMO",
+      "mmsi": "MMSI",
+      "location": "位置"
     }
   },
   "status": {
@@ -35,11 +38,12 @@
   },
   "tabs": {
     "overview": "概览",
-    "profile": "船体详情",
+    "profile": "详情",
     "equipment": "设备",
-    "worklist": "工作清单",
+    "worklist": "清单",
     "projects": "项目",
-    "files": "文件"
+    "files": "文件",
+    "settings": "设置"
   },
   "detail": {
     "back": "返回船舶列表",
@@ -153,7 +157,6 @@
     }
   },
   "equipmentCategories": {
-    "manage": "管理分类",
     "title": "设备分类",
     "description": "本船舶自有的设备分类，创建时从全局模板复制而来。",
     "create": "新增",
@@ -212,9 +215,15 @@
   },
   "projects": {
     "callout": "文件与权限都挂在该船舶的基础项目下。基础项目不可解绑。",
-    "bindTitle": "绑定项目",
-    "bindPlaceholder": "项目 ID",
+    "pickerTitle": "绑定项目",
+    "searchPlaceholder": "按名称或编码搜索",
+    "bindFromExisting": "选择已有",
+    "bindCreateNew": "新建并绑定",
+    "noCandidates": "没有可绑定的项目。",
+    "newName": "项目名称",
+    "newCode": "编码（可选）",
     "bind": "绑定",
+    "bound": "项目已绑定。",
     "empty": "尚未绑定其它项目。",
     "baseBadge": "基础",
     "open": "打开",
