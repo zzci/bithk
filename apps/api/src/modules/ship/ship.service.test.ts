@@ -157,6 +157,17 @@ describe("createShip", () => {
     expect(view.baseProjectId).toBe(baseProject!.shortId);
   });
 
+  test("round-trips airDraft and defaults it to null when omitted", async () => {
+    const creator = await seedUser("Alice");
+
+    const withAirDraft = await createShip(db, { name: "Clearance", airDraft: 38.5, creatorId: creator });
+    expect(withAirDraft.airDraft).toBe(38.5);
+    expect((await composeShipWithBase(db, withAirDraft)).airDraft).toBe(38.5);
+
+    const omitted = await createShip(db, { name: "NoClearance", creatorId: creator });
+    expect(omitted.airDraft).toBeNull();
+  });
+
   test("writes tag assignments and surfaces them on the view", async () => {
     const creator = await seedUser("Alice");
     const ship = await createShip(db, { name: "Tagged", tags: ["charter", "flagship"], creatorId: creator });

@@ -67,6 +67,7 @@ const shipCoreShape = {
   lengthOverall: z.number().nonnegative().nullable().optional(),
   beam: z.number().nonnegative().nullable().optional(),
   draft: z.number().nonnegative().nullable().optional(),
+  airDraft: z.number().nonnegative().nullable().optional(),
   grossTonnage: z.number().nonnegative().nullable().optional(),
   imoNumber: z.string().max(50).nullable().optional(),
   mmsi: z.string().max(50).nullable().optional(),

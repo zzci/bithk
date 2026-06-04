@@ -63,6 +63,7 @@ export interface ShipView {
   readonly lengthOverall: number | null;
   readonly beam: number | null;
   readonly draft: number | null;
+  readonly airDraft: number | null;
   readonly grossTonnage: number | null;
   readonly imoNumber: string | null;
   readonly mmsi: string | null;
@@ -100,6 +101,7 @@ function composeShip(
     lengthOverall: row.lengthOverall,
     beam: row.beam,
     draft: row.draft,
+    airDraft: row.airDraft,
     grossTonnage: row.grossTonnage,
     imoNumber: row.imoNumber,
     mmsi: row.mmsi,
@@ -173,6 +175,7 @@ export interface CreateShipInput {
   readonly lengthOverall?: number | null | undefined;
   readonly beam?: number | null | undefined;
   readonly draft?: number | null | undefined;
+  readonly airDraft?: number | null | undefined;
   readonly grossTonnage?: number | null | undefined;
   readonly imoNumber?: string | null | undefined;
   readonly mmsi?: string | null | undefined;
@@ -211,6 +214,7 @@ export async function createShip(db: AppDatabase, input: CreateShipInput): Promi
       lengthOverall: input.lengthOverall ?? null,
       beam: input.beam ?? null,
       draft: input.draft ?? null,
+      airDraft: input.airDraft ?? null,
       grossTonnage: input.grossTonnage ?? null,
       imoNumber: input.imoNumber ?? null,
       mmsi: input.mmsi ?? null,
@@ -343,6 +347,7 @@ export interface UpdateShipInput {
   readonly lengthOverall?: number | null | undefined;
   readonly beam?: number | null | undefined;
   readonly draft?: number | null | undefined;
+  readonly airDraft?: number | null | undefined;
   readonly grossTonnage?: number | null | undefined;
   readonly imoNumber?: string | null | undefined;
   readonly mmsi?: string | null | undefined;
@@ -363,6 +368,7 @@ const UPDATABLE_SHIP_KEYS = [
   "lengthOverall",
   "beam",
   "draft",
+  "airDraft",
   "grossTonnage",
   "imoNumber",
   "mmsi",

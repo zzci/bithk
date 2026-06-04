@@ -43,6 +43,7 @@ export interface ShipView {
   readonly lengthOverall: number | null;
   readonly beam: number | null;
   readonly draft: number | null;
+  readonly airDraft: number | null;
   readonly grossTonnage: number | null;
   readonly imoNumber: string | null;
   readonly mmsi: string | null;
@@ -276,6 +277,7 @@ export interface UpdateShipInput {
   readonly lengthOverall?: number | null;
   readonly beam?: number | null;
   readonly draft?: number | null;
+  readonly airDraft?: number | null;
   readonly grossTonnage?: number | null;
   readonly imoNumber?: string | null;
   readonly mmsi?: string | null;
