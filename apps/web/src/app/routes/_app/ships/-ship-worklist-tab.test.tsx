@@ -91,7 +91,7 @@ describe("shipWorklistTab", () => {
     renderWithProviders(<ShipWorklistTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
-    await userEvent.click(screen.getByRole("button", { name: "Create worklist" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.click(await screen.findByLabelText("Start from template"));
     expect(await screen.findByRole("option", { name: "Blank" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "Global checklist" })).toBeInTheDocument();
@@ -102,7 +102,7 @@ describe("shipWorklistTab", () => {
     renderWithProviders(<ShipWorklistTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
-    await userEvent.click(screen.getByRole("button", { name: "Create worklist" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.click(await screen.findByLabelText("Start from template"));
     await userEvent.click(await screen.findByRole("option", { name: "Global checklist" }));
 
@@ -117,7 +117,7 @@ describe("shipWorklistTab", () => {
     renderWithProviders(<ShipWorklistTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
-    await userEvent.click(screen.getByRole("button", { name: "Create worklist" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.click(await screen.findByLabelText("Start from template"));
     await userEvent.click(await screen.findByRole("option", { name: "Global checklist" }));
 
@@ -135,7 +135,7 @@ describe("shipWorklistTab", () => {
     renderWithProviders(<ShipWorklistTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
-    await userEvent.click(screen.getByRole("button", { name: "Create worklist" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.click(await screen.findByLabelText("Start from template"));
     await userEvent.click(await screen.findByRole("option", { name: "Global checklist" }));
 
@@ -143,7 +143,7 @@ describe("shipWorklistTab", () => {
     const nameInput = within(dialog).getByLabelText("Name");
     await userEvent.clear(nameInput);
     await userEvent.type(nameInput, "Hull check");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Create worklist" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "New" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => String(c[0]) === "/api/ships/s1/worklists" && c[1]?.method === "POST");
@@ -169,7 +169,7 @@ describe("shipWorklistTab", () => {
     renderWithProviders(<ShipWorklistTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
-    await userEvent.click(screen.getByRole("button", { name: "Create worklist" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).queryByLabelText(/category/i)).not.toBeInTheDocument();
   });
@@ -179,11 +179,11 @@ describe("shipWorklistTab", () => {
     renderWithProviders(<ShipWorklistTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getAllByText("Quarterly check").length).toBeGreaterThan(0));
 
-    await userEvent.click(screen.getByRole("button", { name: "Create worklist" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     const dialog = screen.getByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText("Name"), "Hull check");
     await userEvent.type(within(dialog).getByLabelText("Checklist"), "- Inspect hull");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Create worklist" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "New" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(call => String(call[0]) === "/api/ships/s1/worklists" && call[1]?.method === "POST");

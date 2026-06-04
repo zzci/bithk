@@ -52,7 +52,7 @@ export function TagAdminSection() {
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
-          {t("settings:projectDefaults.tags.add")}
+          {t("settings:projectDefaults.tags.create")}
         </Button>
       </div>
 
@@ -175,7 +175,7 @@ function TagDialog({ mode, tag, open, onOpenChange }: TagDialogProps) {
       <DialogContent>
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:projectDefaults.tags.addTitle") : t("settings:projectDefaults.tags.editTitle")}</DialogTitle>
+            <DialogTitle>{mode === "create" ? t("settings:projectDefaults.tags.createTitle") : t("settings:projectDefaults.tags.editTitle")}</DialogTitle>
             <DialogDescription>{t("settings:projectDefaults.tags.dialogDescription")}</DialogDescription>
           </DialogHeader>
 
@@ -191,7 +191,7 @@ function TagDialog({ mode, tag, open, onOpenChange }: TagDialogProps) {
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {mode === "create" ? t("common:common.add") : t("common:common.save")}
+              {mode === "create" ? t("common:common.create") : t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>

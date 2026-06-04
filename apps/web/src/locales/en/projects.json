@@ -26,7 +26,7 @@
     "procurementUnpinned": "Procurement unpinned"
   },
   "list": {
-    "create": "Create project",
+    "create": "New",
     "empty": "No projects found.",
     "loading": "Loading projects...",
     "total": "{{count}} projects",
@@ -69,7 +69,7 @@
     "remove": "Remove cover"
   },
   "create": {
-    "title": "Create project",
+    "title": "New project",
     "submit": "Create",
     "namePlaceholder": "Project name",
     "descriptionPlaceholder": "Add a description…"
@@ -123,7 +123,7 @@
     "viewAll": "View all"
   },
   "issues": {
-    "createButton": "New",
+    "create": "New",
     "empty": "No work orders found.",
     "loading": "Loading work orders...",
     "searchPlaceholder": "Search work orders...",
@@ -147,7 +147,7 @@
       "continueCreate": "Create more",
       "submit": "Create issue"
     },
-    "createTitle": "Create work order",
+    "createTitle": "New work order",
     "status": {
       "todo": "To Do",
       "working": "In Progress",
@@ -181,8 +181,7 @@
     }
   },
   "procurement": {
-    "create": "Create procurement",
-    "createButton": "New",
+    "create": "New",
     "empty": "No procurement records found.",
     "loading": "Loading procurement...",
     "searchPlaceholder": "Search procurement...",
@@ -218,7 +217,7 @@
       "dueDate": "Due date",
       "tags": "Tags"
     },
-    "createTitle": "Create procurement",
+    "createTitle": "New procurement",
     "createDescription": "Add a new procurement record to this project.",
     "changeStatus": "Change status",
     "status": {
@@ -254,7 +253,7 @@
     }
   },
   "members": {
-    "add": "Add member",
+    "create": "New",
     "empty": "No members yet.",
     "virtual": "Virtual",
     "col": {
@@ -263,8 +262,8 @@
       "role": "Role",
       "actions": "Actions"
     },
-    "addTitle": "Add member",
-    "addDescription": "Select a user (real or virtual) to add to this project.",
+    "createTitle": "New member",
+    "createDescription": "Select a user (real or virtual) to add to this project.",
     "editTitle": "Edit member",
     "editDescription": "Update the member's role and details.",
     "field": {
@@ -280,8 +279,7 @@
     }
   },
   "roles": {
-    "add": "Add role",
-    "newRole": "New role",
+    "create": "New",
     "selectRole": "Role",
     "empty": "No roles defined.",
     "owner": "Project Owner",
@@ -289,7 +287,7 @@
     "system": "System",
     "noCapabilities": "No capabilities",
     "guestFallbackNote": "Members of a deleted role fall back to this role.",
-    "createTitle": "Create role",
+    "createTitle": "New role",
     "editTitle": "Edit role",
     "dialogDescription": "Choose the capabilities this role grants.",
     "field": {
@@ -334,9 +332,9 @@
     "files": "Files"
   },
   "categories": {
-    "add": "Add category",
+    "create": "New",
     "empty": "No categories yet.",
-    "createTitle": "Add category",
+    "createTitle": "New category",
     "editTitle": "Edit category",
     "dialogDescription": "Group procurement records under a category.",
     "col": {

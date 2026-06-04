@@ -12,8 +12,8 @@
   },
   "virtual": {
     "badge": "Virtual",
-    "create": "Create virtual user",
-    "createTitle": "Create virtual user",
+    "create": "New",
+    "createTitle": "New virtual user",
     "editTitle": "Edit virtual user",
     "dialogDescription": "Virtual users are managed accounts that cannot sign in.",
     "edit": "Edit",

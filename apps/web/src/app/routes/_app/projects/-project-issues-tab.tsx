@@ -336,7 +336,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
             onChange: setSearch,
             placeholder: t("issues.searchPlaceholder"),
           }}
-          {...(canManage ? { create: { label: t("issues.createButton"), onClick: () => openCreate("todo") } } : {})}
+          {...(canManage ? { create: { label: t("issues.create"), onClick: () => openCreate("todo") } } : {})}
         />
       </div>
 

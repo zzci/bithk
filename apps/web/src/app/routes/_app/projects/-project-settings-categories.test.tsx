@@ -63,7 +63,7 @@ describe("projectSettingsCategories", () => {
     routeFetch([category()]);
     renderWithProviders(<ProjectSettingsCategories projectId="p1" canManage={false} />);
     await screen.findByText("Materials");
-    expect(screen.queryByRole("button", { name: "Add category" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
 
@@ -73,10 +73,10 @@ describe("projectSettingsCategories", () => {
     renderWithProviders(<ProjectSettingsCategories projectId="p1" canManage />);
     await screen.findByText("No categories yet.");
 
-    await user.click(screen.getByRole("button", { name: "Add category" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Name"), "Labor");
-    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.click(within(dialog).getByRole("button", { name: "New" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");

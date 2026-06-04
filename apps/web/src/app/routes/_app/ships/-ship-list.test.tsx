@@ -85,7 +85,7 @@ describe("shipsListPage", () => {
     fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "Create ship" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
   });
 
   it("shows the admin create entry", async () => {
@@ -93,7 +93,7 @@ describe("shipsListPage", () => {
     fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Create ship" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
   });
 
   it("renders the status filter options with fleet counts", async () => {

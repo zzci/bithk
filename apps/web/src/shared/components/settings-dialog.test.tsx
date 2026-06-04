@@ -59,7 +59,7 @@ describe("settingsDialog", () => {
     renderWithProviders(<SettingsDialog open onOpenChange={() => {}} />);
     await userEv.click(screen.getByRole("tab", { name: "Security" }));
     expect(await screen.findByText("No TOTP devices configured.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Add Device/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
   });
 
   it("walks through the add-device flow and confirms a code", async () => {
@@ -81,7 +81,7 @@ describe("settingsDialog", () => {
 
     renderWithProviders(<SettingsDialog open onOpenChange={() => {}} />);
     await userEv.click(screen.getByRole("tab", { name: "Security" }));
-    await userEv.click(await screen.findByRole("button", { name: /Add Device/i }));
+    await userEv.click(await screen.findByRole("button", { name: "New" }));
 
     const nameInput = await screen.findByLabelText("Device Name");
     await userEv.type(nameInput, "Phone");

@@ -4,7 +4,7 @@
     "description": "Manage your fleet of vessels."
   },
   "list": {
-    "create": "Create ship",
+    "create": "New",
     "loading": "Loading ships…",
     "empty": "No ships yet.",
     "noMatches": "No ships match your search.",
@@ -79,7 +79,7 @@
     "remove": "Remove cover"
   },
   "form": {
-    "createTitle": "Create ship",
+    "createTitle": "New ship",
     "editTitle": "Edit ship",
     "createDescription": "Register a new vessel. A base project is created automatically as its permission and file anchor.",
     "editDescription": "Update the vessel's information.",
@@ -112,7 +112,7 @@
   },
   "equipment": {
     "title": "Equipment inventory",
-    "create": "Add equipment",
+    "create": "New",
     "edit": "Edit equipment",
     "delete": "Delete equipment",
     "actions": "Actions",
@@ -124,7 +124,7 @@
     "filterAll": "All",
     "categoryPlaceholder": "Select a category",
     "categoryNone": "No category",
-    "createTitle": "Add equipment",
+    "createTitle": "New equipment",
     "editTitle": "Edit equipment",
     "dialogDescription": "Track the equipment installed on this ship.",
     "deleteTitle": "Delete equipment",
@@ -149,7 +149,7 @@
     "manage": "Manage categories",
     "title": "Equipment categories",
     "description": "This ship's own equipment categories, seeded from the global template on creation.",
-    "add": "Add category",
+    "create": "New",
     "colNameZh": "Chinese name",
     "colNameEn": "English name",
     "colCode": "Code",
@@ -159,7 +159,7 @@
     "empty": "No equipment categories yet.",
     "fieldDescription": "Description",
     "dialog": {
-      "createTitle": "Add category",
+      "createTitle": "New category",
       "editTitle": "Edit category",
       "deleteTitle": "Delete category",
       "deleteConfirm": "Delete the category \"{{name}}\"?",
@@ -181,12 +181,12 @@
   },
   "worklist": {
     "title": "Worklists",
-    "create": "Create worklist",
+    "create": "New",
     "edit": "Edit worklist",
     "delete": "Delete worklist",
     "loading": "Loading worklists…",
     "empty": "No worklists yet.",
-    "createTitle": "Create worklist",
+    "createTitle": "New worklist",
     "editTitle": "Edit worklist",
     "dialogDescription": "Define the checklist and precautions for this worklist.",
     "deleteTitle": "Delete worklist",

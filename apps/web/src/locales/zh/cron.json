@@ -3,7 +3,7 @@
     "title": "定时任务",
     "description": "调度后台任务:HTTP 探测、Shell 命令和自定义动作。"
   },
-  "createJob": "新建任务",
+  "create": "新增",
   "noJobs": "暂无定时任务,点击 \"新建任务\" 添加第一条。",
   "totalCount": "{{count}} 个任务",
   "refresh": "刷新",

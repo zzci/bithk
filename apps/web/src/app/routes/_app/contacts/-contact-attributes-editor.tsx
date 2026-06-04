@@ -63,7 +63,7 @@ export function ContactAttributesEditor({ value, onChange }: ContactAttributesEd
       )}
       <Button type="button" variant="outline" size="sm" className="self-start" onClick={add}>
         <Plus data-icon="inline" />
-        {t("attributes.add")}
+        {t("attributes.create")}
       </Button>
     </div>
   );

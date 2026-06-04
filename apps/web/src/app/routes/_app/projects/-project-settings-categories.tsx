@@ -58,7 +58,7 @@ export function ProjectSettingsCategories({ projectId, canManage }: ProjectSetti
         <div className="flex justify-end">
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 size-4" />
-            {t("categories.add")}
+            {t("categories.create")}
           </Button>
         </div>
       )}
@@ -223,7 +223,7 @@ function CategoryDialog({ projectId, mode, category, open, onOpenChange }: Categ
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {mode === "create" ? t("common:common.add") : t("common:common.save")}
+              {mode === "create" ? t("common:common.create") : t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>

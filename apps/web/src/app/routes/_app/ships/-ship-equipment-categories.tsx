@@ -77,7 +77,7 @@ export function ShipEquipmentCategoriesManager({ shipShortId }: ShipEquipmentCat
           <div className="flex justify-end">
             <Button onClick={() => setCreateOpen(true)}>
               <Plus aria-hidden="true" />
-              {t("equipmentCategories.add")}
+              {t("equipmentCategories.create")}
             </Button>
           </div>
 
@@ -263,7 +263,7 @@ function ShipEquipmentCategoryDialog({ shipShortId, mode, category, open, onOpen
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending}>
-              {mode === "create" ? t("common:common.add") : t("common:common.save")}
+              {mode === "create" ? t("common:common.create") : t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>

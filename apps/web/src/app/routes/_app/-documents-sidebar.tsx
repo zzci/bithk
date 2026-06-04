@@ -362,7 +362,7 @@ function TreeRow({
           <DropdownMenuContent align="end" className="min-w-40">
             <DropdownMenuItem disabled={createPending} onClick={() => onCreateChild(node.id)}>
               <FilePlus className="mr-2 size-4" />
-              {t("tree.newChild")}
+              {t("tree.create")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onRename(node)}>
               <Pencil className="mr-2 size-4" />

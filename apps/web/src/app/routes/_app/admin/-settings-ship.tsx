@@ -82,7 +82,7 @@ function GlobalWorklistsSection() {
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
-          {t("settings:globalWorklists.add")}
+          {t("settings:globalWorklists.create")}
         </Button>
       </div>
 
@@ -213,7 +213,7 @@ function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogPr
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:globalWorklists.addTitle") : t("settings:globalWorklists.editTitle")}</DialogTitle>
+            <DialogTitle>{mode === "create" ? t("settings:globalWorklists.createTitle") : t("settings:globalWorklists.editTitle")}</DialogTitle>
             <DialogDescription>{t("settings:globalWorklists.dialogDescription")}</DialogDescription>
           </DialogHeader>
 
@@ -244,7 +244,7 @@ function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogPr
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {mode === "create" ? t("common:common.add") : t("common:common.save")}
+              {mode === "create" ? t("common:common.create") : t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>
@@ -274,7 +274,7 @@ function GlobalEquipmentCategoriesSection() {
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-3" />
-          {t("settings:globalEquipmentCategories.add")}
+          {t("settings:globalEquipmentCategories.create")}
         </Button>
       </div>
 
@@ -456,7 +456,7 @@ function GlobalEquipmentCategoryDialog({ mode, category, open, onOpenChange }: G
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending}>
-              {mode === "create" ? t("common:common.add") : t("common:common.save")}
+              {mode === "create" ? t("common:common.create") : t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>
