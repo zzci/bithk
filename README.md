@@ -1,4 +1,4 @@
-# bit
+# bit.hk
 
 A Bun monorepo template for OAuth-backed internal workspaces. Ships with:
 
