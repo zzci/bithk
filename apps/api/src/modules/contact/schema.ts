@@ -8,9 +8,10 @@ export type ContactStatus = typeof CONTACT_STATUSES[number];
 export const CONTACT_VISIBILITIES = ["private", "public"] as const;
 export type ContactVisibility = typeof CONTACT_VISIBILITIES[number];
 
-// A contact is one of two kinds. `individual` rows are people (phone, email,
-// position) that optionally belong to an `organization` row; `organization`
-// rows are companies (tax id, address). The discriminator is immutable once a
+// A contact is one of two kinds. Both kinds share phone, email, website,
+// address, taxId, and note; `individual` rows are people that additionally
+// carry `position` and optionally belong to an `organization` row, while
+// `organization` rows are companies. The discriminator is immutable once a
 // row is created.
 export const CONTACT_KINDS = ["individual", "organization"] as const;
 export type ContactKind = typeof CONTACT_KINDS[number];
@@ -36,18 +37,18 @@ export const contacts = sqliteTable("contacts", {
   ownerId: text("owner_id").notNull(), // creator user id
   name: text("name").notNull(),
   note: text("note"),
-  // Shared by both kinds.
+  // Shared by both kinds: phone, email, website, address, taxId, note.
   phone: text("phone"),
-  // Individual-only fields.
   email: text("email"),
+  website: text("website"),
+  taxId: text("tax_id"),
+  address: text("address"),
+  // Individual-only fields.
   position: text("position"),
   // Self-reference: an individual may belong to one organization (a contacts
   // row with kind='organization'). ON DELETE SET NULL via AnySQLiteColumn
   // forward ref — deleting the org clears its members' link automatically.
   organizationId: text("organization_id").references((): AnySQLiteColumn => contacts.id, { onDelete: "set null" }),
-  // Organization-only fields.
-  taxId: text("tax_id"),
-  address: text("address"),
   // Optional avatar (individual) / logo (organization): a `file_references`
   // row with owner_type 'contact_avatar'. Nulled automatically when that
   // reference is released. Forward ref mirrors project cover_reference_id.
