@@ -44,9 +44,11 @@ function contact(overrides: Partial<ContactView> = {}): ContactView {
     name: "Acme",
     phone: "123",
     email: null,
+    website: null,
     position: null,
     organizationId: null,
     organizationName: null,
+    organization: null,
     taxId: "tax-1",
     address: "Dock 1",
     note: "Preferred",
@@ -322,6 +324,46 @@ describe("contact mutations", () => {
       organizationName: "Acme",
       attributes: { wechat: "jane01" },
     });
+  });
+
+  it("passes website and organizationAttributes through the create body verbatim", async () => {
+    fetchMock.mockImplementation(ok(contact({
+      kind: "individual",
+      name: "Jane",
+      website: "https://jane.example",
+      organizationId: "org-1",
+      organizationName: "Acme",
+      organization: {
+        id: "org-1",
+        name: "Acme",
+        website: "https://acme.example",
+        email: "ops@acme.example",
+        phone: "555",
+        address: "Dock 1",
+        taxId: "tax-9",
+      },
+    })));
+    const { result } = renderHook(() => useCreateContact(), { wrapper: makeWrapper() });
+
+    const created = await result.current.mutateAsync({
+      kind: "individual",
+      name: "Jane",
+      website: "https://jane.example",
+      organizationName: "Acme",
+      organizationAttributes: { website: "https://acme.example", taxId: "tax-9" },
+    });
+
+    expect(bodyOf()).toEqual({
+      kind: "individual",
+      name: "Jane",
+      website: "https://jane.example",
+      organizationName: "Acme",
+      organizationAttributes: { website: "https://acme.example", taxId: "tax-9" },
+    });
+    // The returned view exposes the shared website plus the embedded org summary.
+    expect(created.website).toBe("https://jane.example");
+    expect(created.organization?.name).toBe("Acme");
+    expect(created.organization?.taxId).toBe("tax-9");
   });
 });
 
