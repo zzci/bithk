@@ -428,7 +428,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                             <div
                                               className={cn(
                                                 "shrink-0 pr-1 transition-opacity",
-                                                issue.pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+                                                issue.pinned ? "opacity-100" : "md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100",
                                               )}
                                             >
                                               <IssuePinToggle projectId={projectId} issue={issue} />
