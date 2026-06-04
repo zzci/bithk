@@ -189,6 +189,22 @@ describe("useContactsList", () => {
     expect(url.searchParams.has("tag")).toBe(false);
   });
 
+  it("serializes the collapsed sensitivity filter when set", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContactsList({ sensitivity: "confidential" }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.get("sensitivity")).toBe("confidential");
+  });
+
+  it("omits the sensitivity param when not set", async () => {
+    fetchMock.mockImplementation(okList([]));
+    const { result } = renderHook(() => useContactsList({ q: "acme" }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(urlOf(), "http://x");
+    expect(url.searchParams.has("sensitivity")).toBe(false);
+  });
+
   it("defaults page and limit and omits an empty tagIds set", async () => {
     fetchMock.mockImplementation(okList([]));
     const { result } = renderHook(() => useContactsList({ tagIds: [] }), { wrapper: makeWrapper() });
