@@ -2,6 +2,7 @@ import type { DriveOwnerType } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { users } from "@/modules/account/users/schema";
 import {
   buildDownloadResponse,
   getFileById,
@@ -31,6 +32,8 @@ export interface DriveEntryView {
   readonly name: string;
   readonly favorite: boolean;
   readonly status: "normal" | "trash";
+  readonly createdBy: string;
+  readonly createdByName: string;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly file: {
@@ -58,10 +61,13 @@ export async function listDriveEntries(db: AppDatabase, input: ListDriveEntriesI
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,
+      creatorName: users.name,
+      creatorUsername: users.username,
     })
     .from(driveEntries)
     .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
     .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .leftJoin(users, eq(driveEntries.createdBy, users.id))
     .where(and(
       eq(driveEntries.ownerType, input.ownerType),
       eq(driveEntries.ownerId, input.ownerId),
@@ -86,10 +92,13 @@ export async function getDriveEntry(
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,
+      creatorName: users.name,
+      creatorUsername: users.username,
     })
     .from(driveEntries)
     .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
     .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .leftJoin(users, eq(driveEntries.createdBy, users.id))
     .where(and(
       eq(driveEntries.id, id),
       eq(driveEntries.ownerType, owner.ownerType),
@@ -113,10 +122,13 @@ export async function getDriveEntryById(db: AppDatabase, id: string): Promise<Dr
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,
+      creatorName: users.name,
+      creatorUsername: users.username,
     })
     .from(driveEntries)
     .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
     .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .leftJoin(users, eq(driveEntries.createdBy, users.id))
     .where(eq(driveEntries.id, id))
     .get();
   return row ? composeDriveEntryView(row) : undefined;
@@ -145,10 +157,13 @@ export async function listRecentDriveEntries(db: AppDatabase, userId: string): P
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,
+      creatorName: users.name,
+      creatorUsername: users.username,
     })
     .from(driveEntries)
     .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
     .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .leftJoin(users, eq(driveEntries.createdBy, users.id))
     .where(and(
       eq(driveEntries.ownerType, "user"),
       eq(driveEntries.ownerId, userId),
@@ -170,10 +185,13 @@ export async function listFavoriteDriveEntries(db: AppDatabase, userId: string):
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,
+      creatorName: users.name,
+      creatorUsername: users.username,
     })
     .from(driveEntries)
     .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
     .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .leftJoin(users, eq(driveEntries.createdBy, users.id))
     .where(and(
       eq(driveEntries.ownerType, "user"),
       eq(driveEntries.ownerId, userId),
@@ -220,10 +238,13 @@ export async function searchDriveEntriesByOwners(
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,
+      creatorName: users.name,
+      creatorUsername: users.username,
     })
     .from(driveEntries)
     .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
     .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .leftJoin(users, eq(driveEntries.createdBy, users.id))
     .where(and(
       ownerClause,
       eq(driveEntries.entryType, "file"),
@@ -257,10 +278,13 @@ export async function searchDriveEntries(
       filename: fileReferences.filename,
       mimetype: files.mimetype,
       size: files.size,
+      creatorName: users.name,
+      creatorUsername: users.username,
     })
     .from(driveEntries)
     .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
     .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .leftJoin(users, eq(driveEntries.createdBy, users.id))
     .where(and(
       eq(driveEntries.ownerType, owner.ownerType),
       eq(driveEntries.ownerId, owner.ownerId),
@@ -756,6 +780,8 @@ function composeDriveEntryView(row: {
   readonly filename: string | null;
   readonly mimetype: string | null;
   readonly size: number | null;
+  readonly creatorName: string | null;
+  readonly creatorUsername: string | null;
 }): DriveEntryView {
   const entry = row.entry;
   return {
@@ -767,6 +793,8 @@ function composeDriveEntryView(row: {
     name: entry.name,
     favorite: entry.favorite === "1",
     status: entry.status,
+    createdBy: entry.createdBy,
+    createdByName: row.creatorName || row.creatorUsername || entry.createdBy,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
     file: entry.fileReferenceId && row.fileId && row.filename && row.mimetype && row.size !== null

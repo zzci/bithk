@@ -25,6 +25,7 @@ import {
   getDriveEntry,
   getDriveEntryById,
   getEntryOwner,
+  listDriveEntries,
   listFavoriteDriveEntries,
   listRecentDriveEntries,
   restoreDriveEntry,
@@ -118,6 +119,48 @@ describe("getDriveEntry / getDriveEntryById / getEntryOwner", () => {
 
     expect(await getEntryOwner(db, file.id)).toEqual(personal(owner));
     await expect(getEntryOwner(db, "missing")).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("creator exposure on the entry view", () => {
+  test("createdBy + createdByName are populated and resolved across list / single / recent / by-id paths", async () => {
+    const owner = await seedUser("Grace Hopper");
+    const file = await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("c.txt") });
+
+    // single path (uploadDriveFile returns via getDriveEntry)
+    expect(file.createdBy).toBe(owner);
+    expect(file.createdByName).toBe("Grace Hopper");
+
+    // list path
+    const [listed] = await listDriveEntries(db, { ...personal(owner), parentEntryId: null });
+    expect(listed?.createdBy).toBe(owner);
+    expect(listed?.createdByName).toBe("Grace Hopper");
+
+    // recent path
+    const [recent] = await listRecentDriveEntries(db, owner);
+    expect(recent?.createdBy).toBe(owner);
+    expect(recent?.createdByName).toBe("Grace Hopper");
+
+    // by-id (owner-agnostic) path
+    const byId = await getDriveEntryById(db, file.id);
+    expect(byId?.createdBy).toBe(owner);
+    expect(byId?.createdByName).toBe("Grace Hopper");
+  });
+
+  test("createdByName falls back to the username when the creator has a blank display name", async () => {
+    const id = nanoid();
+    await db.insert(users).values({
+      id,
+      oauthSub: `sub-${id}`,
+      username: "nodisplay",
+      name: "",
+      email: `${id}@test.com`,
+      role: "user",
+      status: "active",
+    }).run();
+    const file = await uploadDriveFile(db, config, { ...personal(id), createdBy: id, file: textFile("blank-name.txt") });
+    expect(file.createdBy).toBe(id);
+    expect(file.createdByName).toBe("nodisplay");
   });
 });
 
