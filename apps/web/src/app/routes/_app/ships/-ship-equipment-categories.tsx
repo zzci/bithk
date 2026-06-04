@@ -262,7 +262,7 @@ function ShipEquipmentCategoryDialog({ shipShortId, mode, category, open, onOpen
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common:common.cancel")}
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending || !valid}>
               {t("common:common.save")}
             </Button>
           </DialogFooter>

@@ -78,7 +78,7 @@ describe("shipEquipmentCategoriesManager", () => {
     });
   });
 
-  it("blocks submit and shows inline errors when required names are empty", async () => {
+  it("disables submit until both required names are filled", async () => {
     routeFetch([]);
     renderWithProviders(<ShipEquipmentCategoriesManager shipShortId="s1" />);
 
@@ -86,10 +86,14 @@ describe("shipEquipmentCategoriesManager", () => {
     await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "New" }));
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
 
-    expect(screen.getByText("Chinese name is required.")).toBeInTheDocument();
-    expect(screen.getByText("English name is required.")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Chinese name"), "导航");
+    expect(save).toBeDisabled();
+    await userEvent.type(screen.getByLabelText("English name"), "Navigation");
+    expect(save).toBeEnabled();
+
     expect(fetchMock.mock.calls.some(call => call[1]?.method === "POST")).toBe(false);
   });
 });
