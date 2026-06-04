@@ -94,13 +94,15 @@ describe("contact service — kind model", () => {
     await expect(check(db, "contact", view.id, "owner", "user", owner)).resolves.toMatchObject({ allowed: true });
   });
 
-  test("creating an organization stores company fields", async () => {
+  test("creating an organization stores company fields including the now-shared email and website", async () => {
     const owner = await seedUser("owner-a");
 
     const view = await contactService.create(db, actor(owner), {
       kind: "organization",
       name: "Oceanic Supplies",
       phone: "555",
+      email: "info@oceanic.test",
+      website: "oceanic.test",
       taxId: "TAX-1",
       address: "Dock 1",
     });
@@ -109,9 +111,33 @@ describe("contact service — kind model", () => {
     expect(view.taxId).toBe("TAX-1");
     expect(view.address).toBe("Dock 1");
     expect(view.phone).toBe("555");
-    expect(view.email).toBeNull();
+    expect(view.email).toBe("info@oceanic.test");
+    expect(view.website).toBe("oceanic.test");
     expect(view.position).toBeNull();
     expect(view.organizationId).toBeNull();
+    expect(view.organization).toBeNull();
+  });
+
+  test("an individual accepts the now-shared website, address, and taxId", async () => {
+    const owner = await seedUser("owner-a");
+
+    const view = await contactService.create(db, actor(owner), {
+      kind: "individual",
+      name: "Lee Park",
+      phone: "777",
+      email: "lee@example.test",
+      website: "lee-park.test",
+      address: "Pier 7",
+      taxId: "IND-9",
+      note: "Freelance surveyor",
+    });
+
+    expect(view.kind).toBe("individual");
+    expect(view.website).toBe("lee-park.test");
+    expect(view.address).toBe("Pier 7");
+    expect(view.taxId).toBe("IND-9");
+    expect(view.email).toBe("lee@example.test");
+    expect(view.note).toBe("Freelance surveyor");
   });
 
   test("kind defaults to organization when omitted", async () => {
@@ -120,19 +146,35 @@ describe("contact service — kind model", () => {
     expect(view.kind).toBe("organization");
   });
 
-  test("rejects organization-only fields on an individual and vice versa", async () => {
+  test("organization rejects person-only and org-link fields; individual rejects nothing shared", async () => {
     const owner = await seedUser("owner-a");
 
+    // taxId/address/email/website are now shared, so an individual accepts them.
     await expect(contactService.create(db, actor(owner), {
       kind: "individual",
-      name: "Bad Individual",
+      name: "Fine Individual",
       taxId: "X",
+      website: "x.test",
+    })).resolves.toMatchObject({ kind: "individual", taxId: "X", website: "x.test" });
+
+    // Organizations still reject position, organizationId, organizationName,
+    // and organizationAttributes.
+    await expect(contactService.create(db, actor(owner), {
+      kind: "organization",
+      name: "Bad Org Position",
+      position: "CEO",
     })).rejects.toMatchObject({ statusCode: 422 });
 
     await expect(contactService.create(db, actor(owner), {
       kind: "organization",
-      name: "Bad Org",
-      email: "x@example.test",
+      name: "Bad Org Link",
+      organizationName: "Parent Co",
+    })).rejects.toMatchObject({ statusCode: 422 });
+
+    await expect(contactService.create(db, actor(owner), {
+      kind: "organization",
+      name: "Bad Org Attrs",
+      organizationAttributes: { website: "parent.test" },
     })).rejects.toMatchObject({ statusCode: 422 });
   });
 
@@ -178,6 +220,43 @@ describe("contact service — organization link (pick-or-create)", () => {
     expect(org?.ownerId).toBe(owner);
   });
 
+  test("creates a new organization inline carrying company fields from organizationAttributes", async () => {
+    const owner = await seedUser("owner-a");
+
+    const person = await contactService.create(db, actor(owner), {
+      kind: "individual",
+      name: "Nadia Cole",
+      organizationName: "Harbor Works",
+      organizationAttributes: {
+        website: "harbor-works.test",
+        email: "hello@harbor-works.test",
+        phone: "+1 555 0000",
+        address: "Pier 9",
+        taxId: "ORG-77",
+      },
+    });
+
+    expect(person.organizationId).toBeTruthy();
+    const org = await db.select().from(contacts).where(eq(contacts.id, person.organizationId!)).get();
+    expect(org?.name).toBe("Harbor Works");
+    expect(org?.website).toBe("harbor-works.test");
+    expect(org?.email).toBe("hello@harbor-works.test");
+    expect(org?.phone).toBe("+1 555 0000");
+    expect(org?.address).toBe("Pier 9");
+    expect(org?.taxId).toBe("ORG-77");
+
+    // The individual's read carries the embedded organization summary.
+    expect(person.organization).toMatchObject({
+      id: org!.id,
+      name: "Harbor Works",
+      website: "harbor-works.test",
+      email: "hello@harbor-works.test",
+      phone: "+1 555 0000",
+      address: "Pier 9",
+      taxId: "ORG-77",
+    });
+  });
+
   test("rejects an organizationId that is not an organization", async () => {
     const owner = await seedUser("owner-a");
     const otherPerson = await contactService.create(db, actor(owner), { kind: "individual", name: "Not An Org" });
@@ -221,11 +300,17 @@ describe("contact service — organization link (pick-or-create)", () => {
       .toMatchObject({ statusCode: 422 });
   });
 
-  test("update rejects cross-kind fields against the stored kind", async () => {
+  test("update rejects person-only fields against a stored organization", async () => {
     const owner = await seedUser("owner-a");
     const org = await contactService.create(db, actor(owner), { kind: "organization", name: "Org" });
 
+    // email is now shared, so it is accepted on an organization update.
     await expect(contactService.update(db, actor(owner), org.id, { email: "x@example.test" }))
+      .resolves
+      .toMatchObject({ email: "x@example.test" });
+
+    // position is still individual-only and rejected on an organization.
+    await expect(contactService.update(db, actor(owner), org.id, { position: "CEO" }))
       .rejects
       .toMatchObject({ statusCode: 422 });
   });
@@ -404,6 +489,77 @@ describe("contact service — access and masking", () => {
     });
     await expect(contactService.get(db, actor(owner), view.id)).resolves.toMatchObject({ email: "secret@example.test" });
     await expect(contactService.get(db, actor(admin, "admin"), view.id)).resolves.toMatchObject({ email: "secret@example.test" });
+  });
+
+  test("website is masked alongside the other detail fields on confidential public reads", async () => {
+    const owner = await seedUser("owner-a");
+    const stranger = await seedUser("stranger-a");
+    const view = await contactService.create(db, actor(owner), {
+      kind: "organization",
+      name: "Webby Co",
+      website: "webby.test",
+      visibility: "public",
+      confidential: true,
+    });
+
+    const masked = await contactService.get(db, actor(stranger), view.id);
+    expect(masked.name).toBe("Webby Co");
+    expect(masked.website).toBeNull();
+
+    // The owner is never masked on its own row.
+    await expect(contactService.get(db, actor(owner), view.id)).resolves.toMatchObject({ website: "webby.test" });
+  });
+
+  test("embedded organization summary respects the org's own confidential masking, keeping name", async () => {
+    const owner = await seedUser("owner-a");
+    const stranger = await seedUser("stranger-a");
+
+    // The employer org is public + confidential, so its sensitive fields are
+    // masked to implicit readers.
+    const org = await contactService.create(db, actor(owner), {
+      kind: "organization",
+      name: "Confidential Employer",
+      website: "employer.test",
+      email: "info@employer.test",
+      phone: "999",
+      address: "HQ Tower",
+      taxId: "EMP-1",
+      visibility: "public",
+      confidential: true,
+    });
+    // The person is public + non-confidential, so a stranger can read them.
+    const person = await contactService.create(db, actor(owner), {
+      kind: "individual",
+      name: "Public Person",
+      organizationId: org.id,
+      visibility: "public",
+    });
+
+    // Stranger read: person fields visible, embedded org summary sensitive
+    // fields nulled by the org's own masking, name retained.
+    const strangerView = await contactService.get(db, actor(stranger), person.id);
+    expect(strangerView.organizationId).toBe(org.id);
+    expect(strangerView.organization).toEqual({
+      id: org.id,
+      name: "Confidential Employer",
+      website: null,
+      email: null,
+      phone: null,
+      address: null,
+      taxId: null,
+    });
+
+    // Owner read: full org summary.
+    const ownerView = await contactService.get(db, actor(owner), person.id);
+    expect(ownerView.organization).toEqual({
+      id: org.id,
+      name: "Confidential Employer",
+      website: "employer.test",
+      email: "info@employer.test",
+      phone: "999",
+      address: "HQ Tower",
+      taxId: "EMP-1",
+    });
   });
 
   test("tags attach, resync on update, and list filters by a multi-tag union", async () => {

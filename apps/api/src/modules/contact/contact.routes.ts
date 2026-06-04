@@ -44,10 +44,25 @@ const attributesSchema = z
   .nullable()
   .optional();
 
-// Fields shared by both kinds.
+// Company fields seeded onto an organization created inline from
+// `organizationName` (individual-only; ignored without a new org name).
+const organizationAttributesSchema = z.object({
+  website: z.string().trim().max(255).nullable().optional(),
+  email: z.string().trim().email().max(255).nullable().optional(),
+  phone: z.string().trim().max(255).nullable().optional(),
+  address: z.string().trim().max(2000).nullable().optional(),
+  taxId: z.string().trim().max(255).nullable().optional(),
+}).optional();
+
+// Fields shared by both kinds: phone, email, website, taxId, address, note,
+// plus classification/visibility metadata.
 const commonContactFields = {
   name: z.string().trim().min(1).max(255),
   phone: z.string().trim().max(255).nullable().optional(),
+  email: z.string().trim().email().max(255).nullable().optional(),
+  website: z.string().trim().max(255).nullable().optional(),
+  taxId: z.string().trim().max(255).nullable().optional(),
+  address: z.string().trim().max(2000).nullable().optional(),
   note: z.string().trim().max(4000).nullable().optional(),
   status: z.enum(CONTACT_STATUSES).optional(),
   visibility: z.enum(CONTACT_VISIBILITIES).optional(),
@@ -59,17 +74,15 @@ const commonContactFields = {
 
 const individualBodySchema = z.object({
   kind: z.literal("individual"),
-  email: z.string().trim().email().max(255).nullable().optional(),
   position: z.string().trim().max(255).nullable().optional(),
   organizationId: z.string().trim().min(1).nullable().optional(),
   organizationName: z.string().trim().max(255).nullable().optional(),
+  organizationAttributes: organizationAttributesSchema,
   ...commonContactFields,
 });
 
 const organizationBodySchema = z.object({
   kind: z.literal("organization"),
-  taxId: z.string().trim().max(255).nullable().optional(),
-  address: z.string().trim().max(2000).nullable().optional(),
   ...commonContactFields,
 });
 
@@ -82,9 +95,11 @@ const updateBodySchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
   phone: z.string().trim().max(255).nullable().optional(),
   email: z.string().trim().email().max(255).nullable().optional(),
+  website: z.string().trim().max(255).nullable().optional(),
   position: z.string().trim().max(255).nullable().optional(),
   organizationId: z.string().trim().min(1).nullable().optional(),
   organizationName: z.string().trim().max(255).nullable().optional(),
+  organizationAttributes: organizationAttributesSchema,
   taxId: z.string().trim().max(255).nullable().optional(),
   address: z.string().trim().max(2000).nullable().optional(),
   note: z.string().trim().max(4000).nullable().optional(),

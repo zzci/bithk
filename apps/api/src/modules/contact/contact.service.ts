@@ -36,6 +36,22 @@ export interface ContactTagView {
   readonly name: string;
 }
 
+/**
+ * Embedded company summary for an individual's linked organization. Sensitive
+ * fields respect the ORG'S OWN visibility/confidential masking for the reading
+ * actor (resolved independently of the individual being read); `name` is always
+ * present. Null for organization rows or unlinked individuals.
+ */
+export interface ContactOrganizationSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly website: string | null;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly address: string | null;
+  readonly taxId: string | null;
+}
+
 export interface ContactView {
   readonly id: string;
   readonly kind: ContactKind;
@@ -43,9 +59,11 @@ export interface ContactView {
   readonly name: string;
   readonly phone: string | null;
   readonly email: string | null;
+  readonly website: string | null;
   readonly position: string | null;
   readonly organizationId: string | null;
   readonly organizationName: string | null;
+  readonly organization: ContactOrganizationSummary | null;
   readonly taxId: string | null;
   readonly address: string | null;
   readonly note: string | null;
@@ -62,20 +80,35 @@ export interface ContactView {
   readonly updatedAt: string;
 }
 
+/**
+ * Company fields to seed onto an organization created on-the-fly from
+ * `organizationName`. Only meaningful with `organizationName`; ignored when an
+ * existing `organizationId` is supplied or no org link is requested.
+ */
+export interface OrganizationAttributesInput {
+  readonly website?: string | null | undefined;
+  readonly email?: string | null | undefined;
+  readonly phone?: string | null | undefined;
+  readonly address?: string | null | undefined;
+  readonly taxId?: string | null | undefined;
+}
+
 export interface CreateContactInput {
   // Defaults to 'organization' when omitted (e.g. internal supplier creation).
   readonly kind?: ContactKind | undefined;
   readonly name: string;
+  // Shared by both kinds.
   readonly phone?: string | null | undefined;
-  // Individual-only.
   readonly email?: string | null | undefined;
-  readonly position?: string | null | undefined;
-  readonly organizationId?: string | null | undefined;
-  readonly organizationName?: string | null | undefined;
-  // Organization-only.
+  readonly website?: string | null | undefined;
   readonly taxId?: string | null | undefined;
   readonly address?: string | null | undefined;
   readonly note?: string | null | undefined;
+  // Individual-only.
+  readonly position?: string | null | undefined;
+  readonly organizationId?: string | null | undefined;
+  readonly organizationName?: string | null | undefined;
+  readonly organizationAttributes?: OrganizationAttributesInput | undefined;
   readonly attributes?: Record<string, string> | null | undefined;
   readonly categoryId?: string | null | undefined;
   readonly status?: ContactStatus | undefined;
@@ -88,14 +121,18 @@ export interface UpdateContactInput {
   // `kind` is immutable; provided only so a caller-supplied change is rejected.
   readonly kind?: ContactKind | undefined;
   readonly name?: string | undefined;
+  // Shared by both kinds.
   readonly phone?: string | null | undefined;
   readonly email?: string | null | undefined;
-  readonly position?: string | null | undefined;
-  readonly organizationId?: string | null | undefined;
-  readonly organizationName?: string | null | undefined;
+  readonly website?: string | null | undefined;
   readonly taxId?: string | null | undefined;
   readonly address?: string | null | undefined;
   readonly note?: string | null | undefined;
+  // Individual-only.
+  readonly position?: string | null | undefined;
+  readonly organizationId?: string | null | undefined;
+  readonly organizationName?: string | null | undefined;
+  readonly organizationAttributes?: OrganizationAttributesInput | undefined;
   readonly attributes?: Record<string, string> | null | undefined;
   readonly categoryId?: string | null | undefined;
   readonly status?: ContactStatus | undefined;
@@ -169,25 +206,20 @@ function parseAttributes(raw: string | null): Record<string, string> | null {
 }
 
 /**
- * Reject fields that do not belong to a contact's kind. `phone`, `note`,
- * `attributes`, `categoryId`, `status`, `visibility`, `confidential`, and
- * `tags` are valid on both kinds; the rest are kind-specific.
+ * Reject fields that do not belong to a contact's kind. `phone`, `email`,
+ * `website`, `taxId`, `address`, `note`, `attributes`, `categoryId`, `status`,
+ * `visibility`, `confidential`, and `tags` are valid on both kinds. Only
+ * `position`, the organization link (`organizationId` / `organizationName` /
+ * `organizationAttributes`) are individual-only; an individual rejects nothing.
  */
 function assertKindFields(
   kind: ContactKind,
-  input: { email?: unknown; position?: unknown; organizationId?: unknown; organizationName?: unknown; taxId?: unknown; address?: unknown },
+  input: { position?: unknown; organizationId?: unknown; organizationName?: unknown; organizationAttributes?: unknown },
 ): void {
   if (kind === "organization") {
-    if (input.email !== undefined || input.position !== undefined || input.organizationId !== undefined || input.organizationName !== undefined) {
+    if (input.position !== undefined || input.organizationId !== undefined || input.organizationName !== undefined || input.organizationAttributes !== undefined) {
       throw new ValidationError("Invalid fields for organization", {
-        kind: "email, position, organizationId, and organizationName are only valid for individuals",
-      });
-    }
-  }
-  else {
-    if (input.taxId !== undefined || input.address !== undefined) {
-      throw new ValidationError("Invalid fields for individual", {
-        kind: "taxId and address are only valid for organizations",
+        kind: "position, organizationId, organizationName, and organizationAttributes are only valid for individuals",
       });
     }
   }
@@ -197,13 +229,19 @@ function assertKindFields(
  * Resolve the organization link for an individual inside a write transaction.
  * Returns the linked organization id, or null when no link is requested.
  * - `organizationId` set → validate it points at an existing organization.
- * - else `organizationName` non-empty → create a new organization (name only),
- *   owned by the same actor, in this transaction and link it.
+ * - else `organizationName` non-empty → create a new organization, owned by the
+ *   same actor, in this transaction and link it. Company fields supplied via
+ *   `organizationAttributes` (website/email/phone/address/taxId) are seeded onto
+ *   the new org row; `name` is always required.
  */
 function resolveOrganizationLinkTx(
   tx: AppTransaction,
   actor: ContactAccessActor,
-  input: { organizationId?: string | null | undefined; organizationName?: string | null | undefined },
+  input: {
+    organizationId?: string | null | undefined;
+    organizationName?: string | null | undefined;
+    organizationAttributes?: OrganizationAttributesInput | undefined;
+  },
   now: string,
 ): string | null {
   if (input.organizationId) {
@@ -220,11 +258,17 @@ function resolveOrganizationLinkTx(
   const orgName = input.organizationName?.trim();
   if (orgName) {
     const orgId = nanoid();
+    const attrs = input.organizationAttributes;
     tx.insert(contacts).values({
       id: orgId,
       kind: "organization",
       ownerId: actor.id,
       name: orgName,
+      phone: attrs?.phone ?? null,
+      email: attrs?.email ?? null,
+      website: attrs?.website ?? null,
+      taxId: attrs?.taxId ?? null,
+      address: attrs?.address ?? null,
       status: "active",
       visibility: "private",
       confidential: false,
@@ -277,13 +321,16 @@ export async function create(
       kind,
       ownerId: actor.id,
       name: input.name,
+      // Shared by both kinds.
       note: input.note ?? null,
       phone: input.phone ?? null,
-      email: kind === "individual" ? input.email ?? null : null,
+      email: input.email ?? null,
+      website: input.website ?? null,
+      taxId: input.taxId ?? null,
+      address: input.address ?? null,
+      // Individual-only.
       position: kind === "individual" ? input.position ?? null : null,
       organizationId,
-      taxId: kind === "organization" ? input.taxId ?? null : null,
-      address: kind === "organization" ? input.address ?? null : null,
       attributes,
       categoryId: input.categoryId ?? null,
       status: input.status ?? "active",
@@ -423,8 +470,17 @@ export async function update(
     const patch: Partial<typeof contacts.$inferInsert> = { updatedAt: now };
     if (input.name !== undefined)
       patch.name = input.name;
+    // Shared by both kinds.
     if (input.phone !== undefined)
       patch.phone = input.phone;
+    if (input.email !== undefined)
+      patch.email = input.email;
+    if (input.website !== undefined)
+      patch.website = input.website;
+    if (input.taxId !== undefined)
+      patch.taxId = input.taxId;
+    if (input.address !== undefined)
+      patch.address = input.address;
     if (input.note !== undefined)
       patch.note = input.note;
     if (input.attributes !== undefined)
@@ -439,8 +495,6 @@ export async function update(
       patch.confidential = input.confidential;
 
     if (existing.kind === "individual") {
-      if (input.email !== undefined)
-        patch.email = input.email;
       if (input.position !== undefined)
         patch.position = input.position;
       // Org link: explicit null clears it; an id/name set or replaces it.
@@ -450,12 +504,6 @@ export async function update(
       else if (input.organizationId !== undefined || (input.organizationName !== undefined && input.organizationName !== null)) {
         patch.organizationId = resolveOrganizationLinkTx(tx, actor, input, now);
       }
-    }
-    else {
-      if (input.taxId !== undefined)
-        patch.taxId = input.taxId;
-      if (input.address !== undefined)
-        patch.address = input.address;
     }
 
     tx.update(contacts).set(patch).where(eq(contacts.id, id)).run();
@@ -621,6 +669,40 @@ async function resolveOrganizationName(db: AppDatabase, organizationId: string |
   return row?.name ?? null;
 }
 
+/**
+ * Resolve the embedded company summary for an individual's linked organization.
+ * Sensitive fields respect the ORG'S OWN visibility/confidential masking for
+ * this actor (resolved independently of the individual being read, exactly as
+ * `composeWithCapabilities` would for a direct read of the org); `name` is
+ * always present. Returns null when there is no link or the org is gone.
+ */
+async function resolveOrganizationSummary(
+  db: AppDatabase,
+  actor: ContactAccessActor,
+  organizationId: string | null,
+): Promise<ContactOrganizationSummary | null> {
+  if (!organizationId)
+    return null;
+  const org = await db.select().from(contacts).where(eq(contacts.id, organizationId)).get();
+  if (!org)
+    return null;
+
+  const isExplicitViewerOrOwnerOrAdmin = actor.role === "admin"
+    || org.ownerId === actor.id
+    || (await check(db, "contact", org.id, "viewer", "user", actor.id)).allowed;
+  const canSeeFields = canSeeConfidentialFields(actor, org, isExplicitViewerOrOwnerOrAdmin);
+
+  return {
+    id: org.id,
+    name: org.name,
+    website: canSeeFields ? org.website : null,
+    email: canSeeFields ? org.email : null,
+    phone: canSeeFields ? org.phone : null,
+    address: canSeeFields ? org.address : null,
+    taxId: canSeeFields ? org.taxId : null,
+  };
+}
+
 async function resolveAvatarUrl(db: AppDatabase, avatarReferenceId: string | null): Promise<string | null> {
   if (!avatarReferenceId)
     return null;
@@ -642,6 +724,7 @@ async function composeWithCapabilities(
     || (await check(db, "contact", row.id, "viewer", "user", actor.id)).allowed;
   const canSeeFields = canSeeConfidentialFields(actor, row, isExplicitViewerOrOwnerOrAdmin);
   const organizationName = await resolveOrganizationName(db, row.organizationId);
+  const organization = await resolveOrganizationSummary(db, actor, row.organizationId);
   const avatarUrl = await resolveAvatarUrl(db, row.avatarReferenceId);
 
   return {
@@ -651,9 +734,11 @@ async function composeWithCapabilities(
     name: row.name,
     phone: canSeeFields ? row.phone : null,
     email: canSeeFields ? row.email : null,
+    website: canSeeFields ? row.website : null,
     position: canSeeFields ? row.position : null,
     organizationId: row.organizationId,
     organizationName,
+    organization,
     taxId: canSeeFields ? row.taxId : null,
     address: canSeeFields ? row.address : null,
     note: canSeeFields ? row.note : null,
