@@ -589,11 +589,10 @@ export function useRemoveMember(): UseMutationResult<{ readonly id: string }, Er
 //   - heartbeat    → DRIVE_EDIT_LOCK_STALE  (our lock expired / was taken over)
 //   - live-content → DRIVE_EDIT_LOCK_STALE
 //
-// `httpRaw` throws `HttpError` (with `status` and the parsed envelope
-// `code`) on any non-2xx, so these hooks catch it and re-throw a typed
-// `EditLockError`. Caveat: `httpRaw` (shared/lib/http.ts) discards the
-// envelope's `lockBy` field when it builds `HttpError`, so the acquire
-// conflict's holder id is not recoverable here and surfaces as null.
+// `httpRaw` throws `HttpError` (with `status`, the parsed envelope `code`,
+// and the remaining envelope fields under `details`) on any non-2xx, so
+// these hooks catch it and re-throw a typed `EditLockError` — including the
+// acquire conflict's holder id `lockBy` recovered from `details`.
 
 export interface EditLockResult {
   readonly editId: string;
@@ -610,16 +609,17 @@ export interface EditLockError extends Error {
 
 /**
  * Re-throw an error caught from `httpRaw` as a typed `EditLockError`.
- * `httpRaw` throws `HttpError` for non-2xx with `status` and the envelope
- * `code` (e.g. "DRIVE_EDIT_LOCKED" / "DRIVE_EDIT_LOCK_STALE") already
- * parsed; `lockBy` is dropped inside `httpRaw` and surfaced as null.
+ * `httpRaw` throws `HttpError` for non-2xx with `status`, the envelope
+ * `code` (e.g. "DRIVE_EDIT_LOCKED" / "DRIVE_EDIT_LOCK_STALE"), and the
+ * remaining envelope fields under `details` — from which the conflict
+ * holder id `lockBy` is recovered (null when absent or non-HttpError).
  */
 function throwLockError(err: unknown): never {
   const e = new Error(err instanceof Error ? err.message : "Edit lock request failed") as EditLockError;
   e.status = err instanceof HttpError ? err.status : 0;
   if (err instanceof HttpError && err.code !== undefined)
     e.code = err.code;
-  e.lockBy = null;
+  e.lockBy = err instanceof HttpError ? ((err.details?.lockBy as string | null | undefined) ?? null) : null;
   throw e;
 }
 

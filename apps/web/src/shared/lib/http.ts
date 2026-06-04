@@ -8,12 +8,15 @@ export class HttpError extends Error {
   readonly code: string | undefined;
   /** Server-supplied Retry-After in seconds (parsed from header). */
   readonly retryAfter: number | undefined;
-  constructor(message: string, status: number, code?: string, retryAfter?: number) {
+  /** The parsed error envelope's extra fields (beyond `code`/`message`). */
+  readonly details: Record<string, unknown> | undefined;
+  constructor(message: string, status: number, code?: string, retryAfter?: number, details?: Record<string, unknown>) {
     super(message);
     this.name = "HttpError";
     this.status = status;
     this.code = code;
     this.retryAfter = retryAfter;
+    this.details = details;
   }
 }
 
@@ -71,7 +74,7 @@ export async function httpRaw(path: string, init?: RequestInit): Promise<Respons
   // Best-effort JSON parse of the error envelope. Non-JSON error bodies
   // (e.g. an upstream proxy 502) fall through with the generic
   // `HTTP <status>` message.
-  const body = await res.clone().json().catch(() => ({})) as { error?: { code?: string; message?: string } };
+  const body = await res.clone().json().catch(() => ({})) as { error?: { code?: string; message?: string } & Record<string, unknown> };
   const errorCode = body.error?.code;
 
   let retryAfter: number | undefined;
@@ -88,7 +91,7 @@ export async function httpRaw(path: string, init?: RequestInit): Promise<Respons
       }
     }
   }
-  throw new HttpError(body.error?.message ?? `HTTP ${res.status}`, res.status, errorCode, retryAfter);
+  throw new HttpError(body.error?.message ?? `HTTP ${res.status}`, res.status, errorCode, retryAfter, body.error);
 }
 
 export async function http<T>(path: string, init?: RequestInit): Promise<T> {
