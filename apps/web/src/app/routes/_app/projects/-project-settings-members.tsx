@@ -87,7 +87,7 @@ export function ProjectSettingsMembers({ projectId, members, userNames, canManag
         <div className="flex justify-end">
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="mr-1 size-4" />
-            {t("members.add")}
+            {t("members.create")}
           </Button>
         </div>
       )}
@@ -233,8 +233,8 @@ function AddMemberDialog({ projectId, roles, open, onOpenChange, existingUserIds
       <DialogContent>
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{t("members.addTitle")}</DialogTitle>
-            <DialogDescription>{t("members.addDescription")}</DialogDescription>
+            <DialogTitle>{t("members.createTitle")}</DialogTitle>
+            <DialogDescription>{t("members.createDescription")}</DialogDescription>
           </DialogHeader>
 
           {addMember.error && <ErrorBanner message={errorMessage(addMember.error, t("common:common.error.operationFailed"))} />}
@@ -274,7 +274,7 @@ function AddMemberDialog({ projectId, roles, open, onOpenChange, existingUserIds
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={addMember.isPending || !valid}>
-              {t("common:common.add")}
+              {t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>

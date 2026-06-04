@@ -76,7 +76,7 @@ describe("projectSettingsRoles", () => {
     expect(screen.getByText("Files")).toBeInTheDocument();
     expect(screen.getByText("Administration")).toBeInTheDocument();
     // Create mode shows an Add action, not a dialog.
-    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -85,7 +85,7 @@ describe("projectSettingsRoles", () => {
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
     // The first role loads read-only by default.
     await waitFor(() => expect(screen.getByLabelText("Name")).toBeDisabled());
-    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe("projectSettingsRoles", () => {
     // Read-only: no write actions, and the name field is disabled.
     expect(screen.getByLabelText("Name")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
@@ -115,7 +115,7 @@ describe("projectSettingsRoles", () => {
     renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
 
     await user.type(await screen.findByLabelText("Name"), "Reviewer");
-    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -135,7 +135,7 @@ describe("projectSettingsRoles", () => {
     const issueRow = screen.getByText("Work orders").closest("tr")!;
     await user.click(within(issueRow).getByText("View"));
 
-    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -154,7 +154,7 @@ describe("projectSettingsRoles", () => {
     const issueRow = screen.getByText("Work orders").closest("tr")!;
     await user.click(within(issueRow).getByText("Manage"));
 
-    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -209,7 +209,7 @@ describe("projectSettingsRoles", () => {
     await user.click(screen.getByRole("switch", { name: "Manage project" }));
     await user.click(screen.getByRole("switch", { name: "Manage members" }));
 
-    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -227,7 +227,7 @@ describe("projectSettingsRoles", () => {
     await user.type(await screen.findByLabelText("Name"), "ReadOnly");
 
     await user.click(screen.getByRole("button", { name: "Reader" }));
-    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -244,7 +244,7 @@ describe("projectSettingsRoles", () => {
     await user.type(await screen.findByLabelText("Name"), "Commenter");
 
     await user.click(screen.getByRole("button", { name: "Commenter" }));
-    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -267,7 +267,7 @@ describe("projectSettingsRoles", () => {
     await user.type(await screen.findByLabelText("Name"), "Writer");
 
     await user.click(screen.getByRole("button", { name: "Writer" }));
-    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
@@ -301,7 +301,7 @@ describe("projectSettingsRoles", () => {
 
     // Files stays None (default).
 
-    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");

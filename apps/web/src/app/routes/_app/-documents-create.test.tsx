@@ -49,7 +49,7 @@ describe("emptyState", () => {
     const onCreate = vi.fn();
     renderWithProviders(<EmptyState onCreate={onCreate} />);
     expect(screen.getByText("Select a document to view")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Create Document/ }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     expect(onCreate).toHaveBeenCalledTimes(1);
   });
 });
@@ -64,7 +64,7 @@ describe("createForm", () => {
     // exercise both branches.
     const title = screen.getByLabelText("Document title");
     await user.type(title, "   ");
-    expect(screen.getByRole("button", { name: "Create Document" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "New Document" })).toBeDisabled();
     expect(onCreated).not.toHaveBeenCalled();
   });
 
@@ -75,7 +75,7 @@ describe("createForm", () => {
     renderWithProviders(<CreateForm onCancel={() => {}} onCreated={onCreated} />);
     await user.type(screen.getByLabelText("Document title"), "Spec");
     await user.type(screen.getByLabelText("content"), "hello");
-    await user.click(screen.getByRole("button", { name: "Create Document" }));
+    await user.click(screen.getByRole("button", { name: "New Document" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith("doc-9"));
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toBe("/api/documents");
@@ -91,7 +91,7 @@ describe("createForm", () => {
     ));
     renderWithProviders(<CreateForm onCancel={() => {}} onCreated={vi.fn()} />);
     await user.type(screen.getByLabelText("Document title"), "Spec");
-    await user.click(screen.getByRole("button", { name: "Create Document" }));
+    await user.click(screen.getByRole("button", { name: "New Document" }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
   });
 

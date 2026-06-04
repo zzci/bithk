@@ -4,7 +4,7 @@
     "description": "Manage the global contact directory and share selected contacts with viewers."
   },
   "list": {
-    "create": "Create contact",
+    "create": "New",
     "loading": "Loading contacts…",
     "empty": "No contacts yet.",
     "searchPlaceholder": "Search company, person, or note",
@@ -58,7 +58,7 @@
     "valueLabel": "Attribute value",
     "keyPlaceholder": "Name",
     "valuePlaceholder": "Value",
-    "add": "Add attribute",
+    "create": "New",
     "remove": "Remove attribute"
   },
   "category": {
@@ -74,7 +74,7 @@
     "public": "Public"
   },
   "form": {
-    "createTitle": "Create contact",
+    "createTitle": "New contact",
     "editTitle": "Edit contact",
     "createDescription": "Add a global contact. Private contacts are visible only to you and explicitly granted viewers.",
     "editDescription": "Update the contact details, tags and visibility.",

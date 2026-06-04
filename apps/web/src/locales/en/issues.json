@@ -3,8 +3,8 @@
     "title": "My Issues",
     "description": "View and manage issues assigned to you."
   },
-  "create": "Create Issue",
-  "createTitle": "Create Issue",
+  "create": "New",
+  "createTitle": "New Issue",
   "createDescription": "Add a new issue with optional assignment.",
   "editTitle": "Edit Issue",
   "editDescription": "Update issue details.",

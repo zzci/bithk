@@ -85,7 +85,7 @@ describe("projectSettingsDialog", () => {
     // The roles-only viewer lands on the roles section by default: the in-page
     // role editor renders its role-selector dropdown and a create action.
     expect(screen.getByRole("combobox")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
   it("shows only the members tab to a members-only member", () => {

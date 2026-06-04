@@ -26,7 +26,7 @@
     "procurementUnpinned": "采购已取消置顶"
   },
   "list": {
-    "create": "创建项目",
+    "create": "新增",
     "empty": "未找到项目。",
     "loading": "正在加载项目...",
     "total": "{{count}} 个项目",
@@ -69,7 +69,7 @@
     "remove": "移除封面"
   },
   "create": {
-    "title": "创建项目",
+    "title": "新增项目",
     "submit": "创建",
     "namePlaceholder": "项目名称",
     "descriptionPlaceholder": "添加描述…"
@@ -123,7 +123,7 @@
     "viewAll": "查看全部"
   },
   "issues": {
-    "createButton": "新建",
+    "create": "新增",
     "empty": "未找到工单。",
     "loading": "正在加载工单...",
     "searchPlaceholder": "搜索工单...",
@@ -147,7 +147,7 @@
       "continueCreate": "继续创建",
       "submit": "创建 issue"
     },
-    "createTitle": "创建工单",
+    "createTitle": "新增工单",
     "status": {
       "todo": "待办",
       "working": "进行中",
@@ -181,8 +181,7 @@
     }
   },
   "procurement": {
-    "create": "创建采购",
-    "createButton": "新建",
+    "create": "新增",
     "empty": "未找到采购记录。",
     "loading": "正在加载采购...",
     "searchPlaceholder": "搜索采购...",
@@ -218,7 +217,7 @@
       "dueDate": "截止日期",
       "tags": "标签"
     },
-    "createTitle": "创建采购",
+    "createTitle": "新增采购",
     "createDescription": "为该项目添加一条新的采购记录。",
     "changeStatus": "变更状态",
     "status": {
@@ -254,7 +253,7 @@
     }
   },
   "members": {
-    "add": "添加成员",
+    "create": "新增",
     "empty": "暂无成员。",
     "virtual": "虚拟",
     "col": {
@@ -263,8 +262,8 @@
       "role": "角色",
       "actions": "操作"
     },
-    "addTitle": "添加成员",
-    "addDescription": "选择一个用户（真实或虚拟）添加到该项目。",
+    "createTitle": "新增成员",
+    "createDescription": "选择一个用户（真实或虚拟）添加到该项目。",
     "editTitle": "编辑成员",
     "editDescription": "更新成员的角色与详情。",
     "field": {
@@ -280,8 +279,7 @@
     }
   },
   "roles": {
-    "add": "添加角色",
-    "newRole": "新建角色",
+    "create": "新增",
     "selectRole": "角色",
     "empty": "尚未定义角色。",
     "owner": "项目所有者",
@@ -289,7 +287,7 @@
     "system": "系统",
     "noCapabilities": "无权限",
     "guestFallbackNote": "被删除角色的成员将回退到此角色。",
-    "createTitle": "创建角色",
+    "createTitle": "新增角色",
     "editTitle": "编辑角色",
     "dialogDescription": "选择该角色授予的权限。",
     "field": {
@@ -334,9 +332,9 @@
     "files": "文件"
   },
   "categories": {
-    "add": "添加分类",
+    "create": "新增",
     "empty": "暂无分类。",
-    "createTitle": "添加分类",
+    "createTitle": "新增分类",
     "editTitle": "编辑分类",
     "dialogDescription": "将采购记录归入某个分类。",
     "col": {

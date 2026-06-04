@@ -4,7 +4,7 @@
     "description": "管理全局联系人目录，并将指定联系人分享给可查看者。"
   },
   "list": {
-    "create": "新建联系人",
+    "create": "新增",
     "loading": "正在加载联系人…",
     "empty": "暂无联系人。",
     "searchPlaceholder": "搜索公司、联系人或备注",
@@ -58,7 +58,7 @@
     "valueLabel": "属性值",
     "keyPlaceholder": "名称",
     "valuePlaceholder": "值",
-    "add": "添加属性",
+    "create": "新增",
     "remove": "移除属性"
   },
   "category": {
@@ -74,7 +74,7 @@
     "public": "公开"
   },
   "form": {
-    "createTitle": "新建联系人",
+    "createTitle": "新增联系人",
     "editTitle": "编辑联系人",
     "createDescription": "添加全局联系人。私有联系人仅自己和显式授权的查看者可见。",
     "editDescription": "更新联系人详情、标签和可见范围。",

@@ -73,7 +73,7 @@ describe("shipEquipmentTab", () => {
     await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
     expect(screen.getByText("Engine room")).toBeInTheDocument();
     expect(screen.getByText("Cylinder liner overhaul in progress.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add equipment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit equipment" })).not.toBeInTheDocument();
   });
 
@@ -132,7 +132,7 @@ describe("shipEquipmentTab", () => {
     renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByLabelText("Status")).toBeInTheDocument();
   });
@@ -150,7 +150,7 @@ describe("shipEquipmentTab", () => {
     renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     const dialog = screen.getByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText("Name"), "Pump");
 
@@ -158,7 +158,7 @@ describe("shipEquipmentTab", () => {
     await userEvent.click(within(dialog).getByLabelText("Category"));
     await userEvent.click(await screen.findByRole("option", { name: "Engine" }));
 
-    await userEvent.click(within(dialog).getByRole("button", { name: "Add equipment" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "New" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
@@ -172,10 +172,10 @@ describe("shipEquipmentTab", () => {
     renderWithProviders(<ShipEquipmentTab ship={ship} canManage />);
     await waitFor(() => expect(screen.getByText("Generator")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.type(screen.getByLabelText("Name"), "Pump");
     await userEvent.type(screen.getByLabelText("Manufacturer"), "Flow");
-    await userEvent.click(screen.getByRole("button", { name: "Add equipment" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");

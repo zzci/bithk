@@ -4,7 +4,7 @@
     "description": "管理你的船队。"
   },
   "list": {
-    "create": "新建船舶",
+    "create": "新增",
     "loading": "正在加载船舶…",
     "empty": "暂无船舶。",
     "noMatches": "没有符合搜索条件的船舶。",
@@ -79,7 +79,7 @@
     "remove": "移除封面"
   },
   "form": {
-    "createTitle": "新建船舶",
+    "createTitle": "新增船舶",
     "editTitle": "编辑船舶",
     "createDescription": "登记一艘新船舶。系统会自动创建一个基础项目作为其权限与文件载体。",
     "editDescription": "更新船舶信息。",
@@ -112,7 +112,7 @@
   },
   "equipment": {
     "title": "设备清单",
-    "create": "添加设备",
+    "create": "新增",
     "edit": "编辑设备",
     "delete": "删除设备",
     "actions": "操作",
@@ -124,7 +124,7 @@
     "filterAll": "全部",
     "categoryPlaceholder": "选择分类",
     "categoryNone": "无分类",
-    "createTitle": "添加设备",
+    "createTitle": "新增设备",
     "editTitle": "编辑设备",
     "dialogDescription": "记录该船舶已安装的设备。",
     "deleteTitle": "删除设备",
@@ -149,7 +149,7 @@
     "manage": "管理分类",
     "title": "设备分类",
     "description": "本船舶自有的设备分类，创建时从全局模板复制而来。",
-    "add": "添加分类",
+    "create": "新增",
     "colNameZh": "中文名称",
     "colNameEn": "英文名称",
     "colCode": "编码",
@@ -159,7 +159,7 @@
     "empty": "暂无设备分类。",
     "fieldDescription": "描述",
     "dialog": {
-      "createTitle": "添加分类",
+      "createTitle": "新增分类",
       "editTitle": "编辑分类",
       "deleteTitle": "删除分类",
       "deleteConfirm": "删除分类「{{name}}」？",
@@ -181,12 +181,12 @@
   },
   "worklist": {
     "title": "工作清单",
-    "create": "新建工作清单",
+    "create": "新增",
     "edit": "编辑工作清单",
     "delete": "删除工作清单",
     "loading": "正在加载工作清单…",
     "empty": "暂无工作清单。",
-    "createTitle": "新建工作清单",
+    "createTitle": "新增工作清单",
     "editTitle": "编辑工作清单",
     "dialogDescription": "定义该工作清单的检查清单与注意事项。",
     "deleteTitle": "删除工作清单",

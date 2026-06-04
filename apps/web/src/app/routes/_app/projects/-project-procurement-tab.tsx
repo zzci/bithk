@@ -208,7 +208,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
             },
             placeholder: t("procurement.searchPlaceholder"),
           }}
-          {...(canManage ? { create: { label: t("procurement.createButton"), onClick: () => setCreateOpen(true) } } : {})}
+          {...(canManage ? { create: { label: t("procurement.create"), onClick: () => setCreateOpen(true) } } : {})}
         />
       </div>
 

@@ -380,14 +380,14 @@ function GroupsTab() {
                   <DialogTrigger render={(
                     <Button>
                       <UserPlus className="mr-1 size-4" />
-                      {t("addMember")}
+                      {t("createMember")}
                     </Button>
                   )}
                   />
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>{t("addMemberTitle")}</DialogTitle>
-                      <DialogDescription>{t("addMemberDescription")}</DialogDescription>
+                      <DialogTitle>{t("createMemberTitle")}</DialogTitle>
+                      <DialogDescription>{t("createMemberDescription")}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3">
                       <Input

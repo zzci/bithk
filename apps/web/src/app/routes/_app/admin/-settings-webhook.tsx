@@ -76,7 +76,7 @@ export function WebhookSettingsTab() {
         </div>
         <Button onClick={() => setAddOpen(true)}>
           <Plus className="mr-1 size-3" />
-          {t("settings:webhook.add")}
+          {t("settings:webhook.create")}
         </Button>
       </div>
 
@@ -187,8 +187,8 @@ function AddWebhookDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("settings:webhook.addTitle")}</DialogTitle>
-          <DialogDescription>{t("settings:webhook.addDescription")}</DialogDescription>
+          <DialogTitle>{t("settings:webhook.createTitle")}</DialogTitle>
+          <DialogDescription>{t("settings:webhook.createDescription")}</DialogDescription>
         </DialogHeader>
         {error && <ErrorBanner message={error} />}
         <div className="space-y-4">
@@ -213,7 +213,7 @@ function AddWebhookDialog({
         <DialogFooter>
           <DialogClose render={<Button variant="outline">{t("common.cancel")}</Button>} />
           <Button disabled={!canSave || saving} onClick={() => void handleAdd()}>
-            {saving ? t("settings:saving") : t("common.add")}
+            {saving ? t("settings:saving") : t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

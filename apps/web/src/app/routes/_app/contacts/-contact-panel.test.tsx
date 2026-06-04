@@ -165,7 +165,7 @@ describe("contactPanel (form) custom attributes", () => {
     renderForm("create", null, { onSubmit });
 
     await user.type(screen.getByLabelText("Name"), "Jane Doe");
-    await user.click(screen.getByRole("button", { name: "Add attribute" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     await user.type(screen.getByLabelText("Attribute name"), "role");
     await user.type(screen.getByLabelText("Attribute value"), "lead");
 

@@ -294,7 +294,7 @@ describe("contactsListPage", () => {
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
-    await user.click(screen.getByRole("button", { name: "Create contact" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: "Identity" })).toBeInTheDocument();
@@ -404,7 +404,7 @@ describe("contactsListPage", () => {
     const user = userEvent.setup();
 
     renderWithProviders(<ContactsListPage />);
-    await user.click(screen.getByRole("button", { name: "Create contact" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
 
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Name"), "Beta Yard");
