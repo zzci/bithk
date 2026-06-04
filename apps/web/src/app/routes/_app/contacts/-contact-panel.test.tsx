@@ -237,6 +237,8 @@ describe("contactPanel (form) sensitivity control", () => {
     renderForm("create", null, { onSubmit });
 
     await user.type(screen.getByLabelText("Name"), "Beta Yard");
+    // Create now requires a phone or email; provide one so submit is enabled.
+    await user.type(screen.getByLabelText("Email"), "a@b.co");
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
