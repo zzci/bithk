@@ -1,39 +1,33 @@
 // Ship detail tab registry.
 //
-// The detail page is intentionally data-driven: it sorts this registry by
-// `order` and renders a trigger + panel for each entry generically. T5b extends
-// the ship detail by ADDING entries here (each in its own component file) — it
-// must not need to edit the Overview / Projects / Files tabs below.
+// Ship detail tabs are first-class routes (one URL per tab) rather than local
+// `useState`, so deep links, browser back/forward, and shareable URLs all
+// resolve to the correct tab. This file is the framework-free source of truth
+// for tab metadata: the layout sorts this registry by `order` to render the tab
+// nav, and the pure `SHIP_TAB_TO` / `activeShipTab` helpers map between a tab key
+// and its route — kept router-free so they are unit-testable without a router.
+//
+// Each tab BODY lives in its own `$shipId.<seg>.lazy.tsx` route file; the
+// registry no longer renders bodies, so adding a tab means adding an entry here
+// plus a `$shipId.<seg>.{tsx,lazy.tsx}` pair.
 //
 // Reserved order slots (leave gaps so new tabs slot in cleanly):
-//   10  Overview     — this file
-//   20  Profile      — full read-only registry/spec fields
-//   30  Equipment    — T5b: add { value: "equipment", labelKey: "tabs.equipment", order: 30, render: … }
-//                      backed by a new `-ship-equipment-tab.tsx`
-//   40  Worklist     — { value: "worklist", labelKey: "tabs.worklist", order: 40, render: … }
-//                      backed by `-ship-worklist-tab.tsx`
-//   50  Projects     — this file
-//   60  Files        — this file
+//   10  Overview   — index route (`/ships/$shipId`)
+//   20  Profile    — full read-only registry/spec fields
+//   30  Equipment
+//   40  Worklist
+//   50  Projects
+//   60  Files
 //
 // Contract for new tabs:
-//   - `value`     stable id used for the Tabs value + React key (also the
-//                 `?tab=` candidate if deep-linking is added later).
+//   - `value`     stable id used for the Tabs value + React key; also the path
+//                 segment (except overview, which is the index).
 //   - `labelKey`  i18n key in the `ships` namespace (e.g. "tabs.equipment").
 //   - `order`     sort position; pick an unused slot above.
-//   - `render`    returns the tab body element. Return a component element —
-//                 do NOT call hooks directly here; put data hooks inside the
-//                 tab component so they run within the panel's render tree.
 //   - `isVisible` optional gate; omit for always-visible. Receives the same
-//                 ShipTabContext (ship + canManage) the panels get.
+//                 ShipTabContext (ship + canManage) the route bodies get.
 
-import type { ReactNode } from "react";
 import type { ShipView } from "@/shared/lib/api/ships";
-import { ShipEquipmentTab } from "./-ship-equipment-tab";
-import { ShipFilesTab } from "./-ship-files-tab";
-import { ShipOverviewTab } from "./-ship-overview-tab";
-import { ShipProfileTab } from "./-ship-profile-tab";
-import { ShipProjectsTab } from "./-ship-projects-tab";
-import { ShipWorklistTab } from "./-ship-worklist-tab";
 
 export interface ShipTabContext {
   readonly ship: ShipView;
@@ -45,47 +39,16 @@ export interface ShipTabDefinition {
   readonly value: string;
   readonly labelKey: string;
   readonly order: number;
-  readonly render: (ctx: ShipTabContext) => ReactNode;
   readonly isVisible?: (ctx: ShipTabContext) => boolean;
 }
 
 export const SHIP_TABS: readonly ShipTabDefinition[] = [
-  {
-    value: "overview",
-    labelKey: "tabs.overview",
-    order: 10,
-    render: ctx => <ShipOverviewTab ship={ctx.ship} canManage={ctx.canManage} />,
-  },
-  {
-    value: "profile",
-    labelKey: "tabs.profile",
-    order: 20,
-    render: ctx => <ShipProfileTab ship={ctx.ship} />,
-  },
-  {
-    value: "equipment",
-    labelKey: "tabs.equipment",
-    order: 30,
-    render: ctx => <ShipEquipmentTab ship={ctx.ship} canManage={ctx.canManage} />,
-  },
-  {
-    value: "worklist",
-    labelKey: "tabs.worklist",
-    order: 40,
-    render: ctx => <ShipWorklistTab ship={ctx.ship} canManage={ctx.canManage} />,
-  },
-  {
-    value: "projects",
-    labelKey: "tabs.projects",
-    order: 50,
-    render: ctx => <ShipProjectsTab ship={ctx.ship} canManage={ctx.canManage} />,
-  },
-  {
-    value: "files",
-    labelKey: "tabs.files",
-    order: 60,
-    render: ctx => <ShipFilesTab ship={ctx.ship} />,
-  },
+  { value: "overview", labelKey: "tabs.overview", order: 10 },
+  { value: "profile", labelKey: "tabs.profile", order: 20 },
+  { value: "equipment", labelKey: "tabs.equipment", order: 30 },
+  { value: "worklist", labelKey: "tabs.worklist", order: 40 },
+  { value: "projects", labelKey: "tabs.projects", order: 50 },
+  { value: "files", labelKey: "tabs.files", order: 60 },
 ];
 
 /** Registry entries visible for the given context, sorted by `order`. */
@@ -93,4 +56,38 @@ export function visibleShipTabs(ctx: ShipTabContext): readonly ShipTabDefinition
   return SHIP_TABS
     .filter(tab => tab.isVisible?.(ctx) ?? true)
     .toSorted((a, b) => a.order - b.order);
+}
+
+export type ShipDetailTab = "overview" | "profile" | "equipment" | "worklist" | "projects" | "files";
+
+// TanStack `to` templates for each tab; `overview` is the ship index.
+export const SHIP_TAB_TO: Record<ShipDetailTab, string> = {
+  overview: "/ships/$shipId",
+  profile: "/ships/$shipId/profile",
+  equipment: "/ships/$shipId/equipment",
+  worklist: "/ships/$shipId/worklist",
+  projects: "/ships/$shipId/projects",
+  files: "/ships/$shipId/files",
+};
+
+/**
+ * Resolve the active tab from a pathname. Unknown / index paths fall back to
+ * `overview`; nested detail routes still resolve to their owning tab so the tab
+ * nav stays highlighted while a drawer overlays it.
+ */
+export function activeShipTab(pathname: string, shipId: string): ShipDetailTab {
+  const base = `/ships/${shipId}`;
+  const rest = pathname.startsWith(base) ? pathname.slice(base.length) : "";
+  const segment = rest.split("/").filter(Boolean)[0];
+  if (segment === "profile")
+    return "profile";
+  if (segment === "equipment")
+    return "equipment";
+  if (segment === "worklist")
+    return "worklist";
+  if (segment === "projects")
+    return "projects";
+  if (segment === "files")
+    return "files";
+  return "overview";
 }

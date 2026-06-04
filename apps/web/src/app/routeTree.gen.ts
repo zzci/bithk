@@ -33,8 +33,14 @@ import { Route as AppAdminSettingsRouteImport } from './routes/_app/admin/settin
 import { Route as AppAdminPoliciesRouteImport } from './routes/_app/admin/policies'
 import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
+import { Route as AppShipsShipIdIndexRouteImport } from './routes/_app/ships/$shipId.index'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId.index'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/users/index'
+import { Route as AppShipsShipIdWorklistRouteImport } from './routes/_app/ships/$shipId.worklist'
+import { Route as AppShipsShipIdProjectsRouteImport } from './routes/_app/ships/$shipId.projects'
+import { Route as AppShipsShipIdProfileRouteImport } from './routes/_app/ships/$shipId.profile'
+import { Route as AppShipsShipIdFilesRouteImport } from './routes/_app/ships/$shipId.files'
+import { Route as AppShipsShipIdEquipmentRouteImport } from './routes/_app/ships/$shipId.equipment'
 import { Route as AppProjectsProjectIdProcurementsRouteImport } from './routes/_app/projects/$projectId.procurements'
 import { Route as AppProjectsProjectIdIssuesRouteImport } from './routes/_app/projects/$projectId.issues'
 import { Route as AppProjectsProjectIdFilesRouteImport } from './routes/_app/projects/$projectId.files'
@@ -190,6 +196,13 @@ const AppAdminAuditRoute = AppAdminAuditRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/admin/audit.lazy').then((d) => d.Route),
 )
+const AppShipsShipIdIndexRoute = AppShipsShipIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppShipsShipIdRoute,
+} as any).lazy(() =>
+  import('./routes/_app/ships/$shipId.index.lazy').then((d) => d.Route),
+)
 const AppProjectsProjectIdIndexRoute =
   AppProjectsProjectIdIndexRouteImport.update({
     id: '/',
@@ -204,6 +217,41 @@ const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
   getParentRoute: () => AppAdminUsersRoute,
 } as any).lazy(() =>
   import('./routes/_app/admin/users/index.lazy').then((d) => d.Route),
+)
+const AppShipsShipIdWorklistRoute = AppShipsShipIdWorklistRouteImport.update({
+  id: '/worklist',
+  path: '/worklist',
+  getParentRoute: () => AppShipsShipIdRoute,
+} as any).lazy(() =>
+  import('./routes/_app/ships/$shipId.worklist.lazy').then((d) => d.Route),
+)
+const AppShipsShipIdProjectsRoute = AppShipsShipIdProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AppShipsShipIdRoute,
+} as any).lazy(() =>
+  import('./routes/_app/ships/$shipId.projects.lazy').then((d) => d.Route),
+)
+const AppShipsShipIdProfileRoute = AppShipsShipIdProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppShipsShipIdRoute,
+} as any).lazy(() =>
+  import('./routes/_app/ships/$shipId.profile.lazy').then((d) => d.Route),
+)
+const AppShipsShipIdFilesRoute = AppShipsShipIdFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => AppShipsShipIdRoute,
+} as any).lazy(() =>
+  import('./routes/_app/ships/$shipId.files.lazy').then((d) => d.Route),
+)
+const AppShipsShipIdEquipmentRoute = AppShipsShipIdEquipmentRouteImport.update({
+  id: '/equipment',
+  path: '/equipment',
+  getParentRoute: () => AppShipsShipIdRoute,
+} as any).lazy(() =>
+  import('./routes/_app/ships/$shipId.equipment.lazy').then((d) => d.Route),
 )
 const AppProjectsProjectIdProcurementsRoute =
   AppProjectsProjectIdProcurementsRouteImport.update({
@@ -310,7 +358,7 @@ export interface FileRoutesByFullPath {
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
-  '/ships/$shipId': typeof AppShipsShipIdRoute
+  '/ships/$shipId': typeof AppShipsShipIdRouteWithChildren
   '/contacts/': typeof AppContactsIndexRoute
   '/documents/': typeof AppDocumentsIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
@@ -319,8 +367,14 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
+  '/ships/$shipId/equipment': typeof AppShipsShipIdEquipmentRoute
+  '/ships/$shipId/files': typeof AppShipsShipIdFilesRoute
+  '/ships/$shipId/profile': typeof AppShipsShipIdProfileRoute
+  '/ships/$shipId/projects': typeof AppShipsShipIdProjectsRoute
+  '/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
+  '/ships/$shipId/': typeof AppShipsShipIdIndexRoute
   '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
@@ -343,7 +397,6 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AppAdminSettingsRoute
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
-  '/ships/$shipId': typeof AppShipsShipIdRoute
   '/contacts': typeof AppContactsIndexRoute
   '/documents': typeof AppDocumentsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
@@ -352,8 +405,14 @@ export interface FileRoutesByTo {
   '/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
+  '/ships/$shipId/equipment': typeof AppShipsShipIdEquipmentRoute
+  '/ships/$shipId/files': typeof AppShipsShipIdFilesRoute
+  '/ships/$shipId/profile': typeof AppShipsShipIdProfileRoute
+  '/ships/$shipId/projects': typeof AppShipsShipIdProjectsRoute
+  '/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
+  '/ships/$shipId': typeof AppShipsShipIdIndexRoute
   '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
@@ -381,7 +440,7 @@ export interface FileRoutesById {
   '/_app/documents/$docId': typeof AppDocumentsDocIdRoute
   '/_app/documents/new': typeof AppDocumentsNewRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
-  '/_app/ships/$shipId': typeof AppShipsShipIdRoute
+  '/_app/ships/$shipId': typeof AppShipsShipIdRouteWithChildren
   '/_app/contacts/': typeof AppContactsIndexRoute
   '/_app/documents/': typeof AppDocumentsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
@@ -390,8 +449,14 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/_app/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/_app/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
+  '/_app/ships/$shipId/equipment': typeof AppShipsShipIdEquipmentRoute
+  '/_app/ships/$shipId/files': typeof AppShipsShipIdFilesRoute
+  '/_app/ships/$shipId/profile': typeof AppShipsShipIdProfileRoute
+  '/_app/ships/$shipId/projects': typeof AppShipsShipIdProjectsRoute
+  '/_app/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
+  '/_app/ships/$shipId/': typeof AppShipsShipIdIndexRoute
   '/_app/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/_app/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/_app/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
@@ -428,8 +493,14 @@ export interface FileRouteTypes {
     | '/projects/$projectId/files'
     | '/projects/$projectId/issues'
     | '/projects/$projectId/procurements'
+    | '/ships/$shipId/equipment'
+    | '/ships/$shipId/files'
+    | '/ships/$shipId/profile'
+    | '/ships/$shipId/projects'
+    | '/ships/$shipId/worklist'
     | '/admin/users/'
     | '/projects/$projectId/'
+    | '/ships/$shipId/'
     | '/projects/$projectId/from/$shipId'
     | '/projects/$projectId/issues/$issueId'
     | '/projects/$projectId/procurements/$procurementId'
@@ -452,7 +523,6 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/documents/$docId'
     | '/documents/new'
-    | '/ships/$shipId'
     | '/contacts'
     | '/documents'
     | '/projects'
@@ -461,8 +531,14 @@ export interface FileRouteTypes {
     | '/projects/$projectId/files'
     | '/projects/$projectId/issues'
     | '/projects/$projectId/procurements'
+    | '/ships/$shipId/equipment'
+    | '/ships/$shipId/files'
+    | '/ships/$shipId/profile'
+    | '/ships/$shipId/projects'
+    | '/ships/$shipId/worklist'
     | '/admin/users'
     | '/projects/$projectId'
+    | '/ships/$shipId'
     | '/projects/$projectId/from/$shipId'
     | '/projects/$projectId/issues/$issueId'
     | '/projects/$projectId/procurements/$procurementId'
@@ -498,8 +574,14 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/files'
     | '/_app/projects/$projectId/issues'
     | '/_app/projects/$projectId/procurements'
+    | '/_app/ships/$shipId/equipment'
+    | '/_app/ships/$shipId/files'
+    | '/_app/ships/$shipId/profile'
+    | '/_app/ships/$shipId/projects'
+    | '/_app/ships/$shipId/worklist'
     | '/_app/admin/users/'
     | '/_app/projects/$projectId/'
+    | '/_app/ships/$shipId/'
     | '/_app/projects/$projectId/from/$shipId'
     | '/_app/projects/$projectId/issues/$issueId'
     | '/_app/projects/$projectId/procurements/$procurementId'
@@ -687,6 +769,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAuditRouteImport
       parentRoute: typeof AppAdminRoute
     }
+    '/_app/ships/$shipId/': {
+      id: '/_app/ships/$shipId/'
+      path: '/'
+      fullPath: '/ships/$shipId/'
+      preLoaderRoute: typeof AppShipsShipIdIndexRouteImport
+      parentRoute: typeof AppShipsShipIdRoute
+    }
     '/_app/projects/$projectId/': {
       id: '/_app/projects/$projectId/'
       path: '/'
@@ -700,6 +789,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users/'
       preLoaderRoute: typeof AppAdminUsersIndexRouteImport
       parentRoute: typeof AppAdminUsersRoute
+    }
+    '/_app/ships/$shipId/worklist': {
+      id: '/_app/ships/$shipId/worklist'
+      path: '/worklist'
+      fullPath: '/ships/$shipId/worklist'
+      preLoaderRoute: typeof AppShipsShipIdWorklistRouteImport
+      parentRoute: typeof AppShipsShipIdRoute
+    }
+    '/_app/ships/$shipId/projects': {
+      id: '/_app/ships/$shipId/projects'
+      path: '/projects'
+      fullPath: '/ships/$shipId/projects'
+      preLoaderRoute: typeof AppShipsShipIdProjectsRouteImport
+      parentRoute: typeof AppShipsShipIdRoute
+    }
+    '/_app/ships/$shipId/profile': {
+      id: '/_app/ships/$shipId/profile'
+      path: '/profile'
+      fullPath: '/ships/$shipId/profile'
+      preLoaderRoute: typeof AppShipsShipIdProfileRouteImport
+      parentRoute: typeof AppShipsShipIdRoute
+    }
+    '/_app/ships/$shipId/files': {
+      id: '/_app/ships/$shipId/files'
+      path: '/files'
+      fullPath: '/ships/$shipId/files'
+      preLoaderRoute: typeof AppShipsShipIdFilesRouteImport
+      parentRoute: typeof AppShipsShipIdRoute
+    }
+    '/_app/ships/$shipId/equipment': {
+      id: '/_app/ships/$shipId/equipment'
+      path: '/equipment'
+      fullPath: '/ships/$shipId/equipment'
+      preLoaderRoute: typeof AppShipsShipIdEquipmentRouteImport
+      parentRoute: typeof AppShipsShipIdRoute
     }
     '/_app/projects/$projectId/procurements': {
       id: '/_app/projects/$projectId/procurements'
@@ -867,13 +991,35 @@ const AppProjectsProjectIdRouteChildren: AppProjectsProjectIdRouteChildren = {
 const AppProjectsProjectIdRouteWithChildren =
   AppProjectsProjectIdRoute._addFileChildren(AppProjectsProjectIdRouteChildren)
 
+interface AppShipsShipIdRouteChildren {
+  AppShipsShipIdEquipmentRoute: typeof AppShipsShipIdEquipmentRoute
+  AppShipsShipIdFilesRoute: typeof AppShipsShipIdFilesRoute
+  AppShipsShipIdProfileRoute: typeof AppShipsShipIdProfileRoute
+  AppShipsShipIdProjectsRoute: typeof AppShipsShipIdProjectsRoute
+  AppShipsShipIdWorklistRoute: typeof AppShipsShipIdWorklistRoute
+  AppShipsShipIdIndexRoute: typeof AppShipsShipIdIndexRoute
+}
+
+const AppShipsShipIdRouteChildren: AppShipsShipIdRouteChildren = {
+  AppShipsShipIdEquipmentRoute: AppShipsShipIdEquipmentRoute,
+  AppShipsShipIdFilesRoute: AppShipsShipIdFilesRoute,
+  AppShipsShipIdProfileRoute: AppShipsShipIdProfileRoute,
+  AppShipsShipIdProjectsRoute: AppShipsShipIdProjectsRoute,
+  AppShipsShipIdWorklistRoute: AppShipsShipIdWorklistRoute,
+  AppShipsShipIdIndexRoute: AppShipsShipIdIndexRoute,
+}
+
+const AppShipsShipIdRouteWithChildren = AppShipsShipIdRoute._addFileChildren(
+  AppShipsShipIdRouteChildren,
+)
+
 interface AppRouteChildren {
   AppAdminRoute: typeof AppAdminRouteWithChildren
   AppDocumentsRoute: typeof AppDocumentsRouteWithChildren
   AppDriveRoute: typeof AppDriveRoute
   AppOverviewRoute: typeof AppOverviewRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRouteWithChildren
-  AppShipsShipIdRoute: typeof AppShipsShipIdRoute
+  AppShipsShipIdRoute: typeof AppShipsShipIdRouteWithChildren
   AppContactsIndexRoute: typeof AppContactsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppShipsIndexRoute: typeof AppShipsIndexRoute
@@ -887,7 +1033,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDriveRoute: AppDriveRoute,
   AppOverviewRoute: AppOverviewRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRouteWithChildren,
-  AppShipsShipIdRoute: AppShipsShipIdRoute,
+  AppShipsShipIdRoute: AppShipsShipIdRouteWithChildren,
   AppContactsIndexRoute: AppContactsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppShipsIndexRoute: AppShipsIndexRoute,
