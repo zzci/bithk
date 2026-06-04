@@ -31,6 +31,7 @@ export const ships = sqliteTable("ships", {
   lengthOverall: real("length_overall"),
   beam: real("beam"),
   draft: real("draft"),
+  airDraft: real("air_draft"),
   grossTonnage: real("gross_tonnage"),
   imoNumber: text("imo_number"),
   mmsi: text("mmsi"),

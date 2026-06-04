@@ -68,6 +68,7 @@
     "lengthOverall": "总长（米）",
     "beam": "船宽（米）",
     "draft": "吃水（米）",
+    "airDraft": "净空高度",
     "grossTonnage": "总吨位",
     "imoNumber": "IMO 编号",
     "mmsi": "MMSI",

@@ -26,6 +26,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     lengthOverall: 40.5,
     beam: 8,
     draft: 2.4,
+    airDraft: 12.5,
     grossTonnage: 300,
     imoNumber: "IMO123",
     mmsi: "456",

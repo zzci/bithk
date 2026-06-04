@@ -54,6 +54,7 @@ function listPayload() {
       lengthOverall: 299,
       beam: 40,
       draft: 14.5,
+      airDraft: 38.5,
       grossTonnage: 95500,
       imoNumber: "9876543",
       mmsi: "413258900",
@@ -84,6 +85,8 @@ describe("shipsListPage", () => {
     expect(within(card).getByText("Length overall (m)")).toBeInTheDocument();
     expect(within(card).getByText("Beam (m)")).toBeInTheDocument();
     expect(within(card).getByText("Draft (m)")).toBeInTheDocument();
+    expect(within(card).getByText("Air draft")).toBeInTheDocument();
+    expect(within(card).getByText("38.5")).toBeInTheDocument();
     expect(within(card).getByText("Gross tonnage")).toBeInTheDocument();
     expect(within(card).getByText("299")).toBeInTheDocument();
     expect(within(card).getByText("95500")).toBeInTheDocument();

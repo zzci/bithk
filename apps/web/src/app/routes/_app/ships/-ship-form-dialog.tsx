@@ -49,6 +49,7 @@ const NUMBER_FIELDS = [
   "lengthOverall",
   "beam",
   "draft",
+  "airDraft",
   "grossTonnage",
 ] as const;
 
