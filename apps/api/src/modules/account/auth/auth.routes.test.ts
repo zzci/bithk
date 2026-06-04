@@ -300,6 +300,18 @@ describe("GET /account/auth/login", () => {
     expect(location).toContain("/error");
     expect(location).toContain("code=single_user_mode_active");
   });
+
+  test("exempts loopback peers from the per-IP rate limiter", async () => {
+    const app = buildApp(db, baseConfig());
+    // AUTH_RATE_MAX is 120/window; 130 calls from a non-loopback IP would 429
+    // partway through. A loopback peer is exempt, so every call clears the
+    // limiter (here a 302 to oauth_not_configured, OAuth being unset).
+    const env = { IP: { address: "127.0.0.1", port: 0, family: "IPv4" as const } };
+    let last = await app.request("/account/auth/login", {}, env);
+    for (let i = 0; i < 130; i++)
+      last = await app.request("/account/auth/login", {}, env);
+    expect(last.status).toBe(302);
+  });
 });
 
 describe("readIdTokenSub — present vs absent vs unparseable", () => {
