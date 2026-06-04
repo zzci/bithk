@@ -136,7 +136,7 @@ describe("contactsListPage", () => {
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
   });
 
-  it("renders a single-row toolbar of kind, status, category, and tag filters", async () => {
+  it("renders a single-row toolbar of kind, status, category, sensitivity, and tag filters", async () => {
     routeFetch([contact()], 1, { categories: [category()], tags: [tag()] });
 
     renderWithProviders(<ContactsListPage />);
@@ -146,7 +146,33 @@ describe("contactsListPage", () => {
     expect(screen.getByRole("button", { name: "Kind" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Status" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Category" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sensitivity" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tags" })).toBeInTheDocument();
+  });
+
+  it("renders a single collapsed sensitivity badge per row, confidential replacing private", async () => {
+    routeFetch([contact({ visibility: "private", confidential: true })]);
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+
+    // Confidential collapses the pair into one badge; the private label never co-displays.
+    expect(screen.getAllByText("Confidential")).toHaveLength(1);
+    expect(screen.queryByText("Private")).not.toBeInTheDocument();
+  });
+
+  it("drives the list query from the sensitivity filter", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Sensitivity" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Confidential" }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("sensitivity=confidential"))).toBe(true);
+    });
   });
 
   it("drives the list query from the kind filter", async () => {

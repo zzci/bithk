@@ -133,6 +133,8 @@
     "filterAll": "All",
     "categoryPlaceholder": "Select a category",
     "categoryNone": "No category",
+    "manufacturerPlaceholder": "Select a manufacturer",
+    "manufacturerNone": "No manufacturer",
     "createTitle": "New equipment",
     "editTitle": "Edit equipment",
     "dialogDescription": "Track the equipment installed on this ship.",

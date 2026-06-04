@@ -20,6 +20,7 @@ import { protectedRoutes } from "@/routes/protected";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { createContactCategory } from "./contact-category.service";
 import { contactRoutes } from "./contact.routes";
+import { contacts } from "./schema";
 import "@/modules/account";
 
 // Real 1x1 PNG — uploadAndReference verifies the declared MIME against the
@@ -119,7 +120,7 @@ describe("contact routes", () => {
     const owner = await seedUser("owner-a");
     const viewer = await seedUser("viewer-a");
     await createContact(app, owner, { kind: "individual", name: "Private Co", email: "private@example.test" });
-    await createContact(app, owner, {
+    const secret = await createdContact(app, owner, {
       kind: "individual",
       name: "Public Secret",
       email: "secret@example.test",
@@ -128,6 +129,9 @@ describe("contact routes", () => {
       confidential: true,
       tags: ["supplier"],
     });
+    // The sensitivity invariant refuses public+confidential at the service
+    // layer; stamp it directly so the masking path is still exercised end-to-end.
+    await db.update(contacts).set({ visibility: "public", confidential: true }).where(eq(contacts.id, secret.id)).run();
 
     const res = await app.request("/contacts", { headers: { "x-uid": viewer } });
 
@@ -219,6 +223,9 @@ describe("contact routes", () => {
       confidential: true,
       tags: ["supplier"],
     });
+    // The sensitivity invariant refuses public+confidential at the service
+    // layer; stamp it directly so the masking path is still exercised end-to-end.
+    await db.update(contacts).set({ visibility: "public", confidential: true }).where(eq(contacts.id, created.id)).run();
 
     const res = await app.request(`/contacts/${created.id}`, { headers: { "x-uid": viewer } });
 
@@ -342,6 +349,20 @@ describe("contact routes", () => {
 
     const byCategory = await app.request(`/contacts?categoryId=${cat.id}`, { headers: { "x-uid": owner } });
     expect(((await byCategory.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Acme Co"]);
+  });
+
+  test("GET /contacts?sensitivity=confidential returns only confidential contacts", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    await createdContact(app, owner, { name: "Public Co", visibility: "public", confidential: false });
+    await createdContact(app, owner, { name: "Private Co", visibility: "private", confidential: false });
+    // confidential=true is coerced to private by the invariant; the owner still
+    // sees its own rows, so the sensitivity filter is what narrows the result.
+    await createdContact(app, owner, { name: "Confidential Co", confidential: true });
+
+    const res = await app.request("/contacts?sensitivity=confidential", { headers: { "x-uid": owner } });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Confidential Co"]);
   });
 
   test("GET /contacts ignores legacy visibility/confidential query params for filtering", async () => {

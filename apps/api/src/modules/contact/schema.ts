@@ -8,6 +8,14 @@ export type ContactStatus = typeof CONTACT_STATUSES[number];
 export const CONTACT_VISIBILITIES = ["private", "public"] as const;
 export type ContactVisibility = typeof CONTACT_VISIBILITIES[number];
 
+// User-facing 3-state "sensitivity" filter derived from the two access-control
+// columns `visibility` + `confidential` (not a stored column):
+//   public       = visibility 'public',  confidential false
+//   private      = visibility 'private', confidential false
+//   confidential = confidential true (always visibility 'private' by invariant)
+export const CONTACT_SENSITIVITIES = ["public", "private", "confidential"] as const;
+export type ContactSensitivity = typeof CONTACT_SENSITIVITIES[number];
+
 // A contact is one of two kinds. Both kinds share phone, email, website,
 // address, taxId, and note; `individual` rows are people that additionally
 // carry `position` and optionally belong to an `organization` row, while

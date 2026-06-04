@@ -33,6 +33,7 @@ import {
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { resolveCategoryName } from "@/shared/lib/api/global-equipment-categories";
+import { useGlobalEquipmentManufacturers } from "@/shared/lib/api/global-equipment-manufacturers";
 import { useShipEquipmentCategories } from "@/shared/lib/api/ship-equipment-categories";
 import {
   EQUIPMENT_STATUSES,
@@ -53,7 +54,7 @@ interface ShipEquipmentTabProps {
 interface EquipmentFormState {
   readonly name: string;
   readonly categoryId: string;
-  readonly manufacturer: string;
+  readonly manufacturerId: string;
   readonly model: string;
   readonly serialNumber: string;
   readonly location: string;
@@ -64,7 +65,7 @@ interface EquipmentFormState {
 const EMPTY_FORM: EquipmentFormState = {
   name: "",
   categoryId: "",
-  manufacturer: "",
+  manufacturerId: "",
   model: "",
   serialNumber: "",
   location: "",
@@ -72,7 +73,7 @@ const EMPTY_FORM: EquipmentFormState = {
   note: "",
 };
 
-const TEXT_FIELDS = ["manufacturer", "model", "serialNumber", "location"] as const;
+const TEXT_FIELDS = ["model", "serialNumber", "location"] as const;
 
 function formFromEquipment(row: ShipEquipmentView | null): EquipmentFormState {
   if (!row)
@@ -80,7 +81,7 @@ function formFromEquipment(row: ShipEquipmentView | null): EquipmentFormState {
   return {
     name: row.name,
     categoryId: row.categoryId ?? "",
-    manufacturer: row.manufacturer ?? "",
+    manufacturerId: row.manufacturerId ?? "",
     model: row.model ?? "",
     serialNumber: row.serialNumber ?? "",
     location: row.location ?? "",
@@ -94,7 +95,7 @@ function toPayload(form: EquipmentFormState): { name: string } & EquipmentInput 
   return {
     name: form.name.trim(),
     categoryId: form.categoryId || null,
-    manufacturer: nullable(form.manufacturer),
+    manufacturerId: form.manufacturerId || null,
     model: nullable(form.model),
     serialNumber: nullable(form.serialNumber),
     location: nullable(form.location),
@@ -105,6 +106,7 @@ function toPayload(form: EquipmentFormState): { name: string } & EquipmentInput 
 
 const CATEGORY_ALL = "__all__";
 const CATEGORY_NONE = "__none__";
+const MANUFACTURER_NONE = "__none__";
 
 export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
   const { t, i18n } = useTranslation(["ships", "common"]);
@@ -146,7 +148,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
         return false;
       if (!q)
         return true;
-      return [row.name, row.serialNumber, row.location, row.manufacturer, row.model]
+      return [row.name, row.serialNumber, row.location, row.manufacturerName, row.model]
         .some(v => v?.toLowerCase().includes(q));
     });
   }, [equipment, category, search]);
@@ -264,7 +266,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
                         <TableCell>{(row.categoryId && resolveCategoryName({ nameZh: row.categoryNameZh, nameEn: row.categoryNameEn }, isZh)) || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</TableCell>
                         <TableCell>
                           <div className="min-w-32">
-                            <p>{row.manufacturer || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</p>
+                            <p>{row.manufacturerName || <span className="text-muted-foreground">{t("overview.notSet")}</span>}</p>
                             {row.model && <p className="font-mono text-xs text-muted-foreground">{row.model}</p>}
                           </div>
                         </TableCell>
@@ -355,6 +357,7 @@ function EquipmentDialog({
   const { t, i18n } = useTranslation(["ships", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
   const categories = useShipEquipmentCategories(shipShortId).data ?? [];
+  const manufacturers = useGlobalEquipmentManufacturers().data ?? [];
   const [form, setForm] = useState(EMPTY_FORM);
 
   /* eslint-disable react/set-state-in-effect -- reseed the form whenever the dialog opens. */
@@ -406,6 +409,27 @@ function EquipmentDialog({
                   <SelectItem value={CATEGORY_NONE}>{t("equipment.categoryNone")}</SelectItem>
                   {categories.map(c => (
                     <SelectItem key={c.id} value={c.id}>{resolveCategoryName(c, isZh)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="equipment-manufacturer">{t("equipment.field.manufacturer")}</Label>
+              <Select
+                value={form.manufacturerId || MANUFACTURER_NONE}
+                onValueChange={v => v !== null && set("manufacturerId", v === MANUFACTURER_NONE ? "" : v)}
+              >
+                <SelectTrigger id="equipment-manufacturer" className="w-full">
+                  <SelectValue placeholder={t("equipment.manufacturerPlaceholder")}>
+                    {(v: string) => (v === MANUFACTURER_NONE
+                      ? t("equipment.manufacturerNone")
+                      : manufacturers.find(m => m.id === v)?.name ?? v)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={MANUFACTURER_NONE}>{t("equipment.manufacturerNone")}</SelectItem>
+                  {manufacturers.map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

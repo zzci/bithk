@@ -15,7 +15,7 @@ import {
   updateContactCategory,
 } from "./contact-category.service";
 import * as contactService from "./contact.service";
-import { CONTACT_KINDS, CONTACT_STATUSES, CONTACT_VISIBILITIES } from "./schema";
+import { CONTACT_KINDS, CONTACT_SENSITIVITIES, CONTACT_STATUSES, CONTACT_VISIBILITIES } from "./schema";
 
 const idSchema = z.string().min(1);
 
@@ -243,6 +243,10 @@ export function contactRoutes() {
     const kind = kindRaw && (CONTACT_KINDS as readonly string[]).includes(kindRaw)
       ? kindRaw as (typeof CONTACT_KINDS)[number]
       : undefined;
+    const sensitivityRaw = c.req.query("sensitivity");
+    const sensitivity = sensitivityRaw && (CONTACT_SENSITIVITIES as readonly string[]).includes(sensitivityRaw)
+      ? sensitivityRaw as (typeof CONTACT_SENSITIVITIES)[number]
+      : undefined;
     const pageRaw = c.req.query("page");
     const paginate = pageRaw !== undefined;
     const page = paginate ? Math.max(1, Math.floor(Number.parseInt(pageRaw, 10)) || 1) : undefined;
@@ -254,6 +258,7 @@ export function contactRoutes() {
       ...(categoryId ? { categoryId } : {}),
       q,
       status,
+      sensitivity,
       ...(paginate ? { page, limit } : {}),
     });
     return c.json({

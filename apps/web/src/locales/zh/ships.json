@@ -133,6 +133,8 @@
     "filterAll": "全部",
     "categoryPlaceholder": "选择分类",
     "categoryNone": "无分类",
+    "manufacturerPlaceholder": "选择制造商",
+    "manufacturerNone": "无制造商",
     "createTitle": "新增设备",
     "editTitle": "编辑设备",
     "dialogDescription": "记录该船舶已安装的设备。",

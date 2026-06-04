@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ContactFormState } from "./-contact-form-logic";
-import type { ContactKind, ContactStatus, ContactView } from "@/shared/lib/api/contacts";
+import type { ContactKind, ContactSensitivity, ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { Building2, Edit3, Share2, Trash2, User } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -34,6 +34,20 @@ export const Route = createLazyFileRoute("/_app/contacts/")({
 // "show everything" sentinel for the toolbar dropdowns.
 const ALL = "__all__";
 
+// Collapse a contact's (visibility, confidential) pair into the single
+// sensitivity badge it should render. Confidential always wins, so it never
+// co-displays with the private state.
+function sensitivityBadge(
+  visibility: ContactVisibility,
+  confidential: boolean,
+): { readonly key: ContactSensitivity; readonly className: string } {
+  if (confidential)
+    return { key: "confidential", className: CONTACT_CONFIDENTIAL_BADGE };
+  if (visibility === "public")
+    return { key: "public", className: CONTACT_VISIBILITY_BADGE.public };
+  return { key: "private", className: CONTACT_VISIBILITY_BADGE.private };
+}
+
 // Shared grid template so the header row and every data row align on the same
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
@@ -58,6 +72,7 @@ export function ContactsListPage() {
   const [kindFilter, setKindFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [categoryFilter, setCategoryFilter] = useState(ALL);
+  const [sensitivityFilter, setSensitivityFilter] = useState(ALL);
   const [tagIds, setTagIds] = useState<readonly string[]>([]);
   const [page, setPage] = useState(1);
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
@@ -74,6 +89,7 @@ export function ContactsListPage() {
     kind: kindFilter === ALL ? undefined : (kindFilter as ContactKind),
     status: statusFilter === ALL ? undefined : (statusFilter as ContactStatus),
     categoryId: categoryFilter === ALL ? undefined : categoryFilter,
+    sensitivity: sensitivityFilter === ALL ? undefined : (sensitivityFilter as ContactSensitivity),
     tagIds: tagIds.length > 0 ? tagIds : undefined,
     page,
   });
@@ -196,6 +212,22 @@ export function ContactsListPage() {
                 },
                 options: categories.map(c => ({ value: c.id, label: c.name })),
               },
+              {
+                key: "sensitivity",
+                label: t("sensitivity.label"),
+                mode: "single",
+                defaultValue: ALL,
+                value: sensitivityFilter,
+                onChange: (value) => {
+                  setSensitivityFilter(value ?? ALL);
+                  setPage(1);
+                },
+                options: [
+                  { value: "public", label: t("sensitivity.public") },
+                  { value: "private", label: t("sensitivity.private") },
+                  { value: "confidential", label: t("sensitivity.confidential") },
+                ],
+              },
               ...(tagDim ? [tagDim] : []),
             ]}
           />
@@ -226,7 +258,7 @@ export function ContactsListPage() {
                     <span className="truncate">{t("field.name")}</span>
                     <span className="hidden truncate sm:block">{t("field.organization")}</span>
                     <span className="hidden truncate md:block">{t("field.category")}</span>
-                    <span className="truncate">{t("field.visibility")}</span>
+                    <span className="truncate">{t("sensitivity.label")}</span>
                   </div>
                   <div className="w-28 shrink-0">
                     <span className="sr-only">{t("list.colActions")}</span>
@@ -234,6 +266,7 @@ export function ContactsListPage() {
                 </div>
                 <ul>
                   {rows.map((contact) => {
+                    const sensitivity = sensitivityBadge(contact.visibility, contact.confidential);
                     return (
                       <li key={contact.id} className="group flex items-stretch border-b border-border/40 transition-colors last:border-b-0 hover:bg-muted/50">
                         <Button
@@ -269,13 +302,10 @@ export function ContactsListPage() {
                               ? (categoryNameById.get(contact.categoryId) ?? contact.categoryId)
                               : <span className="text-muted-foreground">{t("category.none")}</span>}
                           </span>
-                          <span className="flex min-w-0 flex-wrap items-center gap-1">
-                            <Badge variant="secondary" className={cn("shrink-0", CONTACT_VISIBILITY_BADGE[contact.visibility])}>
-                              {t(`visibility.${contact.visibility}` as const)}
+                          <span className="flex min-w-0 items-center">
+                            <Badge variant="secondary" className={cn("shrink-0", sensitivity.className)}>
+                              {t(`sensitivity.${sensitivity.key}` as const)}
                             </Badge>
-                            {contact.confidential && (
-                              <Badge variant="secondary" className={cn("shrink-0", CONTACT_CONFIDENTIAL_BADGE)}>{t("field.confidential")}</Badge>
-                            )}
                           </span>
                         </Button>
                         <div className="flex w-28 shrink-0 items-center justify-end gap-1 pr-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
