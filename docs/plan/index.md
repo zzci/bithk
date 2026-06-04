@@ -66,3 +66,4 @@
 | [PLAN-065](PLAN-065.md) | Project role editor: in-page dropdown + table (replace modal) | Completed | 2026-06-03 |
 | [PLAN-066](PLAN-066.md) | Global unified tag component family | Completed | 2026-06-03 |
 | [PLAN-067](PLAN-067.md) | Virtual users as first-class user rows | Completed | 2026-06-03 |
+| [PLAN-068](PLAN-068-contact-party-model.md) | Contact module single-table Party model | Completed | 2026-06-03 |

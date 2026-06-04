@@ -66,11 +66,10 @@ describe("contact backup contribution", () => {
     }).run();
     await sourceDb.insert(contacts).values({
       id: "contact_supplier",
+      kind: "organization",
       ownerId: "owner_1",
       name: "Supplier Co",
-      contactPerson: "Alice",
       phone: "123",
-      email: "alice@example.test",
       address: "Dock 1",
       taxId: "TAX-1",
       note: "Preferred",
@@ -98,17 +97,19 @@ describe("contact backup contribution", () => {
     const restoredContacts = await restoredDb
       .select({
         id: contacts.id,
+        kind: contacts.kind,
         ownerId: contacts.ownerId,
         name: contacts.name,
-        email: contacts.email,
+        taxId: contacts.taxId,
       })
       .from(contacts)
       .all();
     expect(restoredContacts).toEqual([{
       id: "contact_supplier",
+      kind: "organization",
       ownerId: "owner_1",
       name: "Supplier Co",
-      email: "alice@example.test",
+      taxId: "TAX-1",
     }]);
 
     const restoredTags = await restoredDb

@@ -33,7 +33,7 @@ let dbPath: string;
 
 async function seedContact(id: string): Promise<string> {
   const now = new Date().toISOString();
-  await db.insert(contacts).values({ id, ownerId: "owner", name: id, createdAt: now, updatedAt: now }).run();
+  await db.insert(contacts).values({ id, kind: "organization", ownerId: "owner", name: id, createdAt: now, updatedAt: now }).run();
   return id;
 }
 

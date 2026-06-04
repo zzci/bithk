@@ -3,25 +3,27 @@
 // modes so the transition view -> edit (and the "new contact" entry) happens
 // in-place without a separate Dialog.
 //
-// Layout follows the project drawer idiom: a sticky identity/title header, a
-// scrollable sectioned body, and a sticky footer for actions. View mode is a
-// scannable label-over-value detail; edit/create is a sectioned form sharing
-// the same grouping. Masking (isMasked / ContactFieldValue) is preserved for
-// confidential public reads. Stays inside the locked stack — shadcn/ui +
-// @base-ui/react + Tailwind tokens only.
+// Contacts are a two-kind party model: `individual` people (position, employer,
+// email) and `organization` units (tax id, address). A kind selector heads the
+// create form and is read-only on edit (kind is immutable). The form is sectioned
+// per kind; view mode mirrors the same grouping as a scannable detail. Masking
+// (isMasked / ContactFieldValue) is preserved for confidential public reads.
+// Stays inside the locked stack — shadcn/ui + @base-ui/react + Tailwind only.
 
 import type { ContactFormState } from "./-contact-form-logic";
-import type { ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
-import { Edit3, Lock, Share2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import type { ContactKind, ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
+import { Building2, Edit3, Lock, Share2, Trash2, Upload, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
 import { TagChips, TagInput } from "@/shared/components/tags";
+import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -32,18 +34,22 @@ import {
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useContactCategories } from "@/shared/lib/api/contact-categories";
+import { useRemoveContactAvatar, useSetContactAvatar } from "@/shared/lib/api/contacts";
+import { errorMessage } from "@/shared/lib/errors";
 import { CONTACT_CONFIDENTIAL_BADGE, CONTACT_VISIBILITY_BADGE } from "@/shared/lib/status-colors";
+import { ContactAttributesEditor } from "./-contact-attributes-editor";
 import {
+  CONTACT_KINDS,
   CONTACT_STATUSES,
   CONTACT_VISIBILITIES,
   contactFormFromView,
   EMPTY_CONTACT_FORM,
   isMasked,
 } from "./-contact-form-logic";
+import { ContactOrgCombobox } from "./-contact-org-combobox";
 
 type ContactPanelMode = "create" | "view" | "edit";
 
-const TEXT_FIELDS = ["contactPerson", "phone", "email", "address", "taxId"] as const;
 const CATEGORY_NONE = "__none__";
 
 /**
@@ -122,6 +128,7 @@ function ContactPanelView({
   const categoryName = contact.categoryId
     ? (categoriesQuery.data ?? []).find(c => c.id === contact.categoryId)?.name ?? contact.categoryId
     : null;
+  const attributes = Object.entries(contact.attributes ?? {});
 
   return (
     <div className="flex h-full flex-col bg-background outline-none">
@@ -165,17 +172,46 @@ function ContactPanelView({
       />
 
       <div className="@container flex-1 space-y-7 overflow-y-auto px-5 py-5">
-        <PanelSection title={t("drawer.contactMethods")}>
+        <div className="flex items-center gap-4">
+          <ContactAvatar kind={contact.kind} src={contact.avatarUrl} name={contact.name} className="size-14" />
+          <Badge variant="outline">{t(`kind.${contact.kind}` as const)}</Badge>
+        </div>
+
+        <PanelSection title={t("drawer.details")}>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-4 @sm:grid-cols-2">
-            <ViewField label={t("field.contactPerson")} value={contact.contactPerson} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-            <ViewField label={t("field.phone")} value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-            <ViewField label={t("field.email")} value={contact.email} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-            <ViewField label={t("field.taxId")} value={contact.taxId} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-            <div className="@sm:col-span-2">
-              <ViewField label={t("field.address")} value={contact.address} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
-            </div>
+            {contact.kind === "individual"
+              ? (
+                  <>
+                    <ViewField label={t("field.position")} value={contact.position} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+                    <ViewField label={t("field.phone")} value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+                    <ViewField label={t("field.email")} value={contact.email} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+                    <ViewField label={t("field.organization")} value={contact.organizationName} locked={false} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+                  </>
+                )
+              : (
+                  <>
+                    <ViewField label={t("field.taxId")} value={contact.taxId} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+                    <ViewField label={t("field.phone")} value={contact.phone} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+                    <div className="@sm:col-span-2">
+                      <ViewField label={t("field.address")} value={contact.address} locked={locked} lockedLabel={lockedLabel} hiddenLabel={hiddenLabel} />
+                    </div>
+                  </>
+                )}
           </dl>
         </PanelSection>
+
+        {attributes.length > 0 && (
+          <PanelSection title={t("field.attributes")}>
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-3 @sm:grid-cols-2">
+              {attributes.map(([key, value]) => (
+                <div key={key} className="space-y-0.5">
+                  <dt className="text-xs font-medium break-words text-muted-foreground">{key}</dt>
+                  <dd className="text-sm break-words">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </PanelSection>
+        )}
 
         <PanelSection title={t("drawer.classification")}>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-4 @sm:grid-cols-2">
@@ -240,7 +276,7 @@ function ContactPanelForm({
   mode,
   contact,
   pending,
-  errorMessage,
+  errorMessage: formError,
   onSubmit,
   onCancel,
 }: ContactPanelProps) {
@@ -273,35 +309,88 @@ function ContactPanelForm({
       />
 
       <div className="@container flex-1 space-y-7 overflow-y-auto px-5 py-5">
-        {errorMessage && <ErrorBanner message={errorMessage} />}
+        {formError && <ErrorBanner message={formError} />}
 
         <PanelSection title={t("form.sections.identity")}>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="contact-name">{t("field.name")}</Label>
-            <Input
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label>{t("form.kindLabel")}</Label>
+              {mode === "create"
+                ? (
+                    <RadioGroup
+                      className="flex-row gap-4"
+                      aria-label={t("form.kindLabel")}
+                      value={form.kind}
+                      onValueChange={(value) => {
+                        if (value === "individual" || value === "organization")
+                          set("kind", value);
+                      }}
+                    >
+                      {CONTACT_KINDS.map(k => (
+                        <RadioGroupItem key={k} value={k}>
+                          <span className="text-sm">{t(`kind.${k}` as const)}</span>
+                        </RadioGroupItem>
+                      ))}
+                    </RadioGroup>
+                  )
+                : (
+                    <span>
+                      <Badge variant="outline">{t(`kind.${form.kind}` as const)}</Badge>
+                    </span>
+                  )}
+            </div>
+
+            <ContactAvatar
+              kind={form.kind}
+              contactId={contact?.id ?? null}
+              avatarUrl={contact?.avatarUrl ?? null}
+              name={form.name}
+              editable
+            />
+
+            <FieldInput
               id="contact-name"
+              label={t("field.name")}
+              value={form.name}
+              onChange={value => set("name", value)}
+              placeholder={t("form.namePlaceholder")}
               autoFocus
               required
-              value={form.name}
-              onChange={e => set("name", e.target.value)}
-              placeholder={t("form.namePlaceholder")}
             />
           </div>
         </PanelSection>
 
-        <PanelSection title={t("drawer.contactMethods")}>
-          <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
-            {TEXT_FIELDS.map(key => (
-              <div key={key} className="flex flex-col gap-1.5">
-                <Label htmlFor={`contact-${key}`}>{t(`field.${key}` as const)}</Label>
-                <Input
-                  id={`contact-${key}`}
-                  value={form[key]}
-                  onChange={e => set(key, e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
+        <PanelSection title={t("drawer.details")}>
+          {form.kind === "individual"
+            ? (
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
+                    <FieldInput id="contact-position" label={t("field.position")} value={form.position} onChange={value => set("position", value)} />
+                    <FieldInput id="contact-phone" label={t("field.phone")} value={form.phone} onChange={value => set("phone", value)} />
+                    <FieldInput id="contact-email" label={t("field.email")} type="email" value={form.email} onChange={value => set("email", value)} />
+                  </div>
+                  <ContactOrgCombobox
+                    organizationId={form.organizationId}
+                    organizationName={form.organizationName}
+                    onPick={org => setForm(prev => ({ ...prev, organizationId: org.id, organizationName: org.name }))}
+                    onCreate={name => setForm(prev => ({ ...prev, organizationId: null, organizationName: name }))}
+                    onClear={() => setForm(prev => ({ ...prev, organizationId: null, organizationName: "" }))}
+                  />
+                </div>
+              )
+            : (
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
+                    <FieldInput id="contact-taxId" label={t("field.taxId")} value={form.taxId} onChange={value => set("taxId", value)} />
+                    <FieldInput id="contact-phone" label={t("field.phone")} value={form.phone} onChange={value => set("phone", value)} />
+                  </div>
+                  <FieldInput id="contact-address" label={t("field.address")} value={form.address} onChange={value => set("address", value)} />
+                </div>
+              )}
+        </PanelSection>
+
+        <PanelSection title={t("field.attributes")}>
+          <ContactAttributesEditor value={form.attributes} onChange={rows => set("attributes", rows)} />
         </PanelSection>
 
         <PanelSection title={t("drawer.classification")}>
@@ -392,6 +481,41 @@ function PanelSection({ title, children }: { readonly title: string; readonly ch
   );
 }
 
+function FieldInput({
+  id,
+  label,
+  value,
+  onChange,
+  type,
+  placeholder,
+  autoFocus,
+  required,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly type?: string;
+  readonly placeholder?: string;
+  readonly autoFocus?: boolean;
+  readonly required?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type={type}
+        autoFocus={autoFocus}
+        required={required}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
 function ViewField({
   label,
   value,
@@ -445,6 +569,110 @@ function CategoryField({
           ))}
         </SelectContent>
       </Select>
+    </div>
+  );
+}
+
+// ── Avatar / logo ──
+
+// Read-only avatar (view mode) when `editable` is false; an upload/replace/remove
+// control (edit mode) when true. The upload mutations need a saved contact id, so
+// in create mode (no id) the control is disabled with a hint. Holds a local
+// preview so a fresh upload/removal shows immediately without re-fetching the
+// drawer's contact snapshot.
+function ContactAvatar({
+  kind,
+  src,
+  name,
+  contactId,
+  avatarUrl,
+  editable,
+  className,
+}: {
+  readonly kind: ContactKind;
+  readonly name: string;
+  readonly src?: string | null;
+  readonly contactId?: string | null;
+  readonly avatarUrl?: string | null;
+  readonly editable?: boolean;
+  readonly className?: string;
+}) {
+  const { t } = useTranslation(["contacts", "common"]);
+  const setAvatar = useSetContactAvatar();
+  const removeAvatar = useRemoveContactAvatar();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(editable ? avatarUrl ?? null : src ?? null);
+
+  /* eslint-disable react/set-state-in-effect -- re-seed the preview when the target contact changes. */
+  useEffect(() => {
+    setPreview(editable ? avatarUrl ?? null : src ?? null);
+  }, [editable, avatarUrl, src, contactId]);
+  /* eslint-enable react/set-state-in-effect */
+
+  const initial = name.trim() ? name.trim().slice(0, 1).toUpperCase() : null;
+  const fallback = kind === "organization"
+    ? <Building2 className="size-5" aria-hidden="true" />
+    : initial ?? <User className="size-5" aria-hidden="true" />;
+
+  const picture = (
+    <Avatar size="lg" className={className ?? "size-16"}>
+      {preview ? <AvatarImage src={preview} alt="" /> : null}
+      <AvatarFallback>{fallback}</AvatarFallback>
+    </Avatar>
+  );
+
+  if (!editable)
+    return picture;
+
+  const pending = setAvatar.isPending || removeAvatar.isPending;
+  const error = setAvatar.error
+    ? errorMessage(setAvatar.error, t("common:common.error.operationFailed"))
+    : removeAvatar.error
+      ? errorMessage(removeAvatar.error, t("common:common.error.operationFailed"))
+      : null;
+  const fieldLabel = kind === "organization" ? t("avatar.logoLabel") : t("avatar.photoLabel");
+
+  const handlePick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !contactId)
+      return;
+    setAvatar.mutate({ id: contactId, file }, { onSuccess: data => setPreview(data.avatarUrl) });
+  };
+
+  const handleRemove = () => {
+    if (!contactId)
+      return;
+    removeAvatar.mutate(contactId, { onSuccess: () => setPreview(null) });
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>{fieldLabel}</Label>
+      {error && <ErrorBanner message={error} />}
+      <div className="flex items-center gap-4">
+        {picture}
+        <div className="flex flex-col gap-2">
+          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handlePick} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending || !contactId}
+            onClick={() => inputRef.current?.click()}
+          >
+            <Upload aria-hidden="true" />
+            {preview ? t("avatar.replace") : t("avatar.upload")}
+          </Button>
+          {preview && contactId && (
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={handleRemove}>
+              <Trash2 className="text-destructive" aria-hidden="true" />
+              {t("avatar.remove")}
+            </Button>
+          )}
+          {!contactId && <p className="text-xs text-muted-foreground">{t("avatar.createHint")}</p>}
+        </div>
+      </div>
     </div>
   );
 }
