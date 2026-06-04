@@ -39,6 +39,8 @@ function buildPreviewEntry(parts: { id: string; name: string; mimetype: string; 
     name: parts.name,
     favorite: false,
     status: "normal",
+    createdBy: "",
+    createdByName: "",
     createdAt: "",
     updatedAt: "",
     file: { referenceId: "", fileId: "", filename: parts.name, mimetype: parts.mimetype, size: parts.size },
