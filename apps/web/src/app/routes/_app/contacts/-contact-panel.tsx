@@ -294,9 +294,13 @@ function ContactPanelForm({
   const set = <K extends keyof ContactFormState>(key: K, value: ContactFormState[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
+  // CREATE requires a name AND at least one reachable channel (phone or email);
+  // EDIT stays name-only to match the backend update schema.
+  const needsContactMethod = mode === "create" && !form.phone.trim() && !form.email.trim();
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.name.trim() || pending)
+    if (!form.name.trim() || needsContactMethod || pending)
       return;
     onSubmit(form);
   };
@@ -373,6 +377,9 @@ function ContactPanelForm({
               <FieldInput id="contact-website" label={t("field.website")} value={form.website} onChange={value => set("website", value)} />
               <FieldInput id="contact-taxId" label={t("field.taxId")} value={form.taxId} onChange={value => set("taxId", value)} />
             </div>
+            {mode === "create" && (
+              <p className="text-xs text-muted-foreground">{t("form.contactMethodRequired")}</p>
+            )}
             <FieldInput id="contact-address" label={t("field.address")} value={form.address} onChange={value => set("address", value)} />
             {form.kind === "individual" && (
               <ContactOrgCombobox
@@ -461,7 +468,7 @@ function ContactPanelForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           {t("common:common.cancel")}
         </Button>
-        <Button type="submit" disabled={pending || !form.name.trim()}>
+        <Button type="submit" disabled={pending || !form.name.trim() || needsContactMethod}>
           {mode === "create" ? t("form.submitCreate") : t("form.submitSave")}
         </Button>
       </footer>

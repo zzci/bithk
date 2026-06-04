@@ -422,6 +422,7 @@ describe("contact routes", () => {
     const res = await app.request("/contacts", jsonReq(owner, "POST", {
       kind: "organization",
       name: "Stripped Org",
+      phone: "1",
       position: "CEO",
       organizationName: "Parent",
     }));
@@ -470,6 +471,25 @@ describe("contact routes", () => {
 
     const invalid = await app.request("/contacts", jsonReq(owner, "POST", { kind: "robot", name: "Bad Kind" }));
     expect(invalid.status).toBe(422);
+  });
+
+  test("POST /contacts requires a phone or email (name alone is rejected)", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+
+    // Valid kind + name but no reachable channel → rejected by the refine.
+    const nameOnly = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "No Method Co" }));
+    expect(nameOnly.status).toBe(422);
+
+    // A whitespace-only phone still counts as missing (zod trims before the refine).
+    const blank = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "Blank Co", phone: "   " }));
+    expect(blank.status).toBe(422);
+
+    // Either channel alone satisfies the rule.
+    const withPhone = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "Phone Co", phone: "123" }));
+    expect(withPhone.status).toBe(201);
+    const withEmail = await app.request("/contacts", jsonReq(owner, "POST", { kind: "individual", name: "Email Person", email: "e@example.test" }));
+    expect(withEmail.status).toBe(201);
   });
 
   test("GET /contacts filters by kind", async () => {
@@ -591,8 +611,15 @@ function jsonReq(userId: string, method: string, body: unknown) {
 
 // Default to an organization (the common case + supplier path); individual
 // tests pass `kind: "individual"` explicitly to exercise person-only fields.
+// A contact now requires a phone or email, so default a phone when the test
+// doesn't supply a reachable channel (mirrors the default `kind`).
 function createContact(app: Hono<AppEnv>, userId: string, body: Record<string, unknown>) {
-  return app.request("/contacts", jsonReq(userId, "POST", { kind: "organization", ...body }));
+  const hasMethod = body.phone != null || body.email != null;
+  return app.request("/contacts", jsonReq(userId, "POST", {
+    kind: "organization",
+    ...(hasMethod ? {} : { phone: "000" }),
+    ...body,
+  }));
 }
 
 async function createdContact(app: Hono<AppEnv>, userId: string, body: Record<string, unknown>): Promise<ContactView> {

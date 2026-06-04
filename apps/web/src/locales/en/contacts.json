@@ -83,6 +83,7 @@
     "createDescription": "Add a global contact. Private contacts are visible only to you and explicitly granted viewers.",
     "editDescription": "Update the contact details, tags and visibility.",
     "namePlaceholder": "e.g. Acme Marine",
+    "contactMethodRequired": "Provide at least a phone or email",
     "kindLabel": "Type",
     "confidentialHelp": "Public viewers see only the name and tags when this is enabled.",
     "submitCreate": "Create",

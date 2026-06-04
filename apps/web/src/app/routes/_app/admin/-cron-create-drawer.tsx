@@ -82,6 +82,17 @@ export function CreateJobDrawer({
     });
   }
 
+  // The submit button stays disabled until the universally-required
+  // fields are present: a job name, an effective schedule expression
+  // (the preset or the custom field depending on the active tab) and a
+  // designated action. The API enforces the same min(1) constraints, so
+  // gating here turns a confusing 422 into a quietly-disabled button.
+  const effectiveCron = form.scheduleMode === "preset" ? form.schedulePreset : form.scheduleCustom;
+  const canSubmit
+    = form.name.trim().length > 0
+      && effectiveCron.trim().length > 0
+      && form.action.trim().length > 0;
+
   if (!open)
     return null;
 
@@ -299,7 +310,7 @@ export function CreateJobDrawer({
           <Button type="button" variant="outline" onClick={onClose}>
             {t("form.cancel")}
           </Button>
-          <Button disabled={submitting} onClick={onSubmit}>
+          <Button disabled={submitting || !canSubmit} onClick={onSubmit}>
             {submitting ? t("form.submitting") : t("form.submit")}
           </Button>
         </div>

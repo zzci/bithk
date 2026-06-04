@@ -416,6 +416,8 @@ describe("contactsListPage", () => {
 
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Name"), "Beta Yard");
+    // Create now requires a phone or email; provide one so submit is enabled.
+    await user.type(within(dialog).getByLabelText("Email"), "b@x.co");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     await waitFor(() => {

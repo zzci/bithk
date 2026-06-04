@@ -127,7 +127,7 @@ describe("shipSettingsTab", () => {
     });
   });
 
-  it("blocks submit and shows inline errors when required names are empty", async () => {
+  it("disables submit until both required names are filled", async () => {
     routeFetch();
 
     renderWithProviders(<ShipSettingsTab />);
@@ -135,10 +135,14 @@ describe("shipSettingsTab", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "New Category" }));
     const dialog = screen.getByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
 
-    expect(within(dialog).getByText("Chinese name is required.")).toBeInTheDocument();
-    expect(within(dialog).getByText("English name is required.")).toBeInTheDocument();
+    await userEvent.type(within(dialog).getByLabelText("Chinese name"), "电力");
+    expect(save).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText("English name"), "Power");
+    expect(save).toBeEnabled();
+
     expect(fetchMock.mock.calls.some(call => call[1]?.method === "POST")).toBe(false);
   });
 });

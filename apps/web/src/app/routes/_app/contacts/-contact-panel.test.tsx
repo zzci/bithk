@@ -219,6 +219,8 @@ describe("contactPanel (form) custom attributes", () => {
     renderForm("create", null, { onSubmit });
 
     await user.type(screen.getByLabelText("Name"), "Jane Doe");
+    // Create now requires a phone or email; provide one so submit is enabled.
+    await user.type(screen.getByLabelText("Email"), "a@b.co");
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.type(screen.getByLabelText("Attribute name"), "role");
     await user.type(screen.getByLabelText("Attribute value"), "lead");
