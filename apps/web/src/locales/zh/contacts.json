@@ -12,24 +12,54 @@
     "colActions": "操作"
   },
   "drawer": {
-    "contactMethods": "联系方式",
+    "details": "详细信息",
     "classification": "分类",
     "resize": "调整面板宽度"
   },
   "field": {
     "name": "名称",
-    "contactPerson": "联系人",
+    "kind": "类型",
+    "position": "职位",
+    "organization": "所属单位",
     "phone": "电话",
     "email": "邮箱",
     "address": "地址",
     "taxId": "税号",
+    "attributes": "自定义属性",
     "note": "备注",
     "status": "状态",
     "visibility": "可见范围",
     "confidential": "保密",
     "tags": "标签",
-    "companyUnit": "公司 / 单位",
     "category": "分类"
+  },
+  "kind": {
+    "individual": "个人",
+    "organization": "单位"
+  },
+  "avatar": {
+    "photoLabel": "照片",
+    "logoLabel": "标志",
+    "upload": "上传",
+    "replace": "替换",
+    "remove": "移除",
+    "createHint": "请先保存联系人，再添加图片。"
+  },
+  "org": {
+    "placeholder": "选择或创建单位",
+    "searchPlaceholder": "搜索单位…",
+    "empty": "未找到单位。",
+    "create": "创建“{{name}}”",
+    "newHint": "（新建）",
+    "clear": "清除单位"
+  },
+  "attributes": {
+    "keyLabel": "属性名称",
+    "valueLabel": "属性值",
+    "keyPlaceholder": "名称",
+    "valuePlaceholder": "值",
+    "add": "添加属性",
+    "remove": "移除属性"
   },
   "category": {
     "none": "未分类",
@@ -49,6 +79,7 @@
     "createDescription": "添加全局联系人。私有联系人仅自己和显式授权的查看者可见。",
     "editDescription": "更新联系人详情、标签和可见范围。",
     "namePlaceholder": "例如：Acme Marine",
+    "kindLabel": "类型",
     "confidentialHelp": "启用后，公开查看者只能看到名称和标签。",
     "submitCreate": "创建",
     "submitSave": "保存",

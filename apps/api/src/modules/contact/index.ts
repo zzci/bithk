@@ -1,4 +1,5 @@
 import { registerBackupContribution } from "@/modules/backup/registry";
+import { registerContactAvatarPermissionHook } from "./contact-avatar.permission";
 import { contactBackupContribution } from "./contact.backup";
 
 export {
@@ -12,3 +13,4 @@ export { contactRoutes } from "./contact.routes";
 export * as contactService from "./contact.service";
 
 registerBackupContribution(contactBackupContribution);
+registerContactAvatarPermissionHook();

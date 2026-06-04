@@ -36,18 +36,24 @@ afterEach(() => {
 function contact(overrides: Partial<ContactView> = {}): ContactView {
   return {
     id: "c1",
+    kind: "individual",
     ownerId: "u1",
     name: "Acme Marine",
-    contactPerson: "Jane",
     phone: "123",
     email: "jane@example.com",
-    address: "Dock 1",
-    taxId: "TAX-1",
+    position: "Manager",
+    organizationId: "org-1",
+    organizationName: "Acme HQ",
+    taxId: null,
+    address: null,
     note: "Preferred",
+    attributes: null,
+    avatarReferenceId: null,
+    avatarUrl: null,
+    categoryId: null,
     status: "active",
     visibility: "private",
     confidential: false,
-    categoryId: null,
     tags: [{ id: "t1", name: "supplier" }],
     canManage: true,
     createdAt: "2026-05-24T00:00:00.000Z",
@@ -112,34 +118,46 @@ function routeFetch(
 }
 
 describe("contactsListPage", () => {
-  it("renders contacts as dense grid rows with fields, tags, and manage actions", async () => {
+  it("renders a person-primary grid row with avatar, name, employer, and manage actions", async () => {
     routeFetch([contact()]);
 
     renderWithProviders(<ContactsListPage />);
 
     expect(screen.getByRole("heading", { name: "Contacts" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    expect(screen.getByText("Company / unit")).toBeInTheDocument();
-    expect(screen.getByText("Jane")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Acme HQ")).toBeInTheDocument();
     expect(screen.getByText("supplier")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Acme Marine" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete Acme Marine" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share Acme Marine" })).toBeInTheDocument();
   });
 
-  it("renders a single-row toolbar of status, category, and tag filters", async () => {
+  it("renders a single-row toolbar of kind, status, category, and tag filters", async () => {
     routeFetch([contact()], 1, { categories: [category()], tags: [tag()] });
 
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
     // Each dimension renders its own dropdown trigger labelled by its name.
+    expect(screen.getByRole("button", { name: "Kind" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Status" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Category" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tags" })).toBeInTheDocument();
-    // The visibility and confidentiality dropdowns are gone.
-    expect(screen.queryByRole("button", { name: "All visibility" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "All confidentiality" })).not.toBeInTheDocument();
+  });
+
+  it("drives the list query from the kind filter", async () => {
+    routeFetch([contact()]);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ContactsListPage />);
+    await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Kind" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Organization" }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(c => String(c[0]).includes("kind=organization"))).toBe(true);
+    });
   });
 
   it("drives the list query from the status filter", async () => {
@@ -148,7 +166,6 @@ describe("contactsListPage", () => {
 
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    // Open the status dropdown and select "Active".
     await user.click(screen.getByRole("button", { name: "Status" }));
     await user.click(await screen.findByRole("menuitem", { name: "Active" }));
 
@@ -163,7 +180,6 @@ describe("contactsListPage", () => {
 
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    // Category is a single-select dropdown.
     await user.click(screen.getByRole("button", { name: "Category" }));
     await user.click(await screen.findByRole("menuitem", { name: "Suppliers" }));
 
@@ -178,7 +194,6 @@ describe("contactsListPage", () => {
 
     renderWithProviders(<ContactsListPage />);
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    // Tags is a multi-select dropdown.
     await user.click(screen.getByRole("button", { name: "Tags" }));
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "ship supplier" }));
 
@@ -215,11 +230,10 @@ describe("contactsListPage", () => {
   it("renders locked placeholders for masked confidential public reads in the grid", async () => {
     routeFetch([
       contact({
-        contactPerson: null,
         phone: null,
         email: null,
-        address: null,
-        taxId: null,
+        position: null,
+        organizationName: null,
         note: null,
         status: null,
         visibility: "public",
@@ -231,20 +245,18 @@ describe("contactsListPage", () => {
     renderWithProviders(<ContactsListPage />);
 
     await waitFor(() => expect(screen.getByText("Acme Marine")).toBeInTheDocument());
-    // The dense row surfaces four sensitive columns; all must be locked.
-    expect(screen.getAllByLabelText("Masked field")).toHaveLength(4);
-    expect(screen.queryByText("Jane")).not.toBeInTheDocument();
+    // The dense row surfaces phone, email, and status as sensitive columns.
+    expect(screen.getAllByLabelText("Masked field")).toHaveLength(3);
     expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
   });
 
   it("keeps every sensitive field locked inside the detail drawer for masked reads", async () => {
     routeFetch([
       contact({
-        contactPerson: null,
         phone: null,
         email: null,
-        address: null,
-        taxId: null,
+        position: null,
+        organizationName: null,
         note: null,
         status: null,
         visibility: "public",
@@ -259,9 +271,8 @@ describe("contactsListPage", () => {
     await user.click(screen.getByRole("button", { name: "Acme Marine" }));
 
     const drawer = await screen.findByRole("dialog");
-    // View shows five contact methods plus the note as masked placeholders.
-    expect(within(drawer).getAllByLabelText("Masked field")).toHaveLength(6);
-    expect(within(drawer).queryByText("Dock 1")).not.toBeInTheDocument();
+    // The individual detail surfaces position, phone, email plus the note.
+    expect(within(drawer).getAllByLabelText("Masked field")).toHaveLength(4);
   });
 
   it("opens a detail drawer that reuses the loaded contact data", async () => {
@@ -273,12 +284,12 @@ describe("contactsListPage", () => {
     await user.click(screen.getByRole("button", { name: "Acme Marine" }));
 
     const drawer = await screen.findByRole("dialog");
-    expect(within(drawer).getByText("Dock 1")).toBeInTheDocument();
+    expect(within(drawer).getByText("Acme HQ")).toBeInTheDocument();
     expect(within(drawer).getByText("Preferred")).toBeInTheDocument();
-    expect(within(drawer).getByText("Contact methods")).toBeInTheDocument();
+    expect(within(drawer).getByText("Details")).toBeInTheDocument();
   });
 
-  it("opens the create form in a sectioned drawer", async () => {
+  it("opens the create form in a sectioned drawer with a kind selector", async () => {
     routeFetch([]);
     const user = userEvent.setup();
 
@@ -286,12 +297,12 @@ describe("contactsListPage", () => {
     await user.click(screen.getByRole("button", { name: "Create contact" }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Create contact" })).toBeInTheDocument();
     expect(within(dialog).getByRole("heading", { name: "Identity" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("heading", { name: "Contact methods" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Details" })).toBeInTheDocument();
     expect(within(dialog).getByRole("heading", { name: "Classification" })).toBeInTheDocument();
     expect(within(dialog).getByRole("heading", { name: "Access" })).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("Type")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("radio", { name: "Individual" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("radio", { name: "Organization" })).toBeInTheDocument();
   });
 
   it("opens the edit form from the row action", async () => {
@@ -314,9 +325,6 @@ describe("contactsListPage", () => {
     await user.click(screen.getByRole("button", { name: "Acme Marine" }));
 
     const drawer = await screen.findByRole("dialog");
-    // The view-mode edit action is now an icon button in the panel header
-    // (labelled with the shared common.edit copy) instead of the old footer
-    // "Edit contact" button.
     await user.click(within(drawer).getByRole("button", { name: "Edit" }));
 
     expect(await screen.findByRole("heading", { name: "Edit contact" })).toBeInTheDocument();
@@ -387,8 +395,6 @@ describe("contactsListPage", () => {
       expect(patched).toBeDefined();
     });
     expect(toast.success).toHaveBeenCalledWith("Contact updated");
-    // Drawer stays open, returned to the read-only view (edit heading gone, the
-    // view-only edit icon action is back).
     await waitFor(() => expect(within(drawer).queryByRole("heading", { name: "Edit contact" })).not.toBeInTheDocument());
     expect(within(drawer).getByRole("button", { name: "Edit" })).toBeInTheDocument();
   });

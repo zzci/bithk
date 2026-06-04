@@ -1,8 +1,11 @@
 import type { ContactAccessActor, ContactCapability } from "./contact.permission";
-import type { ContactStatus, ContactVisibility } from "./schema";
-import type { AppDatabase } from "@/db";
+import type { ContactKind, ContactStatus, ContactVisibility } from "./schema";
+import type { Config } from "@/config";
+import type { AppDatabase, AppTransaction } from "@/db";
+import type { FileServiceConfig } from "@/modules/file";
 import { and, count, desc, eq, inArray, not, or, sql } from "drizzle-orm";
 import { runWrite } from "@/db";
+import { finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { createTuple, deleteTupleByKey } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
@@ -16,12 +19,15 @@ import {
   canSeeConfidentialFields,
   resolveContactCapabilities,
 } from "./contact.permission";
-import { contacts } from "./schema";
+import { CONTACT_KINDS, contacts } from "./schema";
 
 /** Contact tag binding (tag type='contact'), passed to the shared tag helpers. */
 const CONTACT_TAG_BINDING = {
   type: "contact",
 } as const;
+
+/** owner_type for the single avatar/logo `file_references` row of a contact. */
+export const CONTACT_AVATAR_OWNER_TYPE = "contact_avatar";
 
 export type ContactRow = typeof contacts.$inferSelect;
 
@@ -32,14 +38,20 @@ export interface ContactTagView {
 
 export interface ContactView {
   readonly id: string;
+  readonly kind: ContactKind;
   readonly ownerId: string;
   readonly name: string;
-  readonly contactPerson: string | null;
   readonly phone: string | null;
   readonly email: string | null;
-  readonly address: string | null;
+  readonly position: string | null;
+  readonly organizationId: string | null;
+  readonly organizationName: string | null;
   readonly taxId: string | null;
+  readonly address: string | null;
   readonly note: string | null;
+  readonly attributes: Record<string, string> | null;
+  readonly avatarReferenceId: string | null;
+  readonly avatarUrl: string | null;
   readonly categoryId: string | null;
   readonly status: ContactStatus | null;
   readonly visibility: ContactVisibility;
@@ -51,13 +63,20 @@ export interface ContactView {
 }
 
 export interface CreateContactInput {
+  // Defaults to 'organization' when omitted (e.g. internal supplier creation).
+  readonly kind?: ContactKind | undefined;
   readonly name: string;
-  readonly contactPerson?: string | null | undefined;
   readonly phone?: string | null | undefined;
+  // Individual-only.
   readonly email?: string | null | undefined;
-  readonly address?: string | null | undefined;
+  readonly position?: string | null | undefined;
+  readonly organizationId?: string | null | undefined;
+  readonly organizationName?: string | null | undefined;
+  // Organization-only.
   readonly taxId?: string | null | undefined;
+  readonly address?: string | null | undefined;
   readonly note?: string | null | undefined;
+  readonly attributes?: Record<string, string> | null | undefined;
   readonly categoryId?: string | null | undefined;
   readonly status?: ContactStatus | undefined;
   readonly visibility?: ContactVisibility | undefined;
@@ -66,13 +85,18 @@ export interface CreateContactInput {
 }
 
 export interface UpdateContactInput {
+  // `kind` is immutable; provided only so a caller-supplied change is rejected.
+  readonly kind?: ContactKind | undefined;
   readonly name?: string | undefined;
-  readonly contactPerson?: string | null | undefined;
   readonly phone?: string | null | undefined;
   readonly email?: string | null | undefined;
-  readonly address?: string | null | undefined;
+  readonly position?: string | null | undefined;
+  readonly organizationId?: string | null | undefined;
+  readonly organizationName?: string | null | undefined;
   readonly taxId?: string | null | undefined;
+  readonly address?: string | null | undefined;
   readonly note?: string | null | undefined;
+  readonly attributes?: Record<string, string> | null | undefined;
   readonly categoryId?: string | null | undefined;
   readonly status?: ContactStatus | undefined;
   readonly visibility?: ContactVisibility | undefined;
@@ -81,6 +105,7 @@ export interface UpdateContactInput {
 }
 
 export interface ListContactsParams {
+  readonly kind?: ContactKind | undefined;
   readonly tagIds?: readonly string[] | undefined;
   readonly categoryId?: string | undefined;
   readonly q?: string | undefined;
@@ -101,6 +126,128 @@ function escapeLike(v: string): string {
   return v.replace(LIKE_SPECIAL_RE, "\\$&");
 }
 
+/** Build the inline content URL the frontend renders in an <img>. */
+function buildAvatarUrl(fileId: string, referenceId: string): string {
+  return `/api/files/${fileId}/content?ref=${referenceId}&inline=true`;
+}
+
+/**
+ * Validate and serialize the free-form `attributes` map. Accepts a flat object
+ * whose keys and values are all strings; rejects arrays, nested objects, and
+ * non-string values. Returns the JSON string (null when empty/absent).
+ */
+function serializeAttributes(attributes: Record<string, string> | null | undefined): string | null {
+  if (attributes === undefined || attributes === null)
+    return null;
+  if (typeof attributes !== "object" || Array.isArray(attributes)) {
+    throw new ValidationError("Invalid attributes", { attributes: "Must be a flat object of string keys and string values" });
+  }
+  const entries = Object.entries(attributes);
+  if (entries.length === 0)
+    return null;
+  if (entries.length > 50)
+    throw new ValidationError("Invalid attributes", { attributes: "At most 50 keys allowed" });
+  for (const [key, value] of entries) {
+    if (typeof value !== "string")
+      throw new ValidationError("Invalid attributes", { attributes: `Value for "${key}" must be a string` });
+  }
+  return JSON.stringify(Object.fromEntries(entries));
+}
+
+function parseAttributes(raw: string | null): Record<string, string> | null {
+  if (!raw)
+    return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      return parsed as Record<string, string>;
+  }
+  catch {
+    // Corrupt JSON is treated as "no attributes" rather than crashing reads.
+  }
+  return null;
+}
+
+/**
+ * Reject fields that do not belong to a contact's kind. `phone`, `note`,
+ * `attributes`, `categoryId`, `status`, `visibility`, `confidential`, and
+ * `tags` are valid on both kinds; the rest are kind-specific.
+ */
+function assertKindFields(
+  kind: ContactKind,
+  input: { email?: unknown; position?: unknown; organizationId?: unknown; organizationName?: unknown; taxId?: unknown; address?: unknown },
+): void {
+  if (kind === "organization") {
+    if (input.email !== undefined || input.position !== undefined || input.organizationId !== undefined || input.organizationName !== undefined) {
+      throw new ValidationError("Invalid fields for organization", {
+        kind: "email, position, organizationId, and organizationName are only valid for individuals",
+      });
+    }
+  }
+  else {
+    if (input.taxId !== undefined || input.address !== undefined) {
+      throw new ValidationError("Invalid fields for individual", {
+        kind: "taxId and address are only valid for organizations",
+      });
+    }
+  }
+}
+
+/**
+ * Resolve the organization link for an individual inside a write transaction.
+ * Returns the linked organization id, or null when no link is requested.
+ * - `organizationId` set → validate it points at an existing organization.
+ * - else `organizationName` non-empty → create a new organization (name only),
+ *   owned by the same actor, in this transaction and link it.
+ */
+function resolveOrganizationLinkTx(
+  tx: AppTransaction,
+  actor: ContactAccessActor,
+  input: { organizationId?: string | null | undefined; organizationName?: string | null | undefined },
+  now: string,
+): string | null {
+  if (input.organizationId) {
+    const org = tx.select({ id: contacts.id, kind: contacts.kind })
+      .from(contacts)
+      .where(eq(contacts.id, input.organizationId))
+      .get();
+    if (!org || org.kind !== "organization") {
+      throw new ValidationError("Invalid organization", { organizationId: "Must reference an existing organization contact" });
+    }
+    return org.id;
+  }
+
+  const orgName = input.organizationName?.trim();
+  if (orgName) {
+    const orgId = nanoid();
+    tx.insert(contacts).values({
+      id: orgId,
+      kind: "organization",
+      ownerId: actor.id,
+      name: orgName,
+      status: "active",
+      visibility: "private",
+      confidential: false,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+    tx.insert(relationTuples).values({
+      id: nanoid(),
+      namespace: "contact",
+      objectId: orgId,
+      relation: "owner",
+      subjectNamespace: "user",
+      subjectId: actor.id,
+      subjectRelation: null,
+      createdBy: actor.id,
+      createdAt: now,
+    }).run();
+    return orgId;
+  }
+
+  return null;
+}
+
 export interface ContactGrantTarget {
   readonly type: "user" | "group";
   readonly id: string;
@@ -111,20 +258,33 @@ export async function create(
   actor: ContactAccessActor,
   input: CreateContactInput,
 ): Promise<ContactView> {
+  const kind = input.kind ?? "organization";
+  if (!(CONTACT_KINDS as readonly string[]).includes(kind))
+    throw new ValidationError("Invalid kind", { kind: "Must be 'individual' or 'organization'" });
+  assertKindFields(kind, input);
+  const attributes = serializeAttributes(input.attributes);
+
   const id = nanoid();
   const now = new Date().toISOString();
 
   db.transaction((tx) => {
+    const organizationId = kind === "individual"
+      ? resolveOrganizationLinkTx(tx, actor, input, now)
+      : null;
+
     tx.insert(contacts).values({
       id,
+      kind,
       ownerId: actor.id,
       name: input.name,
-      contactPerson: input.contactPerson ?? null,
-      phone: input.phone ?? null,
-      email: input.email ?? null,
-      address: input.address ?? null,
-      taxId: input.taxId ?? null,
       note: input.note ?? null,
+      phone: input.phone ?? null,
+      email: kind === "individual" ? input.email ?? null : null,
+      position: kind === "individual" ? input.position ?? null : null,
+      organizationId,
+      taxId: kind === "organization" ? input.taxId ?? null : null,
+      address: kind === "organization" ? input.address ?? null : null,
+      attributes,
       categoryId: input.categoryId ?? null,
       status: input.status ?? "active",
       visibility: input.visibility ?? "private",
@@ -176,6 +336,9 @@ export async function list(
     conditions.push(or(...access)!);
   }
 
+  if (params.kind)
+    conditions.push(eq(contacts.kind, params.kind));
+
   // Multi-tag filter: union of contact ids carrying any of the selected tags.
   if (params.tagIds && params.tagIds.length > 0) {
     const ids = await listResourceIdsByAnyTag(db, CONTACT_TAG_BINDING, params.tagIds);
@@ -191,20 +354,17 @@ export async function list(
   if (params.q && params.q.length > 0) {
     const like = `%${escapeLike(params.q)}%`;
     const nameMatch = sql`${contacts.name} LIKE ${like} ESCAPE '\\'`;
-    const confidentialMatch = or(
-      sql`${contacts.contactPerson} LIKE ${like} ESCAPE '\\'`,
-      sql`${contacts.note} LIKE ${like} ESCAPE '\\'`,
-    )!;
+    const confidentialMatch = sql`${contacts.note} LIKE ${like} ESCAPE '\\'`;
     if (isAdmin) {
       conditions.push(or(nameMatch, confidentialMatch)!);
     }
     else {
-      // `name` is always visible; `contactPerson`/`note` are masked by
-      // `composeWithCapabilities` for non-privileged actors on public+confidential
-      // rows. Gating the confidential-field match to rows whose fields this actor
-      // can actually see (owner / explicit viewer / not public-confidential —
-      // mirrors `canSeeConfidentialFields`) stops a search hit/miss oracle that
-      // would otherwise leak the masked values character-by-character.
+      // `name` is always visible; `note` is masked by `composeWithCapabilities`
+      // for non-privileged actors on public+confidential rows. Gating the
+      // confidential-field match to rows whose fields this actor can actually
+      // see (owner / explicit viewer / not public-confidential — mirrors
+      // `canSeeConfidentialFields`) stops a search hit/miss oracle that would
+      // otherwise leak the masked values character-by-character.
       const fieldsVisible = [
         eq(contacts.ownerId, actor.id),
         not(and(eq(contacts.visibility, "public" as const), eq(contacts.confidential, true))!),
@@ -252,25 +412,23 @@ export async function update(
   id: string,
   input: UpdateContactInput,
 ): Promise<ContactView> {
-  await assertContactCapability(db, actor, id, "update");
+  const existing = await assertContactCapability(db, actor, id, "update");
+
+  if (input.kind !== undefined && input.kind !== existing.kind)
+    throw new ValidationError("Kind is immutable", { kind: "A contact's kind cannot be changed" });
+  assertKindFields(existing.kind, input);
 
   const now = new Date().toISOString();
   db.transaction((tx) => {
     const patch: Partial<typeof contacts.$inferInsert> = { updatedAt: now };
     if (input.name !== undefined)
       patch.name = input.name;
-    if (input.contactPerson !== undefined)
-      patch.contactPerson = input.contactPerson;
     if (input.phone !== undefined)
       patch.phone = input.phone;
-    if (input.email !== undefined)
-      patch.email = input.email;
-    if (input.address !== undefined)
-      patch.address = input.address;
-    if (input.taxId !== undefined)
-      patch.taxId = input.taxId;
     if (input.note !== undefined)
       patch.note = input.note;
+    if (input.attributes !== undefined)
+      patch.attributes = serializeAttributes(input.attributes);
     if (input.categoryId !== undefined)
       patch.categoryId = input.categoryId;
     if (input.status !== undefined)
@@ -279,6 +437,27 @@ export async function update(
       patch.visibility = input.visibility;
     if (input.confidential !== undefined)
       patch.confidential = input.confidential;
+
+    if (existing.kind === "individual") {
+      if (input.email !== undefined)
+        patch.email = input.email;
+      if (input.position !== undefined)
+        patch.position = input.position;
+      // Org link: explicit null clears it; an id/name set or replaces it.
+      if (input.organizationId === null) {
+        patch.organizationId = null;
+      }
+      else if (input.organizationId !== undefined || (input.organizationName !== undefined && input.organizationName !== null)) {
+        patch.organizationId = resolveOrganizationLinkTx(tx, actor, input, now);
+      }
+    }
+    else {
+      if (input.taxId !== undefined)
+        patch.taxId = input.taxId;
+      if (input.address !== undefined)
+        patch.address = input.address;
+    }
+
     tx.update(contacts).set(patch).where(eq(contacts.id, id)).run();
     if (input.tags !== undefined)
       syncResourceTagsTx(tx, CONTACT_TAG_BINDING, id, input.tags, now);
@@ -291,15 +470,20 @@ async function deleteContact(
   db: AppDatabase,
   actor: ContactAccessActor,
   id: string,
+  config: FileServiceConfig,
 ): Promise<void> {
-  await assertContactCapability(db, actor, id, "delete");
+  const row = await assertContactCapability(db, actor, id, "delete");
+  const avatarRef = row.avatarReferenceId;
 
-  // Atomic hard-delete: the contact row plus its three app-level cleanups
-  // (`tags_refs`, policy tuples, shares) commit or roll back together. Contact
-  // is the only hard-deleted tag-carrying resource, so a mid-cleanup failure
-  // here would otherwise orphan `tags_refs` rows permanently (`resource_id` has
-  // no FK and no `type` column, so they are never reachable for cleanup again).
-  // Run the deletes synchronously inside the tx — see bun:sqlite tx note.
+  // Atomic hard-delete: the contact row plus its app-level cleanups
+  // (`tags_refs`, policy tuples, shares, avatar reference) commit or roll back
+  // together. Contact is the only hard-deleted tag-carrying resource, so a
+  // mid-cleanup failure here would otherwise orphan `tags_refs` rows
+  // permanently (`resource_id` has no FK and no `type` column, so they are
+  // never reachable for cleanup again). Run the deletes synchronously inside
+  // the tx — see bun:sqlite tx note. Dependent individuals' organization_id is
+  // cleared by the self-FK ON DELETE SET NULL.
+  let drained: ReturnType<typeof releaseReferenceTx> = null;
   const changes = db.transaction((tx) => {
     const result = runWrite(() => tx.delete(contacts).where(eq(contacts.id, id)).run());
     if (result.changes === 0)
@@ -317,14 +501,82 @@ async function deleteContact(
     tx.delete(shares)
       .where(and(sql`${shares.resourceType} = ${"contact"}`, eq(shares.resourceId, id)))
       .run();
+    // Release the avatar/logo reference (decrement ref_count). The contact row
+    // is already gone, so the file_references row is unconstrained to delete.
+    if (avatarRef)
+      drained = releaseReferenceTx(tx, avatarRef);
     return result.changes;
   });
 
   if (changes === 0)
     throw new NotFoundError("Contact", id);
+
+  await finalizeReleasedBlob(db, config, drained);
 }
 
 export { deleteContact as delete };
+
+/**
+ * Replace a contact's avatar/logo image. Mirrors the project-cover flow:
+ * repoint `avatar_reference_id` and release the previous reference in one tx.
+ * Gated on the contact 'update' capability.
+ */
+export async function setAvatar(
+  db: AppDatabase,
+  actor: ContactAccessActor,
+  id: string,
+  file: File,
+  config: Config,
+): Promise<ContactView> {
+  await assertContactCapability(db, actor, id, "update");
+
+  const { reference } = await uploadAndReference(db, config, {
+    file,
+    ownerType: CONTACT_AVATAR_OWNER_TYPE,
+    ownerId: id,
+    uploadedBy: actor.id,
+  });
+
+  const now = new Date().toISOString();
+  const row = (await db.select().from(contacts).where(eq(contacts.id, id)).get())!;
+  const previous = row.avatarReferenceId;
+  const drained = db.transaction((tx) => {
+    tx.update(contacts)
+      .set({ avatarReferenceId: reference.id, updatedAt: now })
+      .where(eq(contacts.id, id))
+      .run();
+    return previous && previous !== reference.id ? releaseReferenceTx(tx, previous) : null;
+  });
+  await finalizeReleasedBlob(db, config, drained);
+
+  return compose(db, actor, (await db.select().from(contacts).where(eq(contacts.id, id)).get())!);
+}
+
+/** Remove a contact's avatar/logo image (no-op when it has none). */
+export async function removeAvatar(
+  db: AppDatabase,
+  actor: ContactAccessActor,
+  id: string,
+  config: FileServiceConfig,
+): Promise<ContactView> {
+  await assertContactCapability(db, actor, id, "update");
+
+  const row = (await db.select().from(contacts).where(eq(contacts.id, id)).get())!;
+  const previous = row.avatarReferenceId;
+  if (previous) {
+    const now = new Date().toISOString();
+    const drained = db.transaction((tx) => {
+      tx.update(contacts)
+        .set({ avatarReferenceId: null, updatedAt: now })
+        .where(eq(contacts.id, id))
+        .run();
+      return releaseReferenceTx(tx, previous);
+    });
+    await finalizeReleasedBlob(db, config, drained);
+  }
+
+  return compose(db, actor, (await db.select().from(contacts).where(eq(contacts.id, id)).get())!);
+}
 
 export async function grant(
   db: AppDatabase,
@@ -362,6 +614,22 @@ export async function compose(
   return composeWithCapabilities(db, actor, row, await resolveContactCapabilities(db, row, actor));
 }
 
+async function resolveOrganizationName(db: AppDatabase, organizationId: string | null): Promise<string | null> {
+  if (!organizationId)
+    return null;
+  const row = await db.select({ name: contacts.name }).from(contacts).where(eq(contacts.id, organizationId)).get();
+  return row?.name ?? null;
+}
+
+async function resolveAvatarUrl(db: AppDatabase, avatarReferenceId: string | null): Promise<string | null> {
+  if (!avatarReferenceId)
+    return null;
+  const ref = await getReferenceById(db, avatarReferenceId);
+  if (!ref)
+    return null;
+  return buildAvatarUrl(ref.fileId, ref.id);
+}
+
 async function composeWithCapabilities(
   db: AppDatabase,
   actor: ContactAccessActor,
@@ -373,17 +641,25 @@ async function composeWithCapabilities(
     || row.ownerId === actor.id
     || (await check(db, "contact", row.id, "viewer", "user", actor.id)).allowed;
   const canSeeFields = canSeeConfidentialFields(actor, row, isExplicitViewerOrOwnerOrAdmin);
+  const organizationName = await resolveOrganizationName(db, row.organizationId);
+  const avatarUrl = await resolveAvatarUrl(db, row.avatarReferenceId);
 
   return {
     id: row.id,
+    kind: row.kind,
     ownerId: row.ownerId,
     name: row.name,
-    contactPerson: canSeeFields ? row.contactPerson : null,
     phone: canSeeFields ? row.phone : null,
     email: canSeeFields ? row.email : null,
-    address: canSeeFields ? row.address : null,
+    position: canSeeFields ? row.position : null,
+    organizationId: row.organizationId,
+    organizationName,
     taxId: canSeeFields ? row.taxId : null,
+    address: canSeeFields ? row.address : null,
     note: canSeeFields ? row.note : null,
+    attributes: parseAttributes(row.attributes),
+    avatarReferenceId: row.avatarReferenceId,
+    avatarUrl,
     categoryId: row.categoryId,
     status: canSeeFields ? row.status : null,
     visibility: row.visibility,

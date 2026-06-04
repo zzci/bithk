@@ -11,6 +11,8 @@ import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
+import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
+import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { policyMiddleware } from "@/modules/policy";
 import { createTuple } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
@@ -19,6 +21,13 @@ import { errorHandler } from "@/shared/middleware/error-handler";
 import { createContactCategory } from "./contact-category.service";
 import { contactRoutes } from "./contact.routes";
 import "@/modules/account";
+
+// Real 1x1 PNG — uploadAndReference verifies the declared MIME against the
+// magic bytes, so a forged text payload would be rejected.
+const PNG_1X1 = Uint8Array.from(
+  atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="),
+  c => c.charCodeAt(0),
+);
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -92,6 +101,9 @@ beforeEach(async () => {
   mkdirSync(dir, { recursive: true });
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
+  __resetDriverRegistryForTests();
+  __setLocalDriverRootForTests(resolve(dir, "blobs"));
+  setActiveDriver("local");
 });
 
 afterEach(() => {
@@ -106,8 +118,9 @@ describe("contact routes", () => {
     const app = buildContactApp();
     const owner = await seedUser("owner-a");
     const viewer = await seedUser("viewer-a");
-    await createContact(app, owner, { name: "Private Co", email: "private@example.test" });
+    await createContact(app, owner, { kind: "individual", name: "Private Co", email: "private@example.test" });
     await createContact(app, owner, {
+      kind: "individual",
       name: "Public Secret",
       email: "secret@example.test",
       phone: "123",
@@ -175,6 +188,7 @@ describe("contact routes", () => {
     const owner = await seedUser("owner-a");
     const viewer = await seedUser("viewer-a");
     const created = await createdContact(app, owner, {
+      kind: "individual",
       name: "Public Co",
       email: "public@example.test",
       visibility: "public",
@@ -194,12 +208,11 @@ describe("contact routes", () => {
     const owner = await seedUser("owner-a");
     const viewer = await seedUser("viewer-a");
     const created = await createdContact(app, owner, {
+      kind: "individual",
       name: "Secret Co",
-      contactPerson: "Alice",
       phone: "123",
       email: "secret@example.test",
-      address: "Hidden",
-      taxId: "TAX-9",
+      position: "Hidden Role",
       note: "Sensitive",
       status: "inactive",
       visibility: "public",
@@ -212,12 +225,11 @@ describe("contact routes", () => {
     expect(res.status).toBe(200);
     const data = ((await res.json()) as { data: ContactView }).data;
     expect(data.name).toBe("Secret Co");
+    expect(data.kind).toBe("individual");
     expect(data.tags.map(t => t.name)).toEqual(["supplier"]);
-    expect(data.contactPerson).toBeNull();
     expect(data.phone).toBeNull();
     expect(data.email).toBeNull();
-    expect(data.address).toBeNull();
-    expect(data.taxId).toBeNull();
+    expect(data.position).toBeNull();
     expect(data.note).toBeNull();
     expect(data.status).toBeNull();
   });
@@ -226,7 +238,7 @@ describe("contact routes", () => {
     const app = buildContactApp();
     const owner = await seedUser("owner-a");
     const viewer = await seedUser("viewer-a");
-    const created = await createdContact(app, owner, { name: "Shared Co", email: "shared@example.test" });
+    const created = await createdContact(app, owner, { kind: "individual", name: "Shared Co", email: "shared@example.test" });
 
     const grant = await app.request(`/contacts/${created.id}/grant`, jsonReq(owner, "POST", { userId: viewer }));
     expect(grant.status).toBe(200);
@@ -345,6 +357,90 @@ describe("contact routes", () => {
       .toEqual(["Priv Co", "Pub Co"]);
   });
 
+  test("POST /contacts creates an individual that links to an inline organization", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+
+    const res = await createContact(app, owner, {
+      kind: "individual",
+      name: "Maria Chen",
+      email: "maria@example.test",
+      position: "Sales",
+      organizationName: "Oceanic Supplies",
+      attributes: { language: "en" },
+    });
+    expect(res.status).toBe(201);
+    const data = ((await res.json()) as { data: ContactView }).data;
+    expect(data.kind).toBe("individual");
+    expect(data.position).toBe("Sales");
+    expect(data.organizationId).toBeTruthy();
+    expect(data.organizationName).toBe("Oceanic Supplies");
+    expect(data.attributes).toEqual({ language: "en" });
+
+    // The inline organization is now listed too.
+    const orgs = await app.request("/contacts?kind=organization", { headers: { "x-uid": owner } });
+    expect(((await orgs.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["Oceanic Supplies"]);
+  });
+
+  test("POST /contacts requires a valid kind discriminator", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+
+    const missing = await app.request("/contacts", jsonReq(owner, "POST", { name: "No Kind" }));
+    expect(missing.status).toBe(422);
+
+    const invalid = await app.request("/contacts", jsonReq(owner, "POST", { kind: "robot", name: "Bad Kind" }));
+    expect(invalid.status).toBe(422);
+  });
+
+  test("GET /contacts filters by kind", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    await createContact(app, owner, { kind: "individual", name: "A Person" });
+    await createContact(app, owner, { kind: "organization", name: "An Org" });
+
+    const people = await app.request("/contacts?kind=individual", { headers: { "x-uid": owner } });
+    expect(((await people.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["A Person"]);
+    const orgs = await app.request("/contacts?kind=organization", { headers: { "x-uid": owner } });
+    expect(((await orgs.json()) as { data: ContactView[] }).data.map(c => c.name)).toEqual(["An Org"]);
+  });
+
+  test("POST then DELETE /contacts/:id/avatar sets and clears the avatar", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    const created = await createdContact(app, owner, { name: "Logo Co" });
+    expect(created.avatarUrl).toBeNull();
+
+    const form = new FormData();
+    form.set("file", pngFile());
+    const set = await app.request(`/contacts/${created.id}/avatar`, { method: "POST", headers: { "x-uid": owner }, body: form });
+    expect(set.status).toBe(200);
+    const setData = ((await set.json()) as { data: ContactView }).data;
+    expect(setData.avatarReferenceId).toBeTruthy();
+    expect(setData.avatarUrl).toMatch(/^\/api\/files\/.+\/content\?ref=.+&inline=true$/);
+
+    const removed = await app.request(`/contacts/${created.id}/avatar`, { method: "DELETE", headers: { "x-uid": owner } });
+    expect(removed.status).toBe(200);
+    expect(((await removed.json()) as { data: ContactView }).data.avatarReferenceId).toBeNull();
+  });
+
+  test("avatar upload is forbidden for a stranger and rejects non-images", async () => {
+    const app = buildContactApp();
+    const owner = await seedUser("owner-a");
+    const stranger = await seedUser("stranger-a");
+    const created = await createdContact(app, owner, { name: "Guarded Co", visibility: "public" });
+
+    const form = new FormData();
+    form.set("file", pngFile());
+    const denied = await app.request(`/contacts/${created.id}/avatar`, { method: "POST", headers: { "x-uid": stranger }, body: form });
+    expect(denied.status).toBe(403);
+
+    const badForm = new FormData();
+    badForm.set("file", new File(["hello"], "note.txt", { type: "text/plain" }));
+    const badType = await app.request(`/contacts/${created.id}/avatar`, { method: "POST", headers: { "x-uid": owner }, body: badForm });
+    expect(badType.status).toBe(400);
+  });
+
   test("protected route registration exposes contact routes", async () => {
     const app = buildProtectedApp();
     const user = await seedUser("user-a");
@@ -414,8 +510,10 @@ function jsonReq(userId: string, method: string, body: unknown) {
   };
 }
 
+// Default to an organization (the common case + supplier path); individual
+// tests pass `kind: "individual"` explicitly to exercise person-only fields.
 function createContact(app: Hono<AppEnv>, userId: string, body: Record<string, unknown>) {
-  return app.request("/contacts", jsonReq(userId, "POST", body));
+  return app.request("/contacts", jsonReq(userId, "POST", { kind: "organization", ...body }));
 }
 
 async function createdContact(app: Hono<AppEnv>, userId: string, body: Record<string, unknown>): Promise<ContactView> {
@@ -424,16 +522,26 @@ async function createdContact(app: Hono<AppEnv>, userId: string, body: Record<st
   return ((await res.json()) as { data: ContactView }).data;
 }
 
+function pngFile(name = "avatar.png"): File {
+  return new File([PNG_1X1], name, { type: "image/png" });
+}
+
 interface ContactView {
   readonly id: string;
+  readonly kind: string;
   readonly ownerId: string;
   readonly name: string;
-  readonly contactPerson: string | null;
   readonly phone: string | null;
   readonly email: string | null;
-  readonly address: string | null;
+  readonly position: string | null;
+  readonly organizationId: string | null;
+  readonly organizationName: string | null;
   readonly taxId: string | null;
+  readonly address: string | null;
   readonly note: string | null;
+  readonly attributes: Record<string, string> | null;
+  readonly avatarReferenceId: string | null;
+  readonly avatarUrl: string | null;
   readonly status: string | null;
   readonly visibility: string;
   readonly confidential: boolean;
