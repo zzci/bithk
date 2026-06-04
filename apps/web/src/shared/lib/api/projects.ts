@@ -618,7 +618,13 @@ export function useReferenceableWorklists(projectId: string | undefined) {
     queryKey: projectKeys.referenceableWorklists(projectId ?? ""),
     queryFn: () => http<ApiEnvelope<{ ship: readonly ReferenceableWorklist[]; global: readonly ReferenceableWorklist[] }>>(
       `/projects/${encodeURIComponent(projectId!)}/referenceable-worklists`,
-    ).then(r => r.data),
+    ).then((r) => {
+      // Normalize at the boundary: coerce `tags` to an array so the picker
+      // (which reads `worklist.tags` unconditionally) can never crash on a
+      // contract-violating or stale-cache row.
+      const withTags = (w: ReferenceableWorklist): ReferenceableWorklist => ({ ...w, tags: w.tags ?? [] });
+      return { ship: r.data.ship.map(withTags), global: r.data.global.map(withTags) };
+    }),
     enabled: !!projectId,
     staleTime: 30_000,
   });
