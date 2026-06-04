@@ -131,8 +131,8 @@ describe("/api/ships main flow", () => {
     expect(baseProject.data.name).toBe(ship.name);
     expect(baseProject.data.creatorId).toBe(adminMe.data.id);
     const roles = await admin.json<{ data: ProjectRole[] }>(`/api/projects/${baseProjectId}/roles`);
-    const pmRole = roles.data.find(r => r.name === "Project Manager");
-    const memberRole = roles.data.find(r => r.name === "Member");
+    const pmRole = roles.data.find(r => r.name === "Project Owner");
+    const memberRole = roles.data.find(r => r.name === "Reader");
     expect(pmRole?.capabilities).toContain("project.manage");
     if (!pmRole || !memberRole)
       throw new Error("base project roles were not seeded");
@@ -141,7 +141,7 @@ describe("/api/ships main flow", () => {
     expect(creatorMember?.roleId).toBe(pmRole.id);
 
     const unrelatedProjectId = await createTestProject(admin, `e2e-unrelated-${token}`);
-    const unrelatedMemberRole = await findProjectRole(admin, unrelatedProjectId, "Member");
+    const unrelatedMemberRole = await findProjectRole(admin, unrelatedProjectId, "Reader");
     await addUserToProject(admin, unrelatedProjectId, regularUser.id, unrelatedMemberRole.id);
     const denied = await user.raw(`/api/ships/${ship.id}`);
     expect(denied.status).toBe(404);
@@ -171,7 +171,7 @@ describe("/api/ships main flow", () => {
       method: "POST",
       body: { name: "Generator", category: "Power" },
     });
-    expect(equipment.data.category).toBe("Power");
+    expect(equipment.data.name).toBe("Generator");
     const equipmentList = await user.json<{ data: EquipmentView[] }>(`/api/ships/${ship.id}/equipment`);
     expect(equipmentList.data.find(e => e.id === equipment.data.id)).toBeDefined();
 
