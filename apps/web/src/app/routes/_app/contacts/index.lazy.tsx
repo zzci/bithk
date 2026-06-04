@@ -37,12 +37,14 @@ const ALL = "__all__";
 // Shared grid template so the header row and every data row align on the same
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
 // secondary columns appear progressively at sm/md to keep rows single-line on
-// mobile. Person-primary: column 1 is the avatar + name + inline badges.
-// Columns: name+avatar+inline badges | organization(sm) | category(md).
+// mobile. Person-primary: column 1 is the avatar + name. The trailing fixed
+// track holds the visibility + confidential badges so they never widen the name
+// cell and rows stay aligned.
+// Columns: name | organization(sm) | category(md) | visibility+confidential badges.
 const CONTACT_GRID = [
-  "grid grid-cols-[minmax(0,1fr)] items-center gap-3",
-  "sm:grid-cols-[minmax(0,1fr)_9rem]",
-  "md:grid-cols-[minmax(0,1fr)_9rem_8rem]",
+  "grid grid-cols-[minmax(0,1fr)_9rem] items-center gap-3",
+  "sm:grid-cols-[minmax(0,1fr)_9rem_9rem]",
+  "md:grid-cols-[minmax(0,1fr)_9rem_8rem_9rem]",
 ].join(" ");
 
 type DrawerState
@@ -224,6 +226,7 @@ export function ContactsListPage() {
                     <span className="truncate">{t("field.name")}</span>
                     <span className="hidden truncate sm:block">{t("field.organization")}</span>
                     <span className="hidden truncate md:block">{t("field.category")}</span>
+                    <span className="truncate">{t("field.visibility")}</span>
                   </div>
                   <div className="w-28 shrink-0">
                     <span className="sr-only">{t("list.colActions")}</span>
@@ -255,12 +258,6 @@ export function ContactsListPage() {
                               </AvatarFallback>
                             </Avatar>
                             <span className="truncate text-sm font-medium">{contact.name}</span>
-                            <Badge variant="secondary" className={cn("shrink-0", CONTACT_VISIBILITY_BADGE[contact.visibility])}>
-                              {t(`visibility.${contact.visibility}` as const)}
-                            </Badge>
-                            {contact.confidential && (
-                              <Badge variant="secondary" className={cn("shrink-0", CONTACT_CONFIDENTIAL_BADGE)}>{t("field.confidential")}</Badge>
-                            )}
                           </span>
                           <span className="hidden truncate text-xs sm:block">
                             {contact.kind === "individual" && contact.organizationName
@@ -271,6 +268,14 @@ export function ContactsListPage() {
                             {contact.categoryId
                               ? (categoryNameById.get(contact.categoryId) ?? contact.categoryId)
                               : <span className="text-muted-foreground">{t("category.none")}</span>}
+                          </span>
+                          <span className="flex min-w-0 flex-wrap items-center gap-1">
+                            <Badge variant="secondary" className={cn("shrink-0", CONTACT_VISIBILITY_BADGE[contact.visibility])}>
+                              {t(`visibility.${contact.visibility}` as const)}
+                            </Badge>
+                            {contact.confidential && (
+                              <Badge variant="secondary" className={cn("shrink-0", CONTACT_CONFIDENTIAL_BADGE)}>{t("field.confidential")}</Badge>
+                            )}
                           </span>
                         </Button>
                         <div className="flex w-28 shrink-0 items-center justify-end gap-1 pr-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
