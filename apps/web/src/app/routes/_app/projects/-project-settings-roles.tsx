@@ -431,7 +431,7 @@ function RoleEditor({ projectId, role, canManage, onCreated, onRequestDelete }: 
               )
             : <span />}
           <Button type="submit" disabled={pending || !name.trim()}>
-            {isCreate ? t("common:common.create") : t("common:common.save")}
+            {t("common:common.save")}
           </Button>
         </div>
       )}

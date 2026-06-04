@@ -71,7 +71,7 @@ describe("shipSettingsTab", () => {
     renderWithProviders(<ShipSettingsTab />);
     await waitFor(() => expect(screen.getByText("No global worklists yet.")).toBeInTheDocument());
 
-    await userEvent.click(within(screen.getByRole("heading", { name: "Global Worklists" }).closest("section")!).getByRole("button", { name: "New" }));
+    await userEvent.click(screen.getByRole("button", { name: "New Worklist" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByLabelText("Name")).toBeInTheDocument();
     // The category field is replaced by a tags picker (a combobox, not an input).
@@ -111,14 +111,14 @@ describe("shipSettingsTab", () => {
     renderWithProviders(<ShipSettingsTab />);
     await waitFor(() => expect(screen.getByText("No template categories yet.")).toBeInTheDocument());
 
-    await userEvent.click(within(screen.getByRole("heading", { name: "Equipment Category Template" }).closest("section")!).getByRole("button", { name: "New" }));
+    await userEvent.click(screen.getByRole("button", { name: "New Category" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByLabelText("Chinese name")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("English name")).toBeInTheDocument();
 
     await userEvent.type(within(dialog).getByLabelText("Chinese name"), "电力");
     await userEvent.type(within(dialog).getByLabelText("English name"), "Power");
-    await userEvent.click(within(dialog).getByRole("button", { name: "New" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST" && String(call[0]) === "/api/global-equipment-categories");
@@ -133,9 +133,9 @@ describe("shipSettingsTab", () => {
     renderWithProviders(<ShipSettingsTab />);
     await waitFor(() => expect(screen.getByText("No template categories yet.")).toBeInTheDocument());
 
-    await userEvent.click(within(screen.getByRole("heading", { name: "Equipment Category Template" }).closest("section")!).getByRole("button", { name: "New" }));
+    await userEvent.click(screen.getByRole("button", { name: "New Category" }));
     const dialog = screen.getByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "New" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(within(dialog).getByText("Chinese name is required.")).toBeInTheDocument();
     expect(within(dialog).getByText("English name is required.")).toBeInTheDocument();

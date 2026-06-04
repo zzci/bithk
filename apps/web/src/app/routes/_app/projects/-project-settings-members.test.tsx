@@ -136,7 +136,7 @@ describe("projectSettingsMembers", () => {
     await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
     // Neither role nor user selected yet → submit must stay disabled.
-    expect(within(dialog).getByRole("button", { name: "New" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   it("excludes the Guest system role from the assignable role options", async () => {

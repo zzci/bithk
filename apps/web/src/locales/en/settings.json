@@ -44,7 +44,7 @@
     "tags": {
       "title": "Tags",
       "description": "The global tag vocabulary shared across all projects.",
-      "create": "New",
+      "create": "New Tag",
       "createTitle": "New Tag",
       "editTitle": "Rename Tag",
       "dialogDescription": "Tags are shared across all projects.",
@@ -65,7 +65,7 @@
     "categories": {
       "title": "Global Procurement Categories",
       "description": "The template category set copied into every new project on creation.",
-      "create": "New",
+      "create": "New Category",
       "createTitle": "New Category",
       "editTitle": "Edit Category",
       "dialogDescription": "Global categories seed each new project's procurement categories.",
@@ -125,7 +125,7 @@
   "globalWorklists": {
     "title": "Global Worklists",
     "description": "The knowledge-base worklist templates that ships copy from.",
-    "create": "New",
+    "create": "New Worklist",
     "createTitle": "New Worklist",
     "editTitle": "Edit Worklist",
     "dialogDescription": "Global worklists are reusable templates ships can copy into their own worklists.",
@@ -149,7 +149,7 @@
   "globalEquipmentCategories": {
     "title": "Equipment Category Template",
     "description": "The global template each ship copies its equipment categories from on creation.",
-    "create": "New",
+    "create": "New Category",
     "colNameZh": "Chinese name",
     "colNameEn": "English name",
     "colCode": "Code",

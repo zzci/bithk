@@ -191,7 +191,7 @@ function TagDialog({ mode, tag, open, onOpenChange }: TagDialogProps) {
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {mode === "create" ? t("common:common.create") : t("common:common.save")}
+              {t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>

@@ -213,7 +213,7 @@ function AddWebhookDialog({
         <DialogFooter>
           <DialogClose render={<Button variant="outline">{t("common.cancel")}</Button>} />
           <Button disabled={!canSave || saving} onClick={() => void handleAdd()}>
-            {saving ? t("settings:saving") : t("common.create")}
+            {saving ? t("settings:saving") : t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

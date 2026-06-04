@@ -76,7 +76,7 @@ describe("projectSettingsCategories", () => {
     await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Name"), "Labor");
-    await user.click(within(dialog).getByRole("button", { name: "New" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");

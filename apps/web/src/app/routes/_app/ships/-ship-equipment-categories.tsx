@@ -263,7 +263,7 @@ function ShipEquipmentCategoryDialog({ shipShortId, mode, category, open, onOpen
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending}>
-              {mode === "create" ? t("common:common.create") : t("common:common.save")}
+              {t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>

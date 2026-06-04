@@ -44,7 +44,7 @@
     "tags": {
       "title": "标签",
       "description": "所有项目共享的全局标签词表。",
-      "create": "新增",
+      "create": "新增标签",
       "createTitle": "新增标签",
       "editTitle": "重命名标签",
       "dialogDescription": "标签在所有项目间共享。",
@@ -65,7 +65,7 @@
     "categories": {
       "title": "全局采购分类",
       "description": "创建项目时复制到每个新项目的分类模板集。",
-      "create": "新增",
+      "create": "新增分类",
       "createTitle": "新增分类",
       "editTitle": "编辑分类",
       "dialogDescription": "全局分类用于初始化每个新项目的采购分类。",
@@ -125,7 +125,7 @@
   "globalWorklists": {
     "title": "全局工作清单",
     "description": "供船舶复制使用的知识库工作清单模板。",
-    "create": "新增",
+    "create": "新增工作清单",
     "createTitle": "新增工作清单",
     "editTitle": "编辑工作清单",
     "dialogDescription": "全局工作清单是可复用的模板，船舶可将其复制为自己的工作清单。",
@@ -149,7 +149,7 @@
   "globalEquipmentCategories": {
     "title": "设备分类模板",
     "description": "每艘船舶在创建时从中复制设备分类的全局模板。",
-    "create": "新增",
+    "create": "新增设备分类",
     "colNameZh": "中文名称",
     "colNameEn": "英文名称",
     "colCode": "编码",

@@ -274,7 +274,7 @@ function AddMemberDialog({ projectId, roles, open, onOpenChange, existingUserIds
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={addMember.isPending || !valid}>
-              {t("common:common.create")}
+              {t("common:common.save")}
             </Button>
           </DialogFooter>
         </form>
