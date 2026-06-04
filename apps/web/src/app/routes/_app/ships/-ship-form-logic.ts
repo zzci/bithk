@@ -15,6 +15,7 @@ export interface ShipFormState {
   readonly lengthOverall: string;
   readonly beam: string;
   readonly draft: string;
+  readonly airDraft: string;
   readonly grossTonnage: string;
   readonly imoNumber: string;
   readonly mmsi: string;
@@ -36,6 +37,7 @@ export const EMPTY_SHIP_FORM: ShipFormState = {
   lengthOverall: "",
   beam: "",
   draft: "",
+  airDraft: "",
   grossTonnage: "",
   imoNumber: "",
   mmsi: "",
@@ -64,6 +66,7 @@ export function shipFormFromView(ship: ShipView): ShipFormState {
     lengthOverall: numToInput(ship.lengthOverall),
     beam: numToInput(ship.beam),
     draft: numToInput(ship.draft),
+    airDraft: numToInput(ship.airDraft),
     grossTonnage: numToInput(ship.grossTonnage),
     imoNumber: ship.imoNumber ?? "",
     mmsi: ship.mmsi ?? "",
@@ -105,13 +108,14 @@ interface FieldRange {
  * generous upper bound so impossible values (negatives, zero, absurd magnitudes)
  * are rejected before they reach the API.
  */
-export type ShipNumberField = "buildYear" | "lengthOverall" | "beam" | "draft" | "grossTonnage";
+export type ShipNumberField = "buildYear" | "lengthOverall" | "beam" | "draft" | "airDraft" | "grossTonnage";
 
 export const SHIP_NUMBER_FIELD_RANGES: Record<ShipNumberField, FieldRange> = {
   buildYear: { min: 1900, max: CURRENT_YEAR + 1 },
   lengthOverall: { min: 0, max: 600, exclusiveMin: true },
   beam: { min: 0, max: 100, exclusiveMin: true },
   draft: { min: 0, max: 50, exclusiveMin: true },
+  airDraft: { min: 0, max: 150, exclusiveMin: true },
   grossTonnage: { min: 0, max: 1_000_000, exclusiveMin: true },
 };
 
@@ -148,6 +152,7 @@ function descriptiveFields(state: ShipFormState): Omit<UpdateShipInput, "name" |
     lengthOverall: parseNumberOrNull(state.lengthOverall),
     beam: parseNumberOrNull(state.beam),
     draft: parseNumberOrNull(state.draft),
+    airDraft: parseNumberOrNull(state.airDraft),
     grossTonnage: parseNumberOrNull(state.grossTonnage),
     imoNumber: textOrNull(state.imoNumber),
     mmsi: textOrNull(state.mmsi),

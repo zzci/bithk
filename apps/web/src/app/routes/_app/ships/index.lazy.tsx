@@ -178,6 +178,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
     { label: t("field.lengthOverall"), value: ship.lengthOverall === null ? null : String(ship.lengthOverall) },
     { label: t("field.beam"), value: ship.beam === null ? null : String(ship.beam) },
     { label: t("field.draft"), value: ship.draft === null ? null : String(ship.draft) },
+    { label: t("field.airDraft"), value: ship.airDraft === null ? null : String(ship.airDraft) },
     { label: t("field.grossTonnage"), value: ship.grossTonnage === null ? null : String(ship.grossTonnage) },
   ];
 
@@ -209,7 +210,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-y py-2">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           {specs.map(spec => (
             <div key={spec.label} className="min-w-0">
               <dt className="text-xs tracking-wide text-muted-foreground uppercase">{spec.label}</dt>

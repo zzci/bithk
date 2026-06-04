@@ -54,6 +54,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     lengthOverall: null,
     beam: null,
     draft: null,
+    airDraft: null,
     grossTonnage: null,
     imoNumber: null,
     mmsi: null,

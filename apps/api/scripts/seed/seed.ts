@@ -100,7 +100,7 @@ interface UserRec { key: string; username: string; name: string; email: string; 
 interface GroupRec { key: string; name: string; description?: string; members: string[] }
 interface ContactRec { key: string; kind: "individual" | "organization"; name: string; phone?: string; email?: string; website?: string; position?: string; org?: string; taxId?: string; address?: string; category?: string; status?: "active" | "inactive"; confidential?: boolean; visibility?: "private" | "public"; tags?: string[]; note?: string; attributes?: Record<string, string> }
 interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; serialNumber?: string; installedAt?: string; note?: string; location?: string; status?: "active" | "retired" }
-interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; gt?: number | null; flagState?: string; registryPort?: string; status?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired"; tags?: string[]; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; ownerName?: string; equipment?: EquipmentRec[] }
+interface ShipRec { key: string; name: string; model?: string; builder?: string; buildYear?: number; loa?: number; beam?: number; draft?: number; airDraft?: number | null; gt?: number | null; flagState?: string; registryPort?: string; status?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired"; tags?: string[]; cover?: string | null; imoNumber?: string; mmsi?: string; callSign?: string; ownerName?: string; equipment?: EquipmentRec[] }
 interface MaintRec { key: string; name?: string; category?: string; checklist?: string; precautions?: string; ship?: string; fromGlobal?: string }
 interface ProjectRec { key: string; name: string; description?: string; creator: string; tags?: string[]; cover?: string | null; bindShip?: string | null; members?: { user?: string; username?: string; name?: string; title?: string; role: string }[]; categories?: string[] }
 interface IssueTemplate { key: string; title: string; status: string; priority: string; tags?: string[]; description?: string; assign?: boolean; dueOffsetDays?: number | null; attachment?: string | null; comments?: { text: string; internal?: boolean }[] }
@@ -257,6 +257,7 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
       lengthOverall: s.loa ?? null,
       beam: s.beam ?? null,
       draft: s.draft ?? null,
+      airDraft: s.airDraft ?? null,
       grossTonnage: s.gt ?? null,
       imoNumber: s.imoNumber ?? null,
       mmsi: s.mmsi ?? null,

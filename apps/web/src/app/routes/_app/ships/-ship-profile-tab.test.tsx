@@ -17,6 +17,7 @@ const ship: ShipView = {
   lengthOverall: 299,
   beam: 40,
   draft: 14.5,
+  airDraft: 38.5,
   grossTonnage: 95500,
   imoNumber: "9876543",
   mmsi: "413258900",
