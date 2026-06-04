@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import type { ShipDetailTab } from "./-ship-tabs";
+import { createLazyFileRoute, Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowLeft, MapPin, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,7 +10,6 @@ import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialo
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/shared/components/ui/tabs";
@@ -23,17 +23,18 @@ import {
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
 import { useProjectCapabilities } from "../projects/-use-project-role";
-import { visibleShipTabs } from "./-ship-tabs";
+import { activeShipTab, SHIP_TAB_TO, visibleShipTabs } from "./-ship-tabs";
 import { ShipStatusBadge } from "./-ship-visuals";
 
 export const Route = createLazyFileRoute("/_app/ships/$shipId")({
-  component: ShipDetailPage,
+  component: ShipDetailLayout,
 });
 
-function ShipDetailPage() {
+function ShipDetailLayout() {
   const { t } = useTranslation(["ships", "common"]);
   const { shipId } = useParams({ from: "/_app/ships/$shipId" });
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const shipQuery = useShip(shipId);
   const ship = shipQuery.data;
@@ -55,8 +56,14 @@ function ShipDetailPage() {
   const worklists = useShipWorklists(shipId).data;
 
   const deleteShip = useDeleteShip();
-  const [tab, setTab] = useState("overview");
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // The active tab is derived from the path (one route per tab) so back/forward
+  // and shareable URLs always resolve to the correct tab.
+  const tab = activeShipTab(pathname, shipId);
+  const goToTab = (value: ShipDetailTab) => {
+    void navigate({ to: SHIP_TAB_TO[value], params: { shipId } });
+  };
 
   if (shipQuery.isLoading)
     return <p className="text-muted-foreground">{t("detail.loading")}</p>;
@@ -73,8 +80,7 @@ function ShipDetailPage() {
     );
   }
 
-  const ctx = { ship, canManage };
-  const tabs = visibleShipTabs(ctx);
+  const tabs = visibleShipTabs({ ship, canManage });
 
   const tabCounts: Record<string, number | undefined> = {
     profile: 1,
@@ -140,7 +146,8 @@ function ShipDetailPage() {
         )}
       </div>
 
-      <Tabs value={tab} onValueChange={v => v !== null && setTab(v)}>
+      {/* Tabs promoted to the page's primary navigation; each tab is a route. */}
+      <Tabs value={tab} onValueChange={v => v !== null && goToTab(v as ShipDetailTab)}>
         <TabsList variant="line">
           {tabs.map((d) => {
             const count = tabCounts[d.value];
@@ -154,12 +161,12 @@ function ShipDetailPage() {
             );
           })}
         </TabsList>
-        {tabs.map(d => (
-          <TabsContent key={d.value} value={d.value} className="pt-4">
-            {d.render(ctx)}
-          </TabsContent>
-        ))}
       </Tabs>
+
+      {/* The active tab route renders here. */}
+      <div className="pt-4">
+        <Outlet />
+      </div>
 
       <ConfirmDeleteDialog
         open={deleteOpen}
