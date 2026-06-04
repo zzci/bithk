@@ -9,24 +9,32 @@ CREATE TABLE `contact_categories` (
 --> statement-breakpoint
 CREATE TABLE `contacts` (
 	`id` text PRIMARY KEY NOT NULL,
+	`kind` text NOT NULL,
 	`owner_id` text NOT NULL,
 	`name` text NOT NULL,
-	`contact_person` text,
+	`note` text,
 	`phone` text,
 	`email` text,
-	`address` text,
+	`position` text,
+	`organization_id` text,
 	`tax_id` text,
-	`note` text,
+	`address` text,
+	`avatar_reference_id` text,
+	`attributes` text,
 	`category_id` text,
 	`status` text DEFAULT 'active' NOT NULL,
 	`visibility` text DEFAULT 'private' NOT NULL,
 	`confidential` integer DEFAULT false NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `contacts`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`avatar_reference_id`) REFERENCES `file_references`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`category_id`) REFERENCES `contact_categories`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `contacts_owner_idx` ON `contacts` (`owner_id`);--> statement-breakpoint
+CREATE INDEX `contacts_kind_idx` ON `contacts` (`kind`);--> statement-breakpoint
+CREATE INDEX `contacts_org_idx` ON `contacts` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `auth_lockouts` (
 	`key` text PRIMARY KEY NOT NULL,
 	`failures` integer DEFAULT 0 NOT NULL,
@@ -107,6 +115,7 @@ CREATE TABLE `users` (
 	`avatar` text,
 	`role` text DEFAULT 'user' NOT NULL,
 	`status` text DEFAULT 'active' NOT NULL,
+	`is_virtual` integer DEFAULT false NOT NULL,
 	`last_login_at` text,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
@@ -398,8 +407,7 @@ CREATE INDEX `procurement_categories_project_idx` ON `procurement_categories` (`
 CREATE TABLE `project_members` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
-	`user_id` text,
-	`display_name` text,
+	`user_id` text NOT NULL,
 	`role_id` text NOT NULL,
 	`title` text,
 	`created_at` text NOT NULL,
