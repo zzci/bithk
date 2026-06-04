@@ -2,11 +2,21 @@ import type { Context } from "hono";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
+import { audit } from "@/modules/audit/audit.service";
+import {
+  buildDownloadResponse,
+  getFileById,
+  getReferenceById,
+  listAttachmentsByOwner,
+  makeAttachmentView,
+  releaseReference,
+  uploadAndReference,
+} from "@/modules/file";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { NotFoundError } from "@/shared/lib/errors";
+import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { parsePageQuery } from "@/shared/lib/pagination";
 import { authRequired } from "@/shared/middleware/auth";
 import {
@@ -236,6 +246,113 @@ export function procurementRoutes() {
     if (!updated)
       throw new NotFoundError("Procurement", procurement.id);
     return c.json({ success: true, data: updated });
+  });
+
+  // ─── Attachments (main-post, delegating to mod-file) ──────────────
+  // Resource-level attachments are owned by the procurement's backing item
+  // (ownerType "item_attachment"), mirroring the issue attachment routes.
+  router.post("/projects/:projectId/procurements/:id/attachments", async (c) => {
+    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"), true);
+    const db = c.get("db");
+    const user = c.get("user");
+    const item = await resolveProcurementItem(db, procurement.id);
+    if (!item)
+      throw new NotFoundError("Procurement", procurement.id);
+
+    const config = c.get("config");
+    const contentLength = Number(c.req.header("content-length") ?? "0");
+    if (contentLength > config.MAX_UPLOAD_BYTES)
+      throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
+
+    const formData = await c.req.formData();
+    const file = formData.get("file");
+    if (!(file instanceof File))
+      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+
+    const { reference, file: uploaded } = await uploadAndReference(db, config, {
+      file,
+      ownerType: "item_attachment",
+      ownerId: item.id,
+      uploadedBy: user.id,
+    });
+    const view = makeAttachmentView(reference, uploaded);
+
+    await audit(db, c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "procurement.attachment_uploaded",
+      resourceType: "procurement",
+      resourceId: procurement.id,
+      resourceName: procurement.itemName,
+      detail: { attachmentId: reference.id, filename: file.name, size: file.size },
+      ...auditMeta(c),
+      result: "success",
+    });
+
+    return c.json({ success: true, data: view }, 201);
+  });
+
+  router.get("/projects/:projectId/procurements/:id/attachments", async (c) => {
+    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"));
+    const db = c.get("db");
+    const item = await resolveProcurementItem(db, procurement.id);
+    if (!item)
+      throw new NotFoundError("Procurement", procurement.id);
+    const data = await listAttachmentsByOwner(db, "item_attachment", item.id);
+    return c.json({ success: true, data });
+  });
+
+  router.get("/projects/:projectId/procurements/:id/attachments/:aid", async (c) => {
+    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"));
+    const db = c.get("db");
+    const item = await resolveProcurementItem(db, procurement.id);
+    if (!item)
+      throw new NotFoundError("Procurement", procurement.id);
+    const aid = c.req.param("aid");
+    const ref = await getReferenceById(db, aid);
+    if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
+      throw new NotFoundError("Attachment", aid);
+    const file = await getFileById(db, ref.fileId);
+    if (!file)
+      throw new NotFoundError("File", aid);
+    const wantInline = c.req.query("inline") === "true";
+    return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
+  });
+
+  router.delete("/projects/:projectId/procurements/:id/attachments/:aid", async (c) => {
+    const { procurement } = await requireProcurement(c, c.req.param("projectId"), c.req.param("id"));
+    const db = c.get("db");
+    const user = c.get("user");
+    const item = await resolveProcurementItem(db, procurement.id);
+    if (!item)
+      throw new NotFoundError("Procurement", procurement.id);
+    const aid = c.req.param("aid");
+    const ref = await getReferenceById(db, aid);
+    if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
+      throw new NotFoundError("Attachment", aid);
+
+    // `procurement.projectId` is the project short_id; the capability helpers
+    // key on the internal ULID, so resolve it first.
+    const realProjectId = await resolveProjectId(db, procurement.projectId);
+    const allowed = user.role === "admin"
+      || (!!realProjectId && await hasCapability(db, realProjectId, user.id, "procurement.manage"))
+      || ref.createdBy === user.id;
+    if (!allowed)
+      throw new ForbiddenError();
+
+    await releaseReference(db, c.get("config"), { referenceId: aid });
+    await audit(db, c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "procurement.attachment_deleted",
+      resourceType: "procurement",
+      resourceId: procurement.id,
+      resourceName: procurement.itemName,
+      detail: { attachmentId: aid, filename: ref.filename },
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data: null });
   });
 
   // ─── Comments + attachments (delegated to mod-item) ───────────────

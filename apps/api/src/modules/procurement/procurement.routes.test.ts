@@ -14,12 +14,15 @@ import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
 import { auditEvents } from "@/modules/audit/schema";
 import * as contactService from "@/modules/contact/contact.service";
+import { uploadAndReference } from "@/modules/file";
+import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
+import { setActiveDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createRole, listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { procurementRoutes } from "./procurement.routes";
-import { createProcurement } from "./procurement.service";
+import { createProcurement, resolveProcurementItem } from "./procurement.service";
 import "@/modules/account";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
@@ -69,7 +72,10 @@ function baseConfig(): Config {
     FILE_STORAGE_LOCAL_ROOT: "data/uploads/files",
     FILE_GC_MODE: "async",
     FILE_GC_INTERVAL_SECONDS: 3600,
-    FILE_PRESIGN_ENABLED: true,
+    // Presign disabled so the download route streams bytes (200 with real
+    // Content-Disposition) instead of redirecting (302), letting the
+    // attachment tests assert on disposition and body.
+    FILE_PRESIGN_ENABLED: false,
     FILE_PRESIGN_TTL_SECONDS: 300,
     DEFAULT_ADMIN: "",
     SINGLE_USER_MODE: false,
@@ -147,6 +153,10 @@ beforeEach(async () => {
   mkdirSync(dir, { recursive: true });
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
+  // Point the local file driver at the per-test temp dir and activate it so
+  // attachment upload/download writes/reads bytes under the throwaway root.
+  __setLocalDriverRootForTests(resolve(dir, "blobs"));
+  setActiveDriver("local");
   loadNamespaces();
 });
 
@@ -572,6 +582,123 @@ describe("comments (procurement.view / procurement.comment gate)", () => {
 
     const posted = await app.request(`${base}/comments`, jsonReq("POST", cookie, { content: "ordered" }));
     expect(posted.status).toBe(201);
+  });
+});
+
+describe("main-post attachments", () => {
+  // A minimal valid PNG (8-byte signature + optional tail). The upload path
+  // sniffs magic bytes against the declared MIME, so the content must really
+  // be a PNG; image/png is also inline-safe for the download assertion.
+  const PNG_MAGIC = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+  function pngBytes(tail = ""): Uint8Array<ArrayBuffer> {
+    const tb = new TextEncoder().encode(tail);
+    const out = new Uint8Array(new ArrayBuffer(PNG_MAGIC.length + tb.length));
+    out.set(PNG_MAGIC, 0);
+    out.set(tb, PNG_MAGIC.length);
+    return out;
+  }
+  function uploadForm(name = "note.png", tail = ""): FormData {
+    const form = new FormData();
+    form.append("file", new File([pngBytes(tail)], name, { type: "image/png" }));
+    return form;
+  }
+
+  function uploadReq(cookie: string, form: FormData): RequestInit {
+    return { method: "POST", headers: { Cookie: cookie }, body: form };
+  }
+
+  test("the pm uploads (201) and the list returns the attachment", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+
+    const up = await app.request(`${base}/attachments`, uploadReq(cookie, uploadForm()));
+    expect(up.status).toBe(201);
+    const view = (await up.json() as { data: { id: string; filename: string } }).data;
+    expect(view.filename).toBe("note.png");
+
+    const listed = await app.request(`${base}/attachments`, { headers: { Cookie: cookie } });
+    expect(listed.status).toBe(200);
+    const data = (await listed.json() as { data: { id: string }[] }).data;
+    expect(data.map(a => a.id)).toEqual([view.id]);
+
+    const events = await db.select().from(auditEvents).where(eq(auditEvents.action, "procurement.attachment_uploaded")).all();
+    expect(events).toHaveLength(1);
+    expect(events[0]!.resourceId).toBe(proc.id);
+  });
+
+  test("a view-only member cannot upload (404)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const viewer = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMemberWithCaps(project.id, viewer, ["procurement.view"]);
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+
+    const denied = await app.request(`${base}/attachments`, uploadReq(await cookieForUser(viewer), uploadForm()));
+    expect(denied.status).toBe(404);
+  });
+
+  test("download with ?inline=true sets an inline content-disposition and returns the bytes", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+
+    const up = await app.request(`${base}/attachments`, uploadReq(cookie, uploadForm("pic.png", "PNGDATA")));
+    const aid = (await up.json() as { data: { id: string } }).data.id;
+
+    const dl = await app.request(`${base}/attachments/${aid}?inline=true`, { headers: { Cookie: cookie } });
+    expect(dl.status).toBe(200);
+    expect(dl.headers.get("Content-Disposition")).toContain("inline");
+    expect(new Uint8Array(await dl.arrayBuffer())).toEqual(pngBytes("PNGDATA"));
+  });
+
+  test("delete: the author (view-only) and a manager can delete; a non-owner non-manager gets 403", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user"); // pm, holds procurement.manage
+    const author = await seedUser("user"); // view-only member, owns the attachment
+    const stranger = await seedUser("user"); // view-only member, not the author
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    await addMemberWithCaps(project.id, author, ["procurement.view"]);
+    await addMemberWithCaps(project.id, stranger, ["procurement.view"]);
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const item = (await resolveProcurementItem(db, proc.id))!;
+    const base = `/projects/${project.shortId}/procurements/${proc.id}`;
+
+    // Mint an attachment owned by the procurement item, authored by `by`.
+    async function mintAttachment(by: string): Promise<string> {
+      const { reference } = await uploadAndReference(db, baseConfig(), {
+        file: new File([pngBytes()], "a.png", { type: "image/png" }),
+        ownerType: "item_attachment",
+        ownerId: item.id,
+        uploadedBy: by,
+      });
+      return reference.id;
+    }
+
+    // A view-only member who is not the author cannot delete → 403.
+    const a1 = await mintAttachment(author);
+    const denied = await app.request(`${base}/attachments/${a1}`, jsonReq("DELETE", await cookieForUser(stranger)));
+    expect(denied.status).toBe(403);
+
+    // The author (view-only) deletes their own attachment → 200.
+    const okAuthor = await app.request(`${base}/attachments/${a1}`, jsonReq("DELETE", await cookieForUser(author)));
+    expect(okAuthor.status).toBe(200);
+
+    // A manager deletes an attachment authored by someone else → 200.
+    const a2 = await mintAttachment(author);
+    const okManager = await app.request(`${base}/attachments/${a2}`, jsonReq("DELETE", await cookieForUser(owner)));
+    expect(okManager.status).toBe(200);
+
+    const events = await db.select().from(auditEvents).where(eq(auditEvents.action, "procurement.attachment_deleted")).all();
+    expect(events).toHaveLength(2);
   });
 });
 
