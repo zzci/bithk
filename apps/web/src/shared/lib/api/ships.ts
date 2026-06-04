@@ -438,6 +438,13 @@ export interface WorklistInput {
   readonly precautions?: string | null;
 }
 
+// Normalize at the boundary: coerce `tags` to an array so a contract-violating
+// or stale-cache row can never reach the worklist UI (which maps `tags`
+// unconditionally) without one. Mirrors the issue-list normalization.
+function normalizeWorklistTags(worklist: WorklistView): WorklistView {
+  return { ...worklist, tags: worklist.tags ?? [] };
+}
+
 /**
  * List a ship's worklists, optionally narrowed to those carrying ANY of the
  * given tag ids (OR / union semantics). `tagIds` is optional so existing
@@ -457,7 +464,7 @@ export function useShipWorklists(shipId: string | undefined, tagIds: readonly st
       const url = qs
         ? `/ships/${encodeURIComponent(shipId!)}/worklists?${qs}`
         : `/ships/${encodeURIComponent(shipId!)}/worklists`;
-      return http<ApiEnvelope<readonly WorklistView[]>>(url).then(r => r.data);
+      return http<ApiEnvelope<readonly WorklistView[]>>(url).then(r => r.data.map(normalizeWorklistTags));
     },
     enabled: !!shipId,
     staleTime: 5_000,
@@ -477,7 +484,7 @@ export function useWorklistTags() {
 export function useGlobalWorklists(enabled: boolean) {
   return useQuery({
     queryKey: shipKeys.globalWorklists(),
-    queryFn: () => http<ApiEnvelope<readonly WorklistView[]>>("/worklists").then(r => r.data),
+    queryFn: () => http<ApiEnvelope<readonly WorklistView[]>>("/worklists").then(r => r.data.map(normalizeWorklistTags)),
     enabled,
     staleTime: 5_000,
   });

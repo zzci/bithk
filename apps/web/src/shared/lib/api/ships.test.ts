@@ -155,6 +155,20 @@ describe("ship worklist hooks", () => {
     expect(String(fetchMock.mock.calls[2]![0])).toBe("/api/issues/wo1/references");
   });
 
+  it("coerces a tag-less worklist row to tags:[] at the boundary (regression: .map of undefined)", async () => {
+    // A contract-violating / stale-server row without `tags` must never reach
+    // the UI undefined, or the unconditional `worklist.tags.map(...)` crashes.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "wl1", name: "Quarterly" }] }));
+    const ship = renderHook(() => useShipWorklists("s1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(ship.result.current.isSuccess).toBe(true));
+    expect(ship.result.current.data![0]!.tags).toEqual([]);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ id: "gw1", name: "Global" }] }));
+    const globals = renderHook(() => useGlobalWorklists(true), { wrapper: makeWrapper() });
+    await waitFor(() => expect(globals.result.current.isSuccess).toBe(true));
+    expect(globals.result.current.data![0]!.tags).toEqual([]);
+  });
+
   it("encodes the worklist tag filter (repeated tagId for OR semantics)", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: [] }));
     const { result } = renderHook(() => useShipWorklists("s1", ["t1", "t2"]), { wrapper: makeWrapper() });
