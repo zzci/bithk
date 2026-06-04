@@ -10,6 +10,13 @@ import { hasCapability, isMember, resolveProjectId } from "@/modules/project/pro
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
+import {
+  acquireEditLock,
+  EditLockConflictError,
+  heartbeatEditLock,
+  releaseEditLock,
+  updateEntryLiveContent,
+} from "./drive.edit-lock.service";
 import { assertEntryCapability, driveAccess } from "./drive.permission";
 import {
   buildDriveEntryDownloadResponse,
@@ -112,6 +119,9 @@ const addMemberSchema = z.object({
 
 const updateMemberSchema = z.object({ role: directoryRoleSchema });
 
+const editLockSchema = z.object({ editId: z.string().min(1) });
+const liveContentSchema = z.object({ editId: z.string().min(1), content: z.string() });
+
 function auditMeta(c: Context) {
   return {
     ip: getClientIp(c),
@@ -126,6 +136,31 @@ function personalOwner(userId: string): DriveOwner {
 function actorOf(c: Context<ProtectedEnv>): DriveAccessActor {
   const user = c.get("user");
   return { id: user.id, role: user.role };
+}
+
+/**
+ * Resolve the `editId` for a lock release. The unload-path release arrives via
+ * `fetch(..., { keepalive: true })` — normally a JSON body, but parse leniently:
+ * read the raw text ONCE (calling `c.req.json()` first would poison Hono's body
+ * cache on a parse error), accept a JSON `{ editId }`, and fall back to the
+ * `?editId=` query so a degraded unload still releases the lock.
+ */
+async function readEditId(c: Context<ProtectedEnv>): Promise<string> {
+  const raw = await c.req.text().catch(() => "");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { editId?: unknown };
+      if (typeof parsed.editId === "string" && parsed.editId.length > 0)
+        return parsed.editId;
+    }
+    catch {
+      // Not JSON — fall through to the query-string fallback.
+    }
+  }
+  const fromQuery = c.req.query("editId");
+  if (fromQuery)
+    return fromQuery;
+  throw new AppError("editId is required", 400, "VALIDATION_ERROR");
 }
 
 /**
@@ -387,6 +422,75 @@ export function driveRoutes() {
       ...auditMeta(c),
       result: "success",
     });
+    return c.json({ success: true, data });
+  });
+
+  // ── Edit lock + live content (pessimistic single-writer autosave) ───────
+  // All four routes require the same "update" capability as a version upload.
+  // No realtime collaboration: a single editId holds the lock at a time.
+
+  router.post("/drive/entries/:id/edit-lock", async (c) => {
+    const user = c.get("user");
+    const id = entryIdSchema.parse(c.req.param("id"));
+    const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
+    const { editId } = editLockSchema.parse(await c.req.json());
+    try {
+      const result = await acquireEditLock(c.get("db"), id, editId, user.id);
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "drive.edit_lock.acquired",
+        resourceType: "drive_entry",
+        resourceId: entry.id,
+        resourceName: entry.name,
+        detail: { takenOver: result.takenOver },
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: result });
+    }
+    catch (e) {
+      if (e instanceof EditLockConflictError)
+        return c.json({ success: false, error: { code: "DRIVE_EDIT_LOCKED", message: e.message, lockBy: e.lockBy } }, 409);
+      throw e;
+    }
+  });
+
+  router.patch("/drive/entries/:id/edit-lock/heartbeat", async (c) => {
+    const id = entryIdSchema.parse(c.req.param("id"));
+    await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
+    const { editId } = editLockSchema.parse(await c.req.json());
+    // Stale/expired editId surfaces as the service's AppError(409).
+    const data = await heartbeatEditLock(c.get("db"), id, editId);
+    return c.json({ success: true, data });
+  });
+
+  router.delete("/drive/entries/:id/edit-lock", async (c) => {
+    const user = c.get("user");
+    const id = entryIdSchema.parse(c.req.param("id"));
+    const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
+    const editId = await readEditId(c);
+    const data = await releaseEditLock(c.get("db"), id, editId);
+    await audit(c.get("db"), c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "drive.edit_lock.released",
+      resourceType: "drive_entry",
+      resourceId: entry.id,
+      resourceName: entry.name,
+      detail: { released: data.released },
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data });
+  });
+
+  router.patch("/drive/entries/:id/live-content", async (c) => {
+    const id = entryIdSchema.parse(c.req.param("id"));
+    await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
+    const { editId, content } = liveContentSchema.parse(await c.req.json());
+    // Live autosave never creates a version/blob; stale/expired editId ⇒ 409.
+    const data = await updateEntryLiveContent(c.get("db"), id, editId, content);
     return c.json({ success: true, data });
   });
 
