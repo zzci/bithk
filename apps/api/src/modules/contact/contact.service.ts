@@ -147,6 +147,8 @@ export interface ListContactsParams {
   readonly categoryId?: string | undefined;
   readonly q?: string | undefined;
   readonly status?: ContactStatus | undefined;
+  // Derived 3-state filter over visibility/confidential (see CONTACT_SENSITIVITIES).
+  readonly sensitivity?: "public" | "private" | "confidential" | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -311,6 +313,12 @@ export async function create(
   const id = nanoid();
   const now = new Date().toISOString();
 
+  // Sensitivity invariant: confidential always implies private (a contact is
+  // never both public and confidential at rest). A confidential create with
+  // visibility='public' is coerced back to 'private'.
+  const confidential = input.confidential ?? false;
+  const visibility = confidential ? "private" : (input.visibility ?? "private");
+
   db.transaction((tx) => {
     const organizationId = kind === "individual"
       ? resolveOrganizationLinkTx(tx, actor, input, now)
@@ -334,8 +342,8 @@ export async function create(
       attributes,
       categoryId: input.categoryId ?? null,
       status: input.status ?? "active",
-      visibility: input.visibility ?? "private",
-      confidential: input.confidential ?? false,
+      visibility,
+      confidential,
       createdAt: now,
       updatedAt: now,
     }).run();
@@ -398,6 +406,16 @@ export async function list(
     conditions.push(eq(contacts.categoryId, params.categoryId));
   if (params.status)
     conditions.push(eq(contacts.status, params.status));
+
+  // Derived sensitivity filter, mapped onto the two stored columns. Pushed
+  // after (and AND-composed with) the access-control clause, so it only ever
+  // narrows the caller's visible set — never widens it.
+  if (params.sensitivity === "public")
+    conditions.push(eq(contacts.visibility, "public" as const));
+  else if (params.sensitivity === "private")
+    conditions.push(and(eq(contacts.visibility, "private" as const), eq(contacts.confidential, false))!);
+  else if (params.sensitivity === "confidential")
+    conditions.push(eq(contacts.confidential, true));
   if (params.q && params.q.length > 0) {
     const like = `%${escapeLike(params.q)}%`;
     const nameMatch = sql`${contacts.name} LIKE ${like} ESCAPE '\\'`;
@@ -505,6 +523,15 @@ export async function update(
         patch.organizationId = resolveOrganizationLinkTx(tx, actor, input, now);
       }
     }
+
+    // Sensitivity invariant: confidential always implies private. Using the
+    // EFFECTIVE confidential (incoming patch else the stored value) catches
+    // both "set confidential=true alongside visibility='public'" and "an
+    // already-confidential row receiving visibility='public'" — either coerces
+    // visibility back to 'private'.
+    const effectiveConfidential = patch.confidential ?? existing.confidential;
+    if (effectiveConfidential)
+      patch.visibility = "private";
 
     tx.update(contacts).set(patch).where(eq(contacts.id, id)).run();
     if (input.tags !== undefined)

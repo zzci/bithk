@@ -470,6 +470,7 @@ describe("contact service — access and masking", () => {
       confidential: true,
       tags: ["confidential"],
     });
+    await forcePublicConfidential(view.id);
 
     const masked = await contactService.get(db, actor(stranger), view.id);
     expect(masked.name).toBe("Secret Co");
@@ -501,6 +502,7 @@ describe("contact service — access and masking", () => {
       visibility: "public",
       confidential: true,
     });
+    await forcePublicConfidential(view.id);
 
     const masked = await contactService.get(db, actor(stranger), view.id);
     expect(masked.name).toBe("Webby Co");
@@ -527,6 +529,7 @@ describe("contact service — access and masking", () => {
       visibility: "public",
       confidential: true,
     });
+    await forcePublicConfidential(org.id);
     // The person is public + non-confidential, so a stranger can read them.
     const person = await contactService.create(db, actor(owner), {
       kind: "individual",
@@ -682,6 +685,7 @@ describe("contact service — access and masking", () => {
       visibility: "public",
       confidential: true,
     });
+    await forcePublicConfidential(secret.id);
 
     // A stranger sees the row (public) but its confidential note is masked,
     // so searching it must yield no hit — closing the oracle.
@@ -782,6 +786,66 @@ describe("contact service — access and masking", () => {
   });
 });
 
+describe("contact service — sensitivity invariant and filter", () => {
+  test("create coerces visibility to private when confidential is true", async () => {
+    const owner = await seedUser("owner-a");
+    const view = await contactService.create(db, actor(owner), {
+      kind: "organization",
+      name: "Coerced Co",
+      visibility: "public",
+      confidential: true,
+    });
+
+    expect(view.confidential).toBe(true);
+    expect(view.visibility).toBe("private");
+    const row = await db.select().from(contacts).where(eq(contacts.id, view.id)).get();
+    expect(row?.visibility).toBe("private");
+    expect(row?.confidential).toBe(true);
+  });
+
+  test("update setting confidential=true on a public row coerces visibility to private", async () => {
+    const owner = await seedUser("owner-a");
+    const view = await contactService.create(db, actor(owner), {
+      kind: "organization",
+      name: "Going Confidential",
+      visibility: "public",
+      confidential: false,
+    });
+    expect(view.visibility).toBe("public");
+
+    const updated = await contactService.update(db, actor(owner), view.id, { confidential: true });
+    expect(updated.confidential).toBe(true);
+    expect(updated.visibility).toBe("private");
+  });
+
+  test("update setting visibility=public on an already-confidential row keeps visibility private", async () => {
+    const owner = await seedUser("owner-a");
+    const view = await contactService.create(db, actor(owner), {
+      kind: "organization",
+      name: "Stays Private",
+      confidential: true,
+    });
+    expect(view.visibility).toBe("private");
+    expect(view.confidential).toBe(true);
+
+    // confidential is unchanged here, but the stored value still forces private.
+    const updated = await contactService.update(db, actor(owner), view.id, { visibility: "public" });
+    expect(updated.visibility).toBe("private");
+    expect(updated.confidential).toBe(true);
+  });
+
+  test("list filters by the derived sensitivity (public / private / confidential)", async () => {
+    const admin = await seedUser("admin-a", "admin");
+    const pub = await contactService.create(db, actor(admin, "admin"), { kind: "organization", name: "Public Co", visibility: "public", confidential: false });
+    const priv = await contactService.create(db, actor(admin, "admin"), { kind: "organization", name: "Private Co", visibility: "private", confidential: false });
+    const conf = await contactService.create(db, actor(admin, "admin"), { kind: "organization", name: "Confidential Co", confidential: true });
+
+    expect((await contactService.list(db, actor(admin, "admin"), { sensitivity: "public" })).data.map(c => c.id)).toEqual([pub.id]);
+    expect((await contactService.list(db, actor(admin, "admin"), { sensitivity: "private" })).data.map(c => c.id)).toEqual([priv.id]);
+    expect((await contactService.list(db, actor(admin, "admin"), { sensitivity: "confidential" })).data.map(c => c.id)).toEqual([conf.id]);
+  });
+});
+
 async function seedUser(id: string, role: "admin" | "user" = "user"): Promise<string> {
   const now = new Date().toISOString();
   await db.insert(users).values({
@@ -800,4 +864,13 @@ async function seedUser(id: string, role: "admin" | "user" = "user"): Promise<st
 
 function actor(id: string, role: "admin" | "user" = "user") {
   return { id, role };
+}
+
+// The sensitivity invariant refuses public+confidential at the service layer.
+// Stamp that masking-relevant state directly onto an already-created row (which
+// still went through the real service for its tuple/tags/fields) so the masking
+// code — untouched by this change — stays exercised. Mirrors a legacy/migrated
+// row the masking path still defensively handles.
+async function forcePublicConfidential(id: string): Promise<void> {
+  await db.update(contacts).set({ visibility: "public", confidential: true }).where(eq(contacts.id, id)).run();
 }
