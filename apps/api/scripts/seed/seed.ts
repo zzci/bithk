@@ -52,6 +52,7 @@ import { setSetting } from "@/modules/settings/settings.service";
 import { createShare } from "@/modules/share/share.service";
 import { createEquipment } from "@/modules/ship/ship.equipment.service";
 import { createGlobalEquipmentCategory } from "@/modules/ship/ship.global-equipment-category.service";
+import { createGlobalEquipmentManufacturer } from "@/modules/ship/ship.global-equipment-manufacturer.service";
 import { bindProject, createShip, setShipCover } from "@/modules/ship/ship.service";
 import { listShipEquipmentCategories } from "@/modules/ship/ship.ship-equipment-category.service";
 import { createGlobalWorklist, createShipWorklist } from "@/modules/ship/ship.worklist.service";
@@ -242,8 +243,23 @@ async function importEquipmentCategories(db: AppDatabase): Promise<number> {
   return SHIP_EQUIPMENT_CATEGORIES.length;
 }
 
-async function importShips(db: AppDatabase, config: Config): Promise<number> {
+async function importShips(db: AppDatabase, config: Config): Promise<{ equipment: number; manufacturers: number }> {
   const recs = await readJson<ShipRec[]>("ships");
+
+  // Derive the manufacturer vocabulary from the fixtures: one
+  // `equipment_manufacturers` row per DISTINCT manufacturer string across all
+  // ships' equipment, then resolve each equipment's free-text manufacturer to
+  // its row id. The global vocabulary is shared (no per-ship copy).
+  const manufacturerIdByName = new Map<string, string>();
+  for (const s of recs) {
+    for (const e of s.equipment ?? []) {
+      if (e.manufacturer && !manufacturerIdByName.has(e.manufacturer)) {
+        const row = await createGlobalEquipmentManufacturer(db, { name: e.manufacturer });
+        manufacturerIdByName.set(e.manufacturer, row.id);
+      }
+    }
+  }
+
   let equipment = 0;
   for (const s of recs) {
     const ship = await createShip(db, {
@@ -283,7 +299,7 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
       await createEquipment(db, ship.id, {
         name: e.name,
         categoryId: (e.category ? perShipCategoryIdByCode.get(e.category) : undefined) ?? null,
-        manufacturer: e.manufacturer ?? null,
+        manufacturerId: (e.manufacturer ? manufacturerIdByName.get(e.manufacturer) : undefined) ?? null,
         model: e.model ?? null,
         serialNumber: e.serialNumber ?? null,
         installedAt: e.installedAt ?? null,
@@ -299,7 +315,7 @@ async function importShips(db: AppDatabase, config: Config): Promise<number> {
       await setShipCover(db, config, ship.id, file, uId(ADMIN_KEY));
     }
   }
-  return equipment;
+  return { equipment, manufacturers: manufacturerIdByName.size };
 }
 
 async function importWorklists(db: AppDatabase): Promise<number> {
@@ -772,7 +788,7 @@ async function main(): Promise<void> {
     const contactCategories = await importContactCategories(db);
     await importContacts(db);
     const equipmentCategories = await importEquipmentCategories(db);
-    const equipment = await importShips(db, config);
+    const { equipment, manufacturers } = await importShips(db, config);
     const worklistCount = await importWorklists(db);
     await importProjects(db, config);
     // Admin vocab; seeded after projects so the copy-on-create in createProject
@@ -793,6 +809,7 @@ async function main(): Promise<void> {
     console.log(`  contact cats: ${contactCategories}`);
     console.log(`  contacts:     ${contactId.size}`);
     console.log(`  equip cats:   ${equipmentCategories} (bilingual)`);
+    console.log(`  equip mfrs:   ${manufacturers}`);
     console.log(`  global proc cats: ${globalProcCategories}`);
     console.log(`  ships:        ${shipInternalId.size} (+ base projects, ${equipment} equipment)`);
     console.log(`  worklists:    ${worklistCount}`);

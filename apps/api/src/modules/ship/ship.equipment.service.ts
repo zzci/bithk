@@ -2,7 +2,7 @@ import type { EquipmentStatus } from "./schema";
 import type { AppDatabase } from "@/db";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "@/shared/lib/id";
-import { shipEquipment, shipEquipmentCategories } from "./schema";
+import { equipmentManufacturers, shipEquipment, shipEquipmentCategories } from "./schema";
 
 export type ShipEquipmentRow = typeof shipEquipment.$inferSelect;
 
@@ -12,7 +12,9 @@ export type ShipEquipmentRow = typeof shipEquipment.$inferSelect;
 // omits it and exposes only the equipment's own (nanoid) id. The category is a
 // reference into the ship's own `ship_equipment_categories` vocabulary; the
 // view carries both the id and the resolved bilingual names (null when unset or
-// the referenced row is gone).
+// the referenced row is gone). The manufacturer is a reference into the GLOBAL
+// `equipment_manufacturers` vocabulary; the view carries the id and the resolved
+// single canonical name (null when unset or the referenced row is gone).
 
 export interface ShipEquipmentView {
   readonly id: string;
@@ -20,7 +22,8 @@ export interface ShipEquipmentView {
   readonly categoryId: string | null;
   readonly categoryNameZh: string | null;
   readonly categoryNameEn: string | null;
-  readonly manufacturer: string | null;
+  readonly manufacturerId: string | null;
+  readonly manufacturerName: string | null;
   readonly model: string | null;
   readonly serialNumber: string | null;
   readonly location: string | null;
@@ -35,6 +38,7 @@ export function composeEquipment(
   row: ShipEquipmentRow,
   categoryNameZh: string | null,
   categoryNameEn: string | null,
+  manufacturerName: string | null,
 ): ShipEquipmentView {
   return {
     id: row.id,
@@ -42,7 +46,8 @@ export function composeEquipment(
     categoryId: row.categoryId,
     categoryNameZh,
     categoryNameEn,
-    manufacturer: row.manufacturer,
+    manufacturerId: row.manufacturerId,
+    manufacturerName,
     model: row.model,
     serialNumber: row.serialNumber,
     location: row.location,
@@ -58,13 +63,14 @@ export function composeEquipment(
 
 export async function listEquipment(db: AppDatabase, shipInternalId: string): Promise<readonly ShipEquipmentView[]> {
   const rows = await db
-    .select({ equipment: shipEquipment, category: shipEquipmentCategories })
+    .select({ equipment: shipEquipment, category: shipEquipmentCategories, manufacturer: equipmentManufacturers })
     .from(shipEquipment)
     .leftJoin(shipEquipmentCategories, eq(shipEquipment.categoryId, shipEquipmentCategories.id))
+    .leftJoin(equipmentManufacturers, eq(shipEquipment.manufacturerId, equipmentManufacturers.id))
     .where(eq(shipEquipment.shipId, shipInternalId))
     .orderBy(desc(shipEquipment.id))
     .all();
-  return rows.map(r => composeEquipment(r.equipment, r.category?.nameZh ?? null, r.category?.nameEn ?? null));
+  return rows.map(r => composeEquipment(r.equipment, r.category?.nameZh ?? null, r.category?.nameEn ?? null, r.manufacturer?.name ?? null));
 }
 
 // Raw row lookup for internal existence/ownership checks (no category join).
@@ -76,20 +82,21 @@ async function getEquipmentRow(db: AppDatabase, shipInternalId: string, equipmen
 
 export async function getEquipment(db: AppDatabase, shipInternalId: string, equipmentId: string): Promise<ShipEquipmentView | undefined> {
   const row = await db
-    .select({ equipment: shipEquipment, category: shipEquipmentCategories })
+    .select({ equipment: shipEquipment, category: shipEquipmentCategories, manufacturer: equipmentManufacturers })
     .from(shipEquipment)
     .leftJoin(shipEquipmentCategories, eq(shipEquipment.categoryId, shipEquipmentCategories.id))
+    .leftJoin(equipmentManufacturers, eq(shipEquipment.manufacturerId, equipmentManufacturers.id))
     .where(and(eq(shipEquipment.shipId, shipInternalId), eq(shipEquipment.id, equipmentId)))
     .get();
   if (!row)
     return undefined;
-  return composeEquipment(row.equipment, row.category?.nameZh ?? null, row.category?.nameEn ?? null);
+  return composeEquipment(row.equipment, row.category?.nameZh ?? null, row.category?.nameEn ?? null, row.manufacturer?.name ?? null);
 }
 
 export interface CreateEquipmentInput {
   readonly name: string;
   readonly categoryId?: string | null | undefined;
-  readonly manufacturer?: string | null | undefined;
+  readonly manufacturerId?: string | null | undefined;
   readonly model?: string | null | undefined;
   readonly serialNumber?: string | null | undefined;
   readonly location?: string | null | undefined;
@@ -106,7 +113,7 @@ export async function createEquipment(db: AppDatabase, shipInternalId: string, i
     shipId: shipInternalId,
     name: input.name,
     categoryId: input.categoryId ?? null,
-    manufacturer: input.manufacturer ?? null,
+    manufacturerId: input.manufacturerId ?? null,
     model: input.model ?? null,
     serialNumber: input.serialNumber ?? null,
     location: input.location ?? null,
@@ -122,7 +129,7 @@ export async function createEquipment(db: AppDatabase, shipInternalId: string, i
 export interface UpdateEquipmentInput {
   readonly name?: string | undefined;
   readonly categoryId?: string | null | undefined;
-  readonly manufacturer?: string | null | undefined;
+  readonly manufacturerId?: string | null | undefined;
   readonly model?: string | null | undefined;
   readonly serialNumber?: string | null | undefined;
   readonly location?: string | null | undefined;
@@ -134,7 +141,7 @@ export interface UpdateEquipmentInput {
 const UPDATABLE_EQUIPMENT_KEYS = [
   "name",
   "categoryId",
-  "manufacturer",
+  "manufacturerId",
   "model",
   "serialNumber",
   "location",

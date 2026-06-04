@@ -69,7 +69,8 @@ export interface ShipEquipmentView {
   readonly categoryId: string | null;
   readonly categoryNameZh: string | null;
   readonly categoryNameEn: string | null;
-  readonly manufacturer: string | null;
+  readonly manufacturerId: string | null;
+  readonly manufacturerName: string | null;
   readonly model: string | null;
   readonly serialNumber: string | null;
   readonly location: string | null;
@@ -393,7 +394,7 @@ export function useUnbindShipProject(): UseMutationResult<null, Error, { shipId:
 export interface EquipmentInput {
   readonly name?: string;
   readonly categoryId?: string | null;
-  readonly manufacturer?: string | null;
+  readonly manufacturerId?: string | null;
   readonly model?: string | null;
   readonly serialNumber?: string | null;
   readonly location?: string | null;
