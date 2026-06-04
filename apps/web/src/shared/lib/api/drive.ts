@@ -35,6 +35,8 @@ export interface DriveEntry {
   readonly name: string;
   readonly favorite: boolean;
   readonly status: DriveEntryStatus;
+  readonly createdBy: string;
+  readonly createdByName: string;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly file: {
