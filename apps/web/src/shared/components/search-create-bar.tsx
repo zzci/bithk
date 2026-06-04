@@ -30,7 +30,7 @@ interface SearchCreateBarProps {
 export function SearchCreateBar({ search, create }: SearchCreateBarProps) {
   const { t } = useTranslation("common");
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <SearchInput
         value={search.value}
         onChange={search.onChange}
