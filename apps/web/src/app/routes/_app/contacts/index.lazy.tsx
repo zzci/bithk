@@ -278,13 +278,13 @@ export function ContactsListPage() {
                             )}
                           </span>
                         </Button>
-                        <div className="flex w-28 shrink-0 items-center justify-end gap-1 pr-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                        <div className="flex w-28 shrink-0 items-center justify-end gap-1 pr-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
                           {contact.canManage && (
                             <>
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="size-8"
+                                className="relative size-8 after:absolute after:-inset-y-1.5 md:after:hidden"
                                 aria-label={t("actions.share", { name: contact.name })}
                                 onClick={() => setShareTarget(contact)}
                               >
@@ -293,7 +293,7 @@ export function ContactsListPage() {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="size-8"
+                                className="relative size-8 after:absolute after:-inset-y-1.5 md:after:hidden"
                                 aria-label={t("actions.edit", { name: contact.name })}
                                 onClick={() => setDrawer({ mode: "edit", contact })}
                               >
@@ -302,7 +302,7 @@ export function ContactsListPage() {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="size-8 text-destructive hover:text-destructive"
+                                className="relative size-8 text-destructive hover:text-destructive after:absolute after:-inset-y-1.5 md:after:hidden"
                                 aria-label={t("actions.delete", { name: contact.name })}
                                 onClick={() => setDeleteTarget(contact)}
                               >
