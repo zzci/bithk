@@ -620,6 +620,28 @@ describe("role/authz hardening (02-F1..F4)", () => {
     expect(res.status).toBe(403);
   });
 
+  test("an owner (project.manage) can assign the Owner role to members — multi-owner (F1)", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const bob = await seedUser("user");
+    const carol = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const ownerRole = (await listRoles(db, project.id)).find(r => r.kind === "owner")!;
+    const ownerCookie = await cookieForUser(owner);
+
+    // POST: the owner promotes Carol straight to Owner.
+    const created = await app.request(`/projects/${project.shortId}/members`, jsonReq("POST", ownerCookie, { roleId: ownerRole.id, userId: carol }));
+    expect(created.status).toBe(201);
+    expect((await created.json() as { data: { roleId: string } }).data.roleId).toBe(ownerRole.id);
+
+    // PATCH: an existing member is upgraded to Owner.
+    const reader = await createRole(db, project.id, { name: "Reader", capabilities: ["issue.view"] });
+    const bobMember = await addMember(db, project.id, { roleId: reader.id, userId: bob });
+    const upgraded = await app.request(`/projects/${project.shortId}/members/${bobMember.id}`, jsonReq("PATCH", ownerCookie, { roleId: ownerRole.id }));
+    expect(upgraded.status).toBe(200);
+    expect((await upgraded.json() as { data: { roleId: string } }).data.roleId).toBe(ownerRole.id);
+  });
+
   test("roles.manage cannot grant a capability the caller lacks (F2)", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
