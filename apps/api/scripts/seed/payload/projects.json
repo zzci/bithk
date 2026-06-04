@@ -10,7 +10,8 @@
     "members": [
       { "user": "eng-lin", "role": "member" },
       { "user": "eng-voss", "role": "member" },
-      { "user": "surveyor-petrov", "role": "member" }
+      { "user": "surveyor-petrov", "role": "member" },
+      { "username": "yard-rossi", "name": "Marco Rossi", "title": "Shipyard Liaison", "role": "member" }
     ],
     "categories": ["Deck Equipment", "Electronics", "Engine Parts"]
   },
@@ -24,7 +25,8 @@
     "bindShip": "vantage",
     "members": [
       { "user": "eng-okafor", "role": "member" },
-      { "user": "ops-murphy", "role": "member" }
+      { "user": "ops-murphy", "role": "member" },
+      { "username": "yard-devries", "name": "Anneke de Vries", "title": "Yard Project Coordinator", "role": "member" }
     ],
     "categories": ["Interior", "Electronics", "Safety Gear"]
   },
@@ -38,7 +40,8 @@
     "bindShip": "leviathan",
     "members": [
       { "user": "surveyor-singh", "role": "member" },
-      { "user": "eng-lin", "role": "member" }
+      { "user": "eng-lin", "role": "member" },
+      { "username": "class-tanaka", "name": "Hiro Tanaka", "title": "Attending Surveyor", "role": "member" }
     ],
     "categories": ["Safety Gear", "Engine Parts"]
   },
@@ -52,7 +55,8 @@
     "bindShip": "calypso",
     "members": [
       { "user": "eng-voss", "role": "member" },
-      { "user": "eng-okafor", "role": "member" }
+      { "user": "eng-okafor", "role": "member" },
+      { "username": "vendor-bianchi", "name": "Luca Bianchi", "title": "Engine Vendor Rep", "role": "member" }
     ],
     "categories": ["Engine Parts", "Provisions"]
   },
@@ -66,7 +70,8 @@
     "bindShip": "bluewater",
     "members": [
       { "user": "eng-lin", "role": "member" },
-      { "user": "ops-murphy", "role": "member" }
+      { "user": "ops-murphy", "role": "member" },
+      { "username": "vendor-kowalski", "name": "Piotr Kowalski", "role": "member" }
     ],
     "categories": ["Electronics"]
   },
@@ -80,7 +85,8 @@
     "bindShip": "serenity",
     "members": [
       { "user": "crew-haddad", "role": "member" },
-      { "user": "crew-schmidt", "role": "member" }
+      { "user": "crew-schmidt", "role": "member" },
+      { "username": "designer-laurent", "name": "Camille Laurent", "title": "Interior Designer", "role": "member" }
     ],
     "categories": ["Interior", "Provisions"]
   },
@@ -93,7 +99,8 @@
     "cover": null,
     "bindShip": "nordwind",
     "members": [
-      { "user": "eng-okafor", "role": "member" }
+      { "user": "eng-okafor", "role": "member" },
+      { "username": "coating-andersen", "name": "Erik Andersen", "role": "member" }
     ],
     "categories": ["Deck Equipment", "Paint & Coatings"]
   },
@@ -108,7 +115,8 @@
     "members": [
       { "user": "surveyor-petrov", "role": "member" },
       { "user": "surveyor-singh", "role": "member" },
-      { "user": "crew-larsson", "role": "member" }
+      { "user": "crew-larsson", "role": "member" },
+      { "username": "auditor-okonkwo", "name": "Chidi Okonkwo", "title": "External Safety Auditor", "role": "member" }
     ],
     "categories": ["Safety Gear"]
   }
