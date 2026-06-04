@@ -35,6 +35,8 @@ describe("entryToDisplayItem", () => {
       parentEntryId: null,
       favorite: false,
       status: "normal",
+      createdBy: "self",
+      createdByName: "Alice",
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-23T00:00:00.000Z",
       file: { fileId: "f1", filename: "thing.pdf", mimetype: "application/pdf", size: 100 },
@@ -51,6 +53,11 @@ describe("entryToDisplayItem", () => {
   it("maps a file with detected type, size and fileId", () => {
     const item = entryToDisplayItem(entry());
     expect(item).toMatchObject({ type: "pdf", isFolder: false, fileId: "f1", size: 100, mimeType: "application/pdf" });
+  });
+
+  it("populates owner from the resolved creator name", () => {
+    expect(entryToDisplayItem(entry()).owner).toBe("Alice");
+    expect(entryToDisplayItem(entry({ type: "folder", file: null })).owner).toBe("Alice");
   });
 
   it("collapses a team-directory owner to the team scope", () => {

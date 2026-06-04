@@ -112,6 +112,8 @@ function shareToEntry(share: ShareView): DriveEntry {
     name: share.resourceName,
     favorite: false,
     status: "normal",
+    createdBy: "",
+    createdByName: "",
     createdAt: share.createdAt,
     updatedAt: share.updatedAt,
     file: share.file ? { referenceId: "", fileId: "", ...share.file } : null,
