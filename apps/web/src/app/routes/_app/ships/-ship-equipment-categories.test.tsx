@@ -1,8 +1,8 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
-import { ShipEquipmentCategoriesManager } from "./-ship-equipment-categories";
+import { ShipEquipmentCategoriesSection } from "./-ship-equipment-categories";
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
@@ -39,31 +39,27 @@ function routeFetch(categories: unknown[] = categoryList()) {
   });
 }
 
-describe("shipEquipmentCategoriesManager", () => {
+describe("shipEquipmentCategoriesSection", () => {
   it("lists the ship's own categories through the per-ship endpoint", async () => {
     routeFetch();
-    renderWithProviders(<ShipEquipmentCategoriesManager shipShortId="s1" />);
+    renderWithProviders(<ShipEquipmentCategoriesSection shipShortId="s1" canManage />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Manage categories" }));
-    const dialog = screen.getByRole("dialog");
-    await waitFor(() => expect(within(dialog).getByText("Power")).toBeInTheDocument());
-    expect(within(dialog).getByText("电力")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Power")).toBeInTheDocument());
+    expect(screen.getByText("电力")).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(c => String(c[0]) === "/api/ships/s1/equipment-categories")).toBe(true);
   });
 
   it("shows the empty state when the ship has no categories", async () => {
     routeFetch([]);
-    renderWithProviders(<ShipEquipmentCategoriesManager shipShortId="s1" />);
+    renderWithProviders(<ShipEquipmentCategoriesSection shipShortId="s1" canManage />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Manage categories" }));
     await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
   });
 
   it("creates a category through the per-ship two-name dialog", async () => {
     routeFetch([]);
-    renderWithProviders(<ShipEquipmentCategoriesManager shipShortId="s1" />);
+    renderWithProviders(<ShipEquipmentCategoriesSection shipShortId="s1" canManage />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Manage categories" }));
     await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "New" }));
@@ -80,9 +76,8 @@ describe("shipEquipmentCategoriesManager", () => {
 
   it("disables submit until both required names are filled", async () => {
     routeFetch([]);
-    renderWithProviders(<ShipEquipmentCategoriesManager shipShortId="s1" />);
+    renderWithProviders(<ShipEquipmentCategoriesSection shipShortId="s1" canManage />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Manage categories" }));
     await waitFor(() => expect(screen.getByText("No equipment categories yet.")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "New" }));

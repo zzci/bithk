@@ -16,7 +16,10 @@
     "tagFilterSearchPlaceholder": "Search tags",
     "tagFilterNoMore": "No more tags",
     "card": {
-      "ageValue": "{{count}} yr"
+      "ageValue": "{{count}} yr",
+      "imo": "IMO",
+      "mmsi": "MMSI",
+      "location": "Location"
     }
   },
   "status": {
@@ -35,11 +38,12 @@
   },
   "tabs": {
     "overview": "Overview",
-    "profile": "Profile",
+    "profile": "Details",
     "equipment": "Equipment",
-    "worklist": "Worklist",
+    "worklist": "Checklists",
     "projects": "Projects",
-    "files": "Files"
+    "files": "Files",
+    "settings": "Settings"
   },
   "detail": {
     "back": "Back to ships",
@@ -151,7 +155,6 @@
     }
   },
   "equipmentCategories": {
-    "manage": "Manage categories",
     "title": "Equipment categories",
     "description": "This ship's own equipment categories, seeded from the global template on creation.",
     "create": "New",

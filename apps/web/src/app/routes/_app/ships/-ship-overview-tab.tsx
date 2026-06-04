@@ -1,14 +1,13 @@
 // Overview tab: a two-column dashboard for one ship. Left column holds the
-// editable archive; the right column previews quick stats, bound projects and
-// equipment categories. Every value is real ship data — editing stays gated on
-// `canManage`.
+// read-only archive (the cover upload stays gated on `canManage`); the right
+// column previews quick stats, bound projects and equipment categories. Editing
+// the ship record lives on the Details (profile) tab.
 
 import type { ReactNode } from "react";
-import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipView } from "@/shared/lib/api/ships";
 import { useNavigate } from "@tanstack/react-router";
-import { ClipboardList, FolderKanban, Package, Pencil } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ClipboardList, FolderKanban, Package } from "lucide-react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -24,14 +23,10 @@ import {
   useShipEquipment,
   useShipProjects,
   useShipWorklists,
-  useUpdateShip,
 } from "@/shared/lib/api/ships";
-import { errorMessage } from "@/shared/lib/errors";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { ShipCoverField } from "./-ship-cover-field";
-import { ShipFormDialog } from "./-ship-form-dialog";
-import { shipFormToUpdate } from "./-ship-form-logic";
 import { StatTile } from "./-ship-stats";
 import { ShipStatusBadge } from "./-ship-visuals";
 
@@ -67,8 +62,6 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
   const { t, i18n } = useTranslation(["ships", "projects", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
   const navigate = useNavigate();
-  const [editOpen, setEditOpen] = useState(false);
-  const updateShip = useUpdateShip();
 
   const projects = useShipProjects(ship.id).data ?? [];
   const equipmentData = useShipEquipment(ship.id).data;
@@ -90,25 +83,10 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
 
   const equipmentCategoryMax = Math.max(1, ...equipmentCategories.map(([, count]) => count));
 
-  const handleSubmit = (state: ShipFormState) => {
-    updateShip.mutate(
-      { id: ship.id, ...shipFormToUpdate(state) },
-      { onSuccess: () => setEditOpen(false) },
-    );
-  };
-
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="space-y-4">
-        <Card
-          title={t("overview.archive")}
-          action={canManage && (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="mr-1 size-4" />
-              {t("common:common.edit")}
-            </Button>
-          )}
-        >
+        <Card title={t("overview.archive")}>
           {canManage && <ShipCoverField ship={ship} />}
 
           <p className="text-sm whitespace-pre-wrap text-muted-foreground">
@@ -224,18 +202,6 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
               )}
         </Card>
       </div>
-
-      {canManage && (
-        <ShipFormDialog
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          mode="edit"
-          initial={ship}
-          pending={updateShip.isPending}
-          errorMessage={updateShip.error ? errorMessage(updateShip.error, t("common:common.error.saveFailed")) : null}
-          onSubmit={handleSubmit}
-        />
-      )}
     </div>
   );
 }

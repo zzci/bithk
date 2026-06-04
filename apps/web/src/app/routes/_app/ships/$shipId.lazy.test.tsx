@@ -95,13 +95,14 @@ describe("shipDetailLayout tab nav", () => {
     mockRoutes();
     renderWithProviders(<ShipDetailLayout />);
 
-    // All six registry tabs render in the nav.
+    // All seven registry tabs render in the nav.
     expect(await screen.findByRole("tab", { name: /Overview/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Profile/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Details/ })).toBeInTheDocument();
     const equipment = screen.getByRole("tab", { name: /Equipment/ });
-    expect(screen.getByRole("tab", { name: /Worklist/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Checklists/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Projects/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Files/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Settings/ })).toBeInTheDocument();
 
     // Pathname `/ships/s1/equipment` → the equipment trigger is the active one.
     expect(equipment).toHaveAttribute("data-active");

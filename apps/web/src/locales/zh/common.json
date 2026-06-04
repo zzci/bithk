@@ -21,6 +21,7 @@
     "sidebar": "侧边栏",
     "sidebarMobileDescription": "显示移动端侧边栏。",
     "copy": "复制",
+    "copied": "已复制",
     "loading": "加载中...",
     "retry": "重试",
     "submitting": "提交中...",
