@@ -39,11 +39,11 @@ export function TupleManager() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["tuples", filterNs, page],
-    queryFn: () => http<TuplesResponse>(`/tuples?${params.toString()}`),
+    queryFn: () => http<TuplesResponse>(`/policy/tuples?${params.toString()}`),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => http(`/tuples/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => http(`/policy/tuples/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tuples"] }),
     onError: err => toast.error(errorMessage(err, t("common.error.deleteFailed", { ns: "common" }))),
   });
@@ -352,7 +352,7 @@ function EditTupleDialog({ tuple }: { readonly tuple: RelationTuple }) {
   const availableRelations = RELATIONS[tuple.namespace] ?? [];
 
   const mutation = useMutation({
-    mutationFn: () => http(`/tuples/${tuple.id}`, {
+    mutationFn: () => http(`/policy/tuples/${tuple.id}`, {
       method: "PATCH",
       body: JSON.stringify({ relation }),
     }),
