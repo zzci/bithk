@@ -1,4 +1,4 @@
-import type { ContactInput, ContactKind, ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
+import type { ContactInput, ContactKind, ContactSensitivity, ContactStatus, ContactView, ContactVisibility } from "@/shared/lib/api/contacts";
 
 // Tag list helpers live in the shared lib; re-exported so existing importers
 // (and tests) of this module keep working.
@@ -6,7 +6,24 @@ export { addTag, removeTag } from "@/shared/lib/tag-utils";
 
 export const CONTACT_KINDS: readonly ContactKind[] = ["individual", "organization"];
 export const CONTACT_STATUSES: readonly ContactStatus[] = ["active", "inactive"];
-export const CONTACT_VISIBILITIES: readonly ContactVisibility[] = ["private", "public"];
+export const CONTACT_SENSITIVITIES: readonly ContactSensitivity[] = ["public", "private", "confidential"];
+
+// Collapse the (visibility, confidential) pair into the single sensitivity state
+// the form and badge use. Confidential always wins, so it never co-displays with
+// the private state.
+export function sensitivityOf(visibility: ContactVisibility, confidential: boolean): ContactSensitivity {
+  return confidential ? "confidential" : visibility === "public" ? "public" : "private";
+}
+
+// Inverse of `sensitivityOf`: expand the collapsed state back to the two model
+// fields the API expects on submit.
+export function sensitivityToFields(s: ContactSensitivity): { visibility: ContactVisibility; confidential: boolean } {
+  if (s === "public")
+    return { visibility: "public", confidential: false };
+  if (s === "confidential")
+    return { visibility: "private", confidential: true };
+  return { visibility: "private", confidential: false };
+}
 
 // Fields the backend nulls out for confidential public contacts the caller may
 // not manage. When every one is null on such a read the row is "masked".
@@ -69,8 +86,7 @@ export interface ContactFormState {
   readonly note: string;
   readonly attributes: readonly AttributeRow[];
   readonly status: ContactStatus;
-  readonly visibility: ContactVisibility;
-  readonly confidential: boolean;
+  readonly sensitivity: ContactSensitivity;
   readonly categoryId: string | null;
   readonly tags: readonly string[];
 }
@@ -90,8 +106,7 @@ export const EMPTY_CONTACT_FORM: ContactFormState = {
   note: "",
   attributes: [],
   status: "active",
-  visibility: "private",
-  confidential: false,
+  sensitivity: "private",
   categoryId: null,
   tags: [],
 };
@@ -133,8 +148,7 @@ export function contactFormFromView(contact: ContactView): ContactFormState {
     note: contact.note ?? "",
     attributes: attributesToRows(contact.attributes),
     status: contact.status ?? "active",
-    visibility: contact.visibility,
-    confidential: contact.confidential,
+    sensitivity: sensitivityOf(contact.visibility, contact.confidential),
     categoryId: contact.categoryId,
     tags: contact.tags.map(tag => tag.name),
   };
@@ -174,8 +188,7 @@ export function contactFormToInput(state: ContactFormState): ContactInput {
     note: textOrNull(state.note),
     attributes: rowsToAttributes(state.attributes),
     status: state.status,
-    visibility: state.visibility,
-    confidential: state.confidential,
+    ...sensitivityToFields(state.sensitivity),
     categoryId: state.categoryId,
     tags: state.tags,
   };

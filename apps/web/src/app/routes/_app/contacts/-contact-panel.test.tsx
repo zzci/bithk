@@ -158,6 +158,15 @@ describe("contactPanel (view)", () => {
     expect(onOpenOrganization).toHaveBeenCalledWith("org-9");
   });
 
+  it("renders a single collapsed sensitivity badge, confidential replacing private", () => {
+    renderView(makeContact({ visibility: "private", confidential: true }));
+
+    expect(screen.getByText("Sensitivity")).toBeInTheDocument();
+    expect(screen.getByText("Confidential")).toBeInTheDocument();
+    // The private label never co-displays alongside the confidential badge.
+    expect(screen.queryByText("Private")).not.toBeInTheDocument();
+  });
+
   it("shows organization details: tax id and address", () => {
     renderView(makeContact({
       kind: "organization",
@@ -209,6 +218,42 @@ describe("contactPanel (form) kind selector", () => {
     expect(screen.queryByRole("radio", { name: "Individual" })).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Organization" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Tax ID")).toBeInTheDocument();
+  });
+});
+
+describe("contactPanel (form) sensitivity control", () => {
+  it("create: a single sensitivity control replaces the visibility select and confidential switch", () => {
+    renderForm("create", null);
+
+    expect(screen.getByText("Sensitivity")).toBeInTheDocument();
+    // The standalone confidential toggle and the separate visibility field are gone.
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByText("Visibility")).not.toBeInTheDocument();
+  });
+
+  it("create: submits the default private sensitivity in form state", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderForm("create", null, { onSubmit });
+
+    await user.type(screen.getByLabelText("Name"), "Beta Yard");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const state = onSubmit.mock.calls[0]![0] as ContactFormState;
+    expect(state.sensitivity).toBe("private");
+  });
+
+  it("edit: seeds the sensitivity control from a confidential contact", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderForm("edit", makeContact({ visibility: "private", confidential: true }), { onSubmit });
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const state = onSubmit.mock.calls[0]![0] as ContactFormState;
+    expect(state.sensitivity).toBe("confidential");
   });
 });
 
