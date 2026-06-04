@@ -83,6 +83,7 @@
     "createDescription": "添加全局联系人。私有联系人仅自己和显式授权的查看者可见。",
     "editDescription": "更新联系人详情、标签和可见范围。",
     "namePlaceholder": "例如：Acme Marine",
+    "contactMethodRequired": "至少填写电话或邮箱其中一项",
     "kindLabel": "类型",
     "confidentialHelp": "启用后，公开查看者只能看到名称和标签。",
     "submitCreate": "创建",

@@ -86,7 +86,15 @@ const organizationBodySchema = z.object({
   ...commonContactFields,
 });
 
-const contactBodySchema = z.discriminatedUnion("kind", [individualBodySchema, organizationBodySchema]);
+// A contact must carry at least one reachable channel — a phone OR an email.
+// Website/address/taxId don't count. Enforced on CREATE only; the update body
+// (below) stays name-only so editing an existing contact is unaffected.
+const contactBodySchema = z
+  .discriminatedUnion("kind", [individualBodySchema, organizationBodySchema])
+  .refine(v => !!v.phone?.trim() || !!v.email?.trim(), {
+    message: "A contact requires a phone or email",
+    path: ["phone"],
+  });
 
 // `kind` is immutable, so the update body omits it; the service validates the
 // provided fields against the stored kind. Accepts the union of both kinds'

@@ -145,7 +145,7 @@ describe("contact categories (admin only)", () => {
     const created = await app.request("/contact-categories", jsonReq(admin, "POST", { name: "Suppliers" }));
     const catId = (await created.json() as { data: CategoryView }).data.id;
 
-    const contact = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "Acme", categoryId: catId }));
+    const contact = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "Acme", phone: "1", categoryId: catId }));
     expect(contact.status).toBe(201);
     const contactData = (await contact.json() as { data: ContactView }).data;
     expect(contactData.categoryId).toBe(catId);
@@ -162,7 +162,7 @@ describe("contact categories (admin only)", () => {
     const created = await app.request("/contact-categories", jsonReq(admin, "POST", { name: "Suppliers" }));
     const catId = (await created.json() as { data: CategoryView }).data.id;
 
-    const contact = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "Acme", categoryId: catId }));
+    const contact = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "Acme", phone: "1", categoryId: catId }));
     const contactId = (await contact.json() as { data: ContactView }).data.id;
 
     const removed = await app.request(`/contact-categories/${catId}`, { method: "DELETE", headers: { "x-uid": admin } });
@@ -180,7 +180,7 @@ describe("contact categories (admin only)", () => {
     const created = await app.request("/contact-categories", jsonReq(admin, "POST", { name: "Suppliers" }));
     const catId = (await created.json() as { data: CategoryView }).data.id;
 
-    const contact = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "Acme", categoryId: catId }));
+    const contact = await app.request("/contacts", jsonReq(owner, "POST", { kind: "organization", name: "Acme", phone: "1", categoryId: catId }));
     const contactId = (await contact.json() as { data: ContactView }).data.id;
 
     const patched = await app.request(`/contacts/${contactId}`, jsonReq(owner, "PATCH", { categoryId: null }));
