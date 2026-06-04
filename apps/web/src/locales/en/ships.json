@@ -68,6 +68,7 @@
     "lengthOverall": "Length overall (m)",
     "beam": "Beam (m)",
     "draft": "Draft (m)",
+    "airDraft": "Air draft",
     "grossTonnage": "Gross tonnage",
     "imoNumber": "IMO number",
     "mmsi": "MMSI",
