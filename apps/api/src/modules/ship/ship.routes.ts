@@ -25,6 +25,14 @@ import {
   updateGlobalEquipmentCategory,
 } from "./ship.global-equipment-category.service";
 import {
+  composeGlobalEquipmentManufacturer,
+  createGlobalEquipmentManufacturer,
+  deleteGlobalEquipmentManufacturer,
+  listGlobalEquipmentManufacturers,
+  resolveGlobalEquipmentManufacturer,
+  updateGlobalEquipmentManufacturer,
+} from "./ship.global-equipment-manufacturer.service";
+import {
   bindProject,
   composeShipWithBase,
   createShip,
@@ -106,7 +114,7 @@ const bindProjectSchema = z.object({ projectShortId: z.string().min(1) });
 
 const equipmentCoreShape = {
   categoryId: z.string().min(1).nullable().optional(),
-  manufacturer: z.string().max(255).nullable().optional(),
+  manufacturerId: z.string().min(1).nullable().optional(),
   model: z.string().max(255).nullable().optional(),
   serialNumber: z.string().max(255).nullable().optional(),
   location: z.string().max(255).nullable().optional(),
@@ -149,6 +157,21 @@ const updateEquipmentCategorySchema = z.object({
   nameZh: z.string().trim().min(1).max(100).optional(),
   nameEn: z.string().trim().min(1).max(100).optional(),
   ...equipmentCategoryFields,
+}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
+
+// A manufacturer is a single canonical proper-noun `name` (1..100, trimmed) plus
+// optional code/description metadata (0..200). `.trim()` rejects blank-after-trim
+// names with a 422 before the row reaches the service.
+const createManufacturerSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  code: z.string().trim().max(200).nullable().optional(),
+  description: z.string().trim().max(200).nullable().optional(),
+});
+
+const updateManufacturerSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  code: z.string().trim().max(200).nullable().optional(),
+  description: z.string().trim().max(200).nullable().optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
 function actorId(c: Context<ProtectedEnv>): string {
@@ -264,6 +287,84 @@ export function shipRoutes() {
       resourceType: "global_equipment_category",
       resourceId: category.id,
       resourceName: category.nameZh,
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data: null });
+  });
+
+  // ─── Global equipment-manufacturer vocabulary (admin only) ───────────────
+  // A standalone admin-maintained brand list referenced directly by
+  // `ship_equipment.manufacturer_id` (no per-ship copy). Every verb is
+  // admin-only and mutations are audited, matching the global equipment-category
+  // routes above.
+  router.get("/global-equipment-manufacturers", adminRequired, async (c) => {
+    const db = c.get("db");
+    return c.json({ success: true, data: (await listGlobalEquipmentManufacturers(db)).map(composeGlobalEquipmentManufacturer) });
+  });
+
+  router.post("/global-equipment-manufacturers", adminRequired, async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const body = createManufacturerSchema.parse(await c.req.json());
+    const manufacturer = await createGlobalEquipmentManufacturer(db, body);
+    await audit(db, c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "equipment_manufacturer.created",
+      resourceType: "equipment_manufacturer",
+      resourceId: manufacturer.id,
+      resourceName: manufacturer.name,
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data: composeGlobalEquipmentManufacturer(manufacturer) }, 201);
+  });
+
+  router.get("/global-equipment-manufacturers/:id", adminRequired, async (c) => {
+    const db = c.get("db");
+    const id = idSchema.parse(c.req.param("id"));
+    const manufacturer = await resolveGlobalEquipmentManufacturer(db, id);
+    if (!manufacturer)
+      throw new NotFoundError("Equipment manufacturer", id);
+    return c.json({ success: true, data: composeGlobalEquipmentManufacturer(manufacturer) });
+  });
+
+  router.patch("/global-equipment-manufacturers/:id", adminRequired, async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const id = idSchema.parse(c.req.param("id"));
+    const body = updateManufacturerSchema.parse(await c.req.json());
+    const manufacturer = await updateGlobalEquipmentManufacturer(db, id, body);
+    if (!manufacturer)
+      throw new NotFoundError("Equipment manufacturer", id);
+    await audit(db, c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "equipment_manufacturer.updated",
+      resourceType: "equipment_manufacturer",
+      resourceId: manufacturer.id,
+      resourceName: manufacturer.name,
+      ...auditMeta(c),
+      result: "success",
+    });
+    return c.json({ success: true, data: composeGlobalEquipmentManufacturer(manufacturer) });
+  });
+
+  router.delete("/global-equipment-manufacturers/:id", adminRequired, async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const id = idSchema.parse(c.req.param("id"));
+    const manufacturer = await resolveGlobalEquipmentManufacturer(db, id);
+    if (!manufacturer || !await deleteGlobalEquipmentManufacturer(db, id))
+      throw new NotFoundError("Equipment manufacturer", id);
+    await audit(db, c.get("logger"), {
+      actorId: user.id,
+      actorName: user.name,
+      action: "equipment_manufacturer.deleted",
+      resourceType: "equipment_manufacturer",
+      resourceId: manufacturer.id,
+      resourceName: manufacturer.name,
       ...auditMeta(c),
       result: "success",
     });

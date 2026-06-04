@@ -22,11 +22,13 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-// The tab loads two independent vocabularies (global worklists + equipment
-// categories); route each so both sections render deterministic data.
-function routeFetch(opts: { worklists?: unknown[]; categories?: unknown[] } = {}) {
+// The tab loads three independent vocabularies (global worklists + equipment
+// categories + equipment manufacturers); route each so every section renders
+// deterministic data.
+function routeFetch(opts: { worklists?: unknown[]; categories?: unknown[]; manufacturers?: unknown[] } = {}) {
   const worklists = opts.worklists ?? [];
   const categories = opts.categories ?? [];
+  const manufacturers = opts.manufacturers ?? [];
   fetchMock.mockImplementation(async (input, init) => {
     const path = String(input).replace("/api", "");
     const method = init?.method ?? "GET";
@@ -38,6 +40,10 @@ function routeFetch(opts: { worklists?: unknown[]; categories?: unknown[] } = {}
       return jsonResponse({ success: true, data: categories });
     if (method === "POST" && path === "/global-equipment-categories")
       return jsonResponse({ success: true, data: { id: "ec9", nameZh: "电力", nameEn: "Power", code: null, description: null, createdAt: "2026-06-03T00:00:00.000Z", updatedAt: "2026-06-03T00:00:00.000Z" } });
+    if (method === "GET" && path === "/global-equipment-manufacturers")
+      return jsonResponse({ success: true, data: manufacturers });
+    if (method === "POST" && path === "/global-equipment-manufacturers")
+      return jsonResponse({ success: true, data: { id: "mf9", name: "MTU", code: null, description: null, createdAt: "2026-06-03T00:00:00.000Z", updatedAt: "2026-06-03T00:00:00.000Z" } });
     return new Response("not found", { status: 404 });
   });
 }
@@ -144,5 +150,50 @@ describe("shipSettingsTab", () => {
     expect(save).toBeEnabled();
 
     expect(fetchMock.mock.calls.some(call => call[1]?.method === "POST")).toBe(false);
+  });
+
+  it("renders the equipment manufacturers section with name and code columns", async () => {
+    routeFetch({
+      manufacturers: [
+        { id: "mf1", name: "MTU", code: "MTU-DE", description: "Engines", createdAt: "2026-06-02T00:00:00.000Z", updatedAt: "2026-06-02T00:00:00.000Z" },
+      ],
+    });
+
+    renderWithProviders(<ShipSettingsTab />);
+
+    expect(screen.getByText("Equipment Manufacturers")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("MTU")).toBeInTheDocument());
+    expect(screen.getByText("MTU-DE")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(c => String(c[0]) === "/api/global-equipment-manufacturers")).toBe(true);
+  });
+
+  it("shows the empty state when there are no equipment manufacturers", async () => {
+    routeFetch();
+
+    renderWithProviders(<ShipSettingsTab />);
+
+    await waitFor(() => expect(screen.getByText("No manufacturers yet.")).toBeInTheDocument());
+  });
+
+  it("creates a manufacturer through the single-name dialog", async () => {
+    routeFetch();
+
+    renderWithProviders(<ShipSettingsTab />);
+    await waitFor(() => expect(screen.getByText("No manufacturers yet.")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "New Manufacturer" }));
+    const dialog = screen.getByRole("dialog");
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+
+    await userEvent.type(within(dialog).getByLabelText("Name"), "MTU");
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST" && String(call[0]) === "/api/global-equipment-manufacturers");
+      expect(post).toBeDefined();
+      expect(JSON.parse(post![1]!.body as string)).toMatchObject({ name: "MTU" });
+    });
   });
 });

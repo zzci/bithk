@@ -121,6 +121,8 @@ interface EquipmentBody {
     categoryId: string | null;
     categoryNameZh: string | null;
     categoryNameEn: string | null;
+    manufacturerId: string | null;
+    manufacturerName: string | null;
     note: string | null;
   };
 }
@@ -129,10 +131,20 @@ interface CategoryBody {
   data: { id: string; nameZh: string; nameEn: string };
 }
 
+interface ManufacturerBody {
+  data: { id: string; name: string };
+}
+
 async function createCategory(app: Hono<AppEnv>, shipShortId: string, cookie: string, nameZh: string, nameEn: string): Promise<string> {
   const res = await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", cookie, { nameZh, nameEn }));
   expect(res.status).toBe(201);
   return ((await res.json()) as CategoryBody).data.id;
+}
+
+async function createManufacturer(app: Hono<AppEnv>, cookie: string, name: string): Promise<string> {
+  const res = await app.request("/global-equipment-manufacturers", jsonReq("POST", cookie, { name }));
+  expect(res.status).toBe(201);
+  return ((await res.json()) as ManufacturerBody).data.id;
 }
 
 async function createEquipment(app: Hono<AppEnv>, shipShortId: string, cookie: string, body: unknown): Promise<string> {
@@ -160,12 +172,13 @@ describe("equipment CRUD", () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
     const categoryId = await createCategory(app, shipShortId, adminCookie, "推进系统", "Propulsion");
+    const manufacturerId = await createManufacturer(app, adminCookie, "MTU");
 
     // Create.
     const createRes = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", adminCookie, {
       name: "Main Engine",
       categoryId,
-      manufacturer: "MTU",
+      manufacturerId,
       status: "active",
     }));
     expect(createRes.status).toBe(201);
@@ -174,6 +187,8 @@ describe("equipment CRUD", () => {
     expect(created.data.categoryId).toBe(categoryId);
     expect(created.data.categoryNameZh).toBe("推进系统");
     expect(created.data.categoryNameEn).toBe("Propulsion");
+    expect(created.data.manufacturerId).toBe(manufacturerId);
+    expect(created.data.manufacturerName).toBe("MTU");
     expect(created.data.status).toBe("active");
     const equipmentId = created.data.id;
 

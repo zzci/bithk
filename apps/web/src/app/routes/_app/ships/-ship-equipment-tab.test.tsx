@@ -28,6 +28,13 @@ function categoryList() {
   ];
 }
 
+function manufacturerList() {
+  return [
+    { id: "mf1", name: "Volt", code: null, description: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+    { id: "mf2", name: "Flow", code: null, description: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+  ];
+}
+
 function equipmentList() {
   return [{
     id: "eq1",
@@ -35,7 +42,8 @@ function equipmentList() {
     categoryId: "ec1",
     categoryNameZh: "电力",
     categoryNameEn: "Power",
-    manufacturer: "Volt",
+    manufacturerId: "mf1",
+    manufacturerName: "Volt",
     model: "G1",
     serialNumber: "SN-1",
     location: "Engine room",
@@ -53,6 +61,8 @@ function routeFetch() {
     const method = init?.method ?? "GET";
     if (method === "GET" && path === "/ships/s1/equipment-categories")
       return jsonResponse({ success: true, data: categoryList() });
+    if (method === "GET" && path === "/global-equipment-manufacturers")
+      return jsonResponse({ success: true, data: manufacturerList() });
     if (method === "GET" && path === "/ships/s1/equipment")
       return jsonResponse({ success: true, data: equipmentList() });
     if (method === "POST" && path === "/ships/s1/equipment")
@@ -102,6 +112,8 @@ describe("shipEquipmentTab", () => {
       const method = init?.method ?? "GET";
       if (method === "GET" && path === "/ships/s1/equipment-categories")
         return jsonResponse({ success: true, data: categoryList() });
+      if (method === "GET" && path === "/global-equipment-manufacturers")
+        return jsonResponse({ success: true, data: manufacturerList() });
       if (method === "GET" && path === "/ships/s1/equipment")
         return jsonResponse({ success: true, data: rows });
       if (method === "DELETE" && path === "/ships/s1/equipment/eq2") {
@@ -174,13 +186,15 @@ describe("shipEquipmentTab", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.type(screen.getByLabelText("Name"), "Pump");
-    await userEvent.type(screen.getByLabelText("Manufacturer"), "Flow");
+    // Manufacturer is now a Select backed by the global vocabulary, not free text.
+    await userEvent.click(screen.getByLabelText("Manufacturer"));
+    await userEvent.click(await screen.findByRole("option", { name: "Flow" }));
     await userEvent.click(screen.getByRole("button", { name: "New" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
       expect(post).toBeDefined();
-      expect(JSON.parse(post![1]!.body as string)).toMatchObject({ name: "Pump", manufacturer: "Flow" });
+      expect(JSON.parse(post![1]!.body as string)).toMatchObject({ name: "Pump", manufacturerId: "mf2" });
     });
 
     await userEvent.click(screen.getByRole("button", { name: "Edit equipment" }));
