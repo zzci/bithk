@@ -542,7 +542,7 @@ CREATE TABLE `ships` (
 	`short_id` text NOT NULL,
 	`code` text NOT NULL,
 	`name` text NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
+	`status` text DEFAULT 'laid_up' NOT NULL,
 	`base_project_id` text,
 	`model` text,
 	`builder` text,

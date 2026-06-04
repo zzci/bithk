@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "29cbaa76-cbe4-4fd3-9f29-6e63d5fdc942",
+  "id": "b9ffc3b6-b90e-479e-873f-cf23086b57b5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "contact_categories": {
@@ -3855,7 +3855,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'active'"
+          "default": "'laid_up'"
         },
         "base_project_id": {
           "name": "base_project_id",

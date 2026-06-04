@@ -20,8 +20,12 @@
     }
   },
   "status": {
+    "under_construction": "Under construction",
     "active": "Active",
-    "archived": "Archived"
+    "underway": "Underway",
+    "in_maintenance": "In maintenance",
+    "laid_up": "Laid up",
+    "retired": "Retired"
   },
   "tags": {
     "searchPlaceholder": "Search or create tags",
