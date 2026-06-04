@@ -16,7 +16,10 @@
     "tagFilterSearchPlaceholder": "搜索标签",
     "tagFilterNoMore": "没有更多标签",
     "card": {
-      "ageValue": "{{count}} 年"
+      "ageValue": "{{count}} 年",
+      "imo": "IMO",
+      "mmsi": "MMSI",
+      "location": "位置"
     }
   },
   "status": {
@@ -35,11 +38,12 @@
   },
   "tabs": {
     "overview": "概览",
-    "profile": "船体详情",
+    "profile": "详情",
     "equipment": "设备",
-    "worklist": "工作清单",
+    "worklist": "清单",
     "projects": "项目",
-    "files": "文件"
+    "files": "文件",
+    "settings": "设置"
   },
   "detail": {
     "back": "返回船舶列表",
@@ -151,7 +155,6 @@
     }
   },
   "equipmentCategories": {
-    "manage": "管理分类",
     "title": "设备分类",
     "description": "本船舶自有的设备分类，创建时从全局模板复制而来。",
     "create": "新增",

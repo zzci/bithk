@@ -83,18 +83,6 @@ describe("shipOverviewTab", () => {
     expect(screen.getAllByText("Not set").length).toBeGreaterThan(0);
   });
 
-  it("hides the edit affordance when the caller cannot manage", () => {
-    routeFetch();
-    renderWithProviders(<ShipOverviewTab ship={ship()} canManage={false} />);
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-  });
-
-  it("shows the edit affordance when the caller can manage", () => {
-    routeFetch();
-    renderWithProviders(<ShipOverviewTab ship={ship()} canManage />);
-    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
-  });
-
   it("previews bound projects and equipment categories", async () => {
     routeFetch();
     renderWithProviders(<ShipOverviewTab ship={ship()} canManage={false} />);

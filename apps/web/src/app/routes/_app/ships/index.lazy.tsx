@@ -2,15 +2,17 @@
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { Copy, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
 import { ListFilter } from "@/shared/components/list-filter";
 import { CardGridSkeleton } from "@/shared/components/list-skeleton";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { TagChips, tagFilterDimension } from "@/shared/components/tags";
+import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDebounce } from "@/shared/hooks/use-debounce";
@@ -172,7 +174,7 @@ export function ShipsListPage() {
 }
 
 function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: () => void }) {
-  const { t } = useTranslation("ships");
+  const { t } = useTranslation(["ships", "common"]);
 
   const specs = [
     { label: t("field.lengthOverall"), value: ship.lengthOverall === null ? null : String(ship.lengthOverall) },
@@ -200,9 +202,13 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
       <CoverImage src={ship.coverImageUrl} kind="ship" className="h-28 w-full" />
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 space-y-1.5">
             <CardTitle className="truncate">{ship.name}</CardTitle>
-            <p className="font-mono text-xs text-muted-foreground">{ship.code}</p>
+            <div className="space-y-1">
+              <CardIdentifier label={t("list.card.imo")} value={ship.imoNumber} />
+              <CardIdentifier label={t("list.card.mmsi")} value={ship.mmsi} />
+              <CardIdentifier label={t("list.card.location")} value={ship.registryPort} />
+            </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <ShipStatusBadge status={ship.status} />
@@ -234,5 +240,38 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// One identifier row in the card header: a leading copy button, a label, and the
+// value (or the "not set" placeholder). The card itself is a clickable nav
+// surface, so the copy handler stops propagation to avoid opening the ship.
+function CardIdentifier({ label, value }: { readonly label: string; readonly value: string | null }) {
+  const { t } = useTranslation(["ships", "common"]);
+
+  const handleCopy = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (value === null)
+      return;
+    void navigator.clipboard?.writeText(value);
+    toast.success(t("common:common.copied"));
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-5 shrink-0 text-muted-foreground"
+        aria-label={t("common:common.copy")}
+        disabled={value === null}
+        onClick={handleCopy}
+      >
+        <Copy className="size-3" aria-hidden="true" />
+      </Button>
+      <span className="text-xs font-medium text-foreground/70">{label}</span>
+      <span className="truncate font-mono text-xs text-muted-foreground">{value ?? t("overview.notSet")}</span>
+    </div>
   );
 }

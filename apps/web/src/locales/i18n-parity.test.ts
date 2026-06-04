@@ -36,6 +36,8 @@ const REFERENCE = "en";
 // it). Keep this list small and reviewed — adding to it is a deliberate act.
 const IDENTICAL_ALLOWLIST: ReadonlySet<string> = new Set([
   "ships:field.mmsi", // MMSI — maritime acronym, identical in every locale
+  "ships:list.card.imo", // IMO — maritime acronym, identical in every locale
+  "ships:list.card.mmsi", // MMSI — maritime acronym, identical in every locale
   "projects:list.moreTags", // "+{{count}}" — symbol + interpolation, no words
   "ships:list.moreTags", // "+{{count}}" — symbol + interpolation, no words
   "totp:verifyCodePlaceholder", // "000000" — numeric input placeholder
