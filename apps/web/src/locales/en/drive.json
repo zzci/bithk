@@ -211,7 +211,10 @@
     "takeOver": "Take over editing",
     "retryEditing": "Retry editing",
     "saveAsVersion": "Save as version",
-    "lockError": "Couldn't acquire the edit lock"
+    "lockError": "Couldn't acquire the edit lock",
+    "unsaved": "Unsaved changes",
+    "saveFailed": "Save failed — retrying",
+    "readonlyEditing": "Read-only — {{user}} editing"
   },
   "csv": {
     "importError": "Could not import this CSV file.",
