@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ac7e9830-91bc-45e6-889b-578665c2edf0",
+  "id": "3c315df3-ae08-4749-a530-2ae3b6eeffbf",
   "prevId": "aa1babd7-b9dc-47ae-80eb-e92d5083b7f1",
   "tables": {
     "contact_categories": {
@@ -4097,13 +4097,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "checklist": {
