@@ -10,6 +10,11 @@ export type ContactKind = "individual" | "organization";
 export type ContactStatus = "active" | "inactive";
 export type ContactVisibility = "private" | "public";
 
+// Collapsed 3-state derived from (visibility, confidential) for the list filter
+// and UI badge. public = public/non-confidential; private = private/non-confidential;
+// confidential = private/confidential.
+export type ContactSensitivity = "public" | "private" | "confidential";
+
 interface ContactListMeta {
   readonly total: number;
   readonly page: number;
@@ -157,6 +162,8 @@ export interface ContactsListQuery {
   readonly kind?: ContactKind | undefined;
   readonly status?: ContactStatus | undefined;
   readonly categoryId?: string | undefined;
+  // Collapsed visibility/confidential filter (single-select).
+  readonly sensitivity?: ContactSensitivity | undefined;
   // Union (OR) filter: a contact matches when it carries ANY of these tag ids.
   readonly tagIds?: readonly string[] | undefined;
   readonly page?: number | undefined;
@@ -178,6 +185,8 @@ function contactsQueryString(query: ContactsListQuery): string {
     params.set("status", query.status);
   if (query.categoryId)
     params.set("categoryId", query.categoryId);
+  if (query.sensitivity)
+    params.set("sensitivity", query.sensitivity);
   // Repeatable tagId params; sorted so the cache key stays stable regardless of
   // selection order (the backend union semantics are order-independent).
   if (query.tagIds && query.tagIds.length > 0) {
