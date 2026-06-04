@@ -114,3 +114,4 @@
 | [REFACTOR-025](REFACTOR-025.md) | Virtual users first-class: backend (users.isVirtual + members userId-only) | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
 | [FEAT-020](FEAT-020.md) | Admin Users: create / edit / delete virtual users | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
 | [REFACTOR-026](REFACTOR-026.md) | Project member/assignee pickers → unified users (drop displayName) | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
+| [DATA-001](DATA-001.md) | Seed dataset full schema coverage on party-model main (G0–G6) | [PLAN-069](../plan/PLAN-069.md) | Completed | 2026-06-04 |

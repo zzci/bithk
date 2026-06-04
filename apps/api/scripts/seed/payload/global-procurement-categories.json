@@ -1,0 +1,8 @@
+[
+  { "name": "Paint & Coatings", "code": "PAINT", "description": "Anti-fouling, primers, topcoats, and coating consumables." },
+  { "name": "Electronics", "code": "ELEC", "description": "Bridge electronics, navigation, and communication equipment." },
+  { "name": "Engine Parts", "code": "ENG", "description": "Main engine, generator, and propulsion spares." },
+  { "name": "Safety Gear", "code": "SAFE", "description": "Liferafts, fire-fighting, and personal protective equipment." },
+  { "name": "Provisions", "code": "PROV", "description": "Galley, crew, and fuel provisioning." },
+  { "name": "Deck Equipment", "code": "DECK", "description": "Mooring, anchoring, cranes, and deck fittings." }
+]
