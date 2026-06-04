@@ -9,6 +9,7 @@
 //      equipment views resolve the locale-appropriate name from the per-ship row.
 
 import type { GlobalEquipmentCategory } from "@/shared/lib/api/global-equipment-categories";
+import type { GlobalEquipmentManufacturer } from "@/shared/lib/api/global-equipment-manufacturers";
 import type { WorklistInput, WorklistView } from "@/shared/lib/api/ships";
 import { Plus } from "lucide-react";
 import { useState } from "react";
@@ -45,6 +46,12 @@ import {
   useUpdateGlobalEquipmentCategory,
 } from "@/shared/lib/api/global-equipment-categories";
 import {
+  useCreateGlobalEquipmentManufacturer,
+  useDeleteGlobalEquipmentManufacturer,
+  useGlobalEquipmentManufacturers,
+  useUpdateGlobalEquipmentManufacturer,
+} from "@/shared/lib/api/global-equipment-manufacturers";
+import {
   useCreateGlobalWorklist,
   useDeleteGlobalWorklist,
   useGlobalWorklists,
@@ -58,6 +65,7 @@ export function ShipSettingsTab() {
     <div className="space-y-8 pt-4">
       <GlobalWorklistsSection />
       <GlobalEquipmentCategoriesSection />
+      <GlobalEquipmentManufacturersSection />
     </div>
   );
 }
@@ -456,6 +464,211 @@ function GlobalEquipmentCategoryDialog({ mode, category, open, onOpenChange }: G
               {t("common:common.cancel")}
             </Button>
             <Button type="submit" disabled={pending || !valid}>
+              {t("common:common.save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function GlobalEquipmentManufacturersSection() {
+  const { t } = useTranslation(["settings", "common"]);
+  const manufacturersQuery = useGlobalEquipmentManufacturers();
+  const deleteManufacturer = useDeleteGlobalEquipmentManufacturer();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<GlobalEquipmentManufacturer | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GlobalEquipmentManufacturer | null>(null);
+
+  const manufacturers = manufacturersQuery.data ?? [];
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">{t("settings:globalEquipmentManufacturers.title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("settings:globalEquipmentManufacturers.description")}</p>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-1 size-3" />
+          {t("settings:globalEquipmentManufacturers.add")}
+        </Button>
+      </div>
+
+      {manufacturersQuery.error && <ErrorBanner message={errorMessage(manufacturersQuery.error, t("common:common.error.loadFailed"))} />}
+
+      <div className="overflow-x-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("settings:globalEquipmentManufacturers.colName")}</TableHead>
+              <TableHead>{t("settings:globalEquipmentManufacturers.colCode")}</TableHead>
+              <TableHead className="w-32">{t("settings:globalEquipmentManufacturers.actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {manufacturers.length === 0
+              ? <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">{t("settings:globalEquipmentManufacturers.empty")}</TableCell></TableRow>
+              : manufacturers.map(manufacturer => (
+                  <TableRow key={manufacturer.id}>
+                    <TableCell className="font-medium">{manufacturer.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{manufacturer.code ?? "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" onClick={() => setEditTarget(manufacturer)}>
+                          {t("settings:globalEquipmentManufacturers.edit")}
+                        </Button>
+                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(manufacturer)}>
+                          {t("settings:globalEquipmentManufacturers.delete")}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <ConfirmDeleteDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open)
+            setDeleteTarget(null);
+        }}
+        title={t("settings:globalEquipmentManufacturers.dialog.deleteTitle")}
+        description={t("settings:globalEquipmentManufacturers.dialog.deleteConfirm", { name: deleteTarget?.name ?? "" })}
+        pending={deleteManufacturer.isPending}
+        onConfirm={() => {
+          if (!deleteTarget)
+            return;
+          const name = deleteTarget.name;
+          deleteManufacturer.mutate(deleteTarget.id, {
+            onSuccess: () => {
+              toast.success(t("settings:globalEquipmentManufacturers.toast.deleted", { name }));
+              setDeleteTarget(null);
+            },
+            onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+          });
+        }}
+      />
+
+      <GlobalEquipmentManufacturerDialog mode="create" open={createOpen} onOpenChange={setCreateOpen} />
+      {editTarget && (
+        <GlobalEquipmentManufacturerDialog
+          mode="edit"
+          manufacturer={editTarget}
+          open
+          onOpenChange={open => !open && setEditTarget(null)}
+        />
+      )}
+    </section>
+  );
+}
+
+interface GlobalEquipmentManufacturerDialogProps {
+  readonly mode: "create" | "edit";
+  readonly manufacturer?: GlobalEquipmentManufacturer;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}
+
+function GlobalEquipmentManufacturerDialog({ mode, manufacturer, open, onOpenChange }: GlobalEquipmentManufacturerDialogProps) {
+  const { t } = useTranslation(["settings", "common"]);
+  const createManufacturer = useCreateGlobalEquipmentManufacturer();
+  const updateManufacturer = useUpdateGlobalEquipmentManufacturer();
+
+  const [name, setName] = useState(manufacturer?.name ?? "");
+  const [code, setCode] = useState(manufacturer?.code ?? "");
+  const [description, setDescription] = useState(manufacturer?.description ?? "");
+  const [submitted, setSubmitted] = useState(false);
+
+  const pending = createManufacturer.isPending || updateManufacturer.isPending;
+  const error = createManufacturer.error ?? updateManufacturer.error;
+  const nameMissing = name.trim().length === 0;
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmitted(true);
+    if (nameMissing || pending)
+      return;
+    const body = {
+      name: name.trim(),
+      code: code.trim() || null,
+      description: description.trim() || null,
+    };
+    if (mode === "create") {
+      createManufacturer.mutate(body, {
+        onSuccess: () => {
+          toast.success(t("settings:globalEquipmentManufacturers.toast.created"));
+          onOpenChange(false);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+      });
+    }
+    else if (manufacturer) {
+      updateManufacturer.mutate({ id: manufacturer.id, ...body }, {
+        onSuccess: () => {
+          toast.success(t("settings:globalEquipmentManufacturers.toast.updated"));
+          onOpenChange(false);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <DialogHeader>
+            <DialogTitle>{mode === "create" ? t("settings:globalEquipmentManufacturers.dialog.createTitle") : t("settings:globalEquipmentManufacturers.dialog.editTitle")}</DialogTitle>
+            <DialogDescription>{t("settings:globalEquipmentManufacturers.dialog.description")}</DialogDescription>
+          </DialogHeader>
+
+          {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="equipment-manufacturer-name">{t("settings:globalEquipmentManufacturers.colName")}</Label>
+            <Input
+              id="equipment-manufacturer-name"
+              autoFocus
+              maxLength={100}
+              placeholder={t("settings:globalEquipmentManufacturers.placeholders.name")}
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+            {submitted && nameMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentManufacturers.validation.nameRequired")}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="equipment-manufacturer-code">{t("settings:globalEquipmentManufacturers.colCode")}</Label>
+            <Input
+              id="equipment-manufacturer-code"
+              maxLength={200}
+              placeholder={t("settings:globalEquipmentManufacturers.placeholders.code")}
+              value={code}
+              onChange={e => setCode(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="equipment-manufacturer-description">{t("settings:globalEquipmentManufacturers.placeholders.description")}</Label>
+            <Textarea
+              id="equipment-manufacturer-description"
+              rows={2}
+              maxLength={200}
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t("common:common.cancel")}
+            </Button>
+            <Button type="submit" disabled={pending || nameMissing}>
               {t("common:common.save")}
             </Button>
           </DialogFooter>

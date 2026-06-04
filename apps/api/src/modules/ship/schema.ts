@@ -74,6 +74,21 @@ export const globalEquipmentCategories = sqliteTable("global_equipment_categorie
   uniqueIndex("global_equipment_categories_name_en_idx").on(t.nameEn),
 ]);
 
+// GLOBAL equipment-manufacturer vocabulary: a standalone admin-maintained brand
+// list. Unlike categories it is NOT copied per-ship — equipment references a row
+// here directly via `ship_equipment.manufacturer_id`. Manufacturer names are
+// proper nouns, so each row has a single canonical `name` (no bilingual split).
+export const equipmentManufacturers = sqliteTable("equipment_manufacturers", {
+  id: text("id").primaryKey(), // nanoid
+  name: text("name").notNull(),
+  code: text("code"),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, t => [
+  uniqueIndex("equipment_manufacturers_name_idx").on(t.name),
+]);
+
 // Per-ship equipment categories. Seeded from the global template on ship
 // create, then independently editable per ship. `ship_equipment.category_id`
 // references THIS table, so each ship owns its own category set. Names are
@@ -100,7 +115,7 @@ export const shipEquipment = sqliteTable("ship_equipment", {
   shipId: text("ship_id").notNull().references(() => ships.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   categoryId: text("category_id").references(() => shipEquipmentCategories.id, { onDelete: "set null" }),
-  manufacturer: text("manufacturer"),
+  manufacturerId: text("manufacturer_id").references(() => equipmentManufacturers.id, { onDelete: "set null" }),
   model: text("model"),
   serialNumber: text("serial_number"),
   location: text("location"),
@@ -112,6 +127,7 @@ export const shipEquipment = sqliteTable("ship_equipment", {
 }, t => [
   index("ship_equipment_ship_idx").on(t.shipId),
   index("ship_equipment_category_idx").on(t.categoryId),
+  index("ship_equipment_manufacturer_idx").on(t.manufacturerId),
 ]);
 
 // Worklists. `shipId` NULL = a global knowledge-base entry (copy source only);
