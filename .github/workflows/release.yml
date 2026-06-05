@@ -21,10 +21,9 @@ jobs:
     name: build + push image to ghcr.io
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Manual-approval gate: pushing a `v*` tag does not auto-publish — a
-    # reviewer must approve the deployment to this Environment first. The
-    # Environment (and its required reviewers) is configured in repo settings.
-    environment: release
+    # No approval gate: publishing a GitHub Release builds + pushes the image
+    # automatically. (Previously gated behind the `release` Environment's
+    # required reviewers; removed so release publish auto-publishes.)
     permissions:
       contents: read
       packages: write   # push image to ghcr.io
