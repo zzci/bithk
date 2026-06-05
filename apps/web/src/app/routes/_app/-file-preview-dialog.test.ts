@@ -5,7 +5,8 @@ import { resolvePreviewKind } from "./-file-preview-dialog";
 describe("resolvePreviewKind", () => {
   it("routes images by mimetype", () => {
     expect(resolvePreviewKind("image/png", "a.png")).toBe("image");
-    expect(resolvePreviewKind("image/svg+xml", "a.svg")).toBe("image");
+    // SVG is XSS-fragile, so it is shown as source text, never inline-rendered.
+    expect(resolvePreviewKind("image/svg+xml", "a.svg")).toBe("text");
   });
 
   it("routes pdf by mimetype or extension", () => {

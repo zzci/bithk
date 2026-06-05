@@ -3,7 +3,6 @@
 // user's team directories inline — selecting one opens its file browser
 // directly (the content reuses the shared surface, no separate list page).
 
-import type { ChangeEvent } from "react";
 import type { EditState } from "./-team-directory-list";
 import type { DriveEntry, TeamDirectory } from "@/shared/lib/api/drive";
 import {
@@ -24,6 +23,7 @@ import {
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { FileUploadButton } from "@/shared/components/file";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
@@ -120,10 +120,7 @@ export function DriveSidebar({
 
   const rootOwner = user ? { ownerType: "user" as const, ownerId: user.id, parentEntryId: null } : null;
 
-  const onUploadInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.currentTarget.files;
-    const list = files ? Array.from(files) : [];
-    event.currentTarget.value = "";
+  const onUploadInputChange = (list: File[]) => {
     if (list.length > 0 && rootOwner) {
       enqueueUploads(list, rootOwner);
       onSelect("my-files");
@@ -164,12 +161,11 @@ export function DriveSidebar({
         </DropdownMenu>
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
+      <FileUploadButton
+        inputRef={fileInputRef}
+        accept="any"
         multiple
-        className="hidden"
-        onChange={onUploadInputChange}
+        onSelect={onUploadInputChange}
       />
 
       <CreateFolderDialog

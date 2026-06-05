@@ -74,6 +74,20 @@ const TEXT_EXTENSIONS = new Set([
 
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdx", "mdown", "mkd"]);
 
+// Raster image types safe to inline via the `<img>` renderer. Mirrors the
+// backend `buildDownloadResponse` inline-allowed set (minus pdf). SVG is
+// deliberately excluded — it can carry script, so it is shown as source text,
+// never rendered. Any other `image/*` (avif, heic, x-icon, …) falls through to
+// the download card, matching the backend which also refuses to inline them.
+const INLINE_IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/bmp",
+  "image/tiff",
+]);
+
 function extensionOf(filename: string): string {
   const dot = filename.lastIndexOf(".");
   if (dot <= 0 || dot === filename.length - 1)
@@ -95,7 +109,10 @@ export function resolvePreviewKind(mimetype: string, filename: string): PreviewK
   // broken in-dialog render.
   if (mime === UNIVER_SHEET_MIME)
     return "unsupported";
-  if (mime.startsWith("image/"))
+  // SVG is XSS-fragile; show its source instead of rendering it inline.
+  if (mime === "image/svg+xml")
+    return "text";
+  if (INLINE_IMAGE_TYPES.has(mime))
     return "image";
   if (mime === "application/pdf" || ext === "pdf")
     return "pdf";

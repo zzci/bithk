@@ -453,7 +453,6 @@ async function importIssues(db: AppDatabase, config: Config): Promise<{ issues: 
           ownerType: "item_attachment",
           ownerId: item.id,
           uploadedBy: proj.creatorUserId,
-          allowAnyType: true,
         });
         attachments++;
       }
@@ -520,7 +519,6 @@ async function importProcurements(db: AppDatabase, config: Config): Promise<{ pr
           ownerType: "item_attachment",
           ownerId: proc.id,
           uploadedBy: proj.creatorUserId,
-          allowAnyType: true,
         });
         attachments++;
       }
@@ -581,7 +579,6 @@ async function importDocuments(db: AppDatabase, config: Config): Promise<{ docum
           ownerType: "item_attachment",
           ownerId: item,
           uploadedBy: uId(d.creator),
-          allowAnyType: true,
         });
         attachments++;
       }

@@ -15,6 +15,7 @@ import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/shared/components/editor";
+import { FileUploadButton } from "@/shared/components/file";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -168,27 +169,20 @@ export function ResourceCommentSection({
     },
   });
 
-  const handlePickPending = (files: FileList | null) => {
-    if (!files || files.length === 0)
+  const handlePickPending = (files: File[]) => {
+    if (files.length === 0)
       return;
     setError(null);
-    const selected = Array.from(files);
-    const v = validateAttachmentSelection(selected, pendingFiles.length, limits.maxFileSize, limits.maxAttachmentsPerResource);
+    const v = validateAttachmentSelection(files, pendingFiles.length, limits.maxFileSize, limits.maxAttachmentsPerResource);
     if (v === "limit") {
       setError(t("attachments.limitReached"));
-      if (composerFileInputRef.current)
-        composerFileInputRef.current.value = "";
       return;
     }
     if (v === "size") {
       setError(t("attachments.fileTooLarge"));
-      if (composerFileInputRef.current)
-        composerFileInputRef.current.value = "";
       return;
     }
-    setPendingFiles(prev => [...prev, ...selected]);
-    if (composerFileInputRef.current)
-      composerFileInputRef.current.value = "";
+    setPendingFiles(prev => [...prev, ...files]);
   };
 
   const remove = useMutation({
@@ -296,12 +290,11 @@ export function ResourceCommentSection({
               >
                 <Paperclip className="size-4" />
               </Button>
-              <input
-                ref={composerFileInputRef}
-                type="file"
+              <FileUploadButton
+                inputRef={composerFileInputRef}
+                accept="any"
                 multiple
-                className="hidden"
-                onChange={e => handlePickPending(e.target.files)}
+                onSelect={handlePickPending}
               />
             </>
           )}
@@ -501,25 +494,20 @@ function CommentAttachments({
     onError: err => setError(errorMessage(err, t("common.error.uploadFailed"))),
   });
 
-  const handleUpload = (files: FileList | null) => {
-    if (!files || files.length === 0 || upload.isPending)
+  const handleUpload = (files: File[]) => {
+    if (files.length === 0 || upload.isPending)
       return;
     setError(null);
-    const selected = Array.from(files);
-    const validation = validateAttachmentSelection(selected, attachmentCount, limits.maxFileSize, limits.maxAttachmentsPerResource);
+    const validation = validateAttachmentSelection(files, attachmentCount, limits.maxFileSize, limits.maxAttachmentsPerResource);
     if (validation === "limit") {
       setError(t("attachments.limitReached"));
-      if (fileInputRef.current)
-        fileInputRef.current.value = "";
       return;
     }
     if (validation === "size") {
       setError(t("attachments.fileTooLarge"));
-      if (fileInputRef.current)
-        fileInputRef.current.value = "";
       return;
     }
-    upload.mutate(selected);
+    upload.mutate(files);
   };
 
   return (
@@ -543,12 +531,11 @@ function CommentAttachments({
             <Paperclip className="size-3" />
             {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
           </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
+          <FileUploadButton
+            inputRef={fileInputRef}
+            accept="any"
             multiple
-            className="hidden"
-            onChange={e => handleUpload(e.target.files)}
+            onSelect={handleUpload}
           />
         </div>
       )}

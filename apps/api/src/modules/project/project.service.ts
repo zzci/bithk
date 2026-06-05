@@ -6,7 +6,7 @@ import type { ResourceTagUsageView } from "@/modules/tag/tag.service";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { runWrite } from "@/db";
 import { users } from "@/modules/account/users/schema";
-import { finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
+import { ACCEPT_IMAGES, finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
 import { issueDetails } from "@/modules/issue/schema";
 import { items } from "@/modules/item/schema";
@@ -566,6 +566,7 @@ export async function setProjectCover(
     ownerType: PROJECT_COVER_OWNER_TYPE,
     ownerId: projectId,
     uploadedBy,
+    accept: ACCEPT_IMAGES,
   });
 
   const now = new Date().toISOString();
@@ -658,6 +659,7 @@ export async function setDefaultProjectCover(
     ownerType: PROJECT_DEFAULT_COVER_OWNER_TYPE,
     ownerId: PROJECT_DEFAULT_COVER_OWNER_ID,
     uploadedBy,
+    accept: ACCEPT_IMAGES,
   });
 
   // Repoint the setting + release the old reference atomically (F4): the

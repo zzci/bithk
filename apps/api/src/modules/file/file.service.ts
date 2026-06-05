@@ -26,7 +26,41 @@ export interface FileServiceConfig {
   readonly FILE_PRESIGN_TTL_SECONDS: number;
 }
 
-const ALLOWED_MIMETYPES = /^(?:image\/.*|application\/pdf|text\/.*|application\/zip|application\/x-7z-compressed)$/;
+/**
+ * Accepted-type policy, passed in per call. BITHK is an OA system: a generic
+ * file surface must never refuse an upload, so {@link ACCEPT_ANY} is the
+ * default and type-blocking is deferred to the serve layer (see
+ * {@link buildDownloadResponse}). This is the SINGLE canonical, fully
+ * parameter-driven type filter — every surface passes its own policy and the
+ * file module is the one place that evaluates it (via {@link policyAllows}), so
+ * routes never carry per-type logic.
+ *
+ * Three forms:
+ * - `"any"` — never blocks (the OA default).
+ * - `{ allow }` — an allow-list of mime patterns (exact string or RegExp).
+ * - `(mime) => boolean` — an arbitrary predicate.
+ *
+ * Under ANY restrictive form (allow-list or predicate) the magic-byte
+ * integrity check also runs; under `"any"` it does not.
+ */
+export type FileTypePolicy
+  = | "any"
+    | { readonly allow: readonly (string | RegExp)[] }
+    | ((mime: string) => boolean);
+
+/** Accept every mime type — the default for generic OA file surfaces. */
+export const ACCEPT_ANY: FileTypePolicy = "any";
+
+/** Restrict to image mime types — avatars and cover images. */
+export const ACCEPT_IMAGES: FileTypePolicy = { allow: [/^image\//] };
+
+export function policyAllows(policy: FileTypePolicy, mime: string): boolean {
+  if (policy === "any")
+    return true;
+  if (typeof policy === "function")
+    return policy(mime);
+  return policy.allow.some(p => (typeof p === "string" ? p === mime : p.test(mime)));
+}
 
 export interface UploadInput {
   readonly file: File;
@@ -35,13 +69,15 @@ export interface UploadInput {
   readonly uploadedBy: string;
   readonly metadata?: Record<string, unknown> | undefined;
   /**
-   * Skip the MIME allow-list and magic-byte match. The size ceiling and
-   * per-resource/quota limits still apply. Used by the drive module, which
-   * is a general file manager that accepts any file type; downloads are
-   * always served as attachments for non-inline-safe types, so arbitrary
-   * uploads cannot be executed inline.
+   * Accepted-type policy for this upload. Defaults to {@link ACCEPT_ANY} —
+   * generic OA surfaces accept any file. Image-only surfaces pass
+   * {@link ACCEPT_IMAGES}. Under a restrictive policy the declared mime must
+   * match the allow-list AND the sniffed magic bytes; under `"any"` no type
+   * gate runs at all. The size ceiling and per-resource/quota limits always
+   * apply regardless of policy. Downloads are served as attachments for every
+   * non-inline-safe type, so an arbitrary upload can never execute inline.
    */
-  readonly allowAnyType?: boolean | undefined;
+  readonly accept?: FileTypePolicy | undefined;
   /**
    * Permit a zero-byte file. Server-generated text files (the drive "new
    * document" flow) are created empty and filled in via the editor
@@ -72,11 +108,12 @@ export async function uploadAndReference(
   input: UploadInput,
 ): Promise<UploadResult> {
   const { file, ownerType, ownerId, uploadedBy } = input;
+  const policy = input.accept ?? ACCEPT_ANY;
 
   if (!isWithinFileSize(file.size, config) && !(input.allowEmpty && file.size === 0)) {
     throw new AppError("File size exceeds per-file limit", 400, "FILE_TOO_LARGE");
   }
-  if (!input.allowAnyType && !ALLOWED_MIMETYPES.test(file.type)) {
+  if (policy !== "any" && !policyAllows(policy, file.type)) {
     throw new AppError("File type not allowed", 400, "INVALID_MIMETYPE");
   }
 
@@ -87,8 +124,12 @@ export async function uploadAndReference(
   // memory profile fine.
   const buffer = await file.arrayBuffer();
 
+  // Magic-byte integrity check applies ONLY under a restrictive policy: a
+  // generic OA surface (`"any"`) must accept arbitrary bytes, whereas an
+  // image-only surface must reject a file that *declares* an image type but
+  // whose content is not one.
   const sniffWindow = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 1024));
-  if (!input.allowAnyType && !mimeMatchesContent(file.type, sniffWindow)) {
+  if (policy !== "any" && !mimeMatchesContent(file.type, sniffWindow)) {
     throw new AppError("File contents do not match declared type", 400, "MIME_MISMATCH");
   }
 

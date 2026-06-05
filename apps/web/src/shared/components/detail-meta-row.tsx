@@ -8,6 +8,7 @@
 import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import { ChevronDown, Paperclip, Pencil } from "lucide-react";
 import { useRef } from "react";
+import { FileUploadButton } from "@/shared/components/file";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -233,7 +234,7 @@ interface MetaActionsProps {
   readonly editLabel: string;
   readonly onEditClick: () => void;
   readonly fileInputRef: React.RefObject<HTMLInputElement | null>;
-  readonly onFilesSelected: (files: FileList | null) => void;
+  readonly onFilesSelected: (files: File[]) => void;
 }
 
 export function MetaActions({
@@ -276,12 +277,11 @@ export function MetaActions({
           </Button>
         )}
       </div>
-      <input
-        ref={fileInputRef}
-        type="file"
+      <FileUploadButton
+        inputRef={fileInputRef}
+        accept="any"
         multiple
-        className="hidden"
-        onChange={e => onFilesSelected(e.target.files)}
+        onSelect={onFilesSelected}
       />
     </>
   );
