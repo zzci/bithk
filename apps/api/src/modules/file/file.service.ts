@@ -30,20 +30,36 @@ export interface FileServiceConfig {
  * Accepted-type policy, passed in per call. BITHK is an OA system: a generic
  * file surface must never refuse an upload, so {@link ACCEPT_ANY} is the
  * default and type-blocking is deferred to the serve layer (see
- * {@link buildDownloadResponse}). Image-only surfaces (avatars, cover images)
- * opt into a restrictive allow-list with {@link ACCEPT_IMAGES}; the magic-byte
- * integrity check runs only under a restrictive policy.
+ * {@link buildDownloadResponse}). This is the SINGLE canonical, fully
+ * parameter-driven type filter — every surface passes its own policy and the
+ * file module is the one place that evaluates it (via {@link policyAllows}), so
+ * routes never carry per-type logic.
+ *
+ * Three forms:
+ * - `"any"` — never blocks (the OA default).
+ * - `{ allow }` — an allow-list of mime patterns (exact string or RegExp).
+ * - `(mime) => boolean` — an arbitrary predicate.
+ *
+ * Under ANY restrictive form (allow-list or predicate) the magic-byte
+ * integrity check also runs; under `"any"` it does not.
  */
-export type FileTypePolicy = "any" | { readonly allow: RegExp };
+export type FileTypePolicy
+  = | "any"
+    | { readonly allow: readonly (string | RegExp)[] }
+    | ((mime: string) => boolean);
 
 /** Accept every mime type — the default for generic OA file surfaces. */
 export const ACCEPT_ANY: FileTypePolicy = "any";
 
 /** Restrict to image mime types — avatars and cover images. */
-export const ACCEPT_IMAGES: FileTypePolicy = { allow: /^image\// };
+export const ACCEPT_IMAGES: FileTypePolicy = { allow: [/^image\//] };
 
-function policyAllows(policy: FileTypePolicy, mime: string): boolean {
-  return policy === "any" || policy.allow.test(mime);
+export function policyAllows(policy: FileTypePolicy, mime: string): boolean {
+  if (policy === "any")
+    return true;
+  if (typeof policy === "function")
+    return policy(mime);
+  return policy.allow.some(p => (typeof p === "string" ? p === mime : p.test(mime)));
 }
 
 export interface UploadInput {
