@@ -130,25 +130,20 @@ export function ProjectIssuePanel({
     onError: err => setError(errorMessage(err, t("common.error.uploadFailed"))),
   });
 
-  const handleUpload = (files: FileList | null) => {
-    if (!files || files.length === 0 || upload.isPending)
+  const handleUpload = (files: File[]) => {
+    if (files.length === 0 || upload.isPending)
       return;
     setError(null);
-    const selected = Array.from(files);
-    const validation = validateAttachmentSelection(selected, attachmentCount, limits.maxFileSize, limits.maxAttachmentsPerResource);
+    const validation = validateAttachmentSelection(files, attachmentCount, limits.maxFileSize, limits.maxAttachmentsPerResource);
     if (validation === "limit") {
       setError(t("attachments.limitReached"));
-      if (fileInputRef.current)
-        fileInputRef.current.value = "";
       return;
     }
     if (validation === "size") {
       setError(t("attachments.fileTooLarge"));
-      if (fileInputRef.current)
-        fileInputRef.current.value = "";
       return;
     }
-    upload.mutate(selected);
+    upload.mutate(files);
   };
 
   const patch = (body: UpdateProjectIssueInput) => {

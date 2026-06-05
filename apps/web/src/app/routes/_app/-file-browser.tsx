@@ -6,7 +6,7 @@
 // the surface `actions` bag. The list rendering, search, filters, sorting,
 // selection, and context menus all live in the surface.
 
-import type { ChangeEvent, DragEvent } from "react";
+import type { DragEvent } from "react";
 import type {
   DriveFileListCapabilities,
   DriveFileListSurfaceActions,
@@ -20,6 +20,7 @@ import { FolderInput, History, Upload } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { FileUploadButton } from "@/shared/components/file";
 import { useShare } from "@/shared/components/share";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -219,10 +220,7 @@ export function FileBrowser({
     enqueueUploads(files, { ownerType, ownerId, parentEntryId });
   }, [enqueueUploads, parentEntryId, ownerType, ownerId]);
 
-  const onUploadInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.currentTarget.files;
-    const list = files ? Array.from(files) : [];
-    event.currentTarget.value = "";
+  const onUploadInputChange = (list: File[]) => {
     if (list.length > 0)
       uploadFiles(list);
   };
@@ -230,9 +228,8 @@ export function FileBrowser({
   // Read a picked CSV, convert it to a Univer snapshot, create the spreadsheet
   // entry, then open it in the editor. Parsing happens client-side (no Univer
   // import) so the heavy editor engine only loads when the editor dialog opens.
-  const onCsvInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = "";
+  const onCsvInputChange = async (files: File[]) => {
+    const file = files[0];
     if (!file)
       return;
     const baseName = file.name.replace(/\.csv$/i, "") || file.name;
@@ -408,30 +405,23 @@ export function FileBrowser({
         </div>
       )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
+      <FileUploadButton
+        inputRef={fileInputRef}
+        accept="any"
         multiple
-        className="hidden"
-        onChange={onUploadInputChange}
+        onSelect={onUploadInputChange}
       />
-      <input
-        ref={(node) => {
-          folderInputRef.current = node;
-          node?.setAttribute("webkitdirectory", "");
-          node?.setAttribute("directory", "");
-        }}
-        type="file"
+      <FileUploadButton
+        inputRef={folderInputRef}
+        accept="any"
         multiple
-        className="hidden"
-        onChange={onUploadInputChange}
+        directory
+        onSelect={onUploadInputChange}
       />
-      <input
-        ref={csvInputRef}
-        type="file"
-        accept=".csv,text/csv"
-        className="hidden"
-        onChange={event => void onCsvInputChange(event)}
+      <FileUploadButton
+        inputRef={csvInputRef}
+        acceptOverride=".csv,text/csv"
+        onSelect={files => void onCsvInputChange(files)}
       />
 
       <DriveFileListSurface
