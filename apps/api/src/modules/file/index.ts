@@ -20,6 +20,7 @@ export {
   getReferenceById,
   listAttachmentsByOwner,
   makeAttachmentView,
+  policyAllows,
   releaseAllByOwner,
   releaseReference,
   releaseReferenceTx,
