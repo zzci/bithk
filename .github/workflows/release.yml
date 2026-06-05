@@ -1,8 +1,12 @@
 name: release
 
 on:
-  push:
-    tags: ["v*"]
+  # Driven by publishing a GitHub Release (created against main via
+  # `gh release create vX.Y.Z --target main` or the web UI). The release
+  # creates the tag on the remote, so no local `git tag` push is needed.
+  # The workflow file used is always the one on the default branch.
+  release:
+    types: [published]
 
 # Minimal default — the publishing job widens this to exactly what it needs.
 permissions:
