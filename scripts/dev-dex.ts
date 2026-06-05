@@ -114,19 +114,30 @@ staticClients:
     name: ${APP_NAME} dev
 enablePasswordDB: true
 staticPasswords:
-  # bcrypt hash of "admin" — local dev only, matches the e2e fixture so
-  # the same admin@example.com / admin credential works in both
-  # "bun run dev" and "bun run test:e2e". Operators who do not want a
-  # publicly-known password rotate staticPasswords here, or point
-  # OAUTH_ISSUER at a real IdP and skip dev:dex entirely.
+  # 5 local-dev accounts; the bcrypt hash below is "aaaaa" for every one.
+  # admin@bit.hk (= DEFAULT_ADMIN) becomes the app admin on first login.
+  # Local dev only — rotate these or point OAUTH_ISSUER at a real IdP for
+  # anything non-dev. (The e2e suite uses its own separate dex fixture.)
   - email: ${DEFAULT_ADMIN}
-    hash: "$2b$10$UrL8u9yDL7isi7fFZnKwJuT3tWh3zIs3jlbEK4glmIK/zZZqNNBcO"
+    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
     username: admin
     userID: dev-admin
-  - email: user@example.com
-    hash: "$2b$10$UrL8u9yDL7isi7fFZnKwJuT3tWh3zIs3jlbEK4glmIK/zZZqNNBcO"
-    username: user
-    userID: dev-user
+  - email: alan@bit.hk
+    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    username: alan
+    userID: dev-alan
+  - email: tom@bit.hk
+    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    username: tom
+    userID: dev-tom
+  - email: alice@bit.hk
+    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    username: alice
+    userID: dev-alice
+  - email: aoe@bit.hk
+    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    username: aoe
+    userID: dev-aoe
 `;
 const DEX_CONFIG_TEMPLATE = `${DEX_CONFIG}.template`;
 writeFileSync(DEX_CONFIG_TEMPLATE, dexConfigTemplate);
@@ -195,7 +206,7 @@ if (!dexReady) {
   dex.kill();
   process.exit(1);
 }
-console.log(`[dev-dex] dex ready · login: ${DEFAULT_ADMIN} / admin`);
+console.log(`[dev-dex] dex ready · login: ${DEFAULT_ADMIN} / aaaaa (also alan@bit.hk, tom@bit.hk, alice@bit.hk, aoe@bit.hk — all password aaaaa)`);
 console.log("[dev-dex] expected .env (matching values):");
 console.log(`            OAUTH_ISSUER=${DEX_ISSUER}`);
 console.log(`            OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}`);
