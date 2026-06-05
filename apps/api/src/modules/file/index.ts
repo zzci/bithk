@@ -9,8 +9,10 @@ import { getDriver, setActiveDriver } from "./storage/registry";
 import "./storage/local";
 
 export { fileRoutes } from "./file.routes";
-export type { DrainedBlob, FileServiceConfig } from "./file.service";
+export type { DrainedBlob, FileServiceConfig, FileTypePolicy } from "./file.service";
 export {
+  ACCEPT_ANY,
+  ACCEPT_IMAGES,
   addReference,
   buildDownloadResponse,
   finalizeReleasedBlob,

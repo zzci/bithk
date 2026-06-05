@@ -5,10 +5,10 @@ import { isWithinFileSize } from "@/shared/lib/upload-limits";
 /**
  * Drive-level upload guard. The drive is a general file manager, so it accepts
  * any file type — only the empty-file and per-file size limits are enforced
- * here (mirroring what the drive routes pass to `uploadAndReference` with
- * `allowAnyType: true`). Type-based restrictions are intentionally NOT applied:
- * downloads are served as attachments for everything except a small
- * inline-safe media set, so arbitrary uploads cannot execute inline.
+ * here (`uploadAndReference` defaults to the `ACCEPT_ANY` type policy, so the
+ * drive needs no type allow-list). Type-based restrictions are intentionally
+ * NOT applied: downloads are served as attachments for everything except a
+ * small inline-safe media set, so arbitrary uploads cannot execute inline.
  *
  * Univer spreadsheet snapshots (`application/x-univer-sheet`) flow through this
  * guard unchanged when the web saves a new version: only size/empty are gated,

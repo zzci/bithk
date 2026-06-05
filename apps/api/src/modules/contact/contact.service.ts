@@ -5,7 +5,7 @@ import type { AppDatabase, AppTransaction } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
 import { and, count, desc, eq, inArray, not, or, sql } from "drizzle-orm";
 import { runWrite } from "@/db";
-import { finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
+import { ACCEPT_IMAGES, finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { createTuple, deleteTupleByKey } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
@@ -610,6 +610,7 @@ export async function setAvatar(
     ownerType: CONTACT_AVATAR_OWNER_TYPE,
     ownerId: id,
     uploadedBy: actor.id,
+    accept: ACCEPT_IMAGES,
   });
 
   const now = new Date().toISOString();

@@ -84,7 +84,6 @@ export async function uploadEntryVersion(
     ownerType: "drive_entry",
     ownerId: input.entry.id,
     uploadedBy: input.uploadedBy,
-    allowAnyType: true,
   });
 
   try {

@@ -337,8 +337,6 @@ export function contactRoutes() {
     const file = formData.get("file");
     if (!(file instanceof File))
       throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-    if (!file.type.startsWith("image/"))
-      throw new AppError("Avatar must be an image file", 400, "INVALID_MIMETYPE");
 
     const data = await contactService.setAvatar(c.get("db"), actorOf(c), id, file, c.get("config"));
     await audit(c.get("db"), c.get("logger"), {
