@@ -442,8 +442,6 @@ export function shipRoutes() {
     const file = formData.get("file");
     if (!(file instanceof File))
       throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-    if (!file.type.startsWith("image/"))
-      throw new AppError("Cover image must be an image file", 400, "INVALID_MIMETYPE");
 
     const updated = await setShipCover(db, c.get("config"), ship.id, file, actorId(c));
     if (!updated)

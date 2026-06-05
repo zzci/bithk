@@ -349,7 +349,6 @@ export async function uploadDriveFile(
     ownerType: "drive_entry",
     ownerId: id,
     uploadedBy: input.createdBy,
-    allowAnyType: true,
   });
 
   try {
@@ -409,7 +408,6 @@ export async function createDriveTextFile(
     ownerType: "drive_entry",
     ownerId: id,
     uploadedBy: input.createdBy,
-    allowAnyType: true,
     allowEmpty: true,
   });
 
@@ -472,7 +470,6 @@ export async function createDriveSpreadsheet(
     ownerType: "drive_entry",
     ownerId: id,
     uploadedBy: input.createdBy,
-    allowAnyType: true,
     allowEmpty: true,
   });
 

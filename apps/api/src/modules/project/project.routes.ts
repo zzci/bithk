@@ -277,8 +277,6 @@ export function projectRoutes() {
     const file = formData.get("file");
     if (!(file instanceof File))
       throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-    if (!file.type.startsWith("image/"))
-      throw new AppError("Cover image must be an image file", 400, "INVALID_MIMETYPE");
     const result = await setDefaultProjectCover(db, c.get("config"), file, actorId(c));
     return c.json({ success: true, data: result });
   });
@@ -373,8 +371,6 @@ export function projectRoutes() {
     const file = formData.get("file");
     if (!(file instanceof File))
       throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-    if (!file.type.startsWith("image/"))
-      throw new AppError("Cover image must be an image file", 400, "INVALID_MIMETYPE");
 
     const updated = await setProjectCover(db, c.get("config"), projectId, file, actorId(c));
     if (!updated)
