@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { MarkdownEditor } from "@/shared/components/editor";
+import { FileUploadButton } from "@/shared/components/file";
 import {
   partitionBySize,
   ResourceFooterSections,
@@ -67,10 +68,10 @@ export function DocumentDetail({
     resourceId: docId,
     onError: err => toast.error(errorMessage(err, t("common.error.operationFailed"))),
   });
-  const handleUploadFiles = useCallback((files: FileList | null) => {
-    if (!files || files.length === 0)
+  const handleUploadFiles = useCallback((files: File[]) => {
+    if (files.length === 0)
       return;
-    const selected = Array.from(files);
+    const selected = files;
     const remainingSlots = limits.maxAttachmentsPerResource - attachmentCount;
     if (remainingSlots <= 0 || selected.length > remainingSlots) {
       toast.error(t("attachments.limitReached"));
@@ -275,12 +276,11 @@ export function DocumentDetail({
               )
             : (
                 <>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
+                  <FileUploadButton
+                    inputRef={fileInputRef}
+                    accept="any"
                     multiple
-                    className="hidden"
-                    onChange={e => handleUploadFiles(e.target.files)}
+                    onSelect={handleUploadFiles}
                   />
                   <Tooltip>
                     <TooltipTrigger

@@ -13,9 +13,10 @@
 import type { ContactFormState } from "./-contact-form-logic";
 import type { ContactKind, ContactOrganizationSummary, ContactSensitivity, ContactStatus, ContactView } from "@/shared/lib/api/contacts";
 import { Building2, Edit3, Lock, Share2, Trash2, Upload, User } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
+import { FileUploadButton } from "@/shared/components/file";
 import { TagChips, TagInput } from "@/shared/components/tags";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
@@ -640,7 +641,6 @@ function ContactAvatar({
   const { t } = useTranslation(["contacts", "common"]);
   const setAvatar = useSetContactAvatar();
   const removeAvatar = useRemoveContactAvatar();
-  const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(editable ? avatarUrl ?? null : src ?? null);
 
   /* eslint-disable react/set-state-in-effect -- re-seed the preview when the target contact changes. */
@@ -672,9 +672,8 @@ function ContactAvatar({
       : null;
   const fieldLabel = kind === "organization" ? t("avatar.logoLabel") : t("avatar.photoLabel");
 
-  const handlePick = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  const handlePick = (files: File[]) => {
+    const file = files[0];
     if (!file || !contactId)
       return;
     setAvatar.mutate({ id: contactId, file }, { onSuccess: data => setPreview(data.avatarUrl) });
@@ -693,17 +692,17 @@ function ContactAvatar({
       <div className="flex items-center gap-4">
         {picture}
         <div className="flex flex-col gap-2">
-          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handlePick} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={pending || !contactId}
-            onClick={() => inputRef.current?.click()}
-          >
-            <Upload aria-hidden="true" />
-            {preview ? t("avatar.replace") : t("avatar.upload")}
-          </Button>
+          <FileUploadButton accept="image" disabled={pending || !contactId} onSelect={handlePick}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={pending || !contactId}
+            >
+              <Upload aria-hidden="true" />
+              {preview ? t("avatar.replace") : t("avatar.upload")}
+            </Button>
+          </FileUploadButton>
           {preview && contactId && (
             <Button type="button" variant="outline" size="sm" disabled={pending} onClick={handleRemove}>
               <Trash2 className="text-destructive" aria-hidden="true" />

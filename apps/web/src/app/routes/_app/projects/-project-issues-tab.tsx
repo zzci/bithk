@@ -30,6 +30,7 @@ import {
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { FileUploadButton } from "@/shared/components/file";
 import { ListFilter } from "@/shared/components/list-filter";
 import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
 import { PinToggle } from "@/shared/components/pin-toggle";
@@ -555,9 +556,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
 
   // Stage a file selection: validate against the same limits the issue panel
   // enforces (count + per-file size), then keep accepted files in state.
-  const onPickFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  const onPickFiles = (picked: File[]) => {
     if (picked.length === 0)
       return;
     const validation = validateAttachmentSelection(picked, files.length, limits.maxFileSize, limits.maxAttachmentsPerResource);
@@ -802,14 +801,11 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
               {t("issues.composer.attach")}
               {files.length > 0 && <span className="tabular-nums">{`· ${files.length}`}</span>}
             </Button>
-            <input
-              ref={attachInputRef}
-              type="file"
+            <FileUploadButton
+              inputRef={attachInputRef}
+              accept="any"
               multiple
-              tabIndex={-1}
-              aria-label={t("issues.composer.attach")}
-              onChange={onPickFiles}
-              className="sr-only"
+              onSelect={onPickFiles}
             />
 
             {/* Worklist pill: only on a ship base project. Opens the picker; a

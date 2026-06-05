@@ -4,8 +4,8 @@
 // handlers. Replaces the per-module ProjectCoverField / ShipCoverField copies.
 
 import { Trash2, Upload } from "lucide-react";
-import { useRef } from "react";
 import { CoverImage } from "@/shared/components/cover-image";
+import { FileUploadButton } from "@/shared/components/file";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Label } from "@/shared/components/ui/label";
@@ -34,15 +34,6 @@ interface CoverFieldProps {
 }
 
 export function CoverField({ kind, src, pending, error, onPick, onRemove, labels }: CoverFieldProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handlePick = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file)
-      onPick(file);
-    event.target.value = "";
-  };
-
   return (
     <div className="space-y-2">
       <Label>{labels.field}</Label>
@@ -50,11 +41,16 @@ export function CoverField({ kind, src, pending, error, onPick, onRemove, labels
       <div className="flex items-center gap-4">
         <CoverImage src={src} kind={kind} className="h-24 w-40 shrink-0 rounded-lg border" />
         <div className="flex flex-col gap-2">
-          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handlePick} />
-          <Button type="button" variant="outline" disabled={pending} onClick={() => inputRef.current?.click()}>
-            <Upload aria-hidden="true" />
-            {src ? labels.replace : labels.upload}
-          </Button>
+          <FileUploadButton
+            accept="image"
+            disabled={pending}
+            onSelect={files => files[0] && onPick(files[0])}
+          >
+            <Button type="button" variant="outline" disabled={pending}>
+              <Upload aria-hidden="true" />
+              {src ? labels.replace : labels.upload}
+            </Button>
+          </FileUploadButton>
           {src && (
             <Button type="button" variant="outline" disabled={pending} onClick={onRemove}>
               <Trash2 className="text-destructive" aria-hidden="true" />

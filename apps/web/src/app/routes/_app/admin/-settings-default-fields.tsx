@@ -7,10 +7,10 @@
 // New projects are always created active, so there is no default-status setting.
 
 import { Trash2, Upload } from "lucide-react";
-import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
+import { FileUploadButton } from "@/shared/components/file";
 import { Button } from "@/shared/components/ui/button";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Label } from "@/shared/components/ui/label";
@@ -36,7 +36,6 @@ export function ProjectDefaultFieldsSection() {
 // its own mutation (type="button"), mirroring the per-project cover field.
 function DefaultCoverField() {
   const { t } = useTranslation(["settings", "common"]);
-  const inputRef = useRef<HTMLInputElement>(null);
   const coverQuery = useDefaultCover();
   const uploadCover = useUploadDefaultCover();
   const removeCover = useRemoveDefaultCover();
@@ -46,15 +45,14 @@ function DefaultCoverField() {
   const pending = uploadCover.isPending || removeCover.isPending;
   const error = uploadCover.error ?? removeCover.error;
 
-  const onPick = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const onPick = (files: File[]) => {
+    const file = files[0];
     if (file) {
       uploadCover.mutate(file, {
         onSuccess: () => toast.success(t("settings:projectDefaults.defaults.toast.coverSaved")),
         onError: err => toast.error(errorMessage(err, t("common:common.error.uploadFailed"))),
       });
     }
-    event.target.value = "";
   };
 
   const onRemove = () => {
@@ -71,11 +69,12 @@ function DefaultCoverField() {
       <div className="flex items-center gap-4">
         <CoverImage src={url} kind="project" className="h-24 w-40 shrink-0 rounded-lg border" />
         <div className="flex flex-col gap-2">
-          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
-          <Button type="button" variant="outline" disabled={pending} onClick={() => inputRef.current?.click()}>
-            <Upload aria-hidden="true" />
-            {hasCover ? t("settings:projectDefaults.defaults.coverReplace") : t("settings:projectDefaults.defaults.coverUpload")}
-          </Button>
+          <FileUploadButton accept="image" disabled={pending} onSelect={onPick}>
+            <Button type="button" variant="outline" disabled={pending}>
+              <Upload aria-hidden="true" />
+              {hasCover ? t("settings:projectDefaults.defaults.coverReplace") : t("settings:projectDefaults.defaults.coverUpload")}
+            </Button>
+          </FileUploadButton>
           {hasCover && (
             <Button type="button" variant="outline" disabled={pending} onClick={onRemove}>
               <Trash2 className="text-destructive" aria-hidden="true" />
