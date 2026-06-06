@@ -114,28 +114,28 @@ staticClients:
     name: ${APP_NAME} dev
 enablePasswordDB: true
 staticPasswords:
-  # 5 local-dev accounts; the bcrypt hash below is "aaaaa" for every one.
+  # 5 local-dev accounts; the bcrypt hash below is "aaa888" for every one.
   # admin@bit.hk (= DEFAULT_ADMIN) becomes the app admin on first login.
   # Local dev only — rotate these or point OAUTH_ISSUER at a real IdP for
   # anything non-dev. (The e2e suite uses its own separate dex fixture.)
   - email: ${DEFAULT_ADMIN}
-    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    hash: "$2b$10$6e1KtwoD4mxw7S9AXG1acOi9Rjl3tLmtbIGxH7b5KCBL/9yHOOccq"
     username: admin
     userID: dev-admin
   - email: alan@bit.hk
-    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    hash: "$2b$10$6e1KtwoD4mxw7S9AXG1acOi9Rjl3tLmtbIGxH7b5KCBL/9yHOOccq"
     username: alan
     userID: dev-alan
   - email: tom@bit.hk
-    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    hash: "$2b$10$6e1KtwoD4mxw7S9AXG1acOi9Rjl3tLmtbIGxH7b5KCBL/9yHOOccq"
     username: tom
     userID: dev-tom
   - email: alice@bit.hk
-    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    hash: "$2b$10$6e1KtwoD4mxw7S9AXG1acOi9Rjl3tLmtbIGxH7b5KCBL/9yHOOccq"
     username: alice
     userID: dev-alice
   - email: aoe@bit.hk
-    hash: "$2b$10$ebSqGLrIrohw7mEqBRnmhOmgKYfVgquSRaepsbMBH3E1wU87RMe6e"
+    hash: "$2b$10$6e1KtwoD4mxw7S9AXG1acOi9Rjl3tLmtbIGxH7b5KCBL/9yHOOccq"
     username: aoe
     userID: dev-aoe
 `;
@@ -206,7 +206,7 @@ if (!dexReady) {
   dex.kill();
   process.exit(1);
 }
-console.log(`[dev-dex] dex ready · login: ${DEFAULT_ADMIN} / aaaaa (also alan@bit.hk, tom@bit.hk, alice@bit.hk, aoe@bit.hk — all password aaaaa)`);
+console.log(`[dev-dex] dex ready · login: ${DEFAULT_ADMIN} / aaa888 (also alan@bit.hk, tom@bit.hk, alice@bit.hk, aoe@bit.hk — all password aaa888)`);
 console.log("[dev-dex] expected .env (matching values):");
 console.log(`            OAUTH_ISSUER=${DEX_ISSUER}`);
 console.log(`            OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}`);

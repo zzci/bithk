@@ -819,7 +819,7 @@ async function main(): Promise<void> {
     console.log(`  cron:         ${cron.jobs} jobs, ${cron.logs} logs`);
     console.log(`  audit:        ${audits} events`);
     console.log(`  settings:     ${settingsCount}`);
-    console.log(`\nAdmin demo account: username "seed-admin" (oauth_sub "seed|seed-admin", admin@seed.local).`);
+    console.log(`\nNo admin is seeded: the first DEFAULT_ADMIN to sign in via OIDC is promoted to admin (bootstrap on empty admin set).`);
   }
   finally {
     db.close();
