@@ -208,6 +208,10 @@ CREATE TABLE `drive_entries` (
 	`created_by` text NOT NULL,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	`current_content_body` text,
+	`edit_lock_id` text,
+	`edit_lock_by` text,
+	`edit_lock_at` integer,
 	FOREIGN KEY (`file_reference_id`) REFERENCES `file_references`(`id`) ON UPDATE no action ON DELETE restrict,
 	FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -491,6 +495,16 @@ CREATE INDEX `shares_created_by_idx` ON `shares` (`created_by`);--> statement-br
 CREATE INDEX `shares_shared_with_idx` ON `shares` (`shared_with_user_id`);--> statement-breakpoint
 CREATE INDEX `shares_share_type_idx` ON `shares` (`share_type`);--> statement-breakpoint
 CREATE INDEX `shares_active_expires_idx` ON `shares` (`is_active`,`expires_at`);--> statement-breakpoint
+CREATE TABLE `equipment_manufacturers` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`code` text,
+	`description` text,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `equipment_manufacturers_name_idx` ON `equipment_manufacturers` (`name`);--> statement-breakpoint
 CREATE TABLE `global_equipment_categories` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name_zh` text NOT NULL,
@@ -508,7 +522,7 @@ CREATE TABLE `ship_equipment` (
 	`ship_id` text NOT NULL,
 	`name` text NOT NULL,
 	`category_id` text,
-	`manufacturer` text,
+	`manufacturer_id` text,
 	`model` text,
 	`serial_number` text,
 	`location` text,
@@ -518,11 +532,13 @@ CREATE TABLE `ship_equipment` (
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`ship_id`) REFERENCES `ships`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`category_id`) REFERENCES `ship_equipment_categories`(`id`) ON UPDATE no action ON DELETE set null
+	FOREIGN KEY (`category_id`) REFERENCES `ship_equipment_categories`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`manufacturer_id`) REFERENCES `equipment_manufacturers`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `ship_equipment_ship_idx` ON `ship_equipment` (`ship_id`);--> statement-breakpoint
 CREATE INDEX `ship_equipment_category_idx` ON `ship_equipment` (`category_id`);--> statement-breakpoint
+CREATE INDEX `ship_equipment_manufacturer_idx` ON `ship_equipment` (`manufacturer_id`);--> statement-breakpoint
 CREATE TABLE `ship_equipment_categories` (
 	`id` text PRIMARY KEY NOT NULL,
 	`ship_id` text NOT NULL,
@@ -551,6 +567,7 @@ CREATE TABLE `ships` (
 	`length_overall` real,
 	`beam` real,
 	`draft` real,
+	`air_draft` real,
 	`gross_tonnage` real,
 	`imo_number` text,
 	`mmsi` text,
