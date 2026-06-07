@@ -204,7 +204,7 @@ doesn't support presign and always streams.
 | Env var                       | Default                | Notes                                                                            |
 | ----------------------------- | ---------------------- | -------------------------------------------------------------------------------- |
 | `FILE_STORAGE_DRIVER`         | `local`                | Active driver name. Built-in: `local`. Others must `registerDriver` at boot.     |
-| `FILE_STORAGE_LOCAL_ROOT`     | `data/uploads/files`   | Local-driver root. Resolved against project root when relative.                  |
+| `FILE_STORAGE_LOCAL_ROOT`     | `data/uploads/files`   | Local-driver root. Relative paths resolve under `DATA_DIR` when set, otherwise under lode's data fallback or the project root. |
 | `FILE_GC_MODE`                | `async`                | `async` (sweeper) or `sync` (foreground delete).                                  |
 | `FILE_GC_INTERVAL_SECONDS`    | `3600`                 | Sweeper interval. `0` disables the periodic sweep (manual only).                  |
 | `FILE_PRESIGN_ENABLED`        | `true`                 | Presign downloads when the driver supports it.                                    |

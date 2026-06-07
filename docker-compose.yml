@@ -1,5 +1,7 @@
 # Docker test stack, fronted by the external `traefik` network at
 # https://bit.fr.ds.cc (route: /app/traefik/services/bit.yml -> bit:3000).
+# The image runs lode. Mount a real lode.toml at ./data-docker/lode.toml
+# before starting; deploy/lode.toml is only a template.
 # Reset: docker compose down && rm -rf data-docker
 services:
   app:
@@ -20,7 +22,7 @@ services:
     env_file:
       - .env.docker
     volumes:
-      - ./data-docker:/app/data
+      - ./data-docker:/srv/lode
       - ./.secret/docker-admin.hash:/app/secret/admin.hash:ro
     networks:
       - traefik

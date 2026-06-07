@@ -115,3 +115,4 @@
 | [FEAT-020](FEAT-020.md) | Admin Users: create / edit / delete virtual users | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
 | [REFACTOR-026](REFACTOR-026.md) | Project member/assignee pickers → unified users (drop displayName) | [PLAN-067](../plan/PLAN-067.md) | Completed | 2026-06-03 |
 | [DATA-001](DATA-001.md) | Seed dataset full schema coverage on party-model main (G0–G6) | [PLAN-069](../plan/PLAN-069.md) | Completed | 2026-06-04 |
+| [REFACTOR-027](REFACTOR-027.md) | Replace single-binary packaging with lode-managed releases | [PLAN-070](../plan/PLAN-070.md) | Completed | 2026-06-07 |

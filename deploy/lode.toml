@@ -1,0 +1,23 @@
+[global]
+app = "bit"
+data_dir = "/srv/lode"
+
+[update]
+manifest = "https://github.com/OWNER/REPO/releases/latest/download/manifest.json"
+channel = "stable"
+policy = "auto"
+check_interval = 300
+
+[command]
+run = "{entry}"
+exec = "{entry}"
+workdir = "{dir}"
+
+[supervise]
+restart = "on-failure"
+readiness = "none"
+health_grace = 20
+stop_timeout = 30
+
+[trust]
+require_signature = "auto"

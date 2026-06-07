@@ -5,8 +5,12 @@ import { fileURLToPath } from "node:url";
 /**
  * ROOT_DIR resolution:
  * 1. ROOT_DIR env var — explicit override
- * 2. Compiled binary (/$bunfs) — process.cwd()
+ * 2. Legacy Bun-compiled binary (/$bunfs) — process.cwd()
  * 3. Otherwise — 3 levels up from this file to monorepo root
+ *
+ * Packaged lode releases run from apps/api/dist inside the installed version
+ * directory, so rule 3 resolves to the lode version root. The launcher still
+ * sets ROOT_DIR explicitly to make that contract obvious.
  */
 function detectRootDir(): string {
   if (process.env.ROOT_DIR) {

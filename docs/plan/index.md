@@ -68,3 +68,4 @@
 | [PLAN-067](PLAN-067.md) | Virtual users as first-class user rows | Completed | 2026-06-03 |
 | [PLAN-068](PLAN-068-contact-party-model.md) | Contact module single-table Party model | Completed | 2026-06-03 |
 | [PLAN-069](PLAN-069.md) | Seed dataset full schema coverage on party-model main (G0–G6) | Completed | 2026-06-04 |
+| [PLAN-070](PLAN-070.md) | lode-managed release packaging | Completed | 2026-06-07 |

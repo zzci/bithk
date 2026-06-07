@@ -142,6 +142,5 @@ Recovery:
 3. Resume the application; verify `/api/health/ready` returns 200.
 
 Production deploys must run a snapshot sidecar or `litestream` (see
-[`deployment.md`](deployment.md) § Backup & restore). The single-binary
-+ single-SQLite topology has no built-in failover; the snapshot is the
-only recovery path.
+[`deployment.md`](deployment.md) § Backup & restore). The single-SQLite
+topology has no built-in failover; the snapshot is the only recovery path.

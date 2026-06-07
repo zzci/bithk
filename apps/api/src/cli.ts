@@ -113,8 +113,8 @@ async function runMigrateSubcommand(opts: { check?: boolean }): Promise<number> 
  * gives the operator the list of migration tags the binary believes are
  * "the new world"; comparing against the DB happens at boot via the
  * regular migrator, so any divergence shows up there. Returning `null`
- * means the journal could not be read (compiled binary without
- * filesystem access).
+ * means the journal could not be read (for example, a packaged release missing
+ * its apps/api/drizzle directory).
  */
 function listFsPendingMigrations(): string[] | null {
   const fsMigrationsFolder = resolve(ROOT_DIR, "apps/api/drizzle");

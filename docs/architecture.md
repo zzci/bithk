@@ -32,7 +32,7 @@ The outer app serves:
 |---|---|
 | `/` | HTML meta refresh to `${BASE_PATH}/` when `BASE_PATH` is set. Skipped when the app is root-mounted — the SPA already owns `/`. |
 | `${BASE_PATH}/api` | Hono API. |
-| `${BASE_PATH}/*` | Embedded SPA assets when production assets are present. |
+| `${BASE_PATH}/*` | Built SPA assets from `apps/web/dist` when production assets are present. |
 
 ## Technology Stack
 
@@ -43,7 +43,7 @@ The outer app serves:
 | Database | SQLite via `bun:sqlite` through Drizzle ORM |
 | Web | React, Vite, TanStack Router, TanStack Query |
 | Styling | Tailwind CSS |
-| Build | `scripts/compile.ts` single-binary build |
+| Build | `scripts/package.ts` lode-compatible release artifact |
 | Authentication | External OAuth/OIDC provider with authorization code + PKCE |
 | Authorization | Local Zanzibar-style relation tuples |
 
@@ -229,10 +229,15 @@ visible; owners, admins, and explicit viewers see the full row.
 
 ## Data Storage
 
-Runtime data is stored below `ROOT_DIR`:
+Runtime data paths are resolved from env configuration. In lode-packaged runs,
+`ROOT_DIR` points at the installed artifact directory for read-only assets.
+Mutable paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted and
+`LODE_DATA_DIR` is present, the app uses `${LODE_DATA_DIR}/data`, so one
+persistent `/srv/lode` mount can hold both lode state and app data:
 
 | Path | Purpose |
 |---|---|
-| `data/db/app.db` | SQLite database. |
-| `data/db/app.pid` | PID lock file. |
-| `data/logs/app.log` | Structured JSON logs. |
+| `DB_PATH` | SQLite database. |
+| `DB_PATH` sibling `.pid` file | PID lock file. |
+| `FILE_STORAGE_LOCAL_ROOT` | Uploaded files and content-addressed blobs. |
+| `LOG_FILE` | Structured JSON logs when not writing to stdout. |

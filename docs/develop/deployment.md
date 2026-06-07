@@ -2,22 +2,66 @@
 
 > Examples assume `BASE_PATH=/app`. The app is mounted at root (`/`) by default; set `BASE_PATH` to serve under a URL prefix (e.g. behind a reverse-proxy mount).
 
-The build target is a single Bun executable. Production typically pairs that with a reverse proxy and a persistent volume for the SQLite database and uploaded attachments.
+Production startup and updates are managed by [lode](https://github.com/dotns/lode). The app is published as a versioned `tar.gz` artifact that contains the built API bundle, built SPA assets, and Drizzle migrations. Production typically pairs lode with a reverse proxy and one persistent volume for lode state plus app data.
 
 ## Build options
 
 ```bash
-# Single binary (recommended for Linux servers)
-bun run compile
-# → dist/app  (~80–100 MB; SHA-256 written to dist/checksums.txt)
+# lode artifact
+bun run package
+# → dist/bit-<version>-<platform>.tar.gz
+# → dist/manifest.json
+# → dist/checksums.txt
 
-# Container image
+# lode runtime image
 docker build -t myapp .
 ```
 
-The runtime layer uses `debian:stable-slim` by default — publicly pullable so forks `docker build` without an upstream credential dance. Override via `--build-arg RUNTIME_BASE=...` (e.g. distroless / a hardened internal base). The compiled binary embeds the frontend assets and Drizzle migrations so the runtime layer only needs glibc + `curl` for the HEALTHCHECK.
+`bun run package` builds:
 
-Inject the source revision via `--build-arg BUILD_COMMIT=$(git rev-parse --short HEAD)` so `app --version` and `/api/system/version` report the real hash — `.git` is excluded from the build context, so the build cannot resolve it on its own. CI / release pipelines should always set this.
+- `apps/api/dist/index.js`
+- `apps/web/dist/**`
+- `apps/api/drizzle/**`
+- `bin/<APP_NAME>` launcher
+
+The launcher sets `ROOT_DIR` to the installed artifact directory and runs the API bundle with Bun. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DATA_DIR` exists, the app uses `${LODE_DATA_DIR}/data` so operators do not have to configure each path separately.
+
+The Dockerfile is a generic `lode + Bun` runtime image. It does not bake the application into the image; lode downloads the artifact declared by `/srv/lode/lode.toml`, then supervises and updates it.
+
+Verified lode layout after first boot:
+
+```text
+/srv/lode/
+  lode.toml
+  lode.pid
+  state.json
+  current -> versions/<version>
+  downloads/
+  versions/<version>/
+    .lode.json
+    bin/bit
+    apps/api/dist/index.js
+    apps/api/drizzle/
+    apps/web/dist/
+/srv/lode/data/
+  db/app.db
+  uploads/files/
+  logs/app.log
+```
+
+Keep `/srv/lode/versions` as immutable downloaded releases. Keep mutable application data under `/srv/lode/data`; this is the default whenever `DATA_DIR=/srv/lode/data`, or when `LODE_DATA_DIR=/srv/lode` and `DATA_DIR` is omitted.
+
+## lode configuration
+
+Start from [`../../deploy/lode.toml`](../../deploy/lode.toml):
+
+```bash
+mkdir -p /srv/lode
+cp deploy/lode.toml /srv/lode/lode.toml
+# Edit [update].manifest to the published manifest.json URL.
+```
+
+The default release workflow uploads `manifest.json` and the artifact to the GitHub Release. For production, sign artifacts and the manifest with `lode-cli`, then set `[trust].require_signature = "enforce"` and configure trusted keys in the deployment environment.
 
 ## Required environment
 
@@ -34,27 +78,31 @@ Highlights for a production deploy:
 | `APP_URL` | Production redirect-URI base; forwarded headers are not trusted in prod |
 | `CORS_ORIGIN` | Comma-separated allow-list; fail-closed in prod when unset |
 | `BASE_PATH` | URL prefix the app is mounted under. Leave unset for root mount; set to the reverse-proxy mount (e.g. `/app`) when serving under a prefix |
-| `DB_PATH` | Persistent volume for the SQLite DB |
+| `DATA_DIR` | Base directory for mutable app data; defaults can be anchored here for lode and non-lode runs |
+| `DB_PATH` | SQLite DB path; relative paths resolve under `DATA_DIR`, or `${LODE_DATA_DIR}/data` when lode provides the fallback |
 | `OAUTH_*` | OIDC issuer or full endpoint set, plus client id/secret |
 | `DEFAULT_ADMIN` | Comma-separated emails that get admin role on first login (no-op if users exist) |
-| `LOG_FILE` / `LOG_TO_STDOUT` | Either rotates on disk or hands lines to the runtime |
+| `LOG_FILE` / `LOG_TO_STDOUT` | Either rotates on disk under `DATA_DIR` or hands lines to the runtime |
 | `AUDIT_RETENTION_DAYS` | `0` (keep forever) by default; set to a finite value in long-running deployments to bound `audit_events` size |
 | `SERVICE_TOKEN_METRICS`, `SERVICE_TOKEN_BACKUP` | Scoped bearers for `/api/metrics` and `/api/backup/export-via-token` |
 
 ## Volumes
 
-The container declares `VOLUME /app/data`. Inside that volume the runtime writes:
+The container declares `VOLUME /srv/lode`. The runtime writes:
 
 | Path | Derived from | Holds | Backup priority |
 |---|---|---|---|
-| `${DB_PATH}` (default `${ROOT_DIR}/data/db/app.db`) | `DB_PATH` (or `ROOT_DIR` when unset) | `app.db`, `app.db-wal`, `app.db-shm` | Critical |
-| `${FILE_STORAGE_LOCAL_ROOT}` (default `${ROOT_DIR}/data/uploads/files/`) | `FILE_STORAGE_LOCAL_ROOT` (or `ROOT_DIR` when unset) | All attachments (documents, issues, …); content-addressable blobs under the `file` module | Critical |
-| `${ROOT_DIR}/data/logs/` | `ROOT_DIR` (`LOG_FILE` may override the file path) | Runtime logs | Operational |
+| `${DB_PATH}` (container default `/srv/lode/data/db/app.db`) | `DB_PATH` | `app.db`, `app.db-wal`, `app.db-shm` | Critical |
+| `${FILE_STORAGE_LOCAL_ROOT}` (container default `/srv/lode/data/uploads/files/`) | `FILE_STORAGE_LOCAL_ROOT` | All attachments (documents, issues, …); content-addressable blobs under the `file` module | Critical |
+| `${LOG_FILE}` (container default `/srv/lode/data/logs/app.log`) | `LOG_FILE` | Runtime logs when `LOG_TO_STDOUT=false` | Operational |
+| `${DATA_DIR}` (container default `/srv/lode/data`) | `DATA_DIR` | Default anchor for DB, uploads, and file logs | Critical |
+| `${LODE_DATA_DIR}` (container default `/srv/lode`) | `LODE_DATA_DIR` | `lode.toml`, `state.json`, downloaded versions, runtime cache | Operational |
 
-**Watch out — the upload and log paths are *not* re-rooted by `DB_PATH`.** Overriding `DB_PATH` to a path outside `ROOT_DIR` does **not** relocate `data/uploads/files/` or `data/logs/` — those continue to write under `${ROOT_DIR}/data/` unless you also set `FILE_STORAGE_LOCAL_ROOT` (or `LOG_FILE`). The two safe operating modes are:
+**Watch out — the upload and log paths are *not* re-rooted by `DB_PATH`.** Overriding `DB_PATH` does **not** relocate uploads or logs; set `FILE_STORAGE_LOCAL_ROOT` and `LOG_FILE` only when intentionally splitting storage. The recommended production mode is:
 
-1. **Recommended:** keep `ROOT_DIR=/app/data` (the Dockerfile default) and mount a single persistent volume at `/app/data`. The DB, uploads, and logs all land under it.
-2. **Advanced:** if you must split the DB onto a separate disk, set `ROOT_DIR` to the directory you actually mounted **and** set `DB_PATH` to an absolute path on the other volume. Do not assume changing only `DB_PATH` is enough.
+1. Mount one persistent volume at `/srv/lode`.
+2. Let lode keep versions and state directly under `/srv/lode`.
+3. Set `DATA_DIR=/srv/lode/data`, or omit it and let `LODE_DATA_DIR=/srv/lode` derive the same path.
 
 ## Health checks
 
@@ -232,7 +280,7 @@ services:
     image: alpine:3
     restart: unless-stopped
     volumes:
-      - app-data:/app/data:ro
+      - lode-data:/srv/lode:ro
       - app-snapshots:/snapshots
     entrypoint:
       - /bin/sh
@@ -241,7 +289,7 @@ services:
         apk add --no-cache sqlite tini
         while true; do
           ts=$(date -u +%Y%m%dT%H%M%SZ)
-          sqlite3 /app/data/db/app.db ".backup '/snapshots/app-${ts}.db'"
+          sqlite3 /srv/lode/data/db/app.db ".backup '/snapshots/app-${ts}.db'"
           find /snapshots -name 'app-*.db' -mtime +7 -delete
           sleep 3600
         done
@@ -251,7 +299,7 @@ For anything past a single-tenant tool, prefer [litestream](https://litestream.i
 
 ### Logs volume
 
-Mount a separate volume for `${ROOT_DIR}/data/logs/` (or set `LOG_FILE` to a path on a dedicated volume) so log retention does not compete with DB snapshots for disk pressure.
+Container deployments should normally keep `LOG_TO_STDOUT=true` and let the orchestrator collect logs. If file logs are required, `LOG_FILE` defaults under `DATA_DIR/logs/`; mount separate storage only when log retention must not share space with DB snapshots.
 
 ## Logging
 
@@ -267,7 +315,7 @@ for its process lifetime; the `SIGHUP` handler in
 (`copytruncate` would race with pino's async buffer and lose lines):
 
 ```
-/app/data/logs/app.log {
+/srv/lode/data/logs/app.log {
   hourly
   rotate 168
   size 50M

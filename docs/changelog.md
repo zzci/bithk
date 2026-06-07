@@ -13,6 +13,13 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- lode-managed release packaging (REFACTOR-027 / PLAN-070): `bun run package`
+  now emits a lode-compatible `tar.gz` artifact, `dist/manifest.json`, and
+  `dist/checksums.txt`. The artifact contains the API bundle, built SPA,
+  Drizzle migrations, and a `bin/bit` launcher. Added `deploy/lode.toml` as the
+  operator-side template and changed the Docker image into a generic `lode` +
+  Bun runtime.
+
 - Per-module project role permissions (FEAT-017 / PLAN-042): project roles now
   carry 12 per-module capabilities — `issue.view/comment/manage`,
   `procurement.view/comment/manage`, `files.view/manage`, plus the project-level
@@ -72,6 +79,11 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   EN/ZH i18n, focused frontend/API tests, and a live e2e main-flow suite.
 
 ### Changed
+
+- Mutable app paths now resolve from `DATA_DIR` when set, with
+  `${LODE_DATA_DIR}/data` as the lode fallback. The Docker and compose examples
+  use a single `/srv/lode` persistent volume for lode state, downloaded
+  versions, and app data.
 
 - Reworked the shared `ListFilter` into a Google-Drive-style filter bar where
   each dimension is its own independent dropdown (REFACTOR-018 / PLAN-055).
@@ -215,6 +227,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   `settings` search param.
 
 ### Removed
+
+- Single Bun executable packaging via `scripts/compile.ts`. Static assets and
+  Drizzle migrations are no longer embedded through temporary source rewrites;
+  packaged releases ship them as regular files.
 
 - The five per-domain tag join tables `project_tags`, `contact_tags`,
   `issue_tags`, `document_tags`, and `procurement_tags` (REFACTOR-009 /

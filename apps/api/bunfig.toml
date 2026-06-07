@@ -10,8 +10,6 @@ coveragePathIgnorePatterns = [
   "src/dev.ts",
   "src/app.ts",
   "src/pid-lock.ts",
-  "src/db/embedded-migrations.ts",
-  "src/shared/static-assets.ts",
   "src/shared/middleware/static.ts",
   "**/*.routes.ts",
   "**/*.test.ts",

@@ -1,6 +1,6 @@
-// Build-time identifiers injected by `scripts/compile.ts` via Bun
-// `--define`. In dev (`bun run dev`) these are undefined and we fall back
-// to readable placeholders so logs still show something useful.
+// Build-time identifiers injected by `scripts/package.ts` via Bun `--define`.
+// In dev (`bun run dev`) these are undefined and we fall back to readable
+// placeholders so logs still show something useful.
 declare const BUILD_COMMIT: string | undefined;
 declare const BUILD_TIME: string | undefined;
 declare const BUILD_VERSION: string | undefined;

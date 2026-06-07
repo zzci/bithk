@@ -29,9 +29,28 @@ export type { Config } from "./config/schema";
 
 const RE_SLASH_TRIM = /^\/+|\/+$/g;
 const RE_DB_SUFFIX = /\.db$/;
+const RE_DATA_PREFIX = /^data\//;
 
 function resolvePath(p: string): string {
   return p.startsWith("/") ? p : resolve(ROOT_DIR, p);
+}
+
+function resolveDataDir(value: string | undefined): string | undefined {
+  if (value)
+    return resolvePath(value);
+  if (Bun.env.LODE_DATA_DIR)
+    return resolve(Bun.env.LODE_DATA_DIR, "data");
+  return undefined;
+}
+
+function resolveMutablePath(value: string, dataDir: string | undefined): string {
+  if (value.startsWith("/"))
+    return value;
+
+  if (dataDir)
+    return resolve(dataDir, value.replace(RE_DATA_PREFIX, ""));
+
+  return resolve(ROOT_DIR, value);
 }
 
 /**
@@ -67,8 +86,13 @@ export async function loadConfigStrict(
   // cache so a deploy that boots while the IdP is degraded still serves
   // traffic with the last-known-good endpoints. A successful refresh
   // updates the cache for next boot.
+  const dataDir = resolveDataDir(data.DATA_DIR);
+  const dbPath = resolveMutablePath(data.DB_PATH, dataDir);
+  const logFile = resolveMutablePath(data.LOG_FILE, dataDir);
+  const localStorageRoot = resolveMutablePath(data.FILE_STORAGE_LOCAL_ROOT, dataDir);
+
   if ((!data.OAUTH_AUTHORIZE_URL || !data.OAUTH_TOKEN_URL || !data.OAUTH_USERINFO_URL) && data.OAUTH_ISSUER) {
-    const cachePath = resolvePath(`${data.DB_PATH.replace(RE_DB_SUFFIX, "")}-oidc.json`);
+    const cachePath = `${dbPath.replace(RE_DB_SUFFIX, "")}-oidc.json`;
     const { discovery, warnings } = await resolveOidcDiscovery({ issuer: data.OAUTH_ISSUER, cachePath });
     for (const w of warnings)
       warn(w);
@@ -86,8 +110,10 @@ export async function loadConfigStrict(
   return {
     ...data,
     BASE_PATH: basePath,
-    DB_PATH: resolvePath(data.DB_PATH),
-    LOG_FILE: resolvePath(data.LOG_FILE),
+    DATA_DIR: dataDir,
+    DB_PATH: dbPath,
+    LOG_FILE: logFile,
+    FILE_STORAGE_LOCAL_ROOT: localStorageRoot,
   };
 }
 
