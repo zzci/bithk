@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import {
   Combobox,
   ComboboxContent,
@@ -123,7 +124,7 @@ export function ContactOrgCombobox({
                 <ComboboxInput showTrigger={false} placeholder={t("org.searchPlaceholder")} />
                 <ComboboxList>
                   {matches.length === 0 && !canCreate && (
-                    <p className="px-2 py-4 text-center text-sm text-muted-foreground">{t("org.empty")}</p>
+                    <EmptyHint py="sm" className="px-2">{t("org.empty")}</EmptyHint>
                   )}
                   {matches.map(org => (
                     <ComboboxItem key={org.id} value={org.name}>{org.name}</ComboboxItem>

@@ -58,7 +58,7 @@ export function TagsRow({
         }
       }}
       placeholder={t("tagsPlaceholder")}
-      className="h-6 w-28 rounded-full border-dashed bg-transparent px-2.5 text-[11px] font-medium placeholder:text-muted-foreground/60 focus-visible:bg-accent/40 focus-visible:ring-0"
+      className="h-6 w-28 rounded-full border-dashed bg-transparent px-2.5 text-xs font-medium placeholder:text-muted-foreground/60 focus-visible:bg-accent/40 focus-visible:ring-0"
     />
   );
 
@@ -70,7 +70,7 @@ export function TagsRow({
         variant="ghost"
         size="xs"
         onClick={() => setEditing(true)}
-        className="gap-1 rounded-full border border-dashed border-border px-2.5 text-[11px] text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+        className="gap-1 rounded-full border border-dashed border-border px-2.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground"
       >
         <Plus className="size-3" strokeWidth={2.25} />
         {t("tagsPlaceholder")}
@@ -82,7 +82,7 @@ export function TagsRow({
     <ul className="flex flex-wrap items-center gap-1.5">
       {tags.map(tag => (
         <li key={tag}>
-          <span className="inline-flex h-6 items-center gap-0.5 rounded-full border border-border bg-muted/40 px-2.5 text-[11px] font-medium text-muted-foreground">
+          <span className="inline-flex h-6 items-center gap-0.5 rounded-full border border-border bg-muted/40 px-2.5 text-xs font-medium text-muted-foreground">
             <span className="text-foreground/35">#</span>
             <span>{tag}</span>
             <Button

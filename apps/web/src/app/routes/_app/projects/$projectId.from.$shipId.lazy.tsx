@@ -8,10 +8,10 @@
 // four-tab subtree, so it is intentionally best-effort here.
 
 import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject } from "@/shared/lib/api/projects";
 import { ProjectOverviewTab } from "./-project-overview-tab";
 import { PROJECT_TAB_TO } from "./-project-tabs";
-import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/from/$shipId")({
   component: ProjectOverviewFromShipRoute,

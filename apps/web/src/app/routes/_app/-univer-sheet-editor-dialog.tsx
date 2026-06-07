@@ -26,12 +26,13 @@ import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
 import sheetsCoreEnUS from "@univerjs/preset-sheets-core/locales/en-US";
 import sheetsCoreZhCN from "@univerjs/preset-sheets-core/locales/zh-CN";
 import { CommandType, createUniver, LocaleType, mergeLocales } from "@univerjs/presets";
-import { Check, History, Loader2, Lock, Maximize2, Minimize2, Pencil, Save, TriangleAlert, X } from "lucide-react";
+import { Check, History, Lock, Maximize2, Minimize2, Pencil, Save, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import { Spinner } from "@/shared/components/ui/spinner";
 import {
   fetchDriveEntryContent,
   releaseEditLockBeacon,
@@ -424,7 +425,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
       };
     }
     if (saving)
-      return { icon: <Loader2 className="size-3.5 animate-spin" />, text: t("sheet.saving"), tone: "text-muted-foreground" };
+      return { icon: <Spinner className="size-3.5" />, text: t("sheet.saving"), tone: "text-muted-foreground" };
     if (saveFailed)
       return { icon: <TriangleAlert className="size-3.5" />, text: t("sheet.saveFailed"), tone: "text-destructive" };
     if (dirty)
@@ -484,7 +485,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
               disabled={!ready || uploadingVersion || mode !== "editable"}
               onClick={() => void handleSave()}
             >
-              {uploadingVersion ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              {uploadingVersion ? <Spinner /> : <Save className="size-4" />}
               {t("sheet.saveAsVersion")}
             </Button>
             <ToolButton label={t("versions.title")} onClick={() => setHistoryOpen(true)}>
@@ -516,7 +517,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
               disabled={acquiring}
               onClick={() => void retryEditing()}
             >
-              {acquiring && <Loader2 className="size-4 animate-spin" />}
+              {acquiring && <Spinner />}
               {t("sheet.retryEditing")}
             </Button>
           </div>
@@ -525,7 +526,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
         <div className="relative min-h-0 flex-1 overflow-hidden">
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-background/70 text-sm text-muted-foreground">
-              <Loader2 className="size-6 animate-spin" />
+              <Spinner size="lg" />
               {t("sheet.loading")}
             </div>
           )}

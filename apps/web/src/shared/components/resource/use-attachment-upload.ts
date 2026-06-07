@@ -12,7 +12,7 @@ import { useRef } from "react";
 import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import { http } from "@/shared/lib/http";
 
-import { attachmentsQueryKey } from "./attachment-section";
+import { attachmentsQueryKey } from "./attachment-utils";
 
 export function useResourceAttachmentUpload({
   resource,

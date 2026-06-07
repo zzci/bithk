@@ -5,7 +5,7 @@
 // Procurement tabs.
 
 import type { ReactNode } from "react";
-import type { ProjectCapabilityInfo } from "./-use-project-role";
+import type { ProjectCapabilityInfo } from "@/shared/hooks/use-project-capabilities";
 import type { PinnedItem } from "@/shared/lib/api/pins";
 import type { ProjectView } from "@/shared/lib/api/projects";
 import { ClipboardList, Package, Pin } from "lucide-react";
@@ -19,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/shared/components/ui/card";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import { usePinnedItems } from "@/shared/lib/api/pins";
 import { useProcurements } from "@/shared/lib/api/procurement";
 import { useProjectIssues } from "@/shared/lib/api/projects";
@@ -127,7 +128,7 @@ function ProjectInfoCard({ description, className }: ProjectInfoCardProps) {
 
 function ListState({ children }: { readonly children: ReactNode }) {
   return (
-    <p className="px-2 py-6 text-center text-sm text-pretty text-muted-foreground">{children}</p>
+    <EmptyHint py="sm" className="px-2 text-pretty">{children}</EmptyHint>
   );
 }
 

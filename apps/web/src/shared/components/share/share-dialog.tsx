@@ -16,7 +16,7 @@
 import type { ReactNode } from "react";
 import type { ShareTarget } from "./use-share";
 import type { ShareCapabilities, SharePermission, ShareView } from "@/shared/lib/api/share";
-import { Check, Copy, Globe2, KeyRound, Loader2, LockKeyhole, Share2, X } from "lucide-react";
+import { Check, Copy, Globe2, KeyRound, LockKeyhole, Share2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Separator } from "@/shared/components/ui/separator";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import {
   buildShareUrl,
@@ -462,7 +463,7 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
                         {t("common:common.close")}
                       </Button>
                       <Button type="button" disabled={savingPublicSettings || !publicShare} onClick={() => void updatePublicLinkSettings()}>
-                        {savingPublicSettings && <Loader2 className="size-4 animate-spin" />}
+                        {savingPublicSettings && <Spinner />}
                         {t("share:action.update")}
                       </Button>
                     </div>
@@ -476,7 +477,7 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
 
           {sharesLoading && (
             <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
+              <Spinner />
               {t("common:common.loading")}
             </div>
           )}
@@ -500,7 +501,7 @@ export function ShareDialog({ target, capabilities, shares, sharesLoading, extra
               {t("common:common.close")}
             </Button>
             <Button type="button" className="rounded-full px-8" disabled={savingChanges} onClick={() => void handleDone()}>
-              {savingChanges && <Loader2 className="size-4 animate-spin" />}
+              {savingChanges && <Spinner />}
               {t("share:action.done")}
             </Button>
           </div>

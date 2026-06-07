@@ -5,9 +5,9 @@
 import { createLazyFileRoute, Outlet, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject, useProjectMembers } from "@/shared/lib/api/projects";
 import { ProjectIssuesTab } from "./-project-issues-tab";
-import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/issues")({
   component: ProjectIssuesRoute,

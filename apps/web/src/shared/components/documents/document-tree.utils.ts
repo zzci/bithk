@@ -1,6 +1,10 @@
 // Pure helpers for the nested document tree. Kept side-effect free so the
 // component layer stays small and the recursion + descendant logic can be
 // unit-tested without React.
+//
+// NOTE: `flattenVisible`, `subtreeIds`, and `stepFocus` have no consumer yet —
+// they are unit-tested scaffolding for the planned keyboard tree-navigation /
+// move-picker. Retained deliberately; remove if that work is dropped.
 
 import type { DocumentTreeNode } from "@/shared/lib/api/documents";
 

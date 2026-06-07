@@ -203,7 +203,7 @@ export function CommandPalette({
             ? <div className="px-3 py-6 text-center text-xs text-muted-foreground">{t("common:search.noResults")}</div>
             : groups.map(group => (
                 <div key={group.key} className="py-1">
-                  <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                  <div className="px-3 py-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground/70">
                     {group.label}
                   </div>
                   <ul>
@@ -222,7 +222,7 @@ export function CommandPalette({
                             <action.icon className="size-4 shrink-0 text-muted-foreground md:size-3.5" strokeWidth={1.75} />
                             <span className="flex-1 truncate">{action.label}</span>
                             {action.subtitle && (
-                              <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">
+                              <span className="shrink-0 text-2xs tabular-nums text-muted-foreground/70">
                                 {action.subtitle}
                               </span>
                             )}

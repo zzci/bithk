@@ -1,9 +1,10 @@
-import type { SettingRow } from "./-settings-shared";
+import type { SettingRow } from "@/shared/hooks/use-settings-by-prefix";
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import {
   Dialog,
   DialogClose,
@@ -13,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -24,8 +26,9 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { useSettingsByPrefix } from "@/shared/hooks/use-settings-by-prefix";
 import { http } from "@/shared/lib/http";
-import { deleteSetting, ErrorBanner, saveSetting, useSettingsByPrefix } from "./-settings-shared";
+import { deleteSetting, saveSetting } from "./-settings-shared";
 
 export function WebhookSettingsTab() {
   const { t } = useTranslation(["common", "settings"]);
@@ -81,9 +84,9 @@ export function WebhookSettingsTab() {
       </div>
 
       {loading
-        ? <div className="py-8 text-center text-muted-foreground">{t("common.loading")}</div>
+        ? <EmptyHint>{t("common.loading")}</EmptyHint>
         : webhooks.length === 0
-          ? <div className="rounded-md border py-8 text-center text-muted-foreground">{t("settings:webhook.noWebhooks")}</div>
+          ? <EmptyHint className="rounded-md border">{t("settings:webhook.noWebhooks")}</EmptyHint>
           : (
               <div className="overflow-x-auto rounded-md border">
                 <Table>

@@ -2,9 +2,9 @@
 // Settings tab route: per-ship configuration (equipment categories, …).
 
 import { createLazyFileRoute, useParams } from "@tanstack/react-router";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject } from "@/shared/lib/api/projects";
 import { useShip } from "@/shared/lib/api/ships";
-import { useProjectCapabilities } from "../projects/-use-project-role";
 import { ShipSettingsTab } from "./-ship-settings-tab";
 
 export const Route = createLazyFileRoute("/_app/ships/$shipId/settings")({

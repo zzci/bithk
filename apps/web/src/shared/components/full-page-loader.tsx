@@ -1,7 +1,7 @@
-import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
+import { Spinner } from "@/shared/components/ui/spinner";
 
 const STILL_LOADING_DELAY = 10_000;
 
@@ -31,7 +31,7 @@ export function FullPageLoader({ onRetry }: FullPageLoaderProps) {
       aria-live="polite"
       className="flex min-h-svh flex-col items-center justify-center gap-3 bg-background"
     >
-      <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+      <Spinner size="lg" className="text-muted-foreground" />
       <span className="text-sm text-muted-foreground">{t("common.loading")}</span>
       {stillLoading && (
         <div className="mt-2 flex flex-col items-center gap-2">

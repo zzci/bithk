@@ -362,7 +362,7 @@ export function ProjectIssuePanel({
         {/* Creator + timestamps — subtle footer-style strip above the
             attachments section, right-aligned and toned down so it
             reads as auxiliary info rather than primary content. */}
-        <div className="mt-4 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-[11px] text-muted-foreground/80">
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs text-muted-foreground/80">
           <span className="inline-flex items-center gap-1">
             <span className="text-muted-foreground/60">{t("col.creator")}</span>
             <span className="text-foreground/70">{creatorName}</span>

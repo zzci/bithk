@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatBytes, formatDate } from "./share-helpers";
+import { formatBytes } from "./format";
 
 describe("formatBytes", () => {
   it("reports raw bytes below 1 KiB", () => {
@@ -21,17 +21,5 @@ describe("formatBytes", () => {
 
   it("caps at the largest unit (TB)", () => {
     expect(formatBytes(2 * 1024 ** 4)).toBe("2.0 TB");
-  });
-});
-
-describe("formatDate", () => {
-  it("formats a valid ISO timestamp", () => {
-    const formatted = formatDate("2026-05-22T08:30:00.000Z");
-    expect(formatted).not.toBe("2026-05-22T08:30:00.000Z");
-    expect(formatted.length).toBeGreaterThan(0);
-  });
-
-  it("returns the original string when unparseable", () => {
-    expect(formatDate("not-a-date")).toBe("not-a-date");
   });
 });

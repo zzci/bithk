@@ -7,6 +7,7 @@
 import type { ContactVisibility } from "@/shared/lib/api/contacts";
 import type { ProcurementStatus } from "@/shared/lib/api/procurement";
 import type { IssueStatus } from "@/shared/lib/api/projects";
+import type { ShipStatus } from "@/shared/lib/api/ships";
 
 /** active vs archived record chip (projects + ships). */
 export const RECORD_STATUS_BADGE: Record<"active" | "archived", string> = {
@@ -30,6 +31,42 @@ export const ISSUE_STATUS_BADGE: Record<IssueStatus, string> = {
   review: "bg-primary/10 text-primary",
   done: "bg-success/10 text-success",
   cancel: "bg-muted text-muted-foreground",
+};
+
+// Issue status icon tint: the foreground-only counterpart of ISSUE_STATUS_BADGE
+// for inline glyphs (no chip background). It tracks the badge's `text-*` token
+// for every state EXCEPT `cancel`, which deliberately drops to /60 opacity so a
+// cancelled glyph reads fainter than a muted chip. Kept beside the badge so the
+// two stay aligned, but not derived from it because of that one divergence.
+export const ISSUE_STATUS_ICON_TINT: Record<IssueStatus, string> = {
+  todo: "text-warning",
+  working: "text-info",
+  review: "text-primary",
+  done: "text-success",
+  cancel: "text-muted-foreground/60",
+};
+
+/** Ship lifecycle chip colors, one distinct hue per state. */
+export const SHIP_STATUS_BADGE: Record<ShipStatus, string> = {
+  under_construction: "bg-primary/10 text-primary",
+  active: "bg-success/10 text-success",
+  underway: "bg-info text-info-foreground",
+  in_maintenance: "bg-warning/10 text-warning",
+  laid_up: "bg-muted text-muted-foreground",
+  retired: "bg-muted-foreground/15 text-muted-foreground",
+};
+
+// Cron run/job status → shadcn Badge variant. Not a Tailwind class map like the
+// others (cron badges pick a built-in variant, not a token+opacity hue).
+export const CRON_STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  running: "default",
+  stopped: "secondary",
+  paused: "secondary",
+  error: "destructive",
+  disabled: "outline",
+  not_loaded: "outline",
+  success: "default",
+  failed: "destructive",
 };
 
 // Procurement order status chip (7-status vocabulary). Maps the lifecycle to

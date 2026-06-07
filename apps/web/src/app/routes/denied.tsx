@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ModeToggle } from "@/shared/components/mode-toggle";
 import { Button } from "@/shared/components/ui/button";
+import { useCopyToClipboard } from "@/shared/hooks/use-copy-to-clipboard";
 import { BASE_PATH, http } from "@/shared/lib/http";
 
 interface DeniedSearchParams {
@@ -37,7 +38,7 @@ const REQUEST_ACCESS_EMAIL = (import.meta.env.VITE_REQUEST_ACCESS_EMAIL ?? "") a
 function DeniedPage() {
   const { t } = useTranslation(["common", "denied"]);
   const search = Route.useSearch();
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
   const [logoutUrl, setLogoutUrl] = useState<string | null>(null);
   const [logoutFetchFailed, setLogoutFetchFailed] = useState(false);
 
@@ -53,11 +54,8 @@ function DeniedPage() {
   const handleCopy = useCallback(() => {
     if (!auditId)
       return;
-    navigator.clipboard.writeText(auditId).then(() => {
-      setCopied(true);
-      setTimeout(setCopied, 2000, false);
-    });
-  }, [auditId]);
+    copy(auditId);
+  }, [auditId, copy]);
 
   const showBackToOverview = reason === "no_viewer_relation";
   const showSwitchAccount = reason === "no_viewer_relation" || reason === "user_disabled";
@@ -85,7 +83,7 @@ function DeniedPage() {
               <span className="text-sm font-medium">{t("denied:requestId")}</span>
               <Button variant="ghost" size="icon-xs" onClick={handleCopy}>
                 {copied
-                  ? <Check className="size-3 text-green-500" />
+                  ? <Check className="size-3 text-success" />
                   : <Copy className="size-3" />}
               </Button>
             </div>

@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { useEntryVersions, useSwitchVersion } from "@/shared/lib/api/drive";
-import { formatSize } from "./-file-browser-types";
+import { formatBytes } from "@/shared/lib/format";
 
 export function DriveVersionHistoryDialog({
   entry,
@@ -58,14 +58,14 @@ export function DriveVersionHistoryDialog({
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium">{version.filename}</span>
                   {version.isCurrent && (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
                       <Check className="size-3" />
                       {t("versions.current")}
                     </span>
                   )}
                 </div>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {formatSize(version.size)}
+                  {formatBytes(version.size)}
                   {" · "}
                   {new Date(version.createdAt).toLocaleString()}
                   {" · "}

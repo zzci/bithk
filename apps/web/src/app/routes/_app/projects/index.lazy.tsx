@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
 import { ListFilter } from "@/shared/components/list-filter";
 import { CardGridSkeleton } from "@/shared/components/list-skeleton";
+import { PageHeader } from "@/shared/components/page-header";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
@@ -17,6 +18,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDebounce } from "@/shared/hooks/use-debounce";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import {
   useCreateProject,
   useProject,
@@ -29,7 +31,6 @@ import { useAuthStore } from "@/shared/stores/auth";
 import { ProjectFormDialog } from "./-project-form-dialog";
 import { projectsFilterToQuery } from "./-project-form-logic";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
-import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/")({
   component: ProjectsListPage,
@@ -97,12 +98,7 @@ export function ProjectsListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">{t("page.title")}</h1>
-          <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
-        </div>
-      </div>
+      <PageHeader title={t("page.title")} description={t("page.description")} />
 
       {projectsQuery.error && <ErrorBanner message={errorMessage(projectsQuery.error, t("common:common.error.loadFailed"))} />}
 
@@ -247,7 +243,7 @@ function ProjectsGrid({
               </CardTitle>
               <div className="relative z-10 flex shrink-0 items-center gap-1">
                 {project.status === "archived" && (
-                  <Badge variant="secondary" className="text-[10px] tracking-wide uppercase">
+                  <Badge variant="secondary" className="text-2xs tracking-wide uppercase">
                     {t("status.archived")}
                   </Badge>
                 )}
@@ -277,8 +273,8 @@ function ProjectsGrid({
               <TagChips
                 tags={project.tags}
                 max={3}
-                className="text-[10px] font-medium"
-                moreClassName="self-center text-[10px] font-medium text-muted-foreground"
+                className="text-2xs font-medium"
+                moreClassName="self-center text-2xs font-medium text-muted-foreground"
                 renderMore={count => t("list.moreTags", { count })}
               />
             </div>

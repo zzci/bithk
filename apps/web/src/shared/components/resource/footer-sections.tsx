@@ -13,7 +13,8 @@ import { useTranslation } from "react-i18next";
 import { http } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 
-import { attachmentsQueryKey, ResourceAttachmentSection } from "./attachment-section";
+import { ResourceAttachmentSection } from "./attachment-section";
+import { attachmentsQueryKey } from "./attachment-utils";
 import { ResourceCommentSection } from "./comment-section";
 
 function SectionHeader({

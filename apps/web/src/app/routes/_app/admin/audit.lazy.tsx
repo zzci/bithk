@@ -4,6 +4,7 @@ import { Download, Eye } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ListFilter } from "@/shared/components/list-filter";
+import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -163,16 +164,16 @@ function AuditPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{t("page.title")}</h1>
-          <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
-        </div>
-        <Button variant="outline" onClick={handleExport} disabled={events.length === 0}>
-          <Download className="mr-1 size-3" />
-          {t("export")}
-        </Button>
-      </div>
+      <PageHeader
+        title={t("page.title")}
+        description={t("page.description")}
+        actions={(
+          <Button variant="outline" onClick={handleExport} disabled={events.length === 0}>
+            <Download className="mr-1 size-3" />
+            {t("export")}
+          </Button>
+        )}
+      />
 
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>

@@ -203,7 +203,7 @@ export function DriveSidebar({
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2" aria-label={t("page.title")}>
         {SECTIONS.map(section => (
           <div key={section.labelKey} className="mb-2">
-            <div className="px-4 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+            <div className="px-4 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
               {t(section.labelKey)}
             </div>
             <ul>
@@ -236,7 +236,7 @@ export function DriveSidebar({
         {/* Team directories listed inline; selecting one opens its browser. */}
         <div className="mb-2">
           <div className="flex items-center justify-between gap-1 px-4 py-1">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
               {t("sidebar.section.team")}
             </span>
             <Button

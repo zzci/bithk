@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
 import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
+import { PageHeader } from "@/shared/components/page-header";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
@@ -15,6 +16,7 @@ import { tagFilterDimension } from "@/shared/components/tags";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDebounce } from "@/shared/hooks/use-debounce";
@@ -155,12 +157,7 @@ export function ContactsListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{t("page.title")}</h1>
-          <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
-        </div>
-      </div>
+      <PageHeader title={t("page.title")} description={t("page.description")} />
 
       {contactsQuery.error && <ErrorBanner message={errorMessage(contactsQuery.error, t("common:common.error.loadFailed"))} />}
 
@@ -248,7 +245,7 @@ export function ContactsListPage() {
       {contactsQuery.isLoading
         ? <ListRowsSkeleton label={t("list.loading")} bordered />
         : rows.length === 0
-          ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("list.empty")}</p>
+          ? <EmptyHint className="px-3">{t("list.empty")}</EmptyHint>
           : (
               <div className="overflow-hidden">
                 {/* Header row — shares CONTACT_GRID so its labels sit over the same

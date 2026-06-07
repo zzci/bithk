@@ -143,16 +143,6 @@ export type StatusFilterKey = keyof typeof STATUS_FILTERS;
 export const STATUS_FILTER_ORDER: readonly StatusFilterKey[] = ["active", "failed", "success", "deleted"];
 
 export const NAME_REGEX = /^[\w-]+$/;
-export const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  running: "default",
-  stopped: "secondary",
-  paused: "secondary",
-  error: "destructive",
-  disabled: "outline",
-  not_loaded: "outline",
-  success: "default",
-  failed: "destructive",
-};
 
 // Form state: schedule + name + retry policy are universal; per-action
 // config lives in a free-form record indexed by each `ActionInput.key`.

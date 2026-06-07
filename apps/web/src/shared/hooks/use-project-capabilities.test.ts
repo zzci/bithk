@@ -1,7 +1,7 @@
 import type { ProjectCapability } from "@/shared/lib/api/projects";
 import { describe, expect, it } from "vitest";
 import { PROJECT_CAPABILITIES } from "@/shared/lib/api/projects";
-import { computeCapabilities } from "./-use-project-role";
+import { computeCapabilities } from "./use-project-capabilities";
 
 describe("computeCapabilities", () => {
   it("treats an app admin as holding every capability even with an empty payload", () => {

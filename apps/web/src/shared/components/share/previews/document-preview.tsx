@@ -8,18 +8,19 @@ import type {
   PublicDocumentNode,
   PublicShareMeta,
 } from "@/shared/lib/api/share";
-import { FileText, Loader2, Paperclip } from "lucide-react";
+import { FileText, Paperclip } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/shared/components/editor";
 import { Button } from "@/shared/components/ui/button";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { accessPublicShare, fetchPublicShareChild } from "@/shared/lib/api/share";
 import { errorMessage } from "@/shared/lib/errors";
+import { formatBytes } from "@/shared/lib/format";
 import { HttpError } from "@/shared/lib/http";
-import { cn } from "@/shared/lib/utils";
 
-import { formatBytes } from "../share-helpers";
+import { cn } from "@/shared/lib/utils";
 import { PasswordPrompt, ShareShell, ShareStatus } from "./shell";
 
 export function DocumentPublicPreview({ meta, token }: { readonly meta: PublicShareMeta; readonly token: string }) {
@@ -89,7 +90,7 @@ export function DocumentPublicPreview({ meta, token }: { readonly meta: PublicSh
     return (
       <ShareShell wide>
         <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
+          <Spinner size="md" />
           {t("common:common.loading")}
         </div>
       </ShareShell>
@@ -109,7 +110,7 @@ export function DocumentPublicPreview({ meta, token }: { readonly meta: PublicSh
       <div className={cn("flex flex-col gap-6", hasSubtree && "md:flex-row md:gap-8")}>
         {hasSubtree && (
           <nav className="shrink-0 md:w-56 md:border-r md:pr-4">
-            <p className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="mb-2 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {t("public.contents")}
             </p>
             <SubtreeNav
@@ -133,7 +134,7 @@ export function DocumentPublicPreview({ meta, token }: { readonly meta: PublicSh
           {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
           {loading && (
             <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
+              <Spinner />
               {t("common:common.loading")}
             </div>
           )}
@@ -306,7 +307,7 @@ function AttachmentList({
               </div>
               <span className="min-w-0 flex-1 truncate text-sm">{att.filename}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(att.size)}</span>
-              {busyId === att.id && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
+              {busyId === att.id && <Spinner className="shrink-0 text-muted-foreground" />}
             </Button>
           </li>
         ))}

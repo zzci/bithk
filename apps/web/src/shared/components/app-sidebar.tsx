@@ -257,7 +257,7 @@ export function AppSidebar() {
                             the sidebar's built-in collapse-hide; omitting it in
                             icon mode keeps the label as the last child. */}
                         {state !== "collapsed" && (
-                          <kbd className="ml-auto hidden text-[10px] text-muted-foreground/70 md:inline">⌘K</kbd>
+                          <kbd className="ml-auto hidden text-2xs text-muted-foreground/70 md:inline">⌘K</kbd>
                         )}
                       </SidebarMenuButton>
                     </SidebarMenuItem>

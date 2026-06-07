@@ -6,10 +6,11 @@
 // subtree nav + attachments; drive → file download / folder browser).
 
 import { createFileRoute } from "@tanstack/react-router";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { ShareShell, ShareStatus } from "@/shared/components/share/previews/shell";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { usePublicShareMeta } from "@/shared/lib/api/share";
 import { getShareResource } from "@/shared/lib/share/registry";
 // Side-effect import: ensures resources are registered even when this public
@@ -29,7 +30,7 @@ function PublicSharePage() {
     return (
       <ShareShell>
         <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
+          <Spinner size="md" />
           {t("common:common.loading")}
         </div>
       </ShareShell>
@@ -40,9 +41,9 @@ function PublicSharePage() {
   if (query.error || !meta)
     return <ShareShell><ShareStatus icon={<ShieldAlert className="size-8 text-destructive" />} title={t("public.notFound")} /></ShareShell>;
   if (meta.expired)
-    return <ShareShell><ShareStatus icon={<ShieldAlert className="size-8 text-amber-500" />} title={t("public.expired")} /></ShareShell>;
+    return <ShareShell><ShareStatus icon={<ShieldAlert className="size-8 text-warning" />} title={t("public.expired")} /></ShareShell>;
   if (meta.exhausted)
-    return <ShareShell><ShareStatus icon={<ShieldAlert className="size-8 text-amber-500" />} title={t("public.exhausted")} /></ShareShell>;
+    return <ShareShell><ShareStatus icon={<ShieldAlert className="size-8 text-warning" />} title={t("public.exhausted")} /></ShareShell>;
 
   const definition = getShareResource(meta.resourceType);
   if (!definition)

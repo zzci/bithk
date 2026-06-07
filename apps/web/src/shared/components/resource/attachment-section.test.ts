@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPreviewable } from "./attachment-section";
+import { isPreviewable } from "./attachment-utils";
 
 describe("resource attachment isPreviewable", () => {
   it("treats svg as previewable (rendered via <img> over a re-typed blob)", () => {

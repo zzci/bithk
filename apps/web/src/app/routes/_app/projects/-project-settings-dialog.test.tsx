@@ -1,9 +1,9 @@
 import type { ProjectView } from "@/shared/lib/api/projects";
 import { screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { computeCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { renderWithProviders } from "@/test/utils";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
-import { computeCapabilities } from "./-use-project-role";
 
 // The General section (mounted by default) navigates away on project delete;
 // stub useNavigate so the dialog can render without a live router.

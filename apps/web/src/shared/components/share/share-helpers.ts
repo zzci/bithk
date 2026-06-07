@@ -4,7 +4,7 @@
 
 import type { SimpleUser } from "@/shared/lib/api/documents";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCopyToClipboard } from "@/shared/hooks/use-copy-to-clipboard";
 import { http } from "@/shared/lib/http";
 
 /** Visible users for the direct-share / member pickers (shared client). */
@@ -16,40 +16,12 @@ export function useVisibleUsers() {
   });
 }
 
-/** Clipboard helper with a transient "copied" flag for button feedback. */
-export function useClipboard(resetMs = 1500): {
-  readonly copied: boolean;
-  readonly copy: (text: string) => void;
-} {
-  const [copied, setCopied] = useState(false);
-  const copy = useCallback((text: string) => {
-    void navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(setCopied, resetMs, false);
-    });
-  }, [resetMs]);
-  return { copied, copy };
-}
-
-export function formatBytes(value: number): string {
-  if (value < 1024)
-    return `${value} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let next = value / 1024;
-  let index = 0;
-  while (next >= 1024 && index < units.length - 1) {
-    next /= 1024;
-    index += 1;
-  }
-  return `${next.toFixed(next >= 10 ? 0 : 1)} ${units[index]}`;
-}
-
-export function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime()))
-    return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
-}
+/**
+ * Clipboard helper with a transient "copied" flag for button feedback.
+ * Re-exported from the canonical shared hook so existing share consumers keep
+ * the `useClipboard` name.
+ */
+export const useClipboard = useCopyToClipboard;
 
 /** Public-link expiry select value → absolute ISO timestamp (or null). */
 export function expiresAtFromValue(value: string): string | null {

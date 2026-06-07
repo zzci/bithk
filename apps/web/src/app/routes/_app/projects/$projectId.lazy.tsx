@@ -18,6 +18,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/shared/components/ui/tabs";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProcurements } from "@/shared/lib/api/procurement";
 import {
   useProject,
@@ -28,7 +29,6 @@ import { formatDate } from "@/shared/lib/format";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
 import { activeProjectTab, PROJECT_TAB_TO } from "./-project-tabs";
-import { useProjectCapabilities } from "./-use-project-role";
 
 // Shared trigger styling for the detail tab-nav (line variant): muted resting
 // state that goes solid + bold on the active route. Extracted so all four tabs

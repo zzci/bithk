@@ -13,7 +13,7 @@ import type { FilterDimension } from "@/shared/components/list-filter";
 import { useTranslation } from "react-i18next";
 
 import { ListFilter } from "@/shared/components/list-filter";
-import { FILE_ICONS } from "./-file-browser-types";
+import { FILE_ICONS } from "@/shared/lib/file";
 
 export function DriveFilterBar({
   typeFilter,

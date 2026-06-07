@@ -25,6 +25,7 @@ import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { tagFilterDimension, TagInput } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import {
   Dialog,
   DialogContent,
@@ -217,7 +218,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
       {procurementsQuery.isLoading
         ? <ListRowsSkeleton label={t("procurement.loading")} />
         : rows.length === 0
-          ? <p className="px-3 py-8 text-center text-sm text-muted-foreground">{t("procurement.empty")}</p>
+          ? <EmptyHint className="px-3">{t("procurement.empty")}</EmptyHint>
           : (
               <div className="overflow-hidden">
                 {/* Header row — shares PROCUREMENT_GRID so its labels sit over the

@@ -4,9 +4,9 @@
 
 import type { ShipView } from "@/shared/lib/api/ships";
 import { useTranslation } from "react-i18next";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject } from "@/shared/lib/api/projects";
 import { FileBrowser } from "../-file-browser";
-import { useProjectCapabilities } from "../projects/-use-project-role";
 
 interface ShipFilesTabProps {
   readonly ship: ShipView;

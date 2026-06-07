@@ -1,6 +1,6 @@
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import { describe, expect, it } from "vitest";
-import { detectFileType, entryToDisplayItem, formatSize } from "./-file-browser-types";
+import { detectFileType, entryToDisplayItem } from "./index";
 
 describe("detectFileType", () => {
   it("classifies common mime types", () => {
@@ -12,15 +12,6 @@ describe("detectFileType", () => {
     expect(detectFileType("application/msword")).toBe("document");
     expect(detectFileType("text/plain")).toBe("document");
     expect(detectFileType("application/octet-stream")).toBe("file");
-  });
-});
-
-describe("formatSize", () => {
-  it("scales bytes through B/KB/MB/GB", () => {
-    expect(formatSize(512)).toBe("512 B");
-    expect(formatSize(2048)).toBe("2.0 KB");
-    expect(formatSize(5 * 1024 * 1024)).toBe("5.0 MB");
-    expect(formatSize(3 * 1024 * 1024 * 1024)).toBe("3.0 GB");
   });
 });
 

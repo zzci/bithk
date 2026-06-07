@@ -7,6 +7,7 @@ import type { ReferenceableWorklist } from "@/shared/lib/api/projects";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import {
   Dialog,
   DialogContent,
@@ -73,9 +74,9 @@ export function WorklistPicker({ projectId, open, onOpenChange, onSelect }: Work
 
         <div className="max-h-80 overflow-y-auto">
           {query.isLoading
-            ? <p className="py-6 text-center text-sm text-muted-foreground">{t("issues.worklist.loading")}</p>
+            ? <EmptyHint py="sm">{t("issues.worklist.loading")}</EmptyHint>
             : isEmpty
-              ? <p className="py-6 text-center text-sm text-muted-foreground">{t("issues.worklist.empty")}</p>
+              ? <EmptyHint py="sm">{t("issues.worklist.empty")}</EmptyHint>
               : (
                   <div className="space-y-3">
                     <WorklistGroup label={t("issues.worklist.groupShip")} items={ship} onPick={pick} />

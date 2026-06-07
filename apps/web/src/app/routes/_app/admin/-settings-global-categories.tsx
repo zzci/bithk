@@ -4,31 +4,15 @@
 // project.
 
 import type { GlobalCategoryInput, GlobalProcurementCategory } from "@/shared/lib/api/global-categories";
-import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Button } from "@/shared/components/ui/button";
+import { CrudDialog } from "@/shared/components/crud/crud-dialog";
+import { CrudListSection } from "@/shared/components/crud/crud-list-section";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
-import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/shared/components/ui/table";
+import { TableCell } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
   useCreateGlobalCategory,
@@ -50,54 +34,32 @@ export function GlobalCategoriesSection() {
   const categories = categoriesQuery.data ?? [];
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{t("settings:projectDefaults.categories.title")}</h2>
-          <p className="text-sm text-muted-foreground">{t("settings:projectDefaults.categories.description")}</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 size-3" />
-          {t("settings:projectDefaults.categories.create")}
-        </Button>
-      </div>
-
-      {categoriesQuery.error && <ErrorBanner message={errorMessage(categoriesQuery.error, t("common:common.error.loadFailed"))} />}
-
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("settings:projectDefaults.categories.colName")}</TableHead>
-              <TableHead>{t("settings:projectDefaults.categories.colCode")}</TableHead>
-              <TableHead>{t("settings:projectDefaults.categories.colDescription")}</TableHead>
-              <TableHead className="w-32">{t("settings:col.actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories.length === 0
-              ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("settings:projectDefaults.categories.empty")}</TableCell></TableRow>
-              : categories.map(category => (
-                  <TableRow key={category.id}>
-                    <TableCell className="font-medium">{category.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{category.code ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{category.description ?? "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" onClick={() => setEditTarget(category)}>
-                          {t("common:common.edit")}
-                        </Button>
-                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(category)}>
-                          {t("common:common.delete")}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-          </TableBody>
-        </Table>
-      </div>
-
+    <CrudListSection
+      title={t("settings:projectDefaults.categories.title")}
+      description={t("settings:projectDefaults.categories.description")}
+      addLabel={t("settings:projectDefaults.categories.create")}
+      onAdd={() => setCreateOpen(true)}
+      errorMessage={categoriesQuery.error ? errorMessage(categoriesQuery.error, t("common:common.error.loadFailed")) : null}
+      columns={[
+        { header: t("settings:projectDefaults.categories.colName") },
+        { header: t("settings:projectDefaults.categories.colCode") },
+        { header: t("settings:projectDefaults.categories.colDescription") },
+      ]}
+      actionsLabel={t("settings:col.actions")}
+      rows={categories}
+      emptyLabel={t("settings:projectDefaults.categories.empty")}
+      renderRow={category => (
+        <>
+          <TableCell className="font-medium">{category.name}</TableCell>
+          <TableCell className="text-sm text-muted-foreground">{category.code ?? "—"}</TableCell>
+          <TableCell className="text-sm text-muted-foreground">{category.description ?? "—"}</TableCell>
+        </>
+      )}
+      editLabel={t("common:common.edit")}
+      deleteLabel={t("common:common.delete")}
+      onEdit={setEditTarget}
+      onDelete={setDeleteTarget}
+    >
       <ConfirmDeleteDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
@@ -130,7 +92,7 @@ export function GlobalCategoriesSection() {
           onOpenChange={open => !open && setEditTarget(null)}
         />
       )}
-    </section>
+    </CrudListSection>
   );
 }
 
@@ -184,41 +146,32 @@ function CategoryDialog({ mode, category, open, onOpenChange }: CategoryDialogPr
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <form onSubmit={submit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:projectDefaults.categories.createTitle") : t("settings:projectDefaults.categories.editTitle")}</DialogTitle>
-            <DialogDescription>{t("settings:projectDefaults.categories.dialogDescription")}</DialogDescription>
-          </DialogHeader>
+    <CrudDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      mode={mode}
+      createTitle={t("settings:projectDefaults.categories.createTitle")}
+      editTitle={t("settings:projectDefaults.categories.editTitle")}
+      description={t("settings:projectDefaults.categories.dialogDescription")}
+      errorMessage={error ? errorMessage(error, t("common:common.error.operationFailed")) : null}
+      pending={pending}
+      submitDisabled={!name.trim()}
+      onSubmit={submit}
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="global-category-name">{t("settings:projectDefaults.categories.fieldName")}</Label>
+        <Input id="global-category-name" autoFocus required maxLength={255} value={name} onChange={e => setName(e.target.value)} />
+      </div>
 
-          {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
+      <div className="space-y-1.5">
+        <Label htmlFor="global-category-code">{t("settings:projectDefaults.categories.fieldCode")}</Label>
+        <Input id="global-category-code" maxLength={100} value={code} onChange={e => setCode(e.target.value)} />
+      </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="global-category-name">{t("settings:projectDefaults.categories.fieldName")}</Label>
-            <Input id="global-category-name" autoFocus required maxLength={255} value={name} onChange={e => setName(e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="global-category-code">{t("settings:projectDefaults.categories.fieldCode")}</Label>
-            <Input id="global-category-code" maxLength={100} value={code} onChange={e => setCode(e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="global-category-description">{t("settings:projectDefaults.categories.fieldDescription")}</Label>
-            <Textarea id="global-category-description" rows={2} maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t("common:common.cancel")}
-            </Button>
-            <Button type="submit" disabled={pending || !name.trim()}>
-              {t("common:common.save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <div className="space-y-1.5">
+        <Label htmlFor="global-category-description">{t("settings:projectDefaults.categories.fieldDescription")}</Label>
+        <Textarea id="global-category-description" rows={2} maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} />
+      </div>
+    </CrudDialog>
   );
 }

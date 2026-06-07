@@ -1,12 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createFileRoute } from "@tanstack/react-router";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@/shared/components/logo";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { BASE_PATH, http, HttpError } from "@/shared/lib/http";
 
 const RE_NON_DIGIT = /\D/g;
@@ -99,7 +100,7 @@ function TotpVerifyPage() {
             {loading
               ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    <Spinner />
                     {t("totp:verifying")}
                   </>
                 )

@@ -5,7 +5,7 @@
 // (or "jumps") the modal.
 
 import type { KeyboardEvent } from "react";
-import type { ProjectCapabilityInfo } from "./-use-project-role";
+import type { ProjectCapabilityInfo } from "@/shared/hooks/use-project-capabilities";
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
 import { AlertTriangle, Copy, FolderTree, Settings, ShieldCheck, Users } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";

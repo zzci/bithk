@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { PageHeader } from "@/shared/components/page-header";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/admin/users")({
@@ -28,10 +29,7 @@ function UsersLayout() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">{t("users:page.title")}</h1>
-        <p className="mt-1 text-muted-foreground">{t("users:page.description")}</p>
-      </div>
+      <PageHeader title={t("users:page.title")} description={t("users:page.description")} />
 
       <Tabs value={currentTab} onValueChange={handleTabChange}>
         <TabsList variant="line">

@@ -29,12 +29,12 @@ function clampDrawerWidth(width: number): number {
 
 interface ResizableDrawerProps {
   /** Accessible name for the dialog (role="dialog"). */
-  ariaLabel: string;
+  readonly ariaLabel: string;
   /** Accessible label for the resize separator. */
-  resizeLabel: string;
+  readonly resizeLabel: string;
   /** Called when the drawer requests to close (Escape, backdrop press, etc.). */
-  onClose: () => void;
-  children: ReactNode;
+  readonly onClose: () => void;
+  readonly children: ReactNode;
 }
 
 export function ResizableDrawer({ ariaLabel, resizeLabel, onClose, children }: ResizableDrawerProps) {

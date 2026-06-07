@@ -3,9 +3,9 @@
 // loaded before this Outlet renders; the cached query resolves immediately.
 
 import { createLazyFileRoute, useParams } from "@tanstack/react-router";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject } from "@/shared/lib/api/projects";
 import { useShip } from "@/shared/lib/api/ships";
-import { useProjectCapabilities } from "../projects/-use-project-role";
 import { ShipOverviewTab } from "./-ship-overview-tab";
 
 export const Route = createLazyFileRoute("/_app/ships/$shipId/")({

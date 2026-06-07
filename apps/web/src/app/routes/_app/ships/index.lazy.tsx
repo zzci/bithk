@@ -2,19 +2,22 @@
 import type { ShipFormState } from "./-ship-form-logic";
 import type { ShipStatus, ShipView } from "@/shared/lib/api/ships";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Copy, Loader2 } from "lucide-react";
+import { Copy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
 import { ListFilter } from "@/shared/components/list-filter";
 import { CardGridSkeleton } from "@/shared/components/list-skeleton";
+import { PageHeader } from "@/shared/components/page-header";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { TagChips, tagFilterDimension } from "@/shared/components/tags";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
+import { Spinner } from "@/shared/components/ui/spinner";
+import { useCopyToClipboard } from "@/shared/hooks/use-copy-to-clipboard";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { SHIP_STATUSES, useCreateShip, useShips, useShipStatusCounts, useShipTags } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
@@ -87,17 +90,17 @@ export function ShipsListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
+      <PageHeader
+        title={(
+          <span className="flex items-center gap-2">
             {t("page.title")}
             {isRefetching && (
-              <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label={t("list.loading")} />
+              <Spinner aria-hidden={false} className="text-muted-foreground" aria-label={t("list.loading")} />
             )}
-          </h1>
-          <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
-        </div>
-      </div>
+          </span>
+        )}
+        description={t("page.description")}
+      />
 
       {shipsQuery.error && <ErrorBanner message={errorMessage(shipsQuery.error, t("common:common.error.loadFailed"))} />}
 
@@ -232,8 +235,8 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
             <TagChips
               tags={ship.tags}
               max={3}
-              className="text-[10px] font-medium"
-              moreClassName="self-center text-[10px] font-medium text-muted-foreground"
+              className="text-2xs font-medium"
+              moreClassName="self-center text-2xs font-medium text-muted-foreground"
               renderMore={count => t("list.moreTags", { count })}
             />
           </div>
@@ -248,12 +251,13 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
 // surface, so the copy handler stops propagation to avoid opening the ship.
 function CardIdentifier({ label, value }: { readonly label: string; readonly value: string | null }) {
   const { t } = useTranslation(["ships", "common"]);
+  const { copy } = useCopyToClipboard();
 
   const handleCopy = (event: React.MouseEvent) => {
     event.stopPropagation();
     if (value === null)
       return;
-    void navigator.clipboard?.writeText(value);
+    copy(value);
     toast.success(t("common:common.copied"));
   };
 

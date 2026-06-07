@@ -11,32 +11,16 @@
 import type { GlobalEquipmentCategory } from "@/shared/lib/api/global-equipment-categories";
 import type { GlobalEquipmentManufacturer } from "@/shared/lib/api/global-equipment-manufacturers";
 import type { WorklistInput, WorklistView } from "@/shared/lib/api/ships";
-import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { CrudDialog } from "@/shared/components/crud/crud-dialog";
+import { CrudListSection } from "@/shared/components/crud/crud-list-section";
 import { TagInput } from "@/shared/components/tags";
-import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
-import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/shared/components/ui/table";
+import { TableCell } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
   resolveCategoryName,
@@ -82,52 +66,30 @@ function GlobalWorklistsSection() {
   const worklists = worklistsQuery.data ?? [];
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{t("settings:globalWorklists.title")}</h2>
-          <p className="text-sm text-muted-foreground">{t("settings:globalWorklists.description")}</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 size-3" />
-          {t("settings:globalWorklists.create")}
-        </Button>
-      </div>
-
-      {worklistsQuery.error && <ErrorBanner message={errorMessage(worklistsQuery.error, t("common:common.error.loadFailed"))} />}
-
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("settings:globalWorklists.colName")}</TableHead>
-              <TableHead>{t("settings:globalWorklists.colTags")}</TableHead>
-              <TableHead className="w-32">{t("settings:col.actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {worklists.length === 0
-              ? <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">{t("settings:globalWorklists.empty")}</TableCell></TableRow>
-              : worklists.map(worklist => (
-                  <TableRow key={worklist.id}>
-                    <TableCell className="font-medium">{worklist.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{worklist.tags.map(tag => tag.name).join(", ") || "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" onClick={() => setEditTarget(worklist)}>
-                          {t("common:common.edit")}
-                        </Button>
-                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(worklist)}>
-                          {t("common:common.delete")}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-          </TableBody>
-        </Table>
-      </div>
-
+    <CrudListSection
+      title={t("settings:globalWorklists.title")}
+      description={t("settings:globalWorklists.description")}
+      addLabel={t("settings:globalWorklists.create")}
+      onAdd={() => setCreateOpen(true)}
+      errorMessage={worklistsQuery.error ? errorMessage(worklistsQuery.error, t("common:common.error.loadFailed")) : null}
+      columns={[
+        { header: t("settings:globalWorklists.colName") },
+        { header: t("settings:globalWorklists.colTags") },
+      ]}
+      actionsLabel={t("settings:col.actions")}
+      rows={worklists}
+      emptyLabel={t("settings:globalWorklists.empty")}
+      renderRow={worklist => (
+        <>
+          <TableCell className="font-medium">{worklist.name}</TableCell>
+          <TableCell className="text-sm text-muted-foreground">{worklist.tags.map(tag => tag.name).join(", ") || "—"}</TableCell>
+        </>
+      )}
+      editLabel={t("common:common.edit")}
+      deleteLabel={t("common:common.delete")}
+      onEdit={setEditTarget}
+      onDelete={setDeleteTarget}
+    >
       <ConfirmDeleteDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
@@ -160,7 +122,7 @@ function GlobalWorklistsSection() {
           onOpenChange={open => !open && setEditTarget(null)}
         />
       )}
-    </section>
+    </CrudListSection>
   );
 }
 
@@ -217,47 +179,39 @@ function WorklistDialog({ mode, worklist, open, onOpenChange }: WorklistDialogPr
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-        <form onSubmit={submit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:globalWorklists.createTitle") : t("settings:globalWorklists.editTitle")}</DialogTitle>
-            <DialogDescription>{t("settings:globalWorklists.dialogDescription")}</DialogDescription>
-          </DialogHeader>
+    <CrudDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      mode={mode}
+      createTitle={t("settings:globalWorklists.createTitle")}
+      editTitle={t("settings:globalWorklists.editTitle")}
+      description={t("settings:globalWorklists.dialogDescription")}
+      errorMessage={error ? errorMessage(error, t("common:common.error.operationFailed")) : null}
+      pending={pending}
+      submitDisabled={!name.trim()}
+      onSubmit={submit}
+      contentClassName="max-h-[90svh] overflow-y-auto sm:max-w-lg"
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="global-worklist-name">{t("settings:globalWorklists.fieldName")}</Label>
+        <Input id="global-worklist-name" autoFocus required maxLength={255} value={name} onChange={e => setName(e.target.value)} />
+      </div>
 
-          {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
+      <div className="space-y-1.5">
+        <Label>{t("settings:globalWorklists.fieldTags")}</Label>
+        <TagInput value={tags} onChange={setTags} suggestions={worklistTags.map(tag => tag.name)} namespace="ships" />
+      </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="global-worklist-name">{t("settings:globalWorklists.fieldName")}</Label>
-            <Input id="global-worklist-name" autoFocus required maxLength={255} value={name} onChange={e => setName(e.target.value)} />
-          </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="global-worklist-checklist">{t("settings:globalWorklists.fieldChecklist")}</Label>
+        <Textarea id="global-worklist-checklist" rows={4} value={checklist} onChange={e => setChecklist(e.target.value)} />
+      </div>
 
-          <div className="space-y-1.5">
-            <Label>{t("settings:globalWorklists.fieldTags")}</Label>
-            <TagInput value={tags} onChange={setTags} suggestions={worklistTags.map(tag => tag.name)} namespace="ships" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="global-worklist-checklist">{t("settings:globalWorklists.fieldChecklist")}</Label>
-            <Textarea id="global-worklist-checklist" rows={4} value={checklist} onChange={e => setChecklist(e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="global-worklist-precautions">{t("settings:globalWorklists.fieldPrecautions")}</Label>
-            <Textarea id="global-worklist-precautions" rows={3} value={precautions} onChange={e => setPrecautions(e.target.value)} />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t("common:common.cancel")}
-            </Button>
-            <Button type="submit" disabled={pending || !name.trim()}>
-              {t("common:common.save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <div className="space-y-1.5">
+        <Label htmlFor="global-worklist-precautions">{t("settings:globalWorklists.fieldPrecautions")}</Label>
+        <Textarea id="global-worklist-precautions" rows={3} value={precautions} onChange={e => setPrecautions(e.target.value)} />
+      </div>
+    </CrudDialog>
   );
 }
 
@@ -274,54 +228,32 @@ function GlobalEquipmentCategoriesSection() {
   const categories = categoriesQuery.data ?? [];
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{t("settings:globalEquipmentCategories.title")}</h2>
-          <p className="text-sm text-muted-foreground">{t("settings:globalEquipmentCategories.description")}</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 size-3" />
-          {t("settings:globalEquipmentCategories.create")}
-        </Button>
-      </div>
-
-      {categoriesQuery.error && <ErrorBanner message={errorMessage(categoriesQuery.error, t("common:common.error.loadFailed"))} />}
-
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("settings:globalEquipmentCategories.colNameZh")}</TableHead>
-              <TableHead>{t("settings:globalEquipmentCategories.colNameEn")}</TableHead>
-              <TableHead>{t("settings:globalEquipmentCategories.colCode")}</TableHead>
-              <TableHead className="w-32">{t("settings:globalEquipmentCategories.actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories.length === 0
-              ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{t("settings:globalEquipmentCategories.empty")}</TableCell></TableRow>
-              : categories.map(category => (
-                  <TableRow key={category.id}>
-                    <TableCell className="font-medium">{category.nameZh}</TableCell>
-                    <TableCell className="font-medium">{category.nameEn}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{category.code ?? "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" onClick={() => setEditTarget(category)}>
-                          {t("settings:globalEquipmentCategories.edit")}
-                        </Button>
-                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(category)}>
-                          {t("settings:globalEquipmentCategories.delete")}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-          </TableBody>
-        </Table>
-      </div>
-
+    <CrudListSection
+      title={t("settings:globalEquipmentCategories.title")}
+      description={t("settings:globalEquipmentCategories.description")}
+      addLabel={t("settings:globalEquipmentCategories.create")}
+      onAdd={() => setCreateOpen(true)}
+      errorMessage={categoriesQuery.error ? errorMessage(categoriesQuery.error, t("common:common.error.loadFailed")) : null}
+      columns={[
+        { header: t("settings:globalEquipmentCategories.colNameZh") },
+        { header: t("settings:globalEquipmentCategories.colNameEn") },
+        { header: t("settings:globalEquipmentCategories.colCode") },
+      ]}
+      actionsLabel={t("settings:globalEquipmentCategories.actions")}
+      rows={categories}
+      emptyLabel={t("settings:globalEquipmentCategories.empty")}
+      renderRow={category => (
+        <>
+          <TableCell className="font-medium">{category.nameZh}</TableCell>
+          <TableCell className="font-medium">{category.nameEn}</TableCell>
+          <TableCell className="text-sm text-muted-foreground">{category.code ?? "—"}</TableCell>
+        </>
+      )}
+      editLabel={t("settings:globalEquipmentCategories.edit")}
+      deleteLabel={t("settings:globalEquipmentCategories.delete")}
+      onEdit={setEditTarget}
+      onDelete={setDeleteTarget}
+    >
       <ConfirmDeleteDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
@@ -354,7 +286,7 @@ function GlobalEquipmentCategoriesSection() {
           onOpenChange={open => !open && setEditTarget(null)}
         />
       )}
-    </section>
+    </CrudListSection>
   );
 }
 
@@ -414,62 +346,54 @@ function GlobalEquipmentCategoryDialog({ mode, category, open, onOpenChange }: G
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:globalEquipmentCategories.dialog.createTitle") : t("settings:globalEquipmentCategories.dialog.editTitle")}</DialogTitle>
-            <DialogDescription>{t("settings:globalEquipmentCategories.dialog.description")}</DialogDescription>
-          </DialogHeader>
+    <CrudDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      mode={mode}
+      createTitle={t("settings:globalEquipmentCategories.dialog.createTitle")}
+      editTitle={t("settings:globalEquipmentCategories.dialog.editTitle")}
+      description={t("settings:globalEquipmentCategories.dialog.description")}
+      errorMessage={error ? errorMessage(error, t("common:common.error.operationFailed")) : null}
+      pending={pending}
+      submitDisabled={!valid}
+      onSubmit={submit}
+      noValidate
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="equipment-category-zh">{t("settings:globalEquipmentCategories.colNameZh")}</Label>
+        <Input
+          id="equipment-category-zh"
+          autoFocus
+          maxLength={255}
+          placeholder={t("settings:globalEquipmentCategories.placeholders.nameZh")}
+          value={nameZh}
+          onChange={e => setNameZh(e.target.value)}
+        />
+        {submitted && nameZhMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentCategories.validation.nameZhRequired")}</p>}
+      </div>
 
-          {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
+      <div className="space-y-1.5">
+        <Label htmlFor="equipment-category-en">{t("settings:globalEquipmentCategories.colNameEn")}</Label>
+        <Input
+          id="equipment-category-en"
+          maxLength={255}
+          placeholder={t("settings:globalEquipmentCategories.placeholders.nameEn")}
+          value={nameEn}
+          onChange={e => setNameEn(e.target.value)}
+        />
+        {submitted && nameEnMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentCategories.validation.nameEnRequired")}</p>}
+      </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="equipment-category-zh">{t("settings:globalEquipmentCategories.colNameZh")}</Label>
-            <Input
-              id="equipment-category-zh"
-              autoFocus
-              maxLength={255}
-              placeholder={t("settings:globalEquipmentCategories.placeholders.nameZh")}
-              value={nameZh}
-              onChange={e => setNameZh(e.target.value)}
-            />
-            {submitted && nameZhMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentCategories.validation.nameZhRequired")}</p>}
-          </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="equipment-category-code">{t("settings:globalEquipmentCategories.colCode")}</Label>
+        <Input id="equipment-category-code" maxLength={100} value={code} onChange={e => setCode(e.target.value)} />
+      </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="equipment-category-en">{t("settings:globalEquipmentCategories.colNameEn")}</Label>
-            <Input
-              id="equipment-category-en"
-              maxLength={255}
-              placeholder={t("settings:globalEquipmentCategories.placeholders.nameEn")}
-              value={nameEn}
-              onChange={e => setNameEn(e.target.value)}
-            />
-            {submitted && nameEnMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentCategories.validation.nameEnRequired")}</p>}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="equipment-category-code">{t("settings:globalEquipmentCategories.colCode")}</Label>
-            <Input id="equipment-category-code" maxLength={100} value={code} onChange={e => setCode(e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="equipment-category-description">{t("settings:globalEquipmentCategories.fieldDescription")}</Label>
-            <Textarea id="equipment-category-description" rows={2} maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t("common:common.cancel")}
-            </Button>
-            <Button type="submit" disabled={pending || !valid}>
-              {t("common:common.save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <div className="space-y-1.5">
+        <Label htmlFor="equipment-category-description">{t("settings:globalEquipmentCategories.fieldDescription")}</Label>
+        <Textarea id="equipment-category-description" rows={2} maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} />
+      </div>
+    </CrudDialog>
   );
 }
 
@@ -485,52 +409,30 @@ function GlobalEquipmentManufacturersSection() {
   const manufacturers = manufacturersQuery.data ?? [];
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{t("settings:globalEquipmentManufacturers.title")}</h2>
-          <p className="text-sm text-muted-foreground">{t("settings:globalEquipmentManufacturers.description")}</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 size-3" />
-          {t("settings:globalEquipmentManufacturers.add")}
-        </Button>
-      </div>
-
-      {manufacturersQuery.error && <ErrorBanner message={errorMessage(manufacturersQuery.error, t("common:common.error.loadFailed"))} />}
-
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("settings:globalEquipmentManufacturers.colName")}</TableHead>
-              <TableHead>{t("settings:globalEquipmentManufacturers.colCode")}</TableHead>
-              <TableHead className="w-32">{t("settings:globalEquipmentManufacturers.actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {manufacturers.length === 0
-              ? <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">{t("settings:globalEquipmentManufacturers.empty")}</TableCell></TableRow>
-              : manufacturers.map(manufacturer => (
-                  <TableRow key={manufacturer.id}>
-                    <TableCell className="font-medium">{manufacturer.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{manufacturer.code ?? "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" onClick={() => setEditTarget(manufacturer)}>
-                          {t("settings:globalEquipmentManufacturers.edit")}
-                        </Button>
-                        <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(manufacturer)}>
-                          {t("settings:globalEquipmentManufacturers.delete")}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-          </TableBody>
-        </Table>
-      </div>
-
+    <CrudListSection
+      title={t("settings:globalEquipmentManufacturers.title")}
+      description={t("settings:globalEquipmentManufacturers.description")}
+      addLabel={t("settings:globalEquipmentManufacturers.add")}
+      onAdd={() => setCreateOpen(true)}
+      errorMessage={manufacturersQuery.error ? errorMessage(manufacturersQuery.error, t("common:common.error.loadFailed")) : null}
+      columns={[
+        { header: t("settings:globalEquipmentManufacturers.colName") },
+        { header: t("settings:globalEquipmentManufacturers.colCode") },
+      ]}
+      actionsLabel={t("settings:globalEquipmentManufacturers.actions")}
+      rows={manufacturers}
+      emptyLabel={t("settings:globalEquipmentManufacturers.empty")}
+      renderRow={manufacturer => (
+        <>
+          <TableCell className="font-medium">{manufacturer.name}</TableCell>
+          <TableCell className="text-sm text-muted-foreground">{manufacturer.code ?? "—"}</TableCell>
+        </>
+      )}
+      editLabel={t("settings:globalEquipmentManufacturers.edit")}
+      deleteLabel={t("settings:globalEquipmentManufacturers.delete")}
+      onEdit={setEditTarget}
+      onDelete={setDeleteTarget}
+    >
       <ConfirmDeleteDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
@@ -563,7 +465,7 @@ function GlobalEquipmentManufacturersSection() {
           onOpenChange={open => !open && setEditTarget(null)}
         />
       )}
-    </section>
+    </CrudListSection>
   );
 }
 
@@ -619,61 +521,53 @@ function GlobalEquipmentManufacturerDialog({ mode, manufacturer, open, onOpenCha
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("settings:globalEquipmentManufacturers.dialog.createTitle") : t("settings:globalEquipmentManufacturers.dialog.editTitle")}</DialogTitle>
-            <DialogDescription>{t("settings:globalEquipmentManufacturers.dialog.description")}</DialogDescription>
-          </DialogHeader>
+    <CrudDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      mode={mode}
+      createTitle={t("settings:globalEquipmentManufacturers.dialog.createTitle")}
+      editTitle={t("settings:globalEquipmentManufacturers.dialog.editTitle")}
+      description={t("settings:globalEquipmentManufacturers.dialog.description")}
+      errorMessage={error ? errorMessage(error, t("common:common.error.operationFailed")) : null}
+      pending={pending}
+      submitDisabled={nameMissing}
+      onSubmit={submit}
+      noValidate
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="equipment-manufacturer-name">{t("settings:globalEquipmentManufacturers.colName")}</Label>
+        <Input
+          id="equipment-manufacturer-name"
+          autoFocus
+          maxLength={100}
+          placeholder={t("settings:globalEquipmentManufacturers.placeholders.name")}
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+        {submitted && nameMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentManufacturers.validation.nameRequired")}</p>}
+      </div>
 
-          {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
+      <div className="space-y-1.5">
+        <Label htmlFor="equipment-manufacturer-code">{t("settings:globalEquipmentManufacturers.colCode")}</Label>
+        <Input
+          id="equipment-manufacturer-code"
+          maxLength={200}
+          placeholder={t("settings:globalEquipmentManufacturers.placeholders.code")}
+          value={code}
+          onChange={e => setCode(e.target.value)}
+        />
+      </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="equipment-manufacturer-name">{t("settings:globalEquipmentManufacturers.colName")}</Label>
-            <Input
-              id="equipment-manufacturer-name"
-              autoFocus
-              maxLength={100}
-              placeholder={t("settings:globalEquipmentManufacturers.placeholders.name")}
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-            {submitted && nameMissing && <p className="text-xs text-destructive">{t("settings:globalEquipmentManufacturers.validation.nameRequired")}</p>}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="equipment-manufacturer-code">{t("settings:globalEquipmentManufacturers.colCode")}</Label>
-            <Input
-              id="equipment-manufacturer-code"
-              maxLength={200}
-              placeholder={t("settings:globalEquipmentManufacturers.placeholders.code")}
-              value={code}
-              onChange={e => setCode(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="equipment-manufacturer-description">{t("settings:globalEquipmentManufacturers.placeholders.description")}</Label>
-            <Textarea
-              id="equipment-manufacturer-description"
-              rows={2}
-              maxLength={200}
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t("common:common.cancel")}
-            </Button>
-            <Button type="submit" disabled={pending || nameMissing}>
-              {t("common:common.save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <div className="space-y-1.5">
+        <Label htmlFor="equipment-manufacturer-description">{t("settings:globalEquipmentManufacturers.placeholders.description")}</Label>
+        <Textarea
+          id="equipment-manufacturer-description"
+          rows={2}
+          maxLength={200}
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+        />
+      </div>
+    </CrudDialog>
   );
 }

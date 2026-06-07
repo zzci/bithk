@@ -1,10 +1,15 @@
+import type { SettingsCardField } from "@/shared/components/forms/settings-card";
 import { useTranslation } from "react-i18next";
+import { SettingsCard } from "@/shared/components/forms/settings-card";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
+import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
+import { useSettingsByPrefix } from "@/shared/hooks/use-settings-by-prefix";
 import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
-import { ErrorBanner, saveSetting, SettingsCard, useSettingsByPrefix } from "./-settings-shared";
+import { saveSetting } from "./-settings-shared";
 
-const SMTP_FIELDS: readonly { key: string; label: string; sensitive: boolean; placeholder: string }[] = [
+const SMTP_FIELDS: readonly SettingsCardField[] = [
   { key: "smtp.host", label: "settings:smtp.fieldHost", sensitive: false, placeholder: "smtp.example.com" },
   { key: "smtp.port", label: "settings:smtp.fieldPort", sensitive: false, placeholder: "587" },
   { key: "smtp.username", label: "settings:smtp.fieldUsername", sensitive: false, placeholder: "user@example.com" },
@@ -49,7 +54,7 @@ export function SmtpSettingsTab() {
       </div>
 
       {loading
-        ? <div className="py-8 text-center text-muted-foreground">{t("common.loading")}</div>
+        ? <EmptyHint>{t("common.loading")}</EmptyHint>
         : (
             <SettingsCard
               title={t("settings:smtp.serverConfig")}

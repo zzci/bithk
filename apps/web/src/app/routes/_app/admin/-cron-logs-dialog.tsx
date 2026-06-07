@@ -27,6 +27,7 @@ import {
 } from "@/shared/components/ui/table";
 import { formatDateTime } from "@/shared/lib/format";
 import { http } from "@/shared/lib/http";
+import { CRON_STATUS_VARIANT } from "@/shared/lib/status-colors";
 
 // Shape mirrored from `apps/api/src/modules/cron/serialize.ts`. Duplicated
 // here to keep this sibling component self-contained; the parent route
@@ -55,17 +56,6 @@ interface LogsResponse {
   success: true;
   data: { logs: LogRow[] };
 }
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  running: "default",
-  stopped: "secondary",
-  paused: "secondary",
-  error: "destructive",
-  disabled: "outline",
-  not_loaded: "outline",
-  success: "default",
-  failed: "destructive",
-};
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error)
@@ -205,7 +195,7 @@ export function LogsDialog({
                         <TableCell className="font-mono text-xs">{formatTime(row.startedAt)}</TableCell>
                         <TableCell className="text-xs">{formatDuration(row.durationMs)}</TableCell>
                         <TableCell>
-                          <Badge variant={STATUS_VARIANT[row.status] ?? "outline"}>
+                          <Badge variant={CRON_STATUS_VARIANT[row.status] ?? "outline"}>
                             {t(`status.${row.status}`, { defaultValue: row.status })}
                           </Badge>
                         </TableCell>

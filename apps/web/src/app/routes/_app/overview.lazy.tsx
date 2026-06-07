@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { FileText, FolderKanban } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { PageHeader } from "@/shared/components/page-header";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { useAuthStore } from "@/shared/stores/auth";
 
@@ -30,12 +31,10 @@ function OverviewPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">
-          {t("overview:welcome", { name: user?.name ?? user?.username ?? "" })}
-        </h1>
-        <p className="mt-1 text-muted-foreground">{t("overview:page.description")}</p>
-      </div>
+      <PageHeader
+        title={t("overview:welcome", { name: user?.name ?? user?.username ?? "" })}
+        description={t("overview:page.description")}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {OVERVIEW_TILES.map(tile => (

@@ -13,6 +13,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/shared/components/ui/tabs";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject } from "@/shared/lib/api/projects";
 import {
   useDeleteShip,
@@ -22,7 +23,6 @@ import {
   useShipWorklists,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
-import { useProjectCapabilities } from "../projects/-use-project-role";
 import { activeShipTab, SHIP_TAB_TO, visibleShipTabs } from "./-ship-tabs";
 import { ShipStatusBadge } from "./-ship-visuals";
 

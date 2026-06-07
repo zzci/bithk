@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
+import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -27,6 +28,7 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { http } from "@/shared/lib/http";
+import { CRON_STATUS_VARIANT } from "@/shared/lib/status-colors";
 import { CreateJobDrawer } from "./-cron-create-drawer";
 import { buildPayload, errorMessage, formatTime } from "./-cron-form";
 import { LogsDialog } from "./-cron-logs-dialog";
@@ -35,7 +37,6 @@ import {
   INITIAL_FORM,
   STATUS_FILTER_ORDER,
   STATUS_FILTERS,
-  STATUS_VARIANT,
 } from "./-cron-types";
 
 export const Route = createLazyFileRoute("/_app/admin/cron")({
@@ -215,32 +216,32 @@ function CronPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{t("page.title")}</h1>
-          <p className="mt-1 text-muted-foreground">{t("page.description")}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void fetchJobs()} disabled={loading}>
-            <RefreshCw className={`mr-1 size-3 ${loading ? "animate-spin" : ""}`} />
-            {t("refresh")}
-          </Button>
-          <Button
-            onClick={() => {
-              resetForm();
-              setCreateOpen(true);
-            }}
-          >
-            <Plus className="mr-1 size-3" />
-            {t("create")}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={t("page.title")}
+        description={t("page.description")}
+        actions={(
+          <>
+            <Button variant="outline" onClick={() => void fetchJobs()} disabled={loading}>
+              <RefreshCw className={`mr-1 size-3 ${loading ? "animate-spin" : ""}`} />
+              {t("refresh")}
+            </Button>
+            <Button
+              onClick={() => {
+                resetForm();
+                setCreateOpen(true);
+              }}
+            >
+              <Plus className="mr-1 size-3" />
+              {t("create")}
+            </Button>
+          </>
+        )}
+      />
 
       {/* Status hint: scheduler is off (data routes still work). */}
       {schedulerEnabled === false && (
-        <div className="flex items-start gap-3 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300" />
+        <div className="flex items-start gap-3 rounded-md border border-warning/50 bg-warning/10 p-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <div className="space-y-1">
             <p className="font-medium">{t("schedulerDisabled.title")}</p>
             <p className="text-xs text-muted-foreground">{t("schedulerDisabled.body")}</p>
@@ -324,7 +325,7 @@ function CronPage() {
                       {job.lastRun
                         ? (
                             <div className="space-y-0.5">
-                              <Badge variant={STATUS_VARIANT[job.lastRun.status] ?? "outline"}>
+                              <Badge variant={CRON_STATUS_VARIANT[job.lastRun.status] ?? "outline"}>
                                 {t(`status.${job.lastRun.status}`, { defaultValue: job.lastRun.status })}
                               </Badge>
                               <div className="text-muted-foreground">{formatTime(job.lastRun.startedAt)}</div>
@@ -334,14 +335,14 @@ function CronPage() {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <Badge variant={STATUS_VARIANT[job.status] ?? "outline"}>
+                        <Badge variant={CRON_STATUS_VARIANT[job.status] ?? "outline"}>
                           {t(`status.${job.status}`, { defaultValue: job.status })}
                         </Badge>
                         {job.maxConsecutiveFailures === 0 && (
                           // Surfaced because auto-pause is off — operators
                           // need to spot this when triaging long failure
                           // streaks.
-                          <Badge variant="destructive" className="block w-fit text-[10px] uppercase tracking-wide">
+                          <Badge variant="destructive" className="block w-fit text-2xs uppercase tracking-wide">
                             no auto-pause
                           </Badge>
                         )}

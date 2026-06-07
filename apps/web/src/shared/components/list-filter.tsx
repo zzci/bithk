@@ -109,7 +109,7 @@ function SingleControl({ dim }: { dim: Extract<FilterDimension, { mode: "single"
               {opt.icon && <span className="flex size-4 shrink-0 items-center justify-center">{opt.icon}</span>}
               <span className="flex-1">{opt.label}</span>
               {opt.count !== undefined && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{opt.count}</Badge>
+                <Badge variant="secondary" className="h-5 px-1.5 text-2xs">{opt.count}</Badge>
               )}
               {checked && <Check className="size-4 shrink-0" aria-hidden="true" />}
             </DropdownMenuItem>
@@ -152,7 +152,7 @@ function MultiTrigger({ dim }: { dim: Extract<FilterDimension, { mode: "multi" }
       >
         <span>{dim.label}</span>
         {active && (
-          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{count}</Badge>
+          <Badge variant="secondary" className="h-5 px-1.5 text-2xs">{count}</Badge>
         )}
         <ChevronDown className="size-4 opacity-60" aria-hidden="true" />
       </DropdownMenuTrigger>
@@ -168,7 +168,7 @@ function MultiTrigger({ dim }: { dim: Extract<FilterDimension, { mode: "multi" }
             >
               <span className="flex-1">{opt.label}</span>
               {opt.count !== undefined && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">{opt.count}</Badge>
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-2xs">{opt.count}</Badge>
               )}
             </DropdownMenuCheckboxItem>
           );

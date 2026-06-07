@@ -369,7 +369,7 @@ export function DocumentDetail({
                 </h1>
                 {/* Byline — centered under the title, answers "who & when"
                   before the body. Tags live after the body (below). */}
-                <p className="mb-6 text-center text-[11px] text-muted-foreground">
+                <p className="mb-6 text-center text-xs text-muted-foreground">
                   {creatorName}
                   <span className="mx-1 text-muted-foreground/50">·</span>
                   {formatLongDate(doc.updatedAt)}
@@ -397,7 +397,7 @@ export function DocumentDetail({
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="px-1.5 text-[11px] text-primary/80 hover:bg-primary/10 hover:text-primary"
+                      className="px-1.5 text-xs text-primary/80 hover:bg-primary/10 hover:text-primary"
                       onClick={() => {
                         updateMutation.mutate(
                           { id: doc.id, version: doc.version, commentsLocked: !doc.commentsLocked },

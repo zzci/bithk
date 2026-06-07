@@ -3,9 +3,9 @@
 
 import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject } from "@/shared/lib/api/projects";
 import { FileBrowser } from "../-file-browser";
-import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/files")({
   component: ProjectFilesRoute,

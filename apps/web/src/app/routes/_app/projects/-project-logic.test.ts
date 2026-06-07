@@ -1,7 +1,7 @@
 import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import { describe, expect, it } from "vitest";
+import { computeCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { buildMemberLabelMap, memberLabel } from "./-member-helpers";
-import { computeCapabilities } from "./-use-project-role";
 
 function member(overrides: Partial<ProjectMemberView>): ProjectMemberView {
   return {

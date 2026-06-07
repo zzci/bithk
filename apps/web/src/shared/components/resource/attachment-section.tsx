@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 // Generic attachments UI for any resource exposing
 // `/api/{resource}/{id}/attachments` (+ `?inline=true` for preview).
 // Lists the resource's attachments as a compact grid of cards with
@@ -11,6 +10,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
+import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
   Dialog,
@@ -21,9 +21,11 @@ import {
 } from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { errorMessage } from "@/shared/lib/errors";
-import { formatDate } from "@/shared/lib/format";
+import { formatBytes, formatDate } from "@/shared/lib/format";
 import { BASE_PATH, http } from "@/shared/lib/http";
 import { retypeBlobToMime } from "@/shared/lib/preview-blob";
+
+import { attachmentsQueryKey, isPreviewable } from "./attachment-utils";
 
 export interface ResourceAttachment {
   readonly id: string;
@@ -32,31 +34,6 @@ export interface ResourceAttachment {
   readonly size: number;
   readonly uploadedBy: string;
   readonly createdAt: string;
-}
-
-export function attachmentsQueryKey(resource: string, resourceId: string) {
-  return [resource, resourceId, "attachments"] as const;
-}
-
-// `image/svg+xml` is covered by the `image/` prefix; it previews safely
-// because the image branch renders through <img> over a re-typed blob (the
-// backend still serves SVG as octet-stream + attachment).
-export function isPreviewable(mimetype: string): boolean {
-  return (
-    mimetype.startsWith("image/")
-    || mimetype === "application/pdf"
-    || mimetype.startsWith("text/")
-    || mimetype === "application/json"
-    || mimetype === "application/xml"
-  );
-}
-
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024)
-    return `${bytes} B`;
-  if (bytes < 1024 * 1024)
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export interface ResourceAttachmentSectionProps {
@@ -139,9 +116,9 @@ export function ResourceAttachmentSection({
                         </div>
                       )}
                   <div className="flex min-w-0 flex-1 flex-col justify-center py-1">
-                    <div className="truncate text-[12px] font-medium leading-tight">{att.filename}</div>
-                    <div className="truncate text-[10px] text-muted-foreground">
-                      {formatFileSize(att.size)}
+                    <div className="truncate text-xs font-medium leading-tight">{att.filename}</div>
+                    <div className="truncate text-2xs text-muted-foreground">
+                      {formatBytes(att.size)}
                       <span className="mx-1 text-muted-foreground/50">·</span>
                       {formatDate(att.createdAt)}
                     </div>
@@ -235,8 +212,8 @@ function ResourceAttachmentPreviewDialog({
         <DialogHeader className="flex shrink-0 flex-row items-center justify-between gap-3 border-b px-4 py-2.5">
           <div className="min-w-0 flex-1">
             <DialogTitle className="truncate text-sm font-semibold">{attachment.filename}</DialogTitle>
-            <DialogDescription className="text-[11px] text-muted-foreground">
-              {formatFileSize(attachment.size)}
+            <DialogDescription className="text-xs text-muted-foreground">
+              {formatBytes(attachment.size)}
               <span className="mx-1 text-muted-foreground/50">·</span>
               {attachment.mimetype}
             </DialogDescription>
@@ -321,13 +298,13 @@ function ImagePreview({ url, mime, alt, i18nNs }: {
 
   if (failed) {
     return (
-      <div className="flex h-[60vh] items-center justify-center text-sm text-destructive">
+      <CenteredHint tone="destructive" className="h-[60vh]">
         {t("common.error.loadFailed")}
-      </div>
+      </CenteredHint>
     );
   }
   if (!objectUrl) {
-    return <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">{t("common.loading")}</div>;
+    return <CenteredHint className="h-[60vh]">{t("common.loading")}</CenteredHint>;
   }
   return (
     <div className="flex h-full items-center justify-center p-4">
@@ -361,13 +338,13 @@ function TextPreview({ url, i18nNs }: { readonly url: string; readonly i18nNs: s
     staleTime: 60_000,
   });
   if (query.isLoading) {
-    return <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">{t("common.loading")}</div>;
+    return <CenteredHint className="h-[60vh]">{t("common.loading")}</CenteredHint>;
   }
   if (query.error || query.data === undefined) {
     return (
-      <div className="flex h-[60vh] items-center justify-center text-sm text-destructive">
+      <CenteredHint tone="destructive" className="h-[60vh]">
         {query.error instanceof Error ? query.error.message : t("common.error.loadFailed")}
-      </div>
+      </CenteredHint>
     );
   }
   return (

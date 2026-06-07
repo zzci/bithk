@@ -265,12 +265,12 @@ function UsersTab() {
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium">{user.username}</span>
                           {user.role === "admin" && (
-                            <Badge variant="default" className="text-[10px] px-1 py-0">
+                            <Badge variant="default" className="text-2xs px-1 py-0">
                               {t("roleAdmin")}
                             </Badge>
                           )}
                           {user.isVirtual && (
-                            <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                            <Badge variant="secondary" className="text-2xs px-1 py-0">
                               {t("virtual.badge")}
                             </Badge>
                           )}

@@ -32,3 +32,17 @@ export function formatDateTime(value: Date | string | number): string {
     minute: "2-digit",
   }).format(d);
 }
+
+// Human-readable byte size (B/KB/MB/GB/TB), one decimal below 10 units.
+export function formatBytes(value: number): string {
+  if (value < 1024)
+    return `${value} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let next = value / 1024;
+  let index = 0;
+  while (next >= 1024 && index < units.length - 1) {
+    next /= 1024;
+    index += 1;
+  }
+  return `${next.toFixed(next >= 10 ? 0 : 1)} ${units[index]}`;
+}

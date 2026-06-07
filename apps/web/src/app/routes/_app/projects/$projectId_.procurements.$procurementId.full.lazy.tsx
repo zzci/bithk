@@ -6,9 +6,9 @@
 import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject, useProjectMembers } from "@/shared/lib/api/projects";
 import { ProjectProcurementPanel } from "./-project-procurement-panel";
-import { useProjectCapabilities } from "./-use-project-role";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId_/procurements/$procurementId/full")({
   component: ProjectProcurementFullscreenPage,

@@ -2,9 +2,9 @@
 // Projects tab route: base/related projects for this ship.
 
 import { createLazyFileRoute, useParams } from "@tanstack/react-router";
+import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { useProject } from "@/shared/lib/api/projects";
 import { useShip } from "@/shared/lib/api/ships";
-import { useProjectCapabilities } from "../projects/-use-project-role";
 import { ShipProjectsTab } from "./-ship-projects-tab";
 
 export const Route = createLazyFileRoute("/_app/ships/$shipId/projects")({

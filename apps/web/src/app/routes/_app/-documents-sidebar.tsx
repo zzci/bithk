@@ -27,6 +27,7 @@ import {
   toggleId,
 } from "@/shared/components/documents/document-tree.utils";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
   DropdownMenu,
@@ -193,11 +194,11 @@ export function DocumentsSidebar({
           extreme cases. */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden py-2">
         {loading
-          ? <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t("common.loading")}</div>
+          ? <EmptyHint py="sm" className="px-4 text-xs">{t("common.loading")}</EmptyHint>
           : error
             ? <div className="px-4 py-4 text-xs text-destructive">{error instanceof Error ? error.message : t("common.error.loadFailed")}</div>
             : roots.length === 0
-              ? <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t("noResults")}</div>
+              ? <EmptyHint py="sm" className="px-4 text-xs">{t("noResults")}</EmptyHint>
               : (
                   <ul role="tree" aria-label={t("page.title")}>
                     {roots.map(node => (

@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import {
   Dialog,
   DialogContent,
@@ -110,7 +111,7 @@ export function ShipProjectBindDialog({
               placeholder={t("projects.searchPlaceholder")}
             />
             {candidates.length === 0
-              ? <p className="py-6 text-center text-sm text-muted-foreground">{t("projects.noCandidates")}</p>
+              ? <EmptyHint py="sm">{t("projects.noCandidates")}</EmptyHint>
               : (
                   <ul className="max-h-64 space-y-1 overflow-y-auto">
                     {candidates.map(project => (

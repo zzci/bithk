@@ -46,26 +46,26 @@ export function ActionMetaCard({ action }: { readonly action: ActionCatalogEntry
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold">{action.displayName}</span>
-            <code className="font-mono text-[11px] text-muted-foreground">{action.name}</code>
+            <code className="font-mono text-xs text-muted-foreground">{action.name}</code>
             {action.version && (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-2xs">
                 v
                 {action.version}
               </Badge>
             )}
             {action.dangerous && (
-              <Badge variant="destructive" className="text-[10px] uppercase tracking-wide">
+              <Badge variant="destructive" className="text-2xs uppercase tracking-wide">
                 {t("meta.dangerous")}
               </Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground">{action.description}</p>
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-2xs">
               {t(`actionGroup.${action.category}`, { defaultValue: action.category })}
             </Badge>
             {action.tags.map(tag => (
-              <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
+              <Badge key={tag} variant="outline" className="text-2xs">{tag}</Badge>
             ))}
           </div>
         </div>
@@ -101,7 +101,7 @@ export function DynamicActionFields({
   return (
     <div className="space-y-3">
       {action.dangerous && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-amber-900 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 p-2 text-xs text-warning">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <span>{t("dangerousWarning", { defaultValue: "This action runs with the API process's full privileges. Review every config before saving — there is no sandbox." })}</span>
         </div>
@@ -138,7 +138,7 @@ function DynamicField({
   const labelLine = (
     <div className="flex items-center gap-2">
       <Label htmlFor={id} className="text-xs">{input.label}</Label>
-      {input.required && <span className="text-[10px] text-destructive">*</span>}
+      {input.required && <span className="text-2xs text-destructive">*</span>}
     </div>
   );
 

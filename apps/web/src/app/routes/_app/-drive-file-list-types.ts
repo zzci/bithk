@@ -1,18 +1,18 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-// Shared types, constants, and helpers for the drive file-list surface.
-//
-// These are extracted from `-drive-file-list-surface.tsx` so the surface,
-// toolbar, filter bar, and inner list/grid modules can share the same
-// contracts without circular imports.
 import type {
-  DisplayItem,
   DriveModifiedFilter,
   DriveOwnerFilter,
   DriveSortBy,
   DriveSourceFilter,
   DriveTypeFilter,
 } from "./-file-browser-types";
+// Shared types, constants, and helpers for the drive file-list surface.
+//
+// These are extracted from `-drive-file-list-surface.tsx` so the surface,
+// toolbar, filter bar, and inner list/grid modules can share the same
+// contracts without circular imports.
+import type { DisplayItem } from "@/shared/lib/file";
 
 // ── Public API ──
 

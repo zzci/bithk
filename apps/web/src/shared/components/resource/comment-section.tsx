@@ -229,7 +229,7 @@ export function ResourceCommentSection({
   const composerInner = (
     <>
       {enableReply && replyTarget && (
-        <div className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
           <span className="inline-flex min-w-0 items-center gap-1">
             <CornerUpLeft className="size-3 shrink-0" />
             <span className="shrink-0">{t("comments.replyingTo")}</span>
@@ -262,7 +262,7 @@ export function ResourceCommentSection({
               {pendingFiles.map((file, i) => (
                 <span
                   key={`${file.name}-${file.size}-${file.lastModified}`}
-                  className="inline-flex max-w-[180px] items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                  className="inline-flex max-w-[180px] items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 text-xs text-muted-foreground"
                 >
                   <span className="truncate">{file.name}</span>
                   <Button
@@ -339,7 +339,7 @@ export function ResourceCommentSection({
                       <Button
                         variant="ghost"
                         size="xs"
-                        className="text-[11px] text-muted-foreground hover:text-foreground"
+                        className="text-xs text-muted-foreground hover:text-foreground"
                         onClick={() => setVisibleCount(c => c + COMMENTS_INITIAL_RENDER)}
                       >
                         <ChevronUp className="size-3" />
@@ -368,7 +368,7 @@ export function ResourceCommentSection({
                             <span className="text-sm font-medium">
                               {displayName(userMap, comment.authorId)}
                             </span>
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               {formatTimeAgo(comment.createdAt)}
                             </span>
                           </div>
@@ -377,7 +377,7 @@ export function ResourceCommentSection({
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="text-[11px] text-muted-foreground/70 hover:text-foreground"
+                                className="text-xs text-muted-foreground/70 hover:text-foreground"
                                 onClick={() => startReply(comment)}
                               >
                                 <CornerUpLeft className="size-3" />
@@ -388,7 +388,7 @@ export function ResourceCommentSection({
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="text-[11px] text-muted-foreground/70 hover:bg-destructive/10 hover:text-destructive"
+                                className="text-xs text-muted-foreground/70 hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => setDeleteTarget(comment)}
                               >
                                 <X className="size-3" />
@@ -401,7 +401,7 @@ export function ResourceCommentSection({
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="mb-1 max-w-full bg-muted/30 text-[11px] text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            className="mb-1 max-w-full bg-muted/30 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                             onClick={() => jumpToComment(comment.replyToId!)}
                             title={parent ? parent.content : undefined}
                           >
@@ -524,7 +524,7 @@ function CommentAttachments({
           <Button
             type="button"
             variant="ghost"
-            className="h-auto gap-1 rounded px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            className="h-auto gap-1 rounded px-1.5 py-0.5 text-xs font-normal text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             onClick={() => fileInputRef.current?.click()}
             title={t("attachments.upload")}
           >

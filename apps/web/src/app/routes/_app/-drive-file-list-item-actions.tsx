@@ -3,7 +3,7 @@ import type { FileListAction } from "./-drive-file-list-types";
 // the "more actions" dropdown, the row hover toolbar, and the right-click
 // context menu. Extracted from `-drive-file-list-inner.tsx`; behaviour and
 // markup are unchanged — the inner list passes its handlers/flags as props.
-import type { DisplayItem } from "./-file-browser-types";
+import type { DisplayItem } from "@/shared/lib/file";
 import {
   Download,
   MoreHorizontal,

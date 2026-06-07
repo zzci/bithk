@@ -1,5 +1,5 @@
 import type { DriveFileListSurfaceActions } from "./-drive-file-list-surface";
-import type { DisplayItem } from "./-file-browser-types";
+import type { DisplayItem } from "@/shared/lib/file";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

@@ -31,7 +31,6 @@ import {
   FileText,
   Focus,
   History,
-  Loader2,
   Maximize2,
   Minimize2,
   PanelLeftClose,
@@ -50,6 +49,7 @@ import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/shared/components/editor";
 import { Button } from "@/shared/components/ui/button";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { downloadDriveEntry, useUploadVersion } from "@/shared/lib/api/drive";
 import { httpRaw } from "@/shared/lib/http";
 import { retypeBlobToMime } from "@/shared/lib/preview-blob";
@@ -423,7 +423,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                   disabled={!dirty || saving || loading}
                   onClick={() => void handleSave()}
                 >
-                  {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  {saving ? <Spinner /> : <Save className="size-4" />}
                   {previewToolLabel("save")}
                 </Button>
                 <Button
@@ -529,7 +529,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
         <div className={cn("relative min-h-0 flex-1 overflow-hidden", flushBody ? "" : "p-4")}>
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-background/70 text-sm text-muted-foreground">
-              <Loader2 className="size-6 animate-spin" />
+              <Spinner size="lg" />
               {t("preview.loading")}
             </div>
           )}
@@ -560,7 +560,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                 )
               : (
                   <div className="flex h-full items-center justify-center">
-                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                    <Spinner size="lg" className="text-muted-foreground" />
                   </div>
                 )
           )}
@@ -578,7 +578,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                 )
               : (
                   <div className="flex h-full items-center justify-center">
-                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                    <Spinner size="lg" className="text-muted-foreground" />
                   </div>
                 )
           )}

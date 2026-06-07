@@ -5,7 +5,8 @@ import type { DragSelectionState, FileListProps, SelectionBox } from "./-drive-f
 //
 // Owns multi-select with rubber-band drag selection, per-row "more actions"
 // dropdowns, item right-click context menus, and the blank-area create menu.
-import type { DisplayItem, DriveSortBy } from "./-file-browser-types";
+import type { DriveSortBy } from "./-file-browser-types";
+import type { DisplayItem } from "@/shared/lib/file";
 import {
   ArrowDown,
   ArrowUp,
@@ -27,7 +28,8 @@ import {
   ContextMenuTrigger,
 } from "@/shared/components/ui/context-menu";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-import { formatDate } from "@/shared/lib/format";
+import { FILE_ICONS } from "@/shared/lib/file";
+import { formatBytes, formatDate } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import {
   ItemContextMenu,
@@ -39,7 +41,6 @@ import {
   LIST_COLUMNS_CLASS,
   LIST_SKELETON_KEYS,
 } from "./-drive-file-list-types";
-import { FILE_ICONS, formatSize } from "./-file-browser-types";
 
 export function FileList({
   displayItems,
@@ -661,7 +662,7 @@ export function FileList({
         <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-lg bg-background">
           {thumbnailPreview(item)}
         </div>
-        {item.size != null && <span className="sr-only">{formatSize(item.size)}</span>}
+        {item.size != null && <span className="sr-only">{formatBytes(item.size)}</span>}
       </ContextMenuTrigger>
       <ItemContextMenu item={item} ctx={itemActionsCtx} />
     </ContextMenu>
@@ -774,11 +775,11 @@ export function FileList({
                       <div className="flex min-w-0 items-center @max-[760px]:hidden">
                         <span className="truncate text-sm text-muted-foreground">{getOwnerLabel(item)}</span>
                       </div>
-                      <span className="truncate text-[13px] text-muted-foreground">
+                      <span className="truncate text-xs text-muted-foreground">
                         {formatDate(item.modified)}
                       </span>
-                      <span className="truncate text-[13px] text-muted-foreground @max-[980px]:hidden">
-                        {item.isFolder ? "" : item.size ? formatSize(item.size) : ""}
+                      <span className="truncate text-xs text-muted-foreground @max-[980px]:hidden">
+                        {item.isFolder ? "" : item.size ? formatBytes(item.size) : ""}
                       </span>
                       <div className="flex items-center justify-end gap-1">
                         <ItemHoverToolbar item={item} ctx={itemActionsCtx} />

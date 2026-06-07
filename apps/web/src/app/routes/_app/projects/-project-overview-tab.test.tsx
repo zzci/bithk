@@ -3,9 +3,9 @@ import type { ProjectView } from "@/shared/lib/api/projects";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { computeCapabilities } from "@/shared/hooks/use-project-capabilities";
 import { renderWithProviders } from "@/test/utils";
 import { ProjectOverviewTab } from "./-project-overview-tab";
-import { computeCapabilities } from "./-use-project-role";
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {

@@ -147,7 +147,7 @@ export function PermissionChecker() {
         )}
 
         {result && (
-          <div className={`rounded-lg border p-4 ${result.allowed ? "border-green-500/50 bg-green-500/5" : "border-red-500/50 bg-red-500/5"}`}>
+          <div className={`rounded-lg border p-4 ${result.allowed ? "border-success/50 bg-success/5" : "border-destructive/50 bg-destructive/5"}`}>
             <div className="flex items-center gap-2 mb-2">
               <Badge variant={result.allowed ? "default" : "destructive"}>
                 {result.allowed ? t("allowed") : t("denied")}

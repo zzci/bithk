@@ -13,8 +13,8 @@ import type {
   FileListAction,
   FolderToolbarConfig,
 } from "./-drive-file-list-surface";
-import type { DisplayItem } from "./-file-browser-types";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
+import type { DisplayItem } from "@/shared/lib/file";
 import { FolderInput, History, Upload } from "lucide-react";
 
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
@@ -36,6 +36,7 @@ import {
   useTrashDriveEntry,
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
+import { entryToDisplayItem } from "@/shared/lib/file";
 import { csvToUniverSnapshotJson, emptyUniverSnapshotJson } from "@/shared/lib/univer-snapshot";
 import { cn } from "@/shared/lib/utils";
 import { DriveFileListSurface } from "./-drive-file-list-surface";
@@ -48,7 +49,6 @@ import {
   MoveDialog,
   RenameDialog,
 } from "./-entry-create-dialogs";
-import { entryToDisplayItem } from "./-file-browser-types";
 import { FilePreviewDialog } from "./-file-preview-dialog";
 
 // Univer ships in its own async chunk: the editor dialog is the sole

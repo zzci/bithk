@@ -4,13 +4,14 @@
 
 import type { FormEvent, ReactNode } from "react";
 
-import { Loader2, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Logo } from "@/shared/components/logo";
 import { ModeToggle } from "@/shared/components/mode-toggle";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { Spinner } from "@/shared/components/ui/spinner";
 
 export function ShareShell({ children, wide }: { readonly children: ReactNode; readonly wide?: boolean }) {
   return (
@@ -115,7 +116,7 @@ export function PasswordPrompt({
       <PasswordField value={value} onChange={onChange} />
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={Boolean(loading) || !value}>
-        {loading ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
+        {loading ? <Spinner /> : <Lock className="size-4" />}
         {t("public.open")}
       </Button>
     </form>

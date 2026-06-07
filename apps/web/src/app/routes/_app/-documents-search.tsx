@@ -8,6 +8,7 @@ import { FileText, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import {
   Dialog,
   DialogContent,
@@ -71,13 +72,9 @@ export function SearchDialog({
         </div>
         <div className="max-h-[60vh] overflow-y-auto py-1">
           {query.trim().length === 0
-            ? (
-                <div className="px-3 py-6 text-center text-xs text-muted-foreground">
-                  {t("searchPlaceholder")}
-                </div>
-              )
+            ? <EmptyHint py="sm" className="px-3 text-xs">{t("searchPlaceholder")}</EmptyHint>
             : results.length === 0
-              ? <div className="px-3 py-6 text-center text-xs text-muted-foreground">{t("noResults")}</div>
+              ? <EmptyHint py="sm" className="px-3 text-xs">{t("noResults")}</EmptyHint>
               : (
                   <ul>
                     {results.map(node => (
@@ -90,7 +87,7 @@ export function SearchDialog({
                         >
                           <FileText className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
                           <span className="flex-1 truncate">{node.title || t("untitledPlaceholder")}</span>
-                          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">
+                          <span className="shrink-0 text-2xs tabular-nums text-muted-foreground/70">
                             {formatShortDate(node.updatedAt)}
                           </span>
                         </Button>

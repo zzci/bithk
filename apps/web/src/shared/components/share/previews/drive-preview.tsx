@@ -3,16 +3,16 @@
 // file previewable / downloadable). Subtree-scoped server-side.
 
 import type { FormEvent } from "react";
-import type { FileType } from "@/app/routes/_app/-file-browser-types";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { PublicDriveContent, PublicShareEntry, PublicShareListing, PublicShareMeta } from "@/shared/lib/api/share";
-import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileSpreadsheet, FileText, Folder, Loader2 } from "lucide-react";
+import type { FileType } from "@/shared/lib/file";
+import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileSpreadsheet, FileText, Folder } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { detectFileType, FILE_ICONS } from "@/app/routes/_app/-file-browser-types";
 import { FilePreviewDialog, resolvePreviewKind } from "@/app/routes/_app/-file-preview-dialog";
 import { Button } from "@/shared/components/ui/button";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { isUniverSheetEntry } from "@/shared/lib/api/drive";
 import {
   accessPublicShare,
@@ -23,9 +23,10 @@ import {
   listPublicShareEntries,
 } from "@/shared/lib/api/share";
 import { errorMessage } from "@/shared/lib/errors";
-import { HttpError } from "@/shared/lib/http";
+import { detectFileType, FILE_ICONS } from "@/shared/lib/file";
+import { formatBytes } from "@/shared/lib/format";
 
-import { formatBytes } from "../share-helpers";
+import { HttpError } from "@/shared/lib/http";
 import { PasswordPrompt, ShareIconHeader, ShareShell } from "./shell";
 
 /** Minimal `DriveEntry` the in-app viewer needs; bytes come from a fetch override. */
@@ -174,7 +175,7 @@ function FileShare({ token, meta }: { readonly token: string; readonly meta: Pub
             </Button>
           )}
           <Button type="submit" disabled={downloading || !file}>
-            {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            {downloading ? <Spinner /> : <Download className="size-4" />}
             {t("public.download")}
           </Button>
         </form>
@@ -295,7 +296,7 @@ function FolderShare({ token, meta }: { readonly token: string; readonly meta: P
         {loading
           ? (
               <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
-                <Loader2 className="size-5 animate-spin" />
+                <Spinner size="md" />
                 {t("common:common.loading")}
               </div>
             )

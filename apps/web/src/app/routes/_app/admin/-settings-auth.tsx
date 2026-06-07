@@ -1,7 +1,11 @@
+import type { SettingsCardField } from "@/shared/components/forms/settings-card";
 import { useTranslation } from "react-i18next";
-import { ErrorBanner, SettingsCard, useSettingsByPrefix } from "./-settings-shared";
+import { SettingsCard } from "@/shared/components/forms/settings-card";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
+import { ErrorBanner } from "@/shared/components/ui/error-banner";
+import { useSettingsByPrefix } from "@/shared/hooks/use-settings-by-prefix";
 
-const SESSION_FIELDS: readonly { key: string; label: string; sensitive: boolean; placeholder: string }[] = [
+const SESSION_FIELDS: readonly SettingsCardField[] = [
   { key: "session.max_age", label: "settings:auth.fieldSessionMaxAge", sensitive: false, placeholder: "86400" },
 ];
 
@@ -14,7 +18,7 @@ export function AuthSettingsTab() {
       {error && <ErrorBanner message={error} />}
 
       {loading
-        ? <div className="py-8 text-center text-muted-foreground">{t("common.loading")}</div>
+        ? <EmptyHint>{t("common.loading")}</EmptyHint>
         : (
             <div>
               <h2 className="text-lg font-semibold">{t("settings:auth.sessionTitle")}</h2>

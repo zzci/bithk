@@ -36,11 +36,11 @@ import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
 import { PinToggle } from "@/shared/components/pin-toggle";
 import { PriorityGlyph, PrioritySignal } from "@/shared/components/priority-signal";
 import { validateAttachmentSelection } from "@/shared/components/resource";
-import { formatFileSize } from "@/shared/components/resource/attachment-section";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
 import { tagFilterDimension } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import {
   Dialog,
   DialogClose,
@@ -64,7 +64,9 @@ import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import { useToggleIssuePin } from "@/shared/lib/api/pins";
 import { useCreateProjectIssue, useIssueTags, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { formatBytes } from "@/shared/lib/format";
 import { http } from "@/shared/lib/http";
+import { ISSUE_STATUS_ICON_TINT } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
@@ -72,15 +74,6 @@ import { WorklistPicker } from "./-worklist-picker";
 
 const PRIORITIES: readonly IssuePriority[] = ["low", "medium", "high", "urgent"];
 const ISSUE_STATUSES: readonly IssueStatus[] = ["todo", "working", "review", "done", "cancel"];
-
-// Status icon tints, aligned with the global status color tokens.
-const STATUS_ICON_TINT: Record<IssueStatus, string> = {
-  todo: "text-warning",
-  working: "text-info",
-  review: "text-primary",
-  done: "text-success",
-  cancel: "text-muted-foreground/60",
-};
 
 // One shared grid template for every row in a status group so cells line up
 // vertically across rows. Tracks (left to right):
@@ -128,7 +121,7 @@ function avatarColor(id: string): string {
 // empty circle (todo), half-filled (working), center dot (review), check (done),
 // slash (cancel).
 function StatusIcon({ status, label }: { readonly status: IssueStatus; readonly label: string }) {
-  const tint = STATUS_ICON_TINT[status];
+  const tint = ISSUE_STATUS_ICON_TINT[status];
   return (
     <svg viewBox="0 0 16 16" className={cn("size-4 shrink-0", tint)} role="img" aria-label={label}>
       {status === "done"
@@ -170,7 +163,7 @@ function MemberAvatar({ id, label }: { readonly id: string | null; readonly labe
   return (
     <span
       title={label}
-      className={cn("flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white", avatarColor(id))}
+      className={cn("flex size-5 shrink-0 items-center justify-center rounded-full text-2xs font-medium text-white", avatarColor(id))}
     >
       {initialsOf(label)}
     </span>
@@ -348,7 +341,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
         : loadError
           ? null
           : !hasAnyIssue
-              ? <p className="py-10 text-center text-sm text-muted-foreground">{t("issues.empty")}</p>
+              ? <EmptyHint py="lg">{t("issues.empty")}</EmptyHint>
               : (
                   <div className="space-y-2.5">
                     {visibleStatuses.map((status) => {
@@ -413,7 +406,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
                                             {/* tags column — always rendered (empty when none) so every row keeps the shared template */}
                                             <div className="hidden items-center gap-1 sm:flex">
                                               {issueTags.slice(0, 3).map(tag => (
-                                                <Badge key={tag.id} variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                                                <Badge key={tag.id} variant="secondary" className="h-5 px-1.5 text-2xs font-normal">
                                                   {tag.name}
                                                 </Badge>
                                               ))}
@@ -853,8 +846,8 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
                   className="flex h-9 items-center gap-2 rounded-md border bg-card px-2.5"
                 >
                   <Paperclip aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate text-[12px]">{file.name}</span>
-                  <span className="shrink-0 text-[12px] text-muted-foreground">{formatFileSize(file.size)}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs">{file.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(file.size)}</span>
                   <Button
                     type="button"
                     variant="ghost"

@@ -15,9 +15,9 @@ import type {
   FileListAction,
   SurfaceExtraFilter,
 } from "./-drive-file-list-surface";
-import type { DisplayItem } from "./-file-browser-types";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { ShareView } from "@/shared/lib/api/share";
+import type { DisplayItem } from "@/shared/lib/file";
 import { Copy, Download, Inbox, Link2, Share2, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,8 +34,8 @@ import {
   useSentShares,
 } from "@/shared/lib/api/share";
 import { errorMessage } from "@/shared/lib/errors";
+import { detectFileType } from "@/shared/lib/file";
 import { DriveFileListSurface } from "./-drive-file-list-surface";
-import { detectFileType } from "./-file-browser-types";
 
 // ── Surface-backed share list ──
 

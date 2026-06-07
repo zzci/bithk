@@ -32,9 +32,9 @@ import {
   useRestoreDriveEntry,
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
+import { entryToDisplayItem } from "@/shared/lib/file";
 import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { RenameDialog } from "./-entry-create-dialogs";
-import { entryToDisplayItem } from "./-file-browser-types";
 
 type DriveListSource = "recent" | "favorites" | "trash";
 

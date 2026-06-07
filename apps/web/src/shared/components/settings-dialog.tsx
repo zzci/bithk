@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Loader2, Mail, Plus, Shield, ShieldAlert, Smartphone, Trash2, User as UserIcon, UsersRound } from "lucide-react";
+import { Check, Copy, Mail, Plus, Shield, ShieldAlert, Smartphone, Trash2, User as UserIcon, UsersRound } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
@@ -15,7 +15,9 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Separator } from "@/shared/components/ui/separator";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import { useCopyToClipboard } from "@/shared/hooks/use-copy-to-clipboard";
 import { formatDate } from "@/shared/lib/format";
 import { http } from "@/shared/lib/http";
 import { useAuthStore } from "@/shared/stores/auth";
@@ -33,8 +35,8 @@ export function SettingsDialog({
   open,
   onOpenChange,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation(["common", "settings", "totp"]);
   const { user } = useAuthStore();
@@ -258,7 +260,7 @@ function TotpTab() {
             {createMutation.isPending
               ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    <Spinner />
                     {t("common.submitting")}
                   </>
                 )
@@ -286,8 +288,8 @@ function TotpTab() {
   // Device list
   return (
     <div className="space-y-3 pt-4">
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-        <div className="flex items-start gap-2 text-amber-600 dark:text-amber-400">
+      <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+        <div className="flex items-start gap-2 text-warning">
           <ShieldAlert className="size-4 shrink-0 mt-0.5" />
           <p className="text-xs">{t("totp:lostDevice")}</p>
         </div>
@@ -364,14 +366,9 @@ function TotpVerifyStep({
 }) {
   const { t } = useTranslation(["common", "settings", "totp"]);
   const [showSecret, setShowSecret] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(setup.secret).then(() => {
-      setCopied(true);
-      setTimeout(setCopied, 2000, false);
-    });
-  }, [setup.secret]);
+  const handleCopy = useCallback(() => copy(setup.secret), [copy, setup.secret]);
 
   return (
     <div className="space-y-4 pt-4">
@@ -395,7 +392,7 @@ function TotpVerifyStep({
           <div className="flex items-center gap-2">
             <code className="flex-1 rounded bg-background px-2 py-1.5 text-xs font-mono tracking-wider select-all break-all">{setup.secret}</code>
             <Button variant="ghost" size="icon-xs" onClick={handleCopy} title={t("common.copy")}>
-              {copied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+              {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
             </Button>
           </div>
         </div>
@@ -429,7 +426,7 @@ function TotpVerifyStep({
           {submitting
             ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  <Spinner />
                   {t("common.submitting")}
                 </>
               )
