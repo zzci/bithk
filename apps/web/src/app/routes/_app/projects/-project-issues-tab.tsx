@@ -638,9 +638,8 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
     });
   };
 
-  // Rounded pill shared by the inline metadata controls. Border style is added
-  // per-control to reflect a set (solid) vs empty (dashed) state.
-  const pillBase = "gap-1.5 rounded-full px-2.5 text-xs font-normal";
+  // Inline metadata controls use the Button `pill` size; each adds its own
+  // border style to reflect a set (solid) vs empty (dashed) state.
   const assigned = assigneeMemberId !== "__none__";
   const assigneeLabel = assigned
     ? memberLabels.get(assigneeMemberId) ?? assigneeMemberId
@@ -705,7 +704,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
 
           <div className="flex flex-wrap items-center gap-2 pb-2">
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={cn(pillBase, "border-solid")} />}>
+              <DropdownMenuTrigger render={<Button type="button" variant="outline" size="pill" className="border-solid" />}>
                 <StatusIcon status={status} label={t(`issues.status.${status}` as const)} />
                 {t(`issues.status.${status}` as const)}
               </DropdownMenuTrigger>
@@ -722,7 +721,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
             </DropdownMenu>
 
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button type="button" variant="outline" className={cn(pillBase, "border-solid")} />}>
+              <DropdownMenuTrigger render={<Button type="button" variant="outline" size="pill" className="border-solid" />}>
                 <PriorityGlyph priority={priority} />
                 {t(`issues.priority.${priority}` as const)}
               </DropdownMenuTrigger>
@@ -743,7 +742,8 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
                 <Button
                   type="button"
                   variant="outline"
-                  className={cn(pillBase, assigned ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+                  size="pill"
+                  className={assigned ? "border-solid text-foreground" : "border-dashed text-muted-foreground"}
                 />
               )}
               >
@@ -766,7 +766,8 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
               <Button
                 type="button"
                 variant="outline"
-                className={cn(pillBase, "border", dueDate ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+                size="pill"
+                className={cn("border", dueDate ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
                 onClick={openDuePicker}
               >
                 {dueDate || t("issues.field.dueDate")}
@@ -787,7 +788,8 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
             <Button
               type="button"
               variant="outline"
-              className={cn(pillBase, "border", files.length > 0 ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+              size="pill"
+              className={cn("border", files.length > 0 ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
               onClick={() => attachInputRef.current?.click()}
             >
               <Paperclip aria-hidden="true" className={files.length > 0 ? "text-info" : undefined} />
@@ -808,7 +810,8 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
               <Button
                 type="button"
                 variant="outline"
-                className={cn(pillBase, "border", selectedWorklist ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
+                size="pill"
+                className={cn("border", selectedWorklist ? "border-solid text-foreground" : "border-dashed text-muted-foreground")}
                 onClick={() => setWorklistPickerOpen(true)}
               >
                 <ClipboardList aria-hidden="true" className={selectedWorklist ? "text-info" : undefined} />
