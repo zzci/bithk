@@ -1,7 +1,7 @@
 {
   "name": "@app/monorepo",
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Bun monorepo template for OAuth-backed internal workspaces.",
   "engines": {
