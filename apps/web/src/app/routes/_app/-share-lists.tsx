@@ -14,7 +14,7 @@ import type {
   DriveFileListSurfaceActions,
   FileListAction,
   SurfaceExtraFilter,
-} from "./-drive-file-list-surface";
+} from "@/shared/components/file";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { ShareView } from "@/shared/lib/api/share";
 import type { DisplayItem } from "@/shared/lib/file";
@@ -23,6 +23,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { DriveFileListSurface } from "@/shared/components/file";
 import { useClipboard, useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { downloadDriveEntry } from "@/shared/lib/api/drive";
@@ -35,7 +36,6 @@ import {
 } from "@/shared/lib/api/share";
 import { errorMessage } from "@/shared/lib/errors";
 import { detectFileType } from "@/shared/lib/file";
-import { DriveFileListSurface } from "./-drive-file-list-surface";
 
 // ── Surface-backed share list ──
 

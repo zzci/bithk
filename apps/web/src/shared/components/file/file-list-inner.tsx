@@ -1,11 +1,11 @@
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from "react";
-import type { ItemActionsContext } from "./-drive-file-list-item-actions";
-import type { DragSelectionState, FileListProps, SelectionBox } from "./-drive-file-list-types";
 // Inner list / grid renderer for the drive file-list surface.
 //
 // Owns multi-select with rubber-band drag selection, per-row "more actions"
 // dropdowns, item right-click context menus, and the blank-area create menu.
-import type { DriveSortBy } from "./-file-browser-types";
+import type { DriveSortBy } from "./file-list-filters";
+import type { ItemActionsContext } from "./file-list-item-actions";
+import type { DragSelectionState, FileListProps, SelectionBox } from "./file-list-types";
 import type { DisplayItem } from "@/shared/lib/file";
 import {
   ArrowDown,
@@ -35,12 +35,12 @@ import {
   ItemContextMenu,
   ItemHoverToolbar,
   ItemMenu,
-} from "./-drive-file-list-item-actions";
+} from "./file-list-item-actions";
 import {
   GRID_SKELETON_KEYS,
   LIST_COLUMNS_CLASS,
   LIST_SKELETON_KEYS,
-} from "./-drive-file-list-types";
+} from "./file-list-types";
 
 export function FileList({
   displayItems,

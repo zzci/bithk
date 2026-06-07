@@ -1,5 +1,5 @@
 // Shared toolbar controls and the folder toolbar for the drive file-list surface.
-import type { DriveFileListCapabilities, FileToolbarProps } from "./-drive-file-list-types";
+import type { DriveFileListCapabilities, FileToolbarProps } from "./file-list-types";
 import {
   Download,
   FileSpreadsheet,

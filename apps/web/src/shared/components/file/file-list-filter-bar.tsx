@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import type { DriveFilterBarProps } from "./-drive-file-list-types";
 // Filter bar (type / owner / modified / source [+ extra]) for the drive
 // file-list surface. Thin adapter that maps the drive string-union filters onto
 // the shared, Drive-style `ListFilter` (one independent dropdown per dimension).
@@ -8,7 +7,8 @@ import type {
   DriveOwnerFilter,
   DriveSourceFilter,
   DriveTypeFilter,
-} from "./-file-browser-types";
+} from "./file-list-filters";
+import type { DriveFilterBarProps } from "./file-list-types";
 import type { FilterDimension } from "@/shared/components/list-filter";
 import { useTranslation } from "react-i18next";
 

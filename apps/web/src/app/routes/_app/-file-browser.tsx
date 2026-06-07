@@ -12,7 +12,7 @@ import type {
   DriveFileListSurfaceActions,
   FileListAction,
   FolderToolbarConfig,
-} from "./-drive-file-list-surface";
+} from "@/shared/components/file";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 import type { DisplayItem } from "@/shared/lib/file";
 import { FolderInput, History, Upload } from "lucide-react";
@@ -20,7 +20,7 @@ import { FolderInput, History, Upload } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileUploadButton } from "@/shared/components/file";
+import { DriveFileListSurface, FileUploadButton } from "@/shared/components/file";
 import { useShare } from "@/shared/components/share";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -39,7 +39,6 @@ import {
 import { entryToDisplayItem } from "@/shared/lib/file";
 import { csvToUniverSnapshotJson, emptyUniverSnapshotJson } from "@/shared/lib/univer-snapshot";
 import { cn } from "@/shared/lib/utils";
-import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { useDriveUploader } from "./-drive-upload";
 import { DriveVersionHistoryDialog } from "./-drive-version-history-dialog";
 import {

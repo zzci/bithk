@@ -1,4 +1,4 @@
-import type { DriveFileListSurfaceActions } from "./-drive-file-list-surface";
+import type { DriveFileListSurfaceActions } from "@/shared/components/file";
 import type { DisplayItem } from "@/shared/lib/file";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -8,7 +8,7 @@ import { renderWithProviders } from "@/test/utils";
 // The heavy shared surface is replaced with a thin harness that renders the
 // items and exposes the two actions the picker relies on (preview = pick,
 // navigate). This keeps the test focused on the picker's own wiring.
-vi.mock("./-drive-file-list-surface", () => ({
+vi.mock("@/shared/components/file/file-list-surface", () => ({
   DriveFileListSurface: ({ items, actions }: {
     items: readonly DisplayItem[];
     actions: DriveFileListSurfaceActions;

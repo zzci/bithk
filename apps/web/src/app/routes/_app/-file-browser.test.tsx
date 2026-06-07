@@ -1,4 +1,4 @@
-import type { DriveFileListSurfaceActions } from "./-drive-file-list-surface";
+import type { DriveFileListSurfaceActions } from "@/shared/components/file";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import type { DisplayItem } from "@/shared/lib/file";
 import { screen } from "@testing-library/react";
@@ -19,7 +19,7 @@ vi.mock("@tanstack/react-router", async importOriginal => ({
 
 // Thin surface harness exposing the preview action per item and reflecting the
 // search toggle — keeps the test focused on the browser's own wiring.
-vi.mock("./-drive-file-list-surface", () => ({
+vi.mock("@/shared/components/file/file-list-surface", () => ({
   DriveFileListSurface: ({ items, actions, showSearch }: {
     items: readonly DisplayItem[];
     actions: DriveFileListSurfaceActions;

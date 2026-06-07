@@ -1,7 +1,3 @@
-import type {
-  CollectionToolbarConfig,
-  DriveFileListSurfaceProps,
-} from "./-drive-file-list-types";
 // THE shared drive file-list surface.
 //
 // One encapsulated, reusable component. Every drive consumer (folder browser,
@@ -20,7 +16,11 @@ import type {
   DriveSortBy,
   DriveSourceFilter,
   DriveTypeFilter,
-} from "./-file-browser-types";
+} from "./file-list-filters";
+import type {
+  CollectionToolbarConfig,
+  DriveFileListSurfaceProps,
+} from "./file-list-types";
 import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,10 +29,10 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
-import { DriveFilterBar } from "./-drive-file-list-filter-bar";
-import { FileList } from "./-drive-file-list-inner";
-import { BatchControls, FileToolbar, ViewModeToggle } from "./-drive-file-list-toolbar";
-import { DEFAULT_CAPABILITIES, getInitialViewMode } from "./-drive-file-list-types";
+import { DriveFilterBar } from "./file-list-filter-bar";
+import { FileList } from "./file-list-inner";
+import { BatchControls, FileToolbar, ViewModeToggle } from "./file-list-toolbar";
+import { DEFAULT_CAPABILITIES, getInitialViewMode } from "./file-list-types";
 
 export type {
   CollectionToolbarConfig,
@@ -43,7 +43,7 @@ export type {
   FolderToolbarConfig,
   SurfaceExtraFilter,
   ToolbarConfig,
-} from "./-drive-file-list-types";
+} from "./file-list-types";
 
 export function DriveFileListSurface({
   items,

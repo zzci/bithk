@@ -14,12 +14,13 @@ import type {
   FileListAction,
   FolderToolbarConfig,
   ToolbarConfig,
-} from "./-drive-file-list-surface";
+} from "@/shared/components/file";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 import { Clock, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { DriveFileListSurface } from "@/shared/components/file";
 import { useShare } from "@/shared/components/share";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -33,7 +34,6 @@ import {
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
 import { entryToDisplayItem } from "@/shared/lib/file";
-import { DriveFileListSurface } from "./-drive-file-list-surface";
 import { RenameDialog } from "./-entry-create-dialogs";
 
 type DriveListSource = "recent" | "favorites" | "trash";

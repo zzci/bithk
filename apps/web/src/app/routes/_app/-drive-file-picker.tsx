@@ -10,13 +10,14 @@
 //
 // Import path: @/app/routes/_app/-drive-file-picker
 
-import type { DriveFileListCapabilities, DriveFileListSurfaceActions, FolderToolbarConfig } from "./-drive-file-list-surface";
+import type { DriveFileListCapabilities, DriveFileListSurfaceActions, FolderToolbarConfig } from "@/shared/components/file";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 import type { DisplayItem } from "@/shared/lib/file";
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { DriveFileListSurface } from "@/shared/components/file";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -29,7 +30,6 @@ import {
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDriveEntries } from "@/shared/lib/api/drive";
 import { entryToDisplayItem } from "@/shared/lib/file";
-import { DriveFileListSurface } from "./-drive-file-list-surface";
 
 interface FolderCrumb {
   readonly id: string;
