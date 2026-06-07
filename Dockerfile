@@ -12,7 +12,10 @@ FROM ${BUN_IMAGE}
 WORKDIR /srv/lode
 
 COPY --from=lode /lode /usr/local/bin/lode
-RUN ln -sf /usr/local/bin/lode /usr/local/bin/lode-cli \
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libcap2 \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -sf /usr/local/bin/lode /usr/local/bin/lode-cli \
  && mkdir -p /srv/lode /app/secret \
  && chown -R bun:bun /srv/lode /app/secret
 
