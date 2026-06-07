@@ -14,11 +14,12 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 ### Added
 
 - lode-managed release packaging (REFACTOR-027 / PLAN-070): `bun run package`
-  now emits a lode-compatible `tar.gz` artifact, `dist/manifest.json`, and
-  `dist/checksums.txt`. The artifact contains the API bundle, built SPA,
-  Drizzle migrations, and a `bin/bit` launcher. Added `deploy/lode.toml` as the
-  operator-side template and changed the Docker image into a generic `lode` +
-  Bun runtime.
+  now emits a lode-compatible `tar.gz` asset, `dist/manifest.json`, and
+  `dist/checksums.txt`. The asset contains the API bundle, built SPA,
+  and Drizzle migrations, with `app.js` as the lode entry. Added `deploy/lode.toml` as the operator-side template and changed the
+  Docker image into a generic `lode` + Bun runtime. The release workflow
+  now creates or updates GitHub Releases from tags or manual dispatches and
+  uploads the selected lode tarball, `manifest.json`, and `checksums.txt`.
 
 - Per-module project role permissions (FEAT-017 / PLAN-042): project roles now
   carry 12 per-module capabilities — `issue.view/comment/manage`,
@@ -84,6 +85,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   `${LODE_DATA_DIR}/data` as the lode fallback. The Docker and compose examples
   use a single `/srv/lode` persistent volume for lode state, downloaded
   versions, and app data.
+- lode integration now follows the upstream Bun app contract: `deploy/lode.toml`
+  uses GitHub Releases source, `run = "bun run"`, `exec = "bun run"`, and
+  `readiness = "state"`; the API writes `state.ready = LODE_INSTANCE` after
+  startup.
 
 - Reworked the shared `ListFilter` into a Google-Drive-style filter bar where
   each dimension is its own independent dropdown (REFACTOR-018 / PLAN-055).

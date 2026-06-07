@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
 /* eslint-disable no-console */
 /**
- * Build a lode-compatible release artifact.
+ * Build a lode-compatible release asset.
  *
- * The artifact is a version directory packed as tar.gz. It contains the built
- * API bundle, the built SPA, Drizzle migrations, and a small launcher script.
+ * The asset is a version directory packed as tar.gz. It contains the built
+ * API bundle, the built SPA, Drizzle migrations, and short root runtime
+ * entries. lode runs `app.js`; package.json scripts make CLI passthrough concise.
  */
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
@@ -20,8 +21,9 @@ const { values: args } = parseArgs({
   options: {
     "app-name": { type: "string" },
     "version": { type: "string" },
-    "platform": { type: "string" },
-    "artifact-url": { type: "string" },
+    "asset-suffix": { type: "string" },
+    "asset-name": { type: "string" },
+    "asset-url": { type: "string" },
     "channel": { type: "string", default: "stable" },
   },
   strict: false,
@@ -40,11 +42,11 @@ const apiPackage = JSON.parse(readFileSync(resolve(ROOT, "apps/api/package.json"
 const appName = (args["app-name"] as string | undefined) ?? process.env.APP_NAME ?? "bit";
 const version = (args.version as string | undefined) ?? rootPackage.version ?? apiPackage.version ?? "0.0.0";
 const channel = (args.channel as string | undefined) ?? "stable";
-const platform = (args.platform as string | undefined) ?? defaultPlatform();
+const assetSuffix = (args["asset-suffix"] as string | undefined) ?? process.env.ASSET_SUFFIX ?? defaultAssetSuffix();
 
-function defaultPlatform(): string {
+function defaultAssetSuffix(): string {
   const os = process.platform === "darwin" ? "darwin" : process.platform === "linux" ? "linux" : process.platform;
-  const arch = process.arch === "x64" ? "x86_64" : process.arch === "arm64" ? "aarch64" : process.arch;
+  const arch = process.arch === "arm64" ? "aarch64" : process.arch;
   return `${os}-${arch}`;
 }
 
@@ -124,26 +126,30 @@ cpSync(API_DIST, resolve(STAGE, "apps/api/dist"), { recursive: true });
 cpSync(WEB_DIST, resolve(STAGE, "apps/web/dist"), { recursive: true });
 cpSync(DRIZZLE_DIR, resolve(STAGE, "apps/api/drizzle"), { recursive: true });
 
-const launcherPath = resolve(STAGE, "bin", appName);
-mkdirSync(resolve(STAGE, "bin"), { recursive: true });
-await Bun.write(launcherPath, `#!/usr/bin/env sh
-set -eu
-APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-export ROOT_DIR="\${ROOT_DIR:-$APP_DIR}"
-exec "\${BUN:-bun}" "$APP_DIR/apps/api/dist/index.js" "$@"
-`);
-chmodSync(launcherPath, 0o755);
+await Bun.write(resolve(STAGE, "app.js"), `import "./apps/api/dist/index.js";\n`);
+await Bun.write(resolve(STAGE, "package.json"), `${JSON.stringify({
+  name: appName,
+  version,
+  type: "module",
+  private: true,
+  scripts: {
+    "start": "bun app.js",
+    "healthcheck": "bun app.js healthcheck",
+    "migrate": "bun app.js migrate",
+    "migrate:check": "bun app.js migrate --check",
+  },
+}, null, 2)}\n`);
 
-const artifactName = `${appName}-${version}-${platform}.tar.gz`;
-const artifactPath = resolve(DIST, artifactName);
-rmSync(artifactPath, { force: true });
-await run(["tar", "-czf", artifactPath, "-C", STAGE, "."]);
+const assetName = (args["asset-name"] as string | undefined) ?? process.env.ASSET_NAME ?? `${appName}-${assetSuffix}.tar.gz`;
+const assetPath = resolve(DIST, assetName);
+rmSync(assetPath, { force: true });
+await run(["tar", "-czf", assetPath, "-C", STAGE, "."]);
 
 const hasher = new Bun.CryptoHasher("sha256");
-hasher.update(new Uint8Array(await Bun.file(artifactPath).arrayBuffer()));
+hasher.update(new Uint8Array(await Bun.file(assetPath).arrayBuffer()));
 const sha256 = hasher.digest("hex");
-const size = statSync(artifactPath).size;
-const artifactUrl = (args["artifact-url"] as string | undefined) ?? `https://example.com/releases/${artifactName}`;
+const size = statSync(assetPath).size;
+const assetUrl = (args["asset-url"] as string | undefined) ?? process.env.ASSET_URL ?? `https://example.com/releases/${assetName}`;
 
 const manifest = {
   schema: "lode/v1",
@@ -153,14 +159,15 @@ const manifest = {
   },
   versions: {
     [version]: {
-      artifacts: [
+      min_lode: "0.1.0",
+      assets: [
         {
-          platform,
-          url: artifactUrl,
-          format: "tar.gz",
+          name: assetName,
+          url: assetUrl,
           sha256,
           size,
-          entry: `bin/${appName}`,
+          entry: "app.js",
+          auth: true,
         },
       ],
     },
@@ -168,8 +175,8 @@ const manifest = {
 };
 
 await Bun.write(resolve(DIST, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-await Bun.write(resolve(DIST, "checksums.txt"), `${sha256}  ${basename(artifactPath)}\n`);
+await Bun.write(resolve(DIST, "checksums.txt"), `${sha256}  ${basename(assetPath)}\n`);
 
-console.log(`[package] Artifact: ${artifactPath}`);
+console.log(`[package] Asset: ${assetPath}`);
 console.log(`[package] SHA-256: ${sha256}`);
 console.log("[package] Manifest: dist/manifest.json");

@@ -1,23 +1,32 @@
 [global]
 app = "bit"
 data_dir = "/srv/lode"
+log_level = "info"
 
 [update]
-manifest = "https://github.com/OWNER/REPO/releases/latest/download/manifest.json"
+# GitHub Releases source. For a non-GitHub source, replace this with:
+# manifest = "https://releases.example.com/bit/manifest.json"
+github = "zzci/bithk"
+asset = "bit-linux-x64.tar.gz"
+entry = "app.js"
 channel = "stable"
 policy = "auto"
 check_interval = 300
+keep_versions = 3
 
 [command]
-run = "{entry}"
-exec = "{entry}"
+# The package contains app.js plus package.json scripts for CLI passthrough.
+run = "bun"
+exec = "bun run"
 workdir = "{dir}"
 
 [supervise]
-restart = "on-failure"
-readiness = "none"
+restart = "off"
+readiness = "state"
+ready_timeout = 30
 health_grace = 20
 stop_timeout = 30
 
 [trust]
 require_signature = "auto"
+# trusted_keys = ["<key_id>:<base64-pubkey>"]

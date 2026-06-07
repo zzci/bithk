@@ -2,14 +2,15 @@
 
 > Examples assume `BASE_PATH=/app`. The app is mounted at root (`/`) by default; set `BASE_PATH` to serve under a URL prefix (e.g. behind a reverse-proxy mount).
 
-Production startup and updates are managed by [lode](https://github.com/dotns/lode). The app is published as a versioned `tar.gz` artifact that contains the built API bundle, built SPA assets, and Drizzle migrations. Production typically pairs lode with a reverse proxy and one persistent volume for lode state plus app data.
+Production startup and updates are managed by [lode](https://github.com/dotns/lode). The app is published as a versioned `tar.gz` asset that contains the built API bundle, built SPA assets, and Drizzle migrations. Production typically pairs lode with a reverse proxy and one persistent volume for lode state plus app data.
 
 ## Build options
 
 ```bash
-# lode artifact
+# lode asset
 bun run package
-# → dist/bit-<version>-<platform>.tar.gz
+# → dist/bit-linux-x64.tar.gz
+# arm Linux hosts use bit-linux-aarch64.tar.gz
 # → dist/manifest.json
 # → dist/checksums.txt
 
@@ -19,14 +20,15 @@ docker build -t myapp .
 
 `bun run package` builds:
 
+- `app.js` short runtime entry
+- `package.json` with runtime scripts
 - `apps/api/dist/index.js`
 - `apps/web/dist/**`
 - `apps/api/drizzle/**`
-- `bin/<APP_NAME>` launcher
 
-The launcher sets `ROOT_DIR` to the installed artifact directory and runs the API bundle with Bun. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DATA_DIR` exists, the app uses `${LODE_DATA_DIR}/data` so operators do not have to configure each path separately.
+The manifest entry is `app.js`; `deploy/lode.toml` launches it with `run = "bun run"` and `exec = "bun run"`. `ROOT_DIR` resolves from the installed version directory. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DATA_DIR` exists, the app uses `${LODE_DATA_DIR}/data` so operators do not have to configure each path separately.
 
-The Dockerfile is a generic `lode + Bun` runtime image. It does not bake the application into the image; lode downloads the artifact declared by `/srv/lode/lode.toml`, then supervises and updates it.
+The Dockerfile is a generic `lode + Bun` runtime image. It does not bake the application into the image; lode downloads the asset declared by `/srv/lode/lode.toml`, then supervises and updates it.
 
 Verified lode layout after first boot:
 
@@ -39,7 +41,8 @@ Verified lode layout after first boot:
   downloads/
   versions/<version>/
     .lode.json
-    bin/bit
+    app.js
+    package.json
     apps/api/dist/index.js
     apps/api/drizzle/
     apps/web/dist/
@@ -58,10 +61,10 @@ Start from [`../../deploy/lode.toml`](../../deploy/lode.toml):
 ```bash
 mkdir -p /srv/lode
 cp deploy/lode.toml /srv/lode/lode.toml
-# Edit [update].manifest to the published manifest.json URL.
+# Edit [update].github to the GitHub owner/repo that publishes releases.
 ```
 
-The default release workflow uploads `manifest.json` and the artifact to the GitHub Release. For production, sign artifacts and the manifest with `lode-cli`, then set `[trust].require_signature = "enforce"` and configure trusted keys in the deployment environment.
+The default release workflow uploads the selected tarball, `manifest.json`, and `checksums.txt` to the GitHub Release. The lode template uses `[update].github`, so lode selects the exact release asset named by `[update].asset`; no `manifest.json` asset is required for GitHub mode. The generated native manifest is kept for non-GitHub deployments and uses lode/v1 assets selected by `name`, with no `platform` or `format` fields. For production, sign assets and the manifest with `lode-cli`, then set `[trust].require_signature = "enforce"` and configure trusted keys in the deployment environment.
 
 ## Required environment
 
@@ -110,6 +113,7 @@ The API exposes two distinct probes:
 
 - `GET /<base>/api/health` → `200 {status:"ok"}` whenever the process is alive. Use for **liveness** — restart-on-failure semantics.
 - `GET /<base>/api/health/ready` → `200 {status:"ready"}` when the DB is reachable; `503 {status:"db_unavailable"}` otherwise. Use for **readiness** — load-balancer pool membership.
+- In lode-managed runs, the app also writes `state.ready = LODE_INSTANCE` after the server is listening, matching `readiness = "state"` in `deploy/lode.toml`.
 
 Recommended Kubernetes / docker-compose probes:
 

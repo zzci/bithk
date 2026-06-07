@@ -2,6 +2,7 @@ import process from "node:process";
 import { bootstrap } from "./app";
 import { BUILD_INFO } from "./build-info";
 import { dispatchCliSubcommand } from "./cli";
+import { markLodeReady } from "./lode-state";
 import { stopAuditRetentionSweep } from "./modules/audit";
 import { stopCron } from "./modules/cron";
 import { stopFileGcSweep } from "./modules/file";
@@ -92,6 +93,14 @@ import { acquirePidLock, releasePidLock } from "./pid-lock";
   }
 
   logger.info({ port: config.PORT, host: config.HOST }, "server started");
+
+  try {
+    markLodeReady(logger);
+  }
+  catch (err) {
+    await closeServices({ reason: "lode readiness failed", fatal: true, err });
+    return;
+  }
 
   process.on("SIGINT", () => {
     void closeServices({ reason: "SIGINT", fatal: false });

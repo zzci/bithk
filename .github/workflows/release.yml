@@ -1,24 +1,56 @@
 name: release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, for example v0.1.2"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 env:
   BUN_VERSION: "1.3.14"
   NODE_VERSION: "24.14.x"
   APP_NAME: bit
+  ASSET_SUFFIX: linux-x64
 
 jobs:
-  artifact:
-    name: build lode artifact
+  asset:
+    name: build and upload lode release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Resolve release metadata
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          version="${tag#v}"
+          asset="${APP_NAME}-${ASSET_SUFFIX}.tar.gz"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${asset}"
+          {
+            echo "TAG_NAME=${tag}"
+            echo "RELEASE_VERSION=${version}"
+            echo "ASSET_NAME=${asset}"
+            echo "ASSET_URL=${url}"
+          } >> "${GITHUB_ENV}"
+
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - uses: actions/setup-node@v6
         with:
@@ -31,18 +63,52 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Package
+      - name: Package lode asset
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          platform="linux-x86_64"
-          artifact="${APP_NAME}-${version}-${platform}.tar.gz"
-          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${artifact}"
-          bun run package -- --app-name "${APP_NAME}" --version "${version}" --platform "${platform}" --artifact-url "${url}"
+          bun run package -- \
+            --app-name "${APP_NAME}" \
+            --version "${RELEASE_VERSION}" \
+            --asset-name "${ASSET_NAME}" \
+            --asset-url "${ASSET_URL}"
 
-      - name: Upload release assets
+      - name: Validate lode release assets
+        run: |
+          set -euo pipefail
+          test -f "dist/${ASSET_NAME}"
+          test -f dist/manifest.json
+          test -f dist/checksums.txt
+          node <<'NODE'
+          const fs = require("node:fs");
+          const manifest = JSON.parse(fs.readFileSync("dist/manifest.json", "utf8"));
+          const version = process.env.RELEASE_VERSION;
+          const assetName = process.env.ASSET_NAME;
+          const assetUrl = process.env.ASSET_URL;
+          const asset = manifest.versions?.[version]?.assets?.find(a => a.name === assetName);
+          if (manifest.schema !== "lode/v1") throw new Error("manifest schema must be lode/v1");
+          if (manifest.name !== process.env.APP_NAME) throw new Error("manifest name mismatch");
+          if (manifest.channels?.stable?.latest !== version) throw new Error("stable channel must point at release version");
+          if (!asset) throw new Error(`missing ${assetName} asset in manifest`);
+          if (asset.url !== assetUrl) throw new Error("asset URL must match the GitHub release asset URL");
+          if (asset.entry !== "app.js") throw new Error("asset entry mismatch");
+          if ("platform" in asset) throw new Error("asset platform is not part of lode/v1");
+          if ("format" in asset) throw new Error("asset format is derived from the filename");
+          if (!asset.sha256 || !asset.size) throw new Error("asset integrity fields are required");
+          if (!fs.readFileSync("dist/checksums.txt", "utf8").includes(assetName)) {
+            throw new Error("checksums.txt must reference the tarball");
+          }
+          NODE
+
+      - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz dist/checksums.txt dist/manifest.json --clobber
+          if ! gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release create "${TAG_NAME}" --verify-tag --title "${TAG_NAME}" --notes "Release ${RELEASE_VERSION}"
+          fi
+          gh release upload "${TAG_NAME}" \
+            "dist/${ASSET_NAME}" \
+            dist/manifest.json \
+            dist/checksums.txt \
+            --clobber

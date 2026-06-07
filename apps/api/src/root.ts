@@ -9,8 +9,7 @@ import { fileURLToPath } from "node:url";
  * 3. Otherwise — 3 levels up from this file to monorepo root
  *
  * Packaged lode releases run from apps/api/dist inside the installed version
- * directory, so rule 3 resolves to the lode version root. The launcher still
- * sets ROOT_DIR explicitly to make that contract obvious.
+ * directory, so rule 3 resolves to the lode version root.
  */
 function detectRootDir(): string {
   if (process.env.ROOT_DIR) {
