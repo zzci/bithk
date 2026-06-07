@@ -8,14 +8,14 @@ log_level = "info"
 # manifest = "https://releases.example.com/bit/manifest.json"
 github = "zzci/bithk"
 asset = "bit-linux-x64.tar.gz"
-entry = "app.js"
+entry = "index.js"
 channel = "stable"
 policy = "auto"
 check_interval = 300
 keep_versions = 3
 
 [command]
-# The package contains app.js plus package.json scripts for CLI passthrough.
+# The package contains index.js plus package.json scripts for CLI passthrough.
 run = "bun"
 exec = "bun run"
 workdir = "{dir}"

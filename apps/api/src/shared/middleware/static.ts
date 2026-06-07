@@ -12,7 +12,7 @@ import { ROOT_DIR } from "../../root";
 const HASHED_ASSET_RE = /\.[a-f0-9]{8,}\.(?:js|css|woff2?|ttf|otf|svg|png|jpe?g|gif|ico|webp|map)$/i;
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 const REVALIDATE_CACHE = "no-cache";
-const STATIC_ROOT = resolve(ROOT_DIR, "apps/web/dist");
+const STATIC_ROOT = resolveStaticRoot();
 
 export function serveStaticAssets(basePath: string) {
   return async (c: Context) => {
@@ -36,6 +36,13 @@ export function serveStaticAssets(basePath: string) {
 
 export function hasStaticAssets(): boolean {
   return isFile(resolve(STATIC_ROOT, "index.html"));
+}
+
+function resolveStaticRoot(): string {
+  const packaged = resolve(ROOT_DIR, "dist");
+  if (isFile(resolve(packaged, "index.html")))
+    return packaged;
+  return resolve(ROOT_DIR, "apps/web/dist");
 }
 
 function requestPathToAsset(path: string, basePath: string): string {

@@ -32,18 +32,25 @@ export async function createDb(path: string) {
 }
 
 async function runMigrations(db: ReturnType<typeof drizzle>) {
-  const fsMigrationsFolder = resolve(ROOT_DIR, "apps/api/drizzle");
+  const fsMigrationsFolder = resolveMigrationsFolder();
   const journalPath = resolve(fsMigrationsFolder, "meta/_journal.json");
 
   if (!existsSync(journalPath)) {
     throw new Error(
       `No migrations available: expected ${journalPath}. `
-      + "Packaged releases must include apps/api/drizzle/. "
+      + "Packaged releases must include drizzle/. "
       + "Run `bun run package` to rebuild the lode artifact.",
     );
   }
 
   await migrate(db, { migrationsFolder: fsMigrationsFolder });
+}
+
+function resolveMigrationsFolder(): string {
+  const packaged = resolve(ROOT_DIR, "drizzle");
+  if (existsSync(resolve(packaged, "meta/_journal.json")))
+    return packaged;
+  return resolve(ROOT_DIR, "apps/api/drizzle");
 }
 
 export type AppDatabase = Awaited<ReturnType<typeof createDb>>;

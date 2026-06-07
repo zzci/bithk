@@ -16,11 +16,13 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 - lode-managed release packaging (REFACTOR-027 / PLAN-070): `bun run package`
   now emits a lode-compatible `tar.gz` asset, `dist/manifest.json`, and
   `dist/checksums.txt`. The asset contains the API bundle, built SPA,
-  and Drizzle migrations, with `app.js` as the lode entry. Added `deploy/lode.toml` as the operator-side template and changed the
+  and Drizzle migrations. Added `deploy/lode.toml` as the operator-side template and changed the
   Docker image into a generic `dotns/lode` + Bun runtime. The release workflow
   now runs from GitHub Release publish events, can be manually rerun for an
   existing release tag, and uploads the selected lode tarball, `manifest.json`,
-  and `checksums.txt`.
+  and `checksums.txt`. The lode artifact is now flattened around root
+  `index.js`, `dist/`, and `drizzle/`, and CI no longer runs the private-repo
+  CodeQL job that cannot upload code-scanning results without GHAS.
 
 - Per-module project role permissions (FEAT-017 / PLAN-042): project roles now
   carry 12 per-module capabilities — `issue.view/comment/manage`,

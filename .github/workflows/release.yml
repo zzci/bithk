@@ -78,6 +78,10 @@ jobs:
           test -f "dist/${ASSET_NAME}"
           test -f dist/manifest.json
           test -f dist/checksums.txt
+          tar -tzf "dist/${ASSET_NAME}" > /tmp/lode-asset-files.txt
+          grep -Eq '^(\./)?index\.js$' /tmp/lode-asset-files.txt
+          grep -Eq '^(\./)?dist/index\.html$' /tmp/lode-asset-files.txt
+          grep -Eq '^(\./)?drizzle/meta/_journal\.json$' /tmp/lode-asset-files.txt
           node <<'NODE'
           const fs = require("node:fs");
           const manifest = JSON.parse(fs.readFileSync("dist/manifest.json", "utf8"));
@@ -90,7 +94,7 @@ jobs:
           if (manifest.channels?.stable?.latest !== version) throw new Error("stable channel must point at release version");
           if (!asset) throw new Error("missing " + assetName + " asset in manifest");
           if (asset.url !== assetUrl) throw new Error("asset URL must match the GitHub release asset URL");
-          if (asset.entry !== "app.js") throw new Error("asset entry mismatch");
+          if (asset.entry !== "index.js") throw new Error("asset entry mismatch");
           if ("platform" in asset) throw new Error("asset platform is not part of lode/v1");
           if ("format" in asset) throw new Error("asset format is derived from the filename");
           if (!asset.sha256 || !asset.size) throw new Error("asset integrity fields are required");

@@ -20,13 +20,12 @@ docker build -t bit:lode .
 
 `bun run package` builds:
 
-- `app.js` short runtime entry
+- `index.js` root runtime entry
 - `package.json` with runtime scripts
-- `apps/api/dist/index.js`
-- `apps/web/dist/**`
-- `apps/api/drizzle/**`
+- `dist/**` built SPA assets
+- `drizzle/**` migrations
 
-The manifest entry is `app.js`; `deploy/lode.toml` launches it with `run = "bun"` and uses `exec = "bun run"` for CLI passthrough. `ROOT_DIR` resolves from the installed version directory. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DATA_DIR` exists, the app uses `${LODE_DATA_DIR}/data` so operators do not have to configure each path separately.
+The manifest entry is `index.js`; `deploy/lode.toml` launches it with `run = "bun"` and uses `exec = "bun run"` for CLI passthrough. `ROOT_DIR` resolves from the installed version directory. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DATA_DIR` exists, the app uses `${LODE_DATA_DIR}/data` so operators do not have to configure each path separately.
 
 The Dockerfile is a generic `dotns/lode` + Bun 1.3.14 runtime image. It does not bake the application into the image; lode downloads the asset declared by `/srv/lode/lode.toml`, then supervises and updates it.
 
@@ -41,11 +40,10 @@ Verified lode layout after first boot:
   downloads/
   versions/<version>/
     .lode.json
-    app.js
+    index.js
     package.json
-    apps/api/dist/index.js
-    apps/api/drizzle/
-    apps/web/dist/
+    dist/
+    drizzle/
 /srv/lode/data/
   db/app.db
   uploads/files/

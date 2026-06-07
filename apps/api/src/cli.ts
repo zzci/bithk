@@ -114,10 +114,10 @@ async function runMigrateSubcommand(opts: { check?: boolean }): Promise<number> 
  * "the new world"; comparing against the DB happens at boot via the
  * regular migrator, so any divergence shows up there. Returning `null`
  * means the journal could not be read (for example, a packaged release missing
- * its apps/api/drizzle directory).
+ * its drizzle directory).
  */
 function listFsPendingMigrations(): string[] | null {
-  const fsMigrationsFolder = resolve(ROOT_DIR, "apps/api/drizzle");
+  const fsMigrationsFolder = resolveMigrationsFolder();
   const journalPath = resolve(fsMigrationsFolder, "meta/_journal.json");
   if (!existsSync(journalPath))
     return null;
@@ -136,4 +136,11 @@ function listFsPendingMigrations(): string[] | null {
   catch {
     return null;
   }
+}
+
+function resolveMigrationsFolder(): string {
+  const packaged = resolve(ROOT_DIR, "drizzle");
+  if (existsSync(resolve(packaged, "meta/_journal.json")))
+    return packaged;
+  return resolve(ROOT_DIR, "apps/api/drizzle");
 }

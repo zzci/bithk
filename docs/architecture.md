@@ -32,7 +32,7 @@ The outer app serves:
 |---|---|
 | `/` | HTML meta refresh to `${BASE_PATH}/` when `BASE_PATH` is set. Skipped when the app is root-mounted — the SPA already owns `/`. |
 | `${BASE_PATH}/api` | Hono API. |
-| `${BASE_PATH}/*` | Built SPA assets from `apps/web/dist` when production assets are present. |
+| `${BASE_PATH}/*` | Built SPA assets from packaged `dist`, with source-tree fallback to `apps/web/dist`. |
 
 ## Technology Stack
 

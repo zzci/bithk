@@ -3,9 +3,9 @@
 /**
  * Build a lode-compatible release asset.
  *
- * The asset is a version directory packed as tar.gz. It contains the built
- * API bundle, the built SPA, Drizzle migrations, and short root runtime
- * entries. lode runs `app.js`; package.json scripts make CLI passthrough concise.
+ * The asset is a runtime directory packed as tar.gz. It contains a root API
+ * bundle entry, the built SPA under dist, Drizzle migrations under drizzle,
+ * and package.json scripts for concise CLI passthrough.
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
@@ -122,21 +122,19 @@ for (const path of [resolve(API_DIST, "index.js"), resolve(WEB_DIST, "index.html
     throw new Error(`required build input missing: ${path}`);
 }
 
-cpSync(API_DIST, resolve(STAGE, "apps/api/dist"), { recursive: true });
-cpSync(WEB_DIST, resolve(STAGE, "apps/web/dist"), { recursive: true });
-cpSync(DRIZZLE_DIR, resolve(STAGE, "apps/api/drizzle"), { recursive: true });
-
-await Bun.write(resolve(STAGE, "app.js"), `import "./apps/api/dist/index.js";\n`);
+cpSync(resolve(API_DIST, "index.js"), resolve(STAGE, "index.js"));
+cpSync(WEB_DIST, resolve(STAGE, "dist"), { recursive: true });
+cpSync(DRIZZLE_DIR, resolve(STAGE, "drizzle"), { recursive: true });
 await Bun.write(resolve(STAGE, "package.json"), `${JSON.stringify({
   name: appName,
   version,
   type: "module",
   private: true,
   scripts: {
-    "start": "bun app.js",
-    "healthcheck": "bun app.js healthcheck",
-    "migrate": "bun app.js migrate",
-    "migrate:check": "bun app.js migrate --check",
+    "start": "bun index.js",
+    "healthcheck": "bun index.js healthcheck",
+    "migrate": "bun index.js migrate",
+    "migrate:check": "bun index.js migrate --check",
   },
 }, null, 2)}\n`);
 
@@ -166,7 +164,7 @@ const manifest = {
           url: assetUrl,
           sha256,
           size,
-          entry: "app.js",
+          entry: "index.js",
           auth: true,
         },
       ],
