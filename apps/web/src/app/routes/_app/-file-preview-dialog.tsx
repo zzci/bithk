@@ -49,6 +49,7 @@ import { useTranslation } from "react-i18next";
 
 import { MarkdownEditor } from "@/shared/components/editor";
 import { Button } from "@/shared/components/ui/button";
+import { FullscreenDialog } from "@/shared/components/ui/fullscreen-dialog";
 import { Spinner } from "@/shared/components/ui/spinner";
 import { downloadDriveEntry, useUploadVersion } from "@/shared/lib/api/drive";
 import { httpRaw } from "@/shared/lib/http";
@@ -278,23 +279,6 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
     return () => window.removeEventListener("resize", onResize);
   }, [open]);
 
-  // Esc closes the dialog; lock body scroll while open.
-  useEffect(() => {
-    if (!open)
-      return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape")
-        onOpenChange(false);
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open, onOpenChange]);
-
   const getCurrentPdfPage = useCallback(() => {
     const container = pdfScrollRef.current;
     if (!container)
@@ -381,24 +365,8 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
     : "application/octet-stream";
 
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center bg-black/50 supports-backdrop-filter:backdrop-blur-xs",
-        fullscreen ? "p-0" : "p-4",
-      )}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget)
-          onOpenChange(false);
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={entry.name}
-        className={fullscreen
-          ? "flex h-full w-full flex-col overflow-hidden border bg-background shadow-xl"
-          : "flex h-[86vh] max-h-[820px] w-full max-w-[1100px] flex-col overflow-hidden rounded-lg border bg-background shadow-xl"}
-      >
+    <>
+      <FullscreenDialog open={open} onOpenChange={onOpenChange} fullscreen={fullscreen} ariaLabel={entry.name}>
         <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-4">
           <div className="min-w-0">
             <span className="block max-w-[52vw] truncate text-sm font-medium">{entry.name}</span>
@@ -631,7 +599,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
             </div>
           )}
         </div>
-      </div>
+      </FullscreenDialog>
       <DriveVersionHistoryDialog
         entry={entry}
         open={versionsOpen}
@@ -639,6 +607,6 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
         readOnly={readOnly}
         onSwitched={() => setReloadNonce(n => n + 1)}
       />
-    </div>
+    </>
   );
 }

@@ -32,6 +32,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import { FullscreenDialog } from "@/shared/components/ui/fullscreen-dialog";
 import { Spinner } from "@/shared/components/ui/spinner";
 import {
   fetchDriveEntryContent,
@@ -365,24 +366,6 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
     };
   }, []);
 
-  // Esc closes the dialog; lock body scroll while open. Mirrors the markdown
-  // overlay in `-file-preview-dialog.tsx`.
-  useEffect(() => {
-    if (!open)
-      return undefined;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape")
-        onOpenChange(false);
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open, onOpenChange]);
-
   // Re-attempt acquiring the lock (the holder may have released or the TTL
   // expired) from the read-only banner.
   const retryEditing = useCallback(async () => {
@@ -444,24 +427,8 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
   const toolLabel = (key: string) => t(`preview.tools.${key}`);
 
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center bg-black/50 supports-backdrop-filter:backdrop-blur-xs",
-        fullscreen ? "p-0" : "p-4",
-      )}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget)
-          onOpenChange(false);
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={entry.name}
-        className={fullscreen
-          ? "flex h-full w-full flex-col overflow-hidden border bg-background shadow-xl"
-          : "flex h-[86vh] max-h-[820px] w-full max-w-[1100px] flex-col overflow-hidden rounded-lg border bg-background shadow-xl"}
-      >
+    <>
+      <FullscreenDialog open={open} onOpenChange={onOpenChange} fullscreen={fullscreen} ariaLabel={entry.name}>
         <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-4">
           <div className="flex min-w-0 items-center gap-3">
             <span className="min-w-0 max-w-[40vw] truncate text-sm font-medium">
@@ -537,7 +504,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
           )}
           <div ref={containerRef} className="size-full" />
         </div>
-      </div>
+      </FullscreenDialog>
 
       <DriveVersionHistoryDialog
         entry={entry}
@@ -549,7 +516,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
           void contentQuery.refetch();
         }}
       />
-    </div>
+    </>
   );
 }
 
