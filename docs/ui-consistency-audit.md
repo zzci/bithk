@@ -1,5 +1,69 @@
 # 前端 UI 一致性审计报告
 
+## 复审状态（2026-06-07）
+
+> 本节为 2026-05-31 原审计的复审快照，基于一份逐项 file:line 核验的漂移报告写成；原文（含其语言与结构）保持不变，本节仅前置追加。
+
+**收敛概览**：原语层（P5/原语模式）与列表工具栏层（搜索框 / 筛选控件 / Create 按钮）发生了实质收敛——`ListFilter`、`SearchCreateBar`、`ResizableDrawer`、`list-skeleton`、`detail-meta-row`/`detail-description` 等共享件先后落地，主列表三页（projects/ships/contacts）与 issue/procurement 抽屉已接入；但 P1 颜色 token 化几乎零迁移，状态态（EmptyState/Spinner）与排版（Pencil/Edit3/魔法字号）仍是发散主战场，且无任何 `ListPageShell` / `text-2xs` 语义层提取。
+
+### 分维度状态汇总
+
+| 维度 | 已解决 | 部分 | 仍存在 | 已迁移 | 小结 |
+|------|:---:|:---:|:---:|:---:|------|
+| 1. 颜色 | 0 | 0 | 12 | 0 | 全部状态语义色 / 装饰色绕过未动；token 早于审计已存在但无一处迁移 |
+| 2. 按钮 | 1 | 2 | 1 | 1 | 编辑描述按钮已抽共享；上传按钮 3 处中 2 处归一（comment-section 仍漂移）；船舶分段控件已换 `Tabs` 且文件改名 |
+| 3. 布局 | 3 | 4 | 3 | — | 搜索框宽度 / 工具栏筛选 / 文件页高度已统一；容器风格、space-y 节奏、分页、680px 窄壳仍分裂 |
+| 4. 状态态 | 1 | 1 | 6 | — | 列表 error 主态已补；加载骨架部分统一；空态 / 详情加载 / Spinner / 加载 key 仍发散 |
+| 5. 排版 | 0 | 0 | 6 | — | Pencil 三尺寸、Edit3 vs Pencil、H1 粗细、~52 处魔法字号、More 菜单 / 行操作图标尺寸全部仍存在 |
+| 6. 原语 | 7 | 1 | 1 | — | issue/procurement 抽屉已换 `ResizableDrawer`；file-preview 去掉 portal 但仍手写 modal；cron 抽屉仍 `createPortal` |
+
+> 注：原审计 P3、P4 两条工具栏 / 容器问题在本表归入「3. 布局」；同一不一致（H1 粗细、遮罩浓度）在多个维度被重复引用，计数以「当前是否仍违规」为准，不去重跨维度引用。
+
+### 路线图（P1–P5）落地状态
+
+| 路线图项 | 状态 | 已建组件 / 文件路径 | 说明 |
+|---|---|---|---|
+| **P1 颜色 token 化**（success/warning/destructive 替换原始色 + 手写 dark） | **仍存在** | token 早已定义于 `apps/web/src/index.css`（`--color-success`/`--color-warning`，2026-05-26 引入，早于审计），消费见 `shared/lib/status-colors.ts` | 任务是迁移「剩余」原始色站点，实际 0 处迁移；仓库范围尚余约 19 处原始调色板类名 |
+| **P2 状态组件**（CenteredHint + EmptyState + Spinner 唯一入口；补 error 态；删本地 ListState / 本地 ErrorBanner） | **部分** | 新增 `apps/web/src/shared/components/list-skeleton.tsx`（CardGridSkeleton + ListRowsSkeleton，RA-018 / 2026-06-03）；`shared/components/ui/centered-hint.tsx` 已存在 | 列表 error 主态已补（projects/ships/contacts）；**未建** 共享 `EmptyState` 与 `Spinner`；本地 `ListState`（`-project-overview-tab.tsx:128`）与本地 `ErrorBanner`（`admin/-settings-shared.tsx:82`）均未删 |
+| **P3 ListPageShell**（统一标题粗细 / space-y / 搜索宽度 / 筛选家族 / 容器 / 分页） | **部分** | 未建 `ListPageShell`（0 命中）；但 PLAN-051 交付子件：`shared/components/search-input.tsx`、`shared/components/search-create-bar.tsx`、`shared/components/list-filter.tsx` | 搜索宽度、筛选控件、Create 按钮、列表页 H1 粗细已统一；**无总壳**；容器仍分裂（admin/users 仍 bordered `<Table>` + 一次性 `w-64`）；space-y / 分页未约定 |
+| **P4 ResizableDetailSheet**（包 Sheet；迁 4 处手写 portal modal；统一遮罩浓度） | **部分** | 已建但命名为 `apps/web/src/shared/components/resizable-drawer.tsx`（base-ui Dialog 之上，2026-06-02） | 4 处中 2 处已迁（issue / procurement 抽屉）；`admin/-cron-create-drawer.tsx` 仍 `createPortal`；`-file-preview-dialog.tsx` 已去 portal 但仍手写 modal；遮罩浓度仍 3 套（/10、/30、/50），且新增第 5 处手写 modal `-univer-sheet-editor-dialog.tsx`（/50） |
+| **P5 排版收尾**（Pencil 归一 size-4 / 去 size-2.5 / contacts Edit3→Pencil；统一详情 H1 粗细；新增 `text-2xs` 取代魔法字号） | **部分** | 小尺寸 Pencil 已收入共享 `shared/components/detail-meta-row.tsx`（size-3） | 详情页 H1 粗细已一致（project/ship 均 `font-semibold`）；**未建** `text-2xs`（0 命中，仍 52 处 `text-[1Npx]`）；Pencil 仍 4 尺寸并存；contacts 仍用 Edit3 |
+
+### 仍需优先处理的高价值遗留项（含当前 file:line 证据）
+
+**颜色（P1，全部仍存在）**
+- `apps/web/src/app/routes/denied.tsx:88` 仍 `<Check className="size-3 text-green-500" />`，同文件 74 行用 `text-destructive`，自相矛盾未消
+- `apps/web/src/app/routes/_app/-drive-upload-panel.tsx:70` 仍 `text-emerald-500`（同块错误图标 :71 已用 `text-destructive`）
+- `apps/web/src/shared/components/settings-dialog.tsx:398` 仍 `text-green-600`（复制成功）；:289-290 仍 `border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400`（行号自 388 / 279-280 位移）
+- `apps/web/src/app/routes/shared.$token.tsx:43,45` 仍 `text-amber-500`（过期 / 用尽态）
+- `apps/web/src/app/routes/_app/admin/-cron-dynamic-fields.tsx:104`（amber-900/200）与 `admin/cron.lazy.tsx:242-243`（amber-700/300，自 249-250 位移）两块警告色仍不一致
+- `apps/web/src/app/routes/_app/admin/-policies-check.tsx:150` 仍 `border-green-500/50 ... : border-red-500/50`
+- 装饰色：`-file-browser-types.ts:76-80`、`-drive-file-list-inner.tsx`（sky 选中态 :608/:643/:753）、`-drive-file-list-item-actions.tsx:135/297/380`（amber 星标）、`logo.tsx:13`（`bg-indigo-600`）均仍 light/dark 双写或硬编码
+
+**按钮**
+- `apps/web/src/shared/components/resource/attachment-section.tsx:123-128` 可点击 `<div onClick>` 仍缺 `role`/`tabIndex`/`onKeyDown`/`aria-label`，键盘与读屏不可达
+- `apps/web/src/shared/components/resource/comment-section.tsx:524-533` 上传按钮仍 `text-[11px]`，与面板版 `text-xs` 漂移（issue/procurement 已经由 MetaActions 归一）
+
+**状态态**
+- 详情加载仍裸文本：`projects/$projectId.lazy.tsx:106` 与 `ships/$shipId.lazy.tsx:69` 均 `<p className="text-muted-foreground">`，未用 `full-page-loader.tsx` 或居中 Loader2
+- 空态仍三档发散（rich/medium/minimal），无共享空态原语
+- 本地 `ListState`（`-project-overview-tab.tsx:128`）与本地 `ErrorBanner`（`admin/-settings-shared.tsx:82`，:163 使用）仍未删
+- `animate-spin` 仍混用 size-3/4/5/6（无共享 Spinner）
+
+**排版**
+- 编辑 Pencil 仍 3 尺寸：`detail-meta-row.tsx:275`（size-3）、`-project-procurement-panel.tsx:582`（size-2.5 唯一异类）、`ships/-ship-equipment-tab.tsx:289` 等（size-4）
+- contacts 仍用 Edit3：`contacts/index.lazy.tsx:330`、`contacts/-contact-panel.tsx:169`
+- 列表 H1 `font-bold` vs 详情 H1 `font-semibold` 仍分裂
+- 52 处 `text-[10/11/12/13px]` 魔法字号未消，`attachment-section.tsx:142` 的 `text-[12px]`（等同 `text-xs`）冗余仍在
+
+**原语**
+- `apps/web/src/app/routes/_app/admin/-cron-create-drawer.tsx:99` 仍 `createPortal` + :102 `fixed inset-0 ... bg-black/30` + 自写 Escape，是全树唯一残留 `createPortal`
+- `apps/web/src/app/routes/_app/-file-preview-dialog.tsx:386` 去 portal 后仍手写 `fixed inset-0 ... bg-black/50` modal；`-univer-sheet-editor-dialog.tsx:448` 同型（审计后新增）
+- 遮罩浓度仍 3 套：原语 `bg-black/10`（ui/dialog、sheet、alert-dialog）、抽屉 `bg-black/30`（resizable-drawer、cron-create-drawer）、预览 `bg-black/50`
+
+---
+
+
 - 审计范围：`apps/web/src`（187 个 tsx，已排除 `*.test.tsx` 与 `components/ui/` 原语内部）
 - 审计方式：6 个维度并行证据采集（颜色/按钮/布局外壳/状态态/排版图标/原语模式）
 - 日期：2026-05-31
