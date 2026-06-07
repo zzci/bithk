@@ -329,7 +329,7 @@ Counts were re-verified against the tree on 2026-06-07; where a raw scan count d
 | `ShipStatusBadge` + `SHIP_STATUS_BADGE` | component | `ships/-ship-visuals.tsx` | 1 | `shared/lib/status-colors.ts` + `shared/components/ui/status-badge.tsx` | S | low | Medium |
 | `STATUS_ICON_TINT` consolidation | inline-pattern | `projects/-project-issues-tab.tsx` | dup of `ISSUE_STATUS_BADGE` | `shared/lib/status-colors.ts` | S | low | Medium |
 | Pill button pattern (`pillBase`) | inline-pattern | `projects/-project-issues-tab.tsx` | 7 sites (one file) | `Button variant="pill"` or `shared/components/pill-button.tsx` | M | low | Medium |
-| Fullscreen modal overlay | inline-pattern | `-file-preview-dialog.tsx`, `-univer-sheet-editor-dialog.tsx` | 2 | `shared/components/ui/dialog.tsx` / `resizable-drawer.tsx` | M | medium | Medium (already P6 modal) |
+| ~~Fullscreen modal overlay~~ DONE | inline-pattern | `-file-preview-dialog.tsx`, `-univer-sheet-editor-dialog.tsx` | 2 | extracted to `shared/components/ui/fullscreen-dialog.tsx` | M | medium | DONE (2026-06-07) |
 | `text-2xs` token (magic font sizes) | inline-pattern | repo-wide | 50 verified `text-[1Npx]` | `tailwind.config.ts` token | S | low | Medium (already P6 typography) |
 | `DetailMetaRow` adoption | component | exists at `shared/components/detail-meta-row.tsx` | 2 adopters; more candidates | `shared/components/` (drive adoption) | S | low | Low-Watch |
 | `buildMemberLabelMap` | util | `projects/-member-helpers.ts` | 6 importers (all projects) | `shared/lib/helpers/` | S | low | Low-Watch |
@@ -380,7 +380,7 @@ Counts were re-verified against the tree on 2026-06-07; where a raw scan count d
 
 **Pill button pattern (`pillBase`).** Hand-rolled `rounded-full px-2.5 text-xs font-normal gap-1.5` (solid/dashed border + conditional foreground) repeated **7×** within `projects/-project-issues-tab.tsx` (lines 650/715/732/753/776/797/818). Add a `Button variant="pill"` or `shared/components/pill-button.tsx`. Single-file today, so low risk; worth doing because the variant will likely spread to other filter/chip rows.
 
-**Fullscreen modal overlay.** `-file-preview-dialog.tsx` and `-univer-sheet-editor-dialog.tsx` both render `fixed inset-0 z-50` overlays with custom click-outside dismissal and a fullscreen toggle. This is the existing **P6 modal-unification** item (campaign #6): migrate to `Dialog`/`ResizableDrawer` or a shared `FullscreenDialog`. Medium risk (focus-trap/inert and backdrop behavior must be preserved). Overlay opacity also still diverges (`black/10` vs `/30` vs `/50`).
+**Fullscreen modal overlay.** ✅ DONE (2026-06-07). `-file-preview-dialog.tsx` and `-univer-sheet-editor-dialog.tsx` both rendered byte-identical `fixed inset-0 z-50` overlays with custom click-outside dismissal, Escape, body scroll-lock, and a windowed/fullscreen panel. Extracted the shared shell to `shared/components/ui/fullscreen-dialog.tsx` (`FullscreenDialog`) and migrated both callers. Chose a bespoke wrapper over base-ui `Dialog`/`ResizableDrawer` deliberately: those add a focus trap + `inert` backdrop the two viewers do not have today, which would be a real behavior change against Univer/CodeMirror/react-pdf's own focus management. The wrapper preserves the prior behavior exactly and unifies the overlay scrim on the single `bg-black/50` token. The remaining `black/10` (`ui/dialog` primitive) vs `/30` (drawers/sheets) divergence is intentional — small modals vs side panels vs fullscreen content viewers warrant different scrim weights — so no change was made there.
 
 **`text-2xs` token.** **50** `text-[1Npx]` magic font sizes verified (scan said 53; existing P6 says 52 — the live count is now 50). Define a `text-2xs` (10px) token in `tailwind.config.ts` and migrate. Already tracked as P6/audit-P5; campaign #7 (`ui-typography-closeout`).
 
@@ -417,7 +417,7 @@ Cheap, low-risk primitives first; the shared primitives must exist before the co
 5. **`useSettingsByPrefix`/`SettingsCard` + `useIsDark`** (S, low) — already isolated; trivial moves.
 6. **`CrudDialog<T>` then `CrudListSection<T>`** (M then L, medium) — biggest line-count win in admin (6 instances each); section composes the dialog, so dialog first.
 7. **`FormDialog` primitive** (M, medium) — generalize project/ship form dialogs only after the simpler dialogs above prove the API.
-8. **Modal/overlay unification** (M, medium) — file-preview + univer fullscreen dialogs (campaign #6); needs focus-trap care.
+8. ✅ **Modal/overlay unification** (M, medium) — DONE (2026-06-07): file-preview + univer fullscreen dialogs share `FullscreenDialog` (`ui/fullscreen-dialog.tsx`); kept the no-focus-trap behavior intentionally.
 9. **`useProjectCapabilities` → shared hook** (M, medium) — wide but mechanical import churn (~21 files); campaign #8.
 10. **`FileBrowser` family + `-file-browser-types.ts` → `shared/components/file/`** (L, medium) — widest import churn (11+ importers); do last and after the capability hook so the two churns stay separable (campaign #9).
 

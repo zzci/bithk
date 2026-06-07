@@ -6,7 +6,7 @@ Reference for the shared, cross-module frontend components in
 (projects, ships, contacts, issues, procurements, drive, documents) composes
 from. Feature-local components living under `app/routes/**` are out of scope.
 
-This file is an inventory of **91 shared modules**: the `ui/*` primitive layer
+This file is an inventory of **97 shared modules**: the `ui/*` primitive layer
 plus the higher-level shared components, hooks, and utilities. Each section lists
 the repo-relative path, purpose, adoption status, and (for composite components)
 the key props.
@@ -50,6 +50,7 @@ same-directory sibling importers and test files unless noted.
 | `ConfirmDeleteDialog` | `shared/components/ui/confirm-delete-dialog.tsx` | in-use |
 | `ContextMenu` | `shared/components/ui/context-menu.tsx` | in-use |
 | `Dialog` | `shared/components/ui/dialog.tsx` | in-use |
+| `FullscreenDialog` | `shared/components/ui/fullscreen-dialog.tsx` | in-use |
 | `DropdownMenu` | `shared/components/ui/dropdown-menu.tsx` | in-use |
 | `ErrorBanner` | `shared/components/ui/error-banner.tsx` | in-use |
 | `Input` | `shared/components/ui/input.tsx` | in-use |
@@ -116,6 +117,13 @@ same-directory sibling importers and test files unless noted.
 | sidebar `registry` | `shared/components/sidebar/registry.ts` | in-use |
 | sidebar `types` | `shared/components/sidebar/types.ts` | in-use |
 | `FileUploadButton` | `shared/components/file/file-upload-button.tsx` | in-use |
+| `DriveFileListSurface` | `shared/components/file/file-list-surface.tsx` | in-use |
+| `file-list-types` | `shared/components/file/file-list-types.ts` | internal-only (via surface) |
+| `file-list-filters` | `shared/components/file/file-list-filters.ts` | internal-only (via surface) |
+| `file-list-inner` (`FileList`) | `shared/components/file/file-list-inner.tsx` | internal-only (via surface) |
+| `file-list-toolbar` | `shared/components/file/file-list-toolbar.tsx` | internal-only (via surface) |
+| `file-list-filter-bar` | `shared/components/file/file-list-filter-bar.tsx` | internal-only (via surface) |
+| `file-list-item-actions` | `shared/components/file/file-list-item-actions.tsx` | internal-only (via surface) |
 | file barrel | `shared/components/file/index.ts` | in-use |
 | `AppSidebar` | `shared/components/app-sidebar.tsx` | single-use |
 | `CommandPalette` | `shared/components/command-palette.tsx` | internal-only (via app-sidebar) |
@@ -149,13 +157,14 @@ non-shadcn helpers).
 | `AlertDialog` | `ui/alert-dialog.tsx` | Confirmation dialog (role `alertdialog`) requiring an explicit action, no corner close. Base UI primitive. `internal-only` (only `ConfirmDeleteDialog`). |
 | `Avatar` | `ui/avatar.tsx` | Image/fallback avatar with badge/group/group-count helpers and `sm`/`default`/`lg` sizing. `AvatarBadge`/`AvatarGroup`/`AvatarGroupCount` exports appear unused. |
 | `Badge` | `ui/badge.tsx` | **CUSTOM** — polymorphic CVA badge via Base UI `useRender` (not Radix `Slot`); variants `default`/`secondary`/`destructive`/`outline`/`ghost`/`link`. |
-| `Button` | `ui/button.tsx` | **CUSTOM** — CVA button on Base UI `Button`; 6 variants, 8 sizes; auto-mirrors `title` into `aria-label` for icon-only buttons. Most-used primitive. |
+| `Button` | `ui/button.tsx` | **CUSTOM** — CVA button on Base UI `Button`; 6 variants, 9 sizes (incl. `pill`); auto-mirrors `title` into `aria-label` for icon-only buttons. Most-used primitive. |
 | `Card` | `ui/card.tsx` | Card container with header/title/description/action/content/footer slots; `default`/`sm` sizing. |
 | `CenteredHint` | `ui/centered-hint.tsx` | **CUSTOM** — centers a short loading/empty/error string with `muted` or `destructive` tone (not a shadcn part). |
 | `Combobox` | `ui/combobox.tsx` | Base UI Combobox composition (input/content/list/item/chips/clear/trigger + `useComboboxAnchor`) for single and multi-select with chips. Depends on `InputGroup` + `Button`. |
 | `ConfirmDeleteDialog` | `ui/confirm-delete-dialog.tsx` | **CUSTOM** — i18n confirm/cancel delete wrapping `AlertDialog`; stays open until the parent mutation resolves. The sole consumer of `alert-dialog.tsx`. See composite entry below. |
 | `ContextMenu` | `ui/context-menu.tsx` | **CUSTOM (trimmed)** — right-click menu on Base UI `ContextMenu` (content/item/label/separator/group only; no CheckboxItem/RadioItem/Sub). Drive file-list only. |
 | `Dialog` | `ui/dialog.tsx` | Modal dialog on Base UI `Dialog` with header/footer/title/description and an i18n close button. Note: `DialogFooter`'s `showCloseButton` branch has a hardcoded English "Close" (i18n gap). |
+| `FullscreenDialog` | `ui/fullscreen-dialog.tsx` | **CUSTOM** — shared shell for the drive's two fullscreen content viewers (`-file-preview-dialog`, `-univer-sheet-editor-dialog`): `fixed inset-0` overlay (single `bg-black/50` scrim token) + backdrop-dismiss + Escape + body scroll-lock + windowed/fullscreen panel. Deliberately NOT base-ui `Dialog`: it does not focus-trap or `inert` the background, because Univer/CodeMirror/react-pdf manage their own internal focus. Caller owns `open`, the `fullscreen` flag, and the panel content (header + body). |
 | `DropdownMenu` | `ui/dropdown-menu.tsx` | Dropdown on Base UI `Menu` with item/checkbox/radio/sub/label/separator/shortcut parts. Radio/Checkbox/Sub/Shortcut exports likely unused by current consumers. |
 | `ErrorBanner` | `ui/error-banner.tsx` | **CUSTOM** — nullable-message wrapper over the destructive `Alert`; renders nothing when empty. Has a co-located test. The sole consumer of `alert.tsx`. |
 | `Input` | `ui/input.tsx` | Styled text input on Base UI `Input` with focus/disabled/`aria-invalid` states. |
@@ -609,14 +618,18 @@ route's nav descriptor from the sidebar/command-palette render.
 
 ---
 
-## File upload
+## File
 
-`shared/components/file/` — the single shared hidden `<input type=file>` wrapper.
+`shared/components/file/` — the shared hidden `<input type=file>` wrapper plus
+the presentational drive file-list surface family.
 
 | Module | Path | Purpose |
 | --- | --- | --- |
-| barrel | `file/index.ts` | Re-exports `FileUploadButton` + its props type; all 9 consumers import through it. |
+| barrel | `file/index.ts` | Re-exports `FileUploadButton`, `DriveFileListSurface`, and their public types. |
 | `FileUploadButton` | `file/file-upload-button.tsx` | **CUSTOM** primitive (not shadcn) centralizing accept-policy and value-reset, with either a children trigger or a forwarded `inputRef`. Has a test. |
+| `DriveFileListSurface` | `file/file-list-surface.tsx` | THE presentational file-list surface: search, type/owner/modified filters, name/modified sort, grid\|list view (localStorage), rubber-band multi-select, batch bar, per-row actions, context menus. Callers pass `DisplayItem[]` + an `actions` bag; the surface never touches the API. Consumed by the drive folder browser, recent/favorites/trash collections, share lists, and the file picker. |
+| `file-list-inner` / `-toolbar` / `-filter-bar` / `-item-actions` | `file/file-list-*.tsx` | Internal surface parts (list/grid renderer, toolbars, filter bar, per-item action menus); reached only through the surface. |
+| `file-list-types` / `file-list-filters` | `file/file-list-*.ts` | Surface prop/config types, capability defaults, and the filter string-unions. |
 
 `FileUploadButton` key props:
 
@@ -684,8 +697,9 @@ here so the reference stays complete; fold into the sections above over time.
 > Still feature-local by design (single consumer — promote on a 2nd): `StatTile`,
 > `ProfileField` family, `WorklistPicker`, the drive create/rename dialogs,
 > `useIsDark`, cover-field adapters, cron sub-components. Deferred with care
-> (behavior/over-generalization risk): `FormDialog`, fullscreen-modal unification,
+> (behavior/over-generalization risk): `FormDialog`,
 > the `FileBrowser` component body. See [ui-maintenance.md](ui-maintenance.md).
+> (Fullscreen-modal unification is now done — see `FullscreenDialog` above.)
 
 ---
 
