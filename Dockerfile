@@ -11,7 +11,7 @@ FROM ${LODE_IMAGE} AS lode
 FROM ${BUN_IMAGE}
 WORKDIR /srv/lode
 
-COPY --from=lode /lode /usr/local/bin/lode
+COPY --from=lode /usr/bin/lode /usr/local/bin/lode
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libcap2 \
  && rm -rf /var/lib/apt/lists/* \
