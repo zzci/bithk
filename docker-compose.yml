@@ -10,11 +10,6 @@ services:
     image: bit:latest
     build:
       context: .
-      args:
-        BUILD_COMMIT: ${BUILD_COMMIT:-dev}
-        # APP_DISPLAY_NAME is baked into the SPA at build time, not runtime.
-        APP_NAME: bit
-        APP_DISPLAY_NAME: BIT.YT
     restart: unless-stopped
     # Run as root so the bind-mounted ./data-docker (created root-owned by the
     # daemon) stays writable across rm/recreate cycles.

@@ -68,6 +68,6 @@ Acceptance criteria:
   `state.ready = LODE_INSTANCE`.
 
 - 2026-06-07: Updated the GitHub release workflow to build the lode asset
-  from a tag or manual dispatch, validate the current lode/v1 manifest contract,
-  create the release when needed, and upload the tarball, `manifest.json`, and
-  `checksums.txt` as release assets.
+  from GitHub Release publish events or manual reruns for an existing release tag,
+  validate the current lode/v1 manifest contract, and upload the tarball,
+  `manifest.json`, and `checksums.txt` as release assets.

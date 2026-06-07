@@ -14,8 +14,8 @@ bun run package
 # → dist/manifest.json
 # → dist/checksums.txt
 
-# lode runtime image
-docker build -t myapp .
+# lode + Bun runtime image
+docker build -t bit:lode .
 ```
 
 `bun run package` builds:
@@ -26,9 +26,9 @@ docker build -t myapp .
 - `apps/web/dist/**`
 - `apps/api/drizzle/**`
 
-The manifest entry is `app.js`; `deploy/lode.toml` launches it with `run = "bun run"` and `exec = "bun run"`. `ROOT_DIR` resolves from the installed version directory. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DATA_DIR` exists, the app uses `${LODE_DATA_DIR}/data` so operators do not have to configure each path separately.
+The manifest entry is `app.js`; `deploy/lode.toml` launches it with `run = "bun"` and uses `exec = "bun run"` for CLI passthrough. `ROOT_DIR` resolves from the installed version directory. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DATA_DIR` exists, the app uses `${LODE_DATA_DIR}/data` so operators do not have to configure each path separately.
 
-The Dockerfile is a generic `lode + Bun` runtime image. It does not bake the application into the image; lode downloads the asset declared by `/srv/lode/lode.toml`, then supervises and updates it.
+The Dockerfile is a generic `dotns/lode` + Bun 1.3.14 runtime image. It does not bake the application into the image; lode downloads the asset declared by `/srv/lode/lode.toml`, then supervises and updates it.
 
 Verified lode layout after first boot:
 
@@ -64,7 +64,7 @@ cp deploy/lode.toml /srv/lode/lode.toml
 # Edit [update].github to the GitHub owner/repo that publishes releases.
 ```
 
-The default release workflow uploads the selected tarball, `manifest.json`, and `checksums.txt` to the GitHub Release. The lode template uses `[update].github`, so lode selects the exact release asset named by `[update].asset`; no `manifest.json` asset is required for GitHub mode. The generated native manifest is kept for non-GitHub deployments and uses lode/v1 assets selected by `name`, with no `platform` or `format` fields. For production, sign assets and the manifest with `lode-cli`, then set `[trust].require_signature = "enforce"` and configure trusted keys in the deployment environment.
+The default release workflow runs when a GitHub Release is published, not when a tag is pushed. It uploads the selected tarball, `manifest.json`, and `checksums.txt` to that existing release. The lode template uses `[update].github`, so lode selects the exact release asset named by `[update].asset`; `manifest.json` is still uploaded so the same release can be mirrored to an internal manifest host by switching `[update].github` to `[update].manifest`. The generated native manifest uses lode/v1 assets selected by `name`, with no `platform` or `format` fields. For production, sign assets and the manifest with `lode-cli`, then set `[trust].require_signature = "enforce"` and configure trusted keys in the deployment environment.
 
 ## Required environment
 

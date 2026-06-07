@@ -131,11 +131,11 @@ feature or schema change is intended.
   enabling a single `/srv/lode` persistent volume.
 - 2026-06-07: Aligned with the current upstream lode Bun app contract: the
   manifest entry is `app.js`, `deploy/lode.toml` uses
-  `github`, `run = "bun run"`, `exec = "bun run"`, and
+  `github`, `run = "bun"`, `exec = "bun run"`, and
   `readiness = "state"`, and the API writes
   `state.ready = LODE_INSTANCE` after startup.
 
-- 2026-06-07: Release workflow now publishes the GitHub Releases asset named by
+- 2026-06-07: Release workflow now runs from GitHub Release publish events and publishes the asset named by
   `[update].asset`, plus native `manifest.json` and `checksums.txt`. The native
   manifest follows current lode/v1 shape: assets are selected by `name`, and no
   `platform` or `format` fields are emitted.
