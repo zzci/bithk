@@ -10,6 +10,7 @@
 
 import type { ComponentProps } from "react";
 import { lazy, Suspense } from "react";
+import { useTranslation } from "react-i18next";
 
 const LazyMarkdownPreview = lazy(() => import("./markdown-preview"));
 const LazyMilkdownEditor = lazy(() => import("./milkdown-editor"));
@@ -27,7 +28,8 @@ interface MarkdownEditorProps {
 }
 
 function Fallback() {
-  return <div className="text-sm text-muted-foreground">Loading editor…</div>;
+  const { t } = useTranslation();
+  return <div className="text-sm text-muted-foreground">{t("common.loading")}</div>;
 }
 
 export function MarkdownEditor(props: MarkdownEditorProps) {

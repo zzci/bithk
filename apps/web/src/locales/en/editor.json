@@ -18,5 +18,15 @@
   "table": "Table",
   "horizontalRule": "Horizontal rule",
   "viewSource": "View source",
-  "backToEditor": "Back to editor"
+  "backToEditor": "Back to editor",
+  "toolbar": "Editor toolbar",
+  "undo": "Undo",
+  "redo": "Redo",
+  "heading1": "Heading 1",
+  "heading2": "Heading 2",
+  "heading3": "Heading 3",
+  "tableAddRow": "Add row",
+  "tableAddColumn": "Add column",
+  "tableDelete": "Delete row/column",
+  "placeholder": "Start writing… Markdown shortcuts work as you type."
 }

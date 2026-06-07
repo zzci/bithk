@@ -18,5 +18,15 @@
   "table": "表格",
   "horizontalRule": "分隔线",
   "viewSource": "查看源码",
-  "backToEditor": "返回编辑器"
+  "backToEditor": "返回编辑器",
+  "toolbar": "编辑器工具栏",
+  "undo": "撤销",
+  "redo": "重做",
+  "heading1": "标题 1",
+  "heading2": "标题 2",
+  "heading3": "标题 3",
+  "tableAddRow": "添加行",
+  "tableAddColumn": "添加列",
+  "tableDelete": "删除行/列",
+  "placeholder": "开始输入…… 输入时支持 Markdown 快捷语法。"
 }

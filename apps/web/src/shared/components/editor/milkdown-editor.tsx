@@ -328,7 +328,7 @@ function Toolbar({
     <>
       <div
         role="toolbar"
-        aria-label={t("toolbar", "Editor toolbar")}
+        aria-label={t("toolbar")}
         className={cn(
           "flex flex-wrap items-center gap-0.5 bg-muted/30 px-2 py-1",
           floating
@@ -344,20 +344,20 @@ function Toolbar({
         <fieldset disabled={sourceMode} className="contents">
           <ToolbarButton
             icon={<Undo2 className={iconCls} />}
-            title={t("undo", "Undo")}
+            title={t("undo")}
             onClick={() => run(callCommand(undoCommand.key))}
           />
           <ToolbarButton
             icon={<Redo2 className={iconCls} />}
-            title={t("redo", "Redo")}
+            title={t("redo")}
             onClick={() => run(callCommand(redoCommand.key))}
           />
           {!compact && (
             <>
               <Divider />
-              <ToolbarButton icon={<Heading1 className={iconCls} />} title={t("heading1", "Heading 1")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 1))} />
-              <ToolbarButton icon={<Heading2 className={iconCls} />} title={t("heading2", "Heading 2")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 2))} />
-              <ToolbarButton icon={<Heading3 className={iconCls} />} title={t("heading3", "Heading 3")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 3))} />
+              <ToolbarButton icon={<Heading1 className={iconCls} />} title={t("heading1")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 1))} />
+              <ToolbarButton icon={<Heading2 className={iconCls} />} title={t("heading2")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 2))} />
+              <ToolbarButton icon={<Heading3 className={iconCls} />} title={t("heading3")} onClick={() => run(callCommand(wrapInHeadingCommand.key, 3))} />
             </>
           )}
           <Divider />
@@ -427,17 +427,17 @@ function Toolbar({
               />
               <ToolbarButton
                 icon={<Rows3 className={iconCls} />}
-                title={t("tableAddRow", "Add row")}
+                title={t("tableAddRow")}
                 onClick={() => run(callCommand(addRowAfterCommand.key))}
               />
               <ToolbarButton
                 icon={<Columns3 className={iconCls} />}
-                title={t("tableAddColumn", "Add column")}
+                title={t("tableAddColumn")}
                 onClick={() => run(callCommand(addColAfterCommand.key))}
               />
               <ToolbarButton
                 icon={<Trash2 className={iconCls} />}
-                title={t("tableDelete", "Delete row/column")}
+                title={t("tableDelete")}
                 onClick={() => run(callCommand(deleteSelectedCellsCommand.key))}
               />
               <ToolbarButton
@@ -453,7 +453,7 @@ function Toolbar({
             <Divider />
             <ToolbarButton
               icon={<FileCode2 className={iconCls} />}
-              title={sourceMode ? t("backToEditor", "Back to editor") : t("viewSource", "View source")}
+              title={sourceMode ? t("backToEditor") : t("viewSource")}
               onClick={() => onToggleSource()}
             />
           </>
@@ -638,7 +638,7 @@ function EditorBody({
       .use(clipboard));
 
   const effectiveMinHeight = minHeight ?? (compact ? 80 : 280);
-  const placeholderText = placeholder ?? t("placeholder", "Start writing… Markdown shortcuts work as you type.");
+  const placeholderText = placeholder ?? t("placeholder");
 
   return (
     <>
