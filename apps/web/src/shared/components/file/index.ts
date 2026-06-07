@@ -10,5 +10,7 @@ export type {
 } from "./file-list-surface";
 export { DriveFileListSurface } from "./file-list-surface";
 
+export { FilePreviewDialog, resolvePreviewKind } from "./file-preview-dialog";
+
 export type { FileUploadButtonProps } from "./file-upload-button";
 export { FileUploadButton } from "./file-upload-button";

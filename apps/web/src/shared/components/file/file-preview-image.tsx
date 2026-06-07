@@ -1,4 +1,4 @@
-import type { ZoomModule, ZoomRef } from "./-file-preview-types";
+import type { ZoomModule, ZoomRef } from "./file-preview-types";
 
 export function ImagePreview({
   module: zoom,

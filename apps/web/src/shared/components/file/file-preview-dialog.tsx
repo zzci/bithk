@@ -23,7 +23,7 @@
 // never HTML). Plain text is rendered as text nodes.
 
 import type { WheelEvent as ReactWheelEvent } from "react";
-import type { PdfModule, ZoomModule, ZoomRef } from "./-file-preview-types";
+import type { PdfModule, ZoomModule, ZoomRef } from "./file-preview-types";
 import type { DriveEntry } from "@/shared/lib/api/drive";
 
 import {
@@ -56,17 +56,17 @@ import { httpRaw } from "@/shared/lib/http";
 import { retypeBlobToMime } from "@/shared/lib/preview-blob";
 import { cn } from "@/shared/lib/utils";
 
-import { DriveVersionHistoryDialog } from "./-drive-version-history-dialog";
-import { useIsDark } from "./-file-preview-hooks";
-import { ImagePreview } from "./-file-preview-image";
-import { PdfPreview } from "./-file-preview-pdf";
-import { ToolButton } from "./-file-preview-toolbar";
-import { errorMessage, formatSize, mimeTypeForSave, resolvePreviewKind } from "./-file-preview-types";
+import { useIsDark } from "./file-preview-hooks";
+import { ImagePreview } from "./file-preview-image";
+import { PdfPreview } from "./file-preview-pdf";
+import { ToolButton } from "./file-preview-toolbar";
+import { errorMessage, formatSize, mimeTypeForSave, resolvePreviewKind } from "./file-preview-types";
+import { DriveVersionHistoryDialog } from "./version-history-dialog";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-export { resolvePreviewKind } from "./-file-preview-types";
+export { resolvePreviewKind } from "./file-preview-types";
 
 interface FilePreviewDialogProps {
   readonly entry: DriveEntry;

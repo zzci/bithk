@@ -38,7 +38,7 @@ vi.mock("@/shared/components/file/file-list-surface", () => ({
 
 // Stub the heavy preview dialog with a marker so we can assert it renders and
 // reflects readOnly, without pulling in pdfjs / CodeMirror.
-vi.mock("./-file-preview-dialog", () => ({
+vi.mock("@/shared/components/file/file-preview-dialog", () => ({
   FilePreviewDialog: ({ entry, readOnly }: { entry: DriveEntry; readOnly?: boolean }) => (
     <div data-testid="preview-dialog">{`preview:${entry.name}:${readOnly ? "ro" : "rw"}`}</div>
   ),

@@ -20,11 +20,12 @@ import { FolderInput, History, Upload } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { DriveFileListSurface, FileUploadButton } from "@/shared/components/file";
+import { DriveFileListSurface, FilePreviewDialog, FileUploadButton } from "@/shared/components/file";
+import { DriveVersionHistoryDialog } from "@/shared/components/file/version-history-dialog";
 import { useShare } from "@/shared/components/share";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import { ErrorBanner } from "@/shared/components/ui/error-banner";
 
+import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
   downloadDriveEntry,
   isUniverSheetEntry,
@@ -40,7 +41,6 @@ import { entryToDisplayItem } from "@/shared/lib/file";
 import { csvToUniverSnapshotJson, emptyUniverSnapshotJson } from "@/shared/lib/univer-snapshot";
 import { cn } from "@/shared/lib/utils";
 import { useDriveUploader } from "./-drive-upload";
-import { DriveVersionHistoryDialog } from "./-drive-version-history-dialog";
 import {
   CreateFolderDialog,
   CreateSpreadsheetDialog,
@@ -48,7 +48,6 @@ import {
   MoveDialog,
   RenameDialog,
 } from "./-entry-create-dialogs";
-import { FilePreviewDialog } from "./-file-preview-dialog";
 
 // Univer ships in its own async chunk: the editor dialog is the sole
 // `@univerjs` importer and is loaded lazily so the engine is fetched only when

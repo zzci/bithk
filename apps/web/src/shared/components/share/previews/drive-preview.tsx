@@ -10,7 +10,7 @@ import { ArrowDown, ArrowUp, ChevronRight, Download, Eye, FileSpreadsheet, FileT
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { FilePreviewDialog, resolvePreviewKind } from "@/app/routes/_app/-file-preview-dialog";
+import { FilePreviewDialog, resolvePreviewKind } from "@/shared/components/file";
 import { Button } from "@/shared/components/ui/button";
 import { Spinner } from "@/shared/components/ui/spinner";
 import { isUniverSheetEntry } from "@/shared/lib/api/drive";

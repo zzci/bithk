@@ -1,5 +1,5 @@
 import type { WheelEvent as ReactWheelEvent } from "react";
-import type { PdfModule } from "./-file-preview-types";
+import type { PdfModule } from "./file-preview-types";
 
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/shared/components/ui/button";

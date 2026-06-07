@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { UNIVER_SHEET_MIME } from "@/shared/lib/api/drive";
-import { resolvePreviewKind } from "./-file-preview-types";
+import { resolvePreviewKind } from "./file-preview-types";
 
 describe("resolvePreviewKind", () => {
   it("inlines the safe raster image types", () => {

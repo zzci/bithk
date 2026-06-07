@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolvePreviewKind } from "./-file-preview-dialog";
+import { resolvePreviewKind } from "./file-preview-dialog";
 
 describe("resolvePreviewKind", () => {
   it("routes images by mimetype", () => {

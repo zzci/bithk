@@ -1,6 +1,6 @@
 // State-driven Univer spreadsheet editor, rendered as a fullscreen-capable
 // modal overlay that mirrors the markdown editor shell in
-// `-file-preview-dialog.tsx` (fixed inset-0 overlay + fullscreen toggle +
+// `file/file-preview-dialog.tsx` (fixed inset-0 overlay + fullscreen toggle +
 // header status / Save-as-version / version-history / fullscreen / close).
 // Closing clears the caller's state and stays in the current drive folder —
 // there is no editor route to navigate back from.
@@ -31,9 +31,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { ToolButton } from "@/shared/components/file/file-preview-toolbar";
+import { DriveVersionHistoryDialog } from "@/shared/components/file/version-history-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { FullscreenDialog } from "@/shared/components/ui/fullscreen-dialog";
 import { Spinner } from "@/shared/components/ui/spinner";
+
 import {
   fetchDriveEntryContent,
   releaseEditLockBeacon,
@@ -45,9 +48,6 @@ import {
   useUploadVersion,
 } from "@/shared/lib/api/drive";
 import { cn } from "@/shared/lib/utils";
-
-import { DriveVersionHistoryDialog } from "./-drive-version-history-dialog";
-import { ToolButton } from "./-file-preview-toolbar";
 
 import "@univerjs/preset-sheets-core/lib/index.css";
 

@@ -124,6 +124,9 @@ same-directory sibling importers and test files unless noted.
 | `file-list-toolbar` | `shared/components/file/file-list-toolbar.tsx` | internal-only (via surface) |
 | `file-list-filter-bar` | `shared/components/file/file-list-filter-bar.tsx` | internal-only (via surface) |
 | `file-list-item-actions` | `shared/components/file/file-list-item-actions.tsx` | internal-only (via surface) |
+| `FilePreviewDialog` (+ `resolvePreviewKind`) | `shared/components/file/file-preview-dialog.tsx` | in-use (drive, share previews, resource attachments) |
+| `file-preview-*` parts (image/pdf/toolbar/types/hooks) | `shared/components/file/file-preview-*.{ts,tsx}` | internal-only (via `FilePreviewDialog`) |
+| `version-history-dialog` | `shared/components/file/version-history-dialog.tsx` | in-use (drive edit flow) |
 | file barrel | `shared/components/file/index.ts` | in-use |
 | `AppSidebar` | `shared/components/app-sidebar.tsx` | single-use |
 | `CommandPalette` | `shared/components/command-palette.tsx` | internal-only (via app-sidebar) |
@@ -542,7 +545,7 @@ renderers. Mirrors the backend adapter-registry pattern.
 | `share-helpers` | `share/share-helpers.ts` | Reusable primitives: `useVisibleUsers` (widely adopted, 10 files), `useClipboard`, `formatBytes`, `formatDate`, `expiresAtFromValue`, `expirationValueFrom`. Has a test. |
 | `DocumentCollaboratorSection` | `share/document-collaborators.tsx` | Viewer/editor collaborator-grant list on the document module's own API, injected via the registry's `renderExtraSection`. `internal-only` (via register). |
 | `DocumentPublicPreview` | `share/previews/document-preview.tsx` | Public view-only document preview (markdown body, subtree nav, attachments) scoped to the share token. `internal-only` (via register). |
-| `DrivePublicPreview` | `share/previews/drive-preview.tsx` | Public drive preview: single-file card or read-only folder browser. `internal-only` (via register). Reuses app-route internals (`-file-browser-types`, `-file-preview-dialog`) — an inward-pointing dependency. |
+| `DrivePublicPreview` | `share/previews/drive-preview.tsx` | Public drive preview: single-file card or read-only folder browser. `internal-only` (via register). Composes the shared `FilePreviewDialog` + `shared/lib/file` helpers (the former app-route inward dependency is resolved). |
 | `previews/shell` | `share/previews/shell.tsx` | Shared chrome for the public landing page: `ShareShell`, `ShareStatus`, `ShareIconHeader`, `PasswordField`, `PasswordPrompt`. The route uses `ShareShell`/`ShareStatus`; the rest are internal to the preview siblings. |
 
 > `useVisibleUsers` (a general account/visible-users query) has outgrown the

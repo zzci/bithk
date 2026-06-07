@@ -4,28 +4,21 @@
 // inline preview (image / PDF / text) and delete confirmation. Upload
 // is intentionally owned by the parent — this section is display-only.
 
+import type { DriveEntry } from "@/shared/lib/api/drive";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileUp, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { FilePreviewDialog, resolvePreviewKind } from "@/shared/components/file";
 import { Button } from "@/shared/components/ui/button";
-import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatBytes, formatDate } from "@/shared/lib/format";
 import { BASE_PATH, http } from "@/shared/lib/http";
-import { retypeBlobToMime } from "@/shared/lib/preview-blob";
 
-import { attachmentsQueryKey, isPreviewable } from "./attachment-utils";
+import { attachmentsQueryKey } from "./attachment-utils";
 
 export interface ResourceAttachment {
   readonly id: string;
@@ -95,7 +88,7 @@ export function ResourceAttachmentSection({
           : attachments.map((att) => {
               const isImage = att.mimetype.startsWith("image/");
               const inlineUrl = `${BASE_PATH}/api/${resource}/${resourceId}/attachments/${att.id}?inline=true`;
-              const canPreview = isPreviewable(att.mimetype);
+              const canPreview = resolvePreviewKind(att.mimetype, att.filename) !== "unsupported";
               return (
                 <div
                   key={att.id}
@@ -167,189 +160,44 @@ export function ResourceAttachmentSection({
       />
 
       {previewTarget && (
-        <ResourceAttachmentPreviewDialog
-          resource={resource}
-          resourceId={resourceId}
-          attachment={previewTarget}
-          i18nNs={i18nNs}
-          onClose={() => setPreviewTarget(null)}
+        <FilePreviewDialog
+          entry={attachmentToEntry(previewTarget)}
+          open
+          readOnly
+          fetchContent={(signal) => {
+            // Direct fetch (not `httpRaw`): the attachment endpoint may 302 to
+            // a cross-origin presigned URL, and this is a read-only GET with no
+            // CSRF surface.
+            const url = `${BASE_PATH}/api/${resource}/${resourceId}/attachments/${previewTarget.id}?inline=true`;
+            return fetch(url, { credentials: "include", signal }).then((res) => {
+              if (!res.ok)
+                throw new Error(`HTTP ${res.status}`);
+              return res.blob();
+            });
+          }}
           onDownload={() => handleDownload(previewTarget)}
+          onOpenChange={open => !open && setPreviewTarget(null)}
         />
       )}
     </div>
   );
 }
 
-// ── Preview dialog ──
-
-function ResourceAttachmentPreviewDialog({
-  resource,
-  resourceId,
-  attachment,
-  i18nNs,
-  onClose,
-  onDownload,
-}: {
-  readonly resource: string;
-  readonly resourceId: string;
-  readonly attachment: ResourceAttachment;
-  readonly i18nNs: string;
-  readonly onClose: () => void;
-  readonly onDownload: () => void;
-}) {
-  const { t } = useTranslation(i18nNs);
-  const url = `${BASE_PATH}/api/${resource}/${resourceId}/attachments/${attachment.id}?inline=true`;
-  const isImage = attachment.mimetype.startsWith("image/");
-  const isPdf = attachment.mimetype === "application/pdf";
-  const isText
-    = attachment.mimetype.startsWith("text/")
-      || attachment.mimetype === "application/json"
-      || attachment.mimetype === "application/xml";
-
-  return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent showCloseButton={false} className="flex max-h-[90vh] w-[min(960px,92vw)] max-w-none flex-col gap-0 p-0 sm:max-w-none">
-        <DialogHeader className="flex shrink-0 flex-row items-center justify-between gap-3 border-b px-4 py-2.5">
-          <div className="min-w-0 flex-1">
-            <DialogTitle className="truncate text-sm font-semibold">{attachment.filename}</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              {formatBytes(attachment.size)}
-              <span className="mx-1 text-muted-foreground/50">·</span>
-              {attachment.mimetype}
-            </DialogDescription>
-          </div>
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Button variant="ghost" size="icon" onClick={onDownload} title={t("attachments.download")}>
-              <Download className="size-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={onClose} title={t("common.close")}>
-              <X className="size-4" />
-            </Button>
-          </div>
-        </DialogHeader>
-        <div className="flex-1 overflow-hidden bg-muted/10">
-          {isImage && (
-            <ImagePreview url={url} mime={attachment.mimetype} alt={attachment.filename} i18nNs={i18nNs} />
-          )}
-          {isPdf && (
-            <iframe
-              src={url}
-              title={attachment.filename}
-              className="h-[80vh] w-full"
-            />
-          )}
-          {isText && <TextPreview url={url} i18nNs={i18nNs} />}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Image preview: fetch the attachment bytes and render them via <img> over a
-// re-typed blob URL. The content endpoint serves script-bearing types (SVG)
-// as application/octet-stream, which `<img src=?inline>` would refuse to
-// render; re-typing the blob to the declared mimetype fixes rendering without
-// trusting the server Content-Type. Safety: SVG is shown ONLY through <img>
-// (never inline <svg>/<object>/<iframe>) and the backend never serves it
-// inline, so embedded scripts/handlers never execute. Blob URL is ephemeral
-// and revoked on cleanup.
-function ImagePreview({ url, mime, alt, i18nNs }: {
-  readonly url: string;
-  readonly mime: string;
-  readonly alt: string;
-  readonly i18nNs: string;
-}) {
-  const { t } = useTranslation(i18nNs);
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    let created: string | null = null;
-    const controller = new AbortController();
-    setObjectUrl(null);
-    setFailed(false);
-    // Direct fetch (not `httpRaw`) for the same reason as TextPreview: the
-    // endpoint may 302 to a cross-origin presigned URL, and this is a
-    // read-only GET with no CSRF surface.
-    fetch(url, { credentials: "include", signal: controller.signal })
-      .then((res) => {
-        if (!res.ok)
-          throw new Error(`HTTP ${res.status}`);
-        return res.blob();
-      })
-      .then((blob) => {
-        if (cancelled)
-          return;
-        created = URL.createObjectURL(retypeBlobToMime(blob, mime));
-        setObjectUrl(created);
-      })
-      .catch(() => {
-        if (!cancelled)
-          setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-      controller.abort();
-      if (created)
-        URL.revokeObjectURL(created);
-    };
-  }, [url, mime]);
-
-  if (failed) {
-    return (
-      <CenteredHint tone="destructive" className="h-[60vh]">
-        {t("common.error.loadFailed")}
-      </CenteredHint>
-    );
-  }
-  if (!objectUrl) {
-    return <CenteredHint className="h-[60vh]">{t("common.loading")}</CenteredHint>;
-  }
-  return (
-    <div className="flex h-full items-center justify-center p-4">
-      <img
-        src={objectUrl}
-        alt={alt}
-        className="max-h-full max-w-full object-contain"
-      />
-    </div>
-  );
-}
-
-function TextPreview({ url, i18nNs }: { readonly url: string; readonly i18nNs: string }) {
-  const { t } = useTranslation(i18nNs);
-  const query = useQuery({
-    queryKey: ["attachment-text-preview", url],
-    queryFn: async () => {
-      // Direct fetch (not the shared `httpRaw` helper) because the URL
-      // is *also* used by `<img src>` / `<iframe src>` siblings — the
-      // attachment endpoint may 302 to a presigned download URL on a
-      // different origin, and a same-origin POST through `httpRaw`
-      // wouldn't follow the redirect with credentials cleanly. GET +
-      // no CSRF surface, so the only loss vs `httpRaw` is the global
-      // `unauthorized` event emission — acceptable for a read-only
-      // preview that gracefully degrades to an error.
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok)
-        throw new Error(`HTTP ${res.status}`);
-      return await res.text();
-    },
-    staleTime: 60_000,
-  });
-  if (query.isLoading) {
-    return <CenteredHint className="h-[60vh]">{t("common.loading")}</CenteredHint>;
-  }
-  if (query.error || query.data === undefined) {
-    return (
-      <CenteredHint tone="destructive" className="h-[60vh]">
-        {query.error instanceof Error ? query.error.message : t("common.error.loadFailed")}
-      </CenteredHint>
-    );
-  }
-  return (
-    <pre className="h-[80vh] overflow-auto whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs leading-relaxed">
-      {query.data}
-    </pre>
-  );
+/** Minimal `DriveEntry` the shared viewer needs; bytes come from a fetch override. */
+function attachmentToEntry(att: ResourceAttachment): DriveEntry {
+  return {
+    id: att.id,
+    ownerType: "user",
+    ownerId: "",
+    parentEntryId: null,
+    type: "file",
+    name: att.filename,
+    favorite: false,
+    status: "normal",
+    createdBy: "",
+    createdByName: "",
+    createdAt: "",
+    updatedAt: "",
+    file: { referenceId: "", fileId: "", filename: att.filename, mimetype: att.mimetype, size: att.size },
+  };
 }

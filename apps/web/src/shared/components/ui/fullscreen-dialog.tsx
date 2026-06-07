@@ -1,5 +1,5 @@
 // Shared shell for the app's two hand-rolled fullscreen content viewers
-// (`-file-preview-dialog.tsx`, `-univer-sheet-editor-dialog.tsx`). It owns the
+// (`file/file-preview-dialog.tsx`, `-univer-sheet-editor-dialog.tsx`). It owns the
 // behaviour both previously duplicated verbatim: the `fixed inset-0` overlay
 // with click-outside dismissal, the centered dialog panel that toggles between
 // windowed and edge-to-edge fullscreen, Escape-to-close, and body scroll-lock
