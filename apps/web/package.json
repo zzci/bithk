@@ -30,7 +30,7 @@
     "@milkdown/kit": "7.21.2",
     "@milkdown/react": "7.21.2",
     "@tanstack/react-query": "5.101.0",
-    "@tanstack/react-router": "1.170.11",
+    "@tanstack/react-router": "1.170.15",
     "@univerjs/preset-sheets-core": "0.25.0",
     "@univerjs/presets": "0.25.0",
     "class-variance-authority": "0.7.1",
