@@ -1,6 +1,6 @@
 # PLAN-074 - Admin Settings About tab
 
-- Status: Implementing
+- Status: Completed
 - Task: [FEAT-022](../task/FEAT-022.md)
 - Campaign: l1-s65drh22-20260609121625
 - Created: 2026-06-09
@@ -75,3 +75,7 @@ change or dependency addition is planned.
 
 - 2026-06-09: Created and marked implementing for campaign tracking. Source
   implementation is intentionally not included in this tracking-only issue.
+- 2026-06-09: Completed. Verified the merged backend and frontend scope,
+  including admin-only `/system/version`, sanitized lode summary fields,
+  graceful missing/malformed lode state handling, About tab rendering, refresh
+  behavior, and omitted manual upgrade controls. `bun run check` passed.
