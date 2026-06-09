@@ -117,3 +117,4 @@
 | [DATA-001](DATA-001.md) | Seed dataset full schema coverage on party-model main (G0–G6) | [PLAN-069](../plan/PLAN-069.md) | Completed | 2026-06-04 |
 | [REFACTOR-027](REFACTOR-027.md) | Replace single-binary packaging with lode-managed releases | [PLAN-070](../plan/PLAN-070.md) | Completed | 2026-06-07 |
 | [REFACTOR-028](REFACTOR-028.md) | Flatten lode release artifact layout | [PLAN-071](../plan/PLAN-071.md) | Completed | 2026-06-07 |
+| [FIX-038](FIX-038.md) | Fix production secure-cookie deletion | - | Completed | 2026-06-09 |

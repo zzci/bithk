@@ -362,7 +362,10 @@ export function authRoutes() {
     // the cookie — reject explicitly so the user re-initiates login.
     const cookieName = oauthStateCookieName(config.NODE_ENV);
     const cookieState = getCookie(c, cookieName);
-    deleteCookie(c, cookieName, { path: "/" });
+    deleteCookie(c, cookieName, {
+      path: cookiePath(base),
+      secure: config.NODE_ENV === "production",
+    });
     if (!cookieState || cookieState !== state) {
       return c.redirect(buildLoginErrorUrl(base, "oauth_state_invalid"), 302);
     }

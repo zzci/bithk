@@ -314,6 +314,32 @@ describe("GET /account/auth/login", () => {
   });
 });
 
+describe("GET /account/auth/callback", () => {
+  test("clears the production OAuth state cookie with Secure", async () => {
+    const app = buildApp(db, baseConfig({
+      NODE_ENV: "production",
+      BASE_PATH: "/bit",
+      OAUTH_CLIENT_ID: "client",
+      OAUTH_CLIENT_SECRET: "secret",
+      OAUTH_AUTHORIZE_URL: "https://idp.example.com/auth",
+      OAUTH_TOKEN_URL: "https://idp.example.com/token",
+      OAUTH_USERINFO_URL: "https://idp.example.com/userinfo",
+    }));
+
+    const res = await app.request("/account/auth/callback?code=code&state=state", {
+      headers: { cookie: "__Secure-oauth_state=state" },
+    });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toContain("/bit/error?code=oauth_state_invalid");
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("__Secure-oauth_state=");
+    expect(setCookie).toContain("Max-Age=0");
+    expect(setCookie).toContain("Path=/bit");
+    expect(setCookie).toContain("Secure");
+  });
+});
+
 describe("readIdTokenSub — present vs absent vs unparseable", () => {
   function jwt(payload: object): string {
     const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");

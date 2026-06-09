@@ -11,6 +11,13 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Fixed
+
+- Production OAuth callback no longer throws while clearing the
+  `__Secure-oauth_state` cookie. The cleanup now uses the configured cookie
+  path and includes the `Secure` attribute required for `__Secure-` cookies
+  (FIX-038).
+
 ### Added
 
 - lode-managed release packaging (REFACTOR-027 / PLAN-070): `bun run package`
