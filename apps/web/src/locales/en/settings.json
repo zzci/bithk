@@ -25,7 +25,45 @@
     "webhook": "Webhooks",
     "projectDefaults": "Project Defaults",
     "contact": "Contacts",
-    "ship": "Ship"
+    "ship": "Ship",
+    "about": "About"
+  },
+  "about": {
+    "title": "About",
+    "description": "Current application build and lode-managed update status.",
+    "refresh": "Refresh",
+    "version": "Version",
+    "commit": "Commit",
+    "buildTime": "Build time",
+    "yes": "Yes",
+    "no": "No",
+    "unknown": "Unknown",
+    "empty": "No status details reported.",
+    "lode": {
+      "title": "Lode Status",
+      "description": "Safe release status reported by the server. Manual update operations are not exposed here.",
+      "configured": "Configured",
+      "active": "Active",
+      "status": "Lifecycle",
+      "current": "Current",
+      "stateStatus": "State",
+      "readiness": "Ready",
+      "configStatus": "Config status",
+      "policy": "Policy",
+      "channel": "Channel",
+      "asset": "Asset",
+      "sourceType": "Source type",
+      "source": "Source",
+      "lifecycle": "Runtime",
+      "update": "Update configuration",
+      "manualOperations": "Manual operations",
+      "manualCheck": "Check for update",
+      "manualApply": "Apply update",
+      "manualUnsupportedHint": "Manual check/apply controls are intentionally unavailable unless the server exposes a verified operation surface.",
+      "supported": "Supported",
+      "unsupported": "Unsupported",
+      "unavailable": "Lode status is not available."
+    }
   },
   "projectDefaults": {
     "defaults": {
