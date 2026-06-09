@@ -2,6 +2,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { BUILD_INFO } from "@/build-info";
+import { getLodeSummary } from "@/lode-state";
 import { getAppSetting } from "@/shared/lib/app-config";
 import { renderPrometheus } from "@/shared/lib/metrics";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
@@ -38,7 +39,10 @@ export function systemRoutes() {
 
   router.get("/system/version", authRequired, adminRequired, c => c.json({
     success: true,
-    data: BUILD_INFO,
+    data: {
+      ...BUILD_INFO,
+      lode: getLodeSummary(),
+    },
   }));
 
   router.get("/metrics", serviceTokenRequired("metrics"), (c) => {
