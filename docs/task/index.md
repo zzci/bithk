@@ -119,3 +119,4 @@
 | [REFACTOR-028](REFACTOR-028.md) | Flatten lode release artifact layout | [PLAN-071](../plan/PLAN-071.md) | Completed | 2026-06-07 |
 | [FIX-038](FIX-038.md) | Fix production secure-cookie deletion | - | Completed | 2026-06-09 |
 | [FIX-039](FIX-039.md) | Runtime branding from server settings | [PLAN-072](../plan/PLAN-072.md) | Completed | 2026-06-09 |
+| [FEAT-021](FEAT-021.md) | Finance colleagues module | [PLAN-073](../plan/PLAN-073.md) | Planned | 2026-06-09 |
