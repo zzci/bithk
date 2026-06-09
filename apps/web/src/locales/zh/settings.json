@@ -25,7 +25,45 @@
     "webhook": "Webhook",
     "projectDefaults": "项目默认值",
     "contact": "联系人",
-    "ship": "船舶"
+    "ship": "船舶",
+    "about": "关于"
+  },
+  "about": {
+    "title": "关于",
+    "description": "当前应用构建信息与 lode 托管更新状态。",
+    "refresh": "刷新",
+    "version": "版本",
+    "commit": "提交",
+    "buildTime": "构建时间",
+    "yes": "是",
+    "no": "否",
+    "unknown": "未知",
+    "empty": "暂无状态详情。",
+    "lode": {
+      "title": "Lode 状态",
+      "description": "服务端报告的安全发布状态。此处不暴露手动更新操作。",
+      "configured": "已配置",
+      "active": "活跃",
+      "status": "生命周期",
+      "current": "当前版本",
+      "stateStatus": "状态",
+      "readiness": "就绪",
+      "configStatus": "配置状态",
+      "policy": "策略",
+      "channel": "通道",
+      "asset": "资源",
+      "sourceType": "来源类型",
+      "source": "来源",
+      "lifecycle": "运行时",
+      "update": "更新配置",
+      "manualOperations": "手动操作",
+      "manualCheck": "检查更新",
+      "manualApply": "应用更新",
+      "manualUnsupportedHint": "除非服务端暴露已验证的操作入口，否则手动检查/应用控件会保持不可用。",
+      "supported": "支持",
+      "unsupported": "不支持",
+      "unavailable": "Lode 状态不可用。"
+    }
   },
   "projectDefaults": {
     "defaults": {
