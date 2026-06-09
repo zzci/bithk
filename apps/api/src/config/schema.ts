@@ -27,7 +27,9 @@ export const configSchema = z.object({
   // Application slug — lowercase letters, digits, dashes. Used as the
   // backup filename prefix, localStorage namespace, etc.
   APP_NAME: z.string().regex(RE_APP_NAME, "APP_NAME must match /^[a-z][a-z0-9-]*$/").default("bit"),
-  // Human-readable display name used in HTML title, TOTP issuer, etc.
+  // Human-readable display name. Server fallback and initial seed for
+  // app.display_name; the frontend reads runtime branding from
+  // /api/system/branding after startup.
   APP_DISPLAY_NAME: z.string().min(1).default("bit"),
   // URL prefix the app is mounted under. Empty (default) means the app is
   // served at root: SPA at "/" and API at "/api". When set, the value is

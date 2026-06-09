@@ -1,6 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
+import { useBranding } from "./use-branding";
 
 /**
  * Global document.title sync — call once in root layout.
@@ -8,6 +8,7 @@ import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
  */
 export function useDocumentTitle() {
   const { t, i18n } = useTranslation();
+  const { appDisplayName } = useBranding();
   const matches = useRouterState({ select: s => s.matches });
 
   // Find the deepest route that has a titleKey
@@ -21,7 +22,7 @@ export function useDocumentTitle() {
   }
 
   // Set directly during render — no useEffect timing issues
-  document.title = titleKey ? `${t(titleKey)} - ${APP_DISPLAY_NAME}` : APP_DISPLAY_NAME;
+  document.title = titleKey ? `${t(titleKey)} - ${appDisplayName}` : appDisplayName;
 
   // Re-run on language change (the component re-renders via useTranslation)
   void i18n.language;

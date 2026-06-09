@@ -7,7 +7,7 @@ import { Logo } from "@/shared/components/logo";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
+import { useBranding } from "@/shared/hooks/use-branding";
 import { BASE_PATH, http, HttpError } from "@/shared/lib/http";
 import { useAuthStore } from "@/shared/stores/auth";
 
@@ -56,6 +56,7 @@ export function LoginPage() {
   const { redirect } = Route.useSearch();
   const target = isSafeRedirect(redirect);
   const fetchUser = useAuthStore(s => s.fetchUser);
+  const { appDisplayName } = useBranding();
 
   const [mode, setMode] = useState<AuthMode | null>(null);
   const [sessionState, setSessionState] = useState<LoginSessionState>({ status: "checking" });
@@ -93,7 +94,7 @@ export function LoginPage() {
       <div className="mx-auto w-full max-w-xs text-center">
         <Logo className="mx-auto size-10 mb-3" />
         <h1 className="text-2xl font-bold tracking-tight">
-          {APP_DISPLAY_NAME}
+          {appDisplayName}
         </h1>
         <p className="text-sm text-muted-foreground">
           {t("login:description")}

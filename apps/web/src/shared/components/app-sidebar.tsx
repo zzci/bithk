@@ -33,7 +33,7 @@ import {
   useSidebar,
 } from "@/shared/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
-import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
+import { useBranding } from "@/shared/hooks/use-branding";
 import { useAuthStore } from "@/shared/stores/auth";
 
 const LANGUAGES = [
@@ -146,6 +146,7 @@ function LogoToggle() {
 
 export function AppSidebar() {
   const { t, i18n } = useTranslation(["common", "settings", "drive"]);
+  const { appDisplayName } = useBranding();
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuthStore();
   const routerState = useRouterState();
@@ -205,7 +206,7 @@ export function AppSidebar() {
             >
               <Logo className="size-7 shrink-0" />
               <span className="truncate text-sm font-semibold text-sidebar-foreground">
-                {APP_DISPLAY_NAME}
+                {appDisplayName}
               </span>
             </Link>
             <div className="ml-auto">

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
+import { setSetting } from "@/modules/settings/settings.service";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { systemRoutes } from "./system.routes";
 // Importing the account module registers the real session-cookie auth
@@ -30,6 +31,7 @@ const stubLogger = {
 
 function config(overrides: Partial<Config> = {}): Config {
   return {
+    APP_DISPLAY_NAME: "App",
     MAX_UPLOAD_BYTES: 1024,
     MAX_ATTACHMENTS_PER_RESOURCE: 5,
     UPLOADS_TOTAL_BYTES: 0,
@@ -103,6 +105,27 @@ describe("GET /health/ready", () => {
     const res = await buildApp({ db: brokenDb }).request("/health/ready");
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ status: "db_unavailable" });
+  });
+});
+
+describe("GET /system/branding", () => {
+  test("returns the configured display name without auth", async () => {
+    const res = await buildApp({ cfg: config({ APP_DISPLAY_NAME: "Runtime App" }) }).request("/system/branding");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      success: true,
+      data: { appDisplayName: "Runtime App" },
+    });
+  });
+
+  test("prefers the settings table display name over config", async () => {
+    await setSetting(db, "app.display_name", "Settings App");
+    const res = await buildApp({ cfg: config({ APP_DISPLAY_NAME: "Runtime App" }) }).request("/system/branding");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      success: true,
+      data: { appDisplayName: "Settings App" },
+    });
   });
 });
 

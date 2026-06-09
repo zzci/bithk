@@ -11,7 +11,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/shared/components/ui/sidebar";
-import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
+import { useBranding } from "@/shared/hooks/use-branding";
 import { useAuthStore } from "@/shared/stores/auth";
 import { useSystemStore } from "@/shared/stores/system";
 
@@ -34,6 +34,7 @@ function AppLayout() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const systemStatus = useSystemStore(s => s.status);
+  const { appDisplayName } = useBranding();
   const { user, loading, fetchUser } = useAuthStore();
   // Track network failure separately so we can distinguish "couldn't reach
   // server" from a clean 401 unauthenticated response. `fetchUser` now
@@ -112,7 +113,7 @@ function AppLayout() {
             className="absolute left-1/2 flex -translate-x-1/2 items-center transition-opacity hover:opacity-90"
             aria-label={t("nav.home")}
           >
-            <span className="text-sm font-semibold">{APP_DISPLAY_NAME}</span>
+            <span className="text-sm font-semibold">{appDisplayName}</span>
           </Link>
           <Logo className="size-7" />
         </header>

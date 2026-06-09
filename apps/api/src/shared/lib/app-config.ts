@@ -139,4 +139,6 @@ export function deriveOrigin(req: Request, config: Config): string {
 export async function seedSettingsFromEnv(db: AppDatabase, config: Config): Promise<void> {
   if ((await getSetting(db, "session.max_age")) === null)
     await setSetting(db, "session.max_age", String(config.SESSION_MAX_AGE));
+  if ((await getSetting(db, "app.display_name")) === null)
+    await setSetting(db, "app.display_name", config.APP_DISPLAY_NAME);
 }

@@ -13,6 +13,11 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Fixed
 
+- App display branding now loads from server runtime settings through
+  `/api/system/branding`, seeded by `APP_DISPLAY_NAME`, so packaged installs
+  can update the title and visible brand labels without rebuilding the web
+  bundle (FIX-039).
+
 - Production OAuth callback no longer throws while clearing the
   `__Secure-oauth_state` cookie. The cleanup now uses the configured cookie
   path and includes the `Secure` attribute required for `__Secure-` cookies

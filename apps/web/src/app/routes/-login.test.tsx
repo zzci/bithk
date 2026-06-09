@@ -54,7 +54,7 @@ describe("login page session reuse", () => {
       expect(screen.getByTestId("navigate")).toHaveAttribute("data-to", "/drive?view=recent");
     });
     expect(screen.getByTestId("navigate")).toHaveAttribute("data-replace", "true");
-    expect(mocks.http).not.toHaveBeenCalled();
+    expect(mocks.http).not.toHaveBeenCalledWith("/account/auth/mode", undefined);
     expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
   });
 

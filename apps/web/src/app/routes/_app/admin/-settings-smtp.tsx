@@ -1,26 +1,27 @@
 import type { SettingsCardField } from "@/shared/components/forms/settings-card";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { SettingsCard } from "@/shared/components/forms/settings-card";
 import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
+import { useBranding } from "@/shared/hooks/use-branding";
 import { useSettingsByPrefix } from "@/shared/hooks/use-settings-by-prefix";
-import { APP_DISPLAY_NAME } from "@/shared/lib/branding";
 import { saveSetting } from "./-settings-shared";
-
-const SMTP_FIELDS: readonly SettingsCardField[] = [
-  { key: "smtp.host", label: "settings:smtp.fieldHost", sensitive: false, placeholder: "smtp.example.com" },
-  { key: "smtp.port", label: "settings:smtp.fieldPort", sensitive: false, placeholder: "587" },
-  { key: "smtp.username", label: "settings:smtp.fieldUsername", sensitive: false, placeholder: "user@example.com" },
-  { key: "smtp.password", label: "settings:smtp.fieldPassword", sensitive: true, placeholder: "Password" },
-  { key: "smtp.from_address", label: "settings:smtp.fieldFromAddress", sensitive: false, placeholder: "noreply@example.com" },
-  { key: "smtp.from_name", label: "settings:smtp.fieldFromName", sensitive: false, placeholder: APP_DISPLAY_NAME },
-];
 
 export function SmtpSettingsTab() {
   const { t } = useTranslation(["common", "settings"]);
+  const { appDisplayName } = useBranding();
   const { settings, loading, error, setError, refetch } = useSettingsByPrefix("smtp.");
+  const smtpFields = useMemo<readonly SettingsCardField[]>(() => [
+    { key: "smtp.host", label: "settings:smtp.fieldHost", sensitive: false, placeholder: "smtp.example.com" },
+    { key: "smtp.port", label: "settings:smtp.fieldPort", sensitive: false, placeholder: "587" },
+    { key: "smtp.username", label: "settings:smtp.fieldUsername", sensitive: false, placeholder: "user@example.com" },
+    { key: "smtp.password", label: "settings:smtp.fieldPassword", sensitive: true, placeholder: "Password" },
+    { key: "smtp.from_address", label: "settings:smtp.fieldFromAddress", sensitive: false, placeholder: "noreply@example.com" },
+    { key: "smtp.from_name", label: "settings:smtp.fieldFromName", sensitive: false, placeholder: appDisplayName },
+  ], [appDisplayName]);
 
   const smtpEnabled = settings.find(s => s.key === "smtp.enabled")?.value === "true";
 
@@ -59,7 +60,7 @@ export function SmtpSettingsTab() {
             <SettingsCard
               title={t("settings:smtp.serverConfig")}
               prefix=""
-              fields={SMTP_FIELDS}
+              fields={smtpFields}
               settings={settings}
               onSaved={refetch}
             />
