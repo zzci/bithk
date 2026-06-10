@@ -20,12 +20,15 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
 
+const ALL_MODULES = ["documents", "drive", "projects", "ships", "contacts", "hr"];
+
 const adminUser = {
   id: "u1",
   username: "alice",
   name: "Alice Liddell",
   email: "alice@example.com",
   role: "admin" as const,
+  modules: ALL_MODULES,
 };
 
 const normalUser = { ...adminUser, role: "user" as const, name: "Bob Stone", email: "bob@example.com" };
@@ -65,6 +68,28 @@ describe("appSidebar navigation", () => {
     // omits it entirely otherwise.
     expect(screen.getByRole("link", { name: /Documents/ })).toHaveAttribute("data-active");
     expect(screen.getByRole("link", { name: /Overview/ })).not.toHaveAttribute("data-active");
+  });
+});
+
+describe("appSidebar module visibility", () => {
+  it("shows granted modules and hides the rest", () => {
+    const user = { ...normalUser, modules: ["documents", "ships"] };
+    useAuthStore.setState({ user: user as never, loading: false, logout: logoutMock as never });
+    renderSidebar();
+    expect(screen.getByRole("link", { name: /Documents/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ships/ })).toBeInTheDocument();
+    // Ungated entries stay visible regardless of the module set.
+    expect(screen.getByRole("link", { name: /Overview/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Drive/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Projects/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Contacts/ })).not.toBeInTheDocument();
+  });
+
+  it("shows every module to a user granted all keys", () => {
+    renderSidebar();
+    for (const name of [/Documents/, /Drive/, /Projects/, /Ships/, /Contacts/]) {
+      expect(screen.getByRole("link", { name })).toBeInTheDocument();
+    }
   });
 });
 

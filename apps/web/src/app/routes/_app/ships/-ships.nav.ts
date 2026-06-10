@@ -7,4 +7,5 @@ export const shipsNav: NavItem = {
   path: "/ships",
   icon: Ship,
   order: 50,
+  module: "ships",
 };

@@ -6,6 +6,7 @@ import { CommandPalette } from "@/shared/components/command-palette";
 import { Logo } from "@/shared/components/logo";
 import { SettingsDialog } from "@/shared/components/settings-dialog";
 import { getNavItems } from "@/shared/components/sidebar/registry";
+import { filterNavByModules } from "@/shared/components/sidebar/visibility";
 import { useTheme } from "@/shared/components/theme-provider";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 import { Button } from "@/shared/components/ui/button";
@@ -155,7 +156,9 @@ export function AppSidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const overviewNav = getNavItems("overview");
+  // Main-area items are module-gated by `me.modules` (admins receive every
+  // key from the API, so a plain filter suffices).
+  const overviewNav = filterNavByModules(getNavItems("overview"), user?.modules);
   const adminNav = getNavItems("admin");
 
   // Auto-close the mobile drawer on navigation — selecting a destination

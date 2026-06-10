@@ -8,4 +8,5 @@ export const driveNav: NavItem = {
   path: "/drive",
   icon: HardDrive,
   order: 35,
+  module: "drive",
 };
