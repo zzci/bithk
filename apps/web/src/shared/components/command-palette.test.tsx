@@ -18,11 +18,13 @@ function jsonResponse(body: unknown) {
 
 const fetchMock = vi.fn<typeof fetch>();
 
+const ALL_MODULES = ["documents", "drive", "projects", "ships", "contacts", "hr"];
+
 beforeEach(() => {
   fetchMock.mockReset();
   navigateMock.mockReset();
   globalThis.fetch = fetchMock;
-  useAuthStore.setState({ user: { role: "user" } as never, loading: false });
+  useAuthStore.setState({ user: { role: "user", modules: ALL_MODULES } as never, loading: false });
 });
 
 afterEach(() => {
@@ -105,5 +107,44 @@ describe("commandPalette", () => {
     renderWithProviders(<CommandPalette open onOpenChange={onOpenChange} />);
     await user.click(await screen.findByRole("button", { name: "Close" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("commandPalette module filtering", () => {
+  it("omits quick entries for modules outside me.modules", async () => {
+    useAuthStore.setState({
+      user: { role: "user", modules: ["documents", "ships"] } as never,
+      loading: false,
+    });
+    renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
+    expect(await screen.findByText("Documents")).toBeInTheDocument();
+    expect(screen.getByText("Ships")).toBeInTheDocument();
+    // Ungated destinations stay offered; gated ones outside the set vanish.
+    expect(screen.getByText("Overview")).toBeInTheDocument();
+    expect(screen.queryByText("Drive")).not.toBeInTheDocument();
+    expect(screen.queryByText("Contacts")).not.toBeInTheDocument();
+  });
+
+  it("hides search result sections of hidden modules", async () => {
+    useAuthStore.setState({
+      user: { role: "user", modules: ["projects"] } as never,
+      loading: false,
+    });
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(jsonResponse({
+      success: true,
+      data: {
+        documents: [{ type: "document", id: "d1", title: "Leak report" }],
+        issues: [{ type: "issue", id: "i1", title: "Leaky valve", projectId: "p1" }],
+        projects: [],
+        ships: [],
+        drive: [],
+      },
+    }));
+    renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
+    await user.type(screen.getByRole("textbox"), "leak");
+    // Issues belong to the projects module (granted); documents are hidden.
+    expect(await screen.findByText("Leaky valve")).toBeInTheDocument();
+    expect(screen.queryByText("Leak report")).not.toBeInTheDocument();
   });
 });

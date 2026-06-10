@@ -7,4 +7,5 @@ export const contactsNav: NavItem = {
   path: "/contacts",
   icon: ContactRound,
   order: 55,
+  module: "contacts",
 };

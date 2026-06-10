@@ -14,6 +14,7 @@ import {
 import { useBranding } from "@/shared/hooks/use-branding";
 import { useAuthStore } from "@/shared/stores/auth";
 import { useSystemStore } from "@/shared/stores/system";
+import { ModuleGuard } from "./_app/-module-guard";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -119,7 +120,9 @@ function AppLayout() {
         </header>
 
         <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-auto px-4 py-3 md:px-6 md:py-4">
-          <Outlet />
+          <ModuleGuard>
+            <Outlet />
+          </ModuleGuard>
         </main>
       </SidebarInset>
     </SidebarProvider>

@@ -4,6 +4,7 @@
 // querying. Keyboard up/down moves the active row; Enter activates it.
 
 import type { LucideIcon } from "lucide-react";
+import type { ModuleKey } from "@/shared/components/sidebar/types";
 import type { SearchHit } from "@/shared/lib/api/search";
 import { useNavigate } from "@tanstack/react-router";
 import { Briefcase, CheckSquare, FileText, HardDrive, Search, Ship, X } from "lucide-react";
@@ -11,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hitTarget, matchesQuery } from "@/shared/components/command-palette.logic";
 import { getNavItems } from "@/shared/components/sidebar/registry";
+import { filterNavByModules } from "@/shared/components/sidebar/visibility";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -57,6 +59,7 @@ export function CommandPalette({
   const { t } = useTranslation(["common"]);
   const navigate = useNavigate();
   const isAdmin = useAuthStore(s => s.user?.role === "admin");
+  const modules = useAuthStore(s => s.user?.modules);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -75,10 +78,14 @@ export function CommandPalette({
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
-  // Quick entries: sidebar nav destinations, role-filtered, matched against
-  // the live (un-debounced) query so navigation feels instant.
+  // Quick entries: sidebar nav destinations, role- and module-filtered,
+  // matched against the live (un-debounced) query so navigation feels
+  // instant.
   const quickActions = useMemo<PaletteAction[]>(() => {
-    const items = [...getNavItems("overview"), ...(isAdmin ? getNavItems("admin") : [])];
+    const items = filterNavByModules(
+      [...getNavItems("overview"), ...(isAdmin ? getNavItems("admin") : [])],
+      modules,
+    );
     const q = query.trim().toLowerCase();
     return items
       .map((item): PaletteAction => ({
@@ -91,7 +98,7 @@ export function CommandPalette({
         },
       }))
       .filter(a => matchesQuery(a.label, q));
-  }, [isAdmin, query, t, navigate, close]);
+  }, [isAdmin, modules, query, t, navigate, close]);
 
   const hitActions = useCallback(
     (hits: readonly SearchHit[]): PaletteAction[] =>
@@ -115,20 +122,24 @@ export function CommandPalette({
     if (quickActions.length > 0)
       out.push({ key: "quick", label: t("common:search.quickEntry"), actions: quickActions });
     if (querying && data) {
-      const sections: ReadonlyArray<[string, readonly SearchHit[]]> = [
-        ["documents", data.documents],
-        ["issues", data.issues],
-        ["projects", data.projects],
-        ["ships", data.ships],
-        ["drive", data.drive],
+      // Each section belongs to a module (issues live in projects); hide
+      // sections for modules outside `me.modules`. The API already filters
+      // hits server-side — this keeps the UI consistent if a cached result
+      // outlives a role change.
+      const sections: ReadonlyArray<[string, ModuleKey, readonly SearchHit[]]> = [
+        ["documents", "documents", data.documents],
+        ["issues", "projects", data.issues],
+        ["projects", "projects", data.projects],
+        ["ships", "ships", data.ships],
+        ["drive", "drive", data.drive],
       ];
-      for (const [key, hits] of sections) {
-        if (hits.length > 0)
+      for (const [key, module, hits] of sections) {
+        if (hits.length > 0 && (modules ?? []).includes(module))
           out.push({ key, label: t(`common:search.${key}`), actions: hitActions(hits) });
       }
     }
     return out;
-  }, [quickActions, querying, data, hitActions, t]);
+  }, [quickActions, querying, data, hitActions, modules, t]);
 
   // Flatten for keyboard navigation; clamp the active index when the list
   // shrinks (e.g. results arrive or the query narrows).
