@@ -72,3 +72,4 @@
 | [PLAN-071](PLAN-071.md) | Flatten lode artifact layout | Completed | 2026-06-07 |
 | [PLAN-072](PLAN-072.md) | Runtime branding from server settings | Completed | 2026-06-09 |
 | [PLAN-073](PLAN-073.md) | Finance colleagues module | Draft | 2026-06-09 |
+| [PLAN-074](PLAN-074.md) | Admin Settings About tab | Completed | 2026-06-09 |

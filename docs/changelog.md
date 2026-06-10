@@ -25,6 +25,11 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Admin Settings About tab (FEAT-022 / PLAN-074): admins can view build
+  version, commit, build time, and a sanitized lode status/update summary from
+  `/api/system/version`. The surface exposes refresh/status only and omits
+  secrets, trust keys, headers, raw config, and sensitive filesystem paths.
+
 - lode-managed release packaging (REFACTOR-027 / PLAN-070): `bun run package`
   now emits a lode-compatible `tar.gz` asset, `dist/manifest.json`, and
   `dist/checksums.txt`. The asset contains the API bundle, built SPA,
