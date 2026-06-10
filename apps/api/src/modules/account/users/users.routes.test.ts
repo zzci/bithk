@@ -219,6 +219,49 @@ describe("virtual user admin endpoints", () => {
   });
 });
 
+describe("PATCH /account/users/:id globalRoleId (PLAN-076 lane D)", () => {
+  test("admin assigns an existing global role; detail returns it", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const target = await sessionForRole("user");
+    const role = await createGlobalRole(db, { name: "Docs only", modules: ["documents"] });
+
+    const res = await app.request(`/account/users/${target.id}`, jsonReq("PATCH", admin.cookie, { globalRoleId: role.id }));
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { globalRoleId: string | null } };
+    expect(body.data.globalRoleId).toBe(role.id);
+
+    const detail = await (await app.request(`/account/users/${target.id}`, { headers: { Cookie: admin.cookie } })).json() as { data: { globalRoleId: string | null } };
+    expect(detail.data.globalRoleId).toBe(role.id);
+  });
+
+  test("explicit null resets the assignment to the default-role fallback", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const target = await sessionForRole("user");
+    const role = await createGlobalRole(db, { name: "Drive only", modules: ["drive"] });
+    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, target.id)).run();
+
+    const res = await app.request(`/account/users/${target.id}`, jsonReq("PATCH", admin.cookie, { globalRoleId: null }));
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { globalRoleId: string | null } };
+    expect(body.data.globalRoleId).toBeNull();
+  });
+
+  test("an unknown role id is rejected with 422; a plain user is forbidden (403)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const plain = await sessionForRole("user");
+    const target = await sessionForRole("user");
+
+    const invalid = await app.request(`/account/users/${target.id}`, jsonReq("PATCH", admin.cookie, { globalRoleId: "missing" }));
+    expect(invalid.status).toBe(422);
+
+    const denied = await app.request(`/account/users/${target.id}`, jsonReq("PATCH", plain.cookie, { globalRoleId: null }));
+    expect(denied.status).toBe(403);
+  });
+});
+
 describe("GET /account/me modules (PLAN-076)", () => {
   async function meModules(cookie: string): Promise<string[]> {
     const res = await buildApp(db).request("/account/me", { headers: { Cookie: cookie } });

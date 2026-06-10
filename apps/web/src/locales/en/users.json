@@ -26,6 +26,12 @@
       "deleted": "Virtual user deleted"
     }
   },
+  "globalRole": {
+    "label": "Role",
+    "toast": {
+      "assigned": "Role updated"
+    }
+  },
   "roleAdmin": "Admin",
   "roleUser": "User",
   "totalCount": "{{count}} users",
@@ -37,6 +43,7 @@
     "name": "Name",
     "email": "Email",
     "status": "Status",
+    "globalRole": "Role",
     "lastLogin": "Last Login",
     "groups": "Groups",
     "actions": "Actions"

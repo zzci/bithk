@@ -31,6 +31,7 @@ import { useDebounce } from "@/shared/hooks/use-debounce";
 import { formatDateTime } from "@/shared/lib/format";
 import { http } from "@/shared/lib/http";
 import { useAuthStore } from "@/shared/stores/auth";
+import { UserRoleSelect } from "./-user-role-select";
 
 export const Route = createLazyFileRoute("/_app/admin/users/")({
   component: UsersTab,
@@ -51,6 +52,7 @@ interface User {
   readonly role: "admin" | "user";
   readonly status: "active" | "disabled";
   readonly isVirtual: boolean;
+  readonly globalRoleId: string | null;
   readonly groups?: UserGroup[];
   readonly lastLoginAt: string | null;
   readonly createdAt: string;
@@ -237,6 +239,7 @@ function UsersTab() {
               <TableHead>{t("col.name")}</TableHead>
               <TableHead>{t("col.email")}</TableHead>
               <TableHead>{t("col.status")}</TableHead>
+              <TableHead>{t("col.globalRole")}</TableHead>
               <TableHead>{t("col.groups")}</TableHead>
               <TableHead>{t("col.lastLogin")}</TableHead>
               <TableHead>{t("col.actions")}</TableHead>
@@ -246,7 +249,7 @@ function UsersTab() {
             {loading
               ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                       {t("common.loading")}
                     </TableCell>
                   </TableRow>
@@ -254,7 +257,7 @@ function UsersTab() {
               : users.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         {t("noResults")}
                       </TableCell>
                     </TableRow>
@@ -282,6 +285,14 @@ function UsersTab() {
                         <Badge variant={user.status === "active" ? "default" : "destructive"}>
                           {t(`status${user.status === "active" ? "Active" : "Disabled"}`)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <UserRoleSelect
+                          userId={user.id}
+                          globalRoleId={user.globalRoleId}
+                          disabled={isSelf(user.id)}
+                          onAssigned={() => void fetchUsers()}
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
