@@ -1,0 +1,43 @@
+{
+  "nav": "Finance",
+  "colleagues": {
+    "title": "Finance Colleagues",
+    "description": "Manage internal finance actors linked to real or virtual users.",
+    "searchPlaceholder": "Search by name, username, or code...",
+    "totalCount": "{{count}} colleagues",
+    "noResults": "No colleagues found.",
+    "create": "New",
+    "createTitle": "New colleague",
+    "createDescription": "Link an existing real or virtual user as a finance colleague.",
+    "editTitle": "Edit colleague",
+    "editDescription": "Update colleague details and status.",
+    "virtualBadge": "Virtual",
+    "statusActive": "Active",
+    "statusArchived": "Archived",
+    "selectUser": "Select a user",
+    "field": {
+      "user": "User",
+      "code": "Code",
+      "title": "Title",
+      "department": "Department",
+      "status": "Status",
+      "notes": "Notes"
+    },
+    "col": {
+      "user": "User",
+      "code": "Code",
+      "title": "Title",
+      "department": "Department",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "archive": "Archive",
+    "archiveTitle": "Archive colleague",
+    "archiveConfirm": "Are you sure you want to archive \"{{name}}\"? Archived colleagues stay on record and can be reactivated by editing their status.",
+    "toast": {
+      "created": "Colleague created",
+      "updated": "Colleague updated",
+      "archived": "Colleague archived"
+    }
+  }
+}
