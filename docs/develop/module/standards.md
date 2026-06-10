@@ -229,6 +229,9 @@ export interface BackupContribution {
   readonly name: string;             // stable identifier in backup files
   readonly tables: readonly SQLiteTable[];
   readonly deps: readonly string[];  // names of other modules that must restore first
+  // v2 import hooks — see "Import fallbacks & transforms" below.
+  readonly importFallbacks?: Readonly<Record<string, Readonly<Record<string, BackupImportFallback>>>>;
+  readonly importTransforms?: readonly BackupImportTransform[];
 }
 ```
 
@@ -264,6 +267,34 @@ The registration is a top-level side effect; `routes/protected.ts` already impor
 - Within `tables`, list parent tables before their children (so per-module insert order alone satisfies foreign keys).
 - `deps` is string-typed and topologically resolved — a module declares only its first-degree dependencies; the registry walks the rest.
 - Renaming an existing `name` is a breaking change to the backup file format — bump the file `version` in `apps/api/src/modules/backup/export.service.ts` if you must.
+
+#### Import fallbacks & transforms (v2 cross-schema hooks)
+
+A v2 archive imports into whatever schema is live **today** — possibly newer than the schema that produced it. The mapping engine handles dropped/added nullable columns automatically; two hook fields on `BackupContribution` cover the cases it cannot guess, and **the module that changes its schema ships the matching hook in the same PR**, in its own `<name>.backup.ts`:
+
+- **`importFallbacks`** (mapping rule 4) — fill values for a NEW NOT-NULL no-default column absent from old archives, keyed `table → column → constant | (row) => value`. Without one, every archive row of that table fails with `missing-required-column`. Filled columns are counted in the report's `defaultedColumns` and flagged in `fallbackColumns`.
+- **`importTransforms`** (rules 8/14) — reshape archive rows **before column mapping** (rename / split / move between tables / drop), so the output is itself checked against the live schema:
+
+```ts
+export interface BackupImportTransform {
+  /** Table name as it appears IN THE ARCHIVE (the old name). */
+  readonly fromTable: string;
+  /** Gate on archive age, e.g. journal position or column presence. */
+  readonly appliesTo: (manifest: BackupManifestV2) => boolean;
+  /** Map one old row to zero or more (table, row) outputs. */
+  readonly apply: (row: BackupRow, ctx: TransformContext) => readonly TransformedRow[];
+}
+```
+
+Rules that follow from the engine:
+
+- **Gate off the manifest.** `appliesTo` typically checks `manifest.schema.journal.lastIdx < N` (the journal index that shipped your rename) — new-enough archives skip the transform entirely.
+- **Claiming a vanished table overrides the skip rule.** Normally an archive table with no live counterpart is skipped (rule 7); a transform with that `fromTable` re-homes its rows instead, counted `transformed` on the target table. Output targeting a non-live table is dropped with a `transform-output-unknown-table` warning.
+- **Transforms run first, then fallbacks.** A renamed table that also gained a NOT-NULL column needs both: the transform re-homes the row, the fallback fills the new column — this is the expected refactor path.
+- **`ctx` is read-only + an id-mapping store.** `ctx.lookup(table, conds)` probes the **pre-import** live DB (rows inserted by the running import are not visible); `ctx.setMappedId` / `ctx.getMappedId` share old→new id mappings across tables, so a parent-table transform can record a remap that a child-table transform consumes; `ctx.skipAsDuplicate("remapped")` counts the current input row as a flagged duplicate skip instead of an insert.
+- **Dry-run parity is guaranteed by construction** — transforms run inside the same shared row loop in both the rollback dry-run and the committed apply. Keep `apply` pure (no side effects beyond `ctx`); it may run twice.
+
+**Reference implementation** — mapping rule 14, owned by the file module (`apps/api/src/modules/file/file.backup.ts`): `files` is content-addressed per driver, so a `files` row whose PK is new but whose `(sha256, storageDriver)` already exists live is consumed (`skipAsDuplicate("remapped")` + `setMappedId`), and a second transform on `file_references` rewrites `fileId` through `getMappedId`. Colocated tests: `file.backup.test.ts`; engine-level hook tests: `modules/backup/import-transform.test.ts`.
 
 **Tests** (e2e, in `tests/e2e/modules/backup/`):
 

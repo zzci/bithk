@@ -736,3 +736,20 @@ Each phase is separately mergeable and leaves `bun run check` green.
   the `includeBlobs` alias and an unknown expected list. Audits:
   `backup.import.apply`, `backup.import.blobs` (both critical). Transform
   seams in `import-mapping.ts` untouched — Phase 4.
+- 2026-06-10: **Phase 4 shipped.** `BackupContribution` gains
+  `importFallbacks` + `importTransforms` per the R2 contract (registry
+  collects them by table; `appliesTo` is gated in the engine against the
+  staged manifest). Transforms run in a pre-pass inside the shared merge
+  transaction — before column mapping and before any insert, so
+  `ctx.lookup` observes the pre-import DB state and dry-run==apply parity
+  holds by construction; a claimed vanished table re-homes its rows
+  (rule 8, counted `transformed` on the target), fallbacks fill NEW
+  NOT-NULL columns at the rule-4 seam (counted `defaultedColumns`, flagged
+  `fallbackColumns`), and the rename+NOT-NULL combination works
+  transforms-first-then-fallbacks. Rule 14 ships as the file module's
+  built-in transform pair (`files` sha-dedupe consume + remap via the
+  shared id-mapping store, `file_references.fileId` rewrite), reported as
+  `skippedDuplicate` flagged `remapped`. Engine call sites
+  (`import.service.ts`, `import-apply.ts`) unchanged — hooks are collected
+  from the registry inside the engine. Docs: standards.md §2.8 authoring
+  guide + backup.md v2 refresh (no v1 deprecation banners — Phase 6).
