@@ -1,6 +1,6 @@
 # PLAN-073 - Finance colleagues module
 
-- Status: Draft
+- Status: Completed
 - Task: [FEAT-021](../task/FEAT-021.md)
 - Campaign: local
 - Created: 2026-06-09
@@ -130,7 +130,8 @@ docs. No new dependency is planned.
 ## Open Questions
 
 - Should deletion be implemented as hard delete now, or should colleagues be
-  archived from the start?
+  archived from the start? — Resolved: archived from the start. DELETE sets
+  `status = 'archived'` and never hard-deletes.
 
 ## Annotations
 
@@ -138,3 +139,9 @@ docs. No new dependency is planned.
   member, procurement, backup, route, sidebar, and migration patterns. Awaiting
   approval before implementation.
 - 2026-06-09: User confirmed the first implementation should be admin-only.
+- 2026-06-10: Completed as proposed. Backend schema/service/routes with
+  Drizzle-generated migration, backup contribution (`deps: ["users"]`),
+  frontend data layer + `/finance/colleagues` page + sidebar nav + i18n, and
+  focused tests all landed. Deletion shipped as soft archive (open question
+  resolved). Docs/reference updates landed with this entry; the API docs
+  generator now mounts `financeRoutes`.
