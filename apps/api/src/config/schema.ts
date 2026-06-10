@@ -202,6 +202,16 @@ export const configSchema = z.object({
   // runs on boot and hourly, deleting entries whose mtime is older than
   // this many hours.
   BACKUP_STAGING_TTL_HOURS: z.coerce.number().int().positive().default(24),
+
+  // Compressed-size cap for backup v2 import uploads, enforced on
+  // Content-Length and on counted bytes while streaming (the header can
+  // lie). Default 2 GiB.
+  BACKUP_IMPORT_MAX_ARCHIVE_BYTES: z.coerce.number().int().positive().default(2 * 1024 * 1024 * 1024),
+
+  // Per-blob-entry cap inside an imported backup v2 archive. Keep at or
+  // above MAX_UPLOAD_BYTES so any legitimately uploaded blob re-imports.
+  // Default 256 MiB.
+  BACKUP_IMPORT_MAX_BLOB_BYTES: z.coerce.number().int().positive().default(256 * 1024 * 1024),
 });
 
 export type Config = z.infer<typeof configSchema>;
