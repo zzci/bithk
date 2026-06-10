@@ -51,8 +51,8 @@ const INSERT_BATCH_SIZE = 500;
  * that long would lock writes process-wide. The numbers are conservative —
  * legitimate exports for the use cases this template targets stay well below.
  */
-const MAX_TOTAL_ROWS = 1_000_000;
-const MAX_ROWS_PER_TABLE = 500_000;
+export const MAX_TOTAL_ROWS = 1_000_000;
+export const MAX_ROWS_PER_TABLE = 500_000;
 const MAX_STRING_LENGTH = 1_000_000;
 const MAX_OBJECT_DEPTH = 16;
 
@@ -75,7 +75,7 @@ const MIGRATIONS: ReadonlyArray<BackupMigrator> = [];
  * Walk a parsed JSON tree and reject pathological shapes (unbounded
  * recursion / megabyte strings) before we hand the rows to drizzle.
  */
-function assertSane(value: unknown, depth = 0): void {
+export function assertSane(value: unknown, depth = 0): void {
   if (depth > MAX_OBJECT_DEPTH) {
     throw new AppError("Backup nesting too deep", 400, "INVALID_BACKUP_ROW");
   }
@@ -104,7 +104,7 @@ const RE_SAFE_ID = /^[\w-]{1,128}$/;
  * through `id` / FK columns that we later interpolate into filesystem
  * paths or audit messages.
  */
-function assertIdShape(row: Record<string, unknown>): void {
+export function assertIdShape(row: Record<string, unknown>): void {
   for (const [k, v] of Object.entries(row)) {
     if (v === null || v === undefined || typeof v !== "string")
       continue;
