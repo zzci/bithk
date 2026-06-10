@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 250 routes total.
+> 259 routes total.
 
 | Method | Path |
 |---|---|
@@ -152,10 +152,19 @@
 | PATCH | `/api/global-roles/:id` |
 | GET | `/api/health` |
 | GET | `/api/health/ready` |
+| GET | `/api/hr/approvals` |
+| POST | `/api/hr/approvals` |
+| DELETE | `/api/hr/approvals/:id` |
+| PATCH | `/api/hr/approvals/:id` |
+| POST | `/api/hr/approvals/:id/decision` |
 | GET | `/api/hr/colleagues` |
 | POST | `/api/hr/colleagues` |
 | DELETE | `/api/hr/colleagues/:id` |
 | PATCH | `/api/hr/colleagues/:id` |
+| GET | `/api/hr/payroll` |
+| POST | `/api/hr/payroll` |
+| DELETE | `/api/hr/payroll/:id` |
+| PATCH | `/api/hr/payroll/:id` |
 | GET | `/api/issues/:issueShortId/references` |
 | POST | `/api/issues/:issueShortId/references` |
 | DELETE | `/api/issues/:issueShortId/references/:referenceId` |

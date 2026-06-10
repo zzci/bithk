@@ -5,16 +5,107 @@
     "approvals": "Approvals",
     "payroll": "Payroll"
   },
-  "placeholder": {
-    "comingSoon": "This module is not available yet."
-  },
   "approvals": {
     "title": "Approvals",
-    "description": "Approval workflows for HR requests."
+    "description": "Approval requests filed for colleagues; decided records are immutable.",
+    "searchPlaceholder": "Search by title or applicant...",
+    "totalCount": "{{count}} requests",
+    "noResults": "No approval requests found.",
+    "create": "New",
+    "createTitle": "New approval request",
+    "createDescription": "File an approval request for an active colleague.",
+    "editTitle": "Edit approval request",
+    "editDescription": "Update a pending request; decided requests cannot change.",
+    "selectColleague": "Select a colleague",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveTitle": "Approve request",
+    "rejectTitle": "Reject request",
+    "decisionConfirm": "\"{{title}}\" filed for {{name}}. This decision is final and cannot be changed.",
+    "deleteTitle": "Withdraw request",
+    "deleteConfirm": "Are you sure you want to withdraw \"{{title}}\"? Only pending requests can be withdrawn.",
+    "type": {
+      "leave": "Leave",
+      "overtime": "Overtime",
+      "business_trip": "Business trip",
+      "other": "Other"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "field": {
+      "applicant": "Applicant",
+      "type": "Type",
+      "title": "Title",
+      "reason": "Reason",
+      "status": "Status",
+      "note": "Decision note (optional)"
+    },
+    "col": {
+      "applicant": "Applicant",
+      "type": "Type",
+      "title": "Title",
+      "status": "Status",
+      "decision": "Decided by",
+      "actions": "Actions"
+    },
+    "toast": {
+      "created": "Request created",
+      "updated": "Request updated",
+      "approved": "Request approved",
+      "rejected": "Request rejected",
+      "deleted": "Request withdrawn"
+    }
   },
   "payroll": {
     "title": "Payroll",
-    "description": "Payroll management for internal staff."
+    "description": "Monthly payroll records per colleague; amounts are integers in the currency's minor unit.",
+    "totalCount": "{{count}} records",
+    "noResults": "No payroll records found.",
+    "create": "New",
+    "createTitle": "New payroll record",
+    "createDescription": "One record per colleague per month; the net amount is computed automatically.",
+    "editTitle": "Edit payroll record",
+    "editDescription": "Update a pending record; paid records cannot change.",
+    "selectColleague": "Select a colleague",
+    "markPaid": "Mark paid",
+    "markPaidTitle": "Mark as paid",
+    "markPaidConfirm": "Pay {{amount}} to {{name}} for {{period}}? A paid record becomes immutable.",
+    "deleteTitle": "Delete payroll record",
+    "deleteConfirm": "Are you sure you want to delete the {{period}} record for {{name}}? Only pending records can be deleted.",
+    "status": {
+      "pending": "Pending",
+      "paid": "Paid"
+    },
+    "field": {
+      "colleague": "Colleague",
+      "period": "Period",
+      "baseSalary": "Base salary",
+      "bonus": "Bonus",
+      "deduction": "Deduction",
+      "currency": "Currency",
+      "netAmount": "Net amount",
+      "status": "Status",
+      "notes": "Notes"
+    },
+    "col": {
+      "colleague": "Colleague",
+      "period": "Period",
+      "baseSalary": "Base",
+      "bonus": "Bonus",
+      "deduction": "Deduction",
+      "netAmount": "Net",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "toast": {
+      "created": "Record created",
+      "updated": "Record updated",
+      "paid": "Record marked paid",
+      "deleted": "Record deleted"
+    }
   },
   "colleagues": {
     "title": "Colleagues",

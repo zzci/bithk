@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "841251ed-7f9b-47ac-b779-418ffc77da04",
-  "prevId": "93529b00-a188-4a90-b38e-43cf34e26baa",
+  "id": "84443ce4-2e92-4c88-b66c-64974f444502",
+  "prevId": "841251ed-7f9b-47ac-b779-418ffc77da04",
   "tables": {
     "contact_categories": {
       "name": "contact_categories",
@@ -505,6 +505,75 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "global_roles": {
+      "name": "global_roles",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "modules": {
+          "name": "modules",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "is_system": {
+          "name": "is_system",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "global_roles_name_idx": {
+          "name": "global_roles_name_idx",
+          "columns": [
+            "name"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "totp_challenges": {
       "name": "totp_challenges",
       "columns": {
@@ -798,6 +867,13 @@
           "autoincrement": false,
           "default": false
         },
+        "global_role_id": {
+          "name": "global_role_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "last_login_at": {
           "name": "last_login_at",
           "type": "text",
@@ -850,7 +926,21 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "users_global_role_id_global_roles_id_fk": {
+          "name": "users_global_role_id_global_roles_id_fk",
+          "tableFrom": "users",
+          "tableTo": "global_roles",
+          "columnsFrom": [
+            "global_role_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
