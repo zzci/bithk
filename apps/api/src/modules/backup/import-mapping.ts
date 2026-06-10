@@ -8,10 +8,16 @@
  * rules 1–13 and 15 from PLAN-075. Rule 4 (importFallbacks) and rules 8/14
  * (importTransforms) are Phase 4 — their execution seams are marked below.
  *
- * Phase 2 exposes the engine ONLY through {@link runImportDryRun}: the real
- * mapping and real inserts execute in dependency order inside a transaction
- * that ALWAYS rolls back, so duplicate counts, FK orphans, and constraint
- * failures are observed, not predicted. The committed write path is Phase 3.
+ * The engine has two entry points sharing one row loop (Phase 3):
+ *
+ * - {@link runImportDryRun} — the real mapping and real inserts execute in
+ *   dependency order inside a transaction that ALWAYS rolls back, so
+ *   duplicate counts, FK orphans, and constraint failures are observed,
+ *   not predicted.
+ * - {@link runImportMerge} — the identical loop in a COMMITTED synchronous
+ *   transaction (bun:sqlite transactions must stay sync). Because both run
+ *   the same code against the same DB state, a dry-run report always equals
+ *   the report of the apply that follows it.
  */
 import type { AnyColumn } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
@@ -223,7 +229,8 @@ export interface ImportTableReport {
 }
 
 export interface ImportDryRunReport {
-  readonly dryRun: true;
+  /** `true` for the rollback dry-run, `false` for a committed merge apply. */
+  readonly dryRun: boolean;
   readonly tables: Record<string, ImportTableReport>;
   readonly skippedTables: string[];
   readonly skippedModules: string[];
@@ -273,6 +280,28 @@ export function runImportDryRun(
   db: AppDatabase,
   manifest: BackupManifestV2,
   tables: ReadonlyMap<string, readonly Record<string, unknown>[]>,
+): ImportDryRunReport {
+  return runMergeEngine(db, manifest, tables, false);
+}
+
+/**
+ * The committed merge apply (Phase 3): the exact dry-run row loop, but the
+ * transaction COMMITS. An unexpected engine error (e.g. a deferred-FK
+ * failure at COMMIT) aborts the whole transaction — no partial table writes.
+ */
+export function runImportMerge(
+  db: AppDatabase,
+  manifest: BackupManifestV2,
+  tables: ReadonlyMap<string, readonly Record<string, unknown>[]>,
+): ImportDryRunReport {
+  return runMergeEngine(db, manifest, tables, true);
+}
+
+function runMergeEngine(
+  db: AppDatabase,
+  manifest: BackupManifestV2,
+  tables: ReadonlyMap<string, readonly Record<string, unknown>[]>,
+  commit: boolean,
 ): ImportDryRunReport {
   const liveView = buildLiveSchemaView();
   const knownModules = new Set(getModuleNames());
@@ -324,7 +353,7 @@ export function runImportDryRun(
   }
 
   const report: ImportDryRunReport = {
-    dryRun: true,
+    dryRun: !commit,
     tables: {},
     skippedTables,
     skippedModules,
@@ -346,8 +375,10 @@ export function runImportDryRun(
 
   try {
     db.transaction((tx) => {
-      // Same cycle-tolerance as v1: FK checks defer to COMMIT (which never
-      // comes — the dry-run always rolls back before it).
+      // Same cycle-tolerance as v1: FK checks defer to COMMIT. In dry-run
+      // mode COMMIT never comes (rollback below); in apply mode the FK
+      // pre-check makes a COMMIT-time failure near-impossible, but if one
+      // occurs the whole transaction aborts (no partial commit).
       tx.run(sql`PRAGMA defer_foreign_keys = 1`);
 
       const probe = (tableName: string, conds: { dbName: string; value: unknown }[]): boolean => {
@@ -466,7 +497,8 @@ export function runImportDryRun(
           report.warnings.push(`redacted-secrets: ${lt.name} contains ${redacted} redacted value(s)`);
       }
 
-      throw new DryRunRollback();
+      if (!commit)
+        throw new DryRunRollback();
     });
   }
   catch (err) {

@@ -92,12 +92,18 @@ export interface BackupManifestV2 {
   /** Deprecated alias of `blobsMode !== "none"` — kept for older readers. */
   readonly includeBlobs: boolean;
   /**
-   * R7 fields — ALWAYS written by this exporter. Optional in the type only
-   * because pre-R7 archives (and the Phase-2 importer's fixtures) lack
-   * them; the Phase-3 import side adopts them as first-class.
+   * R7 field — ALWAYS written by this exporter and first-class on the
+   * import side (Phase 3): legacy pre-R7 archives lack it, so the import
+   * parser derives it from the `includeBlobs` alias (`true → embedded`,
+   * `false → none`).
    */
-  readonly blobsMode?: BlobsMode;
-  /** EVERY blob referenced by exported `files` rows, on any driver, in any mode. */
+  readonly blobsMode: BlobsMode;
+  /**
+   * EVERY blob referenced by exported `files` rows, on any driver, in any
+   * mode (R7). Optional only because legacy pre-R7 archives lack the list —
+   * `undefined` means "unknown expected set" on import (the blob stage
+   * falls back to reconcile for missing-blob detection).
+   */
   readonly expectedBlobs?: readonly ExpectedBlob[];
   readonly modules: readonly { readonly name: string; readonly deps: readonly string[] }[];
   readonly tables: readonly ManifestTable[];
