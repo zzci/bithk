@@ -356,6 +356,26 @@ Direct (user-to-user) and public-link shares for a file entry.
 | `created_by`          | FK → `users.id ON DELETE CASCADE`.                                                   |
 | `created_at` / `updated_at` | ISO strings.                                                                    |
 
+### Finance
+
+#### `finance_colleagues`
+Internal finance actors, each linked to exactly one `users` row (real or
+virtual). Rows are archived via `status`, never hard-deleted, so future
+finance records can keep referencing the actor.
+
+| Column                | Notes                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `id`                  | PK — nanoid.                                                                          |
+| `user_id`             | `NOT NULL`, FK → `users.id ON DELETE RESTRICT`; unique index enforces at most one colleague row per user. |
+| `code` / `title` / `department` / `notes` | Nullable display metadata.                                        |
+| `status`              | Enum text: `'active' \| 'archived'`. Default `'active'`; indexed. DELETE on the API archives instead of removing the row. |
+| `created_at` / `updated_at` | ISO strings.                                                                    |
+
+`ON DELETE RESTRICT` means a user (including a virtual user) that is a
+finance colleague cannot be deleted until the colleague link is removed.
+The module's backup contribution (`finance`) declares a dependency on
+`users`, so backup restore orders users before colleagues.
+
 ## Schema scope
 
 The current schema covers: accounts (users / groups / sessions / TOTP /
@@ -363,9 +383,10 @@ preferences / PKCE state / auth lockouts), audit, settings, Zanzibar
 tuples, items + item comments, files + file references, the two
 sub-type detail tables (`issue_details`, `document_details`), the shared
 tag vocabulary (`tags`) with its three assignment joins (`project_tags`,
-`contact_tags`, `document_tags`), and the drive's own five tables
+`contact_tags`, `document_tags`), the drive's own five tables
 (`drive_entries`, `team_directories`, `team_directory_members`,
-`drive_file_versions`, `drive_file_shares`).
+`drive_file_versions`, `drive_file_shares`), and finance colleagues
+(`finance_colleagues`).
 
 Group membership is **not** a dedicated table — it lives as
 `relation_tuples` rows in the `group` namespace, queried via

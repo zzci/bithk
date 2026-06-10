@@ -1,6 +1,6 @@
 # FEAT-021 - Finance colleagues module
 
-- Status: Planned
+- Status: Completed
 - Plan: [PLAN-073](../plan/PLAN-073.md)
 - Campaign: local
 - Owner: (unassigned)
@@ -47,3 +47,11 @@ real login user or a virtual user (`users.isVirtual = true`).
 
 - 2026-06-09: Created with [PLAN-073](../plan/PLAN-073.md). Pending approval;
   no implementation has started.
+- 2026-06-10: Completed. Backend `finance` module (`finance_colleagues` table
+  with `user_id NOT NULL UNIQUE → users.id ON DELETE RESTRICT`, admin-only
+  `/finance/colleagues` CRUD where DELETE archives via `status`, backup
+  contribution depending on `users`) and frontend `/finance/colleagues` page
+  (search, status filter, create/edit dialog, virtual-user badge, archive,
+  assignable-users picker) implemented with focused API route and frontend
+  tests. Docs added: `docs/modules/finance.md`, API/database references,
+  generated `api-routes.md` (gen script now mounts `financeRoutes`).
