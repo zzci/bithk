@@ -8,6 +8,8 @@ import { cronRoutes } from "@/modules/cron";
 import { documentRoutes } from "@/modules/document";
 import { driveRoutes } from "@/modules/drive";
 import { fileRoutes } from "@/modules/file";
+// Importing `financeRoutes` also registers the finance backup contribution.
+import { financeRoutes } from "@/modules/finance";
 import { issueRoutes } from "@/modules/issue";
 import { issueTagBinding } from "@/modules/issue/issue.service";
 // Importing `itemRoutes` also runs the `item` module's load-time side effects
@@ -53,6 +55,7 @@ export function protectedRoutes() {
   app.route("/", shareRoutes());
   app.route("/", shipRoutes());
   app.route("/", worklistRoutes()); // global worklist KB (admin only)
+  app.route("/", financeRoutes());
   app.route("/", settingsRoutes());
   app.route("/", auditRoutes());
   app.route("/", backupRoutes());
