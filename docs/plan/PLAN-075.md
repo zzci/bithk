@@ -240,6 +240,7 @@ v1 routes are untouched (their fate: see Duplicate/conflict semantics).
 | POST | `/api/backup/v2/imports` | Admin | Multipart upload of a `.tar.gz`. Validates the archive, stages it, runs the mapping **dry-run**, returns `{ importId, report }`. Nothing is written to live data. |
 | GET | `/api/backup/v2/imports/:importId` | Admin | Poll import status: `validated` (dry-run report available), `applying`, `completed` (final report), `failed`. |
 | POST | `/api/backup/v2/imports/:importId/apply` | Admin | Apply the staged import. Body: `{ mode: "merge" \| "replace", includeUsers?: boolean }`. Returns 202; result via polling. |
+| POST | `/api/backup/v2/blob-restores` | Admin | Standalone blob restore (R7): multipart upload of a separate-mode `blobs.tar.gz` (no manifest inside, by design). Blobs-only entry allowlist + the import caps; per-entry `exists` skip + streamed sha verification; finishes with un-quarantine + `reconcileRestoredFiles`. Synchronous result report `{ written, skippedExisting, failed, unquarantined, reconcile }`; idempotent by construction. |
 | DELETE | `/api/backup/v2/imports/:importId` | Admin | Discard a staged import without applying. |
 
 Token routes can only see jobs created by the same token bucket; admin
@@ -714,3 +715,24 @@ Each phase is separately mergeable and leaves `bun run check` green.
   its fixtures predate them) but the exporter always writes them; import
   side adopts them with Phase 3, UI with Phase 5. See "R7 — Separate blob
   export".
+- 2026-06-10: **Phase 3 shipped (+ the R7 import side).** Merge apply lifts
+  the Phase-2 dry-run row loop into a committed synchronous transaction
+  (one shared engine, so dry-run report == apply report by construction);
+  `POST /v2/imports/:importId/apply` (`mode: merge | replace`, 202 + poll,
+  state machine `validated → applying → completed | failed`, process-wide
+  one-applying guard → 409); blob import stage (second streaming pass,
+  `exists` skip, sha recomputed while streaming, write only on match) with
+  `expectedBlobs`/`blobsMode`-driven reporting that distinguishes
+  expected-in-separate-archive from genuinely-missing; new un-quarantine
+  pass + `reconcileRestoredFiles` close the loop (replace mode reconciles
+  before blobs arrive, so arrived bytes heal quarantined rows). Replace
+  mode delegates to the v1 `importJsonBackup` engine with the v1 guards
+  replicated verbatim (includeUsers, lock-out refusal, user-FK pre-flight,
+  session revocation, per-user `user.restored` audits) plus the
+  journal-position equality gate (`REPLACE_SCHEMA_MISMATCH`). Standalone
+  `POST /v2/blob-restores` ships per the R7 design (blobs-only allowlist,
+  caps, cross-endpoint rejection both ways). Manifest `blobsMode` +
+  `expectedBlobs` are first-class on import; legacy archives default to
+  the `includeBlobs` alias and an unknown expected list. Audits:
+  `backup.import.apply`, `backup.import.blobs` (both critical). Transform
+  seams in `import-mapping.ts` untouched — Phase 4.

@@ -29,6 +29,7 @@
  * State machine: `validated` → (`applying` → `completed` | `failed`, Phase 3).
  */
 import type { BackupManifestV2 } from "./archive.service";
+import type { ImportApplyReport } from "./import-apply";
 import type { ImportDryRunReport } from "./import-mapping";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
@@ -100,7 +101,11 @@ export interface ImportJob {
   /** Blob entries found in the archive: sha256 → byte size. */
   readonly blobs: ReadonlyMap<string, number>;
   report: ImportDryRunReport;
+  /** Final apply report — set when the apply runner reaches `completed`. */
+  result?: ImportApplyReport;
   error?: string;
+  /** Settles when the background apply runner exits (success or failure). */
+  done?: Promise<void>;
 }
 
 const importJobs = new Map<string, ImportJob>();
@@ -154,6 +159,18 @@ const manifestSchema = z.object({
   }),
   redacted: z.boolean(),
   includeBlobs: z.boolean(),
+  // R7 fields — first-class on import since Phase 3 (no longer stripped).
+  // Both optional in the SCHEMA only for legacy pre-R7 archives: absent
+  // `blobsMode` derives from the `includeBlobs` alias below; absent
+  // `expectedBlobs` stays undefined = "unknown expected set" (the blob
+  // stage then leaves missing-blob detection to reconcile).
+  blobsMode: z.enum(["embedded", "separate", "none"]).optional(),
+  expectedBlobs: z.array(z.object({
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    size: z.number().int().nonnegative(),
+    storageKey: z.string(),
+    storageDriver: z.string(),
+  })).optional(),
   modules: z.array(z.object({ name: z.string().min(1), deps: z.array(z.string()) })),
   tables: z.array(z.object({
     name: z.string().regex(RE_TABLE_NAME),
@@ -206,13 +223,17 @@ function parseManifest(bytes: Buffer): BackupManifestV2 {
     if (table.file !== `data/${table.name}.ndjson`)
       throw new AppError(`manifest table ${table.name} declares an invalid file path`, 400, "MALFORMED_ARCHIVE");
   }
-  return parsed.data as BackupManifestV2;
+  // Legacy default (pre-R7 archives): the deprecated `includeBlobs` alias is
+  // the only blob-placement signal — `true → embedded`, `false → none`.
+  const blobsMode = parsed.data.blobsMode ?? (parsed.data.includeBlobs ? "embedded" : "none");
+  return { ...parsed.data, blobsMode } as BackupManifestV2;
 }
 
 // ─── Streaming archive reader / validator ────────────────────────────────
 
 const RE_TABLE_ENTRY = /^data\/([\w-]+)\.ndjson$/i;
-const RE_BLOB_ENTRY = /^blobs\/([0-9a-f]{2})\/([0-9a-f]{2})\/([0-9a-f]{64})$/;
+/** Strict blob entry grammar — shared with the standalone blob restore. */
+export const RE_BLOB_ENTRY = /^blobs\/([0-9a-f]{2})\/([0-9a-f]{2})\/([0-9a-f]{64})$/;
 
 interface ParsedArchive {
   readonly manifest: BackupManifestV2;
@@ -220,14 +241,70 @@ interface ParsedArchive {
   readonly blobs: Map<string, number>;
 }
 
-interface TarHeader {
+export interface TarEntryHeader {
   readonly name: string;
   readonly type?: string;
   readonly size?: number;
 }
 
-function malformed(reason: string): AppError {
+export function malformedArchiveError(reason: string): AppError {
   return new AppError(`Invalid backup archive: ${reason}`, 400, "MALFORMED_ARCHIVE");
+}
+
+const malformed = malformedArchiveError;
+
+/**
+ * Gunzip + untar a staged archive, invoking `handleEntry` strictly in order
+ * with backpressure (async-iterator bridge — Bun's `Readable.toWeb` rejects
+ * tar-stream's streamx streams). An error thrown by `handleEntry` aborts the
+ * walk and is rethrown; bytes that are not a readable gzipped tar surface as
+ * `MALFORMED_ARCHIVE`. Shared by the validate stage, the apply-time blob
+ * stage, and the standalone blob restore.
+ */
+export async function walkTarGzEntries(
+  archivePath: string,
+  handleEntry: (header: TarEntryHeader, stream: AsyncIterable<Buffer>) => Promise<void>,
+): Promise<void> {
+  const ex = tarExtract();
+  let entryError: Error | undefined;
+  const finished = new Promise<void>((res, rej) => {
+    ex.on("finish", res);
+    ex.on("error", rej);
+  });
+  // Swallow the post-destroy rejection; `entryError` is what we rethrow.
+  finished.catch(() => {});
+  ex.on("entry", (header, stream, next) => {
+    handleEntry(header as TarEntryHeader, stream as unknown as AsyncIterable<Buffer>).then(
+      () => next(),
+      (err: unknown) => {
+        entryError = err instanceof Error ? err : new Error(String(err));
+        ex.destroy(entryError);
+      },
+    );
+  });
+
+  try {
+    const gunzip = Bun.file(archivePath).stream().pipeThrough(new DecompressionStream("gzip"));
+    for await (const chunk of gunzip) {
+      if (entryError)
+        break;
+      if (!ex.write(Buffer.from(chunk)))
+        await once(ex, "drain");
+    }
+    if (!entryError) {
+      ex.end();
+      await finished;
+    }
+  }
+  catch (err) {
+    if (entryError)
+      throw entryError;
+    if (err instanceof AppError)
+      throw err;
+    throw malformed("not a readable .tar.gz");
+  }
+  if (entryError)
+    throw entryError;
 }
 
 /** Buffer one whole (small, capped) entry — used for manifest.json only. */
@@ -264,7 +341,7 @@ async function readAndValidateArchive(archivePath: string, limits: ImportLimits)
       throw new AppError("Archive decompresses past the total size cap", 400, "ARCHIVE_TOO_LARGE");
   };
 
-  const handleEntry = async (header: TarHeader, stream: AsyncIterable<Buffer>): Promise<void> => {
+  const handleEntry = async (header: TarEntryHeader, stream: AsyncIterable<Buffer>): Promise<void> => {
     entryCount++;
     if (entryCount > limits.maxEntries)
       throw new AppError(`Archive exceeds the ${limits.maxEntries}-entry cap`, 400, "ARCHIVE_TOO_LARGE");
@@ -277,6 +354,10 @@ async function readAndValidateArchive(archivePath: string, limits: ImportLimits)
     seen.add(header.name);
 
     if (entryCount === 1) {
+      // Cross-endpoint hint: a blobs-only archive (R7 separate export)
+      // carries no manifest — point the operator at the right endpoint.
+      if (RE_BLOB_ENTRY.test(header.name))
+        throw malformed("manifest.json is missing — a blobs-only archive must be uploaded to /api/backup/v2/blob-restores instead");
       if (header.name !== "manifest.json")
         throw malformed("manifest.json must be the first entry");
       const bytes = await readEntryBytes(stream, limits.maxLineBytes, "manifest.json");
@@ -356,46 +437,7 @@ async function readAndValidateArchive(archivePath: string, limits: ImportLimits)
     throw malformed(`entry path outside the allowlist: ${header.name}`);
   };
 
-  const ex = tarExtract();
-  let entryError: Error | undefined;
-  const finished = new Promise<void>((res, rej) => {
-    ex.on("finish", res);
-    ex.on("error", rej);
-  });
-  // Swallow the post-destroy rejection; `entryError` is what we rethrow.
-  finished.catch(() => {});
-  ex.on("entry", (header, stream, next) => {
-    handleEntry(header as TarHeader, stream as unknown as AsyncIterable<Buffer>).then(
-      () => next(),
-      (err: unknown) => {
-        entryError = err instanceof Error ? err : new Error(String(err));
-        ex.destroy(entryError);
-      },
-    );
-  });
-
-  try {
-    const gunzip = Bun.file(archivePath).stream().pipeThrough(new DecompressionStream("gzip"));
-    for await (const chunk of gunzip) {
-      if (entryError)
-        break;
-      if (!ex.write(Buffer.from(chunk)))
-        await once(ex, "drain");
-    }
-    if (!entryError) {
-      ex.end();
-      await finished;
-    }
-  }
-  catch (err) {
-    if (entryError)
-      throw entryError;
-    if (err instanceof AppError)
-      throw err;
-    throw malformed("not a readable .tar.gz");
-  }
-  if (entryError)
-    throw entryError;
+  await walkTarGzEntries(archivePath, handleEntry);
   if (!manifest)
     throw malformed("archive is empty");
 
@@ -410,7 +452,8 @@ async function readAndValidateArchive(archivePath: string, limits: ImportLimits)
 
 // ─── Staging + dry-run orchestration ─────────────────────────────────────
 
-async function stageUpload(source: Blob, archivePath: string, maxArchiveBytes: number): Promise<void> {
+/** Stream an upload to staging under the counted-bytes compressed cap. */
+export async function stageUpload(source: Blob, archivePath: string, maxArchiveBytes: number): Promise<void> {
   const sink = Bun.file(archivePath).writer();
   let written = 0;
   try {

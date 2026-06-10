@@ -54,6 +54,7 @@ function mManifest(tables: ManifestTable[], modules?: { name: string; deps: stri
     schema: { dialect: "sqlite", journal: { lastIdx: 0, lastTag: "0000_test", entryCount: 1 } },
     redacted: false,
     includeBlobs: false,
+    blobsMode: "none",
     modules: moduleNames,
     tables,
     blobs: { count: 0, totalBytes: 0 },

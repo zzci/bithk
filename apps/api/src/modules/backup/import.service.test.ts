@@ -111,6 +111,7 @@ function baseManifest(overrides: Partial<BackupManifestV2> = {}): BackupManifest
     schema: { dialect: "sqlite", journal: { lastIdx: 0, lastTag: "0000_test", entryCount: 1 } },
     redacted: false,
     includeBlobs: false,
+    blobsMode: "none",
     modules: [{ name: "settings", deps: [] }],
     tables: [settingsTableDef()],
     blobs: { count: 0, totalBytes: 0 },

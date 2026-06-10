@@ -13,6 +13,7 @@ import { accountBackupContribution } from "@/modules/account/account.backup";
 import { auditEvents } from "@/modules/audit/schema";
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
 import { mountRoutes, sessionCookieFor, testConfig, testNanoid } from "@/shared/test/route-harness";
+import { __resetImportApplyForTests } from "./import-apply";
 import { backupImportV2Routes } from "./import-v2.routes";
 import { __resetImportJobsForTests, getImportJob } from "./import.service";
 import { __resetBackupRegistryForTests, registerBackupContribution } from "./registry";
@@ -29,6 +30,7 @@ beforeEach(async () => {
   config = testConfig({ DATA_DIR: baseDir });
   __resetBackupRegistryForTests();
   __resetImportJobsForTests();
+  __resetImportApplyForTests();
   registerBackupContribution(accountBackupContribution);
   registerBackupContribution(settingsBackupContribution);
 });
@@ -37,6 +39,7 @@ afterEach(() => {
   db.close();
   __resetBackupRegistryForTests();
   __resetImportJobsForTests();
+  __resetImportApplyForTests();
   if (existsSync(baseDir))
     rmSync(baseDir, { recursive: true, force: true });
 });
@@ -54,6 +57,7 @@ function manifest(): BackupManifestV2 {
     schema: { dialect: "sqlite", journal: { lastIdx: 0, lastTag: "0000_test", entryCount: 1 } },
     redacted: false,
     includeBlobs: false,
+    blobsMode: "none",
     modules: [{ name: "settings", deps: [] }],
     tables: [{
       name: "settings",
@@ -102,6 +106,7 @@ describe("auth/admin gating", () => {
   const routes = [
     { method: "POST", path: "/backup/v2/imports" },
     { method: "GET", path: "/backup/v2/imports/some-id" },
+    { method: "POST", path: "/backup/v2/imports/some-id/apply" },
     { method: "DELETE", path: "/backup/v2/imports/some-id" },
   ];
 
@@ -248,5 +253,74 @@ describe("DELETE /backup/v2/imports/:importId", () => {
     expect(again.status).toBe(404);
     // Discard never wrote to live data.
     expect(await db.all(sql`SELECT * FROM settings`)).toHaveLength(0);
+  });
+});
+
+describe("POST /backup/v2/imports/:importId/apply", () => {
+  async function applyRequest(cookie: string, importId: string, body: unknown): Promise<Response> {
+    return app().request(`/backup/v2/imports/${importId}/apply`, {
+      method: "POST",
+      headers: { "Cookie": cookie, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  test("404 for an unknown import", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const res = await applyRequest(cookie, "nope", { mode: "merge" });
+    expect(res.status).toBe(404);
+  });
+
+  test("400 for a missing or invalid mode", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const uploaded = await upload(cookie, await validArchive());
+    const { importId } = await uploaded.json() as UploadBody;
+
+    for (const body of [undefined, {}, { mode: "delete-everything" }]) {
+      const res = await applyRequest(cookie, importId, body);
+      expect(res.status).toBe(400);
+      expect((await res.json() as { error: { code: string } }).error.code).toBe("INVALID_APPLY_MODE");
+    }
+    expect(getImportJob(importId)!.state).toBe("validated");
+  });
+
+  test("202, then the poll route reports completed + final report; audit backup.import.apply written", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "admin");
+    const uploaded = await upload(cookie, await validArchive());
+    const { importId } = await uploaded.json() as UploadBody;
+
+    const res = await applyRequest(cookie, importId, { mode: "merge" });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ importId, state: "applying" });
+
+    await getImportJob(importId)!.done;
+
+    const poll = await app().request(`/backup/v2/imports/${importId}`, { headers: { Cookie: cookie } });
+    const body = await poll.json() as { state: string; result: { dryRun: boolean; totals: { inserted: number } } | null; error: string | null };
+    expect(body.state).toBe("completed");
+    expect(body.error).toBeNull();
+    expect(body.result!.dryRun).toBe(false);
+    expect(body.result!.totals.inserted).toBe(1);
+
+    // The merge committed this time.
+    expect(await db.all(sql`SELECT key FROM settings`)).toEqual([{ key: "k1" }]);
+
+    const auditRow = await db.select().from(auditEvents).where(eq(auditEvents.action, "backup.import.apply")).get();
+    expect(auditRow).toBeDefined();
+    expect(auditRow!.actorId).toBe(userId);
+    expect(JSON.parse(auditRow!.detail!)).toMatchObject({ importId, mode: "merge" });
+  });
+
+  test("409 on re-apply after completion", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const uploaded = await upload(cookie, await validArchive());
+    const { importId } = await uploaded.json() as UploadBody;
+
+    expect((await applyRequest(cookie, importId, { mode: "merge" })).status).toBe(202);
+    await getImportJob(importId)!.done;
+
+    const res = await applyRequest(cookie, importId, { mode: "merge" });
+    expect(res.status).toBe(409);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("IMPORT_ALREADY_APPLIED");
   });
 });
