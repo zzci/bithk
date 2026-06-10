@@ -65,6 +65,20 @@ describe("export job lifecycle", () => {
     expect(findRunningExportJob()).toBeUndefined();
   });
 
+  test("records the owner bucket and redacted flag; defaults to an admin job", async () => {
+    const admin = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
+    expect(admin.ownerBucket).toBeUndefined();
+    expect(admin.redacted).toBe(false);
+    await admin.done;
+    expect(admin.manifest!.redacted).toBe(false);
+
+    const token = startExportJob(db, config, { modules: ["settings"], blobsMode: "none", ownerBucket: "t:bucket01", redacted: true });
+    expect(token.ownerBucket).toBe("t:bucket01");
+    expect(token.redacted).toBe(true);
+    await token.done;
+    expect(token.manifest!.redacted).toBe(true);
+  });
+
   test("a second start while one is pending/running throws 409", async () => {
     const first = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
     expect(() => startExportJob(db, config, { modules: ["settings"], blobsMode: "none" }))

@@ -25,6 +25,17 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Backup module v2 (FEAT-023 / PLAN-075): staged `.tar.gz` export jobs
+  (manifest + per-table NDJSON + content-addressed blobs) with a
+  separate-blob mode, cross-schema **merge** import with column-level
+  mapping, per-module transform hooks, and an exact rollback dry-run
+  (v1 delete-then-insert survives as explicit `replace` mode), standalone
+  blob restore for separate-mode archives, an admin Settings Backup tab
+  (en + zh), and service-token route parity (always-redacted archives,
+  fail-closed module scope, bucket-scoped job visibility). The v1 JSON
+  routes are deprecated — kept for one release with their replacement
+  mapping documented in `docs/modules/backup.md`.
+
 - Admin Settings About tab (FEAT-022 / PLAN-074): admins can view build
   version, commit, build time, and a sanitized lode status/update summary from
   `/api/system/version`. The surface exposes refresh/status only and omits

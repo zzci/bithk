@@ -1,6 +1,6 @@
 # PLAN-075 - Backup module v2: cross-schema tar.gz export/import
 
-- Status: Draft
+- Status: Completed
 - Task: [FEAT-023](../task/FEAT-023.md)
 - Campaign: bqnuoyra/wktf3nhs
 - Created: 2026-06-10
@@ -753,3 +753,20 @@ Each phase is separately mergeable and leaves `bun run check` green.
   (`import.service.ts`, `import-apply.ts`) unchanged — hooks are collected
   from the registry inside the engine. Docs: standards.md §2.8 authoring
   guide + backup.md v2 refresh (no v1 deprecation banners — Phase 6).
+- 2026-06-10: **Phase 6 shipped — plan Completed.** All 6 phases + the R7
+  amendment are implemented on the campaign branch. Token-route parity:
+  `POST /v2/exports-via-token` (fail-closed explicit module scope, v1
+  per-token in-flight semaphore + min-interval gate shared with the v1
+  route, process-wide one-running guard, always-redacted archive) plus
+  `status-via-token` / `download-via-token` (own-token-bucket visibility
+  only — admin jobs 404 to tokens, token jobs stay visible to admin;
+  download keeps the `?artifact` selector and downloaded/cleanup
+  lifecycle). `SECRET_FIELD_NAMES` + the redaction walk extracted to the
+  shared `secret-fields.ts`, consumed by the v1 token export and the v2
+  redacted NDJSON writer (`manifest.redacted: true`; admin exports stay
+  unredacted). v1 JSON routes unchanged but marked deprecated in
+  `docs/modules/backup.md` with the v2 replacement mapping; removal timing
+  stays open question 2, per-token scope binding stays open question 4.
+  No new env keys. Audit parity: `backup.export` (`via: "token"`,
+  `redacted: true`) + `backup.export.download` (`via: "token"`), both
+  critical.

@@ -1,6 +1,6 @@
 # FEAT-023 - Backup module v2: cross-schema tar.gz export/import
 
-- Status: Planned
+- Status: Completed
 - Plan: [PLAN-075](../plan/PLAN-075.md)
 - Campaign: bqnuoyra/wktf3nhs
 - Owner: (unassigned)
@@ -63,3 +63,10 @@ Settings gains a Backup tab for both flows.
 
 - 2026-06-10: Created with [PLAN-075](../plan/PLAN-075.md). Design only —
   implementation is not approved yet.
+- 2026-06-10: Completed. All 6 PLAN-075 phases + the R7 separate-blob
+  amendment are implemented on the campaign branch: archive writer + export
+  job lifecycle, archive reader + mapping engine + dry-run, merge apply +
+  blob import + replace mode, transform hooks + file sha-remap, the admin
+  Settings Backup tab (en + zh), and service-token route parity (redacted
+  exports, fail-closed scope, bucket-scoped job visibility) with the v1
+  JSON routes marked deprecated in `docs/modules/backup.md`.

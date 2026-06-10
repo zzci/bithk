@@ -18,7 +18,9 @@ apps/api/src/modules/backup/
   registry.ts             # self-registration API (BackupContribution, transform/fallback hooks)
   archive.service.ts      # v2 tar.gz writer + manifest builder
   export-job.service.ts   # v2 export job state machine, staging dirs, TTL sweep
-  export-v2.routes.ts     # v2 export trigger/status/download/delete
+  export-v2.routes.ts     # v2 export trigger/status/download/delete (admin)
+  export-v2-token.routes.ts  # v2 service-token export trigger/status/download
+  secret-fields.ts        # shared SECRET_FIELD_NAMES + redaction walk
   import.service.ts       # v2 archive staging, validation, dry-run, job map
   import-mapping.ts       # live-schema view, mapping rules 1-15, merge engine
   import-apply.ts         # v2 apply: merge txn + blob import + reconcile
@@ -43,8 +45,9 @@ for the rules new modules must follow, including the v2 import hooks
 
 ## Routes
 
-Mounted under `protectedRoutes`. All v2 routes require admin; the v1
-`export-via-token` route accepts a service token instead of a session cookie.
+Mounted under `protectedRoutes`. All v2 routes require admin except the
+`*-via-token` trio, which (like the v1 `export-via-token` route) accepts a
+service token (`SERVICE_TOKEN_BACKUP`) instead of a session cookie.
 
 | Method | Path | Access | Description |
 |---|---|---|---|
@@ -58,9 +61,39 @@ Mounted under `protectedRoutes`. All v2 routes require admin; the v1
 | POST | `/api/backup/v2/imports/:importId/apply` | Admin | Apply with `{ mode: "merge" \| "replace", includeUsers? }`. Replace delegates to the v1 engine with its guards and requires a matching schema journal position. |
 | DELETE | `/api/backup/v2/imports/:importId` | Admin | Discard a staged import. |
 | POST | `/api/backup/v2/blob-restores` | Admin | Upload a blobs-only archive (R7 `separate` mode): verifies hashes, writes missing blobs to the active driver, un-quarantines healed `files` rows. |
-| POST | `/api/backup/export` | Admin | v1: streams a JSON backup of selected modules. |
-| POST | `/api/backup/export-via-token` | Service Token | v1 JSON output, gated by `SERVICE_TOKEN_BACKUP`; always redacted. |
-| POST | `/api/backup/import` | Admin | v1: validates and applies a JSON backup (delete-then-insert). |
+| POST | `/api/backup/v2/exports-via-token` | Service Token | Token parity for the export trigger: explicit module scope required (fail closed), archive always **redacted**, v1 per-token semaphore + min-interval gate apply, plus the process-wide one-running guard. |
+| GET | `/api/backup/v2/exports/:jobId/status-via-token` | Service Token | Poll a job created by the same token bucket (admin jobs are invisible — 404). |
+| GET | `/api/backup/v2/exports/:jobId/download-via-token?artifact=data\|blobs` | Service Token | Download an own-bucket job's artifact; same `?artifact` selector and downloaded/cleanup lifecycle as the admin route. |
+| POST | `/api/backup/export` | Admin | **Deprecated** v1: streams a JSON backup of selected modules. |
+| POST | `/api/backup/export-via-token` | Service Token | **Deprecated** v1 JSON output, gated by `SERVICE_TOKEN_BACKUP`; always redacted. |
+| POST | `/api/backup/import` | Admin | **Deprecated** v1: validates and applies a JSON backup (delete-then-insert). |
+
+### v1 JSON route deprecation
+
+The three v1 JSON routes (`POST /api/backup/export`,
+`POST /api/backup/export-via-token`, `POST /api/backup/import`) are
+**deprecated as of backup v2 (PLAN-075)** and kept for one release for
+existing `.json` files and automation. Their behavior is unchanged. v2
+replacements:
+
+| v1 route | v2 replacement |
+|---|---|
+| `POST /api/backup/export` | `POST /api/backup/v2/exports` (+ status/download) |
+| `POST /api/backup/export-via-token` | `POST /api/backup/v2/exports-via-token` (+ `status-via-token` / `download-via-token`) |
+| `POST /api/backup/import` | `POST /api/backup/v2/imports` + `.../apply` with `mode: "replace"` (delete-then-insert parity) or `mode: "merge"` |
+
+Removal timing is an open operator decision (PLAN-075 open question 2):
+remove both JSON routes after one release, or keep the token JSON export
+indefinitely for lightweight row-only automation. Until that decision
+lands, do not build new automation against the v1 routes.
+
+Token-route visibility: token-created v2 jobs are owned by their token
+bucket — only the creating bucket can poll/download them, while admin
+routes see every job. Admin v2 exports stay **unredacted** (the
+restore-complete path, v1 policy parity); token exports scrub
+`SECRET_FIELD_NAMES` (shared constant in
+`apps/api/src/modules/backup/secret-fields.ts`) per NDJSON row and set
+`manifest.redacted: true`.
 
 ## Merge semantics (v2 `mode: "merge"`)
 
