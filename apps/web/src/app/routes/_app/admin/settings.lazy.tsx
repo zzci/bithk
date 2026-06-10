@@ -1,10 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { Contact, FolderCog, Info, Mail, Shield, Ship, Webhook } from "lucide-react";
+import { Contact, DatabaseBackup, FolderCog, Info, Mail, Shield, Ship, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { AboutSettingsTab } from "./-settings-about";
 import { AuthSettingsTab } from "./-settings-auth";
+import { BackupSettingsTab } from "./-settings-backup";
 import { ContactSettingsTab } from "./-settings-contact";
 import { ProjectDefaultsTab } from "./-settings-project-defaults";
 import { ShipSettingsTab } from "./-settings-ship";
@@ -51,6 +52,10 @@ function SettingsPage() {
             <Ship className="mr-1.5 size-4" />
             {t("tabs.ship")}
           </TabsTrigger>
+          <TabsTrigger value="backup">
+            <DatabaseBackup className="mr-1.5 size-4" />
+            {t("tabs.backup")}
+          </TabsTrigger>
           <TabsTrigger value="about">
             <Info className="mr-1.5 size-4" />
             {t("tabs.about")}
@@ -74,6 +79,9 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="ship">
           <ShipSettingsTab />
+        </TabsContent>
+        <TabsContent value="backup">
+          <BackupSettingsTab />
         </TabsContent>
         <TabsContent value="about">
           <AboutSettingsTab />
