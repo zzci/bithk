@@ -1,4 +1,5 @@
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { globalRoles } from "@/modules/account/roles/schema";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -13,6 +14,10 @@ export const users = sqliteTable("users", {
   // assignable to projects). They carry a synthetic `oauth_sub`/`email`, are
   // always active, and are hidden from sharing/comment pickers (`listActiveUsers`).
   isVirtual: integer("is_virtual", { mode: "boolean" }).notNull().default(false),
+  // Global role granting module visibility (non-admins only; admins bypass).
+  // NULL resolves to the system default role, so deleting a role falls every
+  // holder back to the default via the FK SET NULL action.
+  globalRoleId: text("global_role_id").references(() => globalRoles.id, { onDelete: "set null" }),
   lastLoginAt: text("last_login_at"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()).$onUpdateFn(() => new Date().toISOString()),
