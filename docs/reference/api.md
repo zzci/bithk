@@ -271,6 +271,20 @@ shares and global admin (see [drive.md](../modules/drive.md#permissions)).
 | GET    | `/api/drive/shared/:token`                             | **Public**        | Public-link metadata only (never bytes or password hash).                                    |
 | POST   | `/api/drive/shared/:token`                             | **Public**        | Verify password + quota; stream a download (`download`/`edit`) or return view metadata.      |
 
+## Finance
+
+All finance routes require admin access. See
+[`modules/finance.md`](../modules/finance.md) for behavior details. A finance
+colleague links to exactly one existing active `users` row (real or virtual);
+list rows carry the joined user display data.
+
+| Method | Path                                       | Description                                              |
+| ------ | ------------------------------------------ | -------------------------------------------------------- |
+| GET    | `/api/finance/colleagues`                  | Paginated colleague list. `?q` matches user name/username/code; `?status=active\|archived` filters. |
+| POST   | `/api/finance/colleagues`                  | Creates a colleague for an active user. 404 missing user, 400 inactive, 409 already linked. |
+| PATCH  | `/api/finance/colleagues/:id`              | Updates metadata, link, or status.                       |
+| DELETE | `/api/finance/colleagues/:id`              | Archives (`status='archived'`); never hard-deletes.      |
+
 ## Settings
 
 All settings routes require admin access.

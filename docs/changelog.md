@@ -25,6 +25,15 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Finance colleagues module (FEAT-021 / PLAN-073): admin-only registry of
+  internal finance actors at `/finance/colleagues`. Each colleague links to
+  exactly one existing active `users` row (real or virtual) via
+  `finance_colleagues.user_id` (`NOT NULL UNIQUE`, `ON DELETE RESTRICT`);
+  DELETE archives (`status='archived'`) instead of hard-deleting. Ships list
+  search/status filters, create/edit dialog with the assignable-users picker,
+  a virtual-user badge, sidebar nav, i18n, and a backup contribution that
+  restores `users` before colleagues.
+
 - Admin Settings About tab (FEAT-022 / PLAN-074): admins can view build
   version, commit, build time, and a sanitized lode status/update summary from
   `/api/system/version`. The surface exposes refresh/status only and omits
