@@ -373,8 +373,43 @@ HR records can keep referencing the actor.
 
 `ON DELETE RESTRICT` means a user (including a virtual user) that is a
 HR colleague cannot be deleted until the colleague link is removed.
-The module's backup contribution (`hr`) declares a dependency on
-`users`, so backup restore orders users before colleagues.
+The module's backup contribution (`hr`) covers all three HR tables and
+declares a dependency on `users`, so backup restore orders users before
+HR rows (colleagues first within the module).
+
+#### `hr_approvals`
+Approval requests filed for a colleague. Once decided (approved or
+rejected) a record is immutable — update, re-decide, and delete are all
+rejected with 409.
+
+| Column                | Notes                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `id`                  | PK — nanoid.                                                                          |
+| `colleague_id`        | `NOT NULL`, FK → `hr_colleagues.id ON DELETE RESTRICT`; indexed.                       |
+| `type`                | Enum text: `'leave' \| 'overtime' \| 'business_trip' \| 'other'`.                      |
+| `title` / `reason`    | Request copy; `reason` nullable.                                                       |
+| `status`              | Enum text: `'pending' \| 'approved' \| 'rejected'`. Default `'pending'`; indexed.      |
+| `decided_by`          | Nullable FK → `users.id ON DELETE SET NULL` — the deciding admin.                      |
+| `decision_note` / `decided_at` | Nullable; stamped by the decision endpoint.                                   |
+| `created_at` / `updated_at` | ISO strings.                                                                    |
+
+#### `hr_payroll_records`
+Per-colleague monthly payroll records. Amounts are integers in the
+currency's minor unit; the pending → paid transition is one-way and paid
+records are immutable.
+
+| Column                | Notes                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `id`                  | PK — nanoid.                                                                          |
+| `colleague_id`        | `NOT NULL`, FK → `hr_colleagues.id ON DELETE RESTRICT`.                                |
+| `period`              | `YYYY-MM` text; unique index on `(colleague_id, period)`; indexed alone too.          |
+| `base_salary` / `bonus` / `deduction` | Integers (minor currency unit); `bonus`/`deduction` default 0.         |
+| `currency`            | 3-letter uppercase code validated by format (multi-currency, not an enum).             |
+| `net_amount`          | Server-computed base + bonus − deduction; never negative.                              |
+| `status`              | Enum text: `'pending' \| 'paid'`. Default `'pending'`; indexed.                        |
+| `paid_at`             | Nullable ISO string stamped when marked paid.                                          |
+| `notes`               | Nullable.                                                                              |
+| `created_at` / `updated_at` | ISO strings.                                                                    |
 
 ## Schema scope
 
@@ -385,8 +420,8 @@ sub-type detail tables (`issue_details`, `document_details`), the shared
 tag vocabulary (`tags`) with its three assignment joins (`project_tags`,
 `contact_tags`, `document_tags`), the drive's own five tables
 (`drive_entries`, `team_directories`, `team_directory_members`,
-`drive_file_versions`, `drive_file_shares`), and HR colleagues
-(`hr_colleagues`).
+`drive_file_versions`, `drive_file_shares`), and the HR tables
+(`hr_colleagues`, `hr_approvals`, `hr_payroll_records`).
 
 Group membership is **not** a dedicated table — it lives as
 `relation_tuples` rows in the `group` namespace, queried via

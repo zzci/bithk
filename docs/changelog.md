@@ -25,6 +25,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- HR approvals and payroll sub-modules (FEAT-026 / FEAT-027 / PLAN-078):
+  the two placeholder tabs under HR are now working modules, both
+  admin-only. Approvals: requests (leave/overtime/business trip/other)
+  filed for a colleague with a one-way pending → approved/rejected
+  decision flow (decider + time + note stamped; decided records immutable).
+  Payroll: one record per colleague per `YYYY-MM` period with
+  multi-currency amounts (integer minor units, 3-letter code validated by
+  format), a server-computed non-negative net amount, and a one-way
+  pending → paid transition (paid records immutable). Two new tables
+  (`hr_approvals`, `hr_payroll_records`) via Drizzle migration, backup
+  contribution extended, list pages with filters and dialogs, en/zh i18n,
+  focused API route and frontend tests.
+
 - Finance colleagues module (FEAT-021 / PLAN-073): admin-only registry of
   internal finance actors at `/finance/colleagues`. Each colleague links to
   exactly one existing active `users` row (real or virtual) via

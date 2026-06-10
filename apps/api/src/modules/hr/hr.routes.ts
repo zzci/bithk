@@ -2,6 +2,8 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
+import { hrApprovalsRoutes } from "./hr.approvals.routes";
+import { hrPayrollRoutes } from "./hr.payroll.routes";
 import {
   archiveColleague,
   createColleague,
@@ -85,6 +87,10 @@ export function hrRoutes() {
     const archived = await archiveColleague(db, c.req.param("id"));
     return c.json({ success: true, data: archived });
   });
+
+  // Sub-module routers share this router's `authRequired` gate above.
+  router.route("/", hrApprovalsRoutes());
+  router.route("/", hrPayrollRoutes());
 
   return router;
 }

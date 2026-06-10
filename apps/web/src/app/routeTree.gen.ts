@@ -231,7 +231,9 @@ const AppHrPayrollIndexRoute = AppHrPayrollIndexRouteImport.update({
   id: '/payroll/',
   path: '/payroll/',
   getParentRoute: () => AppHrRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/hr/payroll/index.lazy').then((d) => d.Route),
+)
 const AppHrColleaguesIndexRoute = AppHrColleaguesIndexRouteImport.update({
   id: '/colleagues/',
   path: '/colleagues/',
@@ -243,7 +245,9 @@ const AppHrApprovalsIndexRoute = AppHrApprovalsIndexRouteImport.update({
   id: '/approvals/',
   path: '/approvals/',
   getParentRoute: () => AppHrRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/hr/approvals/index.lazy').then((d) => d.Route),
+)
 const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
   id: '/',
   path: '/',

@@ -284,6 +284,15 @@ list rows carry the joined user display data.
 | POST   | `/api/hr/colleagues`                  | Creates a colleague for an active user. 404 missing user, 400 inactive, 409 already linked. |
 | PATCH  | `/api/hr/colleagues/:id`              | Updates metadata, link, or status.                       |
 | DELETE | `/api/hr/colleagues/:id`              | Archives (`status='archived'`); never hard-deletes.      |
+| GET    | `/api/hr/approvals`                   | Paginated approval list. `?q` matches title/applicant; `?status` and `?type` filter. |
+| POST   | `/api/hr/approvals`                   | Files a request for an active colleague. 404 missing, 400 archived. |
+| PATCH  | `/api/hr/approvals/:id`               | Edits a pending request; decided records → 409.          |
+| POST   | `/api/hr/approvals/:id/decision`      | One-way `approved\|rejected` decision with optional note; re-deciding → 409. |
+| DELETE | `/api/hr/approvals/:id`               | Withdraws a pending request; decided records → 409.      |
+| GET    | `/api/hr/payroll`                     | Paginated payroll list. `?colleagueId`, `?period=YYYY-MM`, `?status` filter; newest period first. |
+| POST   | `/api/hr/payroll`                     | Creates a monthly record; net computed server-side. Duplicate period → 409, negative net → 400. |
+| PATCH  | `/api/hr/payroll/:id`                 | Edits a pending record; `status: "paid"` marks paid (one-way). Paid records → 409. |
+| DELETE | `/api/hr/payroll/:id`                 | Deletes a pending record; paid records → 409.            |
 
 ## Settings
 
