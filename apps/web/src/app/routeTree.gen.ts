@@ -35,6 +35,7 @@ import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
 import { Route as AppShipsShipIdIndexRouteImport } from './routes/_app/ships/$shipId.index'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId.index'
+import { Route as AppFinanceColleaguesIndexRouteImport } from './routes/_app/finance/colleagues/index'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/users/index'
 import { Route as AppShipsShipIdWorklistRouteImport } from './routes/_app/ships/$shipId.worklist'
 import { Route as AppShipsShipIdSettingsRouteImport } from './routes/_app/ships/$shipId.settings'
@@ -212,6 +213,14 @@ const AppProjectsProjectIdIndexRoute =
   } as any).lazy(() =>
     import('./routes/_app/projects/$projectId.index.lazy').then((d) => d.Route),
   )
+const AppFinanceColleaguesIndexRoute =
+  AppFinanceColleaguesIndexRouteImport.update({
+    id: '/finance/colleagues/',
+    path: '/finance/colleagues/',
+    getParentRoute: () => AppRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/finance/colleagues/index.lazy').then((d) => d.Route),
+  )
 const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -382,6 +391,7 @@ export interface FileRoutesByFullPath {
   '/ships/$shipId/settings': typeof AppShipsShipIdSettingsRoute
   '/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
+  '/finance/colleagues/': typeof AppFinanceColleaguesIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
   '/ships/$shipId/': typeof AppShipsShipIdIndexRoute
   '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
@@ -421,6 +431,7 @@ export interface FileRoutesByTo {
   '/ships/$shipId/settings': typeof AppShipsShipIdSettingsRoute
   '/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
+  '/finance/colleagues': typeof AppFinanceColleaguesIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
   '/ships/$shipId': typeof AppShipsShipIdIndexRoute
   '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
@@ -466,6 +477,7 @@ export interface FileRoutesById {
   '/_app/ships/$shipId/settings': typeof AppShipsShipIdSettingsRoute
   '/_app/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
+  '/_app/finance/colleagues/': typeof AppFinanceColleaguesIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
   '/_app/ships/$shipId/': typeof AppShipsShipIdIndexRoute
   '/_app/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
@@ -511,6 +523,7 @@ export interface FileRouteTypes {
     | '/ships/$shipId/settings'
     | '/ships/$shipId/worklist'
     | '/admin/users/'
+    | '/finance/colleagues/'
     | '/projects/$projectId/'
     | '/ships/$shipId/'
     | '/projects/$projectId/from/$shipId'
@@ -550,6 +563,7 @@ export interface FileRouteTypes {
     | '/ships/$shipId/settings'
     | '/ships/$shipId/worklist'
     | '/admin/users'
+    | '/finance/colleagues'
     | '/projects/$projectId'
     | '/ships/$shipId'
     | '/projects/$projectId/from/$shipId'
@@ -594,6 +608,7 @@ export interface FileRouteTypes {
     | '/_app/ships/$shipId/settings'
     | '/_app/ships/$shipId/worklist'
     | '/_app/admin/users/'
+    | '/_app/finance/colleagues/'
     | '/_app/projects/$projectId/'
     | '/_app/ships/$shipId/'
     | '/_app/projects/$projectId/from/$shipId'
@@ -796,6 +811,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId/'
       preLoaderRoute: typeof AppProjectsProjectIdIndexRouteImport
       parentRoute: typeof AppProjectsProjectIdRoute
+    }
+    '/_app/finance/colleagues/': {
+      id: '/_app/finance/colleagues/'
+      path: '/finance/colleagues'
+      fullPath: '/finance/colleagues/'
+      preLoaderRoute: typeof AppFinanceColleaguesIndexRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/admin/users/': {
       id: '/_app/admin/users/'
@@ -1046,6 +1068,7 @@ interface AppRouteChildren {
   AppContactsIndexRoute: typeof AppContactsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppShipsIndexRoute: typeof AppShipsIndexRoute
+  AppFinanceColleaguesIndexRoute: typeof AppFinanceColleaguesIndexRoute
   AppProjectsProjectIdIssuesIssueIdFullRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRoute
   AppProjectsProjectIdProcurementsProcurementIdFullRoute: typeof AppProjectsProjectIdProcurementsProcurementIdFullRoute
 }
@@ -1060,6 +1083,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppContactsIndexRoute: AppContactsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppShipsIndexRoute: AppShipsIndexRoute,
+  AppFinanceColleaguesIndexRoute: AppFinanceColleaguesIndexRoute,
   AppProjectsProjectIdIssuesIssueIdFullRoute:
     AppProjectsProjectIdIssuesIssueIdFullRoute,
   AppProjectsProjectIdProcurementsProcurementIdFullRoute:

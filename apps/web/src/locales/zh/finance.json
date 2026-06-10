@@ -1,0 +1,43 @@
+{
+  "nav": "财务",
+  "colleagues": {
+    "title": "财务同事",
+    "description": "管理关联到真实或虚拟用户的财务内部人员。",
+    "searchPlaceholder": "按姓名、用户名或编号搜索...",
+    "totalCount": "{{count}} 位同事",
+    "noResults": "未找到同事。",
+    "create": "新增",
+    "createTitle": "新增同事",
+    "createDescription": "将现有真实或虚拟用户关联为财务同事。",
+    "editTitle": "编辑同事",
+    "editDescription": "更新同事信息与状态。",
+    "virtualBadge": "虚拟",
+    "statusActive": "在职",
+    "statusArchived": "已归档",
+    "selectUser": "选择用户",
+    "field": {
+      "user": "用户",
+      "code": "编号",
+      "title": "职位",
+      "department": "部门",
+      "status": "状态",
+      "notes": "备注"
+    },
+    "col": {
+      "user": "用户",
+      "code": "编号",
+      "title": "职位",
+      "department": "部门",
+      "status": "状态",
+      "actions": "操作"
+    },
+    "archive": "归档",
+    "archiveTitle": "归档同事",
+    "archiveConfirm": "确定要归档「{{name}}」吗？归档后的同事仍会保留记录，可通过编辑状态重新启用。",
+    "toast": {
+      "created": "同事已创建",
+      "updated": "同事已更新",
+      "archived": "同事已归档"
+    }
+  }
+}
