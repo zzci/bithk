@@ -75,6 +75,7 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
     SERVICE_TOKEN_METRICS: undefined,
     SERVICE_TOKEN_BACKUP: undefined,
     BACKUP_EXPORT_MIN_INTERVAL_SECONDS: 0,
+    BACKUP_STAGING_TTL_HOURS: 24,
     ...overrides,
   };
 }
