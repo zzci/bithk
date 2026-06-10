@@ -520,6 +520,14 @@ function runMergeEngine(
         }
       }
 
+      // files.ref_count recount targets: files rows inserted by this import,
+      // plus every files row referenced by an inserted file_references row
+      // (incl. rule-14 remap targets). Merge inserts never maintain the
+      // materialised count — an inserted files row carries the ARCHIVE's
+      // value (stale when some of its references were skipped or failed) and
+      // inserted references never bump the live row they point at.
+      const recountFileIds = new Set<unknown>();
+
       // Shared per-row pipeline: rule 11 duplicate probe, rule 12 FK
       // pre-check, insert with rule 13 error classification. Identical for
       // archive-mapped and transform-output rows.
@@ -583,6 +591,10 @@ function runMergeEngine(
 
         tableReport.inserted++;
         report.totals.inserted++;
+        if (lt.name === "files" && mapped.id !== null && mapped.id !== undefined)
+          recountFileIds.add(mapped.id);
+        else if (lt.name === "file_references" && mapped.fileId !== null && mapped.fileId !== undefined)
+          recountFileIds.add(mapped.fileId);
         return "inserted";
       };
 
@@ -698,6 +710,17 @@ function runMergeEngine(
           tableReport.fallbackColumns = [...fallbackUsed].sort();
         if (redacted > 0)
           report.warnings.push(`redacted-secrets: ${lt.name} contains ${redacted} redacted value(s)`);
+      }
+
+      // Recount before COMMIT, from live file_references — the same SQL the
+      // blob stage's un-quarantine uses. Runs in dry-run too (rolled back),
+      // so dry-run==apply report parity is unaffected by the fix.
+      for (const id of recountFileIds) {
+        tx.run(sql`
+          UPDATE files
+          SET ref_count = (SELECT COUNT(*) FROM file_references WHERE file_id = files.id)
+          WHERE id = ${id}
+        `);
       }
 
       if (!commit)

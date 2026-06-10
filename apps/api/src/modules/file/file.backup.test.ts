@@ -117,7 +117,7 @@ function refRow(id: string, fileId: string, ownerId: string): Record<string, unk
   };
 }
 
-async function seedLiveFile(id: string, sha256: string): Promise<void> {
+async function seedLiveFile(id: string, sha256: string, refCount = 0): Promise<void> {
   await db.insert(files).values({
     id,
     sha256,
@@ -125,9 +125,27 @@ async function seedLiveFile(id: string, sha256: string): Promise<void> {
     mimetype: "application/octet-stream",
     storageDriver: "local",
     storageKey: `${sha256.slice(0, 2)}/${sha256.slice(2, 4)}/${sha256}`,
-    refCount: 0,
+    refCount,
     uploadedBy: userId,
   }).run();
+}
+
+async function seedLiveRef(id: string, fileId: string): Promise<void> {
+  await db.insert(fileReferences).values({
+    id,
+    fileId,
+    ownerType: "item_attachment",
+    ownerId: `owner-${id}`,
+    filename: "doc.bin",
+    metadata: "{}",
+    createdBy: userId,
+    createdAt: "2026-06-01T00:00:00.000Z",
+  }).run();
+}
+
+async function refCounts(): Promise<{ id: string; refCount: number }[]> {
+  const rows = await db.select({ id: files.id, refCount: files.refCount }).from(files).all();
+  return rows.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 describe("file backup contribution", () => {
@@ -205,6 +223,58 @@ describe("rule 14: files sha-remap", () => {
     expect(refs.sort((a, b) => a.id.localeCompare(b.id))).toEqual([
       { id: "r1aaaaaa", fileId: "f1existing" },
       { id: "r2aaaaaa", fileId: "f3new4444" },
+    ]);
+  });
+});
+
+describe("files.ref_count recount after merge import", () => {
+  test("rule-14 remap target's ref_count includes the remapped references", async () => {
+    await seedLiveFile("f1existing", SHA_LIVE, 1);
+    await seedLiveRef("r0aaaaaa", "f1existing");
+
+    const tables = new Map([
+      ["files", [fileRow("f2incoming", SHA_LIVE)]],
+      ["file_references", [refRow("r1aaaaaa", "f2incoming", "owner-1")]],
+    ]);
+
+    // The dry-run recounts inside its transaction, then rolls back.
+    runImportDryRun(db, manifest(), tables);
+    expect(await refCounts()).toEqual([{ id: "f1existing", refCount: 1 }]);
+
+    runImportMerge(db, manifest(), tables);
+    expect(await refCounts()).toEqual([{ id: "f1existing", refCount: 2 }]);
+  });
+
+  test("references inserted against an already-live file (no remap) bump its ref_count", async () => {
+    await seedLiveFile("f1existing", SHA_LIVE);
+
+    const tables = new Map([
+      ["files", []],
+      ["file_references", [refRow("r1aaaaaa", "f1existing", "owner-1")]],
+    ]);
+
+    runImportMerge(db, manifest(), tables);
+    expect(await refCounts()).toEqual([{ id: "f1existing", refCount: 1 }]);
+  });
+
+  test("inserted files row whose references were partially skipped gets the live count, not the archive value", async () => {
+    await seedLiveFile("f1existing", SHA_LIVE, 1);
+    await seedLiveRef("r1aaaaaa", "f1existing");
+
+    const tables = new Map([
+      ["files", [{ ...fileRow("f3new4444", SHA_NEW), refCount: 2 }]],
+      ["file_references", [
+        refRow("r1aaaaaa", "f3new4444", "owner-2"), // PK collides with the live ref — duplicate skip
+        refRow("r2aaaaaa", "f3new4444", "owner-3"),
+      ]],
+    ]);
+
+    const report = runImportMerge(db, manifest(), tables);
+    expect(report.tables.file_references!.skippedDuplicate).toBe(1);
+    expect(report.tables.file_references!.inserted).toBe(1);
+    expect(await refCounts()).toEqual([
+      { id: "f1existing", refCount: 1 },
+      { id: "f3new4444", refCount: 1 }, // archive said 2; only one reference landed
     ]);
   });
 });
