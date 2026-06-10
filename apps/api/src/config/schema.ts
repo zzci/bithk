@@ -195,6 +195,13 @@ export const configSchema = z.object({
   // WAL pressure). Default 300s = 5 minutes; pair with a per-token
   // in-flight semaphore enforced at the route layer.
   BACKUP_EXPORT_MIN_INTERVAL_SECONDS: z.coerce.number().int().nonnegative().default(300),
+
+  // TTL for server-side backup staging entries under
+  // `${DATA_DIR}/backup-staging/` (v2 export archives never downloaded,
+  // staged imports never applied, tmp debris from crashed jobs). A sweep
+  // runs on boot and hourly, deleting entries whose mtime is older than
+  // this many hours.
+  BACKUP_STAGING_TTL_HOURS: z.coerce.number().int().positive().default(24),
 });
 
 export type Config = z.infer<typeof configSchema>;

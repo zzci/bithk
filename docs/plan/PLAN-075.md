@@ -637,3 +637,13 @@ Each phase is separately mergeable and leaves `bun run check` green.
   (registry/export/restore), the content-addressed file storage layer, the
   drizzle migration journal, and the admin settings tab patterns. Design
   only — implementation is not approved yet.
+- 2026-06-10: Phase 1 shipped (archive writer, export job lifecycle, v2
+  admin export routes, `BACKUP_STAGING_TTL_HOURS`). Open question 1
+  resolved: **tar-stream 3.2.0 validated under Bun 1.3.14 — yes**, pinned
+  exactly; no fallback to nanotar needed. One Bun caveat: `Readable.toWeb`
+  rejects tar-stream's streamx readable ("QueuingStrategyInit.highWaterMark
+  member is required"), so the writer bridges node→web streams via the
+  async-iterator protocol (pull-based, backpressured) before piping through
+  `CompressionStream("gzip")`. Blob-dedup note: the live schema's
+  `UNIQUE(sha256, storage_driver)` means duplicate-sha `files` rows can
+  only exist across drivers; the dedup test exercises that shape.
