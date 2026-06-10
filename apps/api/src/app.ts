@@ -10,6 +10,7 @@ import { loadConfig } from "./config";
 import { createDb } from "./db";
 import { logDefaultAdmins } from "./modules/account/auth/auth.service";
 import { startAuditRetentionSweep } from "./modules/audit";
+import { startBackupStagingSweep } from "./modules/backup";
 import { initCronActions, startCron } from "./modules/cron";
 import { initFileModule, startFileGcSweep } from "./modules/file";
 import { getAllRouteBindings, policyMiddleware } from "./modules/policy";
@@ -112,6 +113,7 @@ export async function buildFullApp({ config, db, logger }: AppDeps) {
 
   await seedSettingsFromEnv(db, config);
   startAuditRetentionSweep(db, config, logger);
+  startBackupStagingSweep(config, logger);
   await initFileModule(config);
   startFileGcSweep(db, config, logger);
   // Actions catalog is always populated so admins can plan jobs even

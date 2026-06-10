@@ -1,6 +1,6 @@
 # PLAN-075 - Backup module v2: cross-schema tar.gz export/import
 
-- Status: Draft
+- Status: Completed
 - Task: [FEAT-023](../task/FEAT-023.md)
 - Campaign: bqnuoyra/wktf3nhs
 - Created: 2026-06-10
@@ -101,9 +101,48 @@ Decisions and rationale:
   battle-tested, no filesystem coupling, so entry paths never touch the real
   FS implicitly). Final library choice is re-validated at implementation
   time (see Open questions).
-- Export request accepts `includeBlobs` (default `true`). With `false` the
-  archive degrades to v1 row-only semantics (plus manifest), for operators
-  who back blobs up out-of-band.
+- Export request accepts `blobs: "embedded" | "separate" | "none"`
+  (default `"embedded"`; see R7 below). `"none"` degrades the archive to
+  v1 row-only semantics (plus manifest), for operators who back blobs up
+  out-of-band. The original boolean `includeBlobs` is kept as a
+  **deprecated alias**: `true → embedded`, `false → none`; an explicit
+  `blobs` value wins when both are sent.
+
+### R7 — Separate blob export
+
+R7 scope change (2026-06-10, binding): an export job can split blob bytes
+into their own artifact so the (usually small) row data downloads and
+imports independently of the (potentially huge) blob payload.
+
+- `blobs: "separate"` makes the job produce **two artifacts in the same
+  staging job dir**:
+  - `archive.tar.gz` — manifest + NDJSON only, **zero** `blobs/` entries;
+  - `blobs.tar.gz` — **only** `blobs/<ab>/<cd>/<sha256>` entries (same
+    layout and validation rules as embedded blobs), **no manifest inside**.
+- Each artifact commits via the same `.partial` → rename step, so a
+  partial file is never downloadable.
+- Manifest additions (present in **all** modes):
+  - `blobsMode: "embedded" | "separate" | "none"` — how this export
+    placed blob bytes (`includeBlobs` stays as the deprecated boolean
+    alias, `= blobsMode !== "none"`);
+  - `expectedBlobs`: the full list of
+    `{ sha256, size, storageKey, storageDriver }` for **every** blob
+    referenced by exported `files` rows — including blobs whose bytes were
+    not exported (mode `none`, inactive driver) — so import can report
+    exactly which blobs are expected and which are missing.
+  - The `blobs` count/totalBytes summary keeps describing the bytes this
+    export actually wrote: the embedded set, the `blobs.tar.gz` content,
+    or `{0, 0}` for `none`.
+- Download route gains an `?artifact=data|blobs` selector (default
+  `data`); `artifact=blobs` on a non-separate job is a 400. The job
+  transitions to `downloaded` (and staging is cleaned) only after **every**
+  artifact has been downloaded; per-artifact downloaded flags are tracked
+  and surfaced by the poll route. `DELETE` still discards everything at
+  once; the TTL sweep is unchanged.
+- Phase mapping: the **export side** of R7 is this amendment (folded into
+  Phase 1); the **import side** (consuming `expectedBlobs` and a separate
+  `blobs.tar.gz` upload) lands with Phase 3; the **UI** (mode selector,
+  two download buttons) with Phase 5.
 
 ### `manifest.json` example
 
@@ -127,6 +166,7 @@ Decisions and rationale:
   },
   "redacted": false,
   "includeBlobs": true,
+  "blobsMode": "embedded",
   "modules": [
     { "name": "users", "deps": [] },
     { "name": "files", "deps": ["users"] }
@@ -153,7 +193,15 @@ Decisions and rationale:
   "blobs": {
     "count": 1180,
     "totalBytes": 73400320
-  }
+  },
+  "expectedBlobs": [
+    {
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "size": 62208,
+      "storageKey": "9f/86/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "storageDriver": "local"
+    }
+  ]
 }
 ```
 
@@ -171,6 +219,8 @@ Field notes:
   so no name mapping layer is needed on either side.
 - `redacted: true` marks token-route exports whose secret fields were
   stripped (see Security).
+- `blobsMode` / `expectedBlobs` are R7 additions (see the R7 section);
+  `includeBlobs` is the deprecated alias of `blobsMode !== "none"`.
 
 ## API design
 
@@ -180,9 +230,9 @@ v1 routes are untouched (their fate: see Duplicate/conflict semantics).
 | Method | Path | Access | Description |
 |---|---|---|---|
 | GET | `/api/backup/modules` | Admin | Existing. Lists data modules + deps; reused by the new UI. |
-| POST | `/api/backup/v2/exports` | Admin | Start a server-side export job. Body: `{ modules: string[], includeBlobs?: boolean }`. Returns `{ jobId }` (202). |
-| GET | `/api/backup/v2/exports/:jobId` | Admin | Poll job status: state, progress (tables done / total, blob bytes done / total), error, archive size when complete. |
-| GET | `/api/backup/v2/exports/:jobId/download` | Admin | Stream the finished archive (404 until `completed`). Marks the job `downloaded`; staging file is deleted after the response drains. |
+| POST | `/api/backup/v2/exports` | Admin | Start a server-side export job. Body: `{ modules: string[], blobs?: "embedded" \| "separate" \| "none", includeBlobs?: boolean }` (`blobs` defaults to `embedded`; `includeBlobs` is a deprecated alias — `true→embedded`, `false→none`, explicit `blobs` wins). Returns `{ jobId }` (202). |
+| GET | `/api/backup/v2/exports/:jobId` | Admin | Poll job status: state, blobs mode, progress (tables done / total, blob bytes done / total), error, archive size, per-artifact size + downloaded flags when complete. |
+| GET | `/api/backup/v2/exports/:jobId/download?artifact=data\|blobs` | Admin | Stream a finished artifact (`artifact` defaults to `data`; `blobs` only exists for separate-mode jobs — 400 otherwise; 404 until `completed`). The job flips to `downloaded` and staging is deleted only after **every** artifact's response drains. |
 | DELETE | `/api/backup/v2/exports/:jobId` | Admin | Cancel a running job or discard a finished archive; removes staging files. |
 | POST | `/api/backup/v2/exports-via-token` | Service token (`backup` scope) | Token parity for the job trigger: same body, **fail-closed module scope required**, archive generated **redacted**. Returns `{ jobId }`. |
 | GET | `/api/backup/v2/exports/:jobId/status-via-token` | Service token | Token-side poll for a job created via token. |
@@ -190,6 +240,7 @@ v1 routes are untouched (their fate: see Duplicate/conflict semantics).
 | POST | `/api/backup/v2/imports` | Admin | Multipart upload of a `.tar.gz`. Validates the archive, stages it, runs the mapping **dry-run**, returns `{ importId, report }`. Nothing is written to live data. |
 | GET | `/api/backup/v2/imports/:importId` | Admin | Poll import status: `validated` (dry-run report available), `applying`, `completed` (final report), `failed`. |
 | POST | `/api/backup/v2/imports/:importId/apply` | Admin | Apply the staged import. Body: `{ mode: "merge" \| "replace", includeUsers?: boolean }`. Returns 202; result via polling. |
+| POST | `/api/backup/v2/blob-restores` | Admin | Standalone blob restore (R7): multipart upload of a separate-mode `blobs.tar.gz` (no manifest inside, by design). Blobs-only entry allowlist + the import caps; per-entry `exists` skip + streamed sha verification; finishes with un-quarantine + `reconcileRestoredFiles`. Synchronous result report `{ written, skippedExisting, failed, unquarantined, reconcile }`; idempotent by construction. |
 | DELETE | `/api/backup/v2/imports/:importId` | Admin | Discard a staged import without applying. |
 
 Token routes can only see jobs created by the same token bucket; admin
@@ -250,6 +301,7 @@ the sweep. This avoids a jobs table for a strictly-operational artifact.
 
 - Successful download: staging directory removed after the response body
   fully drains (download wrapper mirrors the v1 stream-release pattern).
+  R7: with two artifacts, removal waits until every artifact has drained.
 - Explicit `DELETE`: immediate removal (in-flight jobs are cancelled via an
   abort flag checked between batches).
 - **TTL sweep:** on boot and every hour, delete any
@@ -541,7 +593,10 @@ API (bun:test, colocated like the existing backup tests):
 
 - **Archive writer:** manifest correctness (columns/PK/journal from a real
   test DB), NDJSON row fidelity vs v1 exporter output, blob dedup (two
-  `files` rows sharing one sha → one tar entry), `includeBlobs: false`.
+  `files` rows sharing one sha → one tar entry), all three `blobs` modes
+  (R7: separate mode yields a blob-free data archive + a blobs-only
+  archive matching `expectedBlobs`; `expectedBlobs` present in every
+  mode), the `includeBlobs` alias mapping.
 - **Round trip:** export → import into an empty DB → table-by-table
   equality + blobs present on driver + reconcile finds zero quarantine.
 - **Cross-schema fixtures:** build archives against synthetic "old" drizzle
@@ -552,7 +607,8 @@ API (bun:test, colocated like the existing backup tests):
   missing-parent fails, keyless table fallback, report counts exact.
 - **Dry-run:** report equals a subsequent real apply's report; DB hash
   unchanged after dry-run.
-- **Lifecycle:** download-then-cleanup, TTL sweep (mtime-injected),
+- **Lifecycle:** download-then-cleanup (R7: per-artifact download, cleanup
+  only after both artifacts in separate mode), TTL sweep (mtime-injected),
   `.partial` never downloadable, crash-sim (orphan dir) reclaimed.
 - **Security:** path-traversal corpus (absolute, `..`, symlink, bad blob
   prefix), bomb caps (oversized entry, entry-count, lying Content-Length),
@@ -637,3 +693,80 @@ Each phase is separately mergeable and leaves `bun run check` green.
   (registry/export/restore), the content-addressed file storage layer, the
   drizzle migration journal, and the admin settings tab patterns. Design
   only — implementation is not approved yet.
+- 2026-06-10: Phase 1 shipped (archive writer, export job lifecycle, v2
+  admin export routes, `BACKUP_STAGING_TTL_HOURS`). Open question 1
+  resolved: **tar-stream 3.2.0 validated under Bun 1.3.14 — yes**, pinned
+  exactly; no fallback to nanotar needed. One Bun caveat: `Readable.toWeb`
+  rejects tar-stream's streamx readable ("QueuingStrategyInit.highWaterMark
+  member is required"), so the writer bridges node→web streams via the
+  async-iterator protocol (pull-based, backpressured) before piping through
+  `CompressionStream("gzip")`. Blob-dedup note: the live schema's
+  `UNIQUE(sha256, storage_driver)` means duplicate-sha `files` rows can
+  only exist across drivers; the dedup test exercises that shape.
+- 2026-06-10: **R7 scope add (user requirement, binding) — separate blob
+  export.** Phase 1 amended: export trigger takes
+  `blobs: "embedded" | "separate" | "none"` (default embedded;
+  `includeBlobs` kept as deprecated alias), separate mode emits
+  `archive.tar.gz` + `blobs.tar.gz` as two independently downloadable
+  artifacts, manifest gains `blobsMode` + `expectedBlobs` in all modes,
+  download route gains `?artifact=data|blobs`, and `downloaded` + staging
+  cleanup fire only after every artifact has been downloaded. The new
+  manifest fields are optional in the TS type (the Phase-2 importer and
+  its fixtures predate them) but the exporter always writes them; import
+  side adopts them with Phase 3, UI with Phase 5. See "R7 — Separate blob
+  export".
+- 2026-06-10: **Phase 3 shipped (+ the R7 import side).** Merge apply lifts
+  the Phase-2 dry-run row loop into a committed synchronous transaction
+  (one shared engine, so dry-run report == apply report by construction);
+  `POST /v2/imports/:importId/apply` (`mode: merge | replace`, 202 + poll,
+  state machine `validated → applying → completed | failed`, process-wide
+  one-applying guard → 409); blob import stage (second streaming pass,
+  `exists` skip, sha recomputed while streaming, write only on match) with
+  `expectedBlobs`/`blobsMode`-driven reporting that distinguishes
+  expected-in-separate-archive from genuinely-missing; new un-quarantine
+  pass + `reconcileRestoredFiles` close the loop (replace mode reconciles
+  before blobs arrive, so arrived bytes heal quarantined rows). Replace
+  mode delegates to the v1 `importJsonBackup` engine with the v1 guards
+  replicated verbatim (includeUsers, lock-out refusal, user-FK pre-flight,
+  session revocation, per-user `user.restored` audits) plus the
+  journal-position equality gate (`REPLACE_SCHEMA_MISMATCH`). Standalone
+  `POST /v2/blob-restores` ships per the R7 design (blobs-only allowlist,
+  caps, cross-endpoint rejection both ways). Manifest `blobsMode` +
+  `expectedBlobs` are first-class on import; legacy archives default to
+  the `includeBlobs` alias and an unknown expected list. Audits:
+  `backup.import.apply`, `backup.import.blobs` (both critical). Transform
+  seams in `import-mapping.ts` untouched — Phase 4.
+- 2026-06-10: **Phase 4 shipped.** `BackupContribution` gains
+  `importFallbacks` + `importTransforms` per the R2 contract (registry
+  collects them by table; `appliesTo` is gated in the engine against the
+  staged manifest). Transforms run in a pre-pass inside the shared merge
+  transaction — before column mapping and before any insert, so
+  `ctx.lookup` observes the pre-import DB state and dry-run==apply parity
+  holds by construction; a claimed vanished table re-homes its rows
+  (rule 8, counted `transformed` on the target), fallbacks fill NEW
+  NOT-NULL columns at the rule-4 seam (counted `defaultedColumns`, flagged
+  `fallbackColumns`), and the rename+NOT-NULL combination works
+  transforms-first-then-fallbacks. Rule 14 ships as the file module's
+  built-in transform pair (`files` sha-dedupe consume + remap via the
+  shared id-mapping store, `file_references.fileId` rewrite), reported as
+  `skippedDuplicate` flagged `remapped`. Engine call sites
+  (`import.service.ts`, `import-apply.ts`) unchanged — hooks are collected
+  from the registry inside the engine. Docs: standards.md §2.8 authoring
+  guide + backup.md v2 refresh (no v1 deprecation banners — Phase 6).
+- 2026-06-10: **Phase 6 shipped — plan Completed.** All 6 phases + the R7
+  amendment are implemented on the campaign branch. Token-route parity:
+  `POST /v2/exports-via-token` (fail-closed explicit module scope, v1
+  per-token in-flight semaphore + min-interval gate shared with the v1
+  route, process-wide one-running guard, always-redacted archive) plus
+  `status-via-token` / `download-via-token` (own-token-bucket visibility
+  only — admin jobs 404 to tokens, token jobs stay visible to admin;
+  download keeps the `?artifact` selector and downloaded/cleanup
+  lifecycle). `SECRET_FIELD_NAMES` + the redaction walk extracted to the
+  shared `secret-fields.ts`, consumed by the v1 token export and the v2
+  redacted NDJSON writer (`manifest.redacted: true`; admin exports stay
+  unredacted). v1 JSON routes unchanged but marked deprecated in
+  `docs/modules/backup.md` with the v2 replacement mapping; removal timing
+  stays open question 2, per-token scope binding stays open question 4.
+  No new env keys. Audit parity: `backup.export` (`via: "token"`,
+  `redacted: true`) + `backup.export.download` (`via: "token"`), both
+  critical.
