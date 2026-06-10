@@ -122,3 +122,4 @@
 | [FEAT-021](FEAT-021.md) | Finance colleagues module | [PLAN-073](../plan/PLAN-073.md) | Planned | 2026-06-09 |
 | [FEAT-022](FEAT-022.md) | Admin Settings About tab | [PLAN-074](../plan/PLAN-074.md) | Completed | 2026-06-09 |
 | [FEAT-023](FEAT-023.md) | Backup module v2: cross-schema tar.gz export/import | [PLAN-075](../plan/PLAN-075.md) | Planned | 2026-06-10 |
+| [FEAT-024](FEAT-024.md) | Global roles with per-module visibility | [PLAN-076](../plan/PLAN-076.md) | Planned | 2026-06-10 |

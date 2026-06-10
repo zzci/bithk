@@ -74,3 +74,4 @@
 | [PLAN-073](PLAN-073.md) | Finance colleagues module | Draft | 2026-06-09 |
 | [PLAN-074](PLAN-074.md) | Admin Settings About tab | Completed | 2026-06-09 |
 | [PLAN-075](PLAN-075.md) | Backup module v2: cross-schema tar.gz export/import | Draft | 2026-06-10 |
+| [PLAN-076](PLAN-076.md) | Global roles with per-module visibility | Draft | 2026-06-10 |
