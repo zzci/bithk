@@ -6,12 +6,15 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
+import { backfillGlobalRoles, createGlobalRole, DEFAULT_ROLE_MODULES } from "@/modules/account/roles/roles.service";
 import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
+import { MODULE_KEYS } from "@/shared/modules";
 import { userRoutes } from "./users.routes";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
@@ -213,5 +216,32 @@ describe("virtual user admin endpoints", () => {
 
     const realRename = await app.request(`/account/users/${real.id}`, jsonReq("PATCH", admin.cookie, { username: "hacker" }));
     expect(realRename.status).toBe(400);
+  });
+});
+
+describe("GET /account/me modules (PLAN-076)", () => {
+  async function meModules(cookie: string): Promise<string[]> {
+    const res = await buildApp(db).request("/account/me", { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { modules: string[] } };
+    return body.data.modules;
+  }
+
+  test("an admin gets every registered module key", async () => {
+    const admin = await sessionForRole("admin");
+    expect(await meModules(admin.cookie)).toEqual([...MODULE_KEYS]);
+  });
+
+  test("a NULL-role user gets the default role's modules", async () => {
+    await backfillGlobalRoles(db);
+    const plain = await sessionForRole("user");
+    expect(await meModules(plain.cookie)).toEqual([...DEFAULT_ROLE_MODULES]);
+  });
+
+  test("an assigned role's modules are returned", async () => {
+    const member = await sessionForRole("user");
+    const role = await createGlobalRole(db, { name: "Drive only", modules: ["drive"] });
+    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, member.id)).run();
+    expect(await meModules(member.cookie)).toEqual(["drive"]);
   });
 });

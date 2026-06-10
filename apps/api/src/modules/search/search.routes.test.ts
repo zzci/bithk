@@ -3,7 +3,10 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { createDb } from "@/db";
+import { backfillGlobalRoles, createGlobalRole } from "@/modules/account/roles/roles.service";
+import { users } from "@/modules/account/users/schema";
 import { createDocument } from "@/modules/document/document.service";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createProject } from "@/modules/project/project.service";
@@ -35,6 +38,9 @@ beforeEach(async () => {
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
   loadNamespaces();
+  // Non-admin sessions resolve their visible modules through the default
+  // role, which the boot backfill guarantees in production.
+  await backfillGlobalRoles(db);
 });
 
 afterEach(() => {
@@ -121,5 +127,34 @@ describe("GET /search", () => {
     const body = await res.json() as SearchResponse;
     // Default page size is 8.
     expect(body.data.documents).toHaveLength(8);
+  });
+});
+
+describe("GET /search module visibility (PLAN-076)", () => {
+  test("hidden-module domains are excluded for a non-admin", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    await createDocument(db, { title: "Quarterly Report", creatorId: userId });
+    await createProject(db, { name: "Quarterly Project", creatorId: userId });
+
+    // A role granting only `projects`: matching documents must disappear.
+    const role = await createGlobalRole(db, { name: "Projects only", modules: ["projects"] });
+    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, userId)).run();
+
+    const res = await buildApp().request("/search?q=Quarterly", { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as SearchResponse;
+    expect(body.data.projects.map(p => p.title)).toContain("Quarterly Project");
+    expect(body.data.documents).toHaveLength(0);
+  });
+
+  test("an admin keeps full-domain results regardless of roles", async () => {
+    const { cookie, userId } = await sessionCookieFor(db, "admin");
+    await createDocument(db, { title: "Quarterly Report", creatorId: userId });
+    await createProject(db, { name: "Quarterly Project", creatorId: userId });
+
+    const res = await buildApp().request("/search?q=Quarterly", { headers: { Cookie: cookie } });
+    const body = await res.json() as SearchResponse;
+    expect(body.data.documents.map(d => d.title)).toContain("Quarterly Report");
+    expect(body.data.projects.map(p => p.title)).toContain("Quarterly Project");
   });
 });

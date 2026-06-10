@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { sessions } from "@/modules/account/auth/schema";
+import { getRequestUserModules } from "@/modules/account/roles/middleware";
 import { userPreferences, users } from "@/modules/account/users/schema";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
@@ -69,7 +70,10 @@ export function userRoutes() {
   router.get("/account/me", async (c) => {
     const db = c.get("db");
     const user = c.get("user");
-    const userGroupsList = await getUserGroups(db, user.id);
+    const [userGroupsList, modules] = await Promise.all([
+      getUserGroups(db, user.id),
+      getRequestUserModules(c, user),
+    ]);
 
     return c.json({
       success: true,
@@ -84,6 +88,9 @@ export function userRoutes() {
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt,
         groups: userGroupsList,
+        // Visible modules (PLAN-076): admins get every key, everyone else
+        // their global role's set. The web shell derives nav from this.
+        modules,
       },
     });
   });
