@@ -29,8 +29,19 @@ from the source-of-truth schema files.
 Local account records created or updated from OAuth userinfo.
 
 Key fields: `id`, `oauth_sub`, `username`, `name`, `email`, `avatar`,
-`role`, `status`, `last_login_at`, `created_at`, `updated_at`.
-Unique indexes on OAuth subject, username, email.
+`role`, `status`, `global_role_id`, `last_login_at`, `created_at`,
+`updated_at`. Unique indexes on OAuth subject, username, email.
+`global_role_id` references `global_roles.id` (`ON DELETE SET NULL`);
+`NULL` resolves to the system default role.
+
+#### `global_roles`
+Named global roles granting per-module visibility to non-admin users
+(PLAN-076).
+
+Key fields: `id`, `name` (unique), `modules` (JSON `string[]` of module
+keys from `apps/api/src/shared/modules.ts`), `is_system`, `kind`
+(`'default'` for the boot-backfilled system "Member" role, else `NULL`),
+`created_at`, `updated_at`.
 
 #### `groups`
 Account groups used for membership and policy subjects.

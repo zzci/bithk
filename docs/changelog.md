@@ -25,6 +25,21 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Global roles with per-module visibility (FEAT-024 / PLAN-076): named
+  `global_roles` grant non-admin users a set of main-area modules
+  (documents, drive, projects, ships, contacts, hr); admins bypass. A boot
+  backfill seeds the undeletable system default "Member" role with every
+  module except `hr`, and `users.global_role_id` (`NULL` → default role)
+  keeps existing users on exactly their pre-rollout visibility. A module
+  gate on the protected router answers hidden-module requests with the
+  fail-closed 404 of decision 003 (with a route-prefix coverage test);
+  `/account/me` returns the resolved `modules` list, which filters the
+  sidebar, command palette, deep links (redirect to `/overview`), and
+  global search domains. Admin Roles page (`/admin/roles`) with a module
+  checkbox editor plus a global-role select on the users page; en + zh
+  i18n. New modules register one `MODULES` entry and one nav `module` key
+  to become role-grantable.
+
 - Finance colleagues module (FEAT-021 / PLAN-073): admin-only registry of
   internal finance actors at `/finance/colleagues`. Each colleague links to
   exactly one existing active `users` row (real or virtual) via

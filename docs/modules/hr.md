@@ -1,6 +1,6 @@
 # HR Module
 
-Admin-managed HR section. Its first sub-module is colleagues: a colleague is
+HR section. Its first sub-module is colleagues: a colleague is
 an internal staff member linked to exactly one existing `users` row — real or
 virtual (`users.isVirtual = true`). Two more sub-modules — Approvals and
 Payroll — are pre-mounted in the UI as placeholders and intentionally
@@ -21,8 +21,9 @@ apps/api/src/modules/hr/
   index.ts
 ```
 
-Frontend: `apps/web/src/app/routes/_app/hr/` — the `/hr` layout
-(`_app/hr.tsx`) owns the admin guard and a tab nav (Colleagues / Approvals /
+Frontend: `apps/web/src/app/routes/_app/hr/` — access is gated by the
+generic `_app` module guard (`hr` module key); the `/hr` layout
+(`_app/hr.tsx`) owns a tab nav (Colleagues / Approvals /
 Payroll, registry in `_app/-hr-tabs.ts`); each tab is a route. Colleagues is
 the working list page (search, status filter, create/edit dialog,
 virtual-user badge, archive); `approvals` and `payroll` render a shared
@@ -44,7 +45,12 @@ map to the renamed contribution.
 
 ## Routes
 
-Mounted under `protectedRoutes`. All routes require admin access.
+Mounted under `protectedRoutes`. Access is owned by the global-role module
+visibility gate (PLAN-076): `hr` is a registered module key, the default
+Member role does not include it, and requests from users whose role lacks it
+are answered with 404. In practice HR stays admin-only until an admin grants
+the `hr` module to a role; admins always bypass. There is no per-route
+`adminRequired` here.
 
 | Method | Path | Description |
 |---|---|---|
@@ -60,5 +66,6 @@ The user picker on the frontend uses the existing
 
 - Approvals and payroll functionality — only their routes, tabs, and
   placeholder pages exist.
-- An HR-specific role/capability model — colleague management is admin-only
-  in this first pass.
+- An HR-specific capability model — visibility is all-or-nothing via the
+  `hr` module key on global roles (PLAN-076); per-capability levels inside
+  HR do not exist.
