@@ -1,6 +1,6 @@
-import type { ArchiveProgress, BackupManifestV2 } from "./archive.service";
+import type { ArchiveProgress, BackupManifestV2, BlobsMode } from "./archive.service";
 /**
- * Backup v2 EXPORT JOB lifecycle (PLAN-075 R1).
+ * Backup v2 EXPORT JOB lifecycle (PLAN-075 R1, R7).
  *
  * Job bookkeeping is **in-memory** (process-local map), mirroring the v1
  * in-flight semaphore approach; the filesystem is the durable part. After a
@@ -14,6 +14,10 @@ import type { ArchiveProgress, BackupManifestV2 } from "./archive.service";
  *                   │ error      │ DELETE / TTL expiry
  *                   ▼            ▼
  *                failed ──────► (cleaned)
+ *
+ * R7: a `separate`-mode job carries TWO artifacts (`data` + `blobs`) with
+ * per-artifact downloaded flags; `completed → downloaded` (and staging
+ * cleanup) fires only once EVERY artifact has been downloaded.
  *
  * Staging layout: `${DATA_DIR}/backup-staging/exports/<jobId>/`. The sweep
  * walks `backup-staging/**` generically so it also reclaims the future
@@ -34,18 +38,26 @@ const MS_PER_HOUR = 60 * 60 * 1000;
 
 export type ExportJobState = "pending" | "running" | "completed" | "downloaded" | "failed";
 
+export type ExportArtifactKind = "data" | "blobs";
+
+export interface ExportArtifact {
+  readonly path: string;
+  readonly size: number;
+  downloaded: boolean;
+}
+
 export interface ExportJob {
   readonly id: string;
   state: ExportJobState;
   /** Modules as requested; the manifest records the resolved closure. */
   readonly modules: readonly string[];
-  readonly includeBlobs: boolean;
+  readonly blobsMode: BlobsMode;
   readonly createdAt: string;
   readonly stagingDir: string;
   progress: ArchiveProgress;
   error?: string;
-  archivePath?: string;
-  archiveSize?: number;
+  /** Set on completion; `blobs` exists only for `separate`-mode jobs. */
+  artifacts?: { data: ExportArtifact; blobs?: ExportArtifact };
   manifest?: BackupManifestV2;
   /** Abort flag — the archive writer checks it between batches/entries. */
   cancelRequested: boolean;
@@ -77,7 +89,7 @@ export function getExportJob(id: string): ExportJob | undefined {
 
 export interface StartExportJobOptions {
   readonly modules: readonly string[];
-  readonly includeBlobs: boolean;
+  readonly blobsMode: BlobsMode;
 }
 
 /**
@@ -99,7 +111,7 @@ export function startExportJob(
     id,
     state: "pending",
     modules: [...opts.modules],
-    includeBlobs: opts.includeBlobs,
+    blobsMode: opts.blobsMode,
     createdAt: new Date().toISOString(),
     stagingDir,
     progress: { tablesDone: 0, tablesTotal: 0, blobBytesDone: 0, blobBytesTotal: 0 },
@@ -114,7 +126,7 @@ export function startExportJob(
       const result = await writeArchiveV2({
         db,
         modules: opts.modules,
-        includeBlobs: opts.includeBlobs,
+        blobsMode: opts.blobsMode,
         stagingDir,
         appName: config.APP_NAME,
         isCancelled: () => job.cancelRequested,
@@ -122,8 +134,12 @@ export function startExportJob(
           job.progress = p;
         },
       });
-      job.archivePath = result.archivePath;
-      job.archiveSize = result.archiveSize;
+      job.artifacts = {
+        data: { path: result.archivePath, size: result.archiveSize, downloaded: false },
+        ...(result.blobsArchivePath !== undefined
+          ? { blobs: { path: result.blobsArchivePath, size: result.blobsArchiveSize ?? 0, downloaded: false } }
+          : {}),
+      };
       job.manifest = result.manifest;
       job.state = "completed";
     }
@@ -165,23 +181,36 @@ export async function cancelOrDiscardExportJob(id: string): Promise<boolean> {
 }
 
 /**
- * The archive of a `completed` job, or undefined in any other state — a
- * running job's `.partial` file is therefore never downloadable.
+ * The requested artifact of a `completed` job, or undefined in any other
+ * state — a running job's `.partial` file is therefore never downloadable,
+ * and a non-separate job has no `blobs` artifact at all.
  */
-export function getDownloadableArchive(id: string): { path: string; size: number } | undefined {
+export function getDownloadableArchive(id: string, artifact: ExportArtifactKind = "data"): { path: string; size: number } | undefined {
   const job = jobs.get(id);
-  if (!job || job.state !== "completed" || !job.archivePath)
+  if (!job || job.state !== "completed" || !job.artifacts)
     return undefined;
-  return { path: job.archivePath, size: job.archiveSize ?? 0 };
+  const entry = job.artifacts[artifact];
+  if (!entry)
+    return undefined;
+  return { path: entry.path, size: entry.size };
 }
 
 /**
- * Mark a job downloaded after its response body fully drained: remove the
- * staging directory and forget the job (downloaded → cleaned, job gone).
+ * Mark one artifact downloaded after its response body fully drained. Only
+ * once EVERY artifact of the job has been downloaded does the job flip to
+ * `downloaded`: staging removed, job forgotten. A separate-mode job
+ * therefore survives its first download so the other artifact stays
+ * fetchable (re-downloads of a fetched artifact are also fine until then).
  */
-export function finalizeDownloadedExport(id: string): void {
+export function finalizeDownloadedExport(id: string, artifact: ExportArtifactKind = "data"): void {
   const job = jobs.get(id);
-  if (!job || job.state !== "completed")
+  if (!job || job.state !== "completed" || !job.artifacts)
+    return;
+  const entry = job.artifacts[artifact];
+  if (!entry)
+    return;
+  entry.downloaded = true;
+  if (!job.artifacts.data.downloaded || (job.artifacts.blobs && !job.artifacts.blobs.downloaded))
     return;
   job.state = "downloaded";
   rmSync(job.stagingDir, { recursive: true, force: true });

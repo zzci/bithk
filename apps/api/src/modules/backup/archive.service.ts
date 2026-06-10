@@ -1,5 +1,5 @@
 /**
- * Backup v2 ARCHIVE WRITER (PLAN-075 R1).
+ * Backup v2 ARCHIVE WRITER (PLAN-075 R1, R7).
  *
  * Produces a staged `.tar.gz` whose layout is:
  *
@@ -7,12 +7,18 @@
  *     data/<table>.ndjson            # one file per table, dependency order
  *     blobs/<ab>/<cd>/<sha256>       # raw bytes from the active storage driver
  *
+ * Blob placement is governed by `blobsMode` (R7): `embedded` packs blobs
+ * into the data archive (pre-R7 behavior), `none` skips blob bytes, and
+ * `separate` writes a SECOND artifact `blobs.tar.gz` in the same staging
+ * dir holding ONLY `blobs/` entries (no manifest inside) while the data
+ * archive carries manifest + NDJSON only.
+ *
  * Table NDJSON is staged to `<stagingDir>/tmp/` first because the tar header
  * needs each entry's size up front; blob sizes are known from `files.size`,
  * so blobs stream from the driver straight into the tar without temp copies.
  * Gzip uses Bun's built-in `CompressionStream("gzip")`; tar packing uses
- * `tar-stream`. The archive is written to `archive.tar.gz.partial` and
- * renamed on success, so a `.partial` file is never downloadable.
+ * `tar-stream`. Each artifact is written to `<name>.partial` and renamed
+ * on success, so a `.partial` file is never downloadable.
  */
 import type { AnyColumn, Table } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
@@ -45,6 +51,17 @@ export class ExportCancelledError extends Error {
   }
 }
 
+/** R7 blob placement: embedded in the data archive, a separate artifact, or skipped. */
+export type BlobsMode = "embedded" | "separate" | "none";
+
+/** A blob a `files` row references — listed in the manifest in EVERY mode. */
+export interface ExpectedBlob {
+  readonly sha256: string;
+  readonly size: number;
+  readonly storageKey: string;
+  readonly storageDriver: string;
+}
+
 export interface ManifestColumn {
   readonly name: string;
   readonly type: string;
@@ -72,9 +89,19 @@ export interface BackupManifestV2 {
     readonly journal: { readonly lastIdx: number; readonly lastTag: string; readonly entryCount: number };
   };
   readonly redacted: boolean;
+  /** Deprecated alias of `blobsMode !== "none"` — kept for older readers. */
   readonly includeBlobs: boolean;
+  /**
+   * R7 fields — ALWAYS written by this exporter. Optional in the type only
+   * because pre-R7 archives (and the Phase-2 importer's fixtures) lack
+   * them; the Phase-3 import side adopts them as first-class.
+   */
+  readonly blobsMode?: BlobsMode;
+  /** EVERY blob referenced by exported `files` rows, on any driver, in any mode. */
+  readonly expectedBlobs?: readonly ExpectedBlob[];
   readonly modules: readonly { readonly name: string; readonly deps: readonly string[] }[];
   readonly tables: readonly ManifestTable[];
+  /** Blobs whose bytes this export actually wrote (active driver only). */
   readonly blobs: { readonly count: number; readonly totalBytes: number };
   readonly warnings: readonly string[];
 }
@@ -90,8 +117,11 @@ export interface WriteArchiveV2Options {
   readonly db: AppDatabase;
   /** Module selection; transitive deps are resolved here. */
   readonly modules: readonly string[];
-  readonly includeBlobs: boolean;
-  /** Job staging directory; `tmp/` and the archive land inside it. */
+  /** R7 blob placement; defaults to `embedded` (or via the alias below). */
+  readonly blobsMode?: BlobsMode;
+  /** Deprecated alias: `true→embedded`, `false→none`; `blobsMode` wins. */
+  readonly includeBlobs?: boolean;
+  /** Job staging directory; `tmp/` and the artifact(s) land inside it. */
   readonly stagingDir: string;
   /** `APP_NAME` — recorded in `manifest.app.name`. */
   readonly appName: string;
@@ -104,6 +134,9 @@ export interface WriteArchiveV2Result {
   readonly manifest: BackupManifestV2;
   readonly archivePath: string;
   readonly archiveSize: number;
+  /** Set only in `separate` mode — the second artifact. */
+  readonly blobsArchivePath?: string;
+  readonly blobsArchiveSize?: number;
 }
 
 /**
@@ -280,8 +313,52 @@ interface BlobRef {
   readonly size: number;
 }
 
+/**
+ * Pack one tar.gz artifact: `fill` writes the entries, the stream commits
+ * via `<fileName>.partial` → rename so a partial file is never served.
+ */
+async function packGzippedTar(
+  stagingDir: string,
+  fileName: string,
+  fill: (pack: Pack) => Promise<void>,
+): Promise<{ path: string; size: number }> {
+  const partialPath = resolve(stagingDir, `${fileName}.partial`);
+  const finalPath = resolve(stagingDir, fileName);
+  const pack = tarPack();
+  const sink = Bun.file(partialPath).writer();
+  const consumed = (async () => {
+    try {
+      // Cast: lib.dom types CompressionStream's writable as
+      // WritableStream<BufferSource>, which pipeThrough's Uint8Array
+      // generic rejects; the runtime accepts Uint8Array chunks fine.
+      const gzip = new CompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
+      const gzipped = nodeReadableToWeb(pack).pipeThrough(gzip);
+      for await (const chunk of gzipped)
+        sink.write(chunk);
+    }
+    finally {
+      await sink.end();
+    }
+  })();
+
+  try {
+    await fill(pack);
+    pack.finalize();
+    await consumed;
+  }
+  catch (err) {
+    pack.destroy(err instanceof Error ? err : new Error(String(err)));
+    await consumed.catch(() => {});
+    throw err;
+  }
+
+  renameSync(partialPath, finalPath);
+  return { path: finalPath, size: statSync(finalPath).size };
+}
+
 export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<WriteArchiveV2Result> {
-  const { db, includeBlobs, stagingDir } = opts;
+  const { db, stagingDir } = opts;
+  const blobsMode: BlobsMode = opts.blobsMode ?? (opts.includeBlobs === false ? "none" : "embedded");
   const isCancelled = opts.isCancelled ?? (() => false);
 
   const modules = resolveModulesWithDeps(opts.modules);
@@ -338,31 +415,38 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
     report();
   }
 
-  // 2. Blob selection: DISTINCT sha256 of exported `files` rows on the
-  //    active driver. Quarantined rows (sentinel driver) and rows on
-  //    inactive drivers are listed in `warnings`; their bytes cannot be
-  //    read, so they are not exported.
+  // 2. Blob selection: DISTINCT sha256 of exported `files` rows. The full
+  //    list lands in `manifest.expectedBlobs` in EVERY mode (so import can
+  //    report exactly which blobs are expected/missing). Bytes are only
+  //    exported in embedded/separate mode and only from the active driver;
+  //    quarantined rows (sentinel driver) and rows on inactive drivers are
+  //    listed in `warnings` — their bytes cannot be read.
   const warnings: string[] = [];
   const blobs: BlobRef[] = [];
+  const expectedBlobs: ExpectedBlob[] = [];
   let activeDriver: ReturnType<typeof getActiveDriver> | undefined;
-  if (includeBlobs && manifestTables.some(t => t.name === "files")) {
-    try {
-      activeDriver = getActiveDriver();
-    }
-    catch {
-      activeDriver = undefined;
-    }
+  if (manifestTables.some(t => t.name === "files")) {
     const rows = await db.all<{ sha256: string; storage_key: string; size: number; storage_driver: string }>(
       sql`SELECT DISTINCT sha256, storage_key, size, storage_driver FROM files`,
     );
-    for (const row of rows) {
-      if (activeDriver && row.storage_driver === activeDriver.name)
-        blobs.push({ sha256: row.sha256, storageKey: row.storage_key, size: row.size });
-      else
-        warnings.push(`blob not exported (storage driver '${row.storage_driver}' is not the active driver): sha256=${row.sha256}`);
+    for (const row of rows)
+      expectedBlobs.push({ sha256: row.sha256, size: row.size, storageKey: row.storage_key, storageDriver: row.storage_driver });
+    if (blobsMode !== "none") {
+      try {
+        activeDriver = getActiveDriver();
+      }
+      catch {
+        activeDriver = undefined;
+      }
+      for (const row of rows) {
+        if (activeDriver && row.storage_driver === activeDriver.name)
+          blobs.push({ sha256: row.sha256, storageKey: row.storage_key, size: row.size });
+        else
+          warnings.push(`blob not exported (storage driver '${row.storage_driver}' is not the active driver): sha256=${row.sha256}`);
+      }
+      blobBytesTotal = blobs.reduce((sum, b) => sum + b.size, 0);
+      report();
     }
-    blobBytesTotal = blobs.reduce((sum, b) => sum + b.size, 0);
-    report();
   }
 
   // 3. Manifest — always the first tar entry, so the importer can validate
@@ -374,65 +458,56 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
     app: { name: opts.appName, version: BUILD_INFO.version, commit: BUILD_INFO.commit },
     schema: { dialect: "sqlite", journal: readSchemaJournal() },
     redacted: false,
-    includeBlobs,
+    includeBlobs: blobsMode !== "none",
+    blobsMode,
+    expectedBlobs,
     modules: modules.map(name => ({ name, deps: [...(registry[name]?.deps ?? [])] })),
     tables: manifestTables,
     blobs: { count: blobs.length, totalBytes: blobBytesTotal },
     warnings,
   };
 
-  // 4. Pack manifest + tables + blobs → gzip → `.partial`, rename on success.
-  const partialPath = resolve(stagingDir, "archive.tar.gz.partial");
-  const archivePath = resolve(stagingDir, "archive.tar.gz");
-  const pack = tarPack();
-  const sink = Bun.file(partialPath).writer();
-  const consumed = (async () => {
-    try {
-      // Cast: lib.dom types CompressionStream's writable as
-      // WritableStream<BufferSource>, which pipeThrough's Uint8Array
-      // generic rejects; the runtime accepts Uint8Array chunks fine.
-      const gzip = new CompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
-      const gzipped = nodeReadableToWeb(pack).pipeThrough(gzip);
-      for await (const chunk of gzipped)
-        sink.write(chunk);
+  // 4. Pack the artifact(s): the data archive always carries manifest +
+  //    tables (+ blobs when embedded); separate mode adds a second
+  //    blobs-only artifact. Each commits via `.partial` → rename.
+  const packBlobEntries = async (pack: Pack): Promise<void> => {
+    if (!activeDriver)
+      return;
+    for (const blob of blobs) {
+      throwIfCancelled(isCancelled);
+      const source = await activeDriver.getStream(blob.storageKey);
+      await packEntryFromStream(
+        pack,
+        { name: `blobs/${deriveStorageKey(blob.sha256)}`, size: blob.size },
+        source,
+        (n) => {
+          blobBytesDone += n;
+          report();
+        },
+      );
     }
-    finally {
-      await sink.end();
-    }
-  })();
+  };
 
-  try {
+  const data = await packGzippedTar(stagingDir, "archive.tar.gz", async (pack) => {
     pack.entry({ name: "manifest.json" }, JSON.stringify(manifest, null, 2));
     for (const t of manifestTables) {
       throwIfCancelled(isCancelled);
       const staged = resolve(tmpDir, `${t.name}.ndjson`);
       await packEntryFromStream(pack, { name: t.file, size: statSync(staged).size }, Bun.file(staged).stream());
     }
-    if (activeDriver) {
-      for (const blob of blobs) {
-        throwIfCancelled(isCancelled);
-        const source = await activeDriver.getStream(blob.storageKey);
-        await packEntryFromStream(
-          pack,
-          { name: `blobs/${deriveStorageKey(blob.sha256)}`, size: blob.size },
-          source,
-          (n) => {
-            blobBytesDone += n;
-            report();
-          },
-        );
-      }
-    }
-    pack.finalize();
-    await consumed;
-  }
-  catch (err) {
-    pack.destroy(err instanceof Error ? err : new Error(String(err)));
-    await consumed.catch(() => {});
-    throw err;
-  }
+    if (blobsMode === "embedded")
+      await packBlobEntries(pack);
+  });
 
-  renameSync(partialPath, archivePath);
+  let blobsArtifact: { path: string; size: number } | undefined;
+  if (blobsMode === "separate")
+    blobsArtifact = await packGzippedTar(stagingDir, "blobs.tar.gz", packBlobEntries);
+
   rmSync(tmpDir, { recursive: true, force: true });
-  return { manifest, archivePath, archiveSize: statSync(archivePath).size };
+  return {
+    manifest,
+    archivePath: data.path,
+    archiveSize: data.size,
+    ...(blobsArtifact ? { blobsArchivePath: blobsArtifact.path, blobsArchiveSize: blobsArtifact.size } : {}),
+  };
 }

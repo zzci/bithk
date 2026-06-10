@@ -49,38 +49,40 @@ afterEach(() => {
 
 describe("export job lifecycle", () => {
   test("runs pending → running → completed and stages the archive", async () => {
-    const job = startExportJob(db, config, { modules: ["settings"], includeBlobs: false });
+    const job = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
     expect(["pending", "running"]).toContain(job.state);
     expect(findRunningExportJob()?.id).toBe(job.id);
 
     await job.done;
     expect(job.state).toBe("completed");
     expect(job.error).toBeUndefined();
-    expect(job.archivePath).toBe(resolve(getBackupStagingRoot(config), "exports", job.id, "archive.tar.gz"));
-    expect(existsSync(job.archivePath!)).toBe(true);
-    expect(job.archiveSize).toBeGreaterThan(0);
+    expect(job.artifacts!.data.path).toBe(resolve(getBackupStagingRoot(config), "exports", job.id, "archive.tar.gz"));
+    expect(existsSync(job.artifacts!.data.path)).toBe(true);
+    expect(job.artifacts!.data.size).toBeGreaterThan(0);
+    // Non-separate jobs have exactly one artifact.
+    expect(job.artifacts!.blobs).toBeUndefined();
     expect(job.progress.tablesDone).toBe(job.progress.tablesTotal);
     expect(findRunningExportJob()).toBeUndefined();
   });
 
   test("a second start while one is pending/running throws 409", async () => {
-    const first = startExportJob(db, config, { modules: ["settings"], includeBlobs: false });
-    expect(() => startExportJob(db, config, { modules: ["settings"], includeBlobs: false }))
+    const first = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
+    expect(() => startExportJob(db, config, { modules: ["settings"], blobsMode: "none" }))
       .toThrow("Another backup export job is already in progress.");
     await first.done;
     // Completed jobs do not block a new trigger.
-    const second = startExportJob(db, config, { modules: ["settings"], includeBlobs: false });
+    const second = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
     await second.done;
     expect(second.state).toBe("completed");
   });
 
   test("download-then-cleanup: finalize removes staging and forgets the job", async () => {
-    const job = startExportJob(db, config, { modules: ["settings"], includeBlobs: false });
+    const job = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
     await job.done;
 
     const archive = getDownloadableArchive(job.id);
-    expect(archive?.path).toBe(job.archivePath!);
-    expect(archive?.size).toBe(job.archiveSize!);
+    expect(archive?.path).toBe(job.artifacts!.data.path);
+    expect(archive?.size).toBe(job.artifacts!.data.size);
 
     finalizeDownloadedExport(job.id);
     expect(existsSync(job.stagingDir)).toBe(false);
@@ -88,14 +90,47 @@ describe("export job lifecycle", () => {
     expect(getDownloadableArchive(job.id)).toBeUndefined();
   });
 
+  test("separate mode: cleanup fires only after BOTH artifacts are downloaded", async () => {
+    const job = startExportJob(db, config, { modules: ["settings"], blobsMode: "separate" });
+    await job.done;
+    expect(job.state).toBe("completed");
+    expect(job.artifacts!.blobs!.path).toBe(resolve(job.stagingDir, "blobs.tar.gz"));
+
+    const data = getDownloadableArchive(job.id, "data");
+    expect(data?.path).toBe(job.artifacts!.data.path);
+    const blobs = getDownloadableArchive(job.id, "blobs");
+    expect(blobs?.path).toBe(job.artifacts!.blobs!.path);
+
+    // Data downloaded first: the job survives, blobs stays fetchable.
+    finalizeDownloadedExport(job.id, "data");
+    expect(getExportJob(job.id)).toBeDefined();
+    expect(job.state).toBe("completed");
+    expect(existsSync(job.stagingDir)).toBe(true);
+    expect(getDownloadableArchive(job.id, "blobs")?.path).toBe(job.artifacts!.blobs!.path);
+
+    // Blobs downloaded second: now everything is cleaned up.
+    finalizeDownloadedExport(job.id, "blobs");
+    expect(existsSync(job.stagingDir)).toBe(false);
+    expect(getExportJob(job.id)).toBeUndefined();
+  });
+
+  test("a non-separate job has no blobs artifact to download or finalize", async () => {
+    const job = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
+    await job.done;
+    expect(getDownloadableArchive(job.id, "blobs")).toBeUndefined();
+    // Finalizing a missing artifact is a no-op, not a cleanup.
+    finalizeDownloadedExport(job.id, "blobs");
+    expect(getExportJob(job.id)).toBeDefined();
+  });
+
   test("the archive is not downloadable until completed", () => {
-    const job = startExportJob(db, config, { modules: ["settings"], includeBlobs: false });
+    const job = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
     // Synchronously after start the job has not completed — no download.
     expect(getDownloadableArchive(job.id)).toBeUndefined();
   });
 
   test("cancel/discard removes staging and the job", async () => {
-    const job = startExportJob(db, config, { modules: ["settings", "users"], includeBlobs: false });
+    const job = startExportJob(db, config, { modules: ["settings", "users"], blobsMode: "none" });
     job.cancelRequested = true;
     const removed = await cancelOrDiscardExportJob(job.id);
     expect(removed).toBe(true);
@@ -111,7 +146,7 @@ describe("export job lifecycle", () => {
     writeFileSync(resolve(brokenDataDir, "backup-staging"), "not a directory");
     const brokenConfig = testConfig({ DATA_DIR: brokenDataDir, BACKUP_STAGING_TTL_HOURS: 24 });
 
-    const job = startExportJob(db, brokenConfig, { modules: ["settings"], includeBlobs: false }, stubLogger);
+    const job = startExportJob(db, brokenConfig, { modules: ["settings"], blobsMode: "none" }, stubLogger);
     await job.done;
     expect(job.state).toBe("failed");
     expect(job.error).toBeTruthy();

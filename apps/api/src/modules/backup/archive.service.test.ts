@@ -105,7 +105,7 @@ describe("writeArchiveV2 — manifest", () => {
     const { manifest, archivePath } = await writeArchiveV2({
       db,
       modules: ["files", "settings"],
-      includeBlobs: false,
+      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
@@ -118,6 +118,8 @@ describe("writeArchiveV2 — manifest", () => {
     expect(fromArchive.format).toBe("bithk-backup");
     expect(fromArchive.formatVersion).toBe(2);
     expect(fromArchive.redacted).toBe(false);
+    expect(fromArchive.blobsMode).toBe("none");
+    // Deprecated alias stays consistent with the mode.
     expect(fromArchive.includeBlobs).toBe(false);
 
     // Journal pins the migration state — compare against the real file.
@@ -165,7 +167,7 @@ describe("writeArchiveV2 — NDJSON fidelity", () => {
     const { archivePath } = await writeArchiveV2({
       db,
       modules: ["users", "settings"],
-      includeBlobs: false,
+      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
@@ -198,7 +200,7 @@ describe("writeArchiveV2 — blobs", () => {
     const { manifest, archivePath } = await writeArchiveV2({
       db,
       modules: ["files"],
-      includeBlobs: true,
+      blobsMode: "embedded",
       stagingDir,
       appName: "app",
     });
@@ -209,14 +211,22 @@ describe("writeArchiveV2 — blobs", () => {
     expect(blobEntries[0]!.name).toBe(`blobs/${deriveStorageKey(shaShared)}`);
     expect(blobEntries[0]!.data.equals(Buffer.from(bytes))).toBe(true);
 
+    expect(manifest.blobsMode).toBe("embedded");
+    expect(manifest.includeBlobs).toBe(true);
     expect(manifest.blobs).toEqual({ count: 1, totalBytes: bytes.length });
+    // expectedBlobs lists EVERY referenced blob, exported or not.
+    expect([...manifest.expectedBlobs!].sort((a, b) => a.sha256.localeCompare(b.sha256) || a.storageDriver.localeCompare(b.storageDriver))).toEqual([
+      { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "local" },
+      { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "s3" },
+      { sha256: shaForeign, size: 10, storageKey: deriveStorageKey(shaForeign), storageDriver: "s3" },
+    ].sort((a, b) => a.sha256.localeCompare(b.sha256) || a.storageDriver.localeCompare(b.storageDriver)));
     expect(manifest.warnings).toHaveLength(2);
     expect(manifest.warnings.some(w => w.includes(shaForeign) && w.includes("s3"))).toBe(true);
     expect(manifest.warnings.some(w => w.includes(shaShared) && w.includes("s3"))).toBe(true);
     expect(manifest.tables.find(t => t.name === "files")!.rowCount).toBe(3);
   });
 
-  test("includeBlobs:false skips blobs/ entirely", async () => {
+  test("blobsMode:none skips blobs/ entirely but still lists expectedBlobs", async () => {
     const userId = await seedUser(db, "admin");
     const sha = "ab".repeat(32);
     const bytes = new Uint8Array(64).fill(1);
@@ -226,17 +236,71 @@ describe("writeArchiveV2 — blobs", () => {
     const { manifest, archivePath } = await writeArchiveV2({
       db,
       modules: ["files"],
-      includeBlobs: false,
+      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
 
     const entries = await readArchive(archivePath);
     expect(entries.some(e => e.name.startsWith("blobs/"))).toBe(false);
+    expect(manifest.blobsMode).toBe("none");
     expect(manifest.includeBlobs).toBe(false);
     expect(manifest.blobs).toEqual({ count: 0, totalBytes: 0 });
+    expect(manifest.expectedBlobs).toEqual([
+      { sha256: sha, size: bytes.length, storageKey: deriveStorageKey(sha), storageDriver: "local" },
+    ]);
+    // No export attempt → no inactive-driver warnings either.
+    expect(manifest.warnings).toEqual([]);
     // Rows still export — restore degrades to v1 row-only semantics.
     expect(parseNdjson(entries.find(e => e.name === "data/files.ndjson")!)).toHaveLength(1);
+  });
+
+  test("blobsMode:separate produces a data archive and a blobs-only archive", async () => {
+    const userId = await seedUser(db, "admin");
+    const shaA = "ab".repeat(32);
+    const shaB = "cd".repeat(32);
+    const bytesA = new Uint8Array(128 * 1024).fill(7);
+    const bytesB = new Uint8Array(64).fill(9);
+    await setUpLocalBlob(shaA, bytesA);
+    const keyB = deriveStorageKey(shaB);
+    await localDriver.put(keyB, bytesB.buffer as ArrayBuffer);
+    await insertFileRow("f1", shaA, bytesA.length, "local", userId);
+    await insertFileRow("f2", shaB, bytesB.length, "local", userId);
+
+    const result = await writeArchiveV2({
+      db,
+      modules: ["files"],
+      blobsMode: "separate",
+      stagingDir,
+      appName: "app",
+    });
+
+    expect(result.archivePath).toBe(resolve(stagingDir, "archive.tar.gz"));
+    expect(result.blobsArchivePath).toBe(resolve(stagingDir, "blobs.tar.gz"));
+    expect(result.blobsArchiveSize).toBeGreaterThan(0);
+    expect(existsSync(resolve(stagingDir, "blobs.tar.gz.partial"))).toBe(false);
+
+    // Data archive: manifest + NDJSON only, ZERO blobs/ entries.
+    const dataEntries = await readArchive(result.archivePath);
+    expect(dataEntries[0]!.name).toBe("manifest.json");
+    expect(dataEntries.some(e => e.name.startsWith("blobs/"))).toBe(false);
+    expect(parseNdjson(dataEntries.find(e => e.name === "data/files.ndjson")!)).toHaveLength(2);
+
+    const manifest = parseManifest(dataEntries);
+    expect(manifest.blobsMode).toBe("separate");
+    expect(manifest.includeBlobs).toBe(true);
+    expect(manifest.blobs).toEqual({ count: 2, totalBytes: bytesA.length + bytesB.length });
+
+    // Blobs archive: ONLY blob entries (no manifest), matching expectedBlobs.
+    const blobEntries = await readArchive(result.blobsArchivePath!);
+    expect(blobEntries.every(e => e.name.startsWith("blobs/"))).toBe(true);
+    expect(blobEntries.map(e => e.name).sort()).toEqual(
+      manifest.expectedBlobs!.map(b => `blobs/${b.storageKey}`).sort(),
+    );
+    const entryA = blobEntries.find(e => e.name === `blobs/${deriveStorageKey(shaA)}`)!;
+    expect(entryA.data.equals(Buffer.from(bytesA))).toBe(true);
+    const entryB = blobEntries.find(e => e.name === `blobs/${keyB}`)!;
+    expect(entryB.data.equals(Buffer.from(bytesB))).toBe(true);
   });
 });
 
@@ -245,7 +309,7 @@ describe("writeArchiveV2 — staging hygiene", () => {
     const { archivePath } = await writeArchiveV2({
       db,
       modules: ["settings"],
-      includeBlobs: false,
+      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
@@ -259,7 +323,7 @@ describe("writeArchiveV2 — staging hygiene", () => {
     expect(writeArchiveV2({
       db,
       modules: ["settings"],
-      includeBlobs: false,
+      blobsMode: "none",
       stagingDir,
       appName: "app",
       isCancelled: () => true,
