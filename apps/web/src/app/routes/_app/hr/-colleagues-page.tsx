@@ -1,14 +1,14 @@
-// Finance colleagues page: admin-managed list of internal finance actors,
+// HR colleagues page: admin-managed list of internal staff members,
 // each linked to exactly one unified user (real or virtual). The create/edit
 // picker sources from /account/assignable-users so both kinds are selectable;
 // virtual users carry the same badge pattern used by project members.
 
 import type {
-  CreateFinanceColleagueInput,
-  FinanceColleagueRow,
-  FinanceColleagueStatus,
-  UpdateFinanceColleagueInput,
-} from "@/shared/lib/api/finance";
+  CreateHrColleagueInput,
+  HrColleagueRow,
+  HrColleagueStatus,
+  UpdateHrColleagueInput,
+} from "@/shared/lib/api/hr";
 import { Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -45,38 +45,38 @@ import {
 } from "@/shared/components/ui/table";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import {
-  FINANCE_COLLEAGUE_STATUSES,
-  useArchiveFinanceColleague,
-  useCreateFinanceColleague,
-  useFinanceColleagues,
-  useUpdateFinanceColleague,
-} from "@/shared/lib/api/finance";
+  HR_COLLEAGUE_STATUSES,
+  useArchiveHrColleague,
+  useCreateHrColleague,
+  useHrColleagues,
+  useUpdateHrColleague,
+} from "@/shared/lib/api/hr";
 import { useAssignableUsers } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 
 const ALL = "__all__";
 
-export function FinanceColleaguesPage() {
-  const { t } = useTranslation("finance");
+export function HrColleaguesPage() {
+  const { t } = useTranslation("hr");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<FinanceColleagueRow | null>(null);
-  const [archiveTarget, setArchiveTarget] = useState<FinanceColleagueRow | null>(null);
+  const [editTarget, setEditTarget] = useState<HrColleagueRow | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<HrColleagueRow | null>(null);
 
-  const colleaguesQuery = useFinanceColleagues({
+  const colleaguesQuery = useHrColleagues({
     ...(debouncedSearch ? { q: debouncedSearch } : {}),
-    ...(statusFilter !== ALL ? { status: statusFilter as FinanceColleagueStatus } : {}),
+    ...(statusFilter !== ALL ? { status: statusFilter as HrColleagueStatus } : {}),
     page,
   });
-  const archiveColleague = useArchiveFinanceColleague();
+  const archiveColleague = useArchiveHrColleague();
 
   const rows = colleaguesQuery.data?.data ?? [];
   const meta = colleaguesQuery.data?.meta;
 
-  const statusLabel = (status: FinanceColleagueStatus) =>
+  const statusLabel = (status: HrColleagueStatus) =>
     status === "active" ? t("colleagues.statusActive") : t("colleagues.statusArchived");
 
   return (
@@ -116,7 +116,7 @@ export function FinanceColleaguesPage() {
                 setStatusFilter(value ?? ALL);
                 setPage(1);
               },
-              options: FINANCE_COLLEAGUE_STATUSES.map(status => ({
+              options: HR_COLLEAGUE_STATUSES.map(status => ({
                 value: status,
                 label: statusLabel(status),
               })),
@@ -268,15 +268,15 @@ export function FinanceColleaguesPage() {
 
 interface ColleagueDialogProps {
   readonly mode: "create" | "edit";
-  readonly colleague?: FinanceColleagueRow;
+  readonly colleague?: HrColleagueRow;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
 
 function ColleagueDialog({ mode, colleague, open, onOpenChange }: ColleagueDialogProps) {
-  const { t } = useTranslation("finance");
-  const createColleague = useCreateFinanceColleague();
-  const updateColleague = useUpdateFinanceColleague();
+  const { t } = useTranslation("hr");
+  const createColleague = useCreateHrColleague();
+  const updateColleague = useUpdateHrColleague();
   const usersQuery = useAssignableUsers();
 
   const [userId, setUserId] = useState(colleague?.userId ?? "");
@@ -284,7 +284,7 @@ function ColleagueDialog({ mode, colleague, open, onOpenChange }: ColleagueDialo
   const [title, setTitle] = useState(colleague?.title ?? "");
   const [department, setDepartment] = useState(colleague?.department ?? "");
   const [notes, setNotes] = useState(colleague?.notes ?? "");
-  const [status, setStatus] = useState<FinanceColleagueStatus>(colleague?.status ?? "active");
+  const [status, setStatus] = useState<HrColleagueStatus>(colleague?.status ?? "active");
 
   const users = usersQuery.data ?? [];
   const pending = createColleague.isPending || updateColleague.isPending;
@@ -297,7 +297,7 @@ function ColleagueDialog({ mode, colleague, open, onOpenChange }: ColleagueDialo
     if (!userId || pending)
       return;
     if (mode === "create") {
-      const body: CreateFinanceColleagueInput = {
+      const body: CreateHrColleagueInput = {
         userId,
         ...(code.trim() ? { code: code.trim() } : {}),
         ...(title.trim() ? { title: title.trim() } : {}),
@@ -315,7 +315,7 @@ function ColleagueDialog({ mode, colleague, open, onOpenChange }: ColleagueDialo
     }
     // Edit sends every editable field; the backend accepts empty strings,
     // which the list renders the same as null ("—").
-    const body: UpdateFinanceColleagueInput = {
+    const body: UpdateHrColleagueInput = {
       userId,
       code: code.trim(),
       title: title.trim(),
@@ -420,16 +420,16 @@ function ColleagueDialog({ mode, colleague, open, onOpenChange }: ColleagueDialo
               <Label>{t("colleagues.field.status")}</Label>
               <Select
                 value={status}
-                onValueChange={v => v !== null && setStatus(v as FinanceColleagueStatus)}
+                onValueChange={v => v !== null && setStatus(v as HrColleagueStatus)}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
-                    {(v: FinanceColleagueStatus) =>
+                    {(v: HrColleagueStatus) =>
                       v === "active" ? t("colleagues.statusActive") : t("colleagues.statusArchived")}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {FINANCE_COLLEAGUE_STATUSES.map(s => (
+                  {HR_COLLEAGUE_STATUSES.map(s => (
                     <SelectItem key={s} value={s}>
                       {s === "active" ? t("colleagues.statusActive") : t("colleagues.statusArchived")}
                     </SelectItem>

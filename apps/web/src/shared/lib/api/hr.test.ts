@@ -1,15 +1,15 @@
-import type { FinanceColleagueRow } from "./finance";
+import type { HrColleagueRow } from "./hr";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeWrapper } from "@/test/utils";
 import {
-  FINANCE_COLLEAGUE_STATUSES,
-  financeColleagueKeys,
-  useArchiveFinanceColleague,
-  useCreateFinanceColleague,
-  useFinanceColleagues,
-  useUpdateFinanceColleague,
-} from "./finance";
+  HR_COLLEAGUE_STATUSES,
+  hrColleagueKeys,
+  useArchiveHrColleague,
+  useCreateHrColleague,
+  useHrColleagues,
+  useUpdateHrColleague,
+} from "./hr";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -29,7 +29,7 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-function row(overrides: Partial<FinanceColleagueRow> = {}): FinanceColleagueRow {
+function row(overrides: Partial<HrColleagueRow> = {}): HrColleagueRow {
   return {
     id: "fc1",
     userId: "u1",
@@ -45,11 +45,11 @@ function row(overrides: Partial<FinanceColleagueRow> = {}): FinanceColleagueRow 
   };
 }
 
-describe("financeColleagueKeys", () => {
+describe("hrColleagueKeys", () => {
   it("namespaces list keys deterministically", () => {
-    expect(financeColleagueKeys.all).toEqual(["finance", "colleagues"]);
-    expect(financeColleagueKeys.list("status=active&page=1&limit=20")).toEqual([
-      "finance",
+    expect(hrColleagueKeys.all).toEqual(["hr", "colleagues"]);
+    expect(hrColleagueKeys.list("status=active&page=1&limit=20")).toEqual([
+      "hr",
       "colleagues",
       "list",
       "status=active&page=1&limit=20",
@@ -59,23 +59,23 @@ describe("financeColleagueKeys", () => {
 
 describe("fINANCE_COLLEAGUE_STATUSES", () => {
   it("covers the active and archived lifecycle states", () => {
-    expect(FINANCE_COLLEAGUE_STATUSES).toEqual(["active", "archived"]);
+    expect(HR_COLLEAGUE_STATUSES).toEqual(["active", "archived"]);
   });
 });
 
-describe("useFinanceColleagues", () => {
+describe("useHrColleagues", () => {
   it("requests the default first page and unwraps data + meta", async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
       data: [row()],
       meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
     }));
-    const { result } = renderHook(() => useFinanceColleagues(), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useHrColleagues(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.data).toHaveLength(1);
     expect(result.current.data?.meta.total).toBe(1);
     const url = String(fetchMock.mock.calls[0]![0]);
-    expect(url).toContain("/api/finance/colleagues?");
+    expect(url).toContain("/api/hr/colleagues?");
     expect(url).toContain("page=1");
     expect(url).toContain("limit=20");
     expect(url).not.toContain("status=");
@@ -91,7 +91,7 @@ describe("useFinanceColleagues", () => {
       ],
       meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
     }));
-    const { result } = renderHook(() => useFinanceColleagues(), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useHrColleagues(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.data[0]?.user.isVirtual).toBe(false);
     expect(result.current.data?.data[1]?.user.isVirtual).toBe(true);
@@ -105,7 +105,7 @@ describe("useFinanceColleagues", () => {
       meta: { total: 0, page: 2, limit: 50, totalPages: 0 },
     }));
     const { result } = renderHook(
-      () => useFinanceColleagues({ q: "ali", status: "archived", page: 2, limit: 50 }),
+      () => useHrColleagues({ q: "ali", status: "archived", page: 2, limit: 50 }),
       { wrapper: makeWrapper() },
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -121,20 +121,20 @@ describe("useFinanceColleagues", () => {
       { success: false, error: { code: "FORBIDDEN", message: "no access" } },
       { status: 403 },
     ));
-    const { result } = renderHook(() => useFinanceColleagues(), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useHrColleagues(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("finance colleague mutations", () => {
+describe("hr colleague mutations", () => {
   it("creates a colleague linked to a real user via POST", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: row() }, { status: 201 }));
-    const { result } = renderHook(() => useCreateFinanceColleague(), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useCreateHrColleague(), { wrapper: makeWrapper() });
     const created = await result.current.mutateAsync({ userId: "u1", code: "F-001" });
     expect(created.user.isVirtual).toBe(false);
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe("/api/finance/colleagues");
+    expect(String(url)).toBe("/api/hr/colleagues");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({ userId: "u1", code: "F-001" });
   });
@@ -144,7 +144,7 @@ describe("finance colleague mutations", () => {
       success: true,
       data: row({ userId: "u2", user: { name: "Crew B", username: "crew-b", isVirtual: true, status: "active" } }),
     }, { status: 201 }));
-    const { result } = renderHook(() => useCreateFinanceColleague(), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useCreateHrColleague(), { wrapper: makeWrapper() });
     const created = await result.current.mutateAsync({ userId: "u2", department: "Ops" });
     expect(created.user.isVirtual).toBe(true);
     const [, init] = fetchMock.mock.calls[0]!;
@@ -153,33 +153,33 @@ describe("finance colleague mutations", () => {
 
   it("rejects a duplicate user link with the server conflict message", async () => {
     fetchMock.mockResolvedValue(jsonResponse(
-      { success: false, error: { code: "CONFLICT", message: "User is already a finance colleague" } },
+      { success: false, error: { code: "CONFLICT", message: "User is already an HR colleague" } },
       { status: 409 },
     ));
-    const { result } = renderHook(() => useCreateFinanceColleague(), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useCreateHrColleague(), { wrapper: makeWrapper() });
     await expect(result.current.mutateAsync({ userId: "u1" }))
       .rejects
-      .toThrow("User is already a finance colleague");
+      .toThrow("User is already an HR colleague");
   });
 
   it("patches a colleague, encoding the id into the path", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: row({ title: "Lead" }) }));
-    const { result } = renderHook(() => useUpdateFinanceColleague(), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useUpdateHrColleague(), { wrapper: makeWrapper() });
     const updated = await result.current.mutateAsync({ id: "fc 1", title: "Lead", status: "active" });
     expect(updated.title).toBe("Lead");
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe("/api/finance/colleagues/fc%201");
+    expect(String(url)).toBe("/api/hr/colleagues/fc%201");
     expect(init?.method).toBe("PATCH");
     expect(JSON.parse(String(init?.body))).toEqual({ title: "Lead", status: "active" });
   });
 
   it("archives a colleague via DELETE and returns the archived row", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true, data: row({ status: "archived" }) }));
-    const { result } = renderHook(() => useArchiveFinanceColleague(), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useArchiveHrColleague(), { wrapper: makeWrapper() });
     const archived = await result.current.mutateAsync("fc1");
     expect(archived.status).toBe("archived");
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe("/api/finance/colleagues/fc1");
+    expect(String(url)).toBe("/api/hr/colleagues/fc1");
     expect(init?.method).toBe("DELETE");
   });
 });

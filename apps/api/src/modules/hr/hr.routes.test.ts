@@ -12,7 +12,7 @@ import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
-import { financeRoutes } from "./finance.routes";
+import { hrRoutes } from "./hr.routes";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
 
@@ -51,7 +51,7 @@ function buildApp(db: AppDatabase): Hono<AppEnv> {
     c.set("logger", stubLogger);
     await next();
   });
-  app.route("/", financeRoutes());
+  app.route("/", hrRoutes());
   app.onError(errorHandler);
   return app;
 }
@@ -98,7 +98,7 @@ function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
 }
 
 beforeEach(async () => {
-  const dir = resolve(tmpdir(), `test-finance-routes-${Date.now()}-${nanoid()}`);
+  const dir = resolve(tmpdir(), `test-hr-routes-${Date.now()}-${nanoid()}`);
   mkdirSync(dir, { recursive: true });
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
@@ -111,38 +111,38 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-describe("/finance/colleagues admin gating", () => {
+describe("/hr/colleagues admin gating", () => {
   test("a plain user is denied on every management route (403)", async () => {
     const app = buildApp(db);
     const plain = await sessionForRole("user");
 
-    const list = await app.request("/finance/colleagues", { headers: { Cookie: plain.cookie } });
+    const list = await app.request("/hr/colleagues", { headers: { Cookie: plain.cookie } });
     expect(list.status).toBe(403);
 
-    const create = await app.request("/finance/colleagues", jsonReq("POST", plain.cookie, { userId: "x" }));
+    const create = await app.request("/hr/colleagues", jsonReq("POST", plain.cookie, { userId: "x" }));
     expect(create.status).toBe(403);
 
-    const patch = await app.request("/finance/colleagues/x", jsonReq("PATCH", plain.cookie, { title: "T" }));
+    const patch = await app.request("/hr/colleagues/x", jsonReq("PATCH", plain.cookie, { title: "T" }));
     expect(patch.status).toBe(403);
 
-    const del = await app.request("/finance/colleagues/x", jsonReq("DELETE", plain.cookie));
+    const del = await app.request("/hr/colleagues/x", jsonReq("DELETE", plain.cookie));
     expect(del.status).toBe(403);
   });
 
   test("an unauthenticated request is rejected (401)", async () => {
     const app = buildApp(db);
-    const res = await app.request("/finance/colleagues");
+    const res = await app.request("/hr/colleagues");
     expect(res.status).toBe(401);
   });
 });
 
-describe("POST /finance/colleagues", () => {
+describe("POST /hr/colleagues", () => {
   test("admin links a real user and gets joined user data back (201)", async () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
     const userId = await insertUser();
 
-    const res = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, {
+    const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, {
       userId,
       code: "FC-001",
       title: "Accountant",
@@ -165,7 +165,7 @@ describe("POST /finance/colleagues", () => {
     const admin = await sessionForRole("admin");
     const userId = await insertUser({ isVirtual: true });
 
-    const res = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
     expect(res.status).toBe(201);
     const body = await res.json() as { data: { user: { isVirtual: boolean } } };
     expect(body.data.user.isVirtual).toBe(true);
@@ -174,7 +174,7 @@ describe("POST /finance/colleagues", () => {
   test("a missing user is a clean 404", async () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
-    const res = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId: "nope" }));
+    const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId: "nope" }));
     expect(res.status).toBe(404);
   });
 
@@ -182,7 +182,7 @@ describe("POST /finance/colleagues", () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
     const userId = await insertUser({ status: "disabled" });
-    const res = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
     expect(res.status).toBe(400);
   });
 
@@ -191,47 +191,47 @@ describe("POST /finance/colleagues", () => {
     const admin = await sessionForRole("admin");
     const userId = await insertUser();
 
-    const first = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    const first = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
     expect(first.status).toBe(201);
 
-    const dup = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    const dup = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
     expect(dup.status).toBe(409);
   });
 
   test("a body without userId is rejected (422)", async () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
-    const res = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { title: "T" }));
+    const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { title: "T" }));
     expect(res.status).toBe(422);
   });
 });
 
-describe("GET /finance/colleagues", () => {
+describe("GET /hr/colleagues", () => {
   test("lists colleagues with joined user data and supports the status filter", async () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
     const realId = await insertUser();
     const virtualId = await insertUser({ isVirtual: true });
 
-    await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId: realId }));
-    const created = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId: virtualId }));
+    await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId: realId }));
+    const created = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId: virtualId }));
     const createdBody = await created.json() as { data: { id: string } };
 
-    const all = await app.request("/finance/colleagues", { headers: { Cookie: admin.cookie } });
+    const all = await app.request("/hr/colleagues", { headers: { Cookie: admin.cookie } });
     expect(all.status).toBe(200);
     const allBody = await all.json() as { data: Array<{ userId: string; user: { isVirtual: boolean } }>; meta: { total: number } };
     expect(allBody.meta.total).toBe(2);
     expect(allBody.data.some(c => c.userId === virtualId && c.user.isVirtual)).toBe(true);
 
     // Archive the virtual colleague, then filter by status.
-    await app.request(`/finance/colleagues/${createdBody.data.id}`, jsonReq("DELETE", admin.cookie));
+    await app.request(`/hr/colleagues/${createdBody.data.id}`, jsonReq("DELETE", admin.cookie));
 
-    const active = await app.request("/finance/colleagues?status=active", { headers: { Cookie: admin.cookie } });
+    const active = await app.request("/hr/colleagues?status=active", { headers: { Cookie: admin.cookie } });
     const activeBody = await active.json() as { data: Array<{ userId: string }>; meta: { total: number } };
     expect(activeBody.meta.total).toBe(1);
     expect(activeBody.data[0]!.userId).toBe(realId);
 
-    const archived = await app.request("/finance/colleagues?status=archived", { headers: { Cookie: admin.cookie } });
+    const archived = await app.request("/hr/colleagues?status=archived", { headers: { Cookie: admin.cookie } });
     const archivedBody = await archived.json() as { data: Array<{ userId: string }>; meta: { total: number } };
     expect(archivedBody.meta.total).toBe(1);
     expect(archivedBody.data[0]!.userId).toBe(virtualId);
@@ -244,30 +244,30 @@ describe("GET /finance/colleagues", () => {
     await insertUser(); // unlinked noise
     const otherId = await insertUser();
 
-    await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId, code: "ZZTOP" }));
-    await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId: otherId }));
+    await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId, code: "ZZTOP" }));
+    await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId: otherId }));
 
-    const byCode = await app.request("/finance/colleagues?q=ZZTOP", { headers: { Cookie: admin.cookie } });
+    const byCode = await app.request("/hr/colleagues?q=ZZTOP", { headers: { Cookie: admin.cookie } });
     const byCodeBody = await byCode.json() as { meta: { total: number }; data: Array<{ userId: string }> };
     expect(byCodeBody.meta.total).toBe(1);
     expect(byCodeBody.data[0]!.userId).toBe(userId);
 
-    const byName = await app.request(`/finance/colleagues?q=user-${otherId}`, { headers: { Cookie: admin.cookie } });
+    const byName = await app.request(`/hr/colleagues?q=user-${otherId}`, { headers: { Cookie: admin.cookie } });
     const byNameBody = await byName.json() as { meta: { total: number }; data: Array<{ userId: string }> };
     expect(byNameBody.meta.total).toBe(1);
     expect(byNameBody.data[0]!.userId).toBe(otherId);
   });
 });
 
-describe("PATCH /finance/colleagues/:id", () => {
+describe("PATCH /hr/colleagues/:id", () => {
   test("updates display metadata and status (200)", async () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
     const userId = await insertUser();
-    const created = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    const created = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
     const cbody = await created.json() as { data: { id: string } };
 
-    const res = await app.request(`/finance/colleagues/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, {
+    const res = await app.request(`/hr/colleagues/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, {
       title: "Controller",
       department: "Treasury",
       status: "archived",
@@ -285,14 +285,14 @@ describe("PATCH /finance/colleagues/:id", () => {
     const userA = await insertUser();
     const userB = await insertUser();
 
-    const a = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId: userA }));
+    const a = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId: userA }));
     const abody = await a.json() as { data: { id: string } };
-    await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId: userB }));
+    await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId: userB }));
 
-    const conflict = await app.request(`/finance/colleagues/${abody.data.id}`, jsonReq("PATCH", admin.cookie, { userId: userB }));
+    const conflict = await app.request(`/hr/colleagues/${abody.data.id}`, jsonReq("PATCH", admin.cookie, { userId: userB }));
     expect(conflict.status).toBe(409);
 
-    const missing = await app.request(`/finance/colleagues/${abody.data.id}`, jsonReq("PATCH", admin.cookie, { userId: "nope" }));
+    const missing = await app.request(`/hr/colleagues/${abody.data.id}`, jsonReq("PATCH", admin.cookie, { userId: "nope" }));
     expect(missing.status).toBe(404);
   });
 
@@ -300,43 +300,43 @@ describe("PATCH /finance/colleagues/:id", () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
 
-    const notFound = await app.request("/finance/colleagues/nope", jsonReq("PATCH", admin.cookie, { title: "T" }));
+    const notFound = await app.request("/hr/colleagues/nope", jsonReq("PATCH", admin.cookie, { title: "T" }));
     expect(notFound.status).toBe(404);
 
     const userId = await insertUser();
-    const created = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    const created = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
     const cbody = await created.json() as { data: { id: string } };
-    const empty = await app.request(`/finance/colleagues/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, {}));
+    const empty = await app.request(`/hr/colleagues/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, {}));
     expect(empty.status).toBe(422);
   });
 });
 
-describe("DELETE /finance/colleagues/:id", () => {
+describe("DELETE /hr/colleagues/:id", () => {
   test("archives instead of deleting and is idempotent (200)", async () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
     const userId = await insertUser();
-    const created = await app.request("/finance/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    const created = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
     const cbody = await created.json() as { data: { id: string } };
 
-    const res = await app.request(`/finance/colleagues/${cbody.data.id}`, jsonReq("DELETE", admin.cookie));
+    const res = await app.request(`/hr/colleagues/${cbody.data.id}`, jsonReq("DELETE", admin.cookie));
     expect(res.status).toBe(200);
     const body = await res.json() as { data: { status: string } };
     expect(body.data.status).toBe("archived");
 
     // Still listed (soft archive), and a second archive is a no-op success.
-    const list = await app.request("/finance/colleagues", { headers: { Cookie: admin.cookie } });
+    const list = await app.request("/hr/colleagues", { headers: { Cookie: admin.cookie } });
     const listBody = await list.json() as { meta: { total: number } };
     expect(listBody.meta.total).toBe(1);
 
-    const again = await app.request(`/finance/colleagues/${cbody.data.id}`, jsonReq("DELETE", admin.cookie));
+    const again = await app.request(`/hr/colleagues/${cbody.data.id}`, jsonReq("DELETE", admin.cookie));
     expect(again.status).toBe(200);
   });
 
   test("an unknown colleague id is a 404", async () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
-    const res = await app.request("/finance/colleagues/nope", jsonReq("DELETE", admin.cookie));
+    const res = await app.request("/hr/colleagues/nope", jsonReq("DELETE", admin.cookie));
     expect(res.status).toBe(404);
   });
 });

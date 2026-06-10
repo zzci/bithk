@@ -1,7 +1,7 @@
-// Finance data layer: types, query keys, and TanStack Query hooks.
+// HR data layer: types, query keys, and TanStack Query hooks.
 //
-// Mirrors the backend finance routes (apps/api/src/modules/finance). A
-// finance colleague is an internal finance actor linked to exactly one
+// Mirrors the backend HR routes (apps/api/src/modules/hr). A
+// HR colleague is an internal staff member linked to exactly one
 // `users` row (real or virtual); rows carry the joined user display data so
 // the UI never needs per-row lookups. All routes are admin-only; DELETE
 // archives instead of hard-deleting.
@@ -13,69 +13,69 @@ import { http } from "../http";
 
 // ── Types ──
 
-export type FinanceColleagueStatus = "active" | "archived";
+export type HrColleagueStatus = "active" | "archived";
 
-export const FINANCE_COLLEAGUE_STATUSES: readonly FinanceColleagueStatus[] = [
+export const HR_COLLEAGUE_STATUSES: readonly HrColleagueStatus[] = [
   "active",
   "archived",
 ];
 
 // Joined user display data carried on every colleague row.
-export interface FinanceColleagueUser {
+export interface HrColleagueUser {
   readonly name: string;
   readonly username: string;
   readonly isVirtual: boolean;
   readonly status: "active" | "disabled";
 }
 
-export interface FinanceColleagueRow {
+export interface HrColleagueRow {
   readonly id: string;
   readonly userId: string;
   readonly code: string | null;
   readonly title: string | null;
   readonly department: string | null;
-  readonly status: FinanceColleagueStatus;
+  readonly status: HrColleagueStatus;
   readonly notes: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
-  readonly user: FinanceColleagueUser;
+  readonly user: HrColleagueUser;
 }
 
-interface FinanceColleagueListMeta {
+interface HrColleagueListMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;
   readonly totalPages: number;
 }
 
-interface FinanceColleagueListEnvelope {
+interface HrColleagueListEnvelope {
   readonly success: boolean;
-  readonly data: readonly FinanceColleagueRow[];
-  readonly meta: FinanceColleagueListMeta;
+  readonly data: readonly HrColleagueRow[];
+  readonly meta: HrColleagueListMeta;
 }
 
 // ── Query keys ──
 
-export const financeColleagueKeys = {
-  all: ["finance", "colleagues"] as const,
-  list: (query: string) => ["finance", "colleagues", "list", query] as const,
+export const hrColleagueKeys = {
+  all: ["hr", "colleagues"] as const,
+  list: (query: string) => ["hr", "colleagues", "list", query] as const,
 };
 
 // ── Queries ──
 
-export interface FinanceColleaguesQuery {
+export interface HrColleaguesQuery {
   readonly q?: string | undefined;
-  readonly status?: FinanceColleagueStatus | undefined;
+  readonly status?: HrColleagueStatus | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
 
-export interface FinanceColleaguesResult {
-  readonly data: readonly FinanceColleagueRow[];
-  readonly meta: FinanceColleagueListMeta;
+export interface HrColleaguesResult {
+  readonly data: readonly HrColleagueRow[];
+  readonly meta: HrColleagueListMeta;
 }
 
-function colleaguesQueryString(query: FinanceColleaguesQuery): string {
+function colleaguesQueryString(query: HrColleaguesQuery): string {
   const params = new URLSearchParams();
   if (query.q)
     params.set("q", query.q);
@@ -86,13 +86,13 @@ function colleaguesQueryString(query: FinanceColleaguesQuery): string {
   return params.toString();
 }
 
-export function useFinanceColleagues(query: FinanceColleaguesQuery = {}) {
+export function useHrColleagues(query: HrColleaguesQuery = {}) {
   const queryString = colleaguesQueryString(query);
-  return useQuery<FinanceColleaguesResult>({
-    queryKey: financeColleagueKeys.list(queryString),
+  return useQuery<HrColleaguesResult>({
+    queryKey: hrColleagueKeys.list(queryString),
     queryFn: async () => {
-      const res = await http<FinanceColleagueListEnvelope>(
-        `/finance/colleagues?${queryString}`,
+      const res = await http<HrColleagueListEnvelope>(
+        `/hr/colleagues?${queryString}`,
       );
       return { data: res.data, meta: res.meta };
     },
@@ -103,7 +103,7 @@ export function useFinanceColleagues(query: FinanceColleaguesQuery = {}) {
 
 // ── Mutations ──
 
-export interface CreateFinanceColleagueInput {
+export interface CreateHrColleagueInput {
   readonly userId: string;
   readonly code?: string;
   readonly title?: string;
@@ -111,51 +111,51 @@ export interface CreateFinanceColleagueInput {
   readonly notes?: string;
 }
 
-export function useCreateFinanceColleague(): UseMutationResult<FinanceColleagueRow, Error, CreateFinanceColleagueInput> {
+export function useCreateHrColleague(): UseMutationResult<HrColleagueRow, Error, CreateHrColleagueInput> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: body => http<ApiEnvelope<FinanceColleagueRow>>(
-      "/finance/colleagues",
+    mutationFn: body => http<ApiEnvelope<HrColleagueRow>>(
+      "/hr/colleagues",
       { method: "POST", body: JSON.stringify(body) },
     ).then(r => r.data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: financeColleagueKeys.all });
+      void queryClient.invalidateQueries({ queryKey: hrColleagueKeys.all });
     },
   });
 }
 
-export interface UpdateFinanceColleagueInput {
+export interface UpdateHrColleagueInput {
   readonly userId?: string;
   readonly code?: string;
   readonly title?: string;
   readonly department?: string;
   readonly notes?: string;
-  readonly status?: FinanceColleagueStatus;
+  readonly status?: HrColleagueStatus;
 }
 
-export function useUpdateFinanceColleague(): UseMutationResult<FinanceColleagueRow, Error, { id: string } & UpdateFinanceColleagueInput> {
+export function useUpdateHrColleague(): UseMutationResult<HrColleagueRow, Error, { id: string } & UpdateHrColleagueInput> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }) => http<ApiEnvelope<FinanceColleagueRow>>(
-      `/finance/colleagues/${encodeURIComponent(id)}`,
+    mutationFn: ({ id, ...body }) => http<ApiEnvelope<HrColleagueRow>>(
+      `/hr/colleagues/${encodeURIComponent(id)}`,
       { method: "PATCH", body: JSON.stringify(body) },
     ).then(r => r.data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: financeColleagueKeys.all });
+      void queryClient.invalidateQueries({ queryKey: hrColleagueKeys.all });
     },
   });
 }
 
 /** DELETE archives the colleague (status -> archived); it never hard-deletes. */
-export function useArchiveFinanceColleague(): UseMutationResult<FinanceColleagueRow, Error, string> {
+export function useArchiveHrColleague(): UseMutationResult<HrColleagueRow, Error, string> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: id => http<ApiEnvelope<FinanceColleagueRow>>(
-      `/finance/colleagues/${encodeURIComponent(id)}`,
+    mutationFn: id => http<ApiEnvelope<HrColleagueRow>>(
+      `/hr/colleagues/${encodeURIComponent(id)}`,
       { method: "DELETE" },
     ).then(r => r.data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: financeColleagueKeys.all });
+      void queryClient.invalidateQueries({ queryKey: hrColleagueKeys.all });
     },
   });
 }

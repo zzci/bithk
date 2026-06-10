@@ -15,6 +15,13 @@
       "when": 1781080885930,
       "tag": "0001_wakeful_fabian_cortez",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781114391357,
+      "tag": "0002_complex_enchantress",
+      "breakpoints": true
     }
   ]
 }

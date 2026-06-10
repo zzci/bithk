@@ -121,6 +121,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- The finance module is renamed to HR (FEAT-025 / PLAN-077): colleagues are
+  an HR concern, so the backend module, `/finance/colleagues` routes, the
+  `finance_colleagues` table (Drizzle rename migration, data preserved), the
+  backup contribution, the web routes, the sidebar entry, and the i18n
+  namespace all moved from `finance*` to `hr*`. The new `/hr` layout owns the
+  admin guard and a tab nav; Approvals and Payroll tabs are pre-mounted as
+  placeholder pages with no functionality. Backup archives exported under the
+  old `finance` module name do not map to the renamed contribution.
 - Mutable app paths now resolve from `DATA_DIR` when set, with
   `${LODE_DATA_DIR}/data` as the lode fallback. The Docker and compose examples
   use a single `/srv/lode` persistent volume for lode state, downloaded

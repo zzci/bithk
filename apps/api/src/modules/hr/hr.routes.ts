@@ -7,12 +7,12 @@ import {
   createColleague,
   listColleagues,
   updateColleague,
-} from "./finance.service";
-import { FINANCE_COLLEAGUE_STATUSES } from "./schema";
+} from "./hr.service";
+import { HR_COLLEAGUE_STATUSES } from "./schema";
 
 const listQuerySchema = z.object({
   q: z.string().max(200).optional(),
-  status: z.enum(FINANCE_COLLEAGUE_STATUSES).optional(),
+  status: z.enum(HR_COLLEAGUE_STATUSES).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -31,20 +31,20 @@ const updateBodySchema = z.object({
   title: z.string().max(200).optional(),
   department: z.string().max(200).optional(),
   notes: z.string().max(2000).optional(),
-  status: z.enum(FINANCE_COLLEAGUE_STATUSES).optional(),
+  status: z.enum(HR_COLLEAGUE_STATUSES).optional(),
 }).refine(
   d => Object.values(d).some(v => v !== undefined),
   { message: "At least one field must be provided" },
 );
 
-export function financeRoutes() {
+export function hrRoutes() {
   const router = new Hono<ProtectedEnv>();
 
   router.use("*", authRequired);
 
-  // ── /finance/colleagues — admin-only colleague management ──
+  // ── /hr/colleagues — admin-only colleague management ──
 
-  router.get("/finance/colleagues", adminRequired, async (c) => {
+  router.get("/hr/colleagues", adminRequired, async (c) => {
     const db = c.get("db");
     const query = listQuerySchema.parse(c.req.query());
     const result = await listColleagues(db, {
@@ -65,14 +65,14 @@ export function financeRoutes() {
     });
   });
 
-  router.post("/finance/colleagues", adminRequired, async (c) => {
+  router.post("/hr/colleagues", adminRequired, async (c) => {
     const db = c.get("db");
     const body = createBodySchema.parse(await c.req.json());
     const created = await createColleague(db, body);
     return c.json({ success: true, data: created }, 201);
   });
 
-  router.patch("/finance/colleagues/:id", adminRequired, async (c) => {
+  router.patch("/hr/colleagues/:id", adminRequired, async (c) => {
     const db = c.get("db");
     const body = updateBodySchema.parse(await c.req.json());
     const updated = await updateColleague(db, c.req.param("id"), body);
@@ -80,7 +80,7 @@ export function financeRoutes() {
   });
 
   // DELETE archives instead of hard-deleting — see archiveColleague.
-  router.delete("/finance/colleagues/:id", adminRequired, async (c) => {
+  router.delete("/hr/colleagues/:id", adminRequired, async (c) => {
     const db = c.get("db");
     const archived = await archiveColleague(db, c.req.param("id"));
     return c.json({ success: true, data: archived });

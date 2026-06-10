@@ -123,3 +123,4 @@
 | [FEAT-022](FEAT-022.md) | Admin Settings About tab | [PLAN-074](../plan/PLAN-074.md) | Completed | 2026-06-09 |
 | [FEAT-023](FEAT-023.md) | Backup module v2: cross-schema tar.gz export/import | [PLAN-075](../plan/PLAN-075.md) | Completed | 2026-06-10 |
 | [FEAT-024](FEAT-024.md) | Global roles with per-module visibility | [PLAN-076](../plan/PLAN-076.md) | Planned | 2026-06-10 |
+| [FEAT-025](FEAT-025.md) | Rename finance module to HR with approvals/payroll placeholders | [PLAN-077](../plan/PLAN-077.md) | Completed | 2026-06-10 |

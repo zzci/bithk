@@ -1,14 +1,30 @@
 {
-  "nav": "Finance",
+  "nav": "HR",
+  "tabs": {
+    "colleagues": "Colleagues",
+    "approvals": "Approvals",
+    "payroll": "Payroll"
+  },
+  "placeholder": {
+    "comingSoon": "This module is not available yet."
+  },
+  "approvals": {
+    "title": "Approvals",
+    "description": "Approval workflows for HR requests."
+  },
+  "payroll": {
+    "title": "Payroll",
+    "description": "Payroll management for internal staff."
+  },
   "colleagues": {
-    "title": "Finance Colleagues",
-    "description": "Manage internal finance actors linked to real or virtual users.",
+    "title": "Colleagues",
+    "description": "Manage internal staff members linked to real or virtual users.",
     "searchPlaceholder": "Search by name, username, or code...",
     "totalCount": "{{count}} colleagues",
     "noResults": "No colleagues found.",
     "create": "New",
     "createTitle": "New colleague",
-    "createDescription": "Link an existing real or virtual user as a finance colleague.",
+    "createDescription": "Link an existing real or virtual user as a colleague.",
     "editTitle": "Edit colleague",
     "editDescription": "Update colleague details and status.",
     "virtualBadge": "Virtual",

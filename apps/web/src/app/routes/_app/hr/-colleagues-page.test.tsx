@@ -1,9 +1,9 @@
-import type { FinanceColleagueRow } from "@/shared/lib/api/finance";
+import type { HrColleagueRow } from "@/shared/lib/api/hr";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
-import { FinanceColleaguesPage } from "./-colleagues-page";
+import { HrColleaguesPage } from "./-colleagues-page";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -23,7 +23,7 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-function colleague(overrides: Partial<FinanceColleagueRow> = {}): FinanceColleagueRow {
+function colleague(overrides: Partial<HrColleagueRow> = {}): HrColleagueRow {
   return {
     id: "fc1",
     userId: "u1",
@@ -45,13 +45,13 @@ const assignableUsers = [
 ];
 
 /** Route the colleagues list GET, the assignable-users GET, and mutations. */
-function routeFetch(rows: readonly FinanceColleagueRow[]) {
+function routeFetch(rows: readonly HrColleagueRow[]) {
   fetchMock.mockImplementation(async (url, init) => {
     const path = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
     if (method === "GET" && path.includes("/assignable-users"))
       return jsonResponse({ success: true, data: assignableUsers, meta: { total: assignableUsers.length, page: 1, limit: 50 } });
-    if (method === "GET" && path.includes("/finance/colleagues"))
+    if (method === "GET" && path.includes("/hr/colleagues"))
       return jsonResponse({ success: true, data: rows, meta: { total: rows.length, page: 1, limit: 20, totalPages: 1 } });
     if (method === "POST")
       return jsonResponse({ success: true, data: colleague({ id: "fc2" }) }, { status: 201 });
@@ -63,16 +63,16 @@ function routeFetch(rows: readonly FinanceColleagueRow[]) {
   });
 }
 
-describe("financeColleaguesPage", () => {
+describe("hrColleaguesPage", () => {
   it("shows the empty state when there are no colleagues", async () => {
     routeFetch([]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     expect(await screen.findByText("No colleagues found.")).toBeInTheDocument();
   });
 
   it("renders a real colleague without the virtual badge", async () => {
     routeFetch([colleague()]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     expect(await screen.findByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("F-001")).toBeInTheDocument();
     expect(screen.getByText("Accountant")).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("financeColleaguesPage", () => {
       code: null,
       user: { name: "Crew B", username: "crew-b", isVirtual: true, status: "active" },
     })]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     expect(await screen.findByText("Crew B")).toBeInTheDocument();
     expect(screen.getByText("Virtual")).toBeInTheDocument();
   });
@@ -94,7 +94,7 @@ describe("financeColleaguesPage", () => {
   it("keeps the create submit disabled until a user is chosen", async () => {
     const user = userEvent.setup();
     routeFetch([]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("No colleagues found.");
     await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
@@ -104,7 +104,7 @@ describe("financeColleaguesPage", () => {
   it("offers both real and virtual users in the picker and creates a virtual colleague", async () => {
     const user = userEvent.setup();
     routeFetch([]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("No colleagues found.");
 
     await user.click(screen.getByRole("button", { name: "New" }));
@@ -124,7 +124,7 @@ describe("financeColleaguesPage", () => {
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
       expect(post).toBeTruthy();
-      expect(String(post![0])).toBe("/api/finance/colleagues");
+      expect(String(post![0])).toBe("/api/hr/colleagues");
       expect(JSON.parse(String(post![1]?.body))).toEqual({ userId: "u2", code: "F-009" });
     });
   });
@@ -132,7 +132,7 @@ describe("financeColleaguesPage", () => {
   it("creates a colleague linked to a real user", async () => {
     const user = userEvent.setup();
     routeFetch([]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("No colleagues found.");
 
     await user.click(screen.getByRole("button", { name: "New" }));
@@ -152,7 +152,7 @@ describe("financeColleaguesPage", () => {
   it("edits a colleague and patches the specific id", async () => {
     const user = userEvent.setup();
     routeFetch([colleague()]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "Edit" }));
@@ -165,7 +165,7 @@ describe("financeColleaguesPage", () => {
     await waitFor(() => {
       const patch = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "PATCH");
       expect(patch).toBeTruthy();
-      expect(String(patch![0])).toBe("/api/finance/colleagues/fc1");
+      expect(String(patch![0])).toBe("/api/hr/colleagues/fc1");
       const body = JSON.parse(String(patch![1]?.body));
       expect(body.title).toBe("Lead");
       // The pre-filled user link and status are preserved through the edit.
@@ -177,7 +177,7 @@ describe("financeColleaguesPage", () => {
   it("archives a colleague after confirmation", async () => {
     const user = userEvent.setup();
     routeFetch([colleague()]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "Archive" }));
@@ -187,13 +187,13 @@ describe("financeColleaguesPage", () => {
     await waitFor(() => {
       const del = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "DELETE");
       expect(del).toBeTruthy();
-      expect(String(del![0])).toBe("/api/finance/colleagues/fc1");
+      expect(String(del![0])).toBe("/api/hr/colleagues/fc1");
     });
   });
 
   it("hides the archive action for an already-archived colleague", async () => {
     routeFetch([colleague({ status: "archived" })]);
-    renderWithProviders(<FinanceColleaguesPage />);
+    renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("Alice");
     expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
   });

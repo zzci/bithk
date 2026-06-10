@@ -356,12 +356,12 @@ Direct (user-to-user) and public-link shares for a file entry.
 | `created_by`          | FK → `users.id ON DELETE CASCADE`.                                                   |
 | `created_at` / `updated_at` | ISO strings.                                                                    |
 
-### Finance
+### HR
 
-#### `finance_colleagues`
-Internal finance actors, each linked to exactly one `users` row (real or
+#### `hr_colleagues`
+Internal HR staff members, each linked to exactly one `users` row (real or
 virtual). Rows are archived via `status`, never hard-deleted, so future
-finance records can keep referencing the actor.
+HR records can keep referencing the actor.
 
 | Column                | Notes                                                                                 |
 | --------------------- | ------------------------------------------------------------------------------------- |
@@ -372,8 +372,8 @@ finance records can keep referencing the actor.
 | `created_at` / `updated_at` | ISO strings.                                                                    |
 
 `ON DELETE RESTRICT` means a user (including a virtual user) that is a
-finance colleague cannot be deleted until the colleague link is removed.
-The module's backup contribution (`finance`) declares a dependency on
+HR colleague cannot be deleted until the colleague link is removed.
+The module's backup contribution (`hr`) declares a dependency on
 `users`, so backup restore orders users before colleagues.
 
 ## Schema scope
@@ -385,8 +385,8 @@ sub-type detail tables (`issue_details`, `document_details`), the shared
 tag vocabulary (`tags`) with its three assignment joins (`project_tags`,
 `contact_tags`, `document_tags`), the drive's own five tables
 (`drive_entries`, `team_directories`, `team_directory_members`,
-`drive_file_versions`, `drive_file_shares`), and finance colleagues
-(`finance_colleagues`).
+`drive_file_versions`, `drive_file_shares`), and HR colleagues
+(`hr_colleagues`).
 
 Group membership is **not** a dedicated table — it lives as
 `relation_tuples` rows in the `group` namespace, queried via

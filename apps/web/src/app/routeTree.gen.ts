@@ -17,11 +17,13 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SharedTokenRouteImport } from './routes/shared.$token'
 import { Route as AppOverviewRouteImport } from './routes/_app/overview'
+import { Route as AppHrRouteImport } from './routes/_app/hr'
 import { Route as AppDriveRouteImport } from './routes/_app/drive'
 import { Route as AppDocumentsRouteImport } from './routes/_app/documents'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as AppShipsIndexRouteImport } from './routes/_app/ships/index'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
+import { Route as AppHrIndexRouteImport } from './routes/_app/hr/index'
 import { Route as AppDocumentsIndexRouteImport } from './routes/_app/documents/index'
 import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts/index'
 import { Route as AppShipsShipIdRouteImport } from './routes/_app/ships/$shipId'
@@ -35,7 +37,9 @@ import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
 import { Route as AppShipsShipIdIndexRouteImport } from './routes/_app/ships/$shipId.index'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId.index'
-import { Route as AppFinanceColleaguesIndexRouteImport } from './routes/_app/finance/colleagues/index'
+import { Route as AppHrPayrollIndexRouteImport } from './routes/_app/hr/payroll/index'
+import { Route as AppHrColleaguesIndexRouteImport } from './routes/_app/hr/colleagues/index'
+import { Route as AppHrApprovalsIndexRouteImport } from './routes/_app/hr/approvals/index'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/users/index'
 import { Route as AppShipsShipIdWorklistRouteImport } from './routes/_app/ships/$shipId.worklist'
 import { Route as AppShipsShipIdSettingsRouteImport } from './routes/_app/ships/$shipId.settings'
@@ -92,6 +96,11 @@ const AppOverviewRoute = AppOverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => AppRoute,
 } as any).lazy(() => import('./routes/_app/overview.lazy').then((d) => d.Route))
+const AppHrRoute = AppHrRouteImport.update({
+  id: '/hr',
+  path: '/hr',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDriveRoute = AppDriveRouteImport.update({
   id: '/drive',
   path: '/drive',
@@ -123,6 +132,11 @@ const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/projects/index.lazy').then((d) => d.Route),
 )
+const AppHrIndexRoute = AppHrIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppHrRoute,
+} as any)
 const AppDocumentsIndexRoute = AppDocumentsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -213,14 +227,23 @@ const AppProjectsProjectIdIndexRoute =
   } as any).lazy(() =>
     import('./routes/_app/projects/$projectId.index.lazy').then((d) => d.Route),
   )
-const AppFinanceColleaguesIndexRoute =
-  AppFinanceColleaguesIndexRouteImport.update({
-    id: '/finance/colleagues/',
-    path: '/finance/colleagues/',
-    getParentRoute: () => AppRoute,
-  } as any).lazy(() =>
-    import('./routes/_app/finance/colleagues/index.lazy').then((d) => d.Route),
-  )
+const AppHrPayrollIndexRoute = AppHrPayrollIndexRouteImport.update({
+  id: '/payroll/',
+  path: '/payroll/',
+  getParentRoute: () => AppHrRoute,
+} as any)
+const AppHrColleaguesIndexRoute = AppHrColleaguesIndexRouteImport.update({
+  id: '/colleagues/',
+  path: '/colleagues/',
+  getParentRoute: () => AppHrRoute,
+} as any).lazy(() =>
+  import('./routes/_app/hr/colleagues/index.lazy').then((d) => d.Route),
+)
+const AppHrApprovalsIndexRoute = AppHrApprovalsIndexRouteImport.update({
+  id: '/approvals/',
+  path: '/approvals/',
+  getParentRoute: () => AppHrRoute,
+} as any)
 const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -365,6 +388,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AppAdminRouteWithChildren
   '/documents': typeof AppDocumentsRouteWithChildren
   '/drive': typeof AppDriveRoute
+  '/hr': typeof AppHrRouteWithChildren
   '/overview': typeof AppOverviewRoute
   '/shared/$token': typeof SharedTokenRoute
   '/admin/audit': typeof AppAdminAuditRoute
@@ -378,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/ships/$shipId': typeof AppShipsShipIdRouteWithChildren
   '/contacts/': typeof AppContactsIndexRoute
   '/documents/': typeof AppDocumentsIndexRoute
+  '/hr/': typeof AppHrIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
   '/ships/': typeof AppShipsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
@@ -391,7 +416,9 @@ export interface FileRoutesByFullPath {
   '/ships/$shipId/settings': typeof AppShipsShipIdSettingsRoute
   '/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
-  '/finance/colleagues/': typeof AppFinanceColleaguesIndexRoute
+  '/hr/approvals/': typeof AppHrApprovalsIndexRoute
+  '/hr/colleagues/': typeof AppHrColleaguesIndexRoute
+  '/hr/payroll/': typeof AppHrPayrollIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
   '/ships/$shipId/': typeof AppShipsShipIdIndexRoute
   '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
@@ -418,6 +445,7 @@ export interface FileRoutesByTo {
   '/documents/new': typeof AppDocumentsNewRoute
   '/contacts': typeof AppContactsIndexRoute
   '/documents': typeof AppDocumentsIndexRoute
+  '/hr': typeof AppHrIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/ships': typeof AppShipsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
@@ -431,7 +459,9 @@ export interface FileRoutesByTo {
   '/ships/$shipId/settings': typeof AppShipsShipIdSettingsRoute
   '/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
-  '/finance/colleagues': typeof AppFinanceColleaguesIndexRoute
+  '/hr/approvals': typeof AppHrApprovalsIndexRoute
+  '/hr/colleagues': typeof AppHrColleaguesIndexRoute
+  '/hr/payroll': typeof AppHrPayrollIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
   '/ships/$shipId': typeof AppShipsShipIdIndexRoute
   '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
@@ -451,6 +481,7 @@ export interface FileRoutesById {
   '/_app/admin': typeof AppAdminRouteWithChildren
   '/_app/documents': typeof AppDocumentsRouteWithChildren
   '/_app/drive': typeof AppDriveRoute
+  '/_app/hr': typeof AppHrRouteWithChildren
   '/_app/overview': typeof AppOverviewRoute
   '/shared/$token': typeof SharedTokenRoute
   '/_app/admin/audit': typeof AppAdminAuditRoute
@@ -464,6 +495,7 @@ export interface FileRoutesById {
   '/_app/ships/$shipId': typeof AppShipsShipIdRouteWithChildren
   '/_app/contacts/': typeof AppContactsIndexRoute
   '/_app/documents/': typeof AppDocumentsIndexRoute
+  '/_app/hr/': typeof AppHrIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/ships/': typeof AppShipsIndexRoute
   '/_app/admin/users/groups': typeof AppAdminUsersGroupsRoute
@@ -477,7 +509,9 @@ export interface FileRoutesById {
   '/_app/ships/$shipId/settings': typeof AppShipsShipIdSettingsRoute
   '/_app/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
-  '/_app/finance/colleagues/': typeof AppFinanceColleaguesIndexRoute
+  '/_app/hr/approvals/': typeof AppHrApprovalsIndexRoute
+  '/_app/hr/colleagues/': typeof AppHrColleaguesIndexRoute
+  '/_app/hr/payroll/': typeof AppHrPayrollIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
   '/_app/ships/$shipId/': typeof AppShipsShipIdIndexRoute
   '/_app/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
@@ -497,6 +531,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/documents'
     | '/drive'
+    | '/hr'
     | '/overview'
     | '/shared/$token'
     | '/admin/audit'
@@ -510,6 +545,7 @@ export interface FileRouteTypes {
     | '/ships/$shipId'
     | '/contacts/'
     | '/documents/'
+    | '/hr/'
     | '/projects/'
     | '/ships/'
     | '/admin/users/groups'
@@ -523,7 +559,9 @@ export interface FileRouteTypes {
     | '/ships/$shipId/settings'
     | '/ships/$shipId/worklist'
     | '/admin/users/'
-    | '/finance/colleagues/'
+    | '/hr/approvals/'
+    | '/hr/colleagues/'
+    | '/hr/payroll/'
     | '/projects/$projectId/'
     | '/ships/$shipId/'
     | '/projects/$projectId/from/$shipId'
@@ -550,6 +588,7 @@ export interface FileRouteTypes {
     | '/documents/new'
     | '/contacts'
     | '/documents'
+    | '/hr'
     | '/projects'
     | '/ships'
     | '/admin/users/groups'
@@ -563,7 +602,9 @@ export interface FileRouteTypes {
     | '/ships/$shipId/settings'
     | '/ships/$shipId/worklist'
     | '/admin/users'
-    | '/finance/colleagues'
+    | '/hr/approvals'
+    | '/hr/colleagues'
+    | '/hr/payroll'
     | '/projects/$projectId'
     | '/ships/$shipId'
     | '/projects/$projectId/from/$shipId'
@@ -582,6 +623,7 @@ export interface FileRouteTypes {
     | '/_app/admin'
     | '/_app/documents'
     | '/_app/drive'
+    | '/_app/hr'
     | '/_app/overview'
     | '/shared/$token'
     | '/_app/admin/audit'
@@ -595,6 +637,7 @@ export interface FileRouteTypes {
     | '/_app/ships/$shipId'
     | '/_app/contacts/'
     | '/_app/documents/'
+    | '/_app/hr/'
     | '/_app/projects/'
     | '/_app/ships/'
     | '/_app/admin/users/groups'
@@ -608,7 +651,9 @@ export interface FileRouteTypes {
     | '/_app/ships/$shipId/settings'
     | '/_app/ships/$shipId/worklist'
     | '/_app/admin/users/'
-    | '/_app/finance/colleagues/'
+    | '/_app/hr/approvals/'
+    | '/_app/hr/colleagues/'
+    | '/_app/hr/payroll/'
     | '/_app/projects/$projectId/'
     | '/_app/ships/$shipId/'
     | '/_app/projects/$projectId/from/$shipId'
@@ -686,6 +731,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOverviewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/hr': {
+      id: '/_app/hr'
+      path: '/hr'
+      fullPath: '/hr'
+      preLoaderRoute: typeof AppHrRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/drive': {
       id: '/_app/drive'
       path: '/drive'
@@ -720,6 +772,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/'
       preLoaderRoute: typeof AppProjectsIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/hr/': {
+      id: '/_app/hr/'
+      path: '/'
+      fullPath: '/hr/'
+      preLoaderRoute: typeof AppHrIndexRouteImport
+      parentRoute: typeof AppHrRoute
     }
     '/_app/documents/': {
       id: '/_app/documents/'
@@ -812,12 +871,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdIndexRouteImport
       parentRoute: typeof AppProjectsProjectIdRoute
     }
-    '/_app/finance/colleagues/': {
-      id: '/_app/finance/colleagues/'
-      path: '/finance/colleagues'
-      fullPath: '/finance/colleagues/'
-      preLoaderRoute: typeof AppFinanceColleaguesIndexRouteImport
-      parentRoute: typeof AppRoute
+    '/_app/hr/payroll/': {
+      id: '/_app/hr/payroll/'
+      path: '/payroll'
+      fullPath: '/hr/payroll/'
+      preLoaderRoute: typeof AppHrPayrollIndexRouteImport
+      parentRoute: typeof AppHrRoute
+    }
+    '/_app/hr/colleagues/': {
+      id: '/_app/hr/colleagues/'
+      path: '/colleagues'
+      fullPath: '/hr/colleagues/'
+      preLoaderRoute: typeof AppHrColleaguesIndexRouteImport
+      parentRoute: typeof AppHrRoute
+    }
+    '/_app/hr/approvals/': {
+      id: '/_app/hr/approvals/'
+      path: '/approvals'
+      fullPath: '/hr/approvals/'
+      preLoaderRoute: typeof AppHrApprovalsIndexRouteImport
+      parentRoute: typeof AppHrRoute
     }
     '/_app/admin/users/': {
       id: '/_app/admin/users/'
@@ -984,6 +1057,22 @@ const AppDocumentsRouteWithChildren = AppDocumentsRoute._addFileChildren(
   AppDocumentsRouteChildren,
 )
 
+interface AppHrRouteChildren {
+  AppHrIndexRoute: typeof AppHrIndexRoute
+  AppHrApprovalsIndexRoute: typeof AppHrApprovalsIndexRoute
+  AppHrColleaguesIndexRoute: typeof AppHrColleaguesIndexRoute
+  AppHrPayrollIndexRoute: typeof AppHrPayrollIndexRoute
+}
+
+const AppHrRouteChildren: AppHrRouteChildren = {
+  AppHrIndexRoute: AppHrIndexRoute,
+  AppHrApprovalsIndexRoute: AppHrApprovalsIndexRoute,
+  AppHrColleaguesIndexRoute: AppHrColleaguesIndexRoute,
+  AppHrPayrollIndexRoute: AppHrPayrollIndexRoute,
+}
+
+const AppHrRouteWithChildren = AppHrRoute._addFileChildren(AppHrRouteChildren)
+
 interface AppProjectsProjectIdIssuesRouteChildren {
   AppProjectsProjectIdIssuesIssueIdRoute: typeof AppProjectsProjectIdIssuesIssueIdRoute
 }
@@ -1062,13 +1151,13 @@ interface AppRouteChildren {
   AppAdminRoute: typeof AppAdminRouteWithChildren
   AppDocumentsRoute: typeof AppDocumentsRouteWithChildren
   AppDriveRoute: typeof AppDriveRoute
+  AppHrRoute: typeof AppHrRouteWithChildren
   AppOverviewRoute: typeof AppOverviewRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRouteWithChildren
   AppShipsShipIdRoute: typeof AppShipsShipIdRouteWithChildren
   AppContactsIndexRoute: typeof AppContactsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppShipsIndexRoute: typeof AppShipsIndexRoute
-  AppFinanceColleaguesIndexRoute: typeof AppFinanceColleaguesIndexRoute
   AppProjectsProjectIdIssuesIssueIdFullRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRoute
   AppProjectsProjectIdProcurementsProcurementIdFullRoute: typeof AppProjectsProjectIdProcurementsProcurementIdFullRoute
 }
@@ -1077,13 +1166,13 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminRoute: AppAdminRouteWithChildren,
   AppDocumentsRoute: AppDocumentsRouteWithChildren,
   AppDriveRoute: AppDriveRoute,
+  AppHrRoute: AppHrRouteWithChildren,
   AppOverviewRoute: AppOverviewRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRouteWithChildren,
   AppShipsShipIdRoute: AppShipsShipIdRouteWithChildren,
   AppContactsIndexRoute: AppContactsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppShipsIndexRoute: AppShipsIndexRoute,
-  AppFinanceColleaguesIndexRoute: AppFinanceColleaguesIndexRoute,
   AppProjectsProjectIdIssuesIssueIdFullRoute:
     AppProjectsProjectIdIssuesIssueIdFullRoute,
   AppProjectsProjectIdProcurementsProcurementIdFullRoute:

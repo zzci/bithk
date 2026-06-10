@@ -1,14 +1,30 @@
 {
-  "nav": "财务",
+  "nav": "人事",
+  "tabs": {
+    "colleagues": "同事",
+    "approvals": "审批",
+    "payroll": "薪资"
+  },
+  "placeholder": {
+    "comingSoon": "该模块尚未开放，敬请期待。"
+  },
+  "approvals": {
+    "title": "审批",
+    "description": "人事相关申请的审批流程。"
+  },
+  "payroll": {
+    "title": "薪资",
+    "description": "内部人员的薪资管理。"
+  },
   "colleagues": {
-    "title": "财务同事",
-    "description": "管理关联到真实或虚拟用户的财务内部人员。",
+    "title": "同事",
+    "description": "管理关联到真实或虚拟用户的内部人员。",
     "searchPlaceholder": "按姓名、用户名或编号搜索...",
     "totalCount": "{{count}} 位同事",
     "noResults": "未找到同事。",
     "create": "新增",
     "createTitle": "新增同事",
-    "createDescription": "将现有真实或虚拟用户关联为财务同事。",
+    "createDescription": "将现有真实或虚拟用户关联为同事。",
     "editTitle": "编辑同事",
     "editDescription": "更新同事信息与状态。",
     "virtualBadge": "虚拟",

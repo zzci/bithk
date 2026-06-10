@@ -9,7 +9,7 @@ export * from "@/modules/cron/schema";
 export * from "@/modules/document/schema";
 export * from "@/modules/drive/schema";
 export * from "@/modules/file/schema";
-export * from "@/modules/finance/schema";
+export * from "@/modules/hr/schema";
 export * from "@/modules/issue/schema";
 export * from "@/modules/item/schema";
 export * from "@/modules/policy/schema";
