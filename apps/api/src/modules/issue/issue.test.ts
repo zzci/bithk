@@ -58,6 +58,7 @@ const SCHEMA_DDL: readonly string[] = [
     role TEXT NOT NULL DEFAULT 'user',
     status TEXT NOT NULL DEFAULT 'active',
     is_virtual INTEGER NOT NULL DEFAULT false,
+    global_role_id TEXT,
     last_login_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
