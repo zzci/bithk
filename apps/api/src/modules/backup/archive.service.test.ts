@@ -10,6 +10,7 @@ import { sql } from "drizzle-orm";
 import { extract as tarExtract } from "tar-stream";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
+import { cronBackupContribution } from "@/modules/cron/cron.backup";
 import { fileBackupContribution } from "@/modules/file/file.backup";
 import { deriveStorageKey } from "@/modules/file/storage/key";
 import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storage/local";
@@ -301,6 +302,58 @@ describe("writeArchiveV2 — blobs", () => {
     expect(entryA.data.equals(Buffer.from(bytesA))).toBe(true);
     const entryB = blobEntries.find(e => e.name === `blobs/${keyB}`)!;
     expect(entryB.data.equals(Buffer.from(bytesB))).toBe(true);
+  });
+});
+
+describe("writeArchiveV2 — redaction (token-route policy)", () => {
+  test("redacted:true scrubs secret-typed fields per row and flags the manifest", async () => {
+    registerBackupContribution(cronBackupContribution);
+    const secret = "Bearer super-secret-xyz-do-not-leak";
+    await db.run(sql`
+      INSERT INTO cron_jobs (id, name, cron, task_type, task_config, enabled, is_deleted, max_consecutive_failures, created_at, updated_at)
+      VALUES ('job-1', 'nightly', '0 0 * * *', 'http_request', ${JSON.stringify({ url: "https://x", headers: { authorization: secret } })}, 1, 0, 3, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+    `);
+
+    const { manifest, archivePath } = await writeArchiveV2({
+      db,
+      modules: ["cron"],
+      blobsMode: "none",
+      redacted: true,
+      stagingDir,
+      appName: "app",
+    });
+    expect(manifest.redacted).toBe(true);
+
+    const entries = await readArchive(archivePath);
+    // The plaintext secret must never appear anywhere in the artifact.
+    expect(entries.some(e => e.data.includes("super-secret-xyz"))).toBe(false);
+    const rows = parseNdjson(entries.find(e => e.name === "data/cron_jobs.ndjson")!);
+    const job = rows.find(r => r.id === "job-1")!;
+    expect(job.taskConfig).toBe("[REDACTED]");
+    // Non-secret columns survive untouched.
+    expect(job.name).toBe("nightly");
+  });
+
+  test("the default stays unredacted — the admin restore-complete path", async () => {
+    registerBackupContribution(cronBackupContribution);
+    const secret = "Bearer keep-me-admin-export";
+    await db.run(sql`
+      INSERT INTO cron_jobs (id, name, cron, task_type, task_config, enabled, is_deleted, max_consecutive_failures, created_at, updated_at)
+      VALUES ('job-1', 'nightly', '0 0 * * *', 'http_request', ${JSON.stringify({ url: "https://x", headers: { authorization: secret } })}, 1, 0, 3, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+    `);
+
+    const { manifest, archivePath } = await writeArchiveV2({
+      db,
+      modules: ["cron"],
+      blobsMode: "none",
+      stagingDir,
+      appName: "app",
+    });
+    expect(manifest.redacted).toBe(false);
+
+    const entries = await readArchive(archivePath);
+    const rows = parseNdjson(entries.find(e => e.name === "data/cron_jobs.ndjson")!);
+    expect(rows.find(r => r.id === "job-1")!.taskConfig).toContain("keep-me-admin-export");
   });
 });
 

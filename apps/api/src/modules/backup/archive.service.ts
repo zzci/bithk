@@ -37,6 +37,7 @@ import { deriveStorageKey } from "@/modules/file/storage/key";
 import { getActiveDriver } from "@/modules/file/storage/registry";
 import { ROOT_DIR } from "@/root";
 import { getDataModules, getTablesForModules, resolveModulesWithDeps } from "./registry";
+import { redactSecretFields } from "./secret-fields";
 
 export const BACKUP_FORMAT = "bithk-backup";
 export const BACKUP_FORMAT_VERSION = 2;
@@ -131,6 +132,12 @@ export interface WriteArchiveV2Options {
   readonly stagingDir: string;
   /** `APP_NAME` — recorded in `manifest.app.name`. */
   readonly appName: string;
+  /**
+   * Scrub secret-typed fields (`SECRET_FIELD_NAMES`) from every NDJSON row
+   * and set `manifest.redacted: true` — the token-route export policy (R6).
+   * Admin exports stay unredacted (the restore-complete path).
+   */
+  readonly redacted?: boolean;
   /** Abort flag, checked between row batches and between tar entries. */
   readonly isCancelled?: () => boolean;
   readonly onProgress?: (progress: ArchiveProgress) => void;
@@ -365,6 +372,7 @@ async function packGzippedTar(
 export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<WriteArchiveV2Result> {
   const { db, stagingDir } = opts;
   const blobsMode: BlobsMode = opts.blobsMode ?? (opts.includeBlobs === false ? "none" : "embedded");
+  const redacted = opts.redacted === true;
   const isCancelled = opts.isCancelled ?? (() => false);
 
   const modules = resolveModulesWithDeps(opts.modules);
@@ -401,7 +409,7 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
     let rowCount = 0;
     try {
       for await (const row of streamTableRows(db, table, isCancelled)) {
-        sink.write(`${JSON.stringify(row)}\n`);
+        sink.write(`${JSON.stringify(redacted ? redactSecretFields(row) : row)}\n`);
         rowCount++;
       }
     }
@@ -463,7 +471,7 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
     exportedAt: new Date().toISOString(),
     app: { name: opts.appName, version: BUILD_INFO.version, commit: BUILD_INFO.commit },
     schema: { dialect: "sqlite", journal: readSchemaJournal() },
-    redacted: false,
+    redacted,
     includeBlobs: blobsMode !== "none",
     blobsMode,
     expectedBlobs,

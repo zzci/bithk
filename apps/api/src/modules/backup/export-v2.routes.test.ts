@@ -68,6 +68,7 @@ function syntheticRunningJob(): ExportJob {
     state: "running",
     modules: ["settings"],
     blobsMode: "embedded",
+    redacted: false,
     createdAt: new Date().toISOString(),
     stagingDir: resolve(getBackupStagingRoot(config), "exports", "synthetic"),
     progress: { tablesDone: 0, tablesTotal: 1, blobBytesDone: 0, blobBytesTotal: 0 },

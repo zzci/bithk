@@ -52,6 +52,14 @@ export interface ExportJob {
   /** Modules as requested; the manifest records the resolved closure. */
   readonly modules: readonly string[];
   readonly blobsMode: BlobsMode;
+  /**
+   * Visibility owner (PLAN-075 R6): `undefined` for admin-created jobs,
+   * the per-token bucket key for token-created ones. Token routes only see
+   * jobs of their own bucket; admin routes see every job.
+   */
+  readonly ownerBucket?: string;
+  /** Token-created jobs write redacted archives (`manifest.redacted`). */
+  readonly redacted: boolean;
   readonly createdAt: string;
   readonly stagingDir: string;
   progress: ArchiveProgress;
@@ -90,6 +98,10 @@ export function getExportJob(id: string): ExportJob | undefined {
 export interface StartExportJobOptions {
   readonly modules: readonly string[];
   readonly blobsMode: BlobsMode;
+  /** Token bucket of the creating service token; omit for admin jobs. */
+  readonly ownerBucket?: string;
+  /** Write the archive redacted (token-route policy). */
+  readonly redacted?: boolean;
 }
 
 /**
@@ -112,6 +124,8 @@ export function startExportJob(
     state: "pending",
     modules: [...opts.modules],
     blobsMode: opts.blobsMode,
+    ...(opts.ownerBucket !== undefined ? { ownerBucket: opts.ownerBucket } : {}),
+    redacted: opts.redacted === true,
     createdAt: new Date().toISOString(),
     stagingDir,
     progress: { tablesDone: 0, tablesTotal: 0, blobBytesDone: 0, blobBytesTotal: 0 },
@@ -127,6 +141,7 @@ export function startExportJob(
         db,
         modules: opts.modules,
         blobsMode: opts.blobsMode,
+        redacted: job.redacted,
         stagingDir,
         appName: config.APP_NAME,
         isCancelled: () => job.cancelRequested,

@@ -9,55 +9,25 @@ import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { serviceTokenRequired } from "@/shared/middleware/service-token";
 import { streamJsonBackup } from "./export.service";
 import { getDataModules, getModuleNames } from "./registry";
+import { redactSecretFields } from "./secret-fields";
 
 // Per-token in-flight semaphore + minimum-interval gate. A leaked
 // backup token must not double as a DOS lever: each token can have
 // at most one streaming export in progress at a time, and successive
 // successful exports are spaced at least `BACKUP_EXPORT_MIN_INTERVAL_SECONDS`
 // apart. State is process-local — for HA pairs, set the env var on every
-// replica.
-const backupExportInFlight = new Set<string>();
-const backupExportLastSuccess = new Map<string, number>();
+// replica. Exported because the v2 token job trigger
+// (`export-v2-token.routes.ts`) shares the SAME gates: one token, one
+// export pipeline, regardless of format version.
+export const backupExportInFlight = new Set<string>();
+export const backupExportLastSuccess = new Map<string, number>();
 const RE_NON_ALNUM = /\W+/g;
 
-function tokenBucketKey(token: string): string {
+export function tokenBucketKey(token: string): string {
   return `t:${token.slice(0, 8).replace(RE_NON_ALNUM, "_")}`;
 }
 
 const RE_TIMESTAMP_CHARS = /[:.]/g;
-
-// Secret-typed field names (drizzle property keys) that may appear in a
-// backup-exported row. Their values are redacted in the *token* export so a
-// leaked backup token cannot exfiltrate live credentials:
-//  - `taskConfig`  cron_jobs JSON blob (http-request Bearer headers / `secret` inputs)
-//  - `token` / `password`  public-share secret handle + argon2id hash (`shares`)
-//  - `secret`  TOTP device seed (`user_totp_devices`)
-//  - `accessToken` / `refreshToken`  session + TOTP-challenge OAuth material
-//  - `codeVerifier`  PKCE verifier HMAC
-// Matched at ANY nesting depth so secrets buried inside a decoded JSON blob are
-// caught too. None of these names collides with a benign exported column.
-const SECRET_FIELD_NAMES = new Set<string>([
-  "taskConfig",
-  "token",
-  "password",
-  "secret",
-  "accessToken",
-  "refreshToken",
-  "codeVerifier",
-]);
-const REDACTED = "[REDACTED]";
-
-function redactSecretFields(value: unknown): unknown {
-  if (Array.isArray(value))
-    return value.map(redactSecretFields);
-  if (value !== null && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>))
-      out[k] = SECRET_FIELD_NAMES.has(k) ? REDACTED : redactSecretFields(v);
-    return out;
-  }
-  return value;
-}
 
 // `streamJsonBackup` enqueues each row as one complete chunk — `JSON.stringify(row)`,
 // optionally prefixed with a `,` separator — and emits the structural scaffolding
