@@ -1,0 +1,34 @@
+{
+  "nav": "Roles",
+  "page": {
+    "title": "Role Management",
+    "description": "Manage global roles and the modules each role can access."
+  },
+  "selectRole": "Role",
+  "create": "New role",
+  "createTitle": "New role",
+  "editTitle": "Edit role",
+  "system": "System",
+  "defaultRoleNote": "The default role applies to every user without an assigned role. It can be edited but not deleted.",
+  "field": {
+    "name": "Name",
+    "modules": "Visible modules"
+  },
+  "modules": {
+    "documents": "Documents",
+    "drive": "Drive",
+    "projects": "Projects",
+    "ships": "Ships",
+    "contacts": "Contacts",
+    "hr": "HR"
+  },
+  "delete": {
+    "title": "Delete role",
+    "confirm": "Are you sure you want to delete \"{{name}}\"? Users with this role fall back to the default role."
+  },
+  "toast": {
+    "created": "Role created",
+    "updated": "Role updated",
+    "deleted": "Role deleted"
+  }
+}

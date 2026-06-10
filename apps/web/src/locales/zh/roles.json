@@ -1,0 +1,34 @@
+{
+  "nav": "角色",
+  "page": {
+    "title": "角色管理",
+    "description": "管理全局角色及每个角色可访问的模块。"
+  },
+  "selectRole": "角色",
+  "create": "新建角色",
+  "createTitle": "新建角色",
+  "editTitle": "编辑角色",
+  "system": "系统",
+  "defaultRoleNote": "默认角色适用于所有未指定角色的用户，可编辑但不可删除。",
+  "field": {
+    "name": "名称",
+    "modules": "可见模块"
+  },
+  "modules": {
+    "documents": "文档",
+    "drive": "网盘",
+    "projects": "项目",
+    "ships": "船舶",
+    "contacts": "联系人",
+    "hr": "人事"
+  },
+  "delete": {
+    "title": "删除角色",
+    "confirm": "确定要删除「{{name}}」吗？拥有该角色的用户将回退到默认角色。"
+  },
+  "toast": {
+    "created": "角色已创建",
+    "updated": "角色已更新",
+    "deleted": "角色已删除"
+  }
+}

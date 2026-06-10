@@ -32,6 +32,7 @@ import { Route as AppDocumentsNewRouteImport } from './routes/_app/documents/new
 import { Route as AppDocumentsDocIdRouteImport } from './routes/_app/documents/$docId'
 import { Route as AppAdminUsersRouteImport } from './routes/_app/admin/users'
 import { Route as AppAdminSettingsRouteImport } from './routes/_app/admin/settings'
+import { Route as AppAdminRolesRouteImport } from './routes/_app/admin/roles'
 import { Route as AppAdminPoliciesRouteImport } from './routes/_app/admin/policies'
 import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
@@ -190,6 +191,13 @@ const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
   getParentRoute: () => AppAdminRoute,
 } as any).lazy(() =>
   import('./routes/_app/admin/settings.lazy').then((d) => d.Route),
+)
+const AppAdminRolesRoute = AppAdminRolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => AppAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_app/admin/roles.lazy').then((d) => d.Route),
 )
 const AppAdminPoliciesRoute = AppAdminPoliciesRouteImport.update({
   id: '/policies',
@@ -394,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/cron': typeof AppAdminCronRoute
   '/admin/policies': typeof AppAdminPoliciesRoute
+  '/admin/roles': typeof AppAdminRolesRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/documents/$docId': typeof AppDocumentsDocIdRoute
@@ -440,6 +449,7 @@ export interface FileRoutesByTo {
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/cron': typeof AppAdminCronRoute
   '/admin/policies': typeof AppAdminPoliciesRoute
+  '/admin/roles': typeof AppAdminRolesRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
@@ -487,6 +497,7 @@ export interface FileRoutesById {
   '/_app/admin/audit': typeof AppAdminAuditRoute
   '/_app/admin/cron': typeof AppAdminCronRoute
   '/_app/admin/policies': typeof AppAdminPoliciesRoute
+  '/_app/admin/roles': typeof AppAdminRolesRoute
   '/_app/admin/settings': typeof AppAdminSettingsRoute
   '/_app/admin/users': typeof AppAdminUsersRouteWithChildren
   '/_app/documents/$docId': typeof AppDocumentsDocIdRoute
@@ -537,6 +548,7 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/cron'
     | '/admin/policies'
+    | '/admin/roles'
     | '/admin/settings'
     | '/admin/users'
     | '/documents/$docId'
@@ -583,6 +595,7 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/cron'
     | '/admin/policies'
+    | '/admin/roles'
     | '/admin/settings'
     | '/documents/$docId'
     | '/documents/new'
@@ -629,6 +642,7 @@ export interface FileRouteTypes {
     | '/_app/admin/audit'
     | '/_app/admin/cron'
     | '/_app/admin/policies'
+    | '/_app/admin/roles'
     | '/_app/admin/settings'
     | '/_app/admin/users'
     | '/_app/documents/$docId'
@@ -836,6 +850,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminSettingsRouteImport
       parentRoute: typeof AppAdminRoute
     }
+    '/_app/admin/roles': {
+      id: '/_app/admin/roles'
+      path: '/roles'
+      fullPath: '/admin/roles'
+      preLoaderRoute: typeof AppAdminRolesRouteImport
+      parentRoute: typeof AppAdminRoute
+    }
     '/_app/admin/policies': {
       id: '/_app/admin/policies'
       path: '/policies'
@@ -1025,6 +1046,7 @@ interface AppAdminRouteChildren {
   AppAdminAuditRoute: typeof AppAdminAuditRoute
   AppAdminCronRoute: typeof AppAdminCronRoute
   AppAdminPoliciesRoute: typeof AppAdminPoliciesRoute
+  AppAdminRolesRoute: typeof AppAdminRolesRoute
   AppAdminSettingsRoute: typeof AppAdminSettingsRoute
   AppAdminUsersRoute: typeof AppAdminUsersRouteWithChildren
 }
@@ -1033,6 +1055,7 @@ const AppAdminRouteChildren: AppAdminRouteChildren = {
   AppAdminAuditRoute: AppAdminAuditRoute,
   AppAdminCronRoute: AppAdminCronRoute,
   AppAdminPoliciesRoute: AppAdminPoliciesRoute,
+  AppAdminRolesRoute: AppAdminRolesRoute,
   AppAdminSettingsRoute: AppAdminSettingsRoute,
   AppAdminUsersRoute: AppAdminUsersRouteWithChildren,
 }

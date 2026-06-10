@@ -26,6 +26,12 @@
       "deleted": "虚拟用户已删除"
     }
   },
+  "globalRole": {
+    "label": "角色",
+    "toast": {
+      "assigned": "角色已更新"
+    }
+  },
   "roleAdmin": "管理员",
   "roleUser": "普通用户",
   "totalCount": "{{count}} 个用户",
@@ -37,6 +43,7 @@
     "name": "姓名",
     "email": "邮箱",
     "status": "状态",
+    "globalRole": "角色",
     "lastLogin": "最后登录",
     "groups": "所属组",
     "actions": "操作"

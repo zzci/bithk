@@ -22,6 +22,7 @@ const userColumns = {
   role: users.role,
   status: users.status,
   isVirtual: users.isVirtual,
+  globalRoleId: users.globalRoleId,
   lastLoginAt: users.lastLoginAt,
   createdAt: users.createdAt,
   updatedAt: users.updatedAt,
