@@ -5,16 +5,107 @@
     "approvals": "审批",
     "payroll": "薪资"
   },
-  "placeholder": {
-    "comingSoon": "该模块尚未开放，敬请期待。"
-  },
   "approvals": {
     "title": "审批",
-    "description": "人事相关申请的审批流程。"
+    "description": "为同事提交的审批申请；已裁决的记录不可更改。",
+    "searchPlaceholder": "按标题或申请人搜索...",
+    "totalCount": "{{count}} 条申请",
+    "noResults": "未找到审批申请。",
+    "create": "新增",
+    "createTitle": "新增审批申请",
+    "createDescription": "为在职同事提交一条审批申请。",
+    "editTitle": "编辑审批申请",
+    "editDescription": "仅待审批的申请可以编辑；已裁决的不可更改。",
+    "selectColleague": "选择同事",
+    "approve": "通过",
+    "reject": "驳回",
+    "approveTitle": "通过申请",
+    "rejectTitle": "驳回申请",
+    "decisionConfirm": "{{name}} 的申请「{{title}}」。裁决后不可更改，请确认。",
+    "deleteTitle": "撤回申请",
+    "deleteConfirm": "确定要撤回「{{title}}」吗？仅待审批的申请可以撤回。",
+    "type": {
+      "leave": "请假",
+      "overtime": "加班",
+      "business_trip": "出差",
+      "other": "其他"
+    },
+    "status": {
+      "pending": "待审批",
+      "approved": "已通过",
+      "rejected": "已驳回"
+    },
+    "field": {
+      "applicant": "申请人",
+      "type": "类型",
+      "title": "标题",
+      "reason": "事由",
+      "status": "状态",
+      "note": "裁决备注（可选）"
+    },
+    "col": {
+      "applicant": "申请人",
+      "type": "类型",
+      "title": "标题",
+      "status": "状态",
+      "decision": "裁决人",
+      "actions": "操作"
+    },
+    "toast": {
+      "created": "申请已创建",
+      "updated": "申请已更新",
+      "approved": "申请已通过",
+      "rejected": "申请已驳回",
+      "deleted": "申请已撤回"
+    }
   },
   "payroll": {
     "title": "薪资",
-    "description": "内部人员的薪资管理。"
+    "description": "按同事按月管理薪资记录；金额为该币种最小单位的整数。",
+    "totalCount": "{{count}} 条记录",
+    "noResults": "未找到薪资记录。",
+    "create": "新增",
+    "createTitle": "新增薪资记录",
+    "createDescription": "每位同事每月一条记录；实发金额自动计算。",
+    "editTitle": "编辑薪资记录",
+    "editDescription": "仅待发放的记录可以编辑；已发放的不可更改。",
+    "selectColleague": "选择同事",
+    "markPaid": "标记已发放",
+    "markPaidTitle": "标记为已发放",
+    "markPaidConfirm": "确认向 {{name}} 发放 {{period}} 的 {{amount}} 吗？发放后记录不可更改。",
+    "deleteTitle": "删除薪资记录",
+    "deleteConfirm": "确定要删除 {{name}} 的 {{period}} 记录吗？仅待发放的记录可以删除。",
+    "status": {
+      "pending": "待发放",
+      "paid": "已发放"
+    },
+    "field": {
+      "colleague": "同事",
+      "period": "期间",
+      "baseSalary": "基本工资",
+      "bonus": "奖金",
+      "deduction": "扣减",
+      "currency": "币种",
+      "netAmount": "实发",
+      "status": "状态",
+      "notes": "备注"
+    },
+    "col": {
+      "colleague": "同事",
+      "period": "期间",
+      "baseSalary": "基本",
+      "bonus": "奖金",
+      "deduction": "扣减",
+      "netAmount": "实发",
+      "status": "状态",
+      "actions": "操作"
+    },
+    "toast": {
+      "created": "记录已创建",
+      "updated": "记录已更新",
+      "paid": "已标记发放",
+      "deleted": "记录已删除"
+    }
   },
   "colleagues": {
     "title": "同事",
