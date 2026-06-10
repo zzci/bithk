@@ -215,6 +215,22 @@ import { <name>Routes } from "@/modules/<name>";
 app.route("/", <name>Routes());
 ```
 
+Then register the module's route prefixes for module visibility
+(PLAN-076). Every prefix mounted on the protected router must be claimed —
+the coverage test in
+`apps/api/src/modules/account/roles/middleware.test.ts` fails the build
+otherwise:
+
+- **Main-area (user-facing) module** — add one entry to `MODULES` in
+  `apps/api/src/shared/modules.ts`. The module is then immediately
+  grantable per global role on the admin Roles page, and the module gate
+  answers its routes with 404 for users whose role does not include it.
+  Do NOT add per-route `adminRequired` to such a module — the gate owns
+  access.
+- **Admin-area or cross-cutting surface** — add the prefix to
+  `UNGATED_PREFIXES` in `apps/api/src/modules/account/roles/middleware.ts`
+  and keep your own `adminRequired` / per-resource guards.
+
 ---
 
 ## Step 4 — Policy relation (skip if reusing `item` defaults)
@@ -247,10 +263,18 @@ export const <name>Nav: NavItem = {
   path: "/portal/<NAMES>",
   icon: ListChecks,
   order: 30,
+  module: "<name>", // gateable modules only — mirrors the MODULES key from Step 3
 };
 ```
 
 Then in `apps/web/src/shared/components/sidebar/registry.ts`, add one import line and one entry in the `NAV_ITEMS` array.
+
+For a gateable main-area module, set `module` to the key you registered in
+`MODULES` (Step 3) and mirror it in the `ModuleKey` union in
+`apps/web/src/shared/components/sidebar/types.ts`. The sidebar, command
+palette, and the `_app` module route guard all filter on it via
+`me.modules`. Admin-only pages skip `module` — the `admin` area is gated
+separately.
 
 ---
 

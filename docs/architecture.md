@@ -45,7 +45,7 @@ The outer app serves:
 | Styling | Tailwind CSS |
 | Build | `scripts/package.ts` lode-compatible release artifact |
 | Authentication | External OAuth/OIDC provider with authorization code + PKCE |
-| Authorization | Local Zanzibar-style relation tuples |
+| Authorization | Global-role module visibility gate + local Zanzibar-style relation tuples |
 
 ## Repository Layout
 
@@ -179,6 +179,7 @@ Request
   -> CSRF guard
   -> policy middleware (auto-gates routes declared via defineResource.routes)
   -> route group
+  -> module visibility gate (first on the protected router: 404 for module routes outside the actor's global role)
   -> authRequired where the module requires a session
   -> adminRequired where the module requires admin privileges
   -> handler
@@ -209,6 +210,50 @@ Each session row carries the upstream OAuth `access_token` and `refresh_token` a
 OAuth/OIDC provider configuration is read from environment variables at runtime. The admin settings UI does not own these values, which prevents a bad database setting from breaking login.
 
 ## Authorization Model
+
+Authorization is layered: a global-role **module visibility gate** decides
+which main-area modules a user can see at all, then the relation-tuple policy
+engine and per-project roles decide what the user can do inside a module.
+
+### Global roles and module visibility
+
+Each user holds exactly one global role (`users.global_role_id`); `NULL`
+resolves to the system default role (kind=`default`, name "Member"), which a
+boot backfill guarantees exists. A role grants a set of module keys from the
+static `MODULES` registry (`apps/api/src/shared/modules.ts`):
+`documents`, `drive`, `projects`, `ships`, `contacts`, `hr`. The default
+Member role seeds with every key except `hr`, so existing users keep exactly
+the visibility they had before the feature landed.
+
+Enforcement:
+
+- **API.** A module gate runs first on the protected router. A request whose
+  path is claimed by a module outside the actor's allowed set is answered
+  with the same 404 used for nonexistent resources — fail-closed concealment
+  per [decision 003](decisions/003-fail-closed-404-existence-policy.md)
+  extended to the module level, so hidden modules are indistinguishable from
+  routes that do not exist. Admins (`users.role === "admin"`) bypass without
+  a role lookup; the resolved module set is cached per request. A route
+  coverage test asserts every prefix mounted on the protected router is
+  claimed by exactly one `MODULES` entry or explicitly listed in
+  `UNGATED_PREFIXES`.
+- **`/account/me`.** Returns the resolved `modules` list; the web app treats
+  it as the single source of truth for module visibility.
+- **Web.** Sidebar items carrying a `module` key, the command palette
+  sections, and a generic `_app` module guard (deep links redirect to
+  `/overview`) all filter on `me.modules`.
+- **Search.** Global search restricts result domains to the actor's visible
+  modules.
+
+Admin-area modules (users, policies, audit, cron, settings, backup, and the
+`/global-*` vocabularies including `/global-roles` itself) are NOT
+role-grantable: they keep their existing `adminRequired` guards. Cross-cutting
+surfaces (`/account`, `/search`, `/tags`, `/files`, `/shares`, …) stay
+ungated. One deliberate consequence: a user who is a member of a project but
+whose role lacks the `projects` module loses project access — the module gate
+wins over membership.
+
+### Relation tuples
 
 The policy module stores relation tuples in `relation_tuples` and exposes check and expand operations. Admin users bypass policy checks where the route explicitly uses `adminRequired`.
 

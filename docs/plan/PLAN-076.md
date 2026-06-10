@@ -1,6 +1,6 @@
 # PLAN-076 - Global roles with per-module visibility
 
-- Status: Draft
+- Status: Completed
 - Task: [FEAT-024](../task/FEAT-024.md)
 - Campaign: local
 - Created: 2026-06-10
@@ -182,3 +182,19 @@ change to per-project roles or the tuple policy engine.
 - 2026-06-10: User resolved the three open questions (404 concealment;
   editable default Member role; no overview widget filtering in v1).
   Awaiting explicit `proceed` for implementation.
+- 2026-06-10: Completed. Implemented across four lanes: (A) `global_roles`
+  schema + boot backfill + `users.globalRoleId` FK + `MODULES` registry +
+  admin `/global-roles` CRUD + migration 0003; (B) module gate middleware
+  with 404 concealment, admin bypass, `UNGATED_PREFIXES` and a route-prefix
+  coverage test, `me.modules`, search domain filtering — HR's per-route
+  `adminRequired` removed because the gate owns access; (C) `NavItem.module`
+  + sidebar filtering, generic `_app` module guard (redirect to
+  `/overview`), command palette filtering, hr nav in the main area; (D)
+  `/admin/roles` in-page editor, users-page global-role select,
+  `PATCH /account/users/:id` `globalRoleId`, en/zh i18n. All three user
+  decisions applied; note the default Member role seeds WITHOUT `hr` to
+  preserve rollout-day visibility — hr's admin-only behavior is now achieved
+  by non-grant rather than per-route admin checks. Overview widget filtering
+  stays deferred. Docs: architecture authorization model, module
+  registration contract in the recipe, account/hr/search module docs,
+  database + api references, changelog.
