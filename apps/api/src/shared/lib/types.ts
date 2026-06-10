@@ -2,6 +2,7 @@ import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { users } from "@/modules/account/users/schema";
 import type { Logger } from "@/shared/lib/logger";
+import type { ModuleKey } from "@/shared/modules";
 
 export type User = typeof users.$inferSelect;
 
@@ -15,6 +16,8 @@ export interface AppEnv {
     config: Config;
     logger: Logger;
     user?: User;
+    /** Per-request cache of the actor's visible modules (module gate). */
+    userModules?: readonly ModuleKey[];
   };
 }
 

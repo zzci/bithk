@@ -1,6 +1,7 @@
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { accountRoutes } from "@/modules/account";
+import { moduleGate } from "@/modules/account/roles/middleware";
 import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
 import { contactRoutes } from "@/modules/contact";
@@ -40,6 +41,10 @@ registerTagSource(procurementTagBinding);
 
 export function protectedRoutes() {
   const app = new Hono<AppEnv>();
+
+  // Module visibility gate (PLAN-076): must be registered before any module
+  // router so hidden-module paths 404 before reaching a handler.
+  app.use("*", moduleGate());
 
   app.route("/", accountRoutes());
   app.route("/", tagRoutes());
