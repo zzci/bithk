@@ -2,8 +2,15 @@
 import type { HrTab } from "./-hr-tabs";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { PageHeader } from "@/shared/components/page-header";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { activeHrTab, HR_TAB_TO, hrTabs } from "./-hr-tabs";
+
+// Same trigger styling as the project detail tab-nav
+// (`projects/$projectId.lazy.tsx`): muted resting state that goes solid + bold
+// on the active route.
+const TAB_TRIGGER_CLASS
+  = "px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground";
 
 export const Route = createFileRoute("/_app/hr")({
   component: HrLayout,
@@ -21,20 +28,23 @@ function HrLayout() {
   const tab = activeHrTab(pathname);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <PageHeader title={t("page.title")} description={t("page.description")} />
       <Tabs
         value={tab}
         onValueChange={v => v !== null && void navigate({ to: HR_TAB_TO[v as HrTab] })}
       >
-        <TabsList variant="line">
+        <TabsList variant="line" className="h-auto gap-6 overflow-x-auto text-base">
           {hrTabs().map(d => (
-            <TabsTrigger key={d.value} value={d.value}>
+            <TabsTrigger key={d.value} value={d.value} className={TAB_TRIGGER_CLASS}>
               {t(d.labelKey)}
             </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
-      <Outlet />
+      <div className="pt-1">
+        <Outlet />
+      </div>
     </div>
   );
 }

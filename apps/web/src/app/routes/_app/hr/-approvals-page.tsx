@@ -87,11 +87,6 @@ export function HrApprovalsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">{t("approvals.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("approvals.description")}</p>
-      </div>
-
       {approvalsQuery.error && (
         <ErrorBanner message={errorMessage(approvalsQuery.error, t("common.error.loadFailed"))} />
       )}

@@ -1,13 +1,15 @@
 {
   "nav": "HR",
+  "page": {
+    "title": "HR",
+    "description": "Manage internal colleagues, approval requests, and payroll records."
+  },
   "tabs": {
     "colleagues": "Colleagues",
     "approvals": "Approvals",
     "payroll": "Payroll"
   },
   "approvals": {
-    "title": "Approvals",
-    "description": "Approval requests filed for colleagues; decided records are immutable.",
     "searchPlaceholder": "Search by title or applicant...",
     "totalCount": "{{count}} requests",
     "noResults": "No approval requests found.",
@@ -60,8 +62,6 @@
     }
   },
   "payroll": {
-    "title": "Payroll",
-    "description": "Monthly payroll records per colleague; amounts are integers in the currency's minor unit.",
     "totalCount": "{{count}} records",
     "noResults": "No payroll records found.",
     "create": "New",
@@ -108,8 +108,6 @@
     }
   },
   "colleagues": {
-    "title": "Colleagues",
-    "description": "Manage internal staff members linked to real or virtual users.",
     "searchPlaceholder": "Search by name, username, or code...",
     "totalCount": "{{count}} colleagues",
     "noResults": "No colleagues found.",

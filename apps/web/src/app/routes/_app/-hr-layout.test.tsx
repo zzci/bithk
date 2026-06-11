@@ -20,9 +20,10 @@ const { Route } = await import("./hr");
 const HrLayout = (Route as unknown as { component: () => ReactNode }).component;
 
 describe("hr layout tabs", () => {
-  it("renders the tab nav and outlet", () => {
+  it("renders the page header, tab nav, and outlet", () => {
     renderWithProviders(<HrLayout />);
     expect(screen.getByTestId("outlet")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "HR" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Colleagues" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Approvals" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Payroll" })).toBeInTheDocument();

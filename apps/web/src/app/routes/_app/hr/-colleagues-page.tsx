@@ -81,11 +81,6 @@ export function HrColleaguesPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">{t("colleagues.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("colleagues.description")}</p>
-      </div>
-
       {colleaguesQuery.error && (
         <ErrorBanner message={errorMessage(colleaguesQuery.error, t("common.error.loadFailed"))} />
       )}

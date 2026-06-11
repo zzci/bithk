@@ -81,11 +81,6 @@ export function HrPayrollPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">{t("payroll.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("payroll.description")}</p>
-      </div>
-
       {payrollQuery.error && (
         <ErrorBanner message={errorMessage(payrollQuery.error, t("common.error.loadFailed"))} />
       )}

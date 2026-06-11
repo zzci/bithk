@@ -1,13 +1,15 @@
 {
   "nav": "人事",
+  "page": {
+    "title": "人事",
+    "description": "管理内部同事、审批申请与薪资记录。"
+  },
   "tabs": {
     "colleagues": "同事",
     "approvals": "审批",
     "payroll": "薪资"
   },
   "approvals": {
-    "title": "审批",
-    "description": "为同事提交的审批申请；已裁决的记录不可更改。",
     "searchPlaceholder": "按标题或申请人搜索...",
     "totalCount": "{{count}} 条申请",
     "noResults": "未找到审批申请。",
@@ -60,8 +62,6 @@
     }
   },
   "payroll": {
-    "title": "薪资",
-    "description": "按同事按月管理薪资记录；金额为该币种最小单位的整数。",
     "totalCount": "{{count}} 条记录",
     "noResults": "未找到薪资记录。",
     "create": "新增",
@@ -108,8 +108,6 @@
     }
   },
   "colleagues": {
-    "title": "同事",
-    "description": "管理关联到真实或虚拟用户的内部人员。",
     "searchPlaceholder": "按姓名、用户名或编号搜索...",
     "totalCount": "{{count}} 位同事",
     "noResults": "未找到同事。",

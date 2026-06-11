@@ -11,6 +11,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Changed
+
+- HR module page top now matches the other top-level modules (UI-025): the
+  `/hr` layout renders the shared `PageHeader` (HR title + description) above
+  an underline tab nav styled like the project detail page, and the
+  colleagues/approvals/payroll sub-pages drop their redundant per-tab
+  headings.
+
 ### Fixed
 
 - App display branding now loads from server runtime settings through
