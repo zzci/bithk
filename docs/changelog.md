@@ -13,6 +13,15 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- HTTP access log filtering (FEAT-029): new `HTTP_LOG_LEVEL` env var
+  (`debug | info | silent`, default `info`) sets the level of the
+  per-request "request completed" line for 2xx/3xx responses — `debug`
+  hides them under the default `LOG_LEVEL=info`, `silent` drops them.
+  Failure responses always log regardless: 5xx at `error`, 4xx at `warn`
+  (previously every request logged at `info`). The unhandled-error log
+  line now carries `requestId`, `method`, and `path` so a user-reported
+  `X-Request-Id` can be matched to its stack trace.
+
 - Sidebar feedback button (FEAT-028): a footer entry above the user menu opens
   the anonymous Tally form `jaEZP1` as a popup (official embed widget loaded
   from `index.html`); when the widget script is unavailable the button falls

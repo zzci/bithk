@@ -99,7 +99,7 @@ function installCommonMiddleware(
     c.set("logger", logger);
     return next();
   });
-  api.use("*", loggingMiddleware());
+  api.use("*", loggingMiddleware(config.HTTP_LOG_LEVEL));
   api.use("*", csrfGuard);
   // Global policy enforcement: every route declared in any module's
   // `defineResource.routes` is auto-gated. Undeclared routes pass

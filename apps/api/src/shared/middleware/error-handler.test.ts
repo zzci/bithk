@@ -23,6 +23,7 @@ function buildApp(thrown: Error) {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
     c.set("logger", stubLogger);
+    c.set("requestId", "test-rid");
     return next();
   });
   app.get("/p", () => {
@@ -54,5 +55,9 @@ describe("errorHandler", () => {
     expect(await res.json()).toEqual({ success: false, error: { code: "INTERNAL_ERROR", message: "Internal server error" } });
     expect(captured.length).toBe(1);
     expect(captured[0]!.msg).toBe("unhandled error");
+    const ctx = captured[0]!.ctx as Record<string, unknown>;
+    expect(ctx.requestId).toBe("test-rid");
+    expect(ctx.method).toBe("GET");
+    expect(ctx.path).toBe("/p");
   });
 });

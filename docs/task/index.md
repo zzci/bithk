@@ -128,3 +128,4 @@
 | [FEAT-027](FEAT-027.md) | HR payroll sub-module | [PLAN-078](../plan/PLAN-078.md) | Completed | 2026-06-10 |
 | [UI-025](UI-025.md) | Align HR module header and tab nav with other modules | - | Completed | 2026-06-11 |
 | [FEAT-028](FEAT-028.md) | Sidebar Tally feedback button | - | Completed | 2026-06-11 |
+| [FEAT-029](FEAT-029.md) | HTTP access log filtering via HTTP_LOG_LEVEL | - | Completed | 2026-06-11 |

@@ -34,6 +34,11 @@ export function errorHandler<E extends RequestEnv>(err: Error, c: Context<E>) {
     }, 409);
   }
 
-  c.get("logger").error({ err }, "unhandled error");
+  c.get("logger").error({
+    err,
+    method: c.req.method,
+    path: c.req.path,
+    requestId: c.get("requestId"),
+  }, "unhandled error");
   return c.json({ success: false, error: { code: "INTERNAL_ERROR", message: "Internal server error" } }, 500);
 }
