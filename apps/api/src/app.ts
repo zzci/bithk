@@ -180,13 +180,15 @@ function buildOuterApp(api: Hono<AppEnv>, config: Config) {
     strictTransportSecurity: hstsEnabled ? "max-age=15552000; includeSubDomains" : false,
     contentSecurityPolicy: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
+      // tally.so: anonymous feedback widget (script + popup iframe) wired to
+      // the sidebar feedback button.
+      scriptSrc: ["'self'", "https://tally.so"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:"],
       fontSrc: ["'self'", "data:"],
       connectSrc: ["'self'"],
       frameAncestors: ["'self'"],
-      frameSrc: ["'self'"],
+      frameSrc: ["'self'", "https://tally.so"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
       objectSrc: ["'none'"],

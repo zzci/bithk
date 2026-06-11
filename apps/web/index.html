@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <title>%VITE_APP_DISPLAY_NAME%</title>
+    <!-- Tally mutates embed.js in place (no versioned URL), so SRI would break
+         on their every release; the sidebar button degrades to a plain link
+         when this script is unavailable. -->
+    <script async src="https://tally.so/widgets/embed.js"></script>
   </head>
   <body>
     <div id="root"></div>

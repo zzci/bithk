@@ -137,4 +137,31 @@ describe("appSidebar interactions", () => {
     await user.click(logout);
     expect(logoutMock).toHaveBeenCalled();
   });
+
+  it("opens the Tally popup from the feedback button when the widget is loaded", async () => {
+    const user = userEvent.setup();
+    const openPopup = vi.fn();
+    window.Tally = { openPopup };
+    try {
+      renderSidebar();
+      await user.click(screen.getByRole("button", { name: "Feedback" }));
+      expect(openPopup).toHaveBeenCalledWith("jaEZP1", { width: 480, hideTitle: true });
+    }
+    finally {
+      delete window.Tally;
+    }
+  });
+
+  it("falls back to opening the Tally form in a new tab when the widget is missing", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    try {
+      renderSidebar();
+      await user.click(screen.getByRole("button", { name: "Feedback" }));
+      expect(openSpy).toHaveBeenCalledWith("https://tally.so/r/jaEZP1", "_blank", "noopener");
+    }
+    finally {
+      openSpy.mockRestore();
+    }
+  });
 });

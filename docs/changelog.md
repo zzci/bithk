@@ -11,6 +11,15 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- Sidebar feedback button (FEAT-028): a footer entry above the user menu opens
+  the anonymous Tally form `jaEZP1` as a popup (official embed widget loaded
+  from `index.html`); when the widget script is unavailable the button falls
+  back to opening the form in a new tab, so feedback keeps working while the
+  app itself is erroring. CSP `script-src`/`frame-src` now allow
+  `https://tally.so`.
+
 ### Changed
 
 - HR module page top now matches the other top-level modules (UI-025): the

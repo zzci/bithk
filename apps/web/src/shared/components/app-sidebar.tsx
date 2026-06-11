@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronsUpDown, Languages, LogOut, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, Search, Settings, Sun } from "lucide-react";
+import { ChevronsUpDown, Languages, LogOut, MessageSquarePlus, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen, Search, Settings, Sun } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CommandPalette } from "@/shared/components/command-palette";
@@ -47,6 +47,28 @@ const THEMES = [
   { value: "dark", icon: Moon },
   { value: "system", icon: Monitor },
 ] as const;
+
+// Anonymous feedback form on Tally. The widget script is loaded from
+// index.html; when it is unavailable (offline, blocked) the button degrades
+// to opening the form directly so feedback still works while the app errors.
+const TALLY_FORM_ID = "jaEZP1";
+
+declare global {
+  interface Window {
+    Tally?: {
+      openPopup: (formId: string, options?: { width?: number; hideTitle?: boolean }) => void;
+    };
+  }
+}
+
+function openFeedback(): void {
+  if (window.Tally) {
+    window.Tally.openPopup(TALLY_FORM_ID, { width: 480, hideTitle: true });
+  }
+  else {
+    window.open(`https://tally.so/r/${TALLY_FORM_ID}`, "_blank", "noopener");
+  }
+}
 
 // ---------- Helpers ----------
 
@@ -295,9 +317,15 @@ export function AppSidebar() {
           )}
         </SidebarContent>
 
-        {/* Footer: user avatar + dropdown, then collapse toggle */}
+        {/* Footer: feedback entry, user avatar + dropdown, then collapse toggle */}
         <SidebarFooter>
           <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={openFeedback} tooltip={t("nav.feedback")}>
+                <MessageSquarePlus />
+                <span>{t("nav.feedback")}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             {user && (
               <SidebarMenuItem>
                 <DropdownMenu>

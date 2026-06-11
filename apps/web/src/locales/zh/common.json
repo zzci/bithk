@@ -62,7 +62,8 @@
     "security": "安全",
     "home": "首页",
     "expandSidebar": "展开侧边栏",
-    "collapseSidebar": "折叠侧边栏"
+    "collapseSidebar": "折叠侧边栏",
+    "feedback": "意见反馈"
   },
   "search": {
     "title": "搜索",
