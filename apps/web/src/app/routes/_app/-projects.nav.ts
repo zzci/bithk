@@ -7,4 +7,5 @@ export const projectsNav: NavItem = {
   path: "/projects",
   icon: Layers,
   order: 40,
+  module: "projects",
 };

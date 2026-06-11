@@ -3,10 +3,12 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { sessions } from "@/modules/account/auth/schema";
+import { getRequestUserModules } from "@/modules/account/roles/middleware";
+import { getGlobalRole } from "@/modules/account/roles/roles.service";
 import { userPreferences, users } from "@/modules/account/users/schema";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { AppError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
+import { AppError, NotFoundError, UnauthorizedError, ValidationError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { rateLimit } from "@/shared/middleware/rate-limit";
 import {
@@ -49,9 +51,12 @@ const updateBodySchema = z.object({
   status: z.enum(["active", "disabled"]).optional(),
   name: z.string().min(1).max(255).optional(),
   username: usernameSchema.optional(),
+  // Global role assignment (PLAN-076): explicit null resets to the system
+  // default role (`users.global_role_id` NULL → default-role fallback).
+  globalRoleId: z.string().min(1).nullable().optional(),
 }).refine(
-  d => d.role !== undefined || d.status !== undefined || d.name !== undefined || d.username !== undefined,
-  { message: "At least one of role, status, name or username must be provided" },
+  d => d.role !== undefined || d.status !== undefined || d.name !== undefined || d.username !== undefined || d.globalRoleId !== undefined,
+  { message: "At least one of role, status, name, username or globalRoleId must be provided" },
 );
 
 const createVirtualUserSchema = z.object({
@@ -69,7 +74,10 @@ export function userRoutes() {
   router.get("/account/me", async (c) => {
     const db = c.get("db");
     const user = c.get("user");
-    const userGroupsList = await getUserGroups(db, user.id);
+    const [userGroupsList, modules] = await Promise.all([
+      getUserGroups(db, user.id),
+      getRequestUserModules(c, user),
+    ]);
 
     return c.json({
       success: true,
@@ -84,6 +92,9 @@ export function userRoutes() {
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt,
         groups: userGroupsList,
+        // Visible modules (PLAN-076): admins get every key, everyone else
+        // their global role's set. The web shell derives nav from this.
+        modules,
       },
     });
   });
@@ -375,10 +386,18 @@ export function userRoutes() {
       throw new AppError("Only virtual users can be renamed", 400, "BAD_REQUEST");
     }
 
+    // A non-null global role must reference an existing row; dangling ids
+    // would silently fall back to the default role on resolution.
+    if (body.globalRoleId !== undefined && body.globalRoleId !== null) {
+      const role = await getGlobalRole(db, body.globalRoleId);
+      if (!role)
+        throw new ValidationError("Unknown global role", { globalRoleId: body.globalRoleId });
+    }
+
     const roleChanged = body.role !== undefined && body.role !== existing.role;
     const statusChanged = body.status !== undefined && body.status !== existing.status;
 
-    if (body.role !== undefined || body.status !== undefined) {
+    if (body.role !== undefined || body.status !== undefined || body.globalRoleId !== undefined) {
       // Atomic: either both the user mutation AND the session purge land, or
       // neither does. Without a tx an admin demote could persist while the
       // user keeps an existing admin session live.
@@ -389,6 +408,8 @@ export function userRoutes() {
           setData.role = body.role;
         if (body.status !== undefined)
           setData.status = body.status;
+        if (body.globalRoleId !== undefined)
+          setData.globalRoleId = body.globalRoleId;
 
         tx.update(users).set(setData).where(eq(users.id, id)).run();
 

@@ -1,7 +1,6 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { adminRequired } from "@/shared/middleware/auth";
 import {
   createPayrollRecord,
   deletePayrollRecord,
@@ -54,13 +53,14 @@ const updateBodySchema = z.object({
 );
 
 // Auth: the parent `hrRoutes()` router applies `authRequired` to everything
-// mounted under it; each route here adds the admin gate.
+// mounted under it; access is owned by the protected router's module gate
+// (non-admins need the `hr` module on their global role, admins bypass).
 export function hrPayrollRoutes() {
   const router = new Hono<ProtectedEnv>();
 
-  // ── /hr/payroll — admin-only payroll record management ──
+  // ── /hr/payroll — payroll record management ──
 
-  router.get("/hr/payroll", adminRequired, async (c) => {
+  router.get("/hr/payroll", async (c) => {
     const db = c.get("db");
     const query = listQuerySchema.parse(c.req.query());
     const result = await listPayrollRecords(db, {
@@ -82,7 +82,7 @@ export function hrPayrollRoutes() {
     });
   });
 
-  router.post("/hr/payroll", adminRequired, async (c) => {
+  router.post("/hr/payroll", async (c) => {
     const db = c.get("db");
     const body = createBodySchema.parse(await c.req.json());
     const created = await createPayrollRecord(db, body);
@@ -90,7 +90,7 @@ export function hrPayrollRoutes() {
   });
 
   // Pending-only; `status: "paid"` marks the record paid (stamps `paidAt`).
-  router.patch("/hr/payroll/:id", adminRequired, async (c) => {
+  router.patch("/hr/payroll/:id", async (c) => {
     const db = c.get("db");
     const body = updateBodySchema.parse(await c.req.json());
     const updated = await updatePayrollRecord(db, c.req.param("id"), body);
@@ -98,7 +98,7 @@ export function hrPayrollRoutes() {
   });
 
   // Paid records are immutable history; only pending records can be deleted.
-  router.delete("/hr/payroll/:id", adminRequired, async (c) => {
+  router.delete("/hr/payroll/:id", async (c) => {
     const db = c.get("db");
     await deletePayrollRecord(db, c.req.param("id"));
     return c.json({ success: true });

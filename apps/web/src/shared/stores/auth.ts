@@ -20,6 +20,9 @@ interface User {
   readonly lastLoginAt: string | null;
   readonly createdAt: string;
   readonly groups: readonly UserGroup[];
+  // Visible module keys resolved server-side (admins get every key) —
+  // PLAN-076. Single source of truth for module visibility in the web shell.
+  readonly modules: readonly string[];
 }
 
 /**

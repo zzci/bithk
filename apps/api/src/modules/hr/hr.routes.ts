@@ -1,7 +1,7 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { adminRequired, authRequired } from "@/shared/middleware/auth";
+import { authRequired } from "@/shared/middleware/auth";
 import { hrApprovalsRoutes } from "./hr.approvals.routes";
 import { hrPayrollRoutes } from "./hr.payroll.routes";
 import {
@@ -44,9 +44,12 @@ export function hrRoutes() {
 
   router.use("*", authRequired);
 
-  // ── /hr/colleagues — admin-only colleague management ──
+  // ── /hr/colleagues — colleague management ──
+  // Access is owned by the protected router's module gate: non-admins need
+  // the `hr` module on their global role (the default Member role excludes
+  // it), admins bypass. No per-route adminRequired wrap here.
 
-  router.get("/hr/colleagues", adminRequired, async (c) => {
+  router.get("/hr/colleagues", async (c) => {
     const db = c.get("db");
     const query = listQuerySchema.parse(c.req.query());
     const result = await listColleagues(db, {
@@ -67,14 +70,14 @@ export function hrRoutes() {
     });
   });
 
-  router.post("/hr/colleagues", adminRequired, async (c) => {
+  router.post("/hr/colleagues", async (c) => {
     const db = c.get("db");
     const body = createBodySchema.parse(await c.req.json());
     const created = await createColleague(db, body);
     return c.json({ success: true, data: created }, 201);
   });
 
-  router.patch("/hr/colleagues/:id", adminRequired, async (c) => {
+  router.patch("/hr/colleagues/:id", async (c) => {
     const db = c.get("db");
     const body = updateBodySchema.parse(await c.req.json());
     const updated = await updateColleague(db, c.req.param("id"), body);
@@ -82,7 +85,7 @@ export function hrRoutes() {
   });
 
   // DELETE archives instead of hard-deleting — see archiveColleague.
-  router.delete("/hr/colleagues/:id", adminRequired, async (c) => {
+  router.delete("/hr/colleagues/:id", async (c) => {
     const db = c.get("db");
     const archived = await archiveColleague(db, c.req.param("id"));
     return c.json({ success: true, data: archived });

@@ -7,4 +7,5 @@ export const documentsNav: NavItem = {
   path: "/documents",
   icon: Book,
   order: 30,
+  module: "documents",
 };

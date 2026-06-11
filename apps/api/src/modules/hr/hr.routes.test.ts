@@ -6,10 +6,13 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
+import { moduleGate } from "@/modules/account/roles/middleware";
+import { createGlobalRole } from "@/modules/account/roles/roles.service";
 import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { hrRoutes } from "./hr.routes";
@@ -51,6 +54,8 @@ function buildApp(db: AppDatabase): Hono<AppEnv> {
     c.set("logger", stubLogger);
     await next();
   });
+  // Mirror the protected router: the module gate owns hr access (PLAN-076).
+  app.use("*", moduleGate());
   app.route("/", hrRoutes());
   app.onError(errorHandler);
   return app;
@@ -111,22 +116,34 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-describe("/hr/colleagues admin gating", () => {
-  test("a plain user is denied on every management route (403)", async () => {
+describe("/hr/colleagues module gating", () => {
+  test("a user without the hr module is concealed-404 on every route", async () => {
     const app = buildApp(db);
+    // No global role assigned and no default role seeded → fail-closed to
+    // no modules, exactly like a default Member role (which excludes hr).
     const plain = await sessionForRole("user");
 
     const list = await app.request("/hr/colleagues", { headers: { Cookie: plain.cookie } });
-    expect(list.status).toBe(403);
+    expect(list.status).toBe(404);
 
     const create = await app.request("/hr/colleagues", jsonReq("POST", plain.cookie, { userId: "x" }));
-    expect(create.status).toBe(403);
+    expect(create.status).toBe(404);
 
     const patch = await app.request("/hr/colleagues/x", jsonReq("PATCH", plain.cookie, { title: "T" }));
-    expect(patch.status).toBe(403);
+    expect(patch.status).toBe(404);
 
     const del = await app.request("/hr/colleagues/x", jsonReq("DELETE", plain.cookie));
-    expect(del.status).toBe(403);
+    expect(del.status).toBe(404);
+  });
+
+  test("a user whose role grants hr can list colleagues (200)", async () => {
+    const app = buildApp(db);
+    const member = await sessionForRole("user");
+    const role = await createGlobalRole(db, { name: "HR", modules: ["hr"] });
+    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, member.id)).run();
+
+    const res = await app.request("/hr/colleagues", { headers: { Cookie: member.cookie } });
+    expect(res.status).toBe(200);
   });
 
   test("an unauthenticated request is rejected (401)", async () => {

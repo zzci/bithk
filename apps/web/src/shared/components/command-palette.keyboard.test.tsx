@@ -10,9 +10,11 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
 }));
 
+const ALL_MODULES = ["documents", "drive", "projects", "ships", "contacts", "hr"];
+
 beforeEach(() => {
   navigateMock.mockReset();
-  useAuthStore.setState({ user: { role: "user" } as never, loading: false });
+  useAuthStore.setState({ user: { role: "user", modules: ALL_MODULES } as never, loading: false });
 });
 
 afterEach(() => {
@@ -28,7 +30,7 @@ describe("commandPalette role filtering", () => {
   });
 
   it("includes admin destinations for an admin user", async () => {
-    useAuthStore.setState({ user: { role: "admin" } as never, loading: false });
+    useAuthStore.setState({ user: { role: "admin", modules: ALL_MODULES } as never, loading: false });
     renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
     expect(await screen.findByText("Users")).toBeInTheDocument();
     expect(screen.getByText("Audit Log")).toBeInTheDocument();

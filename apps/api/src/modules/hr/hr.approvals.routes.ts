@@ -1,7 +1,6 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { adminRequired } from "@/shared/middleware/auth";
 import {
   createApproval,
   decideApproval,
@@ -44,13 +43,14 @@ const decisionBodySchema = z.object({
 });
 
 // Auth: the parent `hrRoutes()` router applies `authRequired` to everything
-// mounted under it; each route here adds the admin gate.
+// mounted under it; access is owned by the protected router's module gate
+// (non-admins need the `hr` module on their global role, admins bypass).
 export function hrApprovalsRoutes() {
   const router = new Hono<ProtectedEnv>();
 
-  // ── /hr/approvals — admin-only approval request management ──
+  // ── /hr/approvals — approval request management ──
 
-  router.get("/hr/approvals", adminRequired, async (c) => {
+  router.get("/hr/approvals", async (c) => {
     const db = c.get("db");
     const query = listQuerySchema.parse(c.req.query());
     const result = await listApprovals(db, {
@@ -72,7 +72,7 @@ export function hrApprovalsRoutes() {
     });
   });
 
-  router.post("/hr/approvals", adminRequired, async (c) => {
+  router.post("/hr/approvals", async (c) => {
     const db = c.get("db");
     const body = createBodySchema.parse(await c.req.json());
     const created = await createApproval(db, body);
@@ -80,14 +80,14 @@ export function hrApprovalsRoutes() {
   });
 
   // Only pending requests are editable; decided records return 409.
-  router.patch("/hr/approvals/:id", adminRequired, async (c) => {
+  router.patch("/hr/approvals/:id", async (c) => {
     const db = c.get("db");
     const body = updateBodySchema.parse(await c.req.json());
     const updated = await updateApproval(db, c.req.param("id"), body);
     return c.json({ success: true, data: updated });
   });
 
-  router.post("/hr/approvals/:id/decision", adminRequired, async (c) => {
+  router.post("/hr/approvals/:id/decision", async (c) => {
     const db = c.get("db");
     const body = decisionBodySchema.parse(await c.req.json());
     const decided = await decideApproval(db, c.req.param("id"), {
@@ -99,7 +99,7 @@ export function hrApprovalsRoutes() {
   });
 
   // Withdraw a pending request; decided records are immutable history.
-  router.delete("/hr/approvals/:id", adminRequired, async (c) => {
+  router.delete("/hr/approvals/:id", async (c) => {
     const db = c.get("db");
     await deleteApproval(db, c.req.param("id"));
     return c.json({ success: true });

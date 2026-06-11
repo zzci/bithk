@@ -1,6 +1,7 @@
 # HR Module
 
-Admin-managed HR section with three sub-modules:
+HR section with three sub-modules (access owned by the global-role module
+visibility gate — see [Routes](#routes)):
 
 - **Colleagues** — internal staff members, each linked to exactly one
   existing `users` row, real or virtual (`users.isVirtual = true`).
@@ -30,12 +31,13 @@ apps/api/src/modules/hr/
   index.ts
 ```
 
-Frontend: `apps/web/src/app/routes/_app/hr/` — the `/hr` layout
-(`_app/hr.tsx`) owns the admin guard and a tab nav (Colleagues / Approvals /
-Payroll, registry in `_app/-hr-tabs.ts`); each tab is a route with its own
-list page, filters, and create/edit dialogs. Data layers in
-`apps/web/src/shared/lib/api/hr.ts`, `hr-approvals.ts`, and `hr-payroll.ts`;
-sidebar entry in `apps/web/src/app/routes/_app/-hr.nav.ts`.
+Frontend: `apps/web/src/app/routes/_app/hr/` — access is gated by the
+generic `_app` module guard (`hr` module key); the `/hr` layout
+(`_app/hr.tsx`) owns a tab nav (Colleagues / Approvals / Payroll, registry
+in `_app/-hr-tabs.ts`); each tab is a route with its own list page, filters,
+and create/edit dialogs. Data layers in `apps/web/src/shared/lib/api/hr.ts`,
+`hr-approvals.ts`, and `hr-payroll.ts`; sidebar entry in
+`apps/web/src/app/routes/_app/-hr.nav.ts`.
 
 ## Database
 
@@ -64,7 +66,12 @@ contribution.
 
 ## Routes
 
-Mounted under `protectedRoutes`. All routes require admin access.
+Mounted under `protectedRoutes`. Access is owned by the global-role module
+visibility gate (PLAN-076): `hr` is a registered module key, the default
+Member role does not include it, and requests from users whose role lacks it
+are answered with 404. In practice HR stays admin-only until an admin grants
+the `hr` module to a role; admins always bypass. There is no per-route
+`adminRequired` here.
 
 | Method | Path | Description |
 |---|---|---|
@@ -97,7 +104,10 @@ The user picker on the frontend uses the existing
 
 ## Out of scope
 
-- Employee self-service submission and multi-step approval chains — all HR
-  routes are admin-only in this pass.
+- Employee self-service submission and multi-step approval chains — HR
+  stays effectively admin-only until a role is granted the `hr` module.
 - Payroll calculation rules and currency conversion — amounts are entered
   manually; the net amount is simple arithmetic.
+- An HR-specific capability model — visibility is all-or-nothing via the
+  `hr` module key on global roles (PLAN-076); per-capability levels inside
+  HR do not exist.

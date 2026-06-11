@@ -74,6 +74,6 @@
 | [PLAN-073](PLAN-073.md) | Finance colleagues module | Completed | 2026-06-09 |
 | [PLAN-074](PLAN-074.md) | Admin Settings About tab | Completed | 2026-06-09 |
 | [PLAN-075](PLAN-075.md) | Backup module v2: cross-schema tar.gz export/import | Completed | 2026-06-10 |
-| [PLAN-076](PLAN-076.md) | Global roles with per-module visibility | Draft | 2026-06-10 |
+| [PLAN-076](PLAN-076.md) | Global roles with per-module visibility | Completed | 2026-06-10 |
 | [PLAN-077](PLAN-077.md) | Rename finance module to HR with approvals/payroll placeholders | Completed | 2026-06-10 |
 | [PLAN-078](PLAN-078.md) | HR approvals and payroll sub-modules | Completed | 2026-06-10 |

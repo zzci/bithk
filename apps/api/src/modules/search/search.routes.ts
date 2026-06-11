@@ -1,5 +1,6 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
+import { getRequestUserModules } from "@/modules/account/roles/middleware";
 import { authRequired } from "@/shared/middleware/auth";
 import { globalSearch } from "./search.service";
 
@@ -15,11 +16,16 @@ export function searchRoutes() {
     const q = (c.req.query("q") ?? "").slice(0, 256);
     const limit = Math.min(20, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 8));
 
+    // Restrict searched domains to the actor's visible modules (PLAN-076);
+    // admins resolve to every module key.
+    const modules = await getRequestUserModules(c, user);
+
     const result = await globalSearch(db, {
       userId: user.id,
       isAdmin: user.role === "admin",
       q,
       limit,
+      modules,
     });
 
     return c.json({ success: true, data: result });

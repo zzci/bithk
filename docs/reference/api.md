@@ -50,6 +50,11 @@ Errors use the shared error handler:
 
 Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`.
 
+Main-area module routes (documents, drive, projects, ships, contacts, hr)
+additionally pass the global-role module visibility gate: a non-admin user
+whose role does not grant the module receives 404 (PLAN-076; see the
+[architecture doc](../architecture.md#authorization-model)).
+
 ## System
 
 | Method | Path                                       | Access        | Description                                                                                                                            |
@@ -79,7 +84,7 @@ Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`.
 
 | Method | Path                                                | Access        | Description                                                |
 | ------ | --------------------------------------------------- | ------------- | ---------------------------------------------------------- |
-| GET    | `/api/account/me`                                   | Authenticated | Current user profile with groups.                          |
+| GET    | `/api/account/me`                                   | Authenticated | Current user profile with groups and the resolved `modules` list (visible main-area modules). |
 | GET    | `/api/account/me/groups`                            | Authenticated | Current user's groups.                                     |
 | GET    | `/api/account/me/preferences/:key`                  | Authenticated | Reads one current-user preference.                         |
 | PUT    | `/api/account/me/preferences/:key`                  | Authenticated | Writes one current-user preference.                        |
@@ -96,7 +101,7 @@ Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`.
 | GET    | `/api/account/visible-users`               | Authenticated | Active user directory exposed to every signed-in caller, for assignment and sharing pickers.            |
 | GET    | `/api/account/users`                       | Admin         | Paginated user list.                                                                                    |
 | GET    | `/api/account/users/:id`                   | Admin         | User detail.                                                                                            |
-| PATCH  | `/api/account/users/:id`                   | Admin         | Updates role, status, or profile fields.                                                                |
+| PATCH  | `/api/account/users/:id`                   | Admin         | Updates role, status, global role (`globalRoleId`, nullable → default role), or profile fields.         |
 | GET    | `/api/account/users/:id/groups`            | Admin         | Groups for a user.                                                                                      |
 | GET    | `/api/account/groups`                      | Admin         | Group list.                                                                                             |
 | POST   | `/api/account/groups`                      | Admin         | Creates a group.                                                                                        |
@@ -106,6 +111,19 @@ Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`.
 | GET    | `/api/account/groups/:id/members`          | Admin         | Group members.                                                                                          |
 | POST   | `/api/account/groups/:id/members`          | Admin         | Adds a user to a group.                                                                                 |
 | DELETE | `/api/account/groups/:id/members/:userId`  | Admin         | Removes a user from a group.                                                                            |
+
+### Global roles
+
+Admin CRUD for global roles (per-module visibility, PLAN-076). Mounted at
+the top level following the `/global-*` admin vocabulary convention. The
+system default role (kind=`default`) is editable but not deletable.
+
+| Method | Path                                       | Access        | Description                                                       |
+| ------ | ------------------------------------------ | ------------- | ----------------------------------------------------------------- |
+| GET    | `/api/global-roles`                        | Admin         | Role list.                                                        |
+| POST   | `/api/global-roles`                        | Admin         | Creates a role. Unknown module keys → 422; duplicate name → 409.   |
+| PATCH  | `/api/global-roles/:id`                    | Admin         | Updates name and/or modules.                                       |
+| DELETE | `/api/global-roles/:id`                    | Admin         | Deletes a custom role; system roles → 403.                         |
 
 ## Policy (Zanzibar tuples)
 
@@ -273,7 +291,9 @@ shares and global admin (see [drive.md](../modules/drive.md#permissions)).
 
 ## HR
 
-All HR routes require admin access. See
+HR routes are gated by the `hr` module key on global roles (PLAN-076): the
+default Member role does not grant it, so HR stays admin-only until an admin
+grants the module to a role; users without it receive 404. See
 [`modules/hr.md`](../modules/hr.md) for behavior details. An HR
 colleague links to exactly one existing active `users` row (real or virtual);
 list rows carry the joined user display data.

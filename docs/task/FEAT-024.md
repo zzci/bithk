@@ -1,6 +1,6 @@
 # FEAT-024 - Global roles with per-module visibility
 
-- Status: Planned
+- Status: Completed
 - Plan: [PLAN-076](../plan/PLAN-076.md)
 - Campaign: local
 - Owner: (unassigned)
@@ -57,3 +57,25 @@ module visibility.
 
 - 2026-06-10: Created with [PLAN-076](../plan/PLAN-076.md). Planning only;
   awaiting approval before any implementation.
+- 2026-06-10: Completed. All acceptance criteria verified against the tree:
+  - `global_roles` table + backfill + `users.globalRoleId` FK —
+    `apps/api/src/modules/account/roles/schema.ts`, `roles.service.ts`
+    (`backfillGlobalRoles`, wired in `app.ts`), migration
+    `apps/api/drizzle/0003_large_warbound.sql`.
+  - Rollout-day visibility preserved — default Member role seeds all
+    main-area modules except `hr` (`DEFAULT_ROLE_MODULES`).
+  - 404 concealment + admin bypass + route-prefix coverage test —
+    `apps/api/src/modules/account/roles/middleware.ts` (`moduleGate`,
+    `UNGATED_PREFIXES`) and `middleware.test.ts`.
+  - `me.modules` — `apps/api/src/modules/account/users/users.routes.ts`.
+  - Sidebar / route guard / palette filtering —
+    `apps/web/src/shared/components/sidebar/visibility.ts`,
+    `apps/web/src/app/routes/_app/-module-guard.tsx`,
+    `apps/web/src/shared/components/command-palette.tsx`.
+  - Admin Roles page + users-page role select —
+    `apps/web/src/app/routes/_app/admin/-roles-page.tsx`,
+    `admin/users/-user-role-select.tsx`.
+  - Search filtered to visible modules —
+    `apps/api/src/modules/search/search.routes.ts` + `search.service.ts`.
+  - en/zh `roles.json` complete; focused API and web tests in each lane;
+    `bun run check` green.
