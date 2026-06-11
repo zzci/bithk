@@ -38,6 +38,9 @@ import { addTeamMember, createTeamDirectory } from "@/modules/drive/drive.team-d
 import { uploadEntryVersion } from "@/modules/drive/drive.version.service";
 import { driveEntries } from "@/modules/drive/schema";
 import { initFileModule, uploadAndReference } from "@/modules/file";
+import { createApproval, decideApproval } from "@/modules/hr/hr.approvals.service";
+import { createPayrollRecord, updatePayrollRecord } from "@/modules/hr/hr.payroll.service";
+import { createColleague } from "@/modules/hr/hr.service";
 import { createIssue, resolveIssueItem } from "@/modules/issue/issue.service";
 import { addReference } from "@/modules/issue/references.service";
 import { createComment } from "@/modules/item/comment.service";
@@ -113,6 +116,9 @@ interface DriveRec { teamDirectories: { key: string; name: string; description?:
 interface CronRec { jobs: { key: string; name: string; cron: string; taskType: string; taskConfig: Record<string, unknown>; enabled?: boolean; maxConsecutiveFailures?: number; logs?: { status: "running" | "success" | "failed"; durationMs?: number; result?: string; error?: string }[] }[] }
 interface SettingRec { key: string; value: string }
 interface AuditRec { action: string; resourceType: string; resourceName: string; result: "success" | "failure"; actor: string; detail?: Record<string, unknown> }
+interface HrColleagueRec { key: string; user: string; code?: string; title?: string; department?: string; notes?: string }
+interface HrApprovalRec { colleague: string; type: "leave" | "overtime" | "business_trip" | "other"; title: string; reason?: string; decision: "pending" | "approved" | "rejected"; decider?: string; note?: string }
+interface HrPayrollRec { colleague: string; period: string; baseSalary: number; bonus?: number; deduction?: number; currency: string; status: "pending" | "paid"; notes?: string }
 
 type Config = Awaited<ReturnType<typeof loadConfigStrict>>;
 
@@ -763,6 +769,62 @@ async function importSettings(db: AppDatabase): Promise<number> {
   return recs.length;
 }
 
+async function importHr(db: AppDatabase): Promise<{ colleagues: number; approvals: number; payroll: number }> {
+  const data = await readJson<{ colleagues: HrColleagueRec[]; approvals: HrApprovalRec[]; payroll: HrPayrollRec[] }>("hr");
+  const colleagueId = new Map<string, string>();
+
+  for (const c of data.colleagues) {
+    const colleague = await createColleague(db, {
+      userId: uId(c.user),
+      code: c.code,
+      title: c.title,
+      department: c.department,
+      notes: c.notes,
+    });
+    colleagueId.set(c.key, colleague.id);
+  }
+
+  for (const a of data.approvals) {
+    const cid = colleagueId.get(a.colleague);
+    if (!cid)
+      throw new Error(`HR approval references unknown colleague ${a.colleague}`);
+    const approval = await createApproval(db, {
+      colleagueId: cid,
+      type: a.type,
+      title: a.title,
+      reason: a.reason,
+    });
+    // Decided records exercise the approve/reject path; pending ones stay open.
+    if (a.decision === "approved" || a.decision === "rejected") {
+      await decideApproval(db, approval.id, {
+        status: a.decision,
+        note: a.note,
+        deciderId: uId(a.decider!),
+      });
+    }
+  }
+
+  for (const p of data.payroll) {
+    const cid = colleagueId.get(p.colleague);
+    if (!cid)
+      throw new Error(`HR payroll references unknown colleague ${p.colleague}`);
+    const record = await createPayrollRecord(db, {
+      colleagueId: cid,
+      period: p.period,
+      baseSalary: p.baseSalary,
+      bonus: p.bonus,
+      deduction: p.deduction,
+      currency: p.currency,
+      notes: p.notes,
+    });
+    // The pending -> paid transition is one-way; only mark records flagged paid.
+    if (p.status === "paid")
+      await updatePayrollRecord(db, record.id, { status: "paid" });
+  }
+
+  return { colleagues: data.colleagues.length, approvals: data.approvals.length, payroll: data.payroll.length };
+}
+
 async function main(): Promise<void> {
   const dbPath = resolve(ROOT_DIR, process.env.DB_PATH ?? "data/db/app.db");
 
@@ -799,6 +861,7 @@ async function main(): Promise<void> {
     const cron = await importCron(db);
     const audits = await importAudit(db);
     const settingsCount = await importSettings(db);
+    const hr = await importHr(db);
 
     console.log("Seed complete:");
     console.log(`  users:        ${userId.size}`);
@@ -819,6 +882,7 @@ async function main(): Promise<void> {
     console.log(`  cron:         ${cron.jobs} jobs, ${cron.logs} logs`);
     console.log(`  audit:        ${audits} events`);
     console.log(`  settings:     ${settingsCount}`);
+    console.log(`  hr:           ${hr.colleagues} colleagues, ${hr.approvals} approvals, ${hr.payroll} payroll records`);
     console.log(`\nNo admin is seeded: the first DEFAULT_ADMIN to sign in via OIDC is promoted to admin (bootstrap on empty admin set).`);
   }
   finally {

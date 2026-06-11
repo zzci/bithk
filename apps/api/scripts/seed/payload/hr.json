@@ -1,0 +1,39 @@
+{
+  "_comment": "HR module seed: internal colleagues linked to seeded users, plus a spread of approval requests (pending/approved/rejected) and monthly payroll records (pending/paid). user references a users.json key; decider references a key too. amounts are in the currency minor unit. period is YYYY-MM.",
+  "colleagues": [
+    { "key": "c-mercer", "user": "pm-mercer", "code": "EMP-001", "title": "Project Manager", "department": "Operations" },
+    { "key": "c-diaz", "user": "pm-diaz", "code": "EMP-002", "title": "Project Manager", "department": "Operations" },
+    { "key": "c-lin", "user": "eng-lin", "code": "EMP-003", "title": "Lead Engineer", "department": "Engineering" },
+    { "key": "c-voss", "user": "eng-voss", "code": "EMP-004", "title": "Engineer", "department": "Engineering" },
+    { "key": "c-okafor", "user": "eng-okafor", "code": "EMP-005", "title": "Engineer", "department": "Engineering" },
+    { "key": "c-nguyen", "user": "sup-nguyen", "code": "EMP-006", "title": "Procurement Officer", "department": "Supply Chain" },
+    { "key": "c-murphy", "user": "ops-murphy", "code": "EMP-007", "title": "Operations Coordinator", "department": "Operations" },
+    { "key": "c-haddad", "user": "crew-haddad", "code": "EMP-008", "title": "Deck Officer", "department": "Crew" },
+    { "key": "c-larsson", "user": "crew-larsson", "code": "EMP-009", "title": "Chief Engineer", "department": "Crew" },
+    { "key": "c-petrov", "user": "surveyor-petrov", "code": "EMP-010", "title": "Marine Surveyor", "department": "Quality" }
+  ],
+  "approvals": [
+    { "colleague": "c-mercer", "type": "leave", "title": "Annual leave — 3 days", "reason": "Family vacation, May 12–14.", "decision": "approved", "decider": "ops-murphy", "note": "Approved; coverage arranged." },
+    { "colleague": "c-lin", "type": "overtime", "title": "Weekend dry-dock overtime", "reason": "Bridge radar cutover work.", "decision": "approved", "decider": "pm-mercer", "note": "Approved per refit schedule." },
+    { "colleague": "c-voss", "type": "business_trip", "title": "Yard visit — Genoa", "reason": "On-site acceptance of hull works.", "decision": "pending" },
+    { "colleague": "c-nguyen", "type": "leave", "title": "Sick leave — 1 day", "reason": "Medical appointment.", "decision": "approved", "decider": "ops-murphy", "note": "Get well soon." },
+    { "colleague": "c-haddad", "type": "leave", "title": "Unpaid leave — 5 days", "reason": "Personal matter.", "decision": "rejected", "decider": "pm-diaz", "note": "Declined — peak operational period; please re-file for next month." },
+    { "colleague": "c-okafor", "type": "overtime", "title": "Sea-trial standby", "reason": "Extended trial window.", "decision": "pending" },
+    { "colleague": "c-larsson", "type": "business_trip", "title": "Class survey attendance", "reason": "Accompany surveyor for annual survey.", "decision": "approved", "decider": "pm-mercer", "note": "Approved." },
+    { "colleague": "c-petrov", "type": "other", "title": "Certification renewal time", "reason": "Surveyor accreditation course.", "decision": "pending" }
+  ],
+  "payroll": [
+    { "colleague": "c-mercer", "period": "2026-04", "baseSalary": 850000, "bonus": 120000, "deduction": 95000, "currency": "USD", "status": "paid" },
+    { "colleague": "c-mercer", "period": "2026-05", "baseSalary": 850000, "bonus": 0, "deduction": 95000, "currency": "USD", "status": "pending" },
+    { "colleague": "c-diaz", "period": "2026-04", "baseSalary": 820000, "bonus": 80000, "deduction": 90000, "currency": "USD", "status": "paid" },
+    { "colleague": "c-lin", "period": "2026-04", "baseSalary": 760000, "bonus": 150000, "deduction": 88000, "currency": "USD", "status": "paid" },
+    { "colleague": "c-lin", "period": "2026-05", "baseSalary": 760000, "bonus": 60000, "deduction": 88000, "currency": "USD", "status": "pending" },
+    { "colleague": "c-voss", "period": "2026-04", "baseSalary": 620000, "bonus": 40000, "deduction": 70000, "currency": "USD", "status": "paid" },
+    { "colleague": "c-okafor", "period": "2026-04", "baseSalary": 620000, "bonus": 40000, "deduction": 70000, "currency": "USD", "status": "pending" },
+    { "colleague": "c-nguyen", "period": "2026-04", "baseSalary": 580000, "bonus": 30000, "deduction": 64000, "currency": "EUR", "status": "paid" },
+    { "colleague": "c-murphy", "period": "2026-04", "baseSalary": 540000, "bonus": 25000, "deduction": 60000, "currency": "USD", "status": "paid" },
+    { "colleague": "c-haddad", "period": "2026-04", "baseSalary": 480000, "bonus": 35000, "deduction": 52000, "currency": "USD", "status": "pending" },
+    { "colleague": "c-larsson", "period": "2026-04", "baseSalary": 710000, "bonus": 90000, "deduction": 80000, "currency": "USD", "status": "paid" },
+    { "colleague": "c-petrov", "period": "2026-04", "baseSalary": 660000, "bonus": 50000, "deduction": 75000, "currency": "EUR", "status": "pending" }
+  ]
+}
