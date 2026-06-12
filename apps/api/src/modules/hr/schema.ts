@@ -4,11 +4,42 @@ import { users } from "@/modules/account/users/schema";
 export const HR_COLLEAGUE_STATUSES = ["active", "archived"] as const;
 export type HrColleagueStatus = typeof HR_COLLEAGUE_STATUSES[number];
 
+export const HR_GENDERS = ["male", "female", "other", "undisclosed"] as const;
+export type HrGender = typeof HR_GENDERS[number];
+
+export const HR_EMPLOYMENT_TYPES = ["full_time", "part_time", "contract", "intern"] as const;
+export type HrEmploymentType = typeof HR_EMPLOYMENT_TYPES[number];
+
+// A single user-defined receiving-account field; payment details differ per
+// country, so the column stores a free-form list of label/value rows rather
+// than fixed bank columns.
+export interface HrPaymentField {
+  label: string;
+  value: string;
+}
+
+// One emergency contact; the column holds a JSON array so a colleague can list
+// several, each with the same fixed sub-fields.
+export interface HrEmergencyContact {
+  name: string;
+  relation: string;
+  phone: string;
+  email: string;
+  address: string;
+}
+
 // An HR colleague is an internal staff member linked to exactly one
 // `users` row (real or virtual). Deletion archives the row (`status`)
 // instead of removing it, so future HR records can keep referencing
 // the actor. `user_id` uses ON DELETE RESTRICT: HR colleague records
 // must not silently disappear when a (virtual) user is deleted.
+//
+// The profile columns (birthday … emergency_contacts) are all nullable
+// additions for a standard employee record. `payment_info` and
+// `emergency_contacts` are JSON text columns (one DB field, many rows in the
+// UI); the rest are plain scalars. National ID / passport numbers are NOT
+// stored here — those live as uploaded documents (file_references,
+// owner_type "hr_colleague_document").
 export const hrColleagues = sqliteTable("hr_colleagues", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
@@ -17,6 +48,19 @@ export const hrColleagues = sqliteTable("hr_colleagues", {
   department: text("department"),
   status: text("status", { enum: ["active", "archived"] }).notNull().default("active"),
   notes: text("notes"),
+  birthday: text("birthday"),
+  hireDate: text("hire_date"),
+  probationEndDate: text("probation_end_date"),
+  contractEndDate: text("contract_end_date"),
+  gender: text("gender", { enum: ["male", "female", "other", "undisclosed"] }),
+  employmentType: text("employment_type", { enum: ["full_time", "part_time", "contract", "intern"] }),
+  nationality: text("nationality"),
+  personalPhone: text("personal_phone"),
+  personalEmail: text("personal_email"),
+  address: text("address"),
+  workLocation: text("work_location"),
+  paymentInfo: text("payment_info").notNull().default("[]"),
+  emergencyContacts: text("emergency_contacts").notNull().default("[]"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()).$onUpdateFn(() => new Date().toISOString()),
 }, t => [

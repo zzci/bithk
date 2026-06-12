@@ -1,6 +1,6 @@
 # FEAT-030 - HR colleague detail drawer with profile metadata and documents
 
-- Status: Planned
+- Status: In Progress
 - Plan: [PLAN-079](../plan/PLAN-079.md)
 - Campaign: local
 - Owner: session
@@ -21,9 +21,9 @@ retiring the standalone create/edit dialog.
 
 - `hr_colleagues` gains nullable columns for a standard employee profile:
   dates `birthday` / `hire_date` / `probation_end_date` / `contract_end_date`;
-  enums `gender` / `employment_type`; text `nationality` / `id_number` /
-  `personal_phone` / `personal_email` / `address` / `work_location` /
-  `education`; and two JSON text columns — `payment_info` (array of
+  enums `gender` / `employment_type`; text `nationality` /
+  `personal_phone` / `personal_email` / `address` / `work_location`; and two
+  JSON text columns — `payment_info` (array of
   user-defined `{ label, value }` rows) and `emergency_contacts` (array of
   `{ name, relation, phone, email, address }` contacts, repeatable). All via a
   Drizzle-generated migration (no hand edits).
@@ -61,3 +61,5 @@ retiring the standalone create/edit dialog.
 ## Status Notes
 
 - 2026-06-12: Created with [PLAN-079](../plan/PLAN-079.md); awaiting approval.
+- 2026-06-12: Approved; field set finalized (no id_number, no education — ID
+  numbers live in the document attachments). Implementation started.

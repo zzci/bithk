@@ -1,4 +1,4 @@
-import type { HrColleagueStatus } from "./schema";
+import type { HrColleagueStatus, HrEmergencyContact, HrEmploymentType, HrGender, HrPaymentField } from "./schema";
 import type { AppDatabase } from "@/db";
 import { and, asc, count, eq, or, sql } from "drizzle-orm";
 import { users } from "@/modules/account/users/schema";
@@ -17,6 +17,19 @@ const colleagueColumns = {
   department: hrColleagues.department,
   status: hrColleagues.status,
   notes: hrColleagues.notes,
+  birthday: hrColleagues.birthday,
+  hireDate: hrColleagues.hireDate,
+  probationEndDate: hrColleagues.probationEndDate,
+  contractEndDate: hrColleagues.contractEndDate,
+  gender: hrColleagues.gender,
+  employmentType: hrColleagues.employmentType,
+  nationality: hrColleagues.nationality,
+  personalPhone: hrColleagues.personalPhone,
+  personalEmail: hrColleagues.personalEmail,
+  address: hrColleagues.address,
+  workLocation: hrColleagues.workLocation,
+  paymentInfo: hrColleagues.paymentInfo,
+  emergencyContacts: hrColleagues.emergencyContacts,
   createdAt: hrColleagues.createdAt,
   updatedAt: hrColleagues.updatedAt,
   userName: users.name,
@@ -25,17 +38,34 @@ const colleagueColumns = {
   userStatus: users.status,
 } as const;
 
-interface JoinedUserFields {
+interface JoinedColleagueRow {
   userName: string;
   userUsername: string;
   userIsVirtual: boolean;
   userStatus: "active" | "disabled";
+  paymentInfo: string;
+  emergencyContacts: string;
 }
 
-function toColleagueView<T extends JoinedUserFields>(row: T) {
-  const { userName, userUsername, userIsVirtual, userStatus, ...colleague } = row;
+// The JSON columns are always written by us as a valid array, but stay
+// defensive: a malformed value degrades to an empty list rather than throwing
+// on read.
+function parseJsonArray<T>(raw: string): T[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  }
+  catch {
+    return [];
+  }
+}
+
+function toColleagueView<T extends JoinedColleagueRow>(row: T) {
+  const { userName, userUsername, userIsVirtual, userStatus, paymentInfo, emergencyContacts, ...colleague } = row;
   return {
     ...colleague,
+    paymentInfo: parseJsonArray<HrPaymentField>(paymentInfo),
+    emergencyContacts: parseJsonArray<HrEmergencyContact>(emergencyContacts),
     user: {
       name: userName,
       username: userUsername,

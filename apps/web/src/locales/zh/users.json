@@ -26,12 +26,6 @@
       "deleted": "虚拟用户已删除"
     }
   },
-  "globalRole": {
-    "label": "角色",
-    "toast": {
-      "assigned": "角色已更新"
-    }
-  },
   "roleAdmin": "管理员",
   "roleUser": "普通用户",
   "totalCount": "{{count}} 个用户",
@@ -48,15 +42,8 @@
     "groups": "所属组",
     "actions": "操作"
   },
-  "promote": "提升为管理员",
-  "demote": "降为普通用户",
   "enable": "启用",
   "disable": "禁用",
-  "promoteTitle": "提升为管理员",
-  "promoteConfirm": "确定要将「{{name}}」提升为管理员吗？该用户将获得完全管理权限。",
-  "demoteTitle": "降为普通用户",
-  "demoteConfirm": "确定要将「{{name}}」降为普通用户吗？该用户将失去管理权限。",
-  "confirm": "确认",
   "tabs": {
     "users": "用户列表",
     "groups": "用户组"

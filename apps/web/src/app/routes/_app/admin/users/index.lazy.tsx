@@ -10,7 +10,6 @@ import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -28,10 +27,10 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { useDebounce } from "@/shared/hooks/use-debounce";
+import { useGlobalRoles } from "@/shared/lib/api/global-roles";
 import { formatDateTime } from "@/shared/lib/format";
 import { http } from "@/shared/lib/http";
 import { useAuthStore } from "@/shared/stores/auth";
-import { UserRoleSelect } from "./-user-role-select";
 
 export const Route = createLazyFileRoute("/_app/admin/users/")({
   component: UsersTab,
@@ -76,7 +75,6 @@ function UsersTab() {
   const [meta, setMeta] = useState({ total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [roleConfirm, setRoleConfirm] = useState<User | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
@@ -112,22 +110,16 @@ function UsersTab() {
     void fetchUsers();
   }, [fetchUsers]);
 
-  const confirmToggleRole = async () => {
-    if (!roleConfirm)
-      return;
-    try {
-      const newRole = roleConfirm.role === "admin" ? "user" : "admin";
-      await http(`/account/users/${roleConfirm.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ role: newRole }),
-      });
-      setRoleConfirm(null);
-      void fetchUsers();
-    }
-    catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error.operationFailed"));
-      setRoleConfirm(null);
-    }
+  // Role names for the display-only role column (FEAT-031): membership is
+  // managed solely on the Roles page; NULL resolves to the default (Guest).
+  const globalRoles = useGlobalRoles().data ?? [];
+  const roleNameFor = (user: User) => {
+    if (user.role === "admin")
+      return t("roleAdmin");
+    const role = user.globalRoleId
+      ? globalRoles.find(r => r.id === user.globalRoleId)
+      : globalRoles.find(r => r.kind === "default");
+    return role?.name ?? "-";
   };
 
   const toggleStatus = async (user: User) => {
@@ -287,12 +279,7 @@ function UsersTab() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <UserRoleSelect
-                          userId={user.id}
-                          globalRoleId={user.globalRoleId}
-                          disabled={isSelf(user.id)}
-                          onAssigned={() => void fetchUsers()}
-                        />
+                        <Badge variant="outline">{roleNameFor(user)}</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
@@ -324,22 +311,13 @@ function UsersTab() {
                                 </>
                               )
                             : (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    disabled={isSelf(user.id)}
-                                    onClick={() => setRoleConfirm(user)}
-                                  >
-                                    {user.role === "admin" ? t("demote") : t("promote")}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    disabled={isSelf(user.id)}
-                                    onClick={() => void toggleStatus(user)}
-                                  >
-                                    {user.status === "active" ? t("disable") : t("enable")}
-                                  </Button>
-                                </>
+                                <Button
+                                  variant="ghost"
+                                  disabled={isSelf(user.id)}
+                                  onClick={() => void toggleStatus(user)}
+                                >
+                                  {user.status === "active" ? t("disable") : t("enable")}
+                                </Button>
                               )}
                         </div>
                       </TableCell>
@@ -372,31 +350,6 @@ function UsersTab() {
           </Button>
         </div>
       )}
-
-      <Dialog
-        open={roleConfirm !== null}
-        onOpenChange={(open) => {
-          if (!open)
-            setRoleConfirm(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {roleConfirm?.role === "admin" ? t("demoteTitle") : t("promoteTitle")}
-            </DialogTitle>
-            <DialogDescription>
-              {roleConfirm?.role === "admin"
-                ? t("demoteConfirm", { name: roleConfirm?.name })
-                : t("promoteConfirm", { name: roleConfirm?.name })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose render={<Button type="button" variant="outline">{t("common.cancel")}</Button>} />
-            <Button onClick={() => void confirmToggleRole()}>{t("confirm")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {createOpen && (
         <VirtualUserDialog

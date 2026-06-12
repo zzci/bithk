@@ -26,7 +26,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   inside the mutation transaction) blocks demoting/disabling the last active
   admin. The boot backfill demotes a legacy module-carrying "Member" default
   in place to a custom role and inserts the Guest floor; seed now creates a
-  custom "Member" role and assigns seeded users to it.
+  custom "Member" role and assigns seeded users to it. The admin Users page
+  no longer mutates roles at all: the promote/demote action and the per-row
+  role select are gone (role membership is managed solely on the Roles
+  page); its role column is a display-only badge.
 
 - HTTP access log filtering (FEAT-029): new `HTTP_LOG_LEVEL` env var
   (`debug | info | silent`, default `info`) sets the level of the

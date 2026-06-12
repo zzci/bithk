@@ -26,12 +26,6 @@
       "deleted": "Virtual user deleted"
     }
   },
-  "globalRole": {
-    "label": "Role",
-    "toast": {
-      "assigned": "Role updated"
-    }
-  },
   "roleAdmin": "Admin",
   "roleUser": "User",
   "totalCount": "{{count}} users",
@@ -48,15 +42,8 @@
     "groups": "Groups",
     "actions": "Actions"
   },
-  "promote": "Promote",
-  "demote": "Demote",
   "enable": "Enable",
   "disable": "Disable",
-  "promoteTitle": "Promote to Admin",
-  "promoteConfirm": "Are you sure you want to promote \"{{name}}\" to admin? They will gain full administrative privileges.",
-  "demoteTitle": "Demote to User",
-  "demoteConfirm": "Are you sure you want to demote \"{{name}}\" to regular user? They will lose administrative privileges.",
-  "confirm": "Confirm",
   "tabs": {
     "users": "Users",
     "groups": "Groups"

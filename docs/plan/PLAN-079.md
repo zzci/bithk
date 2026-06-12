@@ -46,12 +46,10 @@ Reusable precedents already in the codebase:
    | `gender` | text enum `male/female/other/undisclosed` | |
    | `employment_type` | text enum `full_time/part_time/contract/intern` | |
    | `nationality` | text | |
-   | `id_number` | text | national ID / passport no. (sensitive) |
    | `personal_phone` | text | |
    | `personal_email` | text | |
    | `address` | text | residential address |
    | `work_location` | text | |
-   | `education` | text | highest education (free-form, country-agnostic) |
    | `payment_info` | text JSON, default `'[]'` | array of user-defined `{ label, value }` rows |
    | `emergency_contacts` | text JSON, default `'[]'` | array of `{ name, relation, phone, email, address }` |
 
@@ -100,8 +98,8 @@ Reusable precedents already in the codebase:
    one component with `create | view | edit` modes inside `ResizableDrawer`
    via `DetailPanelHeader`.
    - View: grouped read sections — Identity (user, code, title, department,
-     employment type, status), Personal (gender, birthday, nationality, id
-     number, education), Contact (personal phone, personal email, address),
+     employment type, status), Personal (gender, birthday, nationality),
+     Contact (personal phone, personal email, address),
      Emergency contacts (the `emergency_contacts` entries as contact cards),
      Employment (hire date, probation end, contract end, work location),
      Payment (the `payment_info` entries rendered as label/value rows), Notes —

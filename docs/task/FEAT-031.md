@@ -72,3 +72,8 @@ instead of the inline editor.
   disabled admins cannot authenticate) — it runs inside the mutation
   transaction to close the concurrent mutual-demotion race and is unit
   tested at the service level.
+- 2026-06-12: Amendment — the admin Users page no longer mutates roles:
+  promote/demote action and the per-row `UserRoleSelect` removed (component
+  deleted); the role column is a display-only badge resolving the user's
+  global role name (admin → Admin, NULL → Guest). Role membership is managed
+  solely on `/admin/roles`. `bun run check` EXIT 0.
