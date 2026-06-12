@@ -1,6 +1,6 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
-import { getRequestUserModules } from "@/modules/account/roles/middleware";
+import { getRequestUserModules } from "@/modules/account/groups/module-gate";
 import { authRequired } from "@/shared/middleware/auth";
 import { globalSearch } from "./search.service";
 

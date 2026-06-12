@@ -1,7 +1,7 @@
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { accountRoutes } from "@/modules/account";
-import { moduleGate } from "@/modules/account/roles/middleware";
+import { moduleGate } from "@/modules/account/groups/module-gate";
 import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
 import { contactRoutes } from "@/modules/contact";

@@ -45,7 +45,7 @@ The outer app serves:
 | Styling | Tailwind CSS |
 | Build | `scripts/package.ts` lode-compatible release artifact |
 | Authentication | External OAuth/OIDC provider with authorization code + PKCE |
-| Authorization | Global-role module visibility gate + local Zanzibar-style relation tuples |
+| Authorization | Group-based module visibility gate + local Zanzibar-style relation tuples |
 
 ## Repository Layout
 
@@ -211,21 +211,21 @@ OAuth/OIDC provider configuration is read from environment variables at runtime.
 
 ## Authorization Model
 
-Authorization is layered: a global-role **module visibility gate** decides
+Authorization is layered: a group-based **module visibility gate** decides
 which main-area modules a user can see at all, then the relation-tuple policy
 engine and per-project roles decide what the user can do inside a module.
 
-### Global roles and module visibility
+### Groups and module visibility
 
-Each user holds exactly one global role (`users.global_role_id`); `NULL`
-resolves to the system default role (kind=`default`, name "Guest"), which a
-boot backfill guarantees exists. A role grants a set of module keys from the
-static `MODULES` registry (`apps/api/src/shared/modules.ts`):
-`documents`, `drive`, `projects`, `ships`, `contacts`, `hr`. Exactly two
-built-ins exist (FEAT-031): the synthetic **Admin** role (`users.role =
-"admin"`, bypasses the gate, no `global_roles` row) and the locked
-zero-module **Guest** floor; every other role — including the seeded
-"Member" — is custom and admin-managed.
+Groups are the single grouping concept (FEAT-032): membership (policy
+tuples `group:<id>#member@user:<id>`) drives both sharing targets and module
+visibility. A group optionally grants module keys from the static `MODULES`
+registry (`apps/api/src/shared/modules.ts`): `documents`, `drive`,
+`projects`, `ships`, `contacts`, `hr`. A non-admin user's visible modules
+are the UNION over their groups' grants; a user in no module-granting group
+sees nothing (the visibility floor). The only built-in is the synthetic
+**Administrators** entry backed by `users.role = "admin"`, which bypasses
+the gate and has no group row.
 
 Enforcement:
 
@@ -248,11 +248,11 @@ Enforcement:
   modules.
 
 Admin-area modules (users, policies, audit, cron, settings, backup, and the
-`/global-*` vocabularies including `/global-roles` itself) are NOT
-role-grantable: they keep their existing `adminRequired` guards. Cross-cutting
+`/global-*` vocabularies) are NOT group-grantable: they keep their existing
+`adminRequired` guards. Cross-cutting
 surfaces (`/account`, `/search`, `/tags`, `/files`, `/shares`, …) stay
 ungated. One deliberate consequence: a user who is a member of a project but
-whose role lacks the `projects` module loses project access — the module gate
+whose groups lack the `projects` module loses project access — the module gate
 wins over membership.
 
 ### Relation tuples

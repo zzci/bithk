@@ -17,17 +17,21 @@ import {
   removeGroupMember,
   updateGroup,
 } from "./groups.service";
+import { parseModules } from "./module-gate";
 
 const createGroupSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
+  // Module grants (FEAT-032); keys validated against MODULE_KEYS in the service.
+  modules: z.array(z.string()).optional(),
 });
 
 const updateGroupSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
-}).refine(d => d.name !== undefined || d.description !== undefined, {
-  message: "At least one of name or description must be provided",
+  modules: z.array(z.string()).optional(),
+}).refine(d => d.name !== undefined || d.description !== undefined || d.modules !== undefined, {
+  message: "At least one of name, description or modules must be provided",
 });
 
 const addMemberSchema = z.object({
@@ -59,6 +63,7 @@ export function groupRoutes() {
     const group = await createGroup(db, {
       name: body.name,
       ...body.description ? { description: body.description } : {},
+      ...body.modules ? { modules: body.modules } : {},
     });
     const actor = c.get("user");
     await audit(db, c.get("logger"), {
@@ -72,7 +77,7 @@ export function groupRoutes() {
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
     });
-    return c.json({ success: true, data: group }, 201);
+    return c.json({ success: true, data: { ...group, modules: parseModules(group.modules) } }, 201);
   });
 
   // GET /groups/:id — group detail
@@ -82,7 +87,7 @@ export function groupRoutes() {
     if (!group) {
       throw new NotFoundError("Group", c.req.param("id"));
     }
-    return c.json({ success: true, data: group });
+    return c.json({ success: true, data: { ...group, modules: parseModules(group.modules) } });
   });
 
   // PATCH /groups/:id — update group
@@ -107,6 +112,7 @@ export function groupRoutes() {
     const updated = await updateGroup(db, id, {
       ...body.name ? { name: body.name } : {},
       ...body.description !== undefined ? { description: body.description } : {},
+      ...body.modules !== undefined ? { modules: body.modules } : {},
     });
     const actor = c.get("user");
     await audit(db, c.get("logger"), {
@@ -120,7 +126,7 @@ export function groupRoutes() {
       userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
     });
-    return c.json({ success: true, data: updated });
+    return c.json({ success: true, data: updated ? { ...updated, modules: parseModules(updated.modules) } : updated });
   });
 
   // DELETE /groups/:id — delete group

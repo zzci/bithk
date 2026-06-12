@@ -9,7 +9,6 @@ import { secureHeaders } from "hono/secure-headers";
 import { loadConfig } from "./config";
 import { createDb } from "./db";
 import { logDefaultAdmins } from "./modules/account/auth/auth.service";
-import { backfillGlobalRoles } from "./modules/account/roles/roles.service";
 import { startAuditRetentionSweep } from "./modules/audit";
 import { startBackupStagingSweep } from "./modules/backup";
 import { initCronActions, startCron } from "./modules/cron";
@@ -53,8 +52,6 @@ export async function bootstrap(): Promise<BootstrapResult> {
   const db = await createDb(config.DB_PATH);
   const backfill = await backfillProjectRoles(db);
   logger.info(`backfillProjectRoles: scanned=${backfill.projectsScanned} touched=${backfill.projectsTouched} inserted=${backfill.rolesInserted}`);
-  const globalRolesBackfill = await backfillGlobalRoles(db);
-  logger.info(`backfillGlobalRoles: created=${globalRolesBackfill.created}`);
   const app = await buildFullApp({ config, db, logger });
   logDefaultAdmins(await getAuthConfig(db, config), logger);
   logger.info("system fully operational");

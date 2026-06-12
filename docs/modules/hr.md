@@ -1,6 +1,6 @@
 # HR Module
 
-HR section with three sub-modules (access owned by the global-role module
+HR section with three sub-modules (access owned by the group-based module
 visibility gate — see [Routes](#routes)):
 
 - **Colleagues** — internal staff members, each linked to exactly one
@@ -66,12 +66,11 @@ contribution.
 
 ## Routes
 
-Mounted under `protectedRoutes`. Access is owned by the global-role module
-visibility gate (PLAN-076): `hr` is a registered module key, the default
-Guest role grants no modules (FEAT-031), and requests from users whose role
-lacks it are answered with 404. In practice HR stays admin-only until an
-admin grants the `hr` module to a role; admins always bypass. There is no
-per-route `adminRequired` here.
+Mounted under `protectedRoutes`. Access is owned by the group-based module
+visibility gate (PLAN-076, FEAT-032): `hr` is a registered module key, users
+in no `hr`-granting group get 404, and admins always bypass. In practice HR
+stays admin-only until an admin grants the `hr` module to a group. There is
+no per-route `adminRequired` here.
 
 | Method | Path | Description |
 |---|---|---|
@@ -105,9 +104,9 @@ The user picker on the frontend uses the existing
 ## Out of scope
 
 - Employee self-service submission and multi-step approval chains — HR
-  stays effectively admin-only until a role is granted the `hr` module.
+  stays effectively admin-only until a group is granted the `hr` module.
 - Payroll calculation rules and currency conversion — amounts are entered
   manually; the net amount is simple arithmetic.
 - An HR-specific capability model — visibility is all-or-nothing via the
-  `hr` module key on global roles (PLAN-076); per-capability levels inside
+  `hr` module key on groups (PLAN-076, FEAT-032); per-capability levels inside
   HR do not exist.

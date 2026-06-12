@@ -2,7 +2,7 @@
 // Allowed change here: a single `export *` line per module.
 export * from "@/modules/account/auth/schema";
 export * from "@/modules/account/groups/schema";
-export * from "@/modules/account/roles/schema";
+
 export * from "@/modules/account/users/schema";
 export * from "@/modules/audit/schema";
 export { contactCategories, contacts } from "@/modules/contact/schema";

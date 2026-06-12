@@ -1,6 +1,7 @@
 import type { AppDatabase } from "@/db";
 import { eq, inArray } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
+import { parseModules } from "@/modules/account/groups/module-gate";
 import { groups } from "@/modules/account/groups/schema";
 import { users } from "@/modules/account/users/schema";
 import {
@@ -10,14 +11,27 @@ import {
   listGroupMembersWithJoinedAt,
   removeGroupMembership,
 } from "@/modules/policy/policy.service";
+import { ValidationError } from "@/shared/lib/errors";
+import { MODULE_KEYS } from "@/shared/modules";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
+
+const MODULE_KEY_SET = new Set<string>(MODULE_KEYS);
+
+/** Reject (422) any module key not in the static registry (FEAT-032). */
+function assertValidModules(modules: readonly string[]): void {
+  const invalid = modules.filter(m => !MODULE_KEY_SET.has(m));
+  if (invalid.length > 0) {
+    throw new ValidationError("Unknown module keys", { modules: invalid });
+  }
+}
 
 export async function listGroups(db: AppDatabase) {
   const allGroups = await db.select().from(groups).limit(500).all();
   const countMap = await getGroupMemberCounts(db);
   return allGroups.map(g => ({
     ...g,
+    modules: parseModules(g.modules),
     memberCount: countMap.get(g.id) ?? 0,
   }));
 }
@@ -30,26 +44,33 @@ export async function getGroupByName(db: AppDatabase, name: string) {
   return await db.select().from(groups).where(eq(groups.name, name)).get();
 }
 
-export async function createGroup(db: AppDatabase, data: { name: string; description?: string | undefined }) {
+export async function createGroup(db: AppDatabase, data: { name: string; description?: string | undefined; modules?: readonly string[] | undefined }) {
+  const modules = data.modules ?? [];
+  assertValidModules(modules);
   const id = nanoid();
   const now = new Date().toISOString();
   await db.insert(groups).values({
     id,
     name: data.name,
     description: data.description ?? null,
+    modules: JSON.stringify(modules),
     createdAt: now,
     updatedAt: now,
   }).run();
   return (await db.select().from(groups).where(eq(groups.id, id)).get())!;
 }
 
-export async function updateGroup(db: AppDatabase, id: string, data: { name?: string | undefined; description?: string | undefined }) {
+export async function updateGroup(db: AppDatabase, id: string, data: { name?: string | undefined; description?: string | undefined; modules?: readonly string[] | undefined }) {
   const now = new Date().toISOString();
   const setData: Record<string, unknown> = { updatedAt: now };
   if (data.name !== undefined)
     setData.name = data.name;
   if (data.description !== undefined)
     setData.description = data.description;
+  if (data.modules !== undefined) {
+    assertValidModules(data.modules);
+    setData.modules = JSON.stringify(data.modules);
+  }
   await db.update(groups)
     .set(setData)
     .where(eq(groups.id, id))

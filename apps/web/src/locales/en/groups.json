@@ -1,14 +1,21 @@
 {
   "create": "New",
   "createTitle": "New Group",
-  "createDescription": "Add a new user group.",
+  "createDescription": "Add a new user group. Module grants give every member access to those modules.",
   "editTitle": "Edit Group",
-  "editDescription": "Update group name and description.",
+  "editDescription": "Update group name, description and module grants.",
   "deleteTitle": "Delete Group",
-  "deleteConfirm": "Are you sure you want to delete the group \"{{name}}\"? This action cannot be undone.",
+  "deleteConfirm": "Are you sure you want to delete the group \"{{name}}\"? Members lose any module access this group granted. This action cannot be undone.",
   "listTitle": "User Groups",
-  "listDescription": "Manage user groups and their members.",
+  "listDescription": "One grouping concept: groups carry members, optional module grants, and act as sharing targets.",
   "noResults": "No groups yet.",
+  "system": "System",
+  "admins": {
+    "name": "Administrators",
+    "description": "Built-in: administrators bypass module permissions and can access everything.",
+    "membersDescription": "Adding a member promotes them to administrator; removing demotes them.",
+    "addDescription": "Search a user to promote to administrator."
+  },
   "membersTitle": "Group Members",
   "membersDescription": "View and manage members of the selected group.",
   "selectGroup": "Select a group to view its members.",
@@ -21,6 +28,15 @@
   "membersOf": "Members of {{name}}",
   "field": {
     "name": "Group Name",
-    "description": "Description"
+    "description": "Description",
+    "modules": "Visible modules"
+  },
+  "modules": {
+    "documents": "Documents",
+    "drive": "Drive",
+    "projects": "Projects",
+    "ships": "Ships",
+    "contacts": "Contacts",
+    "hr": "HR"
   }
 }

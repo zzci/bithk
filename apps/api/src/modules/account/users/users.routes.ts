@@ -3,12 +3,11 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { sessions } from "@/modules/account/auth/schema";
-import { getRequestUserModules } from "@/modules/account/roles/middleware";
-import { getGlobalRole } from "@/modules/account/roles/roles.service";
+import { getRequestUserModules } from "@/modules/account/groups/module-gate";
 import { userPreferences, users } from "@/modules/account/users/schema";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { AppError, NotFoundError, UnauthorizedError, ValidationError } from "@/shared/lib/errors";
+import { AppError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { rateLimit } from "@/shared/middleware/rate-limit";
 import {
@@ -38,7 +37,6 @@ const listQuerySchema = z.object({
   role: z.enum(["admin", "user"]).optional(),
   status: z.enum(["active", "disabled"]).optional(),
   group_id: z.string().optional(),
-  global_role_id: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -53,12 +51,9 @@ const updateBodySchema = z.object({
   status: z.enum(["active", "disabled"]).optional(),
   name: z.string().min(1).max(255).optional(),
   username: usernameSchema.optional(),
-  // Global role assignment (PLAN-076): explicit null resets to the system
-  // default role (`users.global_role_id` NULL → default-role fallback).
-  globalRoleId: z.string().min(1).nullable().optional(),
 }).refine(
-  d => d.role !== undefined || d.status !== undefined || d.name !== undefined || d.username !== undefined || d.globalRoleId !== undefined,
-  { message: "At least one of role, status, name, username or globalRoleId must be provided" },
+  d => d.role !== undefined || d.status !== undefined || d.name !== undefined || d.username !== undefined,
+  { message: "At least one of role, status, name or username must be provided" },
 );
 
 const createVirtualUserSchema = z.object({
@@ -332,23 +327,11 @@ export function userRoutes() {
   router.get("/account/users", adminRequired, async (c) => {
     const db = c.get("db");
     const query = listQuerySchema.parse(c.req.query());
-
-    // Resolve the global-role filter up front: a dangling id is a 422, and
-    // the default (Guest) role must also match NULL assignments.
-    let globalRole: { id: string; includeNull: boolean } | undefined;
-    if (query.global_role_id) {
-      const role = await getGlobalRole(db, query.global_role_id);
-      if (!role)
-        throw new ValidationError("Unknown global role", { globalRoleId: query.global_role_id });
-      globalRole = { id: role.id, includeNull: role.kind === "default" };
-    }
-
     const result = await listUsers(db, {
       ...query.q ? { q: query.q } : {},
       ...query.role ? { role: query.role } : {},
       ...query.status ? { status: query.status } : {},
       ...query.group_id ? { groupId: query.group_id } : {},
-      ...globalRole ? { globalRole } : {},
       page: query.page,
       limit: query.limit,
     });
@@ -400,14 +383,6 @@ export function userRoutes() {
       throw new AppError("Only virtual users can be renamed", 400, "BAD_REQUEST");
     }
 
-    // A non-null global role must reference an existing row; dangling ids
-    // would silently fall back to the default role on resolution.
-    if (body.globalRoleId !== undefined && body.globalRoleId !== null) {
-      const role = await getGlobalRole(db, body.globalRoleId);
-      if (!role)
-        throw new ValidationError("Unknown global role", { globalRoleId: body.globalRoleId });
-    }
-
     const roleChanged = body.role !== undefined && body.role !== existing.role;
     const statusChanged = body.status !== undefined && body.status !== existing.status;
 
@@ -416,7 +391,7 @@ export function userRoutes() {
       && ((body.role !== undefined && body.role !== "admin")
         || (body.status !== undefined && body.status !== "active"));
 
-    if (body.role !== undefined || body.status !== undefined || body.globalRoleId !== undefined) {
+    if (body.role !== undefined || body.status !== undefined) {
       // Atomic: either both the user mutation AND the session purge land, or
       // neither does. Without a tx an admin demote could persist while the
       // user keeps an existing admin session live.
@@ -432,8 +407,6 @@ export function userRoutes() {
           setData.role = body.role;
         if (body.status !== undefined)
           setData.status = body.status;
-        if (body.globalRoleId !== undefined)
-          setData.globalRoleId = body.globalRoleId;
 
         tx.update(users).set(setData).where(eq(users.id, id)).run();
 

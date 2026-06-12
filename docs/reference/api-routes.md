@@ -146,10 +146,6 @@
 | POST | `/api/global-procurement-categories` |
 | DELETE | `/api/global-procurement-categories/:id` |
 | PATCH | `/api/global-procurement-categories/:id` |
-| GET | `/api/global-roles` |
-| POST | `/api/global-roles` |
-| DELETE | `/api/global-roles/:id` |
-| PATCH | `/api/global-roles/:id` |
 | GET | `/api/health` |
 | GET | `/api/health/ready` |
 | GET | `/api/hr/approvals` |
@@ -161,6 +157,10 @@
 | POST | `/api/hr/colleagues` |
 | DELETE | `/api/hr/colleagues/:id` |
 | PATCH | `/api/hr/colleagues/:id` |
+| GET | `/api/hr/colleagues/:id/attachments` |
+| POST | `/api/hr/colleagues/:id/attachments` |
+| DELETE | `/api/hr/colleagues/:id/attachments/:aid` |
+| GET | `/api/hr/colleagues/:id/attachments/:aid` |
 | GET | `/api/hr/payroll` |
 | POST | `/api/hr/payroll` |
 | DELETE | `/api/hr/payroll/:id` |

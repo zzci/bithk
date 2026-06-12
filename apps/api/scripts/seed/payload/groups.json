@@ -1,5 +1,28 @@
 [
   {
+    "key": "all-staff",
+    "name": "All Staff",
+    "description": "Baseline module access for every staff member.",
+    "modules": ["documents", "drive", "projects", "ships", "contacts"],
+    "members": [
+      "admin",
+      "pm-mercer",
+      "pm-diaz",
+      "eng-lin",
+      "eng-voss",
+      "eng-okafor",
+      "sup-nguyen",
+      "sup-rossi",
+      "crew-haddad",
+      "crew-schmidt",
+      "crew-larsson",
+      "crew-tanaka",
+      "surveyor-petrov",
+      "surveyor-singh",
+      "ops-murphy"
+    ]
+  },
+  {
     "key": "engineering",
     "name": "Engineering Team",
     "description": "Marine and systems engineers across the fleet.",
@@ -15,6 +38,7 @@
     "key": "operations",
     "name": "Fleet Operations",
     "description": "Operations, procurement, and crew coordination.",
+    "modules": ["hr"],
     "members": ["ops-murphy", "sup-nguyen", "sup-rossi", "pm-diaz"]
   }
 ]

@@ -3,11 +3,8 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
 import { createDb } from "@/db";
-import { backfillGlobalRoles, createGlobalRole } from "@/modules/account/roles/roles.service";
-import { globalRoles } from "@/modules/account/roles/schema";
-import { users } from "@/modules/account/users/schema";
+import { addGroupMember, createGroup, getGroupByName } from "@/modules/account/groups/groups.service";
 import { createDocument } from "@/modules/document/document.service";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createProject } from "@/modules/project/project.service";
@@ -40,15 +37,14 @@ beforeEach(async () => {
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
   loadNamespaces();
-  // The boot-backfilled default role is the zero-module Guest (FEAT-031), so
-  // non-admin callers that should see results get an explicit all-module role.
-  await backfillGlobalRoles(db);
 });
 
+// Module visibility is granted through groups (FEAT-032); non-admin callers
+// that should see results join an all-module group.
 async function grantAllModules(userId: string) {
-  let role = await db.select().from(globalRoles).where(eq(globalRoles.name, "All modules")).get();
-  role = role ?? await createGlobalRole(db, { name: "All modules", modules: [...MODULE_KEYS] });
-  await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, userId)).run();
+  const group = await getGroupByName(db, "All modules")
+    ?? await createGroup(db, { name: "All modules", modules: [...MODULE_KEYS] });
+  await addGroupMember(db, group.id, userId);
 }
 
 afterEach(() => {
@@ -149,9 +145,9 @@ describe("GET /search module visibility (PLAN-076)", () => {
     await createDocument(db, { title: "Quarterly Report", creatorId: userId });
     await createProject(db, { name: "Quarterly Project", creatorId: userId });
 
-    // A role granting only `projects`: matching documents must disappear.
-    const role = await createGlobalRole(db, { name: "Projects only", modules: ["projects"] });
-    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, userId)).run();
+    // A group granting only `projects`: matching documents must disappear.
+    const group = await createGroup(db, { name: "Projects only", modules: ["projects"] });
+    await addGroupMember(db, group.id, userId);
 
     const res = await buildApp().request("/search?q=Quarterly", { headers: { Cookie: cookie } });
     expect(res.status).toBe(200);

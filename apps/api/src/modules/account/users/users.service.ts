@@ -1,5 +1,5 @@
 import type { AppDatabase } from "@/db";
-import { and, asc, count, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { groups } from "@/modules/account/groups/schema";
 import { users } from "@/modules/account/users/schema";
 import {
@@ -22,7 +22,6 @@ const userColumns = {
   role: users.role,
   status: users.status,
   isVirtual: users.isVirtual,
-  globalRoleId: users.globalRoleId,
   lastLoginAt: users.lastLoginAt,
   createdAt: users.createdAt,
   updatedAt: users.updatedAt,
@@ -33,18 +32,12 @@ interface ListUsersParams {
   readonly role?: UserRole | undefined;
   readonly status?: UserStatus | undefined;
   readonly groupId?: string | undefined;
-  /**
-   * Global-role membership filter (FEAT-031). Implies `role = "user"` (admins
-   * belong to the synthetic Admin role, queried via `role=admin`). When the
-   * id is the default (Guest) role, NULL assignments match too.
-   */
-  readonly globalRole?: { readonly id: string; readonly includeNull: boolean } | undefined;
   readonly page: number;
   readonly limit: number;
 }
 
 export async function listUsers(db: AppDatabase, params: ListUsersParams) {
-  const { q, role, status, groupId, globalRole, page, limit } = params;
+  const { q, role, status, groupId, page, limit } = params;
   const offset = (page - 1) * limit;
   const conditions = [];
 
@@ -66,12 +59,6 @@ export async function listUsers(db: AppDatabase, params: ListUsersParams) {
   }
   if (status) {
     conditions.push(eq(users.status, status));
-  }
-  if (globalRole) {
-    conditions.push(eq(users.role, "user"));
-    conditions.push(globalRole.includeNull
-      ? or(eq(users.globalRoleId, globalRole.id), isNull(users.globalRoleId))!
-      : eq(users.globalRoleId, globalRole.id));
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;

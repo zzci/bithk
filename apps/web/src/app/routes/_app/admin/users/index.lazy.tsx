@@ -27,7 +27,6 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { useDebounce } from "@/shared/hooks/use-debounce";
-import { useGlobalRoles } from "@/shared/lib/api/global-roles";
 import { formatDateTime } from "@/shared/lib/format";
 import { http } from "@/shared/lib/http";
 import { useAuthStore } from "@/shared/stores/auth";
@@ -51,7 +50,6 @@ interface User {
   readonly role: "admin" | "user";
   readonly status: "active" | "disabled";
   readonly isVirtual: boolean;
-  readonly globalRoleId: string | null;
   readonly groups?: UserGroup[];
   readonly lastLoginAt: string | null;
   readonly createdAt: string;
@@ -109,18 +107,6 @@ function UsersTab() {
   useEffect(() => {
     void fetchUsers();
   }, [fetchUsers]);
-
-  // Role names for the display-only role column (FEAT-031): membership is
-  // managed solely on the Roles page; NULL resolves to the default (Guest).
-  const globalRoles = useGlobalRoles().data ?? [];
-  const roleNameFor = (user: User) => {
-    if (user.role === "admin")
-      return t("roleAdmin");
-    const role = user.globalRoleId
-      ? globalRoles.find(r => r.id === user.globalRoleId)
-      : globalRoles.find(r => r.kind === "default");
-    return role?.name ?? "-";
-  };
 
   const toggleStatus = async (user: User) => {
     try {
@@ -231,7 +217,6 @@ function UsersTab() {
               <TableHead>{t("col.name")}</TableHead>
               <TableHead>{t("col.email")}</TableHead>
               <TableHead>{t("col.status")}</TableHead>
-              <TableHead>{t("col.globalRole")}</TableHead>
               <TableHead>{t("col.groups")}</TableHead>
               <TableHead>{t("col.lastLogin")}</TableHead>
               <TableHead>{t("col.actions")}</TableHead>
@@ -241,7 +226,7 @@ function UsersTab() {
             {loading
               ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                       {t("common.loading")}
                     </TableCell>
                   </TableRow>
@@ -249,7 +234,7 @@ function UsersTab() {
               : users.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                         {t("noResults")}
                       </TableCell>
                     </TableRow>
@@ -277,9 +262,6 @@ function UsersTab() {
                         <Badge variant={user.status === "active" ? "default" : "destructive"}>
                           {t(`status${user.status === "active" ? "Active" : "Disabled"}`)}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{roleNameFor(user)}</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">

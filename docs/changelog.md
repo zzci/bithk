@@ -11,6 +11,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Changed
+
+- Groups absorb global roles (FEAT-032): one grouping concept. The
+  `global_roles` entity and `users.global_role_id` are removed; groups gain
+  optional module grants and a non-admin user's visible modules are the
+  UNION over their groups (no grants → no modules, the visibility floor).
+  Admins keep the `users.role` bypass and appear as a built-in
+  "Administrators" entry on the Groups tab (add = promote, remove =
+  demote, last-admin guard intact). The Roles page/nav is deleted; the
+  group create/edit dialog gains a module switch table; seed grants the
+  classic five modules through an "All Staff" group (plus `hr` via Fleet
+  Operations). Supersedes the FEAT-031 roles surface.
+
 ### Added
 
 - Global roles as user groups (FEAT-031): the admin Roles page is now a

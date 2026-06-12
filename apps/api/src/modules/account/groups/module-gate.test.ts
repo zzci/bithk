@@ -4,17 +4,15 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "@/db";
-import { users } from "@/modules/account/users/schema";
 import { protectedRoutes } from "@/routes/protected";
 import { NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
-import { MODULES } from "@/shared/modules";
+import { MODULE_KEYS, MODULES } from "@/shared/modules";
 import { mountRoutes, sessionCookieFor, testNanoid } from "@/shared/test/route-harness";
-import { moduleForPath, moduleGate, UNGATED_PREFIXES } from "./middleware";
-import { backfillGlobalRoles, createGlobalRole } from "./roles.service";
+import { addGroupMember, createGroup } from "./groups.service";
+import { moduleForPath, moduleGate, resolveUserModules, UNGATED_PREFIXES } from "./module-gate";
 // Registers the session-cookie auth provider that the gate resolves through.
 import "@/modules/account";
 
@@ -26,7 +24,6 @@ beforeEach(async () => {
   mkdirSync(dir, { recursive: true });
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
-  await backfillGlobalRoles(db);
 });
 
 afterEach(() => {
@@ -64,32 +61,33 @@ function buildApp() {
   return mountRoutes(db, [gateRouter(), stubRouter()]);
 }
 
-async function assignRole(userId: string, modules: string[]): Promise<void> {
-  const role = await createGlobalRole(db, { name: `Role ${testNanoid()}`, modules });
-  await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, userId)).run();
+/** Grant modules by putting the user into a fresh group carrying them (FEAT-032). */
+async function grantModules(userId: string, modules: string[]): Promise<void> {
+  const group = await createGroup(db, { name: `Group ${testNanoid()}`, modules });
+  await addGroupMember(db, group.id, userId);
 }
 
 const NOT_FOUND_BODY = new NotFoundError("Route").toJSON();
 
 describe("moduleGate", () => {
   test("a non-admin without the module gets the nonexistent-route 404 shape", async () => {
-    const { cookie } = await sessionCookieFor(db, "user");
-    // Default Member role excludes hr.
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    await grantModules(userId, ["contacts"]); // no hr
     const res = await buildApp().request("/hr/colleagues", { headers: { Cookie: cookie } });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual(NOT_FOUND_BODY);
   });
 
-  test("a non-admin with the module on their role passes (200)", async () => {
+  test("a non-admin with the module granted through a group passes (200)", async () => {
     const { userId, cookie } = await sessionCookieFor(db, "user");
-    await assignRole(userId, ["hr"]);
+    await grantModules(userId, ["hr"]);
     const res = await buildApp().request("/hr/colleagues", { headers: { Cookie: cookie } });
     expect(res.status).toBe(200);
   });
 
   test("hiding one module does not affect another granted one", async () => {
     const { userId, cookie } = await sessionCookieFor(db, "user");
-    await assignRole(userId, ["contacts"]);
+    await grantModules(userId, ["contacts"]);
     const app = buildApp();
 
     const contacts = await app.request("/contacts", { headers: { Cookie: cookie } });
@@ -98,6 +96,16 @@ describe("moduleGate", () => {
     const drive = await app.request("/drive/entries", { headers: { Cookie: cookie } });
     expect(drive.status).toBe(404);
     expect(await drive.json()).toEqual(NOT_FOUND_BODY);
+  });
+
+  test("grants UNION across multiple groups", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    await grantModules(userId, ["contacts"]);
+    await grantModules(userId, ["drive"]);
+    const app = buildApp();
+    expect((await app.request("/contacts", { headers: { Cookie: cookie } })).status).toBe(200);
+    expect((await app.request("/drive/entries", { headers: { Cookie: cookie } })).status).toBe(200);
+    expect((await app.request("/hr/colleagues", { headers: { Cookie: cookie } })).status).toBe(404);
   });
 
   test("an admin passes on every module route", async () => {
@@ -110,8 +118,7 @@ describe("moduleGate", () => {
   });
 
   test("unclaimed paths pass through for everyone", async () => {
-    const { userId, cookie } = await sessionCookieFor(db, "user");
-    await assignRole(userId, []); // no modules at all
+    const { cookie } = await sessionCookieFor(db, "user"); // no groups at all
     const app = buildApp();
     for (const path of ["/search", "/account/me"]) {
       const res = await app.request(path, { headers: { Cookie: cookie } });
@@ -124,13 +131,37 @@ describe("moduleGate", () => {
     expect(res.status).toBe(401);
   });
 
-  test("a NULL-role user falls to the Guest floor — every module route is hidden", async () => {
+  test("a user in no module-granting group sees no module route (visibility floor)", async () => {
     const { cookie } = await sessionCookieFor(db, "user");
     const app = buildApp();
-    // Guest (the default fallback) grants no modules at all (FEAT-031).
     expect((await app.request("/contacts", { headers: { Cookie: cookie } })).status).toBe(404);
     expect((await app.request("/drive/entries", { headers: { Cookie: cookie } })).status).toBe(404);
     expect((await app.request("/hr/colleagues", { headers: { Cookie: cookie } })).status).toBe(404);
+  });
+});
+
+describe("resolveUserModules", () => {
+  test("admin resolves to all registered module keys", async () => {
+    const { userId } = await sessionCookieFor(db, "admin");
+    expect(await resolveUserModules(db, { id: userId, role: "admin" })).toEqual([...MODULE_KEYS]);
+  });
+
+  test("union over groups, deduplicated, in registry order", async () => {
+    const { userId } = await sessionCookieFor(db, "user");
+    await grantModules(userId, ["ships", "documents"]);
+    await grantModules(userId, ["documents", "drive"]);
+    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual(["documents", "drive", "ships"]);
+  });
+
+  test("no groups resolves to the empty floor", async () => {
+    const { userId } = await sessionCookieFor(db, "user");
+    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual([]);
+  });
+
+  test("a member of a grant-less group still sees nothing", async () => {
+    const { userId } = await sessionCookieFor(db, "user");
+    await grantModules(userId, []);
+    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual([]);
   });
 });
 

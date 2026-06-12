@@ -37,7 +37,6 @@
     "name": "Name",
     "email": "Email",
     "status": "Status",
-    "globalRole": "Role",
     "lastLogin": "Last Login",
     "groups": "Groups",
     "actions": "Actions"

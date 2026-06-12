@@ -6,13 +6,12 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
-import { moduleGate } from "@/modules/account/roles/middleware";
-import { createGlobalRole } from "@/modules/account/roles/roles.service";
+import { addGroupMember, createGroup } from "@/modules/account/groups/groups.service";
+import { moduleGate } from "@/modules/account/groups/module-gate";
 import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { hrRoutes } from "./hr.routes";
@@ -186,8 +185,8 @@ describe("/hr/payroll module gating", () => {
   test("a user whose role grants hr can list payroll records (200)", async () => {
     const app = buildApp(db);
     const member = await sessionForRole("user");
-    const role = await createGlobalRole(db, { name: "HR", modules: ["hr"] });
-    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, member.id)).run();
+    const group = await createGroup(db, { name: "HR", modules: ["hr"] });
+    await addGroupMember(db, group.id, member.id);
 
     const res = await app.request("/hr/payroll", { headers: { Cookie: member.cookie } });
     expect(res.status).toBe(200);

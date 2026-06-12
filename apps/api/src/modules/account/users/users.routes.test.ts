@@ -11,7 +11,7 @@ import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
-import { backfillGlobalRoles, createGlobalRole, resolveDefaultRole } from "@/modules/account/roles/roles.service";
+import { addGroupMember, createGroup } from "@/modules/account/groups/groups.service";
 import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { MODULE_KEYS } from "@/shared/modules";
@@ -220,50 +220,7 @@ describe("virtual user admin endpoints", () => {
   });
 });
 
-describe("PATCH /account/users/:id globalRoleId (PLAN-076 lane D)", () => {
-  test("admin assigns an existing global role; detail returns it", async () => {
-    const app = buildApp(db);
-    const admin = await sessionForRole("admin");
-    const target = await sessionForRole("user");
-    const role = await createGlobalRole(db, { name: "Docs only", modules: ["documents"] });
-
-    const res = await app.request(`/account/users/${target.id}`, jsonReq("PATCH", admin.cookie, { globalRoleId: role.id }));
-    expect(res.status).toBe(200);
-    const body = await res.json() as { data: { globalRoleId: string | null } };
-    expect(body.data.globalRoleId).toBe(role.id);
-
-    const detail = await (await app.request(`/account/users/${target.id}`, { headers: { Cookie: admin.cookie } })).json() as { data: { globalRoleId: string | null } };
-    expect(detail.data.globalRoleId).toBe(role.id);
-  });
-
-  test("explicit null resets the assignment to the default-role fallback", async () => {
-    const app = buildApp(db);
-    const admin = await sessionForRole("admin");
-    const target = await sessionForRole("user");
-    const role = await createGlobalRole(db, { name: "Drive only", modules: ["drive"] });
-    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, target.id)).run();
-
-    const res = await app.request(`/account/users/${target.id}`, jsonReq("PATCH", admin.cookie, { globalRoleId: null }));
-    expect(res.status).toBe(200);
-    const body = await res.json() as { data: { globalRoleId: string | null } };
-    expect(body.data.globalRoleId).toBeNull();
-  });
-
-  test("an unknown role id is rejected with 422; a plain user is forbidden (403)", async () => {
-    const app = buildApp(db);
-    const admin = await sessionForRole("admin");
-    const plain = await sessionForRole("user");
-    const target = await sessionForRole("user");
-
-    const invalid = await app.request(`/account/users/${target.id}`, jsonReq("PATCH", admin.cookie, { globalRoleId: "missing" }));
-    expect(invalid.status).toBe(422);
-
-    const denied = await app.request(`/account/users/${target.id}`, jsonReq("PATCH", plain.cookie, { globalRoleId: null }));
-    expect(denied.status).toBe(403);
-  });
-});
-
-describe("GET /account/me modules (PLAN-076)", () => {
+describe("GET /account/me modules (PLAN-076, group-based since FEAT-032)", () => {
   async function meModules(cookie: string): Promise<string[]> {
     const res = await buildApp(db).request("/account/me", { headers: { Cookie: cookie } });
     expect(res.status).toBe(200);
@@ -276,44 +233,18 @@ describe("GET /account/me modules (PLAN-076)", () => {
     expect(await meModules(admin.cookie)).toEqual([...MODULE_KEYS]);
   });
 
-  test("a NULL-role user gets the Guest floor — no modules", async () => {
-    await backfillGlobalRoles(db);
+  test("a user in no group gets the visibility floor — no modules", async () => {
     const plain = await sessionForRole("user");
     expect(await meModules(plain.cookie)).toEqual([]);
   });
 
-  test("an assigned role's modules are returned", async () => {
+  test("the union of the user's groups' modules is returned", async () => {
     const member = await sessionForRole("user");
-    const role = await createGlobalRole(db, { name: "Drive only", modules: ["drive"] });
-    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, member.id)).run();
-    expect(await meModules(member.cookie)).toEqual(["drive"]);
-  });
-});
-
-describe("GET /account/users?global_role_id (FEAT-031)", () => {
-  test("filters to the role's members; the default role also matches NULL", async () => {
-    await backfillGlobalRoles(db);
-    const app = buildApp(db);
-    const admin = await sessionForRole("admin");
-    const assigned = await sessionForRole("user");
-    const unassigned = await sessionForRole("user");
-    const crew = await createGlobalRole(db, { name: "Crew", modules: ["drive"] });
-    await db.update(users).set({ globalRoleId: crew.id }).where(eq(users.id, assigned.id)).run();
-
-    const crewList = await (await app.request(`/account/users?global_role_id=${crew.id}`, { headers: { Cookie: admin.cookie } })).json() as { data: { id: string }[] };
-    expect(crewList.data.map(u => u.id)).toEqual([assigned.id]);
-
-    // The default (Guest) role buckets NULL assignments and excludes admins.
-    const guest = (await resolveDefaultRole(db))!;
-    const guestList = await (await app.request(`/account/users?global_role_id=${guest.id}`, { headers: { Cookie: admin.cookie } })).json() as { data: { id: string }[] };
-    expect(guestList.data.map(u => u.id)).toEqual([unassigned.id]);
-  });
-
-  test("an unknown role id is a 422", async () => {
-    const app = buildApp(db);
-    const admin = await sessionForRole("admin");
-    const res = await app.request("/account/users?global_role_id=missing", { headers: { Cookie: admin.cookie } });
-    expect(res.status).toBe(422);
+    const a = await createGroup(db, { name: "Drive only", modules: ["drive"] });
+    const b = await createGroup(db, { name: "Ships only", modules: ["ships"] });
+    await addGroupMember(db, a.id, member.id);
+    await addGroupMember(db, b.id, member.id);
+    expect(await meModules(member.cookie)).toEqual(["drive", "ships"]);
   });
 });
 

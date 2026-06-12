@@ -1,14 +1,21 @@
 {
   "create": "新增",
   "createTitle": "新增组",
-  "createDescription": "添加一个新的用户组。",
+  "createDescription": "添加一个新的用户组。授予的模块对组内所有成员可见。",
   "editTitle": "编辑组",
-  "editDescription": "更新组名称和描述。",
+  "editDescription": "更新组名称、描述和模块权限。",
   "deleteTitle": "删除组",
-  "deleteConfirm": "确定要删除组「{{name}}」吗？此操作无法撤销。",
+  "deleteConfirm": "确定要删除组「{{name}}」吗？成员将失去该组授予的模块权限。此操作无法撤销。",
   "listTitle": "用户组",
-  "listDescription": "管理用户组及其成员。",
+  "listDescription": "统一的分组概念：用户组承载成员、可选的模块权限，并可作为分享对象。",
   "noResults": "暂无用户组。",
+  "system": "系统",
+  "admins": {
+    "name": "管理员",
+    "description": "内置：管理员不受模块权限限制，可访问全部内容。",
+    "membersDescription": "添加成员即提升为管理员；移除即降为普通用户。",
+    "addDescription": "搜索用户并将其提升为管理员。"
+  },
   "membersTitle": "组成员",
   "membersDescription": "查看并管理所选组的成员。",
   "selectGroup": "请选择一个组查看成员。",
@@ -21,6 +28,15 @@
   "membersOf": "{{name}} 的成员",
   "field": {
     "name": "组名称",
-    "description": "描述"
+    "description": "描述",
+    "modules": "可见模块"
+  },
+  "modules": {
+    "documents": "文档",
+    "drive": "网盘",
+    "projects": "项目",
+    "ships": "船舶",
+    "contacts": "联系人",
+    "hr": "人事"
   }
 }
