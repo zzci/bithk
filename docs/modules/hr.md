@@ -68,10 +68,10 @@ contribution.
 
 Mounted under `protectedRoutes`. Access is owned by the global-role module
 visibility gate (PLAN-076): `hr` is a registered module key, the default
-Member role does not include it, and requests from users whose role lacks it
-are answered with 404. In practice HR stays admin-only until an admin grants
-the `hr` module to a role; admins always bypass. There is no per-route
-`adminRequired` here.
+Guest role grants no modules (FEAT-031), and requests from users whose role
+lacks it are answered with 404. In practice HR stays admin-only until an
+admin grants the `hr` module to a role; admins always bypass. There is no
+per-route `adminRequired` here.
 
 | Method | Path | Description |
 |---|---|---|

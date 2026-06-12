@@ -5,6 +5,7 @@ import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   composeGlobalRole,
+  countUsersPerGlobalRole,
   createGlobalRole,
   deleteGlobalRole,
   listGlobalRoles,
@@ -33,7 +34,15 @@ export function roleRoutes() {
 
   router.get("/global-roles", adminRequired, async (c) => {
     const db = c.get("db");
-    return c.json({ success: true, data: (await listGlobalRoles(db)).map(composeGlobalRole) });
+    const [roles, counts] = await Promise.all([listGlobalRoles(db), countUsersPerGlobalRole(db)]);
+    // Users with a NULL assignment resolve to the default role, so its count
+    // includes the NULL bucket.
+    const data = roles.map((row) => {
+      const view = composeGlobalRole(row);
+      const userCount = (counts.get(row.id) ?? 0) + (view.kind === "default" ? counts.get(null) ?? 0 : 0);
+      return { ...view, userCount };
+    });
+    return c.json({ success: true, data });
   });
 
   router.post("/global-roles", adminRequired, async (c) => {

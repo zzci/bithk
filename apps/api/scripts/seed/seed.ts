@@ -26,6 +26,7 @@ import { and, eq } from "drizzle-orm";
 import { loadConfigStrict } from "@/config";
 import { createDb } from "@/db";
 import { addGroupMember, createGroup } from "@/modules/account/groups/groups.service";
+import { createGlobalRole } from "@/modules/account/roles/roles.service";
 import { users } from "@/modules/account/users/schema";
 import { createVirtualUser } from "@/modules/account/users/users.service";
 import { auditEvents } from "@/modules/audit/schema";
@@ -164,6 +165,14 @@ function uId(key: string): string {
 // ─── Importers ────────────────────────────────────────────────────────────
 
 async function importUsers(db: AppDatabase): Promise<void> {
+  // The boot backfill's default role is the zero-module Guest (FEAT-031), so
+  // seed a custom "Member" role with the classic module set and assign every
+  // seeded user to it — otherwise a reseeded dev DB renders module-less.
+  const memberRole = await createGlobalRole(db, {
+    name: "Member",
+    modules: ["documents", "drive", "projects", "ships", "contacts"],
+  });
+
   const recs = await readJson<UserRec[]>("users");
   for (const u of recs) {
     const id = `seed-user-${u.key}`;
@@ -174,6 +183,7 @@ async function importUsers(db: AppDatabase): Promise<void> {
       name: u.name,
       email: u.email,
       role: u.role,
+      globalRoleId: memberRole.id,
     }).run();
     userId.set(u.key, id);
     userName.set(u.key, u.name);

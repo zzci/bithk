@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
-import { backfillGlobalRoles } from "@/modules/account/roles/roles.service";
+import { backfillGlobalRoles, createGlobalRole } from "@/modules/account/roles/roles.service";
 import { users } from "@/modules/account/users/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
@@ -563,11 +563,14 @@ describe("contact routes", () => {
   });
 
   test("protected route registration exposes contact routes", async () => {
-    // The full protected router includes the module gate; a non-admin needs
-    // the default role (boot backfill in production) to see contacts.
+    // The full protected router includes the module gate; the boot-backfilled
+    // default is the zero-module Guest (FEAT-031), so the non-admin needs an
+    // explicit role granting `contacts`.
     await backfillGlobalRoles(db);
+    const role = await createGlobalRole(db, { name: "Contacts only", modules: ["contacts"] });
     const app = buildProtectedApp();
     const user = await seedUser("user-a");
+    await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, user)).run();
 
     const res = await app.request("/contacts", { headers: { "x-uid": user } });
 

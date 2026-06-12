@@ -13,6 +13,21 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Global roles as user groups (FEAT-031): the admin Roles page is now a
+  two-column group surface — role rows with member-count badges on the left
+  (the synthetic **Administrators** entry backed by `users.role`, the locked
+  zero-module **Guest** default, then custom roles), the selected role's
+  members on the right with debounced search-add and remove. Adding to
+  Administrators promotes (`role: "admin"`); removing demotes; removing from
+  a custom role falls the user back to Guest. Role permissions (name +
+  module switches) edit in a dialog; Admin/Guest open read-only.
+  `GET /global-roles` carries `userCount`; `GET /account/users` gains a
+  `global_role_id` filter; a last-admin guard (409 `LAST_ADMIN`, counted
+  inside the mutation transaction) blocks demoting/disabling the last active
+  admin. The boot backfill demotes a legacy module-carrying "Member" default
+  in place to a custom role and inserts the Guest floor; seed now creates a
+  custom "Member" role and assigns seeded users to it.
+
 - HTTP access log filtering (FEAT-029): new `HTTP_LOG_LEVEL` env var
   (`debug | info | silent`, default `info`) sets the level of the
   per-request "request completed" line for 2xx/3xx responses — `debug`

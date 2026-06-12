@@ -218,12 +218,14 @@ engine and per-project roles decide what the user can do inside a module.
 ### Global roles and module visibility
 
 Each user holds exactly one global role (`users.global_role_id`); `NULL`
-resolves to the system default role (kind=`default`, name "Member"), which a
+resolves to the system default role (kind=`default`, name "Guest"), which a
 boot backfill guarantees exists. A role grants a set of module keys from the
 static `MODULES` registry (`apps/api/src/shared/modules.ts`):
-`documents`, `drive`, `projects`, `ships`, `contacts`, `hr`. The default
-Member role seeds with every key except `hr`, so existing users keep exactly
-the visibility they had before the feature landed.
+`documents`, `drive`, `projects`, `ships`, `contacts`, `hr`. Exactly two
+built-ins exist (FEAT-031): the synthetic **Admin** role (`users.role =
+"admin"`, bypasses the gate, no `global_roles` row) and the locked
+zero-module **Guest** floor; every other role — including the seeded
+"Member" — is custom and admin-managed.
 
 Enforcement:
 

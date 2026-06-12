@@ -6,10 +6,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { createDb } from "@/db";
 import { backfillGlobalRoles, createGlobalRole } from "@/modules/account/roles/roles.service";
+import { globalRoles } from "@/modules/account/roles/schema";
 import { users } from "@/modules/account/users/schema";
 import { createDocument } from "@/modules/document/document.service";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createProject } from "@/modules/project/project.service";
+import { MODULE_KEYS } from "@/shared/modules";
 import { mountRoutes, seedUser, sessionCookieFor, testNanoid } from "@/shared/test/route-harness";
 import { searchRoutes } from "./search.routes";
 import "@/modules/account";
@@ -38,10 +40,16 @@ beforeEach(async () => {
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
   loadNamespaces();
-  // Non-admin sessions resolve their visible modules through the default
-  // role, which the boot backfill guarantees in production.
+  // The boot-backfilled default role is the zero-module Guest (FEAT-031), so
+  // non-admin callers that should see results get an explicit all-module role.
   await backfillGlobalRoles(db);
 });
+
+async function grantAllModules(userId: string) {
+  let role = await db.select().from(globalRoles).where(eq(globalRoles.name, "All modules")).get();
+  role = role ?? await createGlobalRole(db, { name: "All modules", modules: [...MODULE_KEYS] });
+  await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, userId)).run();
+}
 
 afterEach(() => {
   db.close();
@@ -60,6 +68,7 @@ describe("auth gating", () => {
 describe("GET /search", () => {
   test("returns the caller's own resources", async () => {
     const { userId, cookie } = await sessionCookieFor(db, "user");
+    await grantAllModules(userId);
     await createDocument(db, { title: "Quarterly Report", creatorId: userId });
     await createProject(db, { name: "Quarterly Project", creatorId: userId });
 
@@ -76,7 +85,9 @@ describe("GET /search", () => {
     await createDocument(db, { title: "Quarterly Report", creatorId: owner });
     await createProject(db, { name: "Quarterly Project", creatorId: owner });
 
-    const { cookie } = await sessionCookieFor(db, "user");
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    // Full module visibility so the empty result proves POLICY, not the gate.
+    await grantAllModules(userId);
     const res = await buildApp().request("/search?q=Quarterly", { headers: { Cookie: cookie } });
     const body = await res.json() as SearchResponse;
     expect(body.data.documents).toHaveLength(0);
@@ -110,6 +121,7 @@ describe("GET /search", () => {
 
   test("clamps an over-large limit to 20 results", async () => {
     const { userId, cookie } = await sessionCookieFor(db, "user");
+    await grantAllModules(userId);
     for (let i = 0; i < 25; i++)
       await createDocument(db, { title: `Doc ${i}`, creatorId: userId });
 
@@ -120,6 +132,7 @@ describe("GET /search", () => {
 
   test("a non-numeric limit falls back to the default", async () => {
     const { userId, cookie } = await sessionCookieFor(db, "user");
+    await grantAllModules(userId);
     for (let i = 0; i < 12; i++)
       await createDocument(db, { title: `Note ${i}`, creatorId: userId });
 

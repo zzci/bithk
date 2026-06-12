@@ -22,6 +22,7 @@ import {
   verifyTotpCode,
 } from "./totp.service";
 import {
+  assertNotLastActiveAdmin,
   createVirtualUser,
   deleteVirtualUser,
   getUserById,
@@ -37,6 +38,7 @@ const listQuerySchema = z.object({
   role: z.enum(["admin", "user"]).optional(),
   status: z.enum(["active", "disabled"]).optional(),
   group_id: z.string().optional(),
+  global_role_id: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -330,11 +332,23 @@ export function userRoutes() {
   router.get("/account/users", adminRequired, async (c) => {
     const db = c.get("db");
     const query = listQuerySchema.parse(c.req.query());
+
+    // Resolve the global-role filter up front: a dangling id is a 422, and
+    // the default (Guest) role must also match NULL assignments.
+    let globalRole: { id: string; includeNull: boolean } | undefined;
+    if (query.global_role_id) {
+      const role = await getGlobalRole(db, query.global_role_id);
+      if (!role)
+        throw new ValidationError("Unknown global role", { globalRoleId: query.global_role_id });
+      globalRole = { id: role.id, includeNull: role.kind === "default" };
+    }
+
     const result = await listUsers(db, {
       ...query.q ? { q: query.q } : {},
       ...query.role ? { role: query.role } : {},
       ...query.status ? { status: query.status } : {},
       ...query.group_id ? { groupId: query.group_id } : {},
+      ...globalRole ? { globalRole } : {},
       page: query.page,
       limit: query.limit,
     });
@@ -397,11 +411,21 @@ export function userRoutes() {
     const roleChanged = body.role !== undefined && body.role !== existing.role;
     const statusChanged = body.status !== undefined && body.status !== existing.status;
 
+    // Does this patch strip the target of active-admin standing?
+    const losesAdmin = existing.role === "admin" && existing.status === "active"
+      && ((body.role !== undefined && body.role !== "admin")
+        || (body.status !== undefined && body.status !== "active"));
+
     if (body.role !== undefined || body.status !== undefined || body.globalRoleId !== undefined) {
       // Atomic: either both the user mutation AND the session purge land, or
       // neither does. Without a tx an admin demote could persist while the
       // user keeps an existing admin session live.
       db.transaction((tx) => {
+        // Last-admin guard (FEAT-031), inside the tx so two admins demoting
+        // each other concurrently cannot both pass the count.
+        if (losesAdmin)
+          assertNotLastActiveAdmin(tx, id);
+
         const now = new Date().toISOString();
         const setData: Record<string, unknown> = { updatedAt: now };
         if (body.role !== undefined)

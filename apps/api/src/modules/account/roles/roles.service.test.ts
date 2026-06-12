@@ -11,7 +11,6 @@ import { seedUser, testNanoid } from "@/shared/test/route-harness";
 import {
   backfillGlobalRoles,
   createGlobalRole,
-  DEFAULT_ROLE_MODULES,
   DEFAULT_ROLE_NAME,
   deleteGlobalRole,
   parseModules,
@@ -43,7 +42,7 @@ async function loadUser(id: string) {
 }
 
 describe("backfillGlobalRoles", () => {
-  test("seeds the default Member role with the exact module set", async () => {
+  test("seeds the default Guest role with zero modules", async () => {
     const result = await backfillGlobalRoles(db);
     expect(result.created).toBe(true);
 
@@ -52,9 +51,7 @@ describe("backfillGlobalRoles", () => {
     expect(role!.name).toBe(DEFAULT_ROLE_NAME);
     expect(role!.isSystem).toBe(1);
     expect(role!.kind).toBe("default");
-    expect(parseModules(role!.modules)).toEqual([...DEFAULT_ROLE_MODULES]);
-    // hr stays admin-only at rollout — existing users keep today's visibility.
-    expect(parseModules(role!.modules)).not.toContain("hr");
+    expect(parseModules(role!.modules)).toEqual([]);
   });
 
   test("is idempotent — a second run inserts nothing", async () => {
@@ -65,27 +62,66 @@ describe("backfillGlobalRoles", () => {
     expect(rows.length).toBe(1);
   });
 
-  test("does not clobber an admin-edited default role", async () => {
-    await backfillGlobalRoles(db);
-    const role = (await resolveDefaultRole(db))!;
-    await updateGlobalRole(db, role.id, { name: "Staff", modules: ["drive"] });
+  test("demotes a legacy module-carrying default in place and inserts Guest", async () => {
+    // Pre-FEAT-031 state: kind='default' "Member" carrying modules, with a
+    // user explicitly assigned to it.
+    const now = new Date().toISOString();
+    await db.insert(globalRoles).values({
+      id: "legacy-member",
+      name: "Member",
+      modules: JSON.stringify(["documents", "drive"]),
+      isSystem: 1,
+      kind: "default",
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+    const userId = await seedUser(db, "user");
+    await db.update(users).set({ globalRoleId: "legacy-member" }).where(eq(users.id, userId)).run();
 
-    const again = await backfillGlobalRoles(db);
-    expect(again.created).toBe(false);
+    const result = await backfillGlobalRoles(db);
+    expect(result.created).toBe(true);
 
-    const after = (await resolveDefaultRole(db))!;
-    expect(after.id).toBe(role.id);
-    expect(after.name).toBe("Staff");
-    expect(parseModules(after.modules)).toEqual(["drive"]);
+    // Legacy row became a custom role, keeping id/name/modules.
+    const legacy = (await db.select().from(globalRoles).where(eq(globalRoles.id, "legacy-member")).get())!;
+    expect(legacy.isSystem).toBe(0);
+    expect(legacy.kind).toBeNull();
+    expect(legacy.name).toBe("Member");
+    expect(parseModules(legacy.modules)).toEqual(["documents", "drive"]);
+
+    // Its explicit assignee keeps exactly the old visibility.
+    expect(await resolveUserModules(db, await loadUser(userId))).toEqual(["documents", "drive"]);
+
+    // A fresh Guest default exists alongside it.
+    const guest = (await resolveDefaultRole(db))!;
+    expect(guest.id).not.toBe("legacy-member");
+    expect(guest.name).toBe(DEFAULT_ROLE_NAME);
+    expect(parseModules(guest.modules)).toEqual([]);
   });
 
-  test("repairs a dropped isSystem flag on the default role", async () => {
+  test("repairs a dropped isSystem flag and a stale name on the default role", async () => {
     await backfillGlobalRoles(db);
     const role = (await resolveDefaultRole(db))!;
-    await db.update(globalRoles).set({ isSystem: 0 }).where(eq(globalRoles.id, role.id)).run();
+    await db.update(globalRoles).set({ isSystem: 0, name: "Stale" }).where(eq(globalRoles.id, role.id)).run();
 
     await backfillGlobalRoles(db);
-    expect((await resolveDefaultRole(db))!.isSystem).toBe(1);
+    const after = (await resolveDefaultRole(db))!;
+    expect(after.id).toBe(role.id);
+    expect(after.isSystem).toBe(1);
+    expect(after.name).toBe(DEFAULT_ROLE_NAME);
+  });
+});
+
+describe("updateGlobalRole", () => {
+  test("refuses to modify the system Guest role", async () => {
+    await backfillGlobalRoles(db);
+    const guest = (await resolveDefaultRole(db))!;
+    expect(updateGlobalRole(db, guest.id, { name: "Renamed" })).rejects.toThrow("System roles cannot be modified");
+  });
+
+  test("updates a custom role", async () => {
+    const role = await createGlobalRole(db, { name: "Member", modules: ["drive"] });
+    const updated = await updateGlobalRole(db, role.id, { modules: ["drive", "ships"] });
+    expect(parseModules(updated!.modules)).toEqual(["drive", "ships"]);
   });
 });
 
@@ -97,11 +133,11 @@ describe("resolveUserModules", () => {
     expect(modules).toEqual([...MODULE_KEYS]);
   });
 
-  test("NULL globalRoleId resolves to the default role's modules", async () => {
+  test("NULL globalRoleId resolves to the Guest floor — no modules", async () => {
     await backfillGlobalRoles(db);
     const userId = await seedUser(db, "user");
     const modules = await resolveUserModules(db, await loadUser(userId));
-    expect(modules).toEqual([...DEFAULT_ROLE_MODULES]);
+    expect(modules).toEqual([]);
   });
 
   test("an assigned role resolves to its own modules", async () => {
@@ -114,7 +150,7 @@ describe("resolveUserModules", () => {
     expect(modules).toEqual(["drive"]);
   });
 
-  test("deleting a held role falls holders back to the default role", async () => {
+  test("deleting a held role falls holders back to the Guest floor", async () => {
     await backfillGlobalRoles(db);
     const role = await createGlobalRole(db, { name: "Doomed", modules: ["ships"] });
     const userId = await seedUser(db, "user");
@@ -125,6 +161,6 @@ describe("resolveUserModules", () => {
     // FK ON DELETE SET NULL must have cleared the assignment.
     const user = await loadUser(userId);
     expect(user.globalRoleId).toBeNull();
-    expect(await resolveUserModules(db, user)).toEqual([...DEFAULT_ROLE_MODULES]);
+    expect(await resolveUserModules(db, user)).toEqual([]);
   });
 });

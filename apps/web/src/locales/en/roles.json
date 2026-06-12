@@ -2,14 +2,35 @@
   "nav": "Roles",
   "page": {
     "title": "Role Management",
-    "description": "Manage global roles and the modules each role can access."
+    "description": "Manage global roles, their members, and the modules each role can access."
   },
-  "selectRole": "Role",
+  "listTitle": "Roles",
+  "listDescription": "Administrators and Guest are built in; every other role is custom.",
   "create": "New role",
   "createTitle": "New role",
-  "editTitle": "Edit role",
   "system": "System",
-  "defaultRoleNote": "The default role applies to every user without an assigned role. It can be edited but not deleted.",
+  "adminRole": {
+    "name": "Administrators",
+    "note": "Administrators bypass role permissions and can access every module. This list is managed here; permissions are fixed."
+  },
+  "guestRoleNote": "Guest is the fallback for users without an assigned role. It grants no module access and cannot be edited.",
+  "permissions": {
+    "edit": "Permissions of {{name}}",
+    "description": "Choose the modules this role can access."
+  },
+  "membersTitle": "Members",
+  "membersOf": "Members of {{name}}",
+  "membersDescription": "Users holding the selected role.",
+  "guestMembersNote": "Users without an assigned role fall back to Guest. Assign them a role to move them out.",
+  "selectRolePrompt": "Select a role to view its members.",
+  "noMembers": "No members.",
+  "moreMembers": "{{count}} more not shown.",
+  "addMember": "Add member",
+  "addMemberTitle": "Add member to {{name}}",
+  "addMemberDescription": "Search a user to assign this role.",
+  "addAdminDescription": "Search a user to promote to administrator.",
+  "searchUserPlaceholder": "Search by name, email or username",
+  "removeMember": "Remove",
   "field": {
     "name": "Name",
     "modules": "Visible modules"
@@ -24,11 +45,13 @@
   },
   "delete": {
     "title": "Delete role",
-    "confirm": "Are you sure you want to delete \"{{name}}\"? Users with this role fall back to the default role."
+    "confirm": "Are you sure you want to delete \"{{name}}\"? Users with this role fall back to Guest."
   },
   "toast": {
     "created": "Role created",
     "updated": "Role updated",
-    "deleted": "Role deleted"
+    "deleted": "Role deleted",
+    "memberAdded": "Member added",
+    "memberRemoved": "Member removed"
   }
 }

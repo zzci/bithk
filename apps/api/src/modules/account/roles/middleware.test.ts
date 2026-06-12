@@ -124,12 +124,12 @@ describe("moduleGate", () => {
     expect(res.status).toBe(401);
   });
 
-  test("a NULL-role user falls back to the default Member role's modules", async () => {
+  test("a NULL-role user falls to the Guest floor — every module route is hidden", async () => {
     const { cookie } = await sessionCookieFor(db, "user");
     const app = buildApp();
-    // Member grants contacts + drive but not hr.
-    expect((await app.request("/contacts", { headers: { Cookie: cookie } })).status).toBe(200);
-    expect((await app.request("/drive/entries", { headers: { Cookie: cookie } })).status).toBe(200);
+    // Guest (the default fallback) grants no modules at all (FEAT-031).
+    expect((await app.request("/contacts", { headers: { Cookie: cookie } })).status).toBe(404);
+    expect((await app.request("/drive/entries", { headers: { Cookie: cookie } })).status).toBe(404);
     expect((await app.request("/hr/colleagues", { headers: { Cookie: cookie } })).status).toBe(404);
   });
 });

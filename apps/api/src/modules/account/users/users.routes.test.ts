@@ -11,11 +11,12 @@ import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
-import { backfillGlobalRoles, createGlobalRole, DEFAULT_ROLE_MODULES } from "@/modules/account/roles/roles.service";
+import { backfillGlobalRoles, createGlobalRole, resolveDefaultRole } from "@/modules/account/roles/roles.service";
 import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { MODULE_KEYS } from "@/shared/modules";
 import { userRoutes } from "./users.routes";
+import { assertNotLastActiveAdmin } from "./users.service";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
 
@@ -275,10 +276,10 @@ describe("GET /account/me modules (PLAN-076)", () => {
     expect(await meModules(admin.cookie)).toEqual([...MODULE_KEYS]);
   });
 
-  test("a NULL-role user gets the default role's modules", async () => {
+  test("a NULL-role user gets the Guest floor — no modules", async () => {
     await backfillGlobalRoles(db);
     const plain = await sessionForRole("user");
-    expect(await meModules(plain.cookie)).toEqual([...DEFAULT_ROLE_MODULES]);
+    expect(await meModules(plain.cookie)).toEqual([]);
   });
 
   test("an assigned role's modules are returned", async () => {
@@ -286,5 +287,62 @@ describe("GET /account/me modules (PLAN-076)", () => {
     const role = await createGlobalRole(db, { name: "Drive only", modules: ["drive"] });
     await db.update(users).set({ globalRoleId: role.id }).where(eq(users.id, member.id)).run();
     expect(await meModules(member.cookie)).toEqual(["drive"]);
+  });
+});
+
+describe("GET /account/users?global_role_id (FEAT-031)", () => {
+  test("filters to the role's members; the default role also matches NULL", async () => {
+    await backfillGlobalRoles(db);
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const assigned = await sessionForRole("user");
+    const unassigned = await sessionForRole("user");
+    const crew = await createGlobalRole(db, { name: "Crew", modules: ["drive"] });
+    await db.update(users).set({ globalRoleId: crew.id }).where(eq(users.id, assigned.id)).run();
+
+    const crewList = await (await app.request(`/account/users?global_role_id=${crew.id}`, { headers: { Cookie: admin.cookie } })).json() as { data: { id: string }[] };
+    expect(crewList.data.map(u => u.id)).toEqual([assigned.id]);
+
+    // The default (Guest) role buckets NULL assignments and excludes admins.
+    const guest = (await resolveDefaultRole(db))!;
+    const guestList = await (await app.request(`/account/users?global_role_id=${guest.id}`, { headers: { Cookie: admin.cookie } })).json() as { data: { id: string }[] };
+    expect(guestList.data.map(u => u.id)).toEqual([unassigned.id]);
+  });
+
+  test("an unknown role id is a 422", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const res = await app.request("/account/users?global_role_id=missing", { headers: { Cookie: admin.cookie } });
+    expect(res.status).toBe(422);
+  });
+});
+
+describe("last-admin guard (FEAT-031)", () => {
+  // Through HTTP a single request can never strip the last active admin (the
+  // caller is itself another active admin, self-edit is blocked, disabled
+  // admins cannot authenticate) — the guard exists for the concurrent
+  // mutual-demotion race, so its 409 branch is asserted at the service level.
+  test("throws 409 when the target is the only active admin", async () => {
+    const sole = await sessionForRole("admin");
+    expect(() => assertNotLastActiveAdmin(db, sole.id)).toThrow("Cannot demote or disable the last active admin");
+
+    // A disabled admin does not count as a survivor.
+    const disabled = await sessionForRole("admin");
+    await db.update(users).set({ status: "disabled" }).where(eq(users.id, disabled.id)).run();
+    expect(() => assertNotLastActiveAdmin(db, sole.id)).toThrow();
+  });
+
+  test("passes when another active admin remains", async () => {
+    const a = await sessionForRole("admin");
+    await sessionForRole("admin");
+    expect(() => assertNotLastActiveAdmin(db, a.id)).not.toThrow();
+  });
+
+  test("PATCH demoting an admin succeeds while another active admin remains", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const other = await sessionForRole("admin");
+    const res = await app.request(`/account/users/${other.id}`, jsonReq("PATCH", admin.cookie, { role: "user" }));
+    expect(res.status).toBe(200);
   });
 });

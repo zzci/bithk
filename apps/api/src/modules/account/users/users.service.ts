@@ -1,5 +1,5 @@
 import type { AppDatabase } from "@/db";
-import { and, asc, count, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { groups } from "@/modules/account/groups/schema";
 import { users } from "@/modules/account/users/schema";
 import {
@@ -33,12 +33,18 @@ interface ListUsersParams {
   readonly role?: UserRole | undefined;
   readonly status?: UserStatus | undefined;
   readonly groupId?: string | undefined;
+  /**
+   * Global-role membership filter (FEAT-031). Implies `role = "user"` (admins
+   * belong to the synthetic Admin role, queried via `role=admin`). When the
+   * id is the default (Guest) role, NULL assignments match too.
+   */
+  readonly globalRole?: { readonly id: string; readonly includeNull: boolean } | undefined;
   readonly page: number;
   readonly limit: number;
 }
 
 export async function listUsers(db: AppDatabase, params: ListUsersParams) {
-  const { q, role, status, groupId, page, limit } = params;
+  const { q, role, status, groupId, globalRole, page, limit } = params;
   const offset = (page - 1) * limit;
   const conditions = [];
 
@@ -60,6 +66,12 @@ export async function listUsers(db: AppDatabase, params: ListUsersParams) {
   }
   if (status) {
     conditions.push(eq(users.status, status));
+  }
+  if (globalRole) {
+    conditions.push(eq(users.role, "user"));
+    conditions.push(globalRole.includeNull
+      ? or(eq(users.globalRoleId, globalRole.id), isNull(users.globalRoleId))!
+      : eq(users.globalRoleId, globalRole.id));
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -142,6 +154,25 @@ async function attachUserGroups<T extends { id: string }>(db: AppDatabase, data:
 
 export async function getUserById(db: AppDatabase, id: string) {
   return await db.select(userColumns).from(users).where(eq(users.id, id)).get();
+}
+
+/**
+ * Last-admin guard (FEAT-031): throws 409 when `targetId` is the only active
+ * admin left. Single requests cannot reach this state (self-edit is blocked,
+ * disabled admins cannot authenticate, and the caller is itself an active
+ * admin), so the guard's real job is the concurrent mutual-demotion race —
+ * call it INSIDE the demoting transaction so the second writer sees the
+ * first's committed demotion and rolls back.
+ */
+export function assertNotLastActiveAdmin(db: Pick<AppDatabase, "select">, targetId: string): void {
+  const others = db
+    .select({ value: count() })
+    .from(users)
+    .where(and(eq(users.role, "admin"), eq(users.status, "active"), ne(users.id, targetId)))
+    .get();
+  if ((others?.value ?? 0) === 0) {
+    throw new AppError("Cannot demote or disable the last active admin", 409, "LAST_ADMIN");
+  }
 }
 
 export async function updateUser(db: AppDatabase, id: string, data: { role?: UserRole | undefined; status?: UserStatus | undefined }) {

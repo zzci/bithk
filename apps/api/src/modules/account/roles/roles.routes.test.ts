@@ -3,8 +3,10 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { createDb } from "@/db";
-import { mountRoutes, sessionCookieFor, testNanoid } from "@/shared/test/route-harness";
+import { users } from "@/modules/account/users/schema";
+import { mountRoutes, seedUser, sessionCookieFor, testNanoid } from "@/shared/test/route-harness";
 import { roleRoutes } from "./roles.routes";
 import { backfillGlobalRoles, resolveDefaultRole } from "./roles.service";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
@@ -72,7 +74,7 @@ describe("global roles CRUD", () => {
     const list = await app.request("/global-roles", { headers: { Cookie: cookie } });
     expect(list.status).toBe(200);
     const names = (await list.json() as { data: Array<{ name: string }> }).data.map(r => r.name);
-    expect(names).toContain("Member");
+    expect(names).toContain("Guest");
     expect(names).toContain("Crew");
 
     const patched = await app.request(`/global-roles/${role.id}`, jsonInit("PATCH", cookie, { name: "Deck crew", modules: ["drive"] }));
@@ -89,7 +91,7 @@ describe("global roles CRUD", () => {
     expect(remaining).not.toContain("Deck crew");
   });
 
-  test("the default system role cannot be deleted but its modules are editable", async () => {
+  test("the default Guest role can be neither deleted nor modified", async () => {
     const cookie = await adminCookie();
     const app = buildApp();
     const defaultRole = (await resolveDefaultRole(db))!;
@@ -98,8 +100,25 @@ describe("global roles CRUD", () => {
     expect(del.status).toBe(403);
 
     const patch = await app.request(`/global-roles/${defaultRole.id}`, jsonInit("PATCH", cookie, { modules: ["documents"] }));
-    expect(patch.status).toBe(200);
-    expect((await patch.json() as { data: { modules: string[] } }).data.modules).toEqual(["documents"]);
+    expect(patch.status).toBe(403);
+  });
+
+  test("list carries per-role user counts; NULL assignments bucket to Guest; admins excluded", async () => {
+    const cookie = await adminCookie(); // creates one admin user
+    const app = buildApp();
+
+    const created = await app.request("/global-roles", jsonInit("POST", cookie, { name: "Crew", modules: ["drive"] }));
+    const crew = (await created.json() as { data: { id: string } }).data;
+
+    await seedUser(db, "user"); // NULL globalRoleId → buckets to Guest
+    const assigned = await seedUser(db, "user");
+    await db.update(users).set({ globalRoleId: crew.id }).where(eq(users.id, assigned)).run();
+
+    const list = await app.request("/global-roles", { headers: { Cookie: cookie } });
+    const data = (await list.json() as { data: Array<{ name: string; kind: string | null; userCount: number }> }).data;
+    const byName = new Map(data.map(r => [r.name, r]));
+    expect(byName.get("Guest")!.userCount).toBe(1);
+    expect(byName.get("Crew")!.userCount).toBe(1);
   });
 
   test("rejects unknown module keys with 422", async () => {
@@ -118,7 +137,7 @@ describe("global roles CRUD", () => {
 
     // Renaming onto an existing name is rejected too.
     const role = (await first.json() as { data: { id: string } }).data;
-    const rename = await app.request(`/global-roles/${role.id}`, jsonInit("PATCH", cookie, { name: "Member" }));
+    const rename = await app.request(`/global-roles/${role.id}`, jsonInit("PATCH", cookie, { name: "Guest" }));
     expect(rename.status).toBe(409);
   });
 

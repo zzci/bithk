@@ -1,7 +1,8 @@
 import type { AppDatabase } from "@/db";
 import type { ModuleKey } from "@/shared/modules";
-import { eq } from "drizzle-orm";
-import { AppError, ValidationError } from "@/shared/lib/errors";
+import { count, eq } from "drizzle-orm";
+import { users } from "@/modules/account/users/schema";
+import { AppError, ForbiddenError, ValidationError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
 import { MODULE_KEYS } from "@/shared/modules";
 import { globalRoles } from "./schema";
@@ -62,41 +63,66 @@ async function assertNameAvailable(db: AppDatabase, name: string, excludeId?: st
 
 // ─── Default role + boot backfill ──────────────────────────────────────────
 
-export const DEFAULT_ROLE_NAME = "Member";
-
-// `hr` is deliberately excluded: hr is admin-only today, and the rollout
-// criterion is "existing users keep exactly today's visibility". Admins can
-// grant it per role once the module opens up.
-export const DEFAULT_ROLE_MODULES: readonly ModuleKey[] = ["documents", "drive", "projects", "ships", "contacts"];
+// The system default ("Guest") is the visibility floor: zero modules, locked
+// against edits, and the fallback for `users.global_role_id` NULL. The only
+// other built-in is Admin, which is synthetic (`users.role = "admin"` bypasses
+// module checks entirely) and deliberately has no row here. Everything else —
+// including the former built-in "Member" — is a custom role (FEAT-031).
+export const DEFAULT_ROLE_NAME = "Guest";
 
 export interface GlobalRolesBackfillResult {
   readonly created: boolean;
 }
 
+async function isNameTaken(db: AppDatabase, name: string, excludeId?: string): Promise<boolean> {
+  const owner = await db.select({ id: globalRoles.id }).from(globalRoles).where(eq(globalRoles.name, name)).get();
+  return owner !== undefined && owner.id !== excludeId;
+}
+
 /**
- * Self-healing idempotent boot backfill (same pattern as
- * `backfillProjectRoles`): ensure the kind='default' system role exists. When
- * it already exists only the `isSystem` flag is repaired — name and modules
- * are admin-editable and must never be clobbered by a reboot.
+ * Self-healing idempotent boot backfill: ensure the kind='default' system
+ * role exists as the zero-module Guest. A legacy default carrying modules
+ * (pre-FEAT-031 "Member") is demoted IN PLACE to a custom role — it keeps its
+ * id/name/modules so explicitly assigned users lose nothing — and a fresh
+ * Guest default is inserted. Users with a NULL assignment fall to Guest by
+ * design (the approved visibility floor).
  */
 export async function backfillGlobalRoles(db: AppDatabase): Promise<GlobalRolesBackfillResult> {
   const existing = await db.select().from(globalRoles).where(eq(globalRoles.kind, "default")).get();
   const now = new Date().toISOString();
 
   if (existing) {
-    if (existing.isSystem !== 1) {
-      await db.update(globalRoles)
-        .set({ isSystem: 1, updatedAt: now })
-        .where(eq(globalRoles.id, existing.id))
-        .run();
+    if (parseModules(existing.modules).length === 0) {
+      // Already guest-shaped: normalize flag + name (Guest is locked, so a
+      // stale name could never be fixed by an admin). Skip the rename if a
+      // custom role already owns the name.
+      const patch: Record<string, unknown> = {};
+      if (existing.isSystem !== 1)
+        patch.isSystem = 1;
+      if (existing.name !== DEFAULT_ROLE_NAME && !(await isNameTaken(db, DEFAULT_ROLE_NAME, existing.id)))
+        patch.name = DEFAULT_ROLE_NAME;
+      if (Object.keys(patch).length > 0) {
+        await db.update(globalRoles)
+          .set({ ...patch, updatedAt: now })
+          .where(eq(globalRoles.id, existing.id))
+          .run();
+      }
+      return { created: false };
     }
-    return { created: false };
+
+    // Legacy module-carrying default → custom role, then fall through to
+    // insert the Guest default.
+    await db.update(globalRoles)
+      .set({ isSystem: 0, kind: null, updatedAt: now })
+      .where(eq(globalRoles.id, existing.id))
+      .run();
   }
 
+  const name = (await isNameTaken(db, DEFAULT_ROLE_NAME)) ? `${DEFAULT_ROLE_NAME} (system)` : DEFAULT_ROLE_NAME;
   await db.insert(globalRoles).values({
     id: nanoid(),
-    name: DEFAULT_ROLE_NAME,
-    modules: JSON.stringify([...DEFAULT_ROLE_MODULES]),
+    name,
+    modules: JSON.stringify([]),
     isSystem: 1,
     kind: "default",
     createdAt: now,
@@ -139,6 +165,21 @@ export async function listGlobalRoles(db: AppDatabase): Promise<readonly GlobalR
   return await db.select().from(globalRoles).orderBy(globalRoles.name).all();
 }
 
+/**
+ * Non-admin user count per global role id. Admins are excluded (they belong
+ * to the synthetic Admin role); the NULL bucket is keyed `null` and must be
+ * attributed to the default (Guest) role by the caller.
+ */
+export async function countUsersPerGlobalRole(db: AppDatabase): Promise<ReadonlyMap<string | null, number>> {
+  const rows = await db
+    .select({ roleId: users.globalRoleId, value: count() })
+    .from(users)
+    .where(eq(users.role, "user"))
+    .groupBy(users.globalRoleId)
+    .all();
+  return new Map(rows.map(r => [r.roleId, r.value]));
+}
+
 export async function getGlobalRole(db: AppDatabase, id: string): Promise<GlobalRoleRow | undefined> {
   return await db.select().from(globalRoles).where(eq(globalRoles.id, id)).get();
 }
@@ -173,8 +214,8 @@ export interface UpdateGlobalRoleInput {
 }
 
 /**
- * Update name and/or modules. The system default role is updatable too — its
- * module set is explicitly admin-editable; only deletion is forbidden.
+ * Update name and/or modules of a CUSTOM role. System roles (the Guest
+ * default) are immutable: Guest is the locked zero-module floor (FEAT-031).
  */
 export async function updateGlobalRole(
   db: AppDatabase,
@@ -184,6 +225,8 @@ export async function updateGlobalRole(
   const existing = await getGlobalRole(db, id);
   if (!existing)
     return undefined;
+  if (existing.isSystem === 1)
+    throw new ForbiddenError("System roles cannot be modified");
 
   const patch: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (input.name !== undefined) {

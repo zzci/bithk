@@ -1,7 +1,9 @@
-// Global roles data layer (PLAN-076): admin-managed app-level roles that grant
-// per-module visibility. Backed by the admin-only `/global-roles` CRUD routes.
-// The system default role (kind === "default") is editable but undeletable;
-// users with a NULL `globalRoleId` resolve to it server-side.
+// Global roles data layer (PLAN-076, FEAT-031): admin-managed app-level roles
+// that grant per-module visibility. Backed by the admin-only `/global-roles`
+// CRUD routes. The system default role (kind === "default") is the locked
+// zero-module Guest; users with a NULL `globalRoleId` resolve to it
+// server-side. The list endpoint carries a per-role `userCount` (non-admin
+// users; NULL assignments bucket to Guest).
 
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ApiEnvelope } from "./types";
@@ -21,6 +23,8 @@ export interface GlobalRoleView {
   readonly kind: "default" | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+  // Present on the list endpoint only (mutation responses omit it).
+  readonly userCount?: number;
 }
 
 export interface GlobalRoleInput {
