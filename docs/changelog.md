@@ -26,6 +26,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- HR colleague detail drawer + profile metadata & documents (FEAT-030): the
+  colleagues sub-module opens the shared `ResizableDrawer` for create / view /
+  edit (the standalone dialog is gone). Colleague records gain profile fields —
+  birthday, hire / probation-end / contract-end dates, gender, employment type,
+  nationality, phone, email, address, work location, a free-form `payment_info`
+  list (one DB column, custom label/value rows per country), and repeatable
+  `emergency_contacts` — plus a personal-document area that uploads multiple
+  files (passport, certificates, …) through the file module's generic
+  attachment registry (`owner_type` `hr_colleague_document`, no new table).
+
 - Global roles as user groups (FEAT-031): the admin Roles page is now a
   two-column group surface — role rows with member-count badges on the left
   (the synthetic **Administrators** entry backed by `users.role`, the locked

@@ -1,6 +1,6 @@
 # PLAN-079 - HR colleague detail drawer with profile metadata and documents
 
-- Status: Draft
+- Status: Completed
 - Task: [FEAT-030](../task/FEAT-030.md)
 - Campaign: local
 - Created: 2026-06-12

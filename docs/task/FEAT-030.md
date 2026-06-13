@@ -1,6 +1,6 @@
 # FEAT-030 - HR colleague detail drawer with profile metadata and documents
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-079](../plan/PLAN-079.md)
 - Campaign: local
 - Owner: session
@@ -63,3 +63,17 @@ retiring the standalone create/edit dialog.
 - 2026-06-12: Created with [PLAN-079](../plan/PLAN-079.md); awaiting approval.
 - 2026-06-12: Approved; field set finalized (no id_number, no education — ID
   numbers live in the document attachments). Implementation started.
+- 2026-06-12: Completed. `hr_colleagues` gained the profile columns + two JSON
+  columns (`payment_info`, `emergency_contacts`) via migration 0005; service,
+  routes, and zod schemas carry them; new `/hr/colleagues/:id/attachments` CRUD
+  reuses `file_references` (`owner_type` `hr_colleague_document`). Web: new
+  `ColleaguePanel` in the shared `ResizableDrawer` (create/view/edit), documents
+  block via `ResourceAttachmentSection` + `useResourceAttachmentUpload`, list page
+  rewritten to drive the drawer (dialog removed), form logic split into
+  `-colleague-form-logic.ts`. en/zh i18n + `common.resize`. Tests: profile-field
+  + attachment-CRUD route tests, rewritten page test. Gates green: lint 0 errors,
+  typecheck, API 1799/0, web 828/0, check:routes 511/0, i18n, api-docs, build.
+  Note: the working tree also holds an unrelated in-flight FEAT-031/FEAT-032
+  (roles→groups) campaign; a rare pre-existing sidebar-registry web-test flake
+  (pure-function test, passes in isolation and on re-run) is from that work, not
+  this feature.

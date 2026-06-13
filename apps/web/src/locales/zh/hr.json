@@ -113,28 +113,74 @@
     "noResults": "未找到同事。",
     "create": "新增",
     "createTitle": "新增同事",
-    "createDescription": "将现有真实或虚拟用户关联为同事。",
     "editTitle": "编辑同事",
-    "editDescription": "更新同事信息与状态。",
     "virtualBadge": "虚拟",
     "statusActive": "在职",
     "statusArchived": "已归档",
     "selectUser": "选择用户",
+    "unset": "未设置",
+    "section": {
+      "identity": "身份",
+      "personal": "个人",
+      "contact": "联系方式",
+      "emergency": "紧急联系人",
+      "employment": "雇佣",
+      "payment": "收款信息",
+      "documents": "个人档案"
+    },
     "field": {
       "user": "用户",
       "code": "编号",
       "title": "职位",
       "department": "部门",
       "status": "状态",
-      "notes": "备注"
+      "notes": "备注",
+      "birthday": "生日",
+      "hireDate": "入职日期",
+      "probationEndDate": "试用期到期日",
+      "contractEndDate": "合同到期日",
+      "gender": "性别",
+      "employmentType": "雇佣类型",
+      "nationality": "国籍",
+      "personalPhone": "手机",
+      "personalEmail": "邮箱",
+      "address": "居住地址",
+      "workLocation": "工作地点"
+    },
+    "genderOption": {
+      "male": "男",
+      "female": "女",
+      "other": "其他",
+      "undisclosed": "不愿透露"
+    },
+    "employmentOption": {
+      "full_time": "全职",
+      "part_time": "兼职",
+      "contract": "合同",
+      "intern": "实习"
+    },
+    "payment": {
+      "label": "名称",
+      "value": "内容",
+      "add": "添加字段",
+      "remove": "删除字段"
+    },
+    "emergency": {
+      "entry": "联系人 {{index}}",
+      "name": "姓名",
+      "relation": "关系",
+      "phone": "电话",
+      "email": "邮箱",
+      "address": "地址",
+      "add": "添加联系人",
+      "remove": "删除联系人"
     },
     "col": {
       "user": "用户",
       "code": "编号",
       "title": "职位",
       "department": "部门",
-      "status": "状态",
-      "actions": "操作"
+      "status": "状态"
     },
     "archive": "归档",
     "archiveTitle": "归档同事",
@@ -144,5 +190,15 @@
       "updated": "同事已更新",
       "archived": "同事已归档"
     }
+  },
+  "attachments": {
+    "title": "个人档案",
+    "upload": "上传文件",
+    "uploading": "上传中...",
+    "download": "下载",
+    "deleteTitle": "删除文件",
+    "deleteConfirm": "确定要删除文件「{{filename}}」吗？",
+    "limitReached": "已达到文件数量上限。",
+    "fileTooLarge": "文件大小超过限制。"
   }
 }

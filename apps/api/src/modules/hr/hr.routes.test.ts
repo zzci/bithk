@@ -356,3 +356,75 @@ describe("DELETE /hr/colleagues/:id", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("colleague profile fields", () => {
+  test("create persists profile metadata and parses the JSON columns back", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const userId = await insertUser();
+
+    const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, {
+      userId,
+      birthday: "1990-05-01",
+      hireDate: "2024-01-15",
+      gender: "female",
+      employmentType: "full_time",
+      nationality: "Norwegian",
+      personalPhone: "+47 123",
+      paymentInfo: [{ label: "Bank", value: "DNB" }, { label: "IBAN", value: "NO123" }],
+      emergencyContacts: [{ name: "Bob", relation: "Spouse", phone: "999", email: "", address: "" }],
+    }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as {
+      data: {
+        birthday: string;
+        gender: string;
+        employmentType: string;
+        paymentInfo: Array<{ label: string; value: string }>;
+        emergencyContacts: Array<{ name: string; relation: string; phone: string; email: string; address: string }>;
+      };
+    };
+    expect(body.data.birthday).toBe("1990-05-01");
+    expect(body.data.gender).toBe("female");
+    expect(body.data.employmentType).toBe("full_time");
+    expect(body.data.paymentInfo).toEqual([{ label: "Bank", value: "DNB" }, { label: "IBAN", value: "NO123" }]);
+    expect(body.data.emergencyContacts).toEqual([{ name: "Bob", relation: "Spouse", phone: "999", email: "", address: "" }]);
+  });
+
+  test("update replaces the JSON columns and clears a nullable enum", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const userId = await insertUser();
+    const created = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, {
+      userId,
+      gender: "male",
+      paymentInfo: [{ label: "Old", value: "X" }],
+    }));
+    const cbody = await created.json() as { data: { id: string } };
+
+    const res = await app.request(`/hr/colleagues/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, {
+      gender: null,
+      paymentInfo: [{ label: "New", value: "Y" }],
+      emergencyContacts: [],
+    }));
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      data: { gender: string | null; paymentInfo: Array<{ label: string; value: string }>; emergencyContacts: unknown[] };
+    };
+    expect(body.data.gender).toBeNull();
+    expect(body.data.paymentInfo).toEqual([{ label: "New", value: "Y" }]);
+    expect(body.data.emergencyContacts).toEqual([]);
+  });
+
+  test("an invalid date or enum value is rejected (422)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const userId = await insertUser();
+
+    const badDate = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId, birthday: "1990/05/01" }));
+    expect(badDate.status).toBe(422);
+
+    const badEnum = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId, gender: "unknown" }));
+    expect(badEnum.status).toBe(422);
+  });
+});

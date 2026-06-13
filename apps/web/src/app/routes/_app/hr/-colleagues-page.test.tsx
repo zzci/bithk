@@ -32,6 +32,19 @@ function colleague(overrides: Partial<HrColleagueRow> = {}): HrColleagueRow {
     department: "Finance",
     status: "active",
     notes: null,
+    birthday: null,
+    hireDate: null,
+    probationEndDate: null,
+    contractEndDate: null,
+    gender: null,
+    employmentType: null,
+    nationality: null,
+    personalPhone: null,
+    personalEmail: null,
+    address: null,
+    workLocation: null,
+    paymentInfo: [],
+    emergencyContacts: [],
     createdAt: "2026-06-10T00:00:00.000Z",
     updatedAt: "2026-06-10T00:00:00.000Z",
     user: { name: "Alice", username: "alice", isVirtual: false, status: "active" },
@@ -44,13 +57,19 @@ const assignableUsers = [
   { id: "u2", name: "Crew B", username: "crew-b", isVirtual: true },
 ];
 
-/** Route the colleagues list GET, the assignable-users GET, and mutations. */
+/** Route the colleagues list GET, attachments/limits GETs, assignable users, and mutations. */
 function routeFetch(rows: readonly HrColleagueRow[]) {
   fetchMock.mockImplementation(async (url, init) => {
     const path = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
     if (method === "GET" && path.includes("/assignable-users"))
       return jsonResponse({ success: true, data: assignableUsers, meta: { total: assignableUsers.length, page: 1, limit: 50 } });
+    // Personal-document block (view mode) reads these — keep them empty so the
+    // attachment grid renders nothing rather than mis-parsing colleague rows.
+    if (method === "GET" && /\/hr\/colleagues\/[^/]+\/attachments/.test(path))
+      return jsonResponse({ success: true, data: [] });
+    if (method === "GET" && path.includes("/system/upload-limits"))
+      return jsonResponse({ success: true, data: { maxFileSize: 10_485_760, maxAttachmentsPerResource: 20, totalQuota: null } });
     if (method === "GET" && path.includes("/hr/colleagues"))
       return jsonResponse({ success: true, data: rows, meta: { total: rows.length, page: 1, limit: 20, totalPages: 1 } });
     if (method === "POST")
@@ -61,6 +80,12 @@ function routeFetch(rows: readonly HrColleagueRow[]) {
       return jsonResponse({ success: true, data: colleague({ status: "archived" }) });
     return jsonResponse({ success: true, data: null });
   });
+}
+
+/** Open the detail drawer for a colleague by clicking its name. */
+async function openDrawer(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+  await user.click(screen.getByRole("button", { name }));
+  return screen.findByRole("dialog");
 }
 
 describe("hrColleaguesPage", () => {
@@ -97,8 +122,8 @@ describe("hrColleaguesPage", () => {
     renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("No colleagues found.");
     await user.click(screen.getByRole("button", { name: "New" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   it("offers both real and virtual users in the picker and creates a virtual colleague", async () => {
@@ -108,24 +133,25 @@ describe("hrColleaguesPage", () => {
     await screen.findByText("No colleagues found.");
 
     await user.click(screen.getByRole("button", { name: "New" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("combobox"));
+    const drawer = await screen.findByRole("dialog");
+    await user.click(within(drawer).getByRole("combobox", { name: "User" }));
     const listbox = await screen.findByRole("listbox");
     await within(listbox).findByRole("option", { name: /Alice/ });
     const optionNames = within(listbox).getAllByRole("option").map(o => o.textContent ?? "");
-    // Real user without badge, virtual user with the Virtual badge inline.
     expect(optionNames.some(n => n.includes("Alice (alice)") && !n.includes("Virtual"))).toBe(true);
     expect(optionNames.some(n => n.includes("Crew B (crew-b)") && n.includes("Virtual"))).toBe(true);
 
     await user.click(within(listbox).getByRole("option", { name: /Crew B/ }));
-    await user.type(within(dialog).getByLabelText("Code"), "F-009");
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.type(within(drawer).getByLabelText("Code"), "F-009");
+    await user.click(within(drawer).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
       expect(post).toBeTruthy();
       expect(String(post![0])).toBe("/api/hr/colleagues");
-      expect(JSON.parse(String(post![1]?.body))).toEqual({ userId: "u2", code: "F-009" });
+      const body = JSON.parse(String(post![1]?.body));
+      expect(body.userId).toBe("u2");
+      expect(body.code).toBe("F-009");
     });
   });
 
@@ -136,31 +162,31 @@ describe("hrColleaguesPage", () => {
     await screen.findByText("No colleagues found.");
 
     await user.click(screen.getByRole("button", { name: "New" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("combobox"));
+    const drawer = await screen.findByRole("dialog");
+    await user.click(within(drawer).getByRole("combobox", { name: "User" }));
     const listbox = await screen.findByRole("listbox");
     await user.click(await within(listbox).findByRole("option", { name: /Alice/ }));
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(within(drawer).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
       expect(post).toBeTruthy();
-      expect(JSON.parse(String(post![1]?.body))).toEqual({ userId: "u1" });
+      expect(JSON.parse(String(post![1]?.body)).userId).toBe("u1");
     });
   });
 
-  it("edits a colleague and patches the specific id", async () => {
+  it("edits a colleague from the drawer and patches the specific id", async () => {
     const user = userEvent.setup();
     routeFetch([colleague()]);
     renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("Alice");
 
-    await user.click(screen.getByRole("button", { name: "Edit" }));
-    const dialog = await screen.findByRole("dialog");
-    const title = within(dialog).getByLabelText("Title");
+    const drawer = await openDrawer(user, /Alice/);
+    await user.click(within(drawer).getByRole("button", { name: "Edit" }));
+    const title = within(drawer).getByLabelText("Title");
     await user.clear(title);
     await user.type(title, "Lead");
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(within(drawer).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const patch = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "PATCH");
@@ -174,15 +200,16 @@ describe("hrColleaguesPage", () => {
     });
   });
 
-  it("archives a colleague after confirmation", async () => {
+  it("archives a colleague from the drawer after confirmation", async () => {
     const user = userEvent.setup();
     routeFetch([colleague()]);
     renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("Alice");
 
-    await user.click(screen.getByRole("button", { name: "Archive" }));
-    const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Archive" }));
+    const drawer = await openDrawer(user, /Alice/);
+    await user.click(within(drawer).getByRole("button", { name: "Archive" }));
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(within(confirm).getByRole("button", { name: "Archive" }));
 
     await waitFor(() => {
       const del = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "DELETE");
@@ -192,9 +219,12 @@ describe("hrColleaguesPage", () => {
   });
 
   it("hides the archive action for an already-archived colleague", async () => {
+    const user = userEvent.setup();
     routeFetch([colleague({ status: "archived" })]);
     renderWithProviders(<HrColleaguesPage />);
     await screen.findByText("Alice");
-    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+
+    const drawer = await openDrawer(user, /Alice/);
+    expect(within(drawer).queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
   });
 });

@@ -1,40 +1,23 @@
-// HR colleagues page: admin-managed list of internal staff members,
-// each linked to exactly one unified user (real or virtual). The create/edit
-// picker sources from /account/assignable-users so both kinds are selectable;
-// virtual users carry the same badge pattern used by project members.
+// HR colleagues page: admin/HR-gated list of internal staff members, each
+// linked to exactly one unified user (real or virtual). Clicking a row opens
+// the shared ResizableDrawer to the colleague detail (profile metadata +
+// personal documents); create / view / edit all happen in that one drawer
+// panel (see -colleague-panel.tsx). The user picker sources from
+// /account/assignable-users so both real and virtual users are selectable.
 
-import type {
-  CreateHrColleagueInput,
-  HrColleagueRow,
-  HrColleagueStatus,
-  UpdateHrColleagueInput,
-} from "@/shared/lib/api/hr";
+import type { ColleagueForm } from "./-colleague-form-logic";
+import type { HrColleagueRow, HrColleagueStatus } from "@/shared/lib/api/hr";
 import { Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
+import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -53,17 +36,23 @@ import {
 } from "@/shared/lib/api/hr";
 import { useAssignableUsers } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { colleagueFormToProfileInput } from "./-colleague-form-logic";
+import { ColleaguePanel } from "./-colleague-panel";
 
 const ALL = "__all__";
 
+type DrawerState
+  = | { readonly mode: "create" }
+    | { readonly mode: "view"; readonly colleague: HrColleagueRow }
+    | { readonly mode: "edit"; readonly colleague: HrColleagueRow };
+
 export function HrColleaguesPage() {
-  const { t } = useTranslation("hr");
+  const { t } = useTranslation(["hr", "common"]);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [page, setPage] = useState(1);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<HrColleagueRow | null>(null);
+  const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<HrColleagueRow | null>(null);
 
   const colleaguesQuery = useHrColleagues({
@@ -71,13 +60,49 @@ export function HrColleaguesPage() {
     ...(statusFilter !== ALL ? { status: statusFilter as HrColleagueStatus } : {}),
     page,
   });
+  const createColleague = useCreateHrColleague();
+  const updateColleague = useUpdateHrColleague();
   const archiveColleague = useArchiveHrColleague();
+  const usersQuery = useAssignableUsers();
+  const users = usersQuery.data ?? [];
 
   const rows = colleaguesQuery.data?.data ?? [];
   const meta = colleaguesQuery.data?.meta;
 
   const statusLabel = (status: HrColleagueStatus) =>
     status === "active" ? t("colleagues.statusActive") : t("colleagues.statusArchived");
+
+  const handleSubmit = (form: ColleagueForm) => {
+    const profile = colleagueFormToProfileInput(form);
+    if (drawer?.mode === "edit") {
+      updateColleague.mutate(
+        { id: drawer.colleague.id, userId: form.userId, status: form.status, ...profile },
+        {
+          onSuccess: (updated) => {
+            toast.success(t("colleagues.toast.updated"));
+            setDrawer({ mode: "view", colleague: updated });
+          },
+          onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+        },
+      );
+      return;
+    }
+    createColleague.mutate(
+      { userId: form.userId, ...profile },
+      {
+        onSuccess: () => {
+          toast.success(t("colleagues.toast.created"));
+          setDrawer(null);
+        },
+        onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+      },
+    );
+  };
+
+  const panelPending = drawer?.mode === "edit" ? updateColleague.isPending : createColleague.isPending;
+  const panelError = drawer?.mode === "edit"
+    ? (updateColleague.error ? errorMessage(updateColleague.error, t("common:common.error.operationFailed")) : null)
+    : (createColleague.error ? errorMessage(createColleague.error, t("common:common.error.operationFailed")) : null);
 
   return (
     <div className="space-y-4">
@@ -123,7 +148,7 @@ export function HrColleaguesPage() {
           {t("colleagues.totalCount", { count: meta?.total ?? 0 })}
         </span>
 
-        <Button className="ml-auto" onClick={() => setCreateOpen(true)}>
+        <Button className="ml-auto" onClick={() => setDrawer({ mode: "create" })}>
           <Plus className="mr-1 size-4" />
           {t("colleagues.create")}
         </Button>
@@ -138,14 +163,13 @@ export function HrColleaguesPage() {
               <TableHead>{t("colleagues.col.title")}</TableHead>
               <TableHead>{t("colleagues.col.department")}</TableHead>
               <TableHead>{t("colleagues.col.status")}</TableHead>
-              <TableHead>{t("colleagues.col.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody aria-busy={colleaguesQuery.isLoading}>
             {colleaguesQuery.isLoading
               ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                       {t("common.loading")}
                     </TableCell>
                   </TableRow>
@@ -153,25 +177,34 @@ export function HrColleaguesPage() {
               : rows.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                         {t("colleagues.noResults")}
                       </TableCell>
                     </TableRow>
                   )
                 : rows.map(colleague => (
-                    <TableRow key={colleague.id}>
+                    <TableRow
+                      key={colleague.id}
+                      className="cursor-pointer"
+                      onClick={() => setDrawer({ mode: "view", colleague })}
+                    >
                       <TableCell>
-                        <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          className="flex items-center gap-1.5 text-left outline-none focus-visible:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDrawer({ mode: "view", colleague });
+                          }}
+                        >
                           <span className="font-medium">{colleague.user.name}</span>
-                          <span className="text-muted-foreground">
-                            {`(${colleague.user.username})`}
-                          </span>
+                          <span className="text-muted-foreground">{`(${colleague.user.username})`}</span>
                           {colleague.user.isVirtual && (
                             <Badge variant="outline" className="text-xs">
                               {t("colleagues.virtualBadge")}
                             </Badge>
                           )}
-                        </div>
+                        </button>
                       </TableCell>
                       <TableCell>{colleague.code || "—"}</TableCell>
                       <TableCell>{colleague.title || "—"}</TableCell>
@@ -180,22 +213,6 @@ export function HrColleaguesPage() {
                         <Badge variant={colleague.status === "active" ? "default" : "secondary"}>
                           {statusLabel(colleague.status)}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" onClick={() => setEditTarget(colleague)}>
-                            {t("common.edit")}
-                          </Button>
-                          {colleague.status === "active" && (
-                            <Button
-                              variant="ghost"
-                              className="text-destructive"
-                              onClick={() => setArchiveTarget(colleague)}
-                            >
-                              {t("colleagues.archive")}
-                            </Button>
-                          )}
-                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -219,20 +236,41 @@ export function HrColleaguesPage() {
         </div>
       )}
 
-      {createOpen && (
-        <ColleagueDialog
-          mode="create"
-          open
-          onOpenChange={open => !open && setCreateOpen(false)}
-        />
-      )}
-      {editTarget && (
-        <ColleagueDialog
-          mode="edit"
-          colleague={editTarget}
-          open
-          onOpenChange={open => !open && setEditTarget(null)}
-        />
+      {drawer && (
+        <ResizableDrawer
+          ariaLabel={drawer.mode === "create"
+            ? t("colleagues.createTitle")
+            : drawer.colleague.user.name}
+          resizeLabel={t("common:common.resize")}
+          onClose={() => setDrawer(null)}
+        >
+          <ColleaguePanel
+            mode={drawer.mode}
+            colleague={drawer.mode === "create" ? null : drawer.colleague}
+            users={users}
+            pending={panelPending}
+            errorMessage={panelError}
+            onClose={() => setDrawer(null)}
+            onEdit={() => {
+              if (drawer.mode === "view")
+                setDrawer({ mode: "edit", colleague: drawer.colleague });
+            }}
+            onArchive={() => {
+              if (drawer.mode !== "create") {
+                const target = drawer.colleague;
+                setDrawer(null);
+                setArchiveTarget(target);
+              }
+            }}
+            onSubmit={handleSubmit}
+            onCancel={() => {
+              if (drawer.mode === "edit")
+                setDrawer({ mode: "view", colleague: drawer.colleague });
+              else
+                setDrawer(null);
+            }}
+          />
+        </ResizableDrawer>
       )}
 
       <ConfirmDeleteDialog
@@ -258,192 +296,5 @@ export function HrColleaguesPage() {
         }}
       />
     </div>
-  );
-}
-
-interface ColleagueDialogProps {
-  readonly mode: "create" | "edit";
-  readonly colleague?: HrColleagueRow;
-  readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
-}
-
-function ColleagueDialog({ mode, colleague, open, onOpenChange }: ColleagueDialogProps) {
-  const { t } = useTranslation("hr");
-  const createColleague = useCreateHrColleague();
-  const updateColleague = useUpdateHrColleague();
-  const usersQuery = useAssignableUsers();
-
-  const [userId, setUserId] = useState(colleague?.userId ?? "");
-  const [code, setCode] = useState(colleague?.code ?? "");
-  const [title, setTitle] = useState(colleague?.title ?? "");
-  const [department, setDepartment] = useState(colleague?.department ?? "");
-  const [notes, setNotes] = useState(colleague?.notes ?? "");
-  const [status, setStatus] = useState<HrColleagueStatus>(colleague?.status ?? "active");
-
-  const users = usersQuery.data ?? [];
-  const pending = createColleague.isPending || updateColleague.isPending;
-  const mutationError = mode === "create" ? createColleague.error : updateColleague.error;
-
-  const close = () => onOpenChange(false);
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!userId || pending)
-      return;
-    if (mode === "create") {
-      const body: CreateHrColleagueInput = {
-        userId,
-        ...(code.trim() ? { code: code.trim() } : {}),
-        ...(title.trim() ? { title: title.trim() } : {}),
-        ...(department.trim() ? { department: department.trim() } : {}),
-        ...(notes.trim() ? { notes: notes.trim() } : {}),
-      };
-      createColleague.mutate(body, {
-        onSuccess: () => {
-          toast.success(t("colleagues.toast.created"));
-          close();
-        },
-        onError: err => toast.error(errorMessage(err, t("common.error.operationFailed"))),
-      });
-      return;
-    }
-    // Edit sends every editable field; the backend accepts empty strings,
-    // which the list renders the same as null ("—").
-    const body: UpdateHrColleagueInput = {
-      userId,
-      code: code.trim(),
-      title: title.trim(),
-      department: department.trim(),
-      notes: notes.trim(),
-      status,
-    };
-    updateColleague.mutate({ id: colleague!.id, ...body }, {
-      onSuccess: () => {
-        toast.success(t("colleagues.toast.updated"));
-        close();
-      },
-      onError: err => toast.error(errorMessage(err, t("common.error.operationFailed"))),
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <form onSubmit={submit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>
-              {mode === "create" ? t("colleagues.createTitle") : t("colleagues.editTitle")}
-            </DialogTitle>
-            <DialogDescription>
-              {mode === "create" ? t("colleagues.createDescription") : t("colleagues.editDescription")}
-            </DialogDescription>
-          </DialogHeader>
-
-          {mutationError && (
-            <ErrorBanner message={errorMessage(mutationError, t("common.error.operationFailed"))} />
-          )}
-
-          <div className="space-y-1.5">
-            <Label>{t("colleagues.field.user")}</Label>
-            <Select value={userId} onValueChange={v => v !== null && setUserId(v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("colleagues.selectUser")}>
-                  {(v: string) => users.find(u => u.id === v)?.name ?? v}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {users.map(u => (
-                  <SelectItem key={u.id} value={u.id}>
-                    <span className="flex items-center gap-2">
-                      {`${u.name} (${u.username})`}
-                      {u.isVirtual && (
-                        <Badge variant="outline" className="text-xs">
-                          {t("colleagues.virtualBadge")}
-                        </Badge>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="colleague-code">{t("colleagues.field.code")}</Label>
-              <Input
-                id="colleague-code"
-                maxLength={100}
-                value={code}
-                onChange={e => setCode(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="colleague-title">{t("colleagues.field.title")}</Label>
-              <Input
-                id="colleague-title"
-                maxLength={200}
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="colleague-department">{t("colleagues.field.department")}</Label>
-            <Input
-              id="colleague-department"
-              maxLength={200}
-              value={department}
-              onChange={e => setDepartment(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="colleague-notes">{t("colleagues.field.notes")}</Label>
-            <Input
-              id="colleague-notes"
-              maxLength={2000}
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-            />
-          </div>
-
-          {mode === "edit" && (
-            <div className="space-y-1.5">
-              <Label>{t("colleagues.field.status")}</Label>
-              <Select
-                value={status}
-                onValueChange={v => v !== null && setStatus(v as HrColleagueStatus)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: HrColleagueStatus) =>
-                      v === "active" ? t("colleagues.statusActive") : t("colleagues.statusArchived")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {HR_COLLEAGUE_STATUSES.map(s => (
-                    <SelectItem key={s} value={s}>
-                      {s === "active" ? t("colleagues.statusActive") : t("colleagues.statusArchived")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={pending || !userId}>
-              {t("common.save")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

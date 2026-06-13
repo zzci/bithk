@@ -4,7 +4,11 @@ HR section with three sub-modules (access owned by the group-based module
 visibility gate — see [Routes](#routes)):
 
 - **Colleagues** — internal staff members, each linked to exactly one
-  existing `users` row, real or virtual (`users.isVirtual = true`).
+  existing `users` row, real or virtual (`users.isVirtual = true`). The list
+  opens the shared `ResizableDrawer` for create / view / edit, showing a full
+  employee profile (personal, contact, emergency contacts, employment,
+  payment) and a personal-document area that uploads multiple files
+  (passport, certificates, …).
 - **Approvals** — approval requests (leave / overtime / business trip /
   other) filed for a colleague with a one-way pending → approved/rejected
   decision flow.
@@ -47,7 +51,17 @@ for fields:
 - `hr_colleagues`: `user_id` is `NOT NULL UNIQUE` and references
   `users.id ON DELETE RESTRICT`, so at most one colleague row exists per
   user and colleague records never silently disappear when a (virtual) user
-  is deleted.
+  is deleted. Profile columns (all nullable): dates `birthday` / `hire_date`
+  / `probation_end_date` / `contract_end_date`; enums `gender` /
+  `employment_type`; text `nationality` / `personal_phone` /
+  `personal_email` / `address` / `work_location`; and two JSON columns —
+  `payment_info` (`[{label,value}]`) and `emergency_contacts`
+  (`[{name,relation,phone,email,address}]`). National-ID / passport numbers
+  are NOT stored as fields — they live as uploaded documents.
+- Personal documents reuse the file module's generic `file_references`
+  registry with `owner_type = 'hr_colleague_document'` and
+  `owner_id = <hr_colleagues.id>` — no per-module attachment table; backups
+  cover them through the file module's own contribution.
 - `hr_approvals`: `colleague_id` references `hr_colleagues.id ON DELETE
   RESTRICT`; `decided_by` references `users.id ON DELETE SET NULL` so
   deleting the deciding admin never blocks on or erases approval history.
@@ -76,8 +90,12 @@ no per-route `adminRequired` here.
 |---|---|---|
 | GET | `/api/hr/colleagues` | Paginated list with optional `q` (matches user name, username, or colleague code) and `status` (`active` \| `archived`) filters. Rows carry joined user display data (`name`, `username`, `isVirtual`, `status`). |
 | POST | `/api/hr/colleagues` | Creates a colleague linked to an existing **active** real or virtual user. Missing user → 404, inactive user → 400 `USER_NOT_ACTIVE`, already linked → 409 `CONFLICT`. |
-| PATCH | `/api/hr/colleagues/:id` | Updates `userId`, `code`, `title`, `department`, `notes`, or `status`. Re-linking validates the new user the same way as create. |
+| PATCH | `/api/hr/colleagues/:id` | Updates `userId`, `status`, or any profile field (`code`, `title`, `department`, `notes`, the date/enum/text columns, `paymentInfo`, `emergencyContacts`). Re-linking validates the new user the same way as create. |
 | DELETE | `/api/hr/colleagues/:id` | Archives (sets `status = 'archived'`); never hard-deletes. Idempotent. |
+| POST | `/api/hr/colleagues/:id/attachments` | Uploads a personal document (`multipart/form-data`, field `file`). Missing colleague → 404. |
+| GET | `/api/hr/colleagues/:id/attachments` | Lists the colleague's documents. |
+| GET | `/api/hr/colleagues/:id/attachments/:aid` | Downloads a document (`?inline=true` to preview). |
+| DELETE | `/api/hr/colleagues/:id/attachments/:aid` | Removes a document — admin or the uploader only (else 403). |
 
 The user picker on the frontend uses the existing
 `/api/account/assignable-users` source (active real and virtual users).

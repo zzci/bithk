@@ -20,6 +20,35 @@ export const HR_COLLEAGUE_STATUSES: readonly HrColleagueStatus[] = [
   "archived",
 ];
 
+export type HrGender = "male" | "female" | "other" | "undisclosed";
+
+export const HR_GENDERS: readonly HrGender[] = ["male", "female", "other", "undisclosed"];
+
+export type HrEmploymentType = "full_time" | "part_time" | "contract" | "intern";
+
+export const HR_EMPLOYMENT_TYPES: readonly HrEmploymentType[] = [
+  "full_time",
+  "part_time",
+  "contract",
+  "intern",
+];
+
+// One user-defined receiving-account field (label/value); rendered as a
+// repeatable row so each country's payment details can differ.
+export interface HrPaymentField {
+  readonly label: string;
+  readonly value: string;
+}
+
+// One emergency contact; a colleague can list several.
+export interface HrEmergencyContact {
+  readonly name: string;
+  readonly relation: string;
+  readonly phone: string;
+  readonly email: string;
+  readonly address: string;
+}
+
 // Joined user display data carried on every colleague row.
 export interface HrColleagueUser {
   readonly name: string;
@@ -36,6 +65,19 @@ export interface HrColleagueRow {
   readonly department: string | null;
   readonly status: HrColleagueStatus;
   readonly notes: string | null;
+  readonly birthday: string | null;
+  readonly hireDate: string | null;
+  readonly probationEndDate: string | null;
+  readonly contractEndDate: string | null;
+  readonly gender: HrGender | null;
+  readonly employmentType: HrEmploymentType | null;
+  readonly nationality: string | null;
+  readonly personalPhone: string | null;
+  readonly personalEmail: string | null;
+  readonly address: string | null;
+  readonly workLocation: string | null;
+  readonly paymentInfo: readonly HrPaymentField[];
+  readonly emergencyContacts: readonly HrEmergencyContact[];
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly user: HrColleagueUser;
@@ -103,12 +145,30 @@ export function useHrColleagues(query: HrColleaguesQuery = {}) {
 
 // ── Mutations ──
 
-export interface CreateHrColleagueInput {
-  readonly userId: string;
+// Shared optional profile fields. Enums accept `null` to clear a selection;
+// the JSON arrays are sent in full when present.
+export interface HrColleagueProfileInput {
   readonly code?: string;
   readonly title?: string;
   readonly department?: string;
   readonly notes?: string;
+  readonly birthday?: string;
+  readonly hireDate?: string;
+  readonly probationEndDate?: string;
+  readonly contractEndDate?: string;
+  readonly gender?: HrGender | null;
+  readonly employmentType?: HrEmploymentType | null;
+  readonly nationality?: string;
+  readonly personalPhone?: string;
+  readonly personalEmail?: string;
+  readonly address?: string;
+  readonly workLocation?: string;
+  readonly paymentInfo?: readonly HrPaymentField[];
+  readonly emergencyContacts?: readonly HrEmergencyContact[];
+}
+
+export interface CreateHrColleagueInput extends HrColleagueProfileInput {
+  readonly userId: string;
 }
 
 export function useCreateHrColleague(): UseMutationResult<HrColleagueRow, Error, CreateHrColleagueInput> {
@@ -124,12 +184,8 @@ export function useCreateHrColleague(): UseMutationResult<HrColleagueRow, Error,
   });
 }
 
-export interface UpdateHrColleagueInput {
+export interface UpdateHrColleagueInput extends HrColleagueProfileInput {
   readonly userId?: string;
-  readonly code?: string;
-  readonly title?: string;
-  readonly department?: string;
-  readonly notes?: string;
   readonly status?: HrColleagueStatus;
 }
 

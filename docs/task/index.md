@@ -129,6 +129,6 @@
 | [UI-025](UI-025.md) | Align HR module header and tab nav with other modules | - | Completed | 2026-06-11 |
 | [FEAT-028](FEAT-028.md) | Sidebar Tally feedback button | - | Completed | 2026-06-11 |
 | [FEAT-029](FEAT-029.md) | HTTP access log filtering via HTTP_LOG_LEVEL | - | Completed | 2026-06-11 |
-| [FEAT-030](FEAT-030.md) | HR colleague detail drawer with profile metadata and documents | [PLAN-079](../plan/PLAN-079.md) | In Progress | 2026-06-12 |
+| [FEAT-030](FEAT-030.md) | HR colleague detail drawer with profile metadata and documents | [PLAN-079](../plan/PLAN-079.md) | Completed | 2026-06-12 |
 | [FEAT-031](FEAT-031.md) | Global roles as user groups: counts, membership, dialog permissions | [PLAN-080](../plan/PLAN-080.md) | Completed | 2026-06-12 |
 | [FEAT-032](FEAT-032.md) | Merge global roles into groups (one grouping concept) | [PLAN-081](../plan/PLAN-081.md) | Completed | 2026-06-12 |

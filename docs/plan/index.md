@@ -77,6 +77,6 @@
 | [PLAN-076](PLAN-076.md) | Global roles with per-module visibility | Completed | 2026-06-10 |
 | [PLAN-077](PLAN-077.md) | Rename finance module to HR with approvals/payroll placeholders | Completed | 2026-06-10 |
 | [PLAN-078](PLAN-078.md) | HR approvals and payroll sub-modules | Completed | 2026-06-10 |
-| [PLAN-079](PLAN-079.md) | HR colleague detail drawer with profile metadata and documents | Implementing | 2026-06-12 |
+| [PLAN-079](PLAN-079.md) | HR colleague detail drawer with profile metadata and documents | Completed | 2026-06-12 |
 | [PLAN-080](PLAN-080.md) | Global roles as user groups: counts, membership, dialog permissions | Completed | 2026-06-12 |
 | [PLAN-081](PLAN-081.md) | Merge global roles into groups (one grouping concept) | Completed | 2026-06-12 |

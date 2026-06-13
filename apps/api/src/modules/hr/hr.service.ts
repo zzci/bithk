@@ -163,12 +163,31 @@ export async function listColleagues(db: AppDatabase, params: ListColleaguesPara
   };
 }
 
-interface CreateColleagueInput {
-  readonly userId: string;
+// Profile metadata shared by create and update. Scalars are plain text;
+// `paymentInfo` / `emergencyContacts` are arrays the caller passes already
+// validated and the service serialises to their JSON columns.
+interface ColleagueProfileInput {
   readonly code?: string | undefined;
   readonly title?: string | undefined;
   readonly department?: string | undefined;
   readonly notes?: string | undefined;
+  readonly birthday?: string | undefined;
+  readonly hireDate?: string | undefined;
+  readonly probationEndDate?: string | undefined;
+  readonly contractEndDate?: string | undefined;
+  readonly gender?: HrGender | null | undefined;
+  readonly employmentType?: HrEmploymentType | null | undefined;
+  readonly nationality?: string | undefined;
+  readonly personalPhone?: string | undefined;
+  readonly personalEmail?: string | undefined;
+  readonly address?: string | undefined;
+  readonly workLocation?: string | undefined;
+  readonly paymentInfo?: readonly HrPaymentField[] | undefined;
+  readonly emergencyContacts?: readonly HrEmergencyContact[] | undefined;
+}
+
+interface CreateColleagueInput extends ColleagueProfileInput {
+  readonly userId: string;
 }
 
 export async function createColleague(db: AppDatabase, input: CreateColleagueInput) {
@@ -185,18 +204,27 @@ export async function createColleague(db: AppDatabase, input: CreateColleagueInp
     department: input.department ?? null,
     status: "active",
     notes: input.notes ?? null,
+    birthday: input.birthday ?? null,
+    hireDate: input.hireDate ?? null,
+    probationEndDate: input.probationEndDate ?? null,
+    contractEndDate: input.contractEndDate ?? null,
+    gender: input.gender ?? null,
+    employmentType: input.employmentType ?? null,
+    nationality: input.nationality ?? null,
+    personalPhone: input.personalPhone ?? null,
+    personalEmail: input.personalEmail ?? null,
+    address: input.address ?? null,
+    workLocation: input.workLocation ?? null,
+    paymentInfo: JSON.stringify(input.paymentInfo ?? []),
+    emergencyContacts: JSON.stringify(input.emergencyContacts ?? []),
     createdAt: now,
     updatedAt: now,
   }).run();
   return await getColleagueById(db, id);
 }
 
-interface UpdateColleagueInput {
+interface UpdateColleagueInput extends ColleagueProfileInput {
   readonly userId?: string | undefined;
-  readonly code?: string | undefined;
-  readonly title?: string | undefined;
-  readonly department?: string | undefined;
-  readonly notes?: string | undefined;
   readonly status?: HrColleagueStatus | undefined;
 }
 
@@ -227,6 +255,32 @@ export async function updateColleague(db: AppDatabase, id: string, data: UpdateC
     setData.notes = data.notes;
   if (data.status !== undefined)
     setData.status = data.status;
+  if (data.birthday !== undefined)
+    setData.birthday = data.birthday;
+  if (data.hireDate !== undefined)
+    setData.hireDate = data.hireDate;
+  if (data.probationEndDate !== undefined)
+    setData.probationEndDate = data.probationEndDate;
+  if (data.contractEndDate !== undefined)
+    setData.contractEndDate = data.contractEndDate;
+  if (data.gender !== undefined)
+    setData.gender = data.gender;
+  if (data.employmentType !== undefined)
+    setData.employmentType = data.employmentType;
+  if (data.nationality !== undefined)
+    setData.nationality = data.nationality;
+  if (data.personalPhone !== undefined)
+    setData.personalPhone = data.personalPhone;
+  if (data.personalEmail !== undefined)
+    setData.personalEmail = data.personalEmail;
+  if (data.address !== undefined)
+    setData.address = data.address;
+  if (data.workLocation !== undefined)
+    setData.workLocation = data.workLocation;
+  if (data.paymentInfo !== undefined)
+    setData.paymentInfo = JSON.stringify(data.paymentInfo);
+  if (data.emergencyContacts !== undefined)
+    setData.emergencyContacts = JSON.stringify(data.emergencyContacts);
 
   await db.update(hrColleagues).set(setData).where(eq(hrColleagues.id, id)).run();
   return await getColleagueById(db, id);

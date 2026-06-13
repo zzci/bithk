@@ -113,28 +113,74 @@
     "noResults": "No colleagues found.",
     "create": "New",
     "createTitle": "New colleague",
-    "createDescription": "Link an existing real or virtual user as a colleague.",
     "editTitle": "Edit colleague",
-    "editDescription": "Update colleague details and status.",
     "virtualBadge": "Virtual",
     "statusActive": "Active",
     "statusArchived": "Archived",
     "selectUser": "Select a user",
+    "unset": "Not set",
+    "section": {
+      "identity": "Identity",
+      "personal": "Personal",
+      "contact": "Contact",
+      "emergency": "Emergency contacts",
+      "employment": "Employment",
+      "payment": "Payment",
+      "documents": "Documents"
+    },
     "field": {
       "user": "User",
       "code": "Code",
       "title": "Title",
       "department": "Department",
       "status": "Status",
-      "notes": "Notes"
+      "notes": "Notes",
+      "birthday": "Birthday",
+      "hireDate": "Hire date",
+      "probationEndDate": "Probation end date",
+      "contractEndDate": "Contract end date",
+      "gender": "Gender",
+      "employmentType": "Employment type",
+      "nationality": "Nationality",
+      "personalPhone": "Phone",
+      "personalEmail": "Email",
+      "address": "Address",
+      "workLocation": "Work location"
+    },
+    "genderOption": {
+      "male": "Male",
+      "female": "Female",
+      "other": "Other",
+      "undisclosed": "Undisclosed"
+    },
+    "employmentOption": {
+      "full_time": "Full-time",
+      "part_time": "Part-time",
+      "contract": "Contract",
+      "intern": "Intern"
+    },
+    "payment": {
+      "label": "Label",
+      "value": "Value",
+      "add": "Add field",
+      "remove": "Remove field"
+    },
+    "emergency": {
+      "entry": "Contact {{index}}",
+      "name": "Name",
+      "relation": "Relationship",
+      "phone": "Phone",
+      "email": "Email",
+      "address": "Address",
+      "add": "Add contact",
+      "remove": "Remove contact"
     },
     "col": {
       "user": "User",
       "code": "Code",
       "title": "Title",
       "department": "Department",
-      "status": "Status",
-      "actions": "Actions"
+      "status": "Status"
     },
     "archive": "Archive",
     "archiveTitle": "Archive colleague",
@@ -144,5 +190,15 @@
       "updated": "Colleague updated",
       "archived": "Colleague archived"
     }
+  },
+  "attachments": {
+    "title": "Documents",
+    "upload": "Upload document",
+    "uploading": "Uploading...",
+    "download": "Download",
+    "deleteTitle": "Delete document",
+    "deleteConfirm": "Are you sure you want to delete the document \"{{filename}}\"?",
+    "limitReached": "Maximum number of documents reached.",
+    "fileTooLarge": "File size exceeds the configured limit."
   }
 }
