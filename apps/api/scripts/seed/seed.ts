@@ -116,7 +116,7 @@ interface DriveRec { teamDirectories: { key: string; name: string; description?:
 interface CronRec { jobs: { key: string; name: string; cron: string; taskType: string; taskConfig: Record<string, unknown>; enabled?: boolean; maxConsecutiveFailures?: number; logs?: { status: "running" | "success" | "failed"; durationMs?: number; result?: string; error?: string }[] }[] }
 interface SettingRec { key: string; value: string }
 interface AuditRec { action: string; resourceType: string; resourceName: string; result: "success" | "failure"; actor: string; detail?: Record<string, unknown> }
-interface HrColleagueRec { key: string; user: string; code?: string; title?: string; department?: string; notes?: string }
+interface HrColleagueRec { key: string; user: string; code?: string; title?: string; department?: string; notes?: string; birthday?: string; hireDate?: string; probationEndDate?: string; contractEndDate?: string; gender?: "male" | "female" | "other" | "undisclosed"; employmentType?: "full_time" | "part_time" | "contract" | "intern"; nationality?: string; personalPhone?: string; personalEmail?: string; address?: string; workLocation?: string; paymentInfo?: { label: string; value: string }[]; emergencyContacts?: { name: string; relation: string; phone: string; email: string; address: string }[] }
 interface HrApprovalRec { colleague: string; type: "leave" | "overtime" | "business_trip" | "other"; title: string; reason?: string; decision: "pending" | "approved" | "rejected"; decider?: string; note?: string }
 interface HrPayrollRec { colleague: string; period: string; baseSalary: number; bonus?: number; deduction?: number; currency: string; status: "pending" | "paid"; notes?: string }
 
@@ -780,6 +780,19 @@ async function importHr(db: AppDatabase): Promise<{ colleagues: number; approval
       title: c.title,
       department: c.department,
       notes: c.notes,
+      birthday: c.birthday,
+      hireDate: c.hireDate,
+      probationEndDate: c.probationEndDate,
+      contractEndDate: c.contractEndDate,
+      gender: c.gender,
+      employmentType: c.employmentType,
+      nationality: c.nationality,
+      personalPhone: c.personalPhone,
+      personalEmail: c.personalEmail,
+      address: c.address,
+      workLocation: c.workLocation,
+      paymentInfo: c.paymentInfo,
+      emergencyContacts: c.emergencyContacts,
     });
     colleagueId.set(c.key, colleague.id);
   }
