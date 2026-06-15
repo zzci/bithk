@@ -81,3 +81,4 @@
 | [PLAN-080](PLAN-080.md) | Global roles as user groups: counts, membership, dialog permissions | Completed | 2026-06-12 |
 | [PLAN-081](PLAN-081.md) | Merge global roles into groups (one grouping concept) | Completed | 2026-06-12 |
 | [PLAN-082](PLAN-082.md) | Realign lode upgrade integration with breaking lode spec | Completed | 2026-06-15 |
+| [PLAN-083](PLAN-083.md) | Backup CLI import/export + e2e round-trip | Completed | 2026-06-15 |
