@@ -39,6 +39,20 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Backup CLI import/export (FEAT-033 / PLAN-083): two offline subcommands on
+  the packaged binary drive the backup v2 services without a running server.
+  `backup:export <out>` writes a v2 archive (`--modules` XOR `--exclude` at
+  module level with transitive deps auto-resolved and excluded-but-pulled-back
+  deps warned, `--no-blobs`, `--redacted`); `backup:import <archive>` applies it
+  (`--mode merge|replace` default `merge`, `--include-users`, `--actor-id`, where
+  `replace --include-users` requires `--actor-id` to be an active admin present
+  in the backup). Both run against a new `wireRuntime` offline runtime (open,
+  migrated DB + file driver, no cron / sweeps / HTTP server) and reuse
+  `writeArchiveV2` / `prepareImport` / `startImportApply`; backup-service imports
+  stay dynamic so the boot path is unchanged. A live e2e test
+  (`tests/e2e/modules/backup/cli-roundtrip.test.ts`) locks the export → import
+  round-trip.
+
 - HR colleague detail drawer + profile metadata & documents (FEAT-030): the
   colleagues sub-module opens the shared `ResizableDrawer` for create / view /
   edit (the standalone dialog is gone). Colleague records gain profile fields —
