@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import cac from "cac";
@@ -33,6 +33,31 @@ export async function dispatchCliSubcommand(argv: readonly string[]): Promise<nu
     .option("--check", "List pending migrations without applying them")
     .action(async (opts: { check?: boolean }) => {
       exitCode = await runMigrateSubcommand(opts);
+    });
+
+  cli
+    .command(
+      "backup:export <out>",
+      "Export a backup archive to <out>. --modules XOR --exclude (module-level; transitive deps auto-resolved, excluded deps trigger a warning), --no-blobs, --redacted.",
+    )
+    .option("--modules <csv>", "Only these modules (comma-separated; XOR with --exclude)")
+    .option("--exclude <csv>", "All modules except these (comma-separated; XOR with --modules)")
+    .option("--no-blobs", "Do not embed blob bytes in the archive")
+    .option("--redacted", "Scrub secret-typed fields from the export")
+    .action(async (out: string, opts: { modules?: string; exclude?: string; blobs?: boolean; redacted?: boolean }) => {
+      exitCode = await runBackupExport(out, opts);
+    });
+
+  cli
+    .command(
+      "backup:import <archive>",
+      "Import a backup archive. --mode merge|replace (default merge), --include-users, --actor-id <id>. Note: --mode replace --include-users requires --actor-id to be an ACTIVE ADMIN present in the backup, otherwise the apply refuses with a lock-out / FK error.",
+    )
+    .option("--mode <mode>", "merge | replace (default merge)")
+    .option("--include-users", "Include users (replace mode v1 semantics)")
+    .option("--actor-id <id>", "Synthetic actor id recorded in the audit log")
+    .action(async (archive: string, opts: { mode?: string; includeUsers?: boolean; actorId?: string }) => {
+      exitCode = await runBackupImport(archive, opts);
     });
 
   cli.help();
@@ -103,6 +128,157 @@ async function runMigrateSubcommand(opts: { check?: boolean }): Promise<number> 
   for (const m of pending)
     consola.log(`  - ${m}`);
   return 0;
+}
+
+/**
+ * Offline `backup:export` — reuses the export archive service against a
+ * minimal runtime (open DB + file driver, no workers). Module selection is
+ * `--modules` XOR `--exclude`; transitive dependencies are auto-resolved by
+ * the archive writer, and an `--exclude` whose dependency is pulled back in
+ * is reported as a warning. All backup-service imports stay dynamic so the
+ * normal boot path is unaffected.
+ */
+async function runBackupExport(
+  out: string,
+  opts: { modules?: string; exclude?: string; blobs?: boolean; redacted?: boolean },
+): Promise<number> {
+  if (opts.modules !== undefined && opts.exclude !== undefined) {
+    consola.error("use --modules XOR --exclude");
+    return 2;
+  }
+
+  const { loadConfig } = await import("./config");
+  const { createLogger } = await import("./shared/lib/logger");
+  const config = await loadConfig();
+  const logger = createLogger(config);
+
+  // Importing app.ts populates every module's backup contribution as a load
+  // side-effect (no DB is opened until wireRuntime() is actually called), so
+  // getModuleNames() below sees the full registry while bad input still fails
+  // before we touch the database.
+  const { wireRuntime } = await import("./app");
+  const { getModuleNames, resolveModulesWithDeps } = await import("./modules/backup/registry");
+  const validNames = getModuleNames();
+  const validSet = new Set(validNames);
+
+  let requested: string[];
+  const excludedSet = new Set<string>();
+  if (opts.modules !== undefined) {
+    const names = opts.modules.split(",").map(s => s.trim());
+    if (names.includes("")) {
+      consola.error("--modules contains an empty entry");
+      return 2;
+    }
+    const unknown = names.filter(n => !validSet.has(n));
+    if (unknown.length > 0) {
+      consola.error(`unknown module(s): ${unknown.join(", ")}. valid modules: ${validNames.join(", ")}`);
+      return 2;
+    }
+    requested = names;
+  }
+  else if (opts.exclude !== undefined) {
+    const names = opts.exclude.split(",").map(s => s.trim());
+    if (names.includes("")) {
+      consola.error("--exclude contains an empty entry");
+      return 2;
+    }
+    const unknown = names.filter(n => !validSet.has(n));
+    if (unknown.length > 0) {
+      consola.error(`unknown module(s): ${unknown.join(", ")}. valid modules: ${validNames.join(", ")}`);
+      return 2;
+    }
+    for (const n of names)
+      excludedSet.add(n);
+    requested = validNames.filter(n => !excludedSet.has(n));
+  }
+  else {
+    requested = [...validNames];
+  }
+
+  // writeArchiveV2 expands deps itself; we resolve here only to warn when an
+  // excluded module is dragged back in as someone else's dependency.
+  if (excludedSet.size > 0) {
+    const pulledBack = resolveModulesWithDeps(requested).filter(n => excludedSet.has(n));
+    if (pulledBack.length > 0)
+      consola.warn(`excluded module(s) pulled back in as dependencies: ${pulledBack.join(", ")}`);
+  }
+
+  const { db, close } = await wireRuntime(config, logger);
+  try {
+    const { getBackupStagingRoot } = await import("./modules/backup/export-job.service");
+    const stagingDir = resolve(getBackupStagingRoot(config), "cli-export", crypto.randomUUID());
+    const { writeArchiveV2 } = await import("./modules/backup/archive.service");
+    const result = await writeArchiveV2({
+      db,
+      modules: requested,
+      blobsMode: opts.blobs === false ? "none" : "embedded",
+      stagingDir,
+      appName: config.APP_NAME,
+      redacted: opts.redacted === true,
+    });
+    await Bun.write(out, Bun.file(result.archivePath));
+    rmSync(stagingDir, { recursive: true, force: true });
+    const outPath = resolve(out);
+    const size = result.archiveSize ?? statSync(out).size;
+    consola.success(`wrote backup to ${outPath} (${size} bytes)`);
+    return 0;
+  }
+  catch (err) {
+    consola.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
+  finally {
+    await close();
+  }
+}
+
+/**
+ * Offline `backup:import` — reuses prepareImport + startImportApply against a
+ * minimal runtime. `--mode replace --include-users` requires `--actor-id` to
+ * be an active admin present in the backup, otherwise the apply refuses with a
+ * lock-out / FK error. All backup-service imports stay dynamic.
+ */
+async function runBackupImport(
+  archive: string,
+  opts: { mode?: string; includeUsers?: boolean; actorId?: string },
+): Promise<number> {
+  const mode = opts.mode ?? "merge";
+  if (mode !== "merge" && mode !== "replace") {
+    consola.error("--mode must be one of: merge, replace");
+    return 2;
+  }
+
+  const { loadConfig } = await import("./config");
+  const { createLogger } = await import("./shared/lib/logger");
+  const config = await loadConfig();
+  const logger = createLogger(config);
+
+  const { wireRuntime } = await import("./app");
+  const { db, close } = await wireRuntime(config, logger);
+  try {
+    const { prepareImport } = await import("./modules/backup/import.service");
+    const job = await prepareImport(db, config, Bun.file(archive));
+    const { startImportApply } = await import("./modules/backup/import-apply");
+    const actor = { id: opts.actorId ?? "cli", name: "cli-import", ip: "127.0.0.1", userAgent: "cli" };
+    await startImportApply(db, job, { mode, includeUsers: opts.includeUsers === true, actor }, logger);
+    await job.done;
+    if (job.state === "completed") {
+      const t = job.result!.totals;
+      consola.success(
+        `import complete: inserted=${t.inserted} skippedDuplicate=${t.skippedDuplicate} failed=${t.failed} transformed=${t.transformed}`,
+      );
+      return 0;
+    }
+    consola.error(job.error ?? "import failed");
+    return 1;
+  }
+  catch (err) {
+    consola.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
+  finally {
+    await close();
+  }
 }
 
 /**
