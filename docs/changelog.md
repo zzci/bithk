@@ -13,6 +13,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Realign the lode upgrade integration with the breaking `lode/v1` spec
+  (FIX-040). The release manifest and `deploy/lode.toml` drop the removed
+  `entry` field and launch via `run = "bun index.js"` / `exec = "bun run"`;
+  the manifest also drops `min_lode`, and the release workflow validates the
+  new asset shape. Readiness now follows lode's `state.ready =
+  {LODE_INSTANCE}-{phase}` convention: the app reports serving (`-0`) only
+  after a DB probe, handles lode's staged-update prompt (`-1`) by
+  checkpointing the WAL and flushing logs before acking (`-2`), and the
+  `/system/version` summary reports the handshake phase. A finite
+  `[supervise].prepare_timeout` backstops the handshake. The integration is
+  extracted from `lode-state.ts` into a reusable `apps/api/src/lode/` module
+  decoupled from app internals via injected probe/prepare callbacks.
+
 - Groups absorb global roles (FEAT-032): one grouping concept. The
   `global_roles` entity and `users.global_role_id` are removed; groups gain
   optional module grants and a non-admin user's visible modules are the

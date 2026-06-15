@@ -157,14 +157,17 @@ const manifest = {
   },
   versions: {
     [version]: {
-      min_lode: "0.1.0",
       assets: [
         {
           name: assetName,
           url: assetUrl,
           sha256,
           size,
-          entry: "index.js",
+          // lode/v1 launches via run/exec (the removed `entry` field). Kept
+          // byte-identical to deploy/lode.toml [command]; an asset's run/exec
+          // override the operator config.
+          run: "bun index.js",
+          exec: "bun run",
           auth: true,
         },
       ],

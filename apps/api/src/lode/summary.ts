@@ -1,75 +1,7 @@
-import type { Logger } from "./shared/lib/logger";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import process from "node:process";
-
-interface LodeRuntimeEnv {
-  readonly LODE_DATA_DIR?: string;
-  readonly LODE_INSTANCE?: string;
-  readonly LODE_CONFIG?: string;
-  readonly LODE_CONFIG_FILE?: string;
-}
-
-type LodeStateStatus = "not_configured" | "data_dir_missing" | "state_missing" | "state_unreadable" | "state_malformed" | "available";
-type LodeConfigStatus = "not_configured" | "not_found" | "unreadable" | "malformed" | "available";
-type LodeUpdatePolicy = "off" | "check" | "auto";
-type LodeSourceType = "github" | "manifest";
-
-export interface LodeSummary {
-  readonly configured: boolean;
-  readonly active: boolean;
-  readonly status: LodeStateStatus;
-  readonly current?: string;
-  readonly stateStatus?: string;
-  readonly readiness: {
-    readonly ready: boolean | null;
-  };
-  readonly update: {
-    readonly configStatus: LodeConfigStatus;
-    readonly policy?: LodeUpdatePolicy;
-    readonly channel?: string;
-    readonly asset?: string;
-    readonly sourceType?: LodeSourceType;
-    readonly source?: string;
-  };
-  readonly manualOperations: {
-    readonly check: false;
-    readonly apply: false;
-  };
-}
-
-function statePath(env: LodeRuntimeEnv): string | null {
-  if (!env.LODE_DATA_DIR || !env.LODE_INSTANCE)
-    return null;
-  return join(env.LODE_DATA_DIR, "state.json");
-}
-
-function summaryStatePath(env: LodeRuntimeEnv): string | null {
-  return env.LODE_DATA_DIR ? join(env.LODE_DATA_DIR, "state.json") : null;
-}
-
-function readState(path: string): Record<string, unknown> {
-  if (!existsSync(path))
-    return {};
-
-  const raw = readFileSync(path, "utf-8").trim();
-  if (!raw)
-    return {};
-
-  const parsed = JSON.parse(raw) as unknown;
-  return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-    ? parsed as Record<string, unknown>
-    : {};
-}
-
-function currentLodeEnv(): LodeRuntimeEnv {
-  return {
-    ...(process.env.LODE_DATA_DIR ? { LODE_DATA_DIR: process.env.LODE_DATA_DIR } : {}),
-    ...(process.env.LODE_INSTANCE ? { LODE_INSTANCE: process.env.LODE_INSTANCE } : {}),
-    ...(process.env.LODE_CONFIG ? { LODE_CONFIG: process.env.LODE_CONFIG } : {}),
-    ...(process.env.LODE_CONFIG_FILE ? { LODE_CONFIG_FILE: process.env.LODE_CONFIG_FILE } : {}),
-  };
-}
+import type { LodeConfigStatus, LodeRuntimeEnv, LodeSourceType, LodeStateStatus, LodeSummary, LodeUpdatePolicy } from "./types";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { currentLodeEnv, parseReadyPhase, readState, summaryStatePath } from "./state";
 
 function objectRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -106,13 +38,13 @@ function safeGithubSource(value: unknown): string | undefined {
 function readLodeStateSummary(env: LodeRuntimeEnv): Pick<LodeSummary, "status" | "current" | "stateStatus" | "readiness"> {
   const path = summaryStatePath(env);
   if (!path || !env.LODE_DATA_DIR) {
-    return { status: "not_configured", readiness: { ready: null } };
+    return { status: "not_configured", readiness: { ready: null, phase: null } };
   }
   if (!existsSync(env.LODE_DATA_DIR)) {
-    return { status: "data_dir_missing", readiness: { ready: null } };
+    return { status: "data_dir_missing", readiness: { ready: null, phase: null } };
   }
   if (!existsSync(path)) {
-    return { status: "state_missing", readiness: { ready: null } };
+    return { status: "state_missing", readiness: { ready: null, phase: null } };
   }
 
   let parsed: Record<string, unknown>;
@@ -121,19 +53,31 @@ function readLodeStateSummary(env: LodeRuntimeEnv): Pick<LodeSummary, "status" |
   }
   catch (err) {
     if (err instanceof SyntaxError)
-      return { status: "state_malformed", readiness: { ready: null } };
-    return { status: "state_unreadable", readiness: { ready: null } };
+      return { status: "state_malformed", readiness: { ready: null, phase: null } };
+    return { status: "state_unreadable", readiness: { ready: null, phase: null } };
   }
 
-  const ready = safeString(parsed.ready);
+  // Readiness is derived from the phased `{LODE_INSTANCE}-{phase}` token (also
+  // accepts the bare legacy token). A token addressed to this instance with a
+  // valid phase means the app has reported serving.
+  let ready: boolean | null = null;
+  let phase: number | null = null;
+  if (env.LODE_INSTANCE) {
+    const token = safeString(parsed.ready);
+    if (token) {
+      phase = parseReadyPhase(token, env.LODE_INSTANCE);
+      ready = phase !== null;
+    }
+  }
+
   const result: {
     status: LodeStateStatus;
     current?: string;
     stateStatus?: string;
-    readiness: { ready: boolean | null };
+    readiness: { ready: boolean | null; phase: number | null };
   } = {
     status: "available",
-    readiness: { ready: ready && env.LODE_INSTANCE ? ready === env.LODE_INSTANCE : null },
+    readiness: { ready, phase },
   };
   const current = safeString(parsed.current);
   if (current)
@@ -215,21 +159,4 @@ export function getLodeSummary(env: LodeRuntimeEnv = currentLodeEnv()): LodeSumm
     update: readLodeUpdateSummary(env),
     manualOperations: { check: false, apply: false },
   };
-}
-
-export function markLodeReady(logger?: Pick<Logger, "info">, env: LodeRuntimeEnv = currentLodeEnv()): boolean {
-  const path = statePath(env);
-  if (!path)
-    return false;
-
-  const next = {
-    ...readState(path),
-    ready: env.LODE_INSTANCE,
-  };
-  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`);
-  renameSync(tmp, path);
-  logger?.info({ lodeInstance: env.LODE_INSTANCE }, "lode readiness reported");
-  return true;
 }

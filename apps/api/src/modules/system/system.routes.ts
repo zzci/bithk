@@ -2,7 +2,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { BUILD_INFO } from "@/build-info";
-import { getLodeSummary } from "@/lode-state";
+import { getLodeSummary } from "@/lode";
 import { getAppSetting } from "@/shared/lib/app-config";
 import { renderPrometheus } from "@/shared/lib/metrics";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";

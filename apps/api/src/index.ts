@@ -1,8 +1,10 @@
+import type { LodePrepareWatcher } from "./lode";
 import process from "node:process";
+import { sql } from "drizzle-orm";
 import { bootstrap } from "./app";
 import { BUILD_INFO } from "./build-info";
 import { dispatchCliSubcommand } from "./cli";
-import { markLodeReady } from "./lode-state";
+import { markLodeReady, startLodePrepareWatcher } from "./lode";
 import { stopAuditRetentionSweep } from "./modules/audit";
 import { stopCron } from "./modules/cron";
 import { stopFileGcSweep } from "./modules/file";
@@ -13,7 +15,7 @@ import { acquirePidLock, releasePidLock } from "./pid-lock";
   if (subcommandExit !== null) {
     process.exit(subcommandExit);
   }
-  const { fetch, config, logger, closeDb } = await bootstrap();
+  const { fetch, config, logger, db, closeDb } = await bootstrap();
   logger.info({ ...BUILD_INFO }, "build info");
 
   // Bind the port before acquiring the PID lock so a concurrent boot loses
@@ -38,6 +40,7 @@ import { acquirePidLock, releasePidLock } from "./pid-lock";
   }
 
   let shuttingDown = false;
+  let lodePrepare: LodePrepareWatcher | undefined;
 
   // Unified teardown for signals, pid-lock failure, and fatal exceptions.
   // fatal=true: immediate stop, silent per-step errors (logger may be gone),
@@ -73,6 +76,7 @@ import { acquirePidLock, releasePidLock } from "./pid-lock";
       };
 
     await safe("server.stop", stopServer, silent);
+    await safe("stopLodePrepareWatcher", () => lodePrepare?.stop(), silent);
     await safe("stopAuditRetentionSweep", stopAuditRetentionSweep, silent);
     await safe("stopFileGcSweep", stopFileGcSweep, silent);
     await safe("stopCron", stopCron, silent);
@@ -95,7 +99,24 @@ import { acquirePidLock, releasePidLock } from "./pid-lock";
   logger.info({ port: config.PORT, host: config.HOST }, "server started");
 
   try {
-    markLodeReady(logger);
+    // Report serving only once the DB answers, so `state.ready` reflects real
+    // readiness. Writing phase -0 opts into the staged-update prepare handshake.
+    await markLodeReady({
+      logger,
+      probe: async () => {
+        await db.run(sql`SELECT 1`);
+        return true;
+      },
+    });
+    // Handle lode's staged-update prompt: checkpoint the WAL and flush logs
+    // before acking, so the next version starts from a consolidated DB file.
+    lodePrepare = startLodePrepareWatcher({
+      logger,
+      onPrepare: async () => {
+        db.run(sql`PRAGMA wal_checkpoint(TRUNCATE)`);
+        await logger.flush();
+      },
+    });
   }
   catch (err) {
     await closeServices({ reason: "lode readiness failed", fatal: true, err });

@@ -94,7 +94,9 @@ jobs:
           if (manifest.channels?.stable?.latest !== version) throw new Error("stable channel must point at release version");
           if (!asset) throw new Error("missing " + assetName + " asset in manifest");
           if (asset.url !== assetUrl) throw new Error("asset URL must match the GitHub release asset URL");
-          if (asset.entry !== "index.js") throw new Error("asset entry mismatch");
+          if (asset.run !== "bun index.js") throw new Error("asset run command mismatch");
+          if (asset.exec !== "bun run") throw new Error("asset exec command mismatch");
+          if ("entry" in asset) throw new Error("asset entry is not part of lode/v1");
           if ("platform" in asset) throw new Error("asset platform is not part of lode/v1");
           if ("format" in asset) throw new Error("asset format is derived from the filename");
           if (!asset.sha256 || !asset.size) throw new Error("asset integrity fields are required");

@@ -36,6 +36,8 @@ export interface BootstrapResult {
   readonly fetch: (req: Request, env?: Record<string, unknown>) => Response | Promise<Response>;
   readonly config: Config;
   readonly logger: Logger;
+  /** Open database handle. Used for the lode readiness probe and checkpoint. */
+  readonly db: AppDatabase;
   /** Close DB connection. Call on shutdown. */
   readonly closeDb: () => Promise<void>;
 }
@@ -60,6 +62,7 @@ export async function bootstrap(): Promise<BootstrapResult> {
     fetch: (req, env) => app.fetch(req, env),
     config,
     logger,
+    db,
     closeDb: () => Promise.resolve(db.close()),
   };
 }

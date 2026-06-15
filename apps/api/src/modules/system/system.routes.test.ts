@@ -184,7 +184,7 @@ describe("GET /system/version", () => {
       configured: false,
       active: false,
       status: "not_configured",
-      readiness: { ready: null },
+      readiness: { ready: null, phase: null },
       update: { configStatus: "not_configured" },
       manualOperations: { check: false, apply: false },
     });
@@ -222,7 +222,7 @@ trusted_keys = ["trusted-key-material"]
       status: "available",
       current: "0.1.5",
       stateStatus: "running",
-      readiness: { ready: true },
+      readiness: { ready: true, phase: 0 },
       update: {
         configStatus: "available",
         policy: "auto",

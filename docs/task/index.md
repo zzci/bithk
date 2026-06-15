@@ -132,3 +132,4 @@
 | [FEAT-030](FEAT-030.md) | HR colleague detail drawer with profile metadata and documents | [PLAN-079](../plan/PLAN-079.md) | Completed | 2026-06-12 |
 | [FEAT-031](FEAT-031.md) | Global roles as user groups: counts, membership, dialog permissions | [PLAN-080](../plan/PLAN-080.md) | Completed | 2026-06-12 |
 | [FEAT-032](FEAT-032.md) | Merge global roles into groups (one grouping concept) | [PLAN-081](../plan/PLAN-081.md) | Completed | 2026-06-12 |
+| [FIX-040](FIX-040.md) | Realign lode upgrade integration with breaking lode spec | [PLAN-082](../plan/PLAN-082.md) | Completed | 2026-06-15 |

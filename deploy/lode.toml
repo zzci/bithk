@@ -8,15 +8,17 @@ log_level = "info"
 # manifest = "https://releases.example.com/bit/manifest.json"
 github = "zzci/bithk"
 asset = "bit-linux-x64.tar.gz"
-entry = "index.js"
 channel = "stable"
 policy = "auto"
 check_interval = 300
 keep_versions = 3
 
 [command]
-# The package contains index.js plus package.json scripts for CLI passthrough.
-run = "bun"
+# Launch is the full command (whitespace-split; only {dir} expands). The asset
+# ships index.js plus package.json scripts, so exec="bun run" maps CLI
+# passthrough such as `lode migrate` to `bun run migrate`. The manifest asset
+# publishes the same run/exec, which override these.
+run = "bun index.js"
 exec = "bun run"
 workdir = "{dir}"
 
@@ -24,6 +26,10 @@ workdir = "{dir}"
 restart = "off"
 readiness = "state"
 ready_timeout = 30
+# The app opts into the staged-update prepare handshake (reports ready as
+# "-0"). Bound the wait for its prepare ack so a stuck app cannot block a
+# cut-over indefinitely (default 0 = wait forever).
+prepare_timeout = 25
 health_grace = 20
 stop_timeout = 30
 
