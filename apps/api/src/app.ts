@@ -67,6 +67,28 @@ export async function bootstrap(): Promise<BootstrapResult> {
   };
 }
 
+// ─── Offline runtime ───
+
+/**
+ * Wire the minimal runtime the CLI needs for offline backup import/export:
+ * an open, migrated database and a selected file-storage driver. No
+ * background workers (audit/backup-staging/file-GC sweeps, cron) and no HTTP
+ * server are started, so the offline commands cannot race those sweeps.
+ *
+ * Module backup-registrations (`registerBackupContribution`) are an import
+ * side-effect of this file's barrel imports, so importing `app.ts` already
+ * populates every module's contribution — no explicit registration here.
+ */
+export async function wireRuntime(
+  config: Config,
+  logger: Logger,
+): Promise<{ db: AppDatabase; close: () => Promise<void> }> {
+  const db = await createDb(config.DB_PATH); // createDb migrates
+  await initFileModule(config); // selects storage driver (needed even with 0 blobs)
+  logger.debug("wireRuntime: offline runtime initialized (no workers, no server)");
+  return { db, close: () => Promise.resolve(db.close()) };
+}
+
 // ─── Shared installers ───
 
 // CORS_ORIGIN may be a comma-separated list. In development with no value,
