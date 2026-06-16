@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
-import { projectCoverPermissionHook } from "./project.cover.permission";
+import { projectCoverPermissionHook, projectDefaultCoverPermissionHook } from "./project.cover.permission";
 import { createProject } from "./project.service";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
@@ -66,5 +66,20 @@ describe("project cover permission hook — admin bypass", () => {
     // result proves the admin branch short-circuits before any DB read.
     expect(await projectCoverPermissionHook.canRead(db, { id: admin, role: "admin" }, ref)).toBe(true);
     expect(await projectCoverPermissionHook.canDelete(db, { id: admin, role: "admin" }, ref)).toBe(true);
+  });
+});
+
+describe("project default cover permission hook", () => {
+  test("any authenticated user reads; delete is admin-only", async () => {
+    const user = await seedUser("user");
+    const admin = await seedUser("admin");
+    const ref = { ownerId: "global" } as Parameters<typeof projectDefaultCoverPermissionHook.canRead>[2];
+
+    // Read is open to any authenticated actor (the default cover is read-only
+    // branding seeded onto new projects).
+    expect(await projectDefaultCoverPermissionHook.canRead(db, { id: user, role: "user" }, ref)).toBe(true);
+    // Delete stays admin-only — the default is managed through admin routes.
+    expect(await projectDefaultCoverPermissionHook.canDelete(db, { id: user, role: "user" }, ref)).toBe(false);
+    expect(await projectDefaultCoverPermissionHook.canDelete(db, { id: admin, role: "admin" }, ref)).toBe(true);
   });
 });

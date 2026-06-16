@@ -159,7 +159,7 @@ describe("ship cover", () => {
     expect(await db.select().from(fileReferences).where(eq(fileReferences.id, refA)).get()).toBeTruthy();
   });
 
-  test("permission hook: base-project members read, others do not; manage gates delete", async () => {
+  test("permission hook: any authenticated user reads; manage gates delete", async () => {
     const creator = await seedUser();
     const outsider = await seedUser("user");
     const ship = await createShip(db, { name: "Nimbus", creatorId: creator });
@@ -172,8 +172,9 @@ describe("ship cover", () => {
     // Creator is the base project's PM member → read + manage.
     expect(await shipCoverPermissionHook.canRead(db, { id: creator, role: "user" }, ref)).toBe(true);
     expect(await shipCoverPermissionHook.canDelete(db, { id: creator, role: "user" }, ref)).toBe(true);
-    // Outsider is not a member → neither.
-    expect(await shipCoverPermissionHook.canRead(db, { id: outsider, role: "user" }, ref)).toBe(false);
+    // Outsider is not a member → reads (covers are public to authed users) but
+    // still cannot manage/delete.
+    expect(await shipCoverPermissionHook.canRead(db, { id: outsider, role: "user" }, ref)).toBe(true);
     expect(await shipCoverPermissionHook.canDelete(db, { id: outsider, role: "user" }, ref)).toBe(false);
     // App admin bypasses.
     expect(await shipCoverPermissionHook.canRead(db, { id: outsider, role: "admin" }, ref)).toBe(true);

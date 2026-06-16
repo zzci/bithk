@@ -1,18 +1,20 @@
 import type { FilePermissionHook } from "@/modules/file";
 import { registerFilePermissionHook } from "@/modules/file";
-import { getShipById, userCanManageShip, userCanReadShip } from "./ship.service";
+import { getShipById, userCanManageShip } from "./ship.service";
 
 /**
  * Permission hook for `owner_type='ship_cover'`. The `owner_id` is the internal
- * ship id (ULID). Read / manage are anchored on the ship's base project (the
- * same rule the ship routes enforce). App admins bypass.
+ * ship id (ULID).
+ *
+ * - `canRead`  → any authenticated user. Covers are read-only branding; the file
+ *   route already enforces authentication before this hook runs, so membership
+ *   in the ship's base project is not required to view.
+ * - `canDelete`→ anchored on the ship's base project `manage` rule (the same
+ *   gate the ship write routes enforce). App admins bypass.
  */
 export const shipCoverPermissionHook: FilePermissionHook = {
-  async canRead(db, actor, ref) {
-    const ship = await getShipById(db, ref.ownerId);
-    if (!ship)
-      return false;
-    return userCanReadShip(db, ship, actor.id, actor.role === "admin");
+  async canRead() {
+    return true;
   },
   async canDelete(db, actor, ref) {
     const ship = await getShipById(db, ref.ownerId);
