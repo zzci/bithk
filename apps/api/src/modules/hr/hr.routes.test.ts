@@ -428,3 +428,62 @@ describe("colleague profile fields", () => {
     expect(badEnum.status).toBe(422);
   });
 });
+
+describe("colleague salary fields", () => {
+  test("create persists salaryAmount and salaryCurrency and returns both (201)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const userId = await insertUser();
+
+    const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, {
+      userId,
+      salaryAmount: 5000_00,
+      salaryCurrency: "USD",
+    }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { data: { salaryAmount: number | null; salaryCurrency: string | null } };
+    expect(body.data.salaryAmount).toBe(5000_00);
+    expect(body.data.salaryCurrency).toBe("USD");
+  });
+
+  test("a colleague created without salary fields returns nulls", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const userId = await insertUser();
+
+    const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { data: { salaryAmount: number | null; salaryCurrency: string | null } };
+    expect(body.data.salaryAmount).toBeNull();
+    expect(body.data.salaryCurrency).toBeNull();
+  });
+
+  test("update sets salaryAmount and salaryCurrency (200)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const userId = await insertUser();
+    const created = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId }));
+    const cbody = await created.json() as { data: { id: string } };
+
+    const res = await app.request(`/hr/colleagues/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, {
+      salaryAmount: 3200_50,
+      salaryCurrency: "EUR",
+    }));
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { salaryAmount: number | null; salaryCurrency: string | null } };
+    expect(body.data.salaryAmount).toBe(3200_50);
+    expect(body.data.salaryCurrency).toBe("EUR");
+  });
+
+  test("a malformed salaryCurrency is rejected (422)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const userId = await insertUser();
+
+    const badCurrency = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId, salaryCurrency: "usd" }));
+    expect(badCurrency.status).toBe(422);
+
+    const negative = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId, salaryAmount: -1 }));
+    expect(negative.status).toBe(422);
+  });
+});
