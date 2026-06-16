@@ -88,7 +88,7 @@ async function insertUser(opts: UserRowOptions = {}): Promise<string> {
   return id;
 }
 
-async function insertColleague(opts: { status?: "active" | "archived" } = {}): Promise<string> {
+async function insertColleague(opts: { status?: "active" | "archived"; salaryAmount?: number; salaryCurrency?: string } = {}): Promise<string> {
   const userId = await insertUser({ isVirtual: true });
   const id = nanoid();
   const now = new Date().toISOString();
@@ -96,6 +96,8 @@ async function insertColleague(opts: { status?: "active" | "archived" } = {}): P
     id,
     userId,
     status: opts.status ?? "active",
+    salaryAmount: opts.salaryAmount ?? null,
+    salaryCurrency: opts.salaryCurrency ?? null,
     createdAt: now,
     updatedAt: now,
   }).run();
@@ -374,5 +376,143 @@ describe("DELETE /hr/payroll/:id", () => {
 
     const res = await app.request(`/hr/payroll/${record.id}`, jsonReq("DELETE", admin.cookie));
     expect(res.status).toBe(409);
+  });
+});
+
+async function generate(app: Hono<AppEnv>, cookie: string, period: string): Promise<Response> {
+  return app.request("/hr/payroll/generate", jsonReq("POST", cookie, { period }));
+}
+
+describe("POST /hr/payroll/generate", () => {
+  test("generates pending records from salaried active colleagues and is idempotent", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const c1 = await insertColleague({ salaryAmount: 800000, salaryCurrency: "CNY" });
+    const c2 = await insertColleague({ salaryAmount: 500000, salaryCurrency: "USD" });
+
+    const res = await generate(app, admin.cookie, "2026-06");
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { created: number; skipped: number } };
+    expect(body.data.created).toBe(2);
+    expect(body.data.skipped).toBe(0);
+
+    // Each generated record is pending with base = net = salary, in the
+    // colleague's own currency.
+    const list = await app.request("/hr/payroll?period=2026-06", { headers: { Cookie: admin.cookie } });
+    const listBody = await list.json() as { data: PayrollView[]; meta: { total: number } };
+    expect(listBody.meta.total).toBe(2);
+    const r1 = listBody.data.find(r => r.colleagueId === c1);
+    expect(r1?.baseSalary).toBe(800000);
+    expect(r1?.netAmount).toBe(800000);
+    expect(r1?.currency).toBe("CNY");
+    expect(r1?.status).toBe("pending");
+    const r2 = listBody.data.find(r => r.colleagueId === c2);
+    expect(r2?.netAmount).toBe(500000);
+    expect(r2?.currency).toBe("USD");
+
+    // Re-run inserts nothing — every candidate already has a record.
+    const rerun = await generate(app, admin.cookie, "2026-06");
+    const rerunBody = await rerun.json() as { data: { created: number; skipped: number } };
+    expect(rerunBody.data.created).toBe(0);
+    expect(rerunBody.data.skipped).toBe(2);
+  });
+
+  test("skips colleagues with an existing record, no salary, or archived", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const salaried = await insertColleague({ salaryAmount: 700000, salaryCurrency: "CNY" });
+    const preexisting = await insertColleague({ salaryAmount: 600000, salaryCurrency: "CNY" });
+    const noSalary = await insertColleague();
+    const archived = await insertColleague({ status: "archived", salaryAmount: 900000, salaryCurrency: "CNY" });
+
+    // `preexisting` already has a manually created record for the period.
+    await createRecord(app, admin.cookie, preexisting, { baseSalary: 123456 });
+
+    const res = await generate(app, admin.cookie, "2026-06");
+    const body = await res.json() as { data: { created: number; skipped: number } };
+    // Only the fresh salaried colleague is created; the one already holding a
+    // record counts as skipped; no-salary and archived are not candidates.
+    expect(body.data.created).toBe(1);
+    expect(body.data.skipped).toBe(1);
+
+    const all = await app.request("/hr/payroll?period=2026-06&limit=100", { headers: { Cookie: admin.cookie } });
+    const allBody = await all.json() as { data: PayrollView[] };
+    const ids = allBody.data.map(r => r.colleagueId);
+    expect(ids).toContain(salaried);
+    expect(ids).toContain(preexisting);
+    expect(ids).not.toContain(noSalary);
+    expect(ids).not.toContain(archived);
+    // The preexisting record kept its manual amount — never overwritten.
+    const pre = allBody.data.find(r => r.colleagueId === preexisting);
+    expect(pre?.baseSalary).toBe(123456);
+  });
+});
+
+describe("payroll admin gate", () => {
+  test("non-admin hr-module user is 403 on generate and on mark-paid; admin succeeds on both", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const member = await sessionForRole("user");
+    const group = await createGroup(db, { name: "HR", modules: ["hr"] });
+    await addGroupMember(db, group.id, member.id);
+    await insertColleague({ salaryAmount: 500000, salaryCurrency: "CNY" });
+
+    // generate: non-admin forbidden, admin allowed.
+    const memberGen = await generate(app, member.cookie, "2026-06");
+    expect(memberGen.status).toBe(403);
+    const adminGen = await generate(app, admin.cookie, "2026-06");
+    expect(adminGen.status).toBe(200);
+
+    const list = await app.request("/hr/payroll?period=2026-06", { headers: { Cookie: admin.cookie } });
+    const listBody = await list.json() as { data: PayrollView[] };
+    const recordId = listBody.data[0]?.id ?? "";
+
+    // mark-paid: non-admin forbidden, admin allowed.
+    const memberPay = await app.request(`/hr/payroll/${recordId}`, jsonReq("PATCH", member.cookie, { status: "paid" }));
+    expect(memberPay.status).toBe(403);
+    const adminPay = await app.request(`/hr/payroll/${recordId}`, jsonReq("PATCH", admin.cookie, { status: "paid" }));
+    expect(adminPay.status).toBe(200);
+    const paid = await adminPay.json() as { data: PayrollView };
+    expect(paid.data.status).toBe("paid");
+  });
+
+  test("a non-admin hr-module user can still make a plain field edit (200)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const member = await sessionForRole("user");
+    const group = await createGroup(db, { name: "HR", modules: ["hr"] });
+    await addGroupMember(db, group.id, member.id);
+    const colleagueId = await insertColleague();
+    const record = await createRecord(app, admin.cookie, colleagueId);
+
+    const edit = await app.request(`/hr/payroll/${record.id}`, jsonReq("PATCH", member.cookie, { bonus: 1000 }));
+    expect(edit.status).toBe(200);
+    const body = await edit.json() as { data: PayrollView };
+    expect(body.data.bonus).toBe(1000);
+  });
+});
+
+describe("GET /hr/payroll totals", () => {
+  test("meta.totals carries net sums grouped by currency over the filtered set", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const c1 = await insertColleague();
+    const c2 = await insertColleague();
+    const c3 = await insertColleague();
+
+    await createRecord(app, admin.cookie, c1, { baseSalary: 100000, bonus: 5000, currency: "CNY" }); // net 105000
+    await createRecord(app, admin.cookie, c2, { baseSalary: 200000, deduction: 10000, currency: "CNY" }); // net 190000
+    await createRecord(app, admin.cookie, c3, { baseSalary: 300000, currency: "USD" }); // net 300000
+
+    const res = await app.request("/hr/payroll", { headers: { Cookie: admin.cookie } });
+    const body = await res.json() as { meta: { totals: { currency: string; net: number }[] } };
+    const byCurrency = Object.fromEntries(body.meta.totals.map(t => [t.currency, t.net]));
+    expect(byCurrency.CNY).toBe(295000);
+    expect(byCurrency.USD).toBe(300000);
+
+    // Totals honor the same filter as the list.
+    const filtered = await app.request(`/hr/payroll?colleagueId=${c3}`, { headers: { Cookie: admin.cookie } });
+    const filteredBody = await filtered.json() as { meta: { totals: { currency: string; net: number }[] } };
+    expect(filteredBody.meta.totals).toEqual([{ currency: "USD", net: 300000 }]);
   });
 });

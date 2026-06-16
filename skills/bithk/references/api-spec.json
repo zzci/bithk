@@ -5340,6 +5340,30 @@
         "x-stub": true
       }
     },
+    "/hr/payroll/generate": {
+      "post": {
+        "summary": "POST /hr/payroll/generate",
+        "description": "Auto-generated stub — request/response not yet curated for this route.",
+        "responses": {
+          "default": {
+            "description": "Response envelope `{ success, data }` or `{ success, error }`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-stub": true
+      }
+    },
     "/issues/{issueShortId}/references": {
       "get": {
         "summary": "GET /issues/:issueShortId/references",
