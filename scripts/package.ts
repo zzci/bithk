@@ -135,6 +135,8 @@ await Bun.write(resolve(STAGE, "package.json"), `${JSON.stringify({
     "healthcheck": "bun index.js healthcheck",
     "migrate": "bun index.js migrate",
     "migrate:check": "bun index.js migrate --check",
+    "backup:export": "bun index.js backup:export",
+    "backup:import": "bun index.js backup:import",
   },
 }, null, 2)}\n`);
 
