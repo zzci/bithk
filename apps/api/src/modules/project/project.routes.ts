@@ -4,6 +4,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   composeCategory,
@@ -147,6 +148,71 @@ const updateCategorySchema = z.object({
   description: z.string().max(2000).nullable().optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
+// `{ success:true, data }` response doc for `schema`.
+function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+// Paginated `{ success:true, data:[…], meta }` response doc.
+const pageMetaSchema = z.object({ total: z.number(), page: z.number(), limit: z.number() });
+function okListJson(itemSchema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
+}
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+// Multipart upload (`file` field) request-body doc for cover-image uploads.
+const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
+
+const idParam = z.object({ id: z.string() });
+const memberParam = z.object({ id: z.string(), memberId: z.string() });
+const roleParam = z.object({ id: z.string(), roleId: z.string() });
+const categoryParam = z.object({ id: z.string(), categoryId: z.string() });
+
+// Response `data` schemas mirroring the project service view composers.
+const projectTagSchema = z.object({ id: z.string(), name: z.string() });
+const projectViewSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  name: z.string(),
+  status: z.enum(PROJECT_STATUSES),
+  description: z.string().nullable(),
+  shipId: z.string().nullable(),
+  tags: z.array(projectTagSchema),
+  coverImageUrl: z.string().nullable(),
+  creatorId: z.string(),
+  version: z.number(),
+  updatedAt: z.string(),
+});
+// Detail additionally carries the caller's capabilities.
+const projectDetailSchema = projectViewSchema.extend({ capabilities: z.array(z.enum(PROJECT_CAPABILITIES)) });
+const memberSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  isVirtual: z.boolean(),
+  roleId: z.string(),
+  title: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+const roleSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  capabilities: z.array(z.enum(PROJECT_CAPABILITIES)),
+  isSystem: z.boolean(),
+  kind: z.enum(["owner", "guest"]).nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+// Shared shape for project + global procurement categories.
+const categorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  code: z.string().nullable(),
+  description: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+const defaultCoverSchema = z.object({ referenceId: z.string().nullable(), url: z.string().nullable() });
+
 function actorId(c: Context<ProtectedEnv>): string {
   return c.get("user").id;
 }
@@ -228,35 +294,92 @@ export function projectRoutes() {
 
   // ─── Global procurement categories (admin only) ────────────────────
   // The template set copied into each new project at creation (copy-on-create).
-  router.get("/global-procurement-categories", adminRequired, async (c) => {
-    const db = c.get("db");
-    return c.json({ success: true, data: (await listGlobalCategories(db)).map(composeGlobalCategory) });
-  });
+  router.get(
+    "/global-procurement-categories",
+    describeRoute({
+      tags: ["projects"],
+      summary: "List global procurement categories",
+      responses: {
+        200: okJson(z.array(categorySchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+      },
+    }),
+    adminRequired,
+    async (c) => {
+      const db = c.get("db");
+      return c.json({ success: true, data: (await listGlobalCategories(db)).map(composeGlobalCategory) });
+    },
+  );
 
-  router.post("/global-procurement-categories", adminRequired, async (c) => {
-    const db = c.get("db");
-    const body = createGlobalCategorySchema.parse(await c.req.json());
-    const category = await createGlobalCategory(db, body);
-    return c.json({ success: true, data: composeGlobalCategory(category) }, 201);
-  });
+  router.post(
+    "/global-procurement-categories",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Create a global procurement category",
+      responses: {
+        201: okJson(categorySchema, "Created"),
+        403: { description: "Admin only", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("json", createGlobalCategorySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const category = await createGlobalCategory(db, body);
+      return c.json({ success: true, data: composeGlobalCategory(category) }, 201);
+    },
+  );
 
-  router.patch("/global-procurement-categories/:id", adminRequired, async (c) => {
-    const db = c.get("db");
-    const id = c.req.param("id");
-    const body = updateGlobalCategorySchema.parse(await c.req.json());
-    const category = await updateGlobalCategory(db, id, body);
-    if (!category)
-      throw new NotFoundError("Global procurement category", id);
-    return c.json({ success: true, data: composeGlobalCategory(category) });
-  });
+  router.patch(
+    "/global-procurement-categories/:id",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Update a global procurement category",
+      responses: {
+        200: okJson(categorySchema),
+        403: { description: "Admin only", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("param", idParam, onValidationFailure),
+    validator("json", updateGlobalCategorySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const category = await updateGlobalCategory(db, id, body);
+      if (!category)
+        throw new NotFoundError("Global procurement category", id);
+      return c.json({ success: true, data: composeGlobalCategory(category) });
+    },
+  );
 
-  router.delete("/global-procurement-categories/:id", adminRequired, async (c) => {
-    const db = c.get("db");
-    const id = c.req.param("id");
-    if (!await deleteGlobalCategory(db, id))
-      throw new NotFoundError("Global procurement category", id);
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    "/global-procurement-categories/:id",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Delete a global procurement category",
+      responses: {
+        200: okJson(z.null()),
+        403: { description: "Admin only", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      if (!await deleteGlobalCategory(db, id))
+        throw new NotFoundError("Global procurement category", id);
+      return c.json({ success: true, data: null });
+    },
+  );
 
   // ─── Global default project cover (admin only) ────────────────────
   // Backs the admin "Project Defaults" cover picker. The reference id is
@@ -265,246 +388,559 @@ export function projectRoutes() {
   // ("project_cover_default") keeps it separate from per-project covers.
 
   // GET — preview the current default cover (nulls when unset).
-  router.get("/admin/project-default-cover", adminRequired, async (c) => {
-    const db = c.get("db");
-    return c.json({ success: true, data: await getDefaultProjectCover(db) });
-  });
+  router.get(
+    "/admin/project-default-cover",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Get the default project cover",
+      responses: {
+        200: okJson(defaultCoverSchema),
+        403: { description: "Admin only", ...errorJson },
+      },
+    }),
+    adminRequired,
+    async (c) => {
+      const db = c.get("db");
+      return c.json({ success: true, data: await getDefaultProjectCover(db) });
+    },
+  );
 
   // POST (multipart `file`) — upload / replace the default cover.
-  router.post("/admin/project-default-cover", adminRequired, async (c) => {
-    const db = c.get("db");
-    const formData = await c.req.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File))
-      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-    const result = await setDefaultProjectCover(db, c.get("config"), file, actorId(c));
-    return c.json({ success: true, data: result });
-  });
+  router.post(
+    "/admin/project-default-cover",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Upload / replace the default project cover",
+      requestBody: fileUploadBody,
+      responses: {
+        200: okJson(defaultCoverSchema),
+        400: { description: "No file provided", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+      },
+    }),
+    adminRequired,
+    async (c) => {
+      const db = c.get("db");
+      const formData = await c.req.formData();
+      const file = formData.get("file");
+      if (!(file instanceof File))
+        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+      const result = await setDefaultProjectCover(db, c.get("config"), file, actorId(c));
+      return c.json({ success: true, data: result });
+    },
+  );
 
   // DELETE — release + clear the default cover (idempotent).
-  router.delete("/admin/project-default-cover", adminRequired, async (c) => {
-    const db = c.get("db");
-    await removeDefaultProjectCover(db, c.get("config"));
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    "/admin/project-default-cover",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Clear the default project cover",
+      responses: {
+        200: okJson(z.null()),
+        403: { description: "Admin only", ...errorJson },
+      },
+    }),
+    adminRequired,
+    async (c) => {
+      const db = c.get("db");
+      await removeDefaultProjectCover(db, c.get("config"));
+      return c.json({ success: true, data: null });
+    },
+  );
 
   // GET /projects — list. Admins see all; others see only projects they belong to.
-  router.get("/projects", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user");
-    const query = listSchema.parse({
-      status: c.req.query("status"),
-      q: c.req.query("q"),
-      page: c.req.query("page"),
-      limit: c.req.query("limit"),
-    });
-    const tagIds = parseTagIds(c.req.queries("tagIds"));
-    const result = await listProjects(db, {
-      ...query,
-      tagIds,
-      // Archived projects are hidden unless explicitly requested via the
-      // `status=archived` filter (the "Archived" chip on the list).
-      excludeArchived: query.status === undefined,
-      memberUserId: user.role === "admin" ? undefined : user.id,
-    });
-    return c.json({
-      success: true,
-      data: result.data,
-      meta: { total: result.total, page: query.page ?? 1, limit: query.limit ?? 20 },
-    });
-  });
+  router.get(
+    "/projects",
+    describeRoute({
+      tags: ["projects"],
+      summary: "List projects",
+      responses: {
+        200: okListJson(projectViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("query", listSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const user = c.get("user");
+      const query = c.req.valid("query");
+      const tagIds = parseTagIds(c.req.queries("tagIds"));
+      const result = await listProjects(db, {
+        ...query,
+        tagIds,
+        // Archived projects are hidden unless explicitly requested via the
+        // `status=archived` filter (the "Archived" chip on the list).
+        excludeArchived: query.status === undefined,
+        memberUserId: user.role === "admin" ? undefined : user.id,
+      });
+      return c.json({
+        success: true,
+        data: result.data,
+        meta: { total: result.total, page: query.page ?? 1, limit: query.limit ?? 20 },
+      });
+    },
+  );
 
   // POST /projects — create (admin only); creator becomes the pm member
-  router.post("/projects", adminRequired, async (c) => {
-    const db = c.get("db");
-    const body = createProjectSchema.parse(await c.req.json());
-    const project = await createProject(db, { ...body, creatorId: actorId(c) });
-    return c.json({ success: true, data: await composeProjectWithTags(db, project) }, 201);
-  });
+  router.post(
+    "/projects",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Create a project",
+      responses: {
+        201: okJson(projectViewSchema, "Created"),
+        403: { description: "Admin only", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("json", createProjectSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const project = await createProject(db, { ...body, creatorId: actorId(c) });
+      return c.json({ success: true, data: await composeProjectWithTags(db, project) }, 201);
+    },
+  );
 
   // GET /projects/:id — detail (any member); response carries caller capabilities
-  router.get("/projects/:id", async (c) => {
-    const shortId = c.req.param("id");
-    const { capabilities } = await requireProject(c, shortId);
-    const db = c.get("db");
-    const project = await getProjectByShortId(db, shortId);
-    if (!project)
-      throw new NotFoundError("Project", shortId);
-    const view = await composeProjectWithTags(db, project);
-    return c.json({ success: true, data: { ...view, capabilities: [...capabilities] } });
-  });
+  router.get(
+    "/projects/:id",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Get a project",
+      responses: {
+        200: okJson(projectDetailSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const shortId = c.req.valid("param").id;
+      const { capabilities } = await requireProject(c, shortId);
+      const db = c.get("db");
+      const project = await getProjectByShortId(db, shortId);
+      if (!project)
+        throw new NotFoundError("Project", shortId);
+      const view = await composeProjectWithTags(db, project);
+      return c.json({ success: true, data: { ...view, capabilities: [...capabilities] } });
+    },
+  );
 
   // PATCH /projects/:id — update (project.manage)
-  router.patch("/projects/:id", async (c) => {
-    const shortId = c.req.param("id");
-    await requireProject(c, shortId, "project.manage");
-    const db = c.get("db");
-    const body = updateProjectSchema.parse(await c.req.json());
-    const updated = await updateProject(db, shortId, body);
-    if (!updated)
-      throw new NotFoundError("Project", shortId);
-    if (isProjectVersionConflict(updated)) {
-      return c.json(
-        { success: false, error: { code: "VERSION_CONFLICT", message: "Project was modified by another editor" }, data: updated.current },
-        409,
-      );
-    }
-    return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
-  });
+  router.patch(
+    "/projects/:id",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Update a project",
+      responses: {
+        200: okJson(projectViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        409: { description: "Version conflict", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    validator("json", updateProjectSchema, onValidationFailure),
+    async (c) => {
+      const shortId = c.req.valid("param").id;
+      await requireProject(c, shortId, "project.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const updated = await updateProject(db, shortId, body);
+      if (!updated)
+        throw new NotFoundError("Project", shortId);
+      if (isProjectVersionConflict(updated)) {
+        return c.json(
+          { success: false, error: { code: "VERSION_CONFLICT", message: "Project was modified by another editor" }, data: updated.current },
+          409,
+        );
+      }
+      return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
+    },
+  );
 
   // DELETE /projects/:id — soft delete (project.manage)
-  router.delete("/projects/:id", async (c) => {
-    const shortId = c.req.param("id");
-    await requireProject(c, shortId, "project.manage");
-    const db = c.get("db");
-    await softDeleteProject(db, shortId);
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    "/projects/:id",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Delete a project",
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const shortId = c.req.valid("param").id;
+      await requireProject(c, shortId, "project.manage");
+      const db = c.get("db");
+      await softDeleteProject(db, shortId);
+      return c.json({ success: true, data: null });
+    },
+  );
 
   // POST /projects/:id/cover-image — set / replace the cover (project.manage)
-  router.post("/projects/:id/cover-image", async (c) => {
-    const shortId = c.req.param("id");
-    const { projectId } = await requireProject(c, shortId, "project.manage");
-    const db = c.get("db");
+  router.post(
+    "/projects/:id/cover-image",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Set / replace a project cover image",
+      requestBody: fileUploadBody,
+      responses: {
+        200: okJson(projectViewSchema),
+        400: { description: "No file provided", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const shortId = c.req.valid("param").id;
+      const { projectId } = await requireProject(c, shortId, "project.manage");
+      const db = c.get("db");
 
-    const formData = await c.req.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File))
-      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+      const formData = await c.req.formData();
+      const file = formData.get("file");
+      if (!(file instanceof File))
+        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
 
-    const updated = await setProjectCover(db, c.get("config"), projectId, file, actorId(c));
-    if (!updated)
-      throw new NotFoundError("Project", shortId);
-    return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
-  });
+      const updated = await setProjectCover(db, c.get("config"), projectId, file, actorId(c));
+      if (!updated)
+        throw new NotFoundError("Project", shortId);
+      return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
+    },
+  );
 
   // DELETE /projects/:id/cover-image — remove the cover (project.manage)
-  router.delete("/projects/:id/cover-image", async (c) => {
-    const shortId = c.req.param("id");
-    const { projectId } = await requireProject(c, shortId, "project.manage");
-    const db = c.get("db");
-    const updated = await removeProjectCover(db, c.get("config"), projectId);
-    if (!updated)
-      throw new NotFoundError("Project", shortId);
-    return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
-  });
+  router.delete(
+    "/projects/:id/cover-image",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Remove a project cover image",
+      responses: {
+        200: okJson(projectViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const shortId = c.req.valid("param").id;
+      const { projectId } = await requireProject(c, shortId, "project.manage");
+      const db = c.get("db");
+      const updated = await removeProjectCover(db, c.get("config"), projectId);
+      if (!updated)
+        throw new NotFoundError("Project", shortId);
+      return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
+    },
+  );
 
   // ─── Members ───────────────────────────────────────────────────────
-  router.get("/projects/:id/members", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"));
-    const db = c.get("db");
-    const members = await listMembers(db, projectId);
-    return c.json({ success: true, data: members.map(composeMember) });
-  });
+  router.get(
+    "/projects/:id/members",
+    describeRoute({
+      tags: ["projects"],
+      summary: "List project members",
+      responses: {
+        200: okJson(z.array(memberSchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const { projectId } = await requireProject(c, c.req.valid("param").id);
+      const db = c.get("db");
+      const members = await listMembers(db, projectId);
+      return c.json({ success: true, data: members.map(composeMember) });
+    },
+  );
 
-  router.post("/projects/:id/members", async (c) => {
-    const { projectId, capabilities } = await requireProject(c, c.req.param("id"), "members.manage");
-    const db = c.get("db");
-    const body = addMemberSchema.parse(await c.req.json());
-    const role = await resolveRole(db, projectId, body.roleId);
-    if (!role)
-      throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
-    assertAssignableRole(role, capabilities);
-    const member = await addMember(db, projectId, body);
-    return c.json({ success: true, data: composeMember(member) }, 201);
-  });
-
-  router.patch("/projects/:id/members/:memberId", async (c) => {
-    const { projectId, capabilities } = await requireProject(c, c.req.param("id"), "members.manage");
-    const db = c.get("db");
-    const body = updateMemberSchema.parse(await c.req.json());
-    if (body.roleId !== undefined) {
+  router.post(
+    "/projects/:id/members",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Add a project member",
+      responses: {
+        201: okJson(memberSchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    validator("json", addMemberSchema, onValidationFailure),
+    async (c) => {
+      const { projectId, capabilities } = await requireProject(c, c.req.valid("param").id, "members.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
       const role = await resolveRole(db, projectId, body.roleId);
       if (!role)
         throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
       assertAssignableRole(role, capabilities);
-    }
-    const member = await updateMember(db, projectId, c.req.param("memberId"), body);
-    if (!member)
-      throw new NotFoundError("Project member", c.req.param("memberId"));
-    return c.json({ success: true, data: composeMember(member) });
-  });
+      const member = await addMember(db, projectId, body);
+      return c.json({ success: true, data: composeMember(member) }, 201);
+    },
+  );
 
-  router.delete("/projects/:id/members/:memberId", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "members.manage");
-    const db = c.get("db");
-    const removed = await removeMember(db, projectId, c.req.param("memberId"));
-    if (!removed)
-      throw new NotFoundError("Project member", c.req.param("memberId"));
-    return c.json({ success: true, data: null });
-  });
+  router.patch(
+    "/projects/:id/members/:memberId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Update a project member",
+      responses: {
+        200: okJson(memberSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project member not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", memberParam, onValidationFailure),
+    validator("json", updateMemberSchema, onValidationFailure),
+    async (c) => {
+      const { id, memberId } = c.req.valid("param");
+      const { projectId, capabilities } = await requireProject(c, id, "members.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      if (body.roleId !== undefined) {
+        const role = await resolveRole(db, projectId, body.roleId);
+        if (!role)
+          throw new ValidationError("Role does not belong to this project", { roleId: "Unknown role" });
+        assertAssignableRole(role, capabilities);
+      }
+      const member = await updateMember(db, projectId, memberId, body);
+      if (!member)
+        throw new NotFoundError("Project member", memberId);
+      return c.json({ success: true, data: composeMember(member) });
+    },
+  );
+
+  router.delete(
+    "/projects/:id/members/:memberId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Remove a project member",
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project member not found", ...errorJson },
+      },
+    }),
+    validator("param", memberParam, onValidationFailure),
+    async (c) => {
+      const { id, memberId } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "members.manage");
+      const db = c.get("db");
+      const removed = await removeMember(db, projectId, memberId);
+      if (!removed)
+        throw new NotFoundError("Project member", memberId);
+      return c.json({ success: true, data: null });
+    },
+  );
 
   // ─── Roles ─────────────────────────────────────────────────────────
-  router.get("/projects/:id/roles", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"));
-    const db = c.get("db");
-    return c.json({ success: true, data: (await listRoles(db, projectId)).map(composeRole) });
-  });
+  router.get(
+    "/projects/:id/roles",
+    describeRoute({
+      tags: ["projects"],
+      summary: "List project roles",
+      responses: {
+        200: okJson(z.array(roleSchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const { projectId } = await requireProject(c, c.req.valid("param").id);
+      const db = c.get("db");
+      return c.json({ success: true, data: (await listRoles(db, projectId)).map(composeRole) });
+    },
+  );
 
-  router.post("/projects/:id/roles", async (c) => {
-    const { projectId, capabilities } = await requireProject(c, c.req.param("id"), "roles.manage");
-    const db = c.get("db");
-    const body = createRoleSchema.parse(await c.req.json());
-    assertGrantWithinCaps(capabilities, body.capabilities);
-    const role = await createRole(db, projectId, body);
-    return c.json({ success: true, data: composeRole(role) }, 201);
-  });
+  router.post(
+    "/projects/:id/roles",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Create a project role",
+      responses: {
+        201: okJson(roleSchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    validator("json", createRoleSchema, onValidationFailure),
+    async (c) => {
+      const { projectId, capabilities } = await requireProject(c, c.req.valid("param").id, "roles.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      assertGrantWithinCaps(capabilities, body.capabilities);
+      const role = await createRole(db, projectId, body);
+      return c.json({ success: true, data: composeRole(role) }, 201);
+    },
+  );
 
-  router.patch("/projects/:id/roles/:roleId", async (c) => {
-    const { projectId, capabilities } = await requireProject(c, c.req.param("id"), "roles.manage");
-    const db = c.get("db");
-    const body = updateRoleSchema.parse(await c.req.json());
-    assertGrantWithinCaps(capabilities, body.capabilities);
-    const role = await updateRole(db, projectId, c.req.param("roleId"), body);
-    if (!role)
-      throw new NotFoundError("Project role", c.req.param("roleId"));
-    return c.json({ success: true, data: composeRole(role) });
-  });
+  router.patch(
+    "/projects/:id/roles/:roleId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Update a project role",
+      responses: {
+        200: okJson(roleSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project role not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", roleParam, onValidationFailure),
+    validator("json", updateRoleSchema, onValidationFailure),
+    async (c) => {
+      const { id, roleId } = c.req.valid("param");
+      const { projectId, capabilities } = await requireProject(c, id, "roles.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      assertGrantWithinCaps(capabilities, body.capabilities);
+      const role = await updateRole(db, projectId, roleId, body);
+      if (!role)
+        throw new NotFoundError("Project role", roleId);
+      return c.json({ success: true, data: composeRole(role) });
+    },
+  );
 
-  router.delete("/projects/:id/roles/:roleId", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "roles.manage");
-    const db = c.get("db");
-    const result = await deleteRole(db, projectId, c.req.param("roleId"));
-    if (result === "not_found")
-      throw new NotFoundError("Project role", c.req.param("roleId"));
-    if (result === "system")
-      throw new ForbiddenError("System roles cannot be deleted");
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    "/projects/:id/roles/:roleId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Delete a project role",
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project role not found", ...errorJson },
+      },
+    }),
+    validator("param", roleParam, onValidationFailure),
+    async (c) => {
+      const { id, roleId } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "roles.manage");
+      const db = c.get("db");
+      const result = await deleteRole(db, projectId, roleId);
+      if (result === "not_found")
+        throw new NotFoundError("Project role", roleId);
+      if (result === "system")
+        throw new ForbiddenError("System roles cannot be deleted");
+      return c.json({ success: true, data: null });
+    },
+  );
 
   // ─── Procurement categories ────────────────────────────────────────
-  router.get("/projects/:id/procurement-categories", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"));
-    const db = c.get("db");
-    return c.json({ success: true, data: (await listCategories(db, projectId)).map(composeCategory) });
-  });
+  router.get(
+    "/projects/:id/procurement-categories",
+    describeRoute({
+      tags: ["projects"],
+      summary: "List project procurement categories",
+      responses: {
+        200: okJson(z.array(categorySchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const { projectId } = await requireProject(c, c.req.valid("param").id);
+      const db = c.get("db");
+      return c.json({ success: true, data: (await listCategories(db, projectId)).map(composeCategory) });
+    },
+  );
 
-  router.post("/projects/:id/procurement-categories", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "categories.manage");
-    const db = c.get("db");
-    const body = createCategorySchema.parse(await c.req.json());
-    const category = await createCategory(db, projectId, body);
-    return c.json({ success: true, data: composeCategory(category) }, 201);
-  });
+  router.post(
+    "/projects/:id/procurement-categories",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Create a project procurement category",
+      responses: {
+        201: okJson(categorySchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    validator("json", createCategorySchema, onValidationFailure),
+    async (c) => {
+      const { projectId } = await requireProject(c, c.req.valid("param").id, "categories.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const category = await createCategory(db, projectId, body);
+      return c.json({ success: true, data: composeCategory(category) }, 201);
+    },
+  );
 
-  router.patch("/projects/:id/procurement-categories/:categoryId", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "categories.manage");
-    const db = c.get("db");
-    const body = updateCategorySchema.parse(await c.req.json());
-    const category = await updateCategory(db, projectId, c.req.param("categoryId"), body);
-    if (!category)
-      throw new NotFoundError("Procurement category", c.req.param("categoryId"));
-    return c.json({ success: true, data: composeCategory(category) });
-  });
+  router.patch(
+    "/projects/:id/procurement-categories/:categoryId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Update a project procurement category",
+      responses: {
+        200: okJson(categorySchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Procurement category not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", categoryParam, onValidationFailure),
+    validator("json", updateCategorySchema, onValidationFailure),
+    async (c) => {
+      const { id, categoryId } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "categories.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const category = await updateCategory(db, projectId, categoryId, body);
+      if (!category)
+        throw new NotFoundError("Procurement category", categoryId);
+      return c.json({ success: true, data: composeCategory(category) });
+    },
+  );
 
-  router.delete("/projects/:id/procurement-categories/:categoryId", async (c) => {
-    const { projectId } = await requireProject(c, c.req.param("id"), "categories.manage");
-    const db = c.get("db");
-    const removed = await deleteCategory(db, projectId, c.req.param("categoryId"));
-    if (!removed)
-      throw new NotFoundError("Procurement category", c.req.param("categoryId"));
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    "/projects/:id/procurement-categories/:categoryId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Delete a project procurement category",
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Procurement category not found", ...errorJson },
+      },
+    }),
+    validator("param", categoryParam, onValidationFailure),
+    async (c) => {
+      const { id, categoryId } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "categories.manage");
+      const db = c.get("db");
+      const removed = await deleteCategory(db, projectId, categoryId);
+      if (!removed)
+        throw new NotFoundError("Procurement category", categoryId);
+      return c.json({ success: true, data: null });
+    },
+  );
 
   return router;
 }

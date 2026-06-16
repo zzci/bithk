@@ -16,6 +16,7 @@ import {
 import { createComment, deleteComment, getCommentById, listComments } from "@/modules/item/comment.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { requireParam } from "@/shared/lib/route-params";
 
 const DEFAULT_COMMENT_MAX_LENGTH = 2000;
@@ -27,6 +28,40 @@ function buildCommentSchema(maxLength: number) {
     replyToId: z.string().nullish(),
   });
 }
+
+// `{ success:true, data }` response doc for `schema`.
+function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+// Multipart upload (`file` field) request-body doc for attachment uploads.
+const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
+
+// Mirrors `ItemCommentRow` (the `item_comments` row returned by the comment
+// service).
+const commentViewSchema = z.object({
+  id: z.string(),
+  itemId: z.string(),
+  authorId: z.string(),
+  replyToId: z.string().nullable(),
+  content: z.string(),
+  isInternal: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+// Mirrors `AttachmentView` from the file module.
+const attachmentViewSchema = z.object({
+  id: z.string(),
+  fileId: z.string(),
+  ownerType: z.string(),
+  ownerId: z.string(),
+  filename: z.string(),
+  mimetype: z.string(),
+  size: z.number(),
+  createdBy: z.string(),
+  createdAt: z.string(),
+});
 
 /**
  * Per-request permission read for one sub-type subject. Sub-types compute
@@ -97,6 +132,17 @@ export function mountItemCommentRoutes<TResource>(
   const { routePrefix: prefix, resourceType } = opts;
   const commentSchema = buildCommentSchema(opts.maxCommentLength ?? DEFAULT_COMMENT_MAX_LENGTH);
 
+  // The path params contributed by the (dynamic) prefix, e.g. `projectId` for
+  // `/projects/:projectId/issues`. Merged with each route's own params so the
+  // generated spec documents every `:param` in the full path.
+  const prefixParams = prefix.split("/").filter(s => s.startsWith(":")).map(s => s.slice(1));
+  function paramSchema(...own: string[]) {
+    const shape: Record<string, z.ZodString> = {};
+    for (const key of [...prefixParams, ...own])
+      shape[key] = z.string();
+    return z.object(shape);
+  }
+
   async function load(
     c: Context<ProtectedEnv>,
   ): Promise<{ db: AppDatabase; user: { id: string; role: string; name: string }; subject: CommentSubject<TResource>; perms: CommentPermissions }> {
@@ -115,158 +161,258 @@ export function mountItemCommentRoutes<TResource>(
     return { db, user, subject, perms };
   }
 
-  router.get(`${prefix}/:id/comments`, async (c) => {
-    const { db, subject, perms } = await load(c);
-    const data = await listComments(db, subject.item.id, { includeInternal: perms.includeInternal });
-    return c.json({ success: true, data });
-  });
+  router.get(
+    `${prefix}/:id/comments`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `List ${resourceType} comments`,
+      responses: {
+        200: okJson(z.array(commentViewSchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id"), onValidationFailure),
+    async (c) => {
+      const { db, subject, perms } = await load(c);
+      const data = await listComments(db, subject.item.id, { includeInternal: perms.includeInternal });
+      return c.json({ success: true, data });
+    },
+  );
 
-  router.post(`${prefix}/:id/comments`, async (c) => {
-    const { db, user, subject, perms } = await load(c);
-    if (!perms.canPost)
-      throw new ForbiddenError();
-    const body = commentSchema.parse(await c.req.json());
-    if (body.content.trim().length === 0 && !body.hasAttachments)
-      throw new ValidationError("Comment requires content or an attachment", { content: "Comment cannot be empty" });
-    const comment = await createComment(db, {
-      itemId: subject.item.id,
-      authorId: user.id,
-      content: body.content,
-      replyToId: body.replyToId ?? null,
-    });
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: `${resourceType}.comment_added`,
-      resourceType,
-      resourceId: subject.externalId,
-      resourceName: subject.resourceName,
-      detail: { commentId: comment.id },
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: comment }, 201);
-  });
+  router.post(
+    `${prefix}/:id/comments`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `Post a ${resourceType} comment`,
+      responses: {
+        201: okJson(commentViewSchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id"), onValidationFailure),
+    validator("json", commentSchema, onValidationFailure),
+    async (c) => {
+      const { db, user, subject, perms } = await load(c);
+      if (!perms.canPost)
+        throw new ForbiddenError();
+      const body = c.req.valid("json");
+      if (body.content.trim().length === 0 && !body.hasAttachments)
+        throw new ValidationError("Comment requires content or an attachment", { content: "Comment cannot be empty" });
+      const comment = await createComment(db, {
+        itemId: subject.item.id,
+        authorId: user.id,
+        content: body.content,
+        replyToId: body.replyToId ?? null,
+      });
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: `${resourceType}.comment_added`,
+        resourceType,
+        resourceId: subject.externalId,
+        resourceName: subject.resourceName,
+        detail: { commentId: comment.id },
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: comment }, 201);
+    },
+  );
 
-  router.delete(`${prefix}/:id/comments/:cid`, async (c) => {
-    const { db, user, subject, perms } = await load(c);
-    const cid = c.req.param("cid");
-    const comment = await getCommentById(db, subject.item.id, cid);
-    if (!comment)
-      throw new NotFoundError("Comment", cid);
-    if (!perms.canDelete(comment.authorId))
-      throw new ForbiddenError();
-    await deleteComment(db, cid);
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: `${resourceType}.comment_deleted`,
-      resourceType,
-      resourceId: subject.externalId,
-      resourceName: subject.resourceName,
-      detail: { commentId: cid },
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    `${prefix}/:id/comments/:cid`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `Delete a ${resourceType} comment`,
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id", "cid"), onValidationFailure),
+    async (c) => {
+      const { db, user, subject, perms } = await load(c);
+      const cid = requireParam(c, "cid");
+      const comment = await getCommentById(db, subject.item.id, cid);
+      if (!comment)
+        throw new NotFoundError("Comment", cid);
+      if (!perms.canDelete(comment.authorId))
+        throw new ForbiddenError();
+      await deleteComment(db, cid);
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: `${resourceType}.comment_deleted`,
+        resourceType,
+        resourceId: subject.externalId,
+        resourceName: subject.resourceName,
+        detail: { commentId: cid },
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: null });
+    },
+  );
 
   // ── Comment attachments (owner_type='item_comment_attachment') ──
 
-  router.get(`${prefix}/:id/comments/:cid/attachments`, async (c) => {
-    const { db, subject } = await load(c);
-    const cid = c.req.param("cid");
-    const comment = await getCommentById(db, subject.item.id, cid);
-    if (!comment)
-      throw new NotFoundError("Comment", cid);
-    const data = await listAttachmentsByOwner(db, "item_comment_attachment", cid);
-    return c.json({ success: true, data });
-  });
+  router.get(
+    `${prefix}/:id/comments/:cid/attachments`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `List ${resourceType} comment attachments`,
+      responses: {
+        200: okJson(z.array(attachmentViewSchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id", "cid"), onValidationFailure),
+    async (c) => {
+      const { db, subject } = await load(c);
+      const cid = requireParam(c, "cid");
+      const comment = await getCommentById(db, subject.item.id, cid);
+      if (!comment)
+        throw new NotFoundError("Comment", cid);
+      const data = await listAttachmentsByOwner(db, "item_comment_attachment", cid);
+      return c.json({ success: true, data });
+    },
+  );
 
-  router.post(`${prefix}/:id/comments/:cid/attachments`, async (c) => {
-    const { db, user, subject } = await load(c);
-    const cid = c.req.param("cid");
-    const comment = await getCommentById(db, subject.item.id, cid);
-    if (!comment)
-      throw new NotFoundError("Comment", cid);
-    // Only the comment author can attach files to their own comment. This
-    // rule is uniform across sub-types — admins also do not bypass it,
-    // because the attachment is part of the author's speech.
-    if (comment.authorId !== user.id)
-      throw new ForbiddenError();
+  router.post(
+    `${prefix}/:id/comments/:cid/attachments`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `Upload a ${resourceType} comment attachment`,
+      requestBody: fileUploadBody,
+      responses: {
+        201: okJson(attachmentViewSchema, "Created"),
+        400: { description: "No file provided", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        413: { description: "Upload too large", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id", "cid"), onValidationFailure),
+    async (c) => {
+      const { db, user, subject } = await load(c);
+      const cid = requireParam(c, "cid");
+      const comment = await getCommentById(db, subject.item.id, cid);
+      if (!comment)
+        throw new NotFoundError("Comment", cid);
+      // Only the comment author can attach files to their own comment. This
+      // rule is uniform across sub-types — admins also do not bypass it,
+      // because the attachment is part of the author's speech.
+      if (comment.authorId !== user.id)
+        throw new ForbiddenError();
 
-    const config = c.get("config");
-    const contentLength = Number(c.req.header("content-length") ?? "0");
-    if (contentLength > config.MAX_UPLOAD_BYTES)
-      throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
-    const formData = await c.req.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File))
-      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+      const config = c.get("config");
+      const contentLength = Number(c.req.header("content-length") ?? "0");
+      if (contentLength > config.MAX_UPLOAD_BYTES)
+        throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
+      const formData = await c.req.formData();
+      const file = formData.get("file");
+      if (!(file instanceof File))
+        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
 
-    const { reference, file: uploaded } = await uploadAndReference(db, config, {
-      file,
-      ownerType: "item_comment_attachment",
-      ownerId: cid,
-      uploadedBy: user.id,
-    });
-    const view = makeAttachmentView(reference, uploaded);
+      const { reference, file: uploaded } = await uploadAndReference(db, config, {
+        file,
+        ownerType: "item_comment_attachment",
+        ownerId: cid,
+        uploadedBy: user.id,
+      });
+      const view = makeAttachmentView(reference, uploaded);
 
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: `${resourceType}.comment_attachment_uploaded`,
-      resourceType,
-      resourceId: subject.externalId,
-      resourceName: subject.resourceName,
-      detail: { commentId: cid, attachmentId: reference.id, filename: file.name, size: file.size },
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: view }, 201);
-  });
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: `${resourceType}.comment_attachment_uploaded`,
+        resourceType,
+        resourceId: subject.externalId,
+        resourceName: subject.resourceName,
+        detail: { commentId: cid, attachmentId: reference.id, filename: file.name, size: file.size },
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: view }, 201);
+    },
+  );
 
-  router.get(`${prefix}/:id/comments/:cid/attachments/:aid`, async (c) => {
-    const { db, subject } = await load(c);
-    const cid = c.req.param("cid");
-    const aid = c.req.param("aid");
-    const comment = await getCommentById(db, subject.item.id, cid);
-    if (!comment)
-      throw new NotFoundError("Comment", cid);
-    const ref = await getReferenceById(db, aid);
-    if (!ref || ref.ownerType !== "item_comment_attachment" || ref.ownerId !== cid)
-      throw new NotFoundError("Attachment", aid);
-    const fileRow = await getFileById(db, ref.fileId);
-    if (!fileRow)
-      throw new NotFoundError("File", aid);
-    const wantInline = c.req.query("inline") === "true";
-    return await buildDownloadResponse(c.get("config"), fileRow, ref, { inline: wantInline });
-  });
+  router.get(
+    `${prefix}/:id/comments/:cid/attachments/:aid`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `Download a ${resourceType} comment attachment`,
+      responses: {
+        200: { description: "Attachment file stream", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } },
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id", "cid", "aid"), onValidationFailure),
+    async (c) => {
+      const { db, subject } = await load(c);
+      const cid = requireParam(c, "cid");
+      const aid = requireParam(c, "aid");
+      const comment = await getCommentById(db, subject.item.id, cid);
+      if (!comment)
+        throw new NotFoundError("Comment", cid);
+      const ref = await getReferenceById(db, aid);
+      if (!ref || ref.ownerType !== "item_comment_attachment" || ref.ownerId !== cid)
+        throw new NotFoundError("Attachment", aid);
+      const fileRow = await getFileById(db, ref.fileId);
+      if (!fileRow)
+        throw new NotFoundError("File", aid);
+      const wantInline = c.req.query("inline") === "true";
+      return await buildDownloadResponse(c.get("config"), fileRow, ref, { inline: wantInline });
+    },
+  );
 
-  router.delete(`${prefix}/:id/comments/:cid/attachments/:aid`, async (c) => {
-    const { db, user, subject } = await load(c);
-    const cid = c.req.param("cid");
-    const aid = c.req.param("aid");
-    const comment = await getCommentById(db, subject.item.id, cid);
-    if (!comment)
-      throw new NotFoundError("Comment", cid);
-    const ref = await getReferenceById(db, aid);
-    if (!ref || ref.ownerType !== "item_comment_attachment" || ref.ownerId !== cid)
-      throw new NotFoundError("Attachment", aid);
-    if (user.role !== "admin" && ref.createdBy !== user.id)
-      throw new ForbiddenError();
-    await releaseReference(db, c.get("config"), { referenceId: aid });
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: `${resourceType}.comment_attachment_deleted`,
-      resourceType,
-      resourceId: subject.externalId,
-      resourceName: subject.resourceName,
-      detail: { commentId: cid, attachmentId: aid, filename: ref.filename },
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    `${prefix}/:id/comments/:cid/attachments/:aid`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `Delete a ${resourceType} comment attachment`,
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id", "cid", "aid"), onValidationFailure),
+    async (c) => {
+      const { db, user, subject } = await load(c);
+      const cid = requireParam(c, "cid");
+      const aid = requireParam(c, "aid");
+      const comment = await getCommentById(db, subject.item.id, cid);
+      if (!comment)
+        throw new NotFoundError("Comment", cid);
+      const ref = await getReferenceById(db, aid);
+      if (!ref || ref.ownerType !== "item_comment_attachment" || ref.ownerId !== cid)
+        throw new NotFoundError("Attachment", aid);
+      if (user.role !== "admin" && ref.createdBy !== user.id)
+        throw new ForbiddenError();
+      await releaseReference(db, c.get("config"), { referenceId: aid });
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: `${resourceType}.comment_attachment_deleted`,
+        resourceType,
+        resourceId: subject.externalId,
+        resourceName: subject.resourceName,
+        detail: { commentId: cid, attachmentId: aid, filename: ref.filename },
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: null });
+    },
+  );
 }
