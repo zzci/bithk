@@ -24,7 +24,9 @@
     "db:studio": "drizzle-kit studio",
     "seed": "bun --env-file=../../.env run scripts/seed/seed.ts",
     "gen:api-docs": "bun scripts/gen-api-docs.ts",
-    "check:api-docs": "bun scripts/gen-api-docs.ts --check"
+    "check:api-docs": "bun scripts/gen-api-docs.ts --check",
+    "gen:api-spec": "bun scripts/gen-api-spec.ts",
+    "check:api-spec": "bun scripts/gen-api-spec.ts --check"
   },
   "dependencies": {
     "cac": "7.0.0",
