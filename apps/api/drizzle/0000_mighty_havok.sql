@@ -69,6 +69,7 @@ CREATE TABLE `groups` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`description` text,
+	`modules` text DEFAULT '[]' NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
 );
@@ -290,6 +291,72 @@ CREATE UNIQUE INDEX `idx_files_sha_driver` ON `files` (`sha256`,`storage_driver`
 CREATE INDEX `idx_files_sha` ON `files` (`sha256`);--> statement-breakpoint
 CREATE INDEX `idx_files_driver` ON `files` (`storage_driver`);--> statement-breakpoint
 CREATE INDEX `idx_files_unreferenced` ON `files` (`id`) WHERE ref_count = 0;--> statement-breakpoint
+CREATE TABLE `hr_approvals` (
+	`id` text PRIMARY KEY NOT NULL,
+	`colleague_id` text NOT NULL,
+	`type` text NOT NULL,
+	`title` text NOT NULL,
+	`reason` text,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`decided_by` text,
+	`decision_note` text,
+	`decided_at` text,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`colleague_id`) REFERENCES `hr_colleagues`(`id`) ON UPDATE no action ON DELETE restrict,
+	FOREIGN KEY (`decided_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE INDEX `idx_hr_approvals_status` ON `hr_approvals` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_hr_approvals_colleague` ON `hr_approvals` (`colleague_id`);--> statement-breakpoint
+CREATE TABLE `hr_colleagues` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`code` text,
+	`title` text,
+	`department` text,
+	`status` text DEFAULT 'active' NOT NULL,
+	`notes` text,
+	`birthday` text,
+	`hire_date` text,
+	`probation_end_date` text,
+	`contract_end_date` text,
+	`gender` text,
+	`employment_type` text,
+	`nationality` text,
+	`personal_phone` text,
+	`personal_email` text,
+	`address` text,
+	`work_location` text,
+	`payment_info` text DEFAULT '[]' NOT NULL,
+	`emergency_contacts` text DEFAULT '[]' NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE restrict
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_hr_colleagues_user` ON `hr_colleagues` (`user_id`);--> statement-breakpoint
+CREATE INDEX `idx_hr_colleagues_status` ON `hr_colleagues` (`status`);--> statement-breakpoint
+CREATE TABLE `hr_payroll_records` (
+	`id` text PRIMARY KEY NOT NULL,
+	`colleague_id` text NOT NULL,
+	`period` text NOT NULL,
+	`base_salary` integer NOT NULL,
+	`bonus` integer DEFAULT 0 NOT NULL,
+	`deduction` integer DEFAULT 0 NOT NULL,
+	`currency` text NOT NULL,
+	`net_amount` integer NOT NULL,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`paid_at` text,
+	`notes` text,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`colleague_id`) REFERENCES `hr_colleagues`(`id`) ON UPDATE no action ON DELETE restrict
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_hr_payroll_colleague_period` ON `hr_payroll_records` (`colleague_id`,`period`);--> statement-breakpoint
+CREATE INDEX `idx_hr_payroll_status` ON `hr_payroll_records` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_hr_payroll_period` ON `hr_payroll_records` (`period`);--> statement-breakpoint
 CREATE TABLE `issue_details` (
 	`item_id` text PRIMARY KEY NOT NULL,
 	`description` text,
