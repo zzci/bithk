@@ -140,3 +140,4 @@
 | [FIX-044](FIX-044.md) | e2e: grant module access to the non-admin actor (FEAT-032 gate) | - | Completed | 2026-06-16 |
 | [FEAT-034](FEAT-034.md) | Personal Access Tokens + repo skill for AI-driven API access | [PLAN-084](../plan/PLAN-084.md) | Completed | 2026-06-16 |
 | [FIX-045](FIX-045.md) | gen-api-docs omits ship/search/worklist routes | - | Completed | 2026-06-16 |
+| [FEAT-035](FEAT-035.md) | Adopt hono-openapi: code-derived OpenAPI spec across all modules | [PLAN-085](../plan/PLAN-085.md) | In progress | 2026-06-16 |
