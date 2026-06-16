@@ -5,7 +5,7 @@ import type { AppDatabase, AppTransaction } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
 import { and, count, desc, eq, inArray, not, or, sql } from "drizzle-orm";
 import { runWrite } from "@/db";
-import { ACCEPT_IMAGES, finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
+import { ACCEPT_IMAGES, fileInlineContentUrl, finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { createTuple, deleteTupleByKey } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
 import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
@@ -167,7 +167,7 @@ function escapeLike(v: string): string {
 
 /** Build the inline content URL the frontend renders in an <img>. */
 function buildAvatarUrl(fileId: string, referenceId: string): string {
-  return `/api/files/${fileId}/content?ref=${referenceId}&inline=true`;
+  return fileInlineContentUrl(fileId, referenceId);
 }
 
 /**

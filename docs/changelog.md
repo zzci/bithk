@@ -107,6 +107,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Fixed
 
+- Cover and avatar images now display under a base-path deployment (FIX-043).
+  The server built the `<img>` URLs for project/ship covers and contact avatars
+  as a bare `/api/files/...`, omitting `BASE_PATH`; under `BASE_PATH=/app` (the
+  documented production layout) the API lives at `/app/api`, so those images
+  404'd while `fetch()` calls (which prepend the base) worked. The URLs now
+  carry the configured base path via a shared `fileInlineContentUrl` helper set
+  at `initFileModule`. Dev / root deploys (`BASE_PATH=""`) are unchanged.
+
 - Backup now covers two tables it silently dropped (FIX-042):
   `global_procurement_categories` (the global procurement vocabulary — its
   sibling `global_equipment_categories` was already backed up) and

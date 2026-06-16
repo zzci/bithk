@@ -14,6 +14,31 @@ import { getActiveDriver } from "./storage/registry";
 export type FileRow = typeof files.$inferSelect;
 export type FileReferenceRow = typeof fileReferences.$inferSelect;
 
+// ─── Inline content URL ──────────────────────────────────────────────────
+//
+// URLs the server hands the frontend to render directly in an `<img>` (cover
+// images, avatars) bypass the `http()` client, so nothing prepends the
+// deployment base path for them. The API is mounted at `${BASE_PATH}/api`, so a
+// bare `/api/...` resolves outside the base and 404s under a base-path deploy
+// (e.g. `BASE_PATH=/app`). Like the local driver's `localRoot`, the base is a
+// boot constant cached once at `initFileModule(config)`; code paths that never
+// init the module see "" (root), which matches dev and keeps unit tests stable.
+let urlBasePath = "";
+
+/** Cache the deployment base path used by {@link fileInlineContentUrl}. Called from `initFileModule`. */
+export function setFileUrlBasePath(basePath: string): void {
+  urlBasePath = basePath;
+}
+
+/**
+ * Build the inline-content URL the frontend renders directly in an `<img>`.
+ * Carries the configured `BASE_PATH` so it resolves under base-path deploys
+ * (`${BASE_PATH}/api/files/:id/content?ref=:ref&inline=true`).
+ */
+export function fileInlineContentUrl(fileId: string, referenceId: string): string {
+  return `${urlBasePath}/api/files/${fileId}/content?ref=${referenceId}&inline=true`;
+}
+
 /**
  * Subset of `Config` the file service needs at runtime. Callers thread
  * this through from `c.get("config")` rather than the service caching a

@@ -4,7 +4,7 @@ import type { AppDatabase } from "@/db";
 import type { DrainedBlob, FileServiceConfig } from "@/modules/file";
 import type { ProjectView } from "@/modules/project/project.service";
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import { ACCEPT_IMAGES, finalizeReleasedBlob, releaseReference, releaseReferenceTx, uploadAndReference } from "@/modules/file";
+import { ACCEPT_IMAGES, fileInlineContentUrl, finalizeReleasedBlob, releaseReference, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { fileReferences } from "@/modules/file/schema";
 import {
   composeProject,
@@ -33,7 +33,7 @@ export const SHIP_COVER_OWNER_TYPE = "ship_cover";
 
 /** Build the inline content URL the frontend renders in an <img>. */
 function buildCoverUrl(fileId: string, referenceId: string): string {
-  return `/api/files/${fileId}/content?ref=${referenceId}&inline=true`;
+  return fileInlineContentUrl(fileId, referenceId);
 }
 
 // Escape SQLite LIKE wildcards so user input is matched literally. Every LIKE

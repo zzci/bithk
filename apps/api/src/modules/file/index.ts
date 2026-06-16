@@ -1,6 +1,7 @@
 import type { Config } from "@/config";
 import { registerBackupContribution } from "@/modules/backup/registry";
 import { fileBackupContribution } from "./file.backup";
+import { setFileUrlBasePath } from "./file.service";
 import { getDriver, setActiveDriver } from "./storage/registry";
 // Side-effect import: the local driver self-registers at module load.
 // Downstream projects shipping S3 / Azure / GCS drivers follow the same
@@ -15,6 +16,7 @@ export {
   ACCEPT_IMAGES,
   addReference,
   buildDownloadResponse,
+  fileInlineContentUrl,
   finalizeReleasedBlob,
   getFileById,
   getReferenceById,
@@ -24,6 +26,7 @@ export {
   releaseAllByOwner,
   releaseReference,
   releaseReferenceTx,
+  setFileUrlBasePath,
   uploadAndReference,
 } from "./file.service";
 export { startFileGcSweep, stopFileGcSweep } from "./gc";
@@ -46,4 +49,6 @@ export async function initFileModule(config: Config): Promise<void> {
   const driver = getDriver(config.FILE_STORAGE_DRIVER);
   await driver.setup?.(config);
   setActiveDriver(config.FILE_STORAGE_DRIVER);
+  // Base path for server-built `<img>` URLs (cover images, avatars).
+  setFileUrlBasePath(config.BASE_PATH);
 }
