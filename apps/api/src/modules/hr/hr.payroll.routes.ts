@@ -1,9 +1,12 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
+import { ForbiddenError } from "@/shared/lib/errors";
+import { adminRequired } from "@/shared/middleware/auth";
 import {
   createPayrollRecord,
   deletePayrollRecord,
+  generatePayrollForPeriod,
   listPayrollRecords,
   updatePayrollRecord,
 } from "./hr.payroll.service";
@@ -78,8 +81,17 @@ export function hrPayrollRoutes() {
         page: result.page,
         limit: result.limit,
         totalPages: result.totalPages,
+        totals: result.totals,
       },
     });
+  });
+
+  // One-click monthly generation from colleague salaries — admin-only and
+  // idempotent (a colleague already paid/queued for the period is skipped).
+  router.post("/hr/payroll/generate", adminRequired, async (c) => {
+    const { period } = z.object({ period: periodSchema }).parse(await c.req.json());
+    const r = await generatePayrollForPeriod(c.get("db"), period);
+    return c.json({ success: true, data: r });
   });
 
   router.post("/hr/payroll", async (c) => {
@@ -90,9 +102,12 @@ export function hrPayrollRoutes() {
   });
 
   // Pending-only; `status: "paid"` marks the record paid (stamps `paidAt`).
+  // Marking paid is admin-only; plain field edits stay under the module gate.
   router.patch("/hr/payroll/:id", async (c) => {
     const db = c.get("db");
     const body = updateBodySchema.parse(await c.req.json());
+    if (body.status === "paid" && c.get("user").role !== "admin")
+      throw new ForbiddenError();
     const updated = await updatePayrollRecord(db, c.req.param("id"), body);
     return c.json({ success: true, data: updated });
   });

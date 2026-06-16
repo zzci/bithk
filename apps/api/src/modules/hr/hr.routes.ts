@@ -68,6 +68,8 @@ const profileFields = {
   personalEmail: z.string().max(200).optional(),
   address: z.string().max(500).optional(),
   workLocation: z.string().max(200).optional(),
+  salaryAmount: z.number().int().min(0).nullable().optional(),
+  salaryCurrency: z.string().regex(/^[A-Z]{3}$/, "Currency must be a 3-letter uppercase code").nullable().optional(),
   paymentInfo: z.array(paymentFieldSchema).max(30).optional(),
   emergencyContacts: z.array(emergencyContactSchema).max(20).optional(),
 } as const;

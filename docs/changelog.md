@@ -26,6 +26,27 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   drive the full API with such a token (create work orders, upload files, all
   modules). See [decision 013](decisions/013-personal-access-token-scope.md).
 
+- HR colleague standing monthly salary (`salary_amount` + `salary_currency`,
+  both nullable) and one-click payroll generation (FEAT-036, UI-026, PLAN-086).
+  `POST /hr/payroll/generate` (admin-only, idempotent) inserts a pending record
+  for each active colleague that has a salary set and no record for the
+  `YYYY-MM` period, returning `{ created, skipped }`. The payroll list now
+  carries `meta.totals` — net summed per currency over the entire filtered set
+  — surfaced on the page as a per-currency summary with thousands-separated
+  money (new `formatMoney` helper). The Approvals page gains application /
+  decision timestamps and a full reason + decision-note detail view; the
+  colleague form gains a Salary section.
+
+### Changed
+
+- HR governance is now admin-only (FEAT-036): deciding an approval
+  (`POST /hr/approvals/:id/decision`), generating payroll
+  (`POST /hr/payroll/generate`), and marking a payroll record paid
+  (`PATCH /hr/payroll/:id` with `status:"paid"`) each require admin; ordinary
+  field edits stay module-gated, so a non-admin with the `hr` module keeps read
+  and non-governance edits but gets 403 on these. The approvals list is now
+  ordered newest-first.
+
 ### Fixed
 
 - `gen-api-docs` now mounts the ship, search, and worklist routers, so

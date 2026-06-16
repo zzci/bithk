@@ -8,6 +8,7 @@ import {
   hrPayrollKeys,
   useCreateHrPayrollRecord,
   useDeleteHrPayrollRecord,
+  useGeneratePayroll,
   useHrPayrollRecords,
   useUpdateHrPayrollRecord,
 } from "./hr-payroll";
@@ -166,5 +167,16 @@ describe("hr payroll mutations", () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toBe("/api/hr/payroll/pr1");
     expect(init?.method).toBe("DELETE");
+  });
+
+  it("generates monthly payroll via POST /hr/payroll/generate and returns the counts", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: { created: 3, skipped: 1 } }));
+    const { result } = renderHook(() => useGeneratePayroll(), { wrapper: makeWrapper() });
+    const summary = await result.current.mutateAsync({ period: "2026-06" });
+    expect(summary).toEqual({ created: 3, skipped: 1 });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("/api/hr/payroll/generate");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ period: "2026-06" });
   });
 });

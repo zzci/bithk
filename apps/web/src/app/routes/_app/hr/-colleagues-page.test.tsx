@@ -43,6 +43,8 @@ function colleague(overrides: Partial<HrColleagueRow> = {}): HrColleagueRow {
     personalEmail: null,
     address: null,
     workLocation: null,
+    salaryAmount: null,
+    salaryCurrency: null,
     paymentInfo: [],
     emergencyContacts: [],
     createdAt: "2026-06-10T00:00:00.000Z",
@@ -171,7 +173,59 @@ describe("hrColleaguesPage", () => {
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
       expect(post).toBeTruthy();
-      expect(JSON.parse(String(post![1]?.body)).userId).toBe("u1");
+      const body = JSON.parse(String(post![1]?.body));
+      expect(body.userId).toBe("u1");
+      // Omitting the salary fields is valid — they round-trip as explicit null.
+      expect(body.salaryAmount).toBeNull();
+      expect(body.salaryCurrency).toBeNull();
+    });
+  });
+
+  it("creates a colleague with salary amount and currency", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    renderWithProviders(<HrColleaguesPage />);
+    await screen.findByText("No colleagues found.");
+
+    await user.click(screen.getByRole("button", { name: "New" }));
+    const drawer = await screen.findByRole("dialog");
+    await user.click(within(drawer).getByRole("combobox", { name: "User" }));
+    const listbox = await screen.findByRole("listbox");
+    await user.click(await within(listbox).findByRole("option", { name: /Alice/ }));
+
+    await user.type(within(drawer).getByLabelText("Monthly salary"), "500000");
+    await user.click(within(drawer).getByRole("combobox", { name: "Currency" }));
+    const currencyList = await screen.findByRole("listbox");
+    await user.click(await within(currencyList).findByRole("option", { name: "USD" }));
+
+    await user.click(within(drawer).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "POST");
+      expect(post).toBeTruthy();
+      const body = JSON.parse(String(post![1]?.body));
+      expect(body.salaryAmount).toBe(500000);
+      expect(body.salaryCurrency).toBe("USD");
+    });
+  });
+
+  it("prefills the salary fields on edit and round-trips them through the patch", async () => {
+    const user = userEvent.setup();
+    routeFetch([colleague({ salaryAmount: 320050, salaryCurrency: "EUR" })]);
+    renderWithProviders(<HrColleaguesPage />);
+    await screen.findByText("Alice");
+
+    const drawer = await openDrawer(user, /Alice/);
+    await user.click(within(drawer).getByRole("button", { name: "Edit" }));
+    expect(within(drawer).getByLabelText("Monthly salary")).toHaveValue(320050);
+    await user.click(within(drawer).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "PATCH");
+      expect(patch).toBeTruthy();
+      const body = JSON.parse(String(patch![1]?.body));
+      expect(body.salaryAmount).toBe(320050);
+      expect(body.salaryCurrency).toBe("EUR");
     });
   });
 
