@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { join, resolve } from "node:path";
 import process from "node:process";
 import { $ } from "bun";
+import { grantAllModules } from "./lib/grant";
 
 const ROOT = resolve(import.meta.dir, "../..");
 const E2E_DIR = resolve(import.meta.dir);
@@ -262,6 +263,15 @@ async function main() {
     console.log("[run] starting api");
     api = spawnApi(dataDir);
     await waitFor(`${API_BASE}/api/health`, "api", { acceptAny: true });
+
+    // ── 2b. FEAT-032 gates the protected module prefixes by group membership.
+    //        The standard non-admin actor (`user@example.com`) is provisioned
+    //        on first login into no group, so it would 404 on /documents,
+    //        /drive, /ships, … Grant it every module up front (admin bypasses
+    //        the gate); resource-level permissions still apply, so negative
+    //        assertions hold. The grant persists in the shared run DB.
+    console.log("[run] granting module access to user@example.com");
+    await grantAllModules("user@example.com");
 
     // ── 3. module suites against the live API.
     const modules = await runPhase("modules", "module suites", MODULE_DIRS, reportDir);

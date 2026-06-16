@@ -137,3 +137,4 @@
 | [FIX-041](FIX-041.md) | Backup import rejects empty-string id sentinel (drive root entries) | - | Completed | 2026-06-16 |
 | [FIX-042](FIX-042.md) | Backup coverage gaps + full seed-dataset round-trip test | - | Completed | 2026-06-16 |
 | [FIX-043](FIX-043.md) | Cover/avatar image URLs omit BASE_PATH (404 under base-path deploys) | - | Completed | 2026-06-16 |
+| [FIX-044](FIX-044.md) | e2e: grant module access to the non-admin actor (FEAT-032 gate) | - | Completed | 2026-06-16 |
