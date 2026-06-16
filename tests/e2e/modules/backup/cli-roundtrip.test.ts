@@ -24,7 +24,7 @@
 // port so it never touches the shared phase-B API session/users.
 
 import type { Subprocess } from "bun";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
@@ -119,6 +119,35 @@ async function runCli(args: readonly string[], env: Record<string, string>): Pro
   ]);
   const exitCode = await proc.exited;
   return { exitCode, stdout, stderr };
+}
+
+// Extract a tar.gz archive into `destDir`.
+async function tarExtract(archive: string, destDir: string): Promise<void> {
+  const proc = Bun.spawn(["tar", "-xzf", archive, "-C", destDir], { stdout: "pipe", stderr: "pipe" });
+  if ((await proc.exited) !== 0)
+    throw new Error(`tar extract failed: ${await new Response(proc.stderr).text()}`);
+}
+
+// Repack a directory's FILES ONLY into a tar.gz. The backup archive carries no
+// directory entries (the importer rejects them), so we pass an explicit file
+// list with `--no-recursion`.
+async function tarFilesOnly(srcDir: string, outPath: string): Promise<void> {
+  const files: string[] = [];
+  const walk = (d: string, rel: string): void => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory())
+        walk(join(d, e.name), r);
+      else
+        files.push(r);
+    }
+  };
+  walk(srcDir, "");
+  // The importer requires manifest.json to be the first archive entry.
+  files.sort((a, b) => (a === "manifest.json" ? -1 : b === "manifest.json" ? 1 : 0));
+  const proc = Bun.spawn(["tar", "-czf", outPath, "-C", srcDir, "--no-recursion", ...files], { stdout: "pipe", stderr: "pipe" });
+  if ((await proc.exited) !== 0)
+    throw new Error(`tar repack failed: ${await new Response(proc.stderr).text()}`);
 }
 
 // Build a rich source DB from the real seed dataset (same script as
@@ -336,6 +365,61 @@ describe("backup CLI export → import round-trip", () => {
     finally {
       rmSync(seedSrcDir, { recursive: true, force: true });
       rmSync(seedDstDir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("imports a stale-schema archive — a column added since export is filled by the live default (cross-schema)", async () => {
+    const srcDir = mkdtempSync(join(tmpdir(), "cli-rt-xs-src-"));
+    const editDir = mkdtempSync(join(tmpdir(), "cli-rt-xs-edit-"));
+    const dstDir = mkdtempSync(join(tmpdir(), "cli-rt-xs-dst-"));
+    const origArchive = join(archiveDir, "xschema-orig.archive");
+    const staleArchive = join(archiveDir, "xschema-stale.archive");
+    const srcDb = join(srcDir, "app.db");
+    const dstDb = join(dstDir, "app.db");
+    try {
+      // 1. A real export at the CURRENT schema.
+      expect((await runSeed(srcDb, srcDir)).exitCode).toBe(0);
+      expect((await runCli(["backup:export", origArchive], cliEnv(srcDb, srcDir))).exitCode).toBe(0);
+
+      // 2. Rewrite it to look like an OLDER schema: drop `drive_entries.status`
+      //    (NOT NULL, with a DB default) from both the manifest column snapshot
+      //    and the rows, as if the archive predates that column.
+      await tarExtract(origArchive, editDir);
+      const manifestPath = join(editDir, "manifest.json");
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { tables: { name: string; columns: { name: string }[] }[] };
+      const driveTable = manifest.tables.find(t => t.name === "drive_entries")!;
+      expect(driveTable.columns.some(c => c.name === "status"), "fixture expects a drive_entries.status column").toBe(true);
+      driveTable.columns = driveTable.columns.filter(c => c.name !== "status");
+      writeFileSync(manifestPath, JSON.stringify(manifest));
+      const ndjsonPath = join(editDir, "data", "drive_entries.ndjson");
+      const rows = readFileSync(ndjsonPath, "utf8").split("\n").filter(Boolean).map((line) => {
+        const row = JSON.parse(line) as Record<string, unknown>;
+        delete row.status;
+        return JSON.stringify(row);
+      });
+      writeFileSync(ndjsonPath, `${rows.join("\n")}\n`);
+      await tarFilesOnly(editDir, staleArchive);
+
+      // 3. Import the stale archive into a fresh CURRENT-schema DB.
+      const imp = await runCli(["backup:import", staleArchive, "--include-users"], cliEnv(dstDb, dstDir));
+      expect(imp.exitCode, `import failed:\n${imp.stdout}\n${imp.stderr}`).toBe(0);
+
+      // 4. Every drive entry imported, and the column the archive lacked was
+      //    filled by the live DB default ('normal') — not left NULL or rejected.
+      const dst = new Database(dstDb, { readonly: true });
+      try {
+        expect((dst.query("SELECT count(*) AS c FROM drive_entries").get() as { c: number }).c).toBe(rows.length);
+        const statuses = (dst.query("SELECT DISTINCT status AS s FROM drive_entries").all() as { s: string }[]).map(r => r.s);
+        expect(statuses).toEqual(["normal"]);
+      }
+      finally {
+        dst.close();
+      }
+    }
+    finally {
+      rmSync(srcDir, { recursive: true, force: true });
+      rmSync(editDir, { recursive: true, force: true });
+      rmSync(dstDir, { recursive: true, force: true });
     }
   }, 120_000);
 });
