@@ -1,12 +1,16 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
+import { z } from "zod";
 import { deleteUserSessions } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError } from "@/shared/lib/errors";
+import { describeRoute, ErrorEnvelope, resolver } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { importJsonBackup, validateBackupData, validateFileSize } from "./restore.service";
+
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 const USER_TABLES = ["users", "groups", "user_preferences"] as const;
 
@@ -86,129 +90,152 @@ export function backupImportRoutes() {
 
   router.use("*", authRequired);
 
-  router.post("/backup/import", adminRequired, async (c) => {
-    const db = c.get("db");
-    const user = c.get("user");
+  router.post(
+    "/backup/import",
+    describeRoute({
+      tags: ["infra2"],
+      summary: "Import a JSON backup (multipart upload)",
+      requestBody: { content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" }, includeUsers: { type: "string" } } } } } },
+      responses: {
+        200: {
+          description: "Success",
+          content: { "application/json": { schema: resolver(z.object({
+            success: z.literal(true),
+            modules: z.array(z.string()),
+            tablesImported: z.number(),
+            rowsImported: z.number(),
+          })) } },
+        },
+        400: { description: "No file / invalid JSON / FK or lock-out guard", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+      },
+    }),
+    adminRequired,
+    async (c) => {
+      const db = c.get("db");
+      const user = c.get("user");
 
-    const formData = await c.req.formData();
+      const formData = await c.req.formData();
 
-    const file = formData.get("file");
-    if (!file || !(file instanceof File)) {
-      throw new AppError("No file uploaded", 400, "NO_FILE");
-    }
-
-    validateFileSize(file.size);
-
-    const includeUsersRaw = formData.get("includeUsers");
-    const includeUsers = typeof includeUsersRaw === "string"
-      ? includeUsersRaw === "true" || includeUsersRaw === "1"
-      : false;
-
-    const text = await file.text();
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    }
-    catch {
-      throw new AppError("Invalid JSON file", 400, "INVALID_JSON");
-    }
-
-    const backupData = validateBackupData(parsed);
-
-    // Snapshot the live users so we can detect role/status changes after the
-    // restore and force-revoke sessions for affected users.
-    const liveUsers: UserRowLike[] = await db
-      .select({ id: users.id, role: users.role, status: users.status })
-      .from(users)
-      .all();
-    const liveById = new Map(liveUsers.map(u => [u.id, u]));
-
-    let effectiveData = backupData;
-    let importedUserRows: UserRowLike[] = [];
-
-    if (!includeUsers) {
-      effectiveData = stripUserTables(backupData);
-      // FK pre-flight: everything pointing at users.id must resolve in the
-      // live DB. Catching it here is cheaper than tearing down the partial
-      // transaction with `defer_foreign_keys` at COMMIT.
-      const liveIds = new Set(liveUsers.map(u => u.id));
-      await assertUserFkIntegrity(liveIds, effectiveData.tables);
-    }
-    else {
-      const incoming = (backupData.tables.users ?? []) as unknown as UserRowLike[];
-      // Refuse if the importing admin would be locked out: their row must be
-      // present, admin, and active.
-      const me = incoming.find(r => r.id === user.id);
-      if (!me || me.role !== "admin" || (me.status !== undefined && me.status !== "active")) {
-        throw new AppError(
-          "Restore would lock out the importing admin",
-          400,
-          "RESTORE_WOULD_LOCK_OUT",
-        );
+      const file = formData.get("file");
+      if (!file || !(file instanceof File)) {
+        throw new AppError("No file uploaded", 400, "NO_FILE");
       }
-      importedUserRows = incoming;
-    }
 
-    const result = await importJsonBackup(db, effectiveData, c.get("logger"));
+      validateFileSize(file.size);
 
-    if (includeUsers) {
+      const includeUsersRaw = formData.get("includeUsers");
+      const includeUsers = typeof includeUsersRaw === "string"
+        ? includeUsersRaw === "true" || includeUsersRaw === "1"
+        : false;
+
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      }
+      catch {
+        throw new AppError("Invalid JSON file", 400, "INVALID_JSON");
+      }
+
+      const backupData = validateBackupData(parsed);
+
+      // Snapshot the live users so we can detect role/status changes after the
+      // restore and force-revoke sessions for affected users.
+      const liveUsers: UserRowLike[] = await db
+        .select({ id: users.id, role: users.role, status: users.status })
+        .from(users)
+        .all();
+      const liveById = new Map(liveUsers.map(u => [u.id, u]));
+
+      let effectiveData = backupData;
+      let importedUserRows: UserRowLike[] = [];
+
+      if (!includeUsers) {
+        effectiveData = stripUserTables(backupData);
+        // FK pre-flight: everything pointing at users.id must resolve in the
+        // live DB. Catching it here is cheaper than tearing down the partial
+        // transaction with `defer_foreign_keys` at COMMIT.
+        const liveIds = new Set(liveUsers.map(u => u.id));
+        await assertUserFkIntegrity(liveIds, effectiveData.tables);
+      }
+      else {
+        const incoming = (backupData.tables.users ?? []) as unknown as UserRowLike[];
+        // Refuse if the importing admin would be locked out: their row must be
+        // present, admin, and active.
+        const me = incoming.find(r => r.id === user.id);
+        if (!me || me.role !== "admin" || (me.status !== undefined && me.status !== "active")) {
+          throw new AppError(
+            "Restore would lock out the importing admin",
+            400,
+            "RESTORE_WOULD_LOCK_OUT",
+          );
+        }
+        importedUserRows = incoming;
+      }
+
+      const result = await importJsonBackup(db, effectiveData, c.get("logger"));
+
+      if (includeUsers) {
       // Force-revoke sessions for any user whose role or status changed.
-      const changedIds: string[] = [];
-      for (const row of importedUserRows) {
-        const before = liveById.get(row.id);
-        if (!before) {
-          changedIds.push(row.id);
-          continue;
+        const changedIds: string[] = [];
+        for (const row of importedUserRows) {
+          const before = liveById.get(row.id);
+          if (!before) {
+            changedIds.push(row.id);
+            continue;
+          }
+          if (before.role !== row.role || before.status !== row.status) {
+            changedIds.push(row.id);
+          }
         }
-        if (before.role !== row.role || before.status !== row.status) {
-          changedIds.push(row.id);
+        for (const uid of changedIds) {
+          await deleteUserSessions(db, uid);
         }
-      }
-      for (const uid of changedIds) {
-        await deleteUserSessions(db, uid);
+
+        // Per-row audit entries so the audit log captures each restored user.
+        for (const row of importedUserRows) {
+          await audit(db, c.get("logger"), {
+            actorId: user.id,
+            actorName: user.name,
+            action: "user.restored",
+            resourceType: "user",
+            resourceId: row.id,
+            resourceName: row.id,
+            ip: getClientIp(c),
+            userAgent: c.req.header("user-agent") ?? "unknown",
+            result: "success",
+          }, { critical: true });
+        }
       }
 
-      // Per-row audit entries so the audit log captures each restored user.
-      for (const row of importedUserRows) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
-          action: "user.restored",
-          resourceType: "user",
-          resourceId: row.id,
-          resourceName: row.id,
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
-          result: "success",
-        }, { critical: true });
-      }
-    }
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "backup.import",
+        resourceType: "system",
+        resourceId: "database",
+        resourceName: "database-backup-import",
+        detail: {
+          modules: effectiveData.modules,
+          tablesImported: result.tablesImported,
+          rowsImported: result.rowsImported,
+          includeUsers,
+        },
+        ip: getClientIp(c),
+        userAgent: c.req.header("user-agent") ?? "unknown",
+        result: "success",
+      }, { critical: true });
 
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "backup.import",
-      resourceType: "system",
-      resourceId: "database",
-      resourceName: "database-backup-import",
-      detail: {
+      return c.json({
+        success: true,
         modules: effectiveData.modules,
         tablesImported: result.tablesImported,
         rowsImported: result.rowsImported,
-        includeUsers,
-      },
-      ip: getClientIp(c),
-      userAgent: c.req.header("user-agent") ?? "unknown",
-      result: "success",
-    }, { critical: true });
-
-    return c.json({
-      success: true,
-      modules: effectiveData.modules,
-      tablesImported: result.tablesImported,
-      rowsImported: result.rowsImported,
-    });
-  });
+      });
+    },
+  );
 
   return router;
 }
