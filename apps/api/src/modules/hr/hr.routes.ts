@@ -11,6 +11,7 @@ import {
   uploadAndReference,
 } from "@/modules/file";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
 import { hrApprovalsRoutes } from "./hr.approvals.routes";
 import { hrPayrollRoutes } from "./hr.payroll.routes";
@@ -86,6 +87,70 @@ const updateBodySchema = z.object({
   { message: "At least one field must be provided" },
 );
 
+const idParamSchema = z.object({ id: z.string() });
+const attachmentParamSchema = z.object({ id: z.string(), aid: z.string() });
+const downloadQuerySchema = z.object({ inline: z.string().optional() });
+
+// Response data shapes (mirror the service views) for the generated spec.
+const userBriefSchema = z.object({
+  name: z.string(),
+  username: z.string(),
+  isVirtual: z.boolean(),
+  status: z.enum(["active", "disabled"]),
+});
+const colleagueViewSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  code: z.string().nullable(),
+  title: z.string().nullable(),
+  department: z.string().nullable(),
+  status: z.enum(HR_COLLEAGUE_STATUSES),
+  notes: z.string().nullable(),
+  birthday: z.string().nullable(),
+  hireDate: z.string().nullable(),
+  probationEndDate: z.string().nullable(),
+  contractEndDate: z.string().nullable(),
+  gender: z.enum(HR_GENDERS).nullable(),
+  employmentType: z.enum(HR_EMPLOYMENT_TYPES).nullable(),
+  nationality: z.string().nullable(),
+  personalPhone: z.string().nullable(),
+  personalEmail: z.string().nullable(),
+  address: z.string().nullable(),
+  workLocation: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  paymentInfo: z.array(paymentFieldSchema),
+  emergencyContacts: z.array(emergencyContactSchema),
+  user: userBriefSchema,
+});
+const attachmentViewSchema = z.object({
+  id: z.string(),
+  fileId: z.string(),
+  ownerType: z.string(),
+  ownerId: z.string(),
+  filename: z.string(),
+  mimetype: z.string(),
+  size: z.number(),
+  createdBy: z.string(),
+  createdAt: z.string(),
+});
+const pageMetaSchema = z.object({
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+  totalPages: z.number(),
+});
+
+// `{ success:true, data }` response doc for `schema`.
+function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+// `{ success:true, data:[…], meta }` response doc for a paginated list.
+function paginatedJson(itemSchema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
+}
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+
 export function hrRoutes() {
   const router = new Hono<ProtectedEnv>();
 
@@ -96,120 +161,232 @@ export function hrRoutes() {
   // the `hr` module on their global role (the default Member role excludes
   // it), admins bypass. No per-route adminRequired wrap here.
 
-  router.get("/hr/colleagues", async (c) => {
-    const db = c.get("db");
-    const query = listQuerySchema.parse(c.req.query());
-    const result = await listColleagues(db, {
-      ...query.q ? { q: query.q } : {},
-      ...query.status ? { status: query.status } : {},
-      page: query.page,
-      limit: query.limit,
-    });
-    return c.json({
-      success: true,
-      data: result.data,
-      meta: {
-        total: result.total,
-        page: result.page,
-        limit: result.limit,
-        totalPages: result.totalPages,
+  router.get(
+    "/hr/colleagues",
+    describeRoute({
+      tags: ["hr"],
+      summary: "List colleagues",
+      responses: {
+        200: paginatedJson(colleagueViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
       },
-    });
-  });
+    }),
+    validator("query", listQuerySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const query = c.req.valid("query");
+      const result = await listColleagues(db, {
+        ...query.q ? { q: query.q } : {},
+        ...query.status ? { status: query.status } : {},
+        page: query.page,
+        limit: query.limit,
+      });
+      return c.json({
+        success: true,
+        data: result.data,
+        meta: {
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages,
+        },
+      });
+    },
+  );
 
-  router.post("/hr/colleagues", async (c) => {
-    const db = c.get("db");
-    const body = createBodySchema.parse(await c.req.json());
-    const created = await createColleague(db, body);
-    return c.json({ success: true, data: created }, 201);
-  });
+  router.post(
+    "/hr/colleagues",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Create a colleague",
+      responses: {
+        201: okJson(colleagueViewSchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("json", createBodySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const created = await createColleague(db, body);
+      return c.json({ success: true, data: created }, 201);
+    },
+  );
 
-  router.patch("/hr/colleagues/:id", async (c) => {
-    const db = c.get("db");
-    const body = updateBodySchema.parse(await c.req.json());
-    const updated = await updateColleague(db, c.req.param("id"), body);
-    return c.json({ success: true, data: updated });
-  });
+  router.patch(
+    "/hr/colleagues/:id",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Update a colleague",
+      responses: {
+        200: okJson(colleagueViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", updateBodySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const updated = await updateColleague(db, id, body);
+      return c.json({ success: true, data: updated });
+    },
+  );
 
   // DELETE archives instead of hard-deleting — see archiveColleague.
-  router.delete("/hr/colleagues/:id", async (c) => {
-    const db = c.get("db");
-    const archived = await archiveColleague(db, c.req.param("id"));
-    return c.json({ success: true, data: archived });
-  });
+  router.delete(
+    "/hr/colleagues/:id",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Archive a colleague",
+      responses: {
+        200: okJson(colleagueViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const archived = await archiveColleague(db, id);
+      return c.json({ success: true, data: archived });
+    },
+  );
 
   // ── /hr/colleagues/:id/attachments — personal documents ──
   // Delegates to the file module's generic attachment registry (ownerType
   // COLLEAGUE_DOC_OWNER_TYPE), mirroring the procurement/issue attachment
   // routes. Access stays under the HR module gate above.
 
-  router.post("/hr/colleagues/:id/attachments", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user");
-    const colleagueId = c.req.param("id");
-    const colleague = await getColleagueById(db, colleagueId);
-    if (!colleague)
-      throw new NotFoundError("HR colleague", colleagueId);
+  router.post(
+    "/hr/colleagues/:id/attachments",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Upload a colleague document",
+      requestBody: { content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] } } } },
+      responses: {
+        201: okJson(attachmentViewSchema, "Created"),
+        400: { description: "No file provided", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        413: { description: "Upload too large", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const user = c.get("user");
+      const { id: colleagueId } = c.req.valid("param");
+      const colleague = await getColleagueById(db, colleagueId);
+      if (!colleague)
+        throw new NotFoundError("HR colleague", colleagueId);
 
-    const config = c.get("config");
-    const contentLength = Number(c.req.header("content-length") ?? "0");
-    if (contentLength > config.MAX_UPLOAD_BYTES)
-      throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
+      const config = c.get("config");
+      const contentLength = Number(c.req.header("content-length") ?? "0");
+      if (contentLength > config.MAX_UPLOAD_BYTES)
+        throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
 
-    const formData = await c.req.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File))
-      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+      const formData = await c.req.formData();
+      const file = formData.get("file");
+      if (!(file instanceof File))
+        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
 
-    const { reference, file: uploaded } = await uploadAndReference(db, config, {
-      file,
-      ownerType: COLLEAGUE_DOC_OWNER_TYPE,
-      ownerId: colleagueId,
-      uploadedBy: user.id,
-    });
-    return c.json({ success: true, data: makeAttachmentView(reference, uploaded) }, 201);
-  });
+      const { reference, file: uploaded } = await uploadAndReference(db, config, {
+        file,
+        ownerType: COLLEAGUE_DOC_OWNER_TYPE,
+        ownerId: colleagueId,
+        uploadedBy: user.id,
+      });
+      return c.json({ success: true, data: makeAttachmentView(reference, uploaded) }, 201);
+    },
+  );
 
-  router.get("/hr/colleagues/:id/attachments", async (c) => {
-    const db = c.get("db");
-    const colleagueId = c.req.param("id");
-    const colleague = await getColleagueById(db, colleagueId);
-    if (!colleague)
-      throw new NotFoundError("HR colleague", colleagueId);
-    const data = await listAttachmentsByOwner(db, COLLEAGUE_DOC_OWNER_TYPE, colleagueId);
-    return c.json({ success: true, data });
-  });
+  router.get(
+    "/hr/colleagues/:id/attachments",
+    describeRoute({
+      tags: ["hr"],
+      summary: "List colleague documents",
+      responses: {
+        200: okJson(z.array(attachmentViewSchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id: colleagueId } = c.req.valid("param");
+      const colleague = await getColleagueById(db, colleagueId);
+      if (!colleague)
+        throw new NotFoundError("HR colleague", colleagueId);
+      const data = await listAttachmentsByOwner(db, COLLEAGUE_DOC_OWNER_TYPE, colleagueId);
+      return c.json({ success: true, data });
+    },
+  );
 
-  router.get("/hr/colleagues/:id/attachments/:aid", async (c) => {
-    const db = c.get("db");
-    const colleagueId = c.req.param("id");
-    const aid = c.req.param("aid");
-    const ref = await getReferenceById(db, aid);
-    if (!ref || ref.ownerType !== COLLEAGUE_DOC_OWNER_TYPE || ref.ownerId !== colleagueId)
-      throw new NotFoundError("Attachment", aid);
-    const file = await getFileById(db, ref.fileId);
-    if (!file)
-      throw new NotFoundError("File", aid);
-    const wantInline = c.req.query("inline") === "true";
-    return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
-  });
+  router.get(
+    "/hr/colleagues/:id/attachments/:aid",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Download a colleague document",
+      responses: {
+        200: { description: "File stream", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } },
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", attachmentParamSchema, onValidationFailure),
+    validator("query", downloadQuerySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id: colleagueId, aid } = c.req.valid("param");
+      const ref = await getReferenceById(db, aid);
+      if (!ref || ref.ownerType !== COLLEAGUE_DOC_OWNER_TYPE || ref.ownerId !== colleagueId)
+        throw new NotFoundError("Attachment", aid);
+      const file = await getFileById(db, ref.fileId);
+      if (!file)
+        throw new NotFoundError("File", aid);
+      const wantInline = c.req.valid("query").inline === "true";
+      return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
+    },
+  );
 
-  router.delete("/hr/colleagues/:id/attachments/:aid", async (c) => {
-    const db = c.get("db");
-    const user = c.get("user");
-    const colleagueId = c.req.param("id");
-    const aid = c.req.param("aid");
-    const ref = await getReferenceById(db, aid);
-    if (!ref || ref.ownerType !== COLLEAGUE_DOC_OWNER_TYPE || ref.ownerId !== colleagueId)
-      throw new NotFoundError("Attachment", aid);
+  router.delete(
+    "/hr/colleagues/:id/attachments/:aid",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Delete a colleague document",
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", attachmentParamSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const user = c.get("user");
+      const { id: colleagueId, aid } = c.req.valid("param");
+      const ref = await getReferenceById(db, aid);
+      if (!ref || ref.ownerType !== COLLEAGUE_DOC_OWNER_TYPE || ref.ownerId !== colleagueId)
+        throw new NotFoundError("Attachment", aid);
 
-    // An admin or the uploader may remove a document.
-    if (user.role !== "admin" && ref.createdBy !== user.id)
-      throw new ForbiddenError();
+      // An admin or the uploader may remove a document.
+      if (user.role !== "admin" && ref.createdBy !== user.id)
+        throw new ForbiddenError();
 
-    await releaseReference(db, c.get("config"), { referenceId: aid });
-    return c.json({ success: true, data: null });
-  });
+      await releaseReference(db, c.get("config"), { referenceId: aid });
+      return c.json({ success: true, data: null });
+    },
+  );
 
   // Sub-module routers share this router's `authRequired` gate above.
   router.route("/", hrApprovalsRoutes());

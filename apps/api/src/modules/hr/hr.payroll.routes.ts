@@ -1,6 +1,7 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import {
   createPayrollRecord,
   deletePayrollRecord,
@@ -52,6 +53,48 @@ const updateBodySchema = z.object({
   { message: "At least one field must be provided" },
 );
 
+const idParamSchema = z.object({ id: z.string() });
+
+// Response data shape (mirrors the service view) for the generated spec.
+const payrollViewSchema = z.object({
+  id: z.string(),
+  colleagueId: z.string(),
+  period: z.string(),
+  baseSalary: z.number(),
+  bonus: z.number(),
+  deduction: z.number(),
+  currency: z.string(),
+  netAmount: z.number(),
+  status: z.enum(HR_PAYROLL_STATUSES),
+  paidAt: z.string().nullable(),
+  notes: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  colleague: z.object({
+    name: z.string(),
+    username: z.string(),
+    isVirtual: z.boolean(),
+  }),
+});
+const pageMetaSchema = z.object({
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+  totalPages: z.number(),
+});
+
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+// `{ success:true, data }` response doc for `schema`.
+function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+// `{ success:true, data:[…], meta }` response doc for a paginated list.
+function paginatedJson(itemSchema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
+}
+// Delete returns a bare `{ success:true }` with no data payload.
+const okEmpty = { description: "Success", content: { "application/json": { schema: resolver(z.object({ success: z.literal(true) })) } } };
+
 // Auth: the parent `hrRoutes()` router applies `authRequired` to everything
 // mounted under it; access is owned by the protected router's module gate
 // (non-admins need the `hr` module on their global role, admins bypass).
@@ -60,49 +103,111 @@ export function hrPayrollRoutes() {
 
   // ── /hr/payroll — payroll record management ──
 
-  router.get("/hr/payroll", async (c) => {
-    const db = c.get("db");
-    const query = listQuerySchema.parse(c.req.query());
-    const result = await listPayrollRecords(db, {
-      ...query.colleagueId ? { colleagueId: query.colleagueId } : {},
-      ...query.period ? { period: query.period } : {},
-      ...query.status ? { status: query.status } : {},
-      page: query.page,
-      limit: query.limit,
-    });
-    return c.json({
-      success: true,
-      data: result.data,
-      meta: {
-        total: result.total,
-        page: result.page,
-        limit: result.limit,
-        totalPages: result.totalPages,
+  router.get(
+    "/hr/payroll",
+    describeRoute({
+      tags: ["hr"],
+      summary: "List payroll records",
+      responses: {
+        200: paginatedJson(payrollViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
       },
-    });
-  });
+    }),
+    validator("query", listQuerySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const query = c.req.valid("query");
+      const result = await listPayrollRecords(db, {
+        ...query.colleagueId ? { colleagueId: query.colleagueId } : {},
+        ...query.period ? { period: query.period } : {},
+        ...query.status ? { status: query.status } : {},
+        page: query.page,
+        limit: query.limit,
+      });
+      return c.json({
+        success: true,
+        data: result.data,
+        meta: {
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages,
+        },
+      });
+    },
+  );
 
-  router.post("/hr/payroll", async (c) => {
-    const db = c.get("db");
-    const body = createBodySchema.parse(await c.req.json());
-    const created = await createPayrollRecord(db, body);
-    return c.json({ success: true, data: created }, 201);
-  });
+  router.post(
+    "/hr/payroll",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Create a payroll record",
+      responses: {
+        201: okJson(payrollViewSchema, "Created"),
+        400: { description: "Invalid payroll input", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        409: { description: "Duplicate period", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("json", createBodySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const created = await createPayrollRecord(db, body);
+      return c.json({ success: true, data: created }, 201);
+    },
+  );
 
   // Pending-only; `status: "paid"` marks the record paid (stamps `paidAt`).
-  router.patch("/hr/payroll/:id", async (c) => {
-    const db = c.get("db");
-    const body = updateBodySchema.parse(await c.req.json());
-    const updated = await updatePayrollRecord(db, c.req.param("id"), body);
-    return c.json({ success: true, data: updated });
-  });
+  router.patch(
+    "/hr/payroll/:id",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Update a pending payroll record",
+      responses: {
+        200: okJson(payrollViewSchema),
+        400: { description: "Invalid payroll input", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        409: { description: "Already paid or duplicate period", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", updateBodySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const updated = await updatePayrollRecord(db, id, body);
+      return c.json({ success: true, data: updated });
+    },
+  );
 
   // Paid records are immutable history; only pending records can be deleted.
-  router.delete("/hr/payroll/:id", async (c) => {
-    const db = c.get("db");
-    await deletePayrollRecord(db, c.req.param("id"));
-    return c.json({ success: true });
-  });
+  router.delete(
+    "/hr/payroll/:id",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Delete a pending payroll record",
+      responses: {
+        200: okEmpty,
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        409: { description: "Already paid", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      await deletePayrollRecord(db, id);
+      return c.json({ success: true });
+    },
+  );
 
   return router;
 }
