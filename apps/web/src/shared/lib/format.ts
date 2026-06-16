@@ -33,6 +33,16 @@ export function formatDateTime(value: Date | string | number): string {
   }).format(d);
 }
 
+// Thousands-separated integer money. Amounts are stored as integers in a
+// currency's minor unit, so grouping is applied with no fraction digits.
+// Locale-aware grouping follows the active i18n language like the dates above.
+export function formatMoney(value: number): string {
+  return new Intl.NumberFormat(lang(), {
+    useGrouping: true,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 // Human-readable byte size (B/KB/MB/GB/TB), one decimal below 10 units.
 export function formatBytes(value: number): string {
   if (value < 1024)

@@ -56,11 +56,19 @@ export interface HrPayrollRow {
   readonly colleague: HrPayrollColleague;
 }
 
+// Per-currency net total across the ENTIRE filtered set (not just the page),
+// computed server-side and carried on the list meta.
+export interface HrPayrollNetTotal {
+  readonly currency: string;
+  readonly net: number;
+}
+
 interface HrPayrollListMeta {
   readonly total: number;
   readonly page: number;
   readonly limit: number;
   readonly totalPages: number;
+  readonly totals: readonly HrPayrollNetTotal[];
 }
 
 interface HrPayrollListEnvelope {
@@ -163,6 +171,33 @@ export function useUpdateHrPayrollRecord(): UseMutationResult<HrPayrollRow, Erro
     mutationFn: ({ id, ...body }) => http<ApiEnvelope<HrPayrollRow>>(
       `/hr/payroll/${encodeURIComponent(id)}`,
       { method: "PATCH", body: JSON.stringify(body) },
+    ).then(r => r.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: hrPayrollKeys.all });
+    },
+  });
+}
+
+export interface GeneratePayrollInput {
+  readonly period: string;
+}
+
+export interface GeneratePayrollResult {
+  readonly created: number;
+  readonly skipped: number;
+}
+
+/**
+ * One-click monthly generation (admin-only). Creates a pending record for
+ * every active colleague with a configured salary that has no record for the
+ * period; idempotent. Invalidates the payroll list so the new rows appear.
+ */
+export function useGeneratePayroll(): UseMutationResult<GeneratePayrollResult, Error, GeneratePayrollInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ period }) => http<ApiEnvelope<GeneratePayrollResult>>(
+      "/hr/payroll/generate",
+      { method: "POST", body: JSON.stringify({ period }) },
     ).then(r => r.data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: hrPayrollKeys.all });
