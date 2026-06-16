@@ -121,6 +121,25 @@ async function runCli(args: readonly string[], env: Record<string, string>): Pro
   return { exitCode, stdout, stderr };
 }
 
+// Build a rich source DB from the real seed dataset (same script as
+// `bun run seed`), isolated to a temp dir. Lets the round-trip exercise every
+// module's data — not just an admin + settings — so a backup-coverage gap shows
+// up as lost rows.
+async function runSeed(dbPath: string, dataDir: string): Promise<CliResult> {
+  const proc = Bun.spawn(["bun", "--env-file=/dev/null", "scripts/seed/seed.ts"], {
+    cwd: join(ROOT, "apps/api"),
+    env: cliEnv(dbPath, dataDir),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+  const exitCode = await proc.exited;
+  return { exitCode, stdout, stderr };
+}
+
 async function waitForReady(): Promise<void> {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
@@ -254,4 +273,69 @@ describe("backup CLI export → import round-trip", () => {
       db.close();
     }
   }, 60_000);
+
+  it("round-trips the full seed dataset with no data loss across backed-up tables", async () => {
+    const seedSrcDir = mkdtempSync(join(tmpdir(), "cli-rt-seed-src-"));
+    const seedDstDir = mkdtempSync(join(tmpdir(), "cli-rt-seed-dst-"));
+    const seedArchive = join(archiveDir, "seed-backup.archive");
+    const srcDb = join(seedSrcDir, "app.db");
+    const dstDb = join(seedDstDir, "app.db");
+    try {
+      // 1. Build a rich source DB from the real seed dataset (every module).
+      const seeded = await runSeed(srcDb, seedSrcDir);
+      expect(seeded.exitCode, `seed failed:\n${seeded.stdout}\n${seeded.stderr}`).toBe(0);
+
+      // 2. EXPORT, then 3. IMPORT into a fresh empty DB.
+      const exp = await runCli(["backup:export", seedArchive], cliEnv(srcDb, seedSrcDir));
+      expect(exp.exitCode, `export failed:\n${exp.stdout}\n${exp.stderr}`).toBe(0);
+      const imp = await runCli(["backup:import", seedArchive, "--include-users"], cliEnv(dstDb, seedDstDir));
+      expect(imp.exitCode, `import failed:\n${imp.stdout}\n${imp.stderr}`).toBe(0);
+
+      // 4. Every backed-up table must round-trip with identical row counts.
+      //    These six carry logs / transient / security state and are
+      //    deliberately excluded from a backup (audit history is not restored;
+      //    the import writes its own audit row, and sessions/challenges/lockouts
+      //    are runtime-only). Any OTHER table losing rows is a coverage gap.
+      const EXCLUDED = new Set([
+        "audit_events",
+        "sessions",
+        "auth_lockouts",
+        "pkce_challenges",
+        "totp_challenges",
+        "user_totp_devices",
+      ]);
+      const src = new Database(srcDb, { readonly: true });
+      const dst = new Database(dstDb, { readonly: true });
+      try {
+        const tables = (src
+          .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> '__drizzle_migrations' ORDER BY name")
+          .all() as { name: string }[]).map(r => r.name);
+        const mismatches: string[] = [];
+        let backedUp = 0;
+        for (const name of tables) {
+          if (EXCLUDED.has(name))
+            continue;
+          backedUp++;
+          const a = (src.query(`SELECT count(*) AS c FROM "${name}"`).get() as { c: number }).c;
+          const b = (dst.query(`SELECT count(*) AS c FROM "${name}"`).get() as { c: number }).c;
+          if (a !== b)
+            mismatches.push(`${name}: src=${a} dst=${b}`);
+        }
+        expect(mismatches, `tables lost data on round-trip:\n${mismatches.join("\n")}`).toEqual([]);
+        // The dataset was genuinely rich, and the two formerly-uncovered tables
+        // (global reference vocab + per-user pins) are now preserved.
+        expect(backedUp).toBeGreaterThan(30);
+        expect((dst.query("SELECT count(*) AS c FROM global_procurement_categories").get() as { c: number }).c).toBeGreaterThan(0);
+        expect((dst.query("SELECT count(*) AS c FROM document_pins").get() as { c: number }).c).toBeGreaterThan(0);
+      }
+      finally {
+        src.close();
+        dst.close();
+      }
+    }
+    finally {
+      rmSync(seedSrcDir, { recursive: true, force: true });
+      rmSync(seedDstDir, { recursive: true, force: true });
+    }
+  }, 120_000);
 });

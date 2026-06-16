@@ -107,6 +107,13 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Fixed
 
+- Backup now covers two tables it silently dropped (FIX-042):
+  `global_procurement_categories` (the global procurement vocabulary — its
+  sibling `global_equipment_categories` was already backed up) and
+  `document_pins` (per-user pinned documents). A new CLI round-trip e2e seeds
+  the full dataset and asserts every table except intentional log / transient /
+  security state round-trips with no row loss, so future coverage gaps fail CI.
+
 - Backup import no longer rejects the empty-string id sentinel (FIX-041): the
   import id-shape validator (`assertIdShape`) treated `""` on `*Id` fields as a
   bad format, so any backup containing a root `drive_entries` row

@@ -135,3 +135,4 @@
 | [FIX-040](FIX-040.md) | Realign lode upgrade integration with breaking lode spec | [PLAN-082](../plan/PLAN-082.md) | Completed | 2026-06-15 |
 | [FEAT-033](FEAT-033.md) | Backup CLI import/export + e2e round-trip | [PLAN-083](../plan/PLAN-083.md) | Completed | 2026-06-15 |
 | [FIX-041](FIX-041.md) | Backup import rejects empty-string id sentinel (drive root entries) | - | Completed | 2026-06-16 |
+| [FIX-042](FIX-042.md) | Backup coverage gaps + full seed-dataset round-trip test | - | Completed | 2026-06-16 |

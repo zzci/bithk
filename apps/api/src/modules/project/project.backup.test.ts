@@ -46,9 +46,11 @@ describe("project backup contribution", () => {
   test("registers the projects module with FK-safe tables and deps", () => {
     const mod = getDataModules().projects;
     expect(mod?.name).toBe("projects");
-    // Parent first, then children that FK back to it: roles before members
+    // Global procurement vocab leads (no project FK), then the project parent
+    // and children that FK back to it: roles before members
     // (members.role_id → roles), categories last.
     expect(mod?.tables.map(table => getTableName(table))).toEqual([
+      "global_procurement_categories",
       "projects",
       "project_roles",
       "project_members",
@@ -64,6 +66,7 @@ describe("project backup contribution", () => {
 
     const mod = getDataModules().projects;
     expect(mod?.tables.map(table => getTableName(table))).toEqual([
+      "global_procurement_categories",
       "projects",
       "project_roles",
       "project_members",
