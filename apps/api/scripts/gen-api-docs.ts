@@ -10,28 +10,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
-import { Hono } from "hono";
-import { accountRoutes } from "@/modules/account";
-import { auditRoutes } from "@/modules/audit";
-import { backupRoutes } from "@/modules/backup";
-import { contactRoutes } from "@/modules/contact";
-import { cronRoutes } from "@/modules/cron";
-import { documentRoutes } from "@/modules/document";
-import { driveRoutes } from "@/modules/drive";
-import { fileRoutes } from "@/modules/file";
-import { hrRoutes } from "@/modules/hr";
-import { issueRoutes } from "@/modules/issue";
-import { itemRoutes } from "@/modules/item";
-import { policyRoutes } from "@/modules/policy";
-import { procurementRoutes } from "@/modules/procurement";
-import { projectRoutes } from "@/modules/project";
-import { searchRoutes } from "@/modules/search";
-import { settingsRoutes } from "@/modules/settings";
-import { sharePublicRoutes, shareRoutes } from "@/modules/share";
-import { shipRoutes } from "@/modules/ship";
-import { worklistRoutes } from "@/modules/ship/ship.worklist.service";
-import { systemRoutes } from "@/modules/system";
-import { tagRoutes } from "@/modules/tag";
+import { collectApiRoutes } from "./lib/route-table";
 
 const { values: cli } = parseArgs({
   args: process.argv.slice(2),
@@ -43,54 +22,12 @@ const { values: cli } = parseArgs({
 const ROOT = resolve(import.meta.dir, "..", "..", "..");
 const OUT_PATH = resolve(ROOT, "docs/reference/api-routes.md");
 
-const app = new Hono();
-app.route("/", systemRoutes());
-app.route("/", sharePublicRoutes());
-app.route("/", accountRoutes());
-app.route("/", issueRoutes());
-app.route("/", itemRoutes());
-app.route("/", policyRoutes());
-app.route("/", projectRoutes());
-app.route("/", contactRoutes());
-app.route("/", tagRoutes());
-app.route("/", procurementRoutes());
-app.route("/", documentRoutes());
-app.route("/", driveRoutes());
-app.route("/", shareRoutes());
-app.route("/", shipRoutes());
-app.route("/", searchRoutes());
-app.route("/", worklistRoutes());
-app.route("/", hrRoutes());
-app.route("/", settingsRoutes());
-app.route("/", auditRoutes());
-app.route("/", backupRoutes());
-app.route("/", cronRoutes());
-app.route("/", fileRoutes());
-
-interface HonoRoute { readonly method: string; readonly path: string }
-const routesTable = (app as unknown as { routes: HonoRoute[] }).routes;
-
 interface Row {
   readonly method: string;
   readonly path: string;
 }
 
-const SKIP_METHODS = new Set(["ALL", "HEAD", "OPTIONS"]);
-const seen = new Set<string>();
-const rows: Row[] = [];
-for (const r of routesTable) {
-  if (SKIP_METHODS.has(r.method))
-    continue;
-  // Drop wildcard middleware mounts.
-  if (r.path === "/*" || r.path.endsWith("/*"))
-    continue;
-  const key = `${r.method} ${r.path}`;
-  if (seen.has(key))
-    continue;
-  seen.add(key);
-  rows.push({ method: r.method, path: `/api${r.path}` });
-}
-rows.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+const rows: Row[] = collectApiRoutes().map(r => ({ method: r.method, path: `/api${r.path}` }));
 
 function render(rs: readonly Row[]): string {
   const header = "# API routes (generated)\n\n"
