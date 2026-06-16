@@ -11,6 +11,8 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.1.6 — 2026-06-16
+
 ### Changed
 
 - Realign the lode upgrade integration with the breaking `lode/v1` spec
