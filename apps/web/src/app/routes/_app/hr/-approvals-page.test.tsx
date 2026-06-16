@@ -2,6 +2,7 @@ import type { HrApprovalRow } from "@/shared/lib/api/hr-approvals";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useAuthStore } from "@/shared/stores/auth";
 import { renderWithProviders } from "@/test/utils";
 import { HrApprovalsPage } from "./-approvals-page";
 
@@ -17,6 +18,9 @@ const fetchMock = vi.fn<typeof fetch>();
 beforeEach(() => {
   fetchMock.mockReset();
   globalThis.fetch = fetchMock;
+  // Decision actions are admin-only; default to an admin so existing flows
+  // see the approve/reject buttons. Non-admin cases override this.
+  useAuthStore.setState({ user: { role: "admin", modules: [] } as never, loading: false });
 });
 
 afterEach(() => {
@@ -168,5 +172,54 @@ describe("hrApprovalsPage", () => {
       expect(del).toBeTruthy();
       expect(String(del![0])).toBe("/api/hr/approvals/ap1");
     });
+  });
+
+  it("renders the applied/decided time columns", async () => {
+    routeFetch([approval()]);
+    renderWithProviders(<HrApprovalsPage />);
+    await screen.findByText("Annual leave");
+    // Column headers for the two time columns.
+    expect(screen.getByRole("columnheader", { name: "Applied" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Decided at" })).toBeInTheDocument();
+    // A pending request has no decision time yet -> the empty placeholder.
+    expect(screen.getByText("Not provided")).toBeInTheDocument();
+  });
+
+  it("shows the full reason and decision note in a read view", async () => {
+    const user = userEvent.setup();
+    routeFetch([approval({
+      status: "rejected",
+      reason: "Requesting two weeks of unpaid leave for a family matter.",
+      decisionNote: "Approved verbally; rejecting here because the dates clash with the audit.",
+      decidedByName: "Admin",
+      decidedAt: "2026-06-10T01:00:00.000Z",
+    })]);
+    renderWithProviders(<HrApprovalsPage />);
+    await screen.findByText("Annual leave");
+
+    await user.click(screen.getByRole("button", { name: "View" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Requesting two weeks of unpaid leave for a family matter.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Approved verbally; rejecting here because the dates clash with the audit.")).toBeInTheDocument();
+  });
+
+  it("hides the decision buttons for a non-admin", async () => {
+    useAuthStore.setState({ user: { role: "user", modules: [] } as never, loading: false });
+    routeFetch([approval()]);
+    renderWithProviders(<HrApprovalsPage />);
+    await screen.findByText("Annual leave");
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+    // The read view stays available to everyone.
+    expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
+  });
+
+  it("shows the decision buttons for an admin", async () => {
+    useAuthStore.setState({ user: { role: "admin", modules: [] } as never, loading: false });
+    routeFetch([approval()]);
+    renderWithProviders(<HrApprovalsPage />);
+    await screen.findByText("Annual leave");
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
   });
 });

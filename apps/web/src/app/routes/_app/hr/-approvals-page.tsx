@@ -42,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useHrColleagues } from "@/shared/lib/api/hr";
 import {
@@ -54,11 +55,16 @@ import {
   useUpdateHrApproval,
 } from "@/shared/lib/api/hr-approvals";
 import { errorMessage } from "@/shared/lib/errors";
+import { formatDateTime } from "@/shared/lib/format";
+import { useAuthStore } from "@/shared/stores/auth";
 
 const ALL = "__all__";
 
 export function HrApprovalsPage() {
   const { t } = useTranslation("hr");
+  // Deciding is admin-only on the backend (non-admins get 403), so the
+  // approve/reject actions are hidden for everyone else.
+  const isAdmin = useAuthStore(s => s.user?.role === "admin");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState(ALL);
@@ -66,6 +72,7 @@ export function HrApprovalsPage() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<HrApprovalRow | null>(null);
+  const [detailTarget, setDetailTarget] = useState<HrApprovalRow | null>(null);
   const [decisionTarget, setDecisionTarget] = useState<{ row: HrApprovalRow; status: "approved" | "rejected" } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<HrApprovalRow | null>(null);
 
@@ -158,6 +165,8 @@ export function HrApprovalsPage() {
               <TableHead>{t("approvals.col.type")}</TableHead>
               <TableHead>{t("approvals.col.title")}</TableHead>
               <TableHead>{t("approvals.col.status")}</TableHead>
+              <TableHead>{t("approvals.col.appliedAt")}</TableHead>
+              <TableHead>{t("approvals.col.decidedAt")}</TableHead>
               <TableHead>{t("approvals.col.decision")}</TableHead>
               <TableHead>{t("approvals.col.actions")}</TableHead>
             </TableRow>
@@ -166,7 +175,7 @@ export function HrApprovalsPage() {
             {approvalsQuery.isLoading
               ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                       {t("common.loading")}
                     </TableCell>
                   </TableRow>
@@ -174,7 +183,7 @@ export function HrApprovalsPage() {
               : rows.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         {t("approvals.noResults")}
                       </TableCell>
                     </TableRow>
@@ -206,6 +215,12 @@ export function HrApprovalsPage() {
                           {statusLabel(approval.status)}
                         </Badge>
                       </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {formatDateTime(approval.createdAt)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {approval.decidedAt ? formatDateTime(approval.decidedAt) : t("approvals.empty")}
+                      </TableCell>
                       <TableCell>
                         {approval.status === "pending"
                           ? "—"
@@ -219,24 +234,31 @@ export function HrApprovalsPage() {
                             )}
                       </TableCell>
                       <TableCell>
-                        {approval.status === "pending"
-                          ? (
-                              <div className="flex gap-1">
-                                <Button variant="ghost" onClick={() => setDecisionTarget({ row: approval, status: "approved" })}>
-                                  {t("approvals.approve")}
-                                </Button>
-                                <Button variant="ghost" className="text-destructive" onClick={() => setDecisionTarget({ row: approval, status: "rejected" })}>
-                                  {t("approvals.reject")}
-                                </Button>
-                                <Button variant="ghost" onClick={() => setEditTarget(approval)}>
-                                  {t("common.edit")}
-                                </Button>
-                                <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(approval)}>
-                                  {t("common.delete")}
-                                </Button>
-                              </div>
-                            )
-                          : "—"}
+                        <div className="flex gap-1">
+                          <Button variant="ghost" onClick={() => setDetailTarget(approval)}>
+                            {t("approvals.view")}
+                          </Button>
+                          {approval.status === "pending" && (
+                            <>
+                              {isAdmin && (
+                                <>
+                                  <Button variant="ghost" onClick={() => setDecisionTarget({ row: approval, status: "approved" })}>
+                                    {t("approvals.approve")}
+                                  </Button>
+                                  <Button variant="ghost" className="text-destructive" onClick={() => setDecisionTarget({ row: approval, status: "rejected" })}>
+                                    {t("approvals.reject")}
+                                  </Button>
+                                </>
+                              )}
+                              <Button variant="ghost" onClick={() => setEditTarget(approval)}>
+                                {t("common.edit")}
+                              </Button>
+                              <Button variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(approval)}>
+                                {t("common.delete")}
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -273,6 +295,13 @@ export function HrApprovalsPage() {
           approval={editTarget}
           open
           onOpenChange={open => !open && setEditTarget(null)}
+        />
+      )}
+      {detailTarget && (
+        <DetailDialog
+          approval={detailTarget}
+          open
+          onOpenChange={open => !open && setDetailTarget(null)}
         />
       )}
       {decisionTarget && (
@@ -434,7 +463,7 @@ function ApprovalDialog({ mode, approval, open, onOpenChange }: ApprovalDialogPr
 
           <div className="space-y-1.5">
             <Label htmlFor="approval-reason">{t("approvals.field.reason")}</Label>
-            <Input
+            <Textarea
               id="approval-reason"
               maxLength={2000}
               value={reason}
@@ -508,7 +537,7 @@ function DecisionDialog({ target, status, open, onOpenChange }: DecisionDialogPr
 
           <div className="space-y-1.5">
             <Label htmlFor="decision-note">{t("approvals.field.note")}</Label>
-            <Input
+            <Textarea
               id="decision-note"
               maxLength={2000}
               value={note}
@@ -529,6 +558,50 @@ function DecisionDialog({ target, status, open, onOpenChange }: DecisionDialogPr
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface DetailDialogProps {
+  readonly approval: HrApprovalRow;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}
+
+// Read-only view of a request's full reason and decision note; both are
+// truncated in the table, so this is where they are shown in full.
+function DetailDialog({ approval, open, onOpenChange }: DetailDialogProps) {
+  const { t } = useTranslation("hr");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("approvals.detailTitle")}</DialogTitle>
+          <DialogDescription>{t("approvals.detailDescription")}</DialogDescription>
+        </DialogHeader>
+
+        <dl className="space-y-4 text-sm">
+          <div className="space-y-1">
+            <dt className="font-medium text-muted-foreground">{t("approvals.field.reason")}</dt>
+            <dd className="whitespace-pre-wrap break-words">
+              {approval.reason ?? t("approvals.empty")}
+            </dd>
+          </div>
+          <div className="space-y-1">
+            <dt className="font-medium text-muted-foreground">{t("approvals.field.note")}</dt>
+            <dd className="whitespace-pre-wrap break-words">
+              {approval.decisionNote ?? t("approvals.empty")}
+            </dd>
+          </div>
+        </dl>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {t("common.close")}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
