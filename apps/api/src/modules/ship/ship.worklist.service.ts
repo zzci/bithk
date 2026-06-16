@@ -12,6 +12,7 @@ import {
 } from "@/modules/tag/tag.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { worklists } from "./schema";
 
@@ -317,48 +318,117 @@ export const createShipWorklistSchema = z.object({
 // ship-manager can populate the in-dialog "Start from template" selector;
 // mutations (create / update / delete) stay admin-only via per-route guards.
 
+// Response schema mirroring `WorklistView` for the OpenAPI spec.
+const worklistViewSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  tags: z.array(z.object({ id: z.string(), name: z.string() })),
+  checklist: z.string().nullable(),
+  precautions: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+// `{ success:true, data }` response doc for `schema`.
+function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+
 export function worklistRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
-  router.get("/worklists", async (c) => {
-    const db = c.get("db");
-    const rawTagIds = c.req.queries("tagId") ?? [];
-    return c.json({ success: true, data: await listGlobalWorklists(db, rawTagIds.length > 0 ? rawTagIds : undefined) });
-  });
+  router.get(
+    "/worklists",
+    describeRoute({
+      tags: ["worklists"],
+      summary: "List global knowledge-base worklists",
+      responses: { 200: okJson(z.array(worklistViewSchema)), 401: { description: "Unauthenticated", ...errorJson } },
+    }),
+    validator("query", z.object({ tagId: z.union([z.string(), z.array(z.string())]).optional() }), onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      // Repeated `tagId=` query params combine with OR semantics (any-of); a
+      // single value arrives as a scalar, so normalise both to an array.
+      const { tagId } = c.req.valid("query");
+      const tagIds = tagId === undefined ? undefined : Array.isArray(tagId) ? tagId : [tagId];
+      return c.json({ success: true, data: await listGlobalWorklists(db, tagIds) });
+    },
+  );
 
-  router.post("/worklists", adminRequired, async (c) => {
-    const db = c.get("db");
-    const body = createGlobalWorklistSchema.parse(await c.req.json());
-    return c.json({ success: true, data: await createGlobalWorklist(db, body) }, 201);
-  });
+  router.post(
+    "/worklists",
+    describeRoute({
+      tags: ["worklists"],
+      summary: "Create a global knowledge-base worklist",
+      responses: { 201: okJson(worklistViewSchema, "Created"), 403: { description: "Admin only", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
+    }),
+    adminRequired,
+    validator("json", createGlobalWorklistSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      return c.json({ success: true, data: await createGlobalWorklist(db, body) }, 201);
+    },
+  );
 
-  router.get("/worklists/:id", async (c) => {
-    const db = c.get("db");
-    const id = c.req.param("id");
-    const wl = await getGlobalWorklist(db, id);
-    if (!wl)
-      throw new NotFoundError("Worklist", id);
-    return c.json({ success: true, data: wl });
-  });
+  router.get(
+    "/worklists/:id",
+    describeRoute({
+      tags: ["worklists"],
+      summary: "Get a global knowledge-base worklist",
+      responses: { 200: okJson(worklistViewSchema), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
+    }),
+    validator("param", z.object({ id: z.string() }), onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const wl = await getGlobalWorklist(db, id);
+      if (!wl)
+        throw new NotFoundError("Worklist", id);
+      return c.json({ success: true, data: wl });
+    },
+  );
 
-  router.patch("/worklists/:id", adminRequired, async (c) => {
-    const db = c.get("db");
-    const id = c.req.param("id");
-    const body = updateWorklistSchema.parse(await c.req.json());
-    const updated = await updateGlobalWorklist(db, id, body);
-    if (!updated)
-      throw new NotFoundError("Worklist", id);
-    return c.json({ success: true, data: updated });
-  });
+  router.patch(
+    "/worklists/:id",
+    describeRoute({
+      tags: ["worklists"],
+      summary: "Update a global knowledge-base worklist",
+      responses: { 200: okJson(worklistViewSchema), 403: { description: "Admin only", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
+    }),
+    adminRequired,
+    validator("param", z.object({ id: z.string() }), onValidationFailure),
+    validator("json", updateWorklistSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const updated = await updateGlobalWorklist(db, id, body);
+      if (!updated)
+        throw new NotFoundError("Worklist", id);
+      return c.json({ success: true, data: updated });
+    },
+  );
 
-  router.delete("/worklists/:id", adminRequired, async (c) => {
-    const db = c.get("db");
-    const id = c.req.param("id");
-    if (!await deleteGlobalWorklist(db, id))
-      throw new NotFoundError("Worklist", id);
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    "/worklists/:id",
+    describeRoute({
+      tags: ["worklists"],
+      summary: "Delete a global knowledge-base worklist",
+      responses: { 200: okJson(z.null()), 403: { description: "Admin only", ...errorJson }, 404: { description: "Not found", ...errorJson } },
+    }),
+    adminRequired,
+    validator("param", z.object({ id: z.string() }), onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      if (!await deleteGlobalWorklist(db, id))
+        throw new NotFoundError("Worklist", id);
+      return c.json({ success: true, data: null });
+    },
+  );
 
   return router;
 }
