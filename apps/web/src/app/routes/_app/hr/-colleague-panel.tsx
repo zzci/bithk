@@ -48,6 +48,7 @@ import {
   HR_EMPLOYMENT_TYPES,
   HR_GENDERS,
 } from "@/shared/lib/api/hr";
+import { HR_PAYROLL_CURRENCIES } from "@/shared/lib/api/hr-payroll";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import {
@@ -341,6 +342,28 @@ function ColleaguePanelForm({
           </div>
         </PanelSection>
 
+        <PanelSection title={t("colleagues.section.salary")}>
+          <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
+            <FieldInput
+              id="colleague-salaryAmount"
+              type="number"
+              min={0}
+              step={1}
+              label={t("colleagues.field.salaryAmount")}
+              value={form.salaryAmount}
+              onChange={v => set("salaryAmount", v)}
+            />
+            <EnumField
+              label={t("colleagues.field.salaryCurrency")}
+              value={form.salaryCurrency}
+              onChange={v => set("salaryCurrency", v)}
+              options={HR_PAYROLL_CURRENCIES}
+              optionLabel={v => v}
+              noneLabel={t("colleagues.unset")}
+            />
+          </div>
+        </PanelSection>
+
         <PanelSection title={t("colleagues.section.payment")}>
           <PaymentInfoEditor value={form.paymentInfo} onChange={rows => set("paymentInfo", rows)} />
         </PanelSection>
@@ -588,6 +611,8 @@ function FieldInput({
   onChange,
   type,
   maxLength,
+  min,
+  step,
 }: {
   readonly id: string;
   readonly label: string;
@@ -595,6 +620,8 @@ function FieldInput({
   readonly onChange: (value: string) => void;
   readonly type?: string;
   readonly maxLength?: number;
+  readonly min?: number;
+  readonly step?: number;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -603,6 +630,8 @@ function FieldInput({
         id={id}
         type={type}
         maxLength={maxLength}
+        min={min}
+        step={step}
         value={value}
         onChange={e => onChange(e.target.value)}
       />

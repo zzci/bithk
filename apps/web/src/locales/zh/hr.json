@@ -26,6 +26,10 @@
     "decisionConfirm": "{{name}} 的申请「{{title}}」。裁决后不可更改，请确认。",
     "deleteTitle": "撤回申请",
     "deleteConfirm": "确定要撤回「{{title}}」吗？仅待审批的申请可以撤回。",
+    "detailTitle": "申请详情",
+    "detailDescription": "完整的申请与裁决详情。",
+    "view": "查看",
+    "empty": "未填写",
     "type": {
       "leave": "请假",
       "overtime": "加班",
@@ -50,7 +54,9 @@
       "type": "类型",
       "title": "标题",
       "status": "状态",
+      "appliedAt": "申请时间",
       "decision": "裁决人",
+      "decidedAt": "裁决时间",
       "actions": "操作"
     },
     "toast": {
@@ -75,6 +81,15 @@
     "markPaidConfirm": "确认向 {{name}} 发放 {{period}} 的 {{amount}} 吗？发放后记录不可更改。",
     "deleteTitle": "删除薪资记录",
     "deleteConfirm": "确定要删除 {{name}} 的 {{period}} 记录吗？仅待发放的记录可以删除。",
+    "filterColleague": "按同事筛选",
+    "allColleagues": "全部同事",
+    "summaryLabel": "净额合计",
+    "generate": "生成本月薪资",
+    "generateTitle": "生成本月薪资",
+    "generateDescription": "为每位已配置薪资、且所选月份尚无记录的在职同事生成一条待发放记录。",
+    "generatePeriod": "月份",
+    "generateSubmit": "生成",
+    "generateToast": "已生成 {{created}} 条，跳过 {{skipped}} 条",
     "status": {
       "pending": "待发放",
       "paid": "已发放"
@@ -98,6 +113,7 @@
       "deduction": "扣减",
       "netAmount": "实发",
       "status": "状态",
+      "paidAt": "发放时间",
       "actions": "操作"
     },
     "toast": {
@@ -126,6 +142,7 @@
       "emergency": "紧急联系人",
       "employment": "雇佣",
       "payment": "收款信息",
+      "salary": "薪资",
       "documents": "个人档案"
     },
     "field": {
@@ -145,7 +162,9 @@
       "personalPhone": "手机",
       "personalEmail": "邮箱",
       "address": "居住地址",
-      "workLocation": "工作地点"
+      "workLocation": "工作地点",
+      "salaryAmount": "标准月薪",
+      "salaryCurrency": "币种"
     },
     "genderOption": {
       "male": "男",

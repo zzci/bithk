@@ -28,6 +28,8 @@ const colleagueColumns = {
   personalEmail: hrColleagues.personalEmail,
   address: hrColleagues.address,
   workLocation: hrColleagues.workLocation,
+  salaryAmount: hrColleagues.salaryAmount,
+  salaryCurrency: hrColleagues.salaryCurrency,
   paymentInfo: hrColleagues.paymentInfo,
   emergencyContacts: hrColleagues.emergencyContacts,
   createdAt: hrColleagues.createdAt,
@@ -182,6 +184,8 @@ interface ColleagueProfileInput {
   readonly personalEmail?: string | undefined;
   readonly address?: string | undefined;
   readonly workLocation?: string | undefined;
+  readonly salaryAmount?: number | null | undefined;
+  readonly salaryCurrency?: string | null | undefined;
   readonly paymentInfo?: readonly HrPaymentField[] | undefined;
   readonly emergencyContacts?: readonly HrEmergencyContact[] | undefined;
 }
@@ -215,6 +219,8 @@ export async function createColleague(db: AppDatabase, input: CreateColleagueInp
     personalEmail: input.personalEmail ?? null,
     address: input.address ?? null,
     workLocation: input.workLocation ?? null,
+    salaryAmount: input.salaryAmount ?? null,
+    salaryCurrency: input.salaryCurrency ?? null,
     paymentInfo: JSON.stringify(input.paymentInfo ?? []),
     emergencyContacts: JSON.stringify(input.emergencyContacts ?? []),
     createdAt: now,
@@ -277,6 +283,10 @@ export async function updateColleague(db: AppDatabase, id: string, data: UpdateC
     setData.address = data.address;
   if (data.workLocation !== undefined)
     setData.workLocation = data.workLocation;
+  if (data.salaryAmount !== undefined)
+    setData.salaryAmount = data.salaryAmount;
+  if (data.salaryCurrency !== undefined)
+    setData.salaryCurrency = data.salaryCurrency;
   if (data.paymentInfo !== undefined)
     setData.paymentInfo = JSON.stringify(data.paymentInfo);
   if (data.emergencyContacts !== undefined)

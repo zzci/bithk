@@ -1,6 +1,6 @@
 import type { HrPayrollStatus } from "./schema";
 import type { AppDatabase } from "@/db";
-import { and, asc, count, desc, eq, ne } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, ne, sum } from "drizzle-orm";
 import { users } from "@/modules/account/users/schema";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
@@ -124,13 +124,87 @@ export async function listPayrollRecords(db: AppDatabase, params: ListPayrollPar
     .offset(offset)
     .all();
 
+  // Net totals per currency across the ENTIRE filtered set (not just the
+  // current page), so a summary can sit alongside the paged rows.
+  const totalRows = await db
+    .select({ currency: hrPayrollRecords.currency, net: sum(hrPayrollRecords.netAmount) })
+    .from(hrPayrollRecords)
+    .innerJoin(hrColleagues, eq(hrPayrollRecords.colleagueId, hrColleagues.id))
+    .innerJoin(users, eq(hrColleagues.userId, users.id))
+    .where(where)
+    .groupBy(hrPayrollRecords.currency)
+    .all();
+  const totals = totalRows.map(row => ({ currency: row.currency, net: Number(row.net ?? 0) }));
+
   return {
     data: rows.map(toPayrollView),
+    totals,
     total,
     page,
     limit,
     totalPages: Math.ceil(total / limit),
   };
+}
+
+/**
+ * Generate pending payroll records for a `YYYY-MM` period from each active
+ * colleague's configured salary. Idempotent: a colleague who already has a
+ * record for the period is skipped, so a re-run inserts nothing. Colleagues
+ * without a salary amount/currency, and archived colleagues, are not
+ * candidates and are neither created nor counted. Never marks anything paid.
+ */
+export async function generatePayrollForPeriod(db: AppDatabase, period: string): Promise<{ created: number; skipped: number }> {
+  // Candidates: active colleagues with both a salary amount and currency set.
+  const candidates = await db
+    .select({
+      id: hrColleagues.id,
+      salaryAmount: hrColleagues.salaryAmount,
+      salaryCurrency: hrColleagues.salaryCurrency,
+    })
+    .from(hrColleagues)
+    .where(and(
+      eq(hrColleagues.status, "active"),
+      isNotNull(hrColleagues.salaryAmount),
+      isNotNull(hrColleagues.salaryCurrency),
+    ))
+    .all();
+
+  // Colleagues already holding a record for this period — never duplicated.
+  const existingRows = await db
+    .select({ colleagueId: hrPayrollRecords.colleagueId })
+    .from(hrPayrollRecords)
+    .where(eq(hrPayrollRecords.period, period))
+    .all();
+  const existing = new Set(existingRows.map(r => r.colleagueId));
+
+  const now = new Date().toISOString();
+  let created = 0;
+  let skipped = 0;
+  for (const candidate of candidates) {
+    if (existing.has(candidate.id)) {
+      skipped++;
+      continue;
+    }
+    // Narrow the nullable salary columns; the query filter already excludes
+    // unset salaries, so this guard is a type-safety backstop only.
+    if (candidate.salaryAmount === null || candidate.salaryCurrency === null)
+      continue;
+    await db.insert(hrPayrollRecords).values({
+      id: nanoid(),
+      colleagueId: candidate.id,
+      period,
+      baseSalary: candidate.salaryAmount,
+      bonus: 0,
+      deduction: 0,
+      currency: candidate.salaryCurrency,
+      netAmount: candidate.salaryAmount,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+    created++;
+  }
+  return { created, skipped };
 }
 
 interface CreatePayrollInput {

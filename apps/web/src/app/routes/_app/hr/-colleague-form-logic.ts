@@ -38,6 +38,9 @@ export interface ColleagueForm {
   personalEmail: string;
   address: string;
   workLocation: string;
+  // Integer minor-unit amount kept as a string ("" = unset); mapped to number | null on submit.
+  salaryAmount: string;
+  salaryCurrency: string;
   status: HrColleagueStatus;
   paymentInfo: HrPaymentField[];
   emergencyContacts: HrEmergencyContact[];
@@ -68,6 +71,8 @@ export const EMPTY_COLLEAGUE_FORM: ColleagueForm = {
   personalEmail: "",
   address: "",
   workLocation: "",
+  salaryAmount: "",
+  salaryCurrency: "",
   status: "active",
   paymentInfo: [],
   emergencyContacts: [],
@@ -91,6 +96,8 @@ export function colleagueFormFromRow(row: HrColleagueRow): ColleagueForm {
     personalEmail: row.personalEmail ?? "",
     address: row.address ?? "",
     workLocation: row.workLocation ?? "",
+    salaryAmount: row.salaryAmount === null ? "" : String(row.salaryAmount),
+    salaryCurrency: row.salaryCurrency ?? "",
     status: row.status,
     paymentInfo: row.paymentInfo.map(p => ({ ...p })),
     emergencyContacts: row.emergencyContacts.map(e => ({ ...e })),
@@ -116,6 +123,8 @@ export function colleagueFormToProfileInput(form: ColleagueForm): HrColleaguePro
     personalEmail: form.personalEmail.trim(),
     address: form.address.trim(),
     workLocation: form.workLocation.trim(),
+    salaryAmount: form.salaryAmount.trim() === "" ? null : Number(form.salaryAmount),
+    salaryCurrency: form.salaryCurrency === "" ? null : form.salaryCurrency,
     paymentInfo: form.paymentInfo
       .map(p => ({ label: p.label.trim(), value: p.value.trim() }))
       .filter(p => p.label || p.value),

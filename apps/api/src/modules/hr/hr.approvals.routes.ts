@@ -1,6 +1,7 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
+import { adminRequired } from "@/shared/middleware/auth";
 import {
   createApproval,
   decideApproval,
@@ -87,7 +88,7 @@ export function hrApprovalsRoutes() {
     return c.json({ success: true, data: updated });
   });
 
-  router.post("/hr/approvals/:id/decision", async (c) => {
+  router.post("/hr/approvals/:id/decision", adminRequired, async (c) => {
     const db = c.get("db");
     const body = decisionBodySchema.parse(await c.req.json());
     const decided = await decideApproval(db, c.req.param("id"), {

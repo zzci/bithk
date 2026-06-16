@@ -15,7 +15,7 @@ import { moduleGate } from "@/modules/account/groups/module-gate";
 import { users } from "@/modules/account/users/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { hrRoutes } from "./hr.routes";
-import { hrColleagues } from "./schema";
+import { hrApprovals, hrColleagues } from "./schema";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
 
@@ -359,5 +359,59 @@ describe("DELETE /hr/approvals/:id", () => {
 
     const res = await app.request(`/hr/approvals/${decided.id}`, jsonReq("DELETE", admin.cookie));
     expect(res.status).toBe(409);
+  });
+});
+
+describe("POST /hr/approvals/:id/decision admin gate", () => {
+  test("a non-admin hr-module user cannot decide (403); an admin can (200)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const colleagueId = await insertColleague();
+    const approval = await createApprovalReq(app, admin.cookie, colleagueId);
+
+    // Grant the hr module to a non-admin so the module gate lets the request
+    // through to the route-level `adminRequired` check.
+    const member = await sessionForRole("user");
+    const group = await createGroup(db, { name: "HR", modules: ["hr"] });
+    await addGroupMember(db, group.id, member.id);
+
+    const denied = await app.request(`/hr/approvals/${approval.id}/decision`, jsonReq("POST", member.cookie, { status: "approved" }));
+    expect(denied.status).toBe(403);
+
+    // The same approval is still pending, so an admin decides it successfully.
+    const allowed = await app.request(`/hr/approvals/${approval.id}/decision`, jsonReq("POST", admin.cookie, { status: "approved" }));
+    expect(allowed.status).toBe(200);
+  });
+});
+
+describe("GET /hr/approvals ordering", () => {
+  test("lists approvals newest-first by createdAt", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const colleagueId = await insertColleague();
+
+    // Controlled, distinct timestamps so the ordering assertion is deterministic.
+    const rows = [
+      { id: "appr-old", createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "appr-new", createdAt: "2026-03-01T00:00:00.000Z" },
+      { id: "appr-mid", createdAt: "2026-02-01T00:00:00.000Z" },
+    ];
+    for (const r of rows) {
+      await db.insert(hrApprovals).values({
+        id: r.id,
+        colleagueId,
+        type: "leave",
+        title: r.id,
+        reason: null,
+        status: "pending",
+        createdAt: r.createdAt,
+        updatedAt: r.createdAt,
+      }).run();
+    }
+
+    const res = await app.request("/hr/approvals", { headers: { Cookie: admin.cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: ApprovalView[] };
+    expect(body.data.map(a => a.id)).toEqual(["appr-new", "appr-mid", "appr-old"]);
   });
 });

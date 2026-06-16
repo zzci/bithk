@@ -59,6 +59,8 @@ export const hrColleagues = sqliteTable("hr_colleagues", {
   personalEmail: text("personal_email"),
   address: text("address"),
   workLocation: text("work_location"),
+  salaryAmount: integer("salary_amount"),
+  salaryCurrency: text("salary_currency"),
   paymentInfo: text("payment_info").notNull().default("[]"),
   emergencyContacts: text("emergency_contacts").notNull().default("[]"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
