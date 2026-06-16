@@ -8,13 +8,13 @@ const SID = "s1";
 describe("ship tab registry", () => {
   it("exposes ship detail tabs in ascending order", () => {
     const tabs = visibleShipTabs({ ship, canManage: true });
-    expect(tabs.map(t => t.value)).toEqual(["overview", "profile", "projects", "equipment", "worklist", "files", "settings"]);
+    expect(tabs.map(t => t.value)).toEqual(["overview", "profile", "projects", "equipment", "worklist", "files"]);
     expect(tabs.map(t => t.order)).toEqual([...tabs.map(t => t.order)].sort((a, b) => a - b));
   });
 
   it("registers every reserved order slot", () => {
     const used = new Set(SHIP_TABS.map(t => t.order));
-    for (const slot of [10, 20, 30, 40, 50, 60, 70])
+    for (const slot of [10, 20, 30, 40, 50, 60])
       expect(used.has(slot)).toBe(true);
   });
 
@@ -32,7 +32,6 @@ describe("sHIP_TAB_TO", () => {
     expect(SHIP_TAB_TO.worklist).toBe("/ships/$shipId/worklist");
     expect(SHIP_TAB_TO.projects).toBe("/ships/$shipId/projects");
     expect(SHIP_TAB_TO.files).toBe("/ships/$shipId/files");
-    expect(SHIP_TAB_TO.settings).toBe("/ships/$shipId/settings");
   });
 });
 
@@ -48,7 +47,6 @@ describe("activeShipTab", () => {
     expect(activeShipTab(`/ships/${SID}/worklist`, SID)).toBe("worklist");
     expect(activeShipTab(`/ships/${SID}/projects`, SID)).toBe("projects");
     expect(activeShipTab(`/ships/${SID}/files`, SID)).toBe("files");
-    expect(activeShipTab(`/ships/${SID}/settings`, SID)).toBe("settings");
   });
 
   it("falls back to overview for unknown segments or foreign paths", () => {
