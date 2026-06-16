@@ -2,7 +2,7 @@ import type { ShipView } from "@/shared/lib/api/ships";
 import { screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
-import { ShipSettingsTab } from "./-ship-settings-tab";
+import { ShipSettingsDialog } from "./-ship-settings-dialog";
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
@@ -31,10 +31,12 @@ function categoryFetch() {
   });
 }
 
-describe("shipSettingsTab", () => {
-  it("renders the per-ship equipment categories inline with a create entry for managers", async () => {
+describe("shipSettingsDialog", () => {
+  it("renders the per-ship equipment categories section with a create entry for managers", async () => {
     categoryFetch();
-    renderWithProviders(<ShipSettingsTab ship={ship} canManage />);
+    renderWithProviders(<ShipSettingsDialog open onOpenChange={vi.fn()} ship={ship} canManage />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Ship settings")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Power")).toBeInTheDocument());
     expect(screen.getByText("电力")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
@@ -42,7 +44,7 @@ describe("shipSettingsTab", () => {
 
   it("hides the create entry for read-only viewers", async () => {
     categoryFetch();
-    renderWithProviders(<ShipSettingsTab ship={ship} canManage={false} />);
+    renderWithProviders(<ShipSettingsDialog open onOpenChange={vi.fn()} ship={ship} canManage={false} />);
     await waitFor(() => expect(screen.getByText("Power")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
   });

@@ -42,8 +42,11 @@
     "equipment": "设备",
     "worklist": "清单",
     "projects": "项目",
-    "files": "文件",
-    "settings": "设置"
+    "files": "文件"
+  },
+  "settings": {
+    "openButton": "设置",
+    "dialogTitle": "船舶设置"
   },
   "detail": {
     "back": "返回船舶列表",

@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ShipDetailTab } from "./-ship-tabs";
-import { createLazyFileRoute, Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowLeft, MapPin, Trash2 } from "lucide-react";
+import { createLazyFileRoute, Outlet, useLocation, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { ArrowLeft, MapPin, Settings, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import {
   useShipWorklists,
 } from "@/shared/lib/api/ships";
 import { errorMessage } from "@/shared/lib/errors";
+import { ShipSettingsDialog } from "./-ship-settings-dialog";
 import { activeShipTab, SHIP_TAB_TO, visibleShipTabs } from "./-ship-tabs";
 import { ShipStatusBadge } from "./-ship-visuals";
 
@@ -33,6 +34,7 @@ export const Route = createLazyFileRoute("/_app/ships/$shipId")({
 function ShipDetailLayout() {
   const { t } = useTranslation(["ships", "common"]);
   const { shipId } = useParams({ from: "/_app/ships/$shipId" });
+  const { settings: settingsParam } = useSearch({ from: "/_app/ships/$shipId" });
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -57,6 +59,15 @@ function ShipDetailLayout() {
 
   const deleteShip = useDeleteShip();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(settingsParam ?? false);
+
+  // Deep link (`?settings=true`) clears once the dialog closes, keeping the
+  // current tab route in place.
+  const handleSettingsOpenChange = (open: boolean) => {
+    setSettingsOpen(open);
+    if (!open && settingsParam)
+      void navigate({ to: ".", search: {}, replace: true });
+  };
 
   // The active tab is derived from the path (one route per tab) so back/forward
   // and shareable URLs always resolve to the correct tab.
@@ -139,10 +150,16 @@ function ShipDetailLayout() {
           </div>
         </div>
         {canManage && (
-          <Button variant="outline" onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="text-destructive" aria-hidden="true" />
-            {t("common:common.delete")}
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+              <Settings aria-hidden="true" />
+              {t("settings.openButton")}
+            </Button>
+            <Button variant="outline" onClick={() => setDeleteOpen(true)}>
+              <Trash2 className="text-destructive" aria-hidden="true" />
+              {t("common:common.delete")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -167,6 +184,15 @@ function ShipDetailLayout() {
       <div className="pt-4">
         <Outlet />
       </div>
+
+      {canManage && (
+        <ShipSettingsDialog
+          open={settingsOpen}
+          onOpenChange={handleSettingsOpenChange}
+          ship={ship}
+          canManage={canManage}
+        />
+      )}
 
       <ConfirmDeleteDialog
         open={deleteOpen}
