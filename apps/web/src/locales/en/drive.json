@@ -40,6 +40,7 @@
     "expand": "Expand",
     "searchPlaceholder": "Search files",
     "breadcrumbRoot": "Root",
+    "breadcrumbLabel": "Breadcrumb",
     "dropHere": "Drop files to upload",
     "selectedCount": "{{count}} selected",
     "deleteSelected": "Delete selected",
