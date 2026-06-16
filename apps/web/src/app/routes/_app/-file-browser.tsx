@@ -58,7 +58,7 @@ const UniverSheetEditorDialog = lazy(() => import("./-univer-sheet-editor-dialog
 /**
  * Declarative feature toggles for the one global file browser. Every key is
  * optional and defaults to ENABLED — a surface opts OUT of what it doesn't
- * want (e.g. the project/ship tabs hide the breadcrumb and search box).
+ * want (e.g. the project/ship tabs hide the search box).
  * `manage`-gated affordances ALSO require `canManage`.
  */
 export interface FileBrowserFeatures {

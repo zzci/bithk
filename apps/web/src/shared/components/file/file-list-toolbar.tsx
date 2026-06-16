@@ -158,24 +158,37 @@ export function FileToolbar({
           {showTitle
             ? (
                 <div className="flex min-w-0 items-center gap-2 text-lg">
-                  {folderPath.map((crumb, i) => (
-                    <div key={crumb.id ?? "root"} className="flex min-w-0 items-center gap-2">
-                      {i > 0 && <span className="text-muted-foreground/60">/</span>}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => onNavigateToBreadcrumb(i)}
-                        className={cn(
-                          "h-auto min-w-0 truncate px-0 text-lg font-normal transition-colors hover:bg-transparent",
-                          i === folderPath.length - 1
-                            ? "font-medium text-foreground"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {crumb.name}
-                      </Button>
-                    </div>
-                  ))}
+                  <nav aria-label={t("browser.breadcrumbLabel")}>
+                    <ol className="flex min-w-0 items-center gap-2">
+                      {folderPath.map((crumb, i) => (
+                        <li key={crumb.id ?? "root"} className="flex min-w-0 items-center gap-2">
+                          {i > 0 && <span aria-hidden="true" className="text-muted-foreground/60">/</span>}
+                          {i === folderPath.length - 1
+                            ? (
+                                <span
+                                  aria-current="page"
+                                  className="min-w-0 truncate text-lg font-medium text-foreground"
+                                >
+                                  {crumb.name}
+                                </span>
+                              )
+                            : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  onClick={() => onNavigateToBreadcrumb(i)}
+                                  className={cn(
+                                    "h-auto min-w-0 truncate px-0 text-lg font-normal transition-colors hover:bg-transparent",
+                                    "text-muted-foreground hover:text-foreground",
+                                  )}
+                                >
+                                  {crumb.name}
+                                </Button>
+                              )}
+                        </li>
+                      ))}
+                    </ol>
+                  </nav>
                   <Button
                     variant="ghost"
                     size="icon-xs"

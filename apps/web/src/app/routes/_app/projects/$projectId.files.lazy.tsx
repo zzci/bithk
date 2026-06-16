@@ -38,7 +38,7 @@ function ProjectFilesRoute() {
         ownerId={project.id}
         canManage={caps.canManageFiles}
         rootLabel={project.name}
-        features={{ breadcrumb: false, search: false }}
+        features={{ search: false }}
       />
     </div>
   );
