@@ -141,3 +141,5 @@
 | [FEAT-034](FEAT-034.md) | Personal Access Tokens + repo skill for AI-driven API access | [PLAN-084](../plan/PLAN-084.md) | Completed | 2026-06-16 |
 | [FIX-045](FIX-045.md) | gen-api-docs omits ship/search/worklist routes | - | Completed | 2026-06-16 |
 | [FEAT-035](FEAT-035.md) | Adopt hono-openapi: code-derived OpenAPI spec across all modules | [PLAN-085](../plan/PLAN-085.md) | In progress | 2026-06-16 |
+| [FEAT-036](FEAT-036.md) | HR colleague salary + one-click payroll generation + governance split | [PLAN-086](../plan/PLAN-086.md) | Completed | 2026-06-16 |
+| [UI-026](UI-026.md) | HR approvals/payroll page completeness + colleague salary fields | [PLAN-086](../plan/PLAN-086.md) | Completed | 2026-06-16 |
