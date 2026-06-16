@@ -26,6 +26,10 @@
     "decisionConfirm": "\"{{title}}\" filed for {{name}}. This decision is final and cannot be changed.",
     "deleteTitle": "Withdraw request",
     "deleteConfirm": "Are you sure you want to withdraw \"{{title}}\"? Only pending requests can be withdrawn.",
+    "detailTitle": "Request details",
+    "detailDescription": "Full request and decision details.",
+    "view": "View",
+    "empty": "Not provided",
     "type": {
       "leave": "Leave",
       "overtime": "Overtime",
@@ -50,7 +54,9 @@
       "type": "Type",
       "title": "Title",
       "status": "Status",
+      "appliedAt": "Applied",
       "decision": "Decided by",
+      "decidedAt": "Decided at",
       "actions": "Actions"
     },
     "toast": {
@@ -75,6 +81,15 @@
     "markPaidConfirm": "Pay {{amount}} to {{name}} for {{period}}? A paid record becomes immutable.",
     "deleteTitle": "Delete payroll record",
     "deleteConfirm": "Are you sure you want to delete the {{period}} record for {{name}}? Only pending records can be deleted.",
+    "filterColleague": "Filter by colleague",
+    "allColleagues": "All colleagues",
+    "summaryLabel": "Net total",
+    "generate": "Generate monthly payroll",
+    "generateTitle": "Generate monthly payroll",
+    "generateDescription": "Creates a pending record for every active colleague with a configured salary that has no record for the selected month.",
+    "generatePeriod": "Month",
+    "generateSubmit": "Generate",
+    "generateToast": "Created {{created}}, skipped {{skipped}}",
     "status": {
       "pending": "Pending",
       "paid": "Paid"
@@ -98,6 +113,7 @@
       "deduction": "Deduction",
       "netAmount": "Net",
       "status": "Status",
+      "paidAt": "Paid at",
       "actions": "Actions"
     },
     "toast": {
@@ -126,6 +142,7 @@
       "emergency": "Emergency contacts",
       "employment": "Employment",
       "payment": "Payment",
+      "salary": "Salary",
       "documents": "Documents"
     },
     "field": {
@@ -145,7 +162,9 @@
       "personalPhone": "Phone",
       "personalEmail": "Email",
       "address": "Address",
-      "workLocation": "Work location"
+      "workLocation": "Work location",
+      "salaryAmount": "Monthly salary",
+      "salaryCurrency": "Currency"
     },
     "genderOption": {
       "male": "Male",
