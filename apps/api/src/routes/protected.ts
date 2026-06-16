@@ -29,6 +29,7 @@ import { worklistRoutes } from "@/modules/ship/ship.worklist.service";
 // `tagRoutes` (the shared typed-tag vocabulary). Each domain's `{ type }` binding
 // is wired into the tag registry here so the module never imports a domain schema.
 import { registerTagSource, tagRoutes } from "@/modules/tag";
+import { apiTokenScopeGuard } from "@/shared/middleware/api-token-scope";
 
 // Register each domain's tag binding as a load-time side effect, so
 // the shared `/tags` routes know which types exist at boot.
@@ -45,6 +46,10 @@ export function protectedRoutes() {
   // Module visibility gate (PLAN-076): must be registered before any module
   // router so hidden-module paths 404 before reaching a handler.
   app.use("*", moduleGate());
+  // Personal Access Token scope ceiling (FEAT-034): after the module gate so
+  // nav-module concealment (404) wins over scope rejection (403); a no-op for
+  // cookie / anonymous requests.
+  app.use("*", apiTokenScopeGuard());
 
   app.route("/", accountRoutes());
   app.route("/", tagRoutes());

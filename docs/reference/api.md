@@ -47,6 +47,7 @@ Errors use the shared error handler:
 | Authenticated | Requires a valid session cookie.                                                                          |
 | Admin         | Requires a valid session and `user.role === "admin"`.                                                     |
 | Service Token | Requires a scoped bearer (`SERVICE_TOKEN_METRICS` for `/api/metrics`, `SERVICE_TOKEN_BACKUP` for `/api/backup/export-via-token`). For non-interactive tooling (scrapers, backup). |
+| Personal Access Token | A user-level bearer (`Authorization: Bearer bithk_pat_…`, FEAT-034) resolved to its owning user. Satisfies "Authenticated"/"Admin" exactly as that user would, then additionally bounded by the token's per-module scope. For CLI / AI-agent use. |
 
 Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`.
 
@@ -79,6 +80,35 @@ whose role does not grant the module receives 404 (PLAN-076; see the
 | POST   | `/api/account/auth/logout`                 | Authenticated | Deletes the local session.                                         |
 | GET    | `/api/account/auth/logout-url`             | Public        | Returns the configured upstream logout URL.                         |
 | POST   | `/api/account/auth/totp/verify`            | Public, rate-limited | Completes the login-time TOTP challenge.                    |
+
+### Personal access tokens (FEAT-034)
+
+A Personal Access Token (PAT) lets a CLI or AI agent authenticate as a user
+without the browser OIDC flow. The token is presented as
+`Authorization: Bearer bithk_pat_…`; the chained auth provider tries the session
+cookie first, then the PAT. A PAT request carries no cookie and is therefore
+CSRF-exempt.
+
+The plaintext secret is shown **once** at creation and stored only as a SHA-256
+hash. Each token carries a **per-module scope** (`read` / `write`, absent = no
+access) enforced by `apiTokenScopeGuard` as an intersection on top of the
+owner's own policy permissions — independent of the admin short-circuit, so an
+admin's token is still bounded by its scope. Scope violations return
+`403 TOKEN_SCOPE_INSUFFICIENT`; `GET /api/account/me` is always allowed as an
+identity probe. The scope module keys mirror `apps/api/src/modules/account/tokens/scope.ts`.
+Expiry is required; expired or revoked tokens resolve to no identity (`401`).
+
+Token-management routes are **session-only** — a PAT cannot mint, list, or
+revoke tokens (prevents token-farming / privilege escalation).
+
+| Method | Path                                       | Access        | Description                                                       |
+| ------ | ------------------------------------------ | ------------- | ----------------------------------------------------------------- |
+| GET    | `/api/account/me/tokens`                   | Authenticated (cookie) | Lists the caller's own tokens (never the plaintext).     |
+| POST   | `/api/account/me/tokens`                   | Authenticated (cookie) | Creates a token (`{ name, expiresInDays, scopes }`); returns the plaintext once. |
+| DELETE | `/api/account/me/tokens/:id`               | Authenticated (cookie) | Revokes one of the caller's tokens.                       |
+| GET    | `/api/account/users/:id/tokens`            | Admin (cookie) | Lists a target user's tokens (incl. virtual users).               |
+| POST   | `/api/account/users/:id/tokens`            | Admin (cookie) | Mints a token for a target user (the only way to give a virtual user a token). |
+| DELETE | `/api/account/users/:id/tokens/:tokenId`   | Admin (cookie) | Revokes a target user's token.                                    |
 
 ### Current user
 

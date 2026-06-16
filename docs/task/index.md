@@ -138,3 +138,5 @@
 | [FIX-042](FIX-042.md) | Backup coverage gaps + full seed-dataset round-trip test | - | Completed | 2026-06-16 |
 | [FIX-043](FIX-043.md) | Cover/avatar image URLs omit BASE_PATH (404 under base-path deploys) | - | Completed | 2026-06-16 |
 | [FIX-044](FIX-044.md) | e2e: grant module access to the non-admin actor (FEAT-032 gate) | - | Completed | 2026-06-16 |
+| [FEAT-034](FEAT-034.md) | Personal Access Tokens + repo skill for AI-driven API access | [PLAN-084](../plan/PLAN-084.md) | Completed | 2026-06-16 |
+| [FIX-045](FIX-045.md) | gen-api-docs omits ship/search/worklist routes | - | Completed | 2026-06-16 |

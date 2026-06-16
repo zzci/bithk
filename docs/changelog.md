@@ -11,6 +11,27 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- Personal Access Tokens for API/CLI/AI-agent access (FEAT-034, PLAN-084).
+  Users mint a `bithk_pat_…` bearer in **Settings → API tokens**; admins can
+  mint one for any user (including virtual users) from **Admin → Users**. A
+  token authenticates as its owner via a chained auth provider (cookie first,
+  then bearer) and is bounded by a required expiry and a per-module scope
+  (`read` / `write`, three levels incl. none) enforced as an intersection on
+  top of the owner's own permissions — independent of the admin short-circuit,
+  so an admin's token is still scope-limited. Secrets are shown once and stored
+  as a SHA-256 hash; token-management routes are session-only. Ships a
+  repository-local `skills/bithk` skill that teaches an AI agent to
+  drive the full API with such a token (create work orders, upload files, all
+  modules). See [decision 013](decisions/013-personal-access-token-scope.md).
+
+### Fixed
+
+- `gen-api-docs` now mounts the ship, search, and worklist routers, so
+  `docs/reference/api-routes.md` covers the full protected surface (306 routes,
+  was 265 — those modules were silently missing) (FIX-045).
+
 ## v0.1.6 — 2026-06-16
 
 ### Changed

@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 259 routes total.
+> 306 routes total.
 
 | Method | Path |
 |---|---|
@@ -29,6 +29,9 @@
 | GET | `/api/account/me/groups` |
 | GET | `/api/account/me/preferences/:key` |
 | PUT | `/api/account/me/preferences/:key` |
+| GET | `/api/account/me/tokens` |
+| POST | `/api/account/me/tokens` |
+| DELETE | `/api/account/me/tokens/:id` |
 | GET | `/api/account/me/totp` |
 | POST | `/api/account/me/totp` |
 | DELETE | `/api/account/me/totp/:deviceId` |
@@ -40,6 +43,9 @@
 | GET | `/api/account/users/:id` |
 | PATCH | `/api/account/users/:id` |
 | GET | `/api/account/users/:id/groups` |
+| GET | `/api/account/users/:id/tokens` |
+| POST | `/api/account/users/:id/tokens` |
+| DELETE | `/api/account/users/:id/tokens/:tokenId` |
 | GET | `/api/account/visible-users` |
 | DELETE | `/api/admin/project-default-cover` |
 | GET | `/api/admin/project-default-cover` |
@@ -142,6 +148,16 @@
 | PUT | `/api/drive/team-directories/:id/members/:memberId` |
 | GET | `/api/files/:id/content` |
 | GET | `/api/files/:id/metadata` |
+| GET | `/api/global-equipment-categories` |
+| POST | `/api/global-equipment-categories` |
+| DELETE | `/api/global-equipment-categories/:id` |
+| GET | `/api/global-equipment-categories/:id` |
+| PATCH | `/api/global-equipment-categories/:id` |
+| GET | `/api/global-equipment-manufacturers` |
+| POST | `/api/global-equipment-manufacturers` |
+| DELETE | `/api/global-equipment-manufacturers/:id` |
+| GET | `/api/global-equipment-manufacturers/:id` |
+| PATCH | `/api/global-equipment-manufacturers/:id` |
 | GET | `/api/global-procurement-categories` |
 | POST | `/api/global-procurement-categories` |
 | DELETE | `/api/global-procurement-categories/:id` |
@@ -244,6 +260,7 @@
 | POST | `/api/projects/:projectId/procurements/:id/status` |
 | POST | `/api/projects/:projectId/procurements/:id/unpin` |
 | GET | `/api/projects/:projectId/referenceable-worklists` |
+| GET | `/api/search` |
 | GET | `/api/settings` |
 | DELETE | `/api/settings/:key` |
 | GET | `/api/settings/:key` |
@@ -261,6 +278,31 @@
 | GET | `/api/shares/links` |
 | GET | `/api/shares/received` |
 | GET | `/api/shares/sent` |
+| GET | `/api/ships` |
+| POST | `/api/ships` |
+| DELETE | `/api/ships/:shortId` |
+| GET | `/api/ships/:shortId` |
+| PATCH | `/api/ships/:shortId` |
+| DELETE | `/api/ships/:shortId/cover-image` |
+| POST | `/api/ships/:shortId/cover-image` |
+| GET | `/api/ships/:shortId/equipment` |
+| POST | `/api/ships/:shortId/equipment` |
+| GET | `/api/ships/:shortId/equipment-categories` |
+| POST | `/api/ships/:shortId/equipment-categories` |
+| DELETE | `/api/ships/:shortId/equipment-categories/:categoryId` |
+| GET | `/api/ships/:shortId/equipment-categories/:categoryId` |
+| PATCH | `/api/ships/:shortId/equipment-categories/:categoryId` |
+| DELETE | `/api/ships/:shortId/equipment/:equipmentId` |
+| GET | `/api/ships/:shortId/equipment/:equipmentId` |
+| PATCH | `/api/ships/:shortId/equipment/:equipmentId` |
+| GET | `/api/ships/:shortId/projects` |
+| POST | `/api/ships/:shortId/projects` |
+| DELETE | `/api/ships/:shortId/projects/:projectShortId` |
+| GET | `/api/ships/:shortId/worklists` |
+| POST | `/api/ships/:shortId/worklists` |
+| DELETE | `/api/ships/:shortId/worklists/:id` |
+| GET | `/api/ships/:shortId/worklists/:id` |
+| PATCH | `/api/ships/:shortId/worklists/:id` |
 | GET | `/api/system/branding` |
 | GET | `/api/system/upload-limits` |
 | GET | `/api/system/version` |
@@ -268,3 +310,8 @@
 | POST | `/api/tags` |
 | DELETE | `/api/tags/:id` |
 | PATCH | `/api/tags/:id` |
+| GET | `/api/worklists` |
+| POST | `/api/worklists` |
+| DELETE | `/api/worklists/:id` |
+| GET | `/api/worklists/:id` |
+| PATCH | `/api/worklists/:id` |

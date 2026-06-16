@@ -1,5 +1,6 @@
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
+import type { TokenScopeMap } from "@/modules/account/tokens/scope";
 import type { users } from "@/modules/account/users/schema";
 import type { Logger } from "@/shared/lib/logger";
 import type { ModuleKey } from "@/shared/modules";
@@ -18,6 +19,12 @@ export interface AppEnv {
     user?: User;
     /** Per-request cache of the actor's visible modules (module gate). */
     userModules?: readonly ModuleKey[];
+    /**
+     * Set only when the request authenticated via a Personal Access Token
+     * (FEAT-034). Carries the token id + its per-module scope so
+     * `apiTokenScopeGuard` can enforce the ceiling. Absent for cookie sessions.
+     */
+    apiToken?: { readonly id: string; readonly scopes: TokenScopeMap };
   };
 }
 

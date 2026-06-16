@@ -1,9 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { Plus, Search } from "lucide-react";
+import { KeyRound, Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { ApiTokensPanel } from "@/shared/components/api-tokens-panel";
 import { ListFilter } from "@/shared/components/list-filter";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -62,7 +63,7 @@ interface ListResponse {
 }
 
 function UsersTab() {
-  const { t } = useTranslation("users");
+  const { t } = useTranslation(["users", "tokens"]);
   const currentUser = useAuthStore(s => s.user);
   const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
@@ -76,6 +77,7 @@ function UsersTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [tokenTarget, setTokenTarget] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
@@ -277,6 +279,10 @@ function UsersTab() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button variant="ghost" onClick={() => setTokenTarget(user)}>
+                            <KeyRound className="mr-1 size-3.5" />
+                            {t("tokens:title")}
+                          </Button>
                           {user.isVirtual
                             ? (
                                 <>
@@ -349,6 +355,18 @@ function UsersTab() {
           onOpenChange={open => !open && setEditTarget(null)}
           onSaved={() => void fetchUsers()}
         />
+      )}
+
+      {tokenTarget && (
+        <Dialog open onOpenChange={open => !open && setTokenTarget(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{`${t("tokens:title")} · ${tokenTarget.name}`}</DialogTitle>
+              <DialogDescription className="sr-only">{t("tokens:title")}</DialogDescription>
+            </DialogHeader>
+            <ApiTokensPanel target={{ kind: "user", userId: tokenTarget.id }} />
+          </DialogContent>
+        </Dialog>
       )}
 
       <ConfirmDeleteDialog

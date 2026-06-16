@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Mail, Plus, Shield, ShieldAlert, Smartphone, Trash2, User as UserIcon, UsersRound } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ApiTokensPanel } from "@/shared/components/api-tokens-panel";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -38,7 +39,7 @@ export function SettingsDialog({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
-  const { t } = useTranslation(["common", "settings", "totp"]);
+  const { t } = useTranslation(["common", "settings", "totp", "tokens"]);
   const { user } = useAuthStore();
 
   if (!user)
@@ -56,6 +57,7 @@ export function SettingsDialog({
           <TabsList variant="line">
             <TabsTrigger value="profile">{t("settings:tabProfile")}</TabsTrigger>
             <TabsTrigger value="security">{t("settings:tabSecurity")}</TabsTrigger>
+            <TabsTrigger value="tokens">{t("tokens:title")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -63,6 +65,9 @@ export function SettingsDialog({
           </TabsContent>
           <TabsContent value="security">
             <TotpTab />
+          </TabsContent>
+          <TabsContent value="tokens">
+            <ApiTokensPanel target={{ kind: "self" }} />
           </TabsContent>
         </Tabs>
       </DialogContent>
