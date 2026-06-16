@@ -100,7 +100,7 @@ async function assetFile(dir: string, filename: string): Promise<File> {
 }
 
 // ─── Dataset shapes (loose — JSON is the source of truth) ─────────────────
-interface UserRec { key: string; username: string; name: string; email: string; role: "admin" | "user" }
+interface UserRec { key: string; username: string; name: string; email: string; role: "admin" | "user"; oauthSub?: string }
 interface GroupRec { key: string; name: string; description?: string; modules?: string[]; members: string[] }
 interface ContactRec { key: string; kind: "individual" | "organization"; name: string; phone?: string; email?: string; website?: string; position?: string; org?: string; taxId?: string; address?: string; category?: string; status?: "active" | "inactive"; confidential?: boolean; visibility?: "private" | "public"; tags?: string[]; note?: string; attributes?: Record<string, string> }
 interface EquipmentRec { name: string; category?: string; manufacturer?: string; model?: string; serialNumber?: string; installedAt?: string; note?: string; location?: string; status?: "active" | "retired" }
@@ -168,8 +168,11 @@ async function importUsers(db: AppDatabase): Promise<void> {
   for (const u of recs) {
     const id = `seed-user-${u.key}`;
     await db.insert(users).values({
+      // A real OIDC sub (e.g. the bundled dex `admin@bit.hk`) lets that account
+      // own seeded data: on login provisionUser matches by oauth_sub and keeps
+      // the seeded role/ownership instead of creating a fresh empty user.
+      oauthSub: u.oauthSub ?? `seed|${u.username}`,
       id,
-      oauthSub: `seed|${u.username}`,
       username: u.username,
       name: u.name,
       email: u.email,
@@ -738,7 +741,7 @@ async function importAudit(db: AppDatabase): Promise<number> {
     { action: "issue.updated", resourceType: "issue", resourceName: "Replace bridge navigation radar", result: "success", actor: "eng-lin" },
     { action: "procurement.created", resourceType: "procurement", resourceName: "NR-900X navigation radar unit", result: "success", actor: "pm-mercer" },
     { action: "document.shared", resourceType: "document", resourceName: "Fleet Operations Handbook", result: "success", actor: "admin" },
-    { action: "auth.login", resourceType: "session", resourceName: "seed-admin", result: "success", actor: "admin" },
+    { action: "auth.login", resourceType: "session", resourceName: "admin@bit.hk", result: "success", actor: "admin" },
     { action: "auth.login", resourceType: "session", resourceName: "unknown", result: "failure", actor: "admin" },
     { action: "share.created", resourceType: "share", resourceName: "Crew Onboarding Guide", result: "success", actor: "ops-murphy" },
   ];
@@ -896,7 +899,7 @@ async function main(): Promise<void> {
     console.log(`  audit:        ${audits} events`);
     console.log(`  settings:     ${settingsCount}`);
     console.log(`  hr:           ${hr.colleagues} colleagues, ${hr.approvals} approvals, ${hr.payroll} payroll records`);
-    console.log(`\nNo admin is seeded: the first DEFAULT_ADMIN to sign in via OIDC is promoted to admin (bootstrap on empty admin set).`);
+    console.log(`\nAdmin account: admin@bit.hk (seeded with role=admin and the bundled dex oauth_sub, so logging in via dex keeps the admin role and owns the seeded drive/team data).`);
   }
   finally {
     db.close();

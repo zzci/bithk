@@ -1,5 +1,5 @@
 [
-  { "key": "admin", "username": "seed-admin", "name": "Alice Admin", "email": "admin@seed.local", "role": "user" },
+  { "key": "admin", "username": "admin", "name": "Admin", "email": "admin@bit.hk", "role": "admin", "oauthSub": "CglkZXYtYWRtaW4SBWxvY2Fs" },
   { "key": "pm-mercer", "username": "seed-pm-mercer", "name": "Bob Mercer", "email": "bob.mercer@seed.local", "role": "user" },
   { "key": "pm-diaz", "username": "seed-pm-diaz", "name": "Carol Diaz", "email": "carol.diaz@seed.local", "role": "user" },
   { "key": "eng-lin", "username": "seed-eng-lin", "name": "David Lin", "email": "david.lin@seed.local", "role": "user" },
