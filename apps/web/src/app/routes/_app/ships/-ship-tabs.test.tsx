@@ -8,13 +8,13 @@ const SID = "s1";
 describe("ship tab registry", () => {
   it("exposes ship detail tabs in ascending order", () => {
     const tabs = visibleShipTabs({ ship, canManage: true });
-    expect(tabs.map(t => t.value)).toEqual(["projects", "overview", "profile", "equipment", "worklist", "files", "settings"]);
+    expect(tabs.map(t => t.value)).toEqual(["overview", "profile", "projects", "equipment", "worklist", "files", "settings"]);
     expect(tabs.map(t => t.order)).toEqual([...tabs.map(t => t.order)].sort((a, b) => a - b));
   });
 
   it("registers every reserved order slot", () => {
     const used = new Set(SHIP_TABS.map(t => t.order));
-    for (const slot of [5, 10, 20, 30, 40, 60, 70])
+    for (const slot of [10, 20, 30, 40, 50, 60, 70])
       expect(used.has(slot)).toBe(true);
   });
 

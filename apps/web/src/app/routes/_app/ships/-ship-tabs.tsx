@@ -12,11 +12,11 @@
 // plus a `$shipId.<seg>.{tsx,lazy.tsx}` pair.
 //
 // Reserved order slots (leave gaps so new tabs slot in cleanly):
-//    5  Projects   — promoted to the first trigger
 //   10  Overview   — index route (`/ships/$shipId`)
 //   20  Profile    — full read-only registry/spec fields
-//   30  Equipment
-//   40  Worklist
+//   30  Projects
+//   40  Equipment
+//   50  Worklist
 //   60  Files
 //   70  Settings
 //
@@ -46,9 +46,9 @@ export interface ShipTabDefinition {
 export const SHIP_TABS: readonly ShipTabDefinition[] = [
   { value: "overview", labelKey: "tabs.overview", order: 10 },
   { value: "profile", labelKey: "tabs.profile", order: 20 },
-  { value: "equipment", labelKey: "tabs.equipment", order: 30 },
-  { value: "worklist", labelKey: "tabs.worklist", order: 40 },
-  { value: "projects", labelKey: "tabs.projects", order: 5 },
+  { value: "equipment", labelKey: "tabs.equipment", order: 40 },
+  { value: "worklist", labelKey: "tabs.worklist", order: 50 },
+  { value: "projects", labelKey: "tabs.projects", order: 30 },
   { value: "files", labelKey: "tabs.files", order: 60 },
   { value: "settings", labelKey: "tabs.settings", order: 70 },
 ];
