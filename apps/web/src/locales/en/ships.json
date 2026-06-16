@@ -42,8 +42,11 @@
     "equipment": "Equipment",
     "worklist": "Checklists",
     "projects": "Projects",
-    "files": "Files",
-    "settings": "Settings"
+    "files": "Files"
+  },
+  "settings": {
+    "openButton": "Settings",
+    "dialogTitle": "Ship settings"
   },
   "detail": {
     "back": "Back to ships",

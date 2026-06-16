@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { ShipView } from "@/shared/lib/api/ships";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared/stores/auth";
 import { renderWithProviders } from "@/test/utils";
@@ -16,6 +17,7 @@ vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: unknown) => opts,
   useNavigate: () => navigateMock,
   useParams: () => ({ shipId: "s1" }),
+  useSearch: () => ({}),
   useLocation: () => ({ pathname: mockPathname.current }),
   Outlet: () => null,
 }));
@@ -95,17 +97,39 @@ describe("shipDetailLayout tab nav", () => {
     mockRoutes();
     renderWithProviders(<ShipDetailLayout />);
 
-    // All seven registry tabs render in the nav.
+    // All six registry tabs render in the nav (Settings is now a dialog, not a tab).
     expect(await screen.findByRole("tab", { name: /Overview/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Details/ })).toBeInTheDocument();
     const equipment = screen.getByRole("tab", { name: /Equipment/ });
     expect(screen.getByRole("tab", { name: /Checklists/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Projects/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Files/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Settings/ })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Settings/ })).not.toBeInTheDocument();
 
     // Pathname `/ships/s1/equipment` → the equipment trigger is the active one.
     expect(equipment).toHaveAttribute("data-active");
     expect(screen.getByRole("tab", { name: /Overview/ })).not.toHaveAttribute("data-active");
+  });
+});
+
+describe("shipDetailLayout settings dialog", () => {
+  it("opens the settings dialog from the header button and closes on Escape", async () => {
+    // App admin → the capability bypass grants `project.manage`, so `canManage`
+    // is true and the Settings button renders.
+    useAuthStore.setState({ user: { id: "u1", name: "Admin", role: "admin" } as never });
+    mockRoutes();
+    const user = userEvent.setup();
+    renderWithProviders(<ShipDetailLayout />);
+
+    const settingsButton = await screen.findByRole("button", { name: /Settings/ });
+    expect(settingsButton).toBeInTheDocument();
+
+    await user.click(settingsButton);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getAllByText("Equipment categories").length).toBeGreaterThan(0);
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(settingsButton).toHaveFocus();
   });
 });
