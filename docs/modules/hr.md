@@ -43,6 +43,14 @@ and create/edit dialogs. Data layers in `apps/web/src/shared/lib/api/hr.ts`,
 `hr-approvals.ts`, and `hr-payroll.ts`; sidebar entry in
 `apps/web/src/app/routes/_app/-hr.nav.ts`.
 
+FEAT-036 / UI-026 page additions: the colleague form gains a Salary section
+(标准月薪 + 币种); the Approvals page adds 申请时间 / 裁决时间 columns and a full
+reason + decision-note detail view (approve/reject hidden for non-admins); the
+Payroll page adds a colleague filter, a 发放时间 column, a per-currency net
+summary fed by `meta.totals`, thousands-separated money (the shared
+`formatMoney` helper in `shared/lib/format.ts`), and an admin-only 生成本月薪资
+one-click generate button (mark-paid and generate are hidden for non-admins).
+
 ## Database
 
 Three tables — see [`reference/database.md`](../reference/database.md#hr)
@@ -54,10 +62,13 @@ for fields:
   is deleted. Profile columns (all nullable): dates `birthday` / `hire_date`
   / `probation_end_date` / `contract_end_date`; enums `gender` /
   `employment_type`; text `nationality` / `personal_phone` /
-  `personal_email` / `address` / `work_location`; and two JSON columns —
-  `payment_info` (`[{label,value}]`) and `emergency_contacts`
+  `personal_email` / `address` / `work_location`; the standing salary
+  `salary_amount` (integer minor units) and `salary_currency` (3-letter code),
+  both nullable and consumed by the payroll generator below; and two JSON
+  columns — `payment_info` (`[{label,value}]`) and `emergency_contacts`
   (`[{name,relation,phone,email,address}]`). National-ID / passport numbers
-  are NOT stored as fields — they live as uploaded documents.
+  are NOT stored as fields — they live as uploaded documents. The salary
+  columns were added in migration `0002_dazzling_raza.sql` (FEAT-036).
 - Personal documents reuse the file module's generic `file_references`
   registry with `owner_type = 'hr_colleague_document'` and
   `owner_id = <hr_colleagues.id>` — no per-module attachment table; backups
@@ -83,8 +94,15 @@ contribution.
 Mounted under `protectedRoutes`. Access is owned by the group-based module
 visibility gate (PLAN-076, FEAT-032): `hr` is a registered module key, users
 in no `hr`-granting group get 404, and admins always bypass. In practice HR
-stays admin-only until an admin grants the `hr` module to a group. There is
-no per-route `adminRequired` here.
+stays admin-only until an admin grants the `hr` module to a group.
+
+Most routes carry no extra `adminRequired` — module access is enough. The
+**governance** actions are the exception (FEAT-036): deciding an approval
+(`POST /hr/approvals/:id/decision`), generating a month's payroll
+(`POST /hr/payroll/generate`), and marking a payroll record paid
+(`PATCH /hr/payroll/:id` with `status:"paid"`) each additionally require admin.
+A non-admin with the `hr` module retains read and non-governance edits but
+gets 403 on these.
 
 | Method | Path | Description |
 |---|---|---|
@@ -104,19 +122,20 @@ The user picker on the frontend uses the existing
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/hr/approvals` | Paginated list with optional `q` (matches title, applicant name/username), `status`, and `type` filters. Rows carry joined applicant display data and the decider name. |
+| GET | `/api/hr/approvals` | Paginated list, newest-first (`created_at` desc), with optional `q` (matches title, applicant name/username), `status`, and `type` filters. Rows carry joined applicant display data and the decider name. |
 | POST | `/api/hr/approvals` | Files a request for an existing **active** colleague (404 missing, 400 archived). |
 | PATCH | `/api/hr/approvals/:id` | Edits a **pending** request; decided records → 409 `APPROVAL_DECIDED`. |
-| POST | `/api/hr/approvals/:id/decision` | One-way decision: `{ status: approved \| rejected, note? }`. Stamps `decided_by` / `decided_at`; re-deciding → 409. |
+| POST | `/api/hr/approvals/:id/decision` | **Admin-only.** One-way decision: `{ status: approved \| rejected, note? }`. Stamps `decided_by` / `decided_at`; re-deciding → 409. |
 | DELETE | `/api/hr/approvals/:id` | Withdraws a **pending** request; decided records → 409. |
 
 ### Payroll
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/hr/payroll` | Paginated list with optional `colleagueId`, `period` (`YYYY-MM`), and `status` filters, newest period first. |
+| GET | `/api/hr/payroll` | Paginated list with optional `colleagueId`, `period` (`YYYY-MM`), and `status` filters, newest period first. `meta.totals` carries `[{ currency, net }]` — net summed over the **entire filtered set** (not just the page) for a per-currency summary. |
+| POST | `/api/hr/payroll/generate` | **Admin-only.** One-click monthly generation: body `{ period: "YYYY-MM" }`; for each **active** colleague with a salary set and no record for the period, inserts a `pending` record (`base = net = salaryAmount`, `bonus = deduction = 0`). Idempotent — already-present colleagues are skipped; returns `{ created, skipped }`; never marks anything paid. |
 | POST | `/api/hr/payroll` | Creates a record for an active colleague. Duplicate `(colleague, period)` → 409; net < 0 → 400 `NEGATIVE_NET`. |
-| PATCH | `/api/hr/payroll/:id` | Edits a **pending** record (net recomputed); `status: "paid"` marks it paid and stamps `paid_at`. Paid records → 409 `PAYROLL_PAID`; reverting to pending is rejected (422). |
+| PATCH | `/api/hr/payroll/:id` | Edits a **pending** record (net recomputed); `status: "paid"` marks it paid and stamps `paid_at` — **marking paid is admin-only** (403 otherwise), plain field edits stay module-gated. Paid records → 409 `PAYROLL_PAID`; reverting to pending is rejected (422). |
 | DELETE | `/api/hr/payroll/:id` | Deletes a **pending** record; paid records → 409. |
 
 ## Out of scope
