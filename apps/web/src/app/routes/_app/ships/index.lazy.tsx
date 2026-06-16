@@ -202,7 +202,7 @@ function ShipCard({ ship, onOpen }: { readonly ship: ShipView; readonly onOpen: 
         }
       }}
     >
-      <CoverImage src={ship.coverImageUrl} kind="ship" className="h-28 w-full" />
+      <CoverImage src={ship.coverImageUrl} kind="ship" enableLightbox className="h-28 w-full" />
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 space-y-1.5">

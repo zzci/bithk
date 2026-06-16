@@ -174,6 +174,34 @@ describe("shipsListPage", () => {
     await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
   });
 
+  it("opens the cover lightbox without navigating the card", async () => {
+    // A ship with a cover image opts the list card into the click-to-enlarge
+    // lightbox; clicking the cover must open the modal but not navigate.
+    const base = listPayload();
+    const withCover = {
+      ...base,
+      data: [{ ...base.data[0], coverImageUrl: "/api/files/cover.jpg" }],
+    };
+    fetchMock.mockImplementation((input) => {
+      if (String(input).includes("/tags"))
+        return Promise.resolve(jsonResponse({ success: true, data: [{ id: "tag-refit", name: "Refit" }] }));
+      return Promise.resolve(jsonResponse(withCover));
+    });
+    renderWithProviders(<ShipsListPage />);
+    await waitFor(() => expect(screen.getByText("Serenity")).toBeInTheDocument());
+
+    const card = screen.getByRole("button", { name: "Serenity" });
+    await userEvent.click(within(card).getByRole("button", { name: "View larger image" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("img")).toBeInTheDocument();
+    // stopPropagation keeps the card's onClick from firing.
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
   it("refetches with a status filter when a status chip is selected", async () => {
     fetchMock.mockImplementation(defaultFetch);
     renderWithProviders(<ShipsListPage />);

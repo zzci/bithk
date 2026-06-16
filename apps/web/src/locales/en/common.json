@@ -16,6 +16,10 @@
     "next": "Next",
     "create": "New",
     "close": "Close",
+    "coverImage": {
+      "viewLarger": "View larger image",
+      "preview": "Cover image"
+    },
     "resize": "Resize",
     "openActions": "Open actions",
     "toggleSidebar": "Toggle Sidebar",

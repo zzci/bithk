@@ -16,6 +16,10 @@
     "next": "下一页",
     "create": "新增",
     "close": "关闭",
+    "coverImage": {
+      "viewLarger": "查看大图",
+      "preview": "封面图片"
+    },
     "resize": "调整大小",
     "openActions": "打开操作菜单",
     "toggleSidebar": "切换侧边栏",
