@@ -1,28 +1,34 @@
 import { describe, expect, test } from "bun:test";
-import { buildSpec } from "./api-spec";
-import { collectApiRoutes } from "./lib/route-table";
+import { generateSpecs } from "hono-openapi";
+import { buildApiApp, collectApiRoutes } from "./lib/route-table";
 
-describe("api-spec coverage", () => {
-  test("is a valid OpenAPI 3.1 document with bearer security", () => {
-    const { doc } = buildSpec();
-    expect(doc.openapi).toBe("3.1.0");
-    const components = doc.components as { securitySchemes: { bearerAuth: { scheme: string } } };
-    expect(components.securitySchemes.bearerAuth.scheme).toBe("bearer");
+async function spec() {
+  return generateSpecs(buildApiApp(), {
+    documentation: { info: { title: "bithk API", version: "test" }, security: [{ bearerAuth: [] }] },
+    excludeMethods: ["OPTIONS", "HEAD"],
+  }) as Promise<{ openapi?: string; paths?: Record<string, Record<string, unknown>>; security?: unknown }>;
+}
+
+const KNOWN_ROUTES = new Set(
+  collectApiRoutes().map(r => `${r.method.toLowerCase()} ${r.path.replace(/:(\w+)/g, "{$1}")}`),
+);
+
+describe("api-spec generation", () => {
+  test("produces an OpenAPI 3.1 document with bearer security", async () => {
+    const doc = await spec();
+    expect(doc.openapi).toMatch(/^3\.1\./);
     expect(doc.security).toEqual([{ bearerAuth: [] }]);
   });
 
-  test("no curated operation references a non-existent route", () => {
-    const { stale } = buildSpec();
-    expect(stale).toEqual([]);
-  });
-
-  test("every mounted route has an operation (auto-stub guarantees 100% coverage)", () => {
-    const { doc, uncovered } = buildSpec();
-    expect(uncovered).toEqual([]);
-    const paths = doc.paths as Record<string, Record<string, unknown>>;
-    for (const r of collectApiRoutes()) {
-      const oaPath = r.path.replace(/:(\w+)/g, "{$1}");
-      expect(paths[oaPath]?.[r.method.toLowerCase()]).toBeTruthy();
+  test("every documented path+method maps to a real route (no stale describeRoute)", async () => {
+    const doc = await spec();
+    const unknown: string[] = [];
+    for (const [path, item] of Object.entries(doc.paths ?? {})) {
+      for (const method of Object.keys(item)) {
+        if (!KNOWN_ROUTES.has(`${method} ${path}`))
+          unknown.push(`${method.toUpperCase()} ${path}`);
+      }
     }
+    expect(unknown).toEqual([]);
   });
 });

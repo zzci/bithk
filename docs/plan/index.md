@@ -83,3 +83,4 @@
 | [PLAN-082](PLAN-082.md) | Realign lode upgrade integration with breaking lode spec | Completed | 2026-06-15 |
 | [PLAN-083](PLAN-083.md) | Backup CLI import/export + e2e round-trip | Completed | 2026-06-15 |
 | [PLAN-084](PLAN-084.md) | Personal Access Tokens + repo skill for AI-driven API access | Completed | 2026-06-16 |
+| [PLAN-085](PLAN-085.md) | Adopt hono-openapi for a code-derived OpenAPI spec | Implementing | 2026-06-16 |

@@ -8,7 +8,7 @@ import type {
   HrPayrollRow,
   HrPayrollStatus,
 } from "@/shared/lib/api/hr-payroll";
-import { Plus } from "lucide-react";
+import { CalendarPlus, Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -38,36 +38,52 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { Textarea } from "@/shared/components/ui/textarea";
 import { useHrColleagues } from "@/shared/lib/api/hr";
 import {
   HR_PAYROLL_CURRENCIES,
   HR_PAYROLL_STATUSES,
   useCreateHrPayrollRecord,
   useDeleteHrPayrollRecord,
+  useGeneratePayroll,
   useHrPayrollRecords,
   useUpdateHrPayrollRecord,
 } from "@/shared/lib/api/hr-payroll";
 import { errorMessage } from "@/shared/lib/errors";
+import { formatDateTime, formatMoney } from "@/shared/lib/format";
+import { useAuthStore } from "@/shared/stores/auth";
 
 const ALL = "__all__";
 
 export function HrPayrollPage() {
   const { t } = useTranslation("hr");
+  // Only admins may mark records paid or run the monthly generation; the
+  // backend 403s non-admins, so the UI hides those actions rather than
+  // letting them fail.
+  const isAdmin = useAuthStore(s => s.user?.role === "admin");
   const [periodFilter, setPeriodFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState(ALL);
+  const [colleagueFilter, setColleagueFilter] = useState(ALL);
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<HrPayrollRow | null>(null);
   const [payTarget, setPayTarget] = useState<HrPayrollRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<HrPayrollRow | null>(null);
 
+  // All colleagues (including disabled) so historical records stay filterable.
+  const colleaguesQuery = useHrColleagues({ limit: 100 });
+  const colleagues = colleaguesQuery.data?.data ?? [];
+
   const payrollQuery = useHrPayrollRecords({
     ...(periodFilter ? { period: periodFilter } : {}),
     ...(statusFilter !== ALL ? { status: statusFilter as HrPayrollStatus } : {}),
+    ...(colleagueFilter !== ALL ? { colleagueId: colleagueFilter } : {}),
     page,
   });
   const updateRecord = useUpdateHrPayrollRecord();
@@ -75,9 +91,10 @@ export function HrPayrollPage() {
 
   const rows = payrollQuery.data?.data ?? [];
   const meta = payrollQuery.data?.meta;
+  const totals = meta?.totals ?? [];
 
   const statusLabel = (status: HrPayrollStatus) => t(`payroll.status.${status}`);
-  const amount = (value: number, currency: string) => `${value} ${currency}`;
+  const amount = (value: number, currency: string) => `${formatMoney(value)} ${currency}`;
 
   return (
     <div className="space-y-4">
@@ -118,14 +135,51 @@ export function HrPayrollPage() {
           ]}
         />
 
+        <div className="w-56">
+          <Select
+            value={colleagueFilter}
+            onValueChange={(value) => {
+              if (value !== null) {
+                setColleagueFilter(value);
+                setPage(1);
+              }
+            }}
+          >
+            <SelectTrigger className="w-full" aria-label={t("payroll.filterColleague")}>
+              <SelectValue>
+                {(value: string) =>
+                  value === ALL
+                    ? t("payroll.allColleagues")
+                    : colleagues.find(c => c.id === value)?.user.name ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t("payroll.allColleagues")}</SelectItem>
+              {colleagues.map(c => (
+                <SelectItem key={c.id} value={c.id}>
+                  {`${c.user.name} (${c.user.username})`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <span className="text-sm text-muted-foreground">
           {t("payroll.totalCount", { count: meta?.total ?? 0 })}
         </span>
 
-        <Button className="ml-auto" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 size-4" />
-          {t("payroll.create")}
-        </Button>
+        <div className="ml-auto flex gap-2">
+          {isAdmin && (
+            <Button variant="outline" onClick={() => setGenerateOpen(true)}>
+              <CalendarPlus className="mr-1 size-4" />
+              {t("payroll.generate")}
+            </Button>
+          )}
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1 size-4" />
+            {t("payroll.create")}
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-md border">
@@ -139,6 +193,7 @@ export function HrPayrollPage() {
               <TableHead className="text-right">{t("payroll.col.deduction")}</TableHead>
               <TableHead className="text-right">{t("payroll.col.netAmount")}</TableHead>
               <TableHead>{t("payroll.col.status")}</TableHead>
+              <TableHead>{t("payroll.col.paidAt")}</TableHead>
               <TableHead>{t("payroll.col.actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -146,7 +201,7 @@ export function HrPayrollPage() {
             {payrollQuery.isLoading
               ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                       {t("common.loading")}
                     </TableCell>
                   </TableRow>
@@ -154,7 +209,7 @@ export function HrPayrollPage() {
               : rows.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                         {t("payroll.noResults")}
                       </TableCell>
                     </TableRow>
@@ -184,13 +239,18 @@ export function HrPayrollPage() {
                           {statusLabel(record.status)}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {record.paidAt ? formatDateTime(record.paidAt) : "—"}
+                      </TableCell>
                       <TableCell>
                         {record.status === "pending"
                           ? (
                               <div className="flex gap-1">
-                                <Button variant="ghost" onClick={() => setPayTarget(record)}>
-                                  {t("payroll.markPaid")}
-                                </Button>
+                                {isAdmin && (
+                                  <Button variant="ghost" onClick={() => setPayTarget(record)}>
+                                    {t("payroll.markPaid")}
+                                  </Button>
+                                )}
                                 <Button variant="ghost" onClick={() => setEditTarget(record)}>
                                   {t("common.edit")}
                                 </Button>
@@ -204,6 +264,21 @@ export function HrPayrollPage() {
                     </TableRow>
                   ))}
           </TableBody>
+          {totals.length > 0 && (
+            <TableFooter>
+              {totals.map(total => (
+                <TableRow key={total.currency}>
+                  <TableCell colSpan={5} className="text-right font-medium">
+                    {`${t("payroll.summaryLabel")} · ${total.currency}`}
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">
+                    {`${formatMoney(total.net)} ${total.currency}`}
+                  </TableCell>
+                  <TableCell colSpan={3} />
+                </TableRow>
+              ))}
+            </TableFooter>
+          )}
         </Table>
       </div>
 
@@ -228,6 +303,12 @@ export function HrPayrollPage() {
           mode="create"
           open
           onOpenChange={open => !open && setCreateOpen(false)}
+        />
+      )}
+      {isAdmin && generateOpen && (
+        <GeneratePayrollDialog
+          open
+          onOpenChange={open => !open && setGenerateOpen(false)}
         />
       )}
       {editTarget && (
@@ -479,7 +560,7 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
 
           <div className="space-y-1.5">
             <Label htmlFor="payroll-notes">{t("payroll.field.notes")}</Label>
-            <Input
+            <Textarea
               id="payroll-notes"
               maxLength={2000}
               value={notes}
@@ -493,6 +574,74 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
             </Button>
             <Button type="submit" disabled={pending || !valid}>
               {t("common.save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface GeneratePayrollDialogProps {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}
+
+// Admin-only one-click monthly generation. Picks a YYYY-MM month and POSTs it;
+// the backend creates a pending record for every active colleague with a
+// configured salary that lacks one for the period, then reports the counts.
+function GeneratePayrollDialog({ open, onOpenChange }: GeneratePayrollDialogProps) {
+  const { t } = useTranslation("hr");
+  const generate = useGeneratePayroll();
+  const [period, setPeriod] = useState("");
+
+  const close = () => onOpenChange(false);
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!period || generate.isPending)
+      return;
+    generate.mutate({ period }, {
+      onSuccess: (result) => {
+        toast.success(t("payroll.generateToast", {
+          created: result.created,
+          skipped: result.skipped,
+        }));
+        close();
+      },
+      onError: err => toast.error(errorMessage(err, t("common.error.operationFailed"))),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form onSubmit={submit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>{t("payroll.generateTitle")}</DialogTitle>
+            <DialogDescription>{t("payroll.generateDescription")}</DialogDescription>
+          </DialogHeader>
+
+          {generate.error && (
+            <ErrorBanner message={errorMessage(generate.error, t("common.error.operationFailed"))} />
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="payroll-generate-period">{t("payroll.generatePeriod")}</Label>
+            <Input
+              id="payroll-generate-period"
+              type="month"
+              value={period}
+              onChange={e => setPeriod(e.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={generate.isPending || !period}>
+              {t("payroll.generateSubmit")}
             </Button>
           </DialogFooter>
         </form>

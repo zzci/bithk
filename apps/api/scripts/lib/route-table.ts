@@ -34,11 +34,11 @@ export interface ApiRoute {
 const SKIP_METHODS = new Set(["ALL", "HEAD", "OPTIONS"]);
 
 /**
- * Every concrete API route (method + raw path), deduped and sorted. Wildcard
- * middleware mounts (`/*`) and non-routable methods are dropped. The `/api`
- * prefix is NOT included — callers add it where needed.
+ * A bare Hono app with every module's routes (and their `describeRoute` /
+ * `validator` OpenAPI metadata) mounted — no DB, no server. Used by
+ * `gen-api-spec.ts` (via `generateSpecs`) and `collectApiRoutes` below.
  */
-export function collectApiRoutes(): ApiRoute[] {
+export function buildApiApp(): Hono {
   const app = new Hono();
   app.route("/", systemRoutes());
   app.route("/", sharePublicRoutes());
@@ -62,8 +62,16 @@ export function collectApiRoutes(): ApiRoute[] {
   app.route("/", backupRoutes());
   app.route("/", cronRoutes());
   app.route("/", fileRoutes());
+  return app;
+}
 
-  const table = (app as unknown as { routes: ApiRoute[] }).routes;
+/**
+ * Every concrete API route (method + raw path), deduped and sorted. Wildcard
+ * middleware mounts (`/*`) and non-routable methods are dropped. The `/api`
+ * prefix is NOT included — callers add it where needed.
+ */
+export function collectApiRoutes(): ApiRoute[] {
+  const table = (buildApiApp() as unknown as { routes: ApiRoute[] }).routes;
   const seen = new Set<string>();
   const out: ApiRoute[] = [];
   for (const r of table) {
