@@ -18,7 +18,6 @@
 //   40  Equipment
 //   50  Worklist
 //   60  Files
-//   70  Settings
 //
 // Contract for new tabs:
 //   - `value`     stable id used for the Tabs value + React key; also the path
@@ -50,7 +49,6 @@ export const SHIP_TABS: readonly ShipTabDefinition[] = [
   { value: "worklist", labelKey: "tabs.worklist", order: 50 },
   { value: "projects", labelKey: "tabs.projects", order: 30 },
   { value: "files", labelKey: "tabs.files", order: 60 },
-  { value: "settings", labelKey: "tabs.settings", order: 70 },
 ];
 
 /** Registry entries visible for the given context, sorted by `order`. */
@@ -60,7 +58,7 @@ export function visibleShipTabs(ctx: ShipTabContext): readonly ShipTabDefinition
     .toSorted((a, b) => a.order - b.order);
 }
 
-export type ShipDetailTab = "overview" | "profile" | "equipment" | "worklist" | "projects" | "files" | "settings";
+export type ShipDetailTab = "overview" | "profile" | "equipment" | "worklist" | "projects" | "files";
 
 // TanStack `to` templates for each tab; `overview` is the ship index.
 export const SHIP_TAB_TO: Record<ShipDetailTab, string> = {
@@ -70,7 +68,6 @@ export const SHIP_TAB_TO: Record<ShipDetailTab, string> = {
   worklist: "/ships/$shipId/worklist",
   projects: "/ships/$shipId/projects",
   files: "/ships/$shipId/files",
-  settings: "/ships/$shipId/settings",
 };
 
 /**
@@ -92,7 +89,5 @@ export function activeShipTab(pathname: string, shipId: string): ShipDetailTab {
     return "projects";
   if (segment === "files")
     return "files";
-  if (segment === "settings")
-    return "settings";
   return "overview";
 }
