@@ -76,6 +76,8 @@ export interface HrColleagueRow {
   readonly personalEmail: string | null;
   readonly address: string | null;
   readonly workLocation: string | null;
+  readonly salaryAmount: number | null;
+  readonly salaryCurrency: string | null;
   readonly paymentInfo: readonly HrPaymentField[];
   readonly emergencyContacts: readonly HrEmergencyContact[];
   readonly createdAt: string;
@@ -163,6 +165,8 @@ export interface HrColleagueProfileInput {
   readonly personalEmail?: string;
   readonly address?: string;
   readonly workLocation?: string;
+  readonly salaryAmount?: number | null;
+  readonly salaryCurrency?: string | null;
   readonly paymentInfo?: readonly HrPaymentField[];
   readonly emergencyContacts?: readonly HrEmergencyContact[];
 }
