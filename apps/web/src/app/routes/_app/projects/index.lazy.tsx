@@ -226,7 +226,7 @@ function ProjectsGrid({
           size="sm"
           className="relative cursor-pointer transition-all hover:shadow-md hover:ring-foreground/20 focus-within:ring-2 focus-within:ring-ring"
         >
-          <CoverImage src={project.coverImageUrl} kind="project" seed={project.id} className="h-28 w-full" />
+          <CoverImage src={project.coverImageUrl} kind="project" seed={project.id} enableLightbox className="h-28 w-full" />
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
               {/* The title is the single navigable control; its ::after overlay
