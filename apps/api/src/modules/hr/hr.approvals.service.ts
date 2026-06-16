@@ -1,6 +1,6 @@
 import type { HrApprovalStatus, HrApprovalType } from "./schema";
 import type { AppDatabase } from "@/db";
-import { and, asc, count, eq, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
@@ -120,7 +120,7 @@ export async function listApprovals(db: AppDatabase, params: ListApprovalsParams
     .innerJoin(users, eq(hrColleagues.userId, users.id))
     .leftJoin(deciders, eq(hrApprovals.decidedBy, deciders.id))
     .where(where)
-    .orderBy(asc(hrApprovals.createdAt), asc(hrApprovals.id))
+    .orderBy(desc(hrApprovals.createdAt), desc(hrApprovals.id))
     .limit(limit)
     .offset(offset)
     .all();
