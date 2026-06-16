@@ -9,12 +9,15 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { releaseReferenceTx } from "@/modules/file";
+import { fileRoutes } from "@/modules/file/file.routes";
 import { __resetFilePermissionHooksForTests } from "@/modules/file/permission";
 import { fileReferences } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
+import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createShip, setShipCover } from "@/modules/ship/ship.service";
-import { projectCoverPermissionHook } from "./project.cover.permission";
+import { testConfig as harnessTestConfig, mountRoutes, sessionCookieFor } from "@/shared/test/route-harness";
+import { projectCoverPermissionHook, registerProjectCoverPermissionHook } from "./project.cover.permission";
 import { listRoles } from "./project.roles";
 import {
   addMember,
@@ -25,6 +28,9 @@ import {
   setProjectCover,
 } from "./project.service";
 import { projects } from "./schema";
+// Side-effect import: register the auth provider so the session cookie
+// resolves to an actor in the HTTP read test.
+import "@/modules/account";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -154,7 +160,7 @@ describe("project cover", () => {
     expect(await db.select().from(fileReferences).where(eq(fileReferences.id, refA)).get()).toBeTruthy();
   });
 
-  test("permission hook: members read, non-members do not", async () => {
+  test("permission hook: any authenticated user reads; delete stays manage-gated", async () => {
     const creator = await seedUser();
     const outsider = await seedUser("user");
     const project = await createProject(db, { name: "Dock", creatorId: creator });
@@ -165,8 +171,34 @@ describe("project cover", () => {
 
     expect(fresh?.coverReferenceId).toBeTruthy();
     expect(await projectCoverPermissionHook.canRead(db, { id: creator, role: "user" }, ref)).toBe(true);
-    expect(await projectCoverPermissionHook.canRead(db, { id: outsider, role: "user" }, ref)).toBe(false);
+    // A non-member authenticated user may now read the cover, but writes stay closed.
+    expect(await projectCoverPermissionHook.canRead(db, { id: outsider, role: "user" }, ref)).toBe(true);
     expect(await projectCoverPermissionHook.canDelete(db, { id: outsider, role: "user" }, ref)).toBe(false);
+  });
+
+  test("HTTP: a non-member authenticated user GETs the cover image (200)", async () => {
+    // The file content route resets the shared hook registry in this suite's
+    // beforeEach, so (re)register the cover hook before mounting the route.
+    loadNamespaces();
+    registerProjectCoverPermissionHook();
+
+    const creator = await seedUser("user");
+    const project = await createProject(db, { name: "Quay", creatorId: creator });
+    await setProjectCover(db, testConfig(), project.id, pngFile(), creator);
+
+    const fresh = await getProjectByShortId(db, project.shortId);
+    const refId = fresh!.coverReferenceId!;
+    const refRow = await db.select().from(fileReferences).where(eq(fileReferences.id, refId)).get();
+    const fileId = refRow!.fileId;
+
+    // A separately-seeded, authenticated user who is NOT a member of the project.
+    const outsider = await sessionCookieFor(db, "user");
+    const app = mountRoutes(db, [fileRoutes], harnessTestConfig({ FILE_PRESIGN_ENABLED: false }));
+    const res = await app.request(`/files/${fileId}/content?ref=${refId}`, {
+      headers: { Cookie: outsider.cookie },
+    });
+    // Local driver + presign disabled streams the bytes directly → 200.
+    expect(res.status).toBe(200);
   });
 
   test("non-member with no manage capability cannot delete; PM member can", async () => {
