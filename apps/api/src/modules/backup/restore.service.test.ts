@@ -12,7 +12,7 @@ import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/s
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
 import { streamJsonBackup } from "./export.service";
 import { __resetBackupRegistryForTests, registerBackupContribution } from "./registry";
-import { importJsonBackup, reconcileRestoredFiles, validateBackupData } from "./restore.service";
+import { assertIdShape, importJsonBackup, reconcileRestoredFiles, validateBackupData } from "./restore.service";
 
 // The restore service relies on the global backup registry. Each test
 // resets and re-registers exactly the contributions it needs so cases
@@ -327,5 +327,25 @@ describe("reconcileRestoredFiles — blobs are out of backup scope", () => {
   test("reconcileRestoredFiles is a safe no-op when there are no files rows", async () => {
     const r = await reconcileRestoredFiles(db);
     expect(r).toEqual({ checked: 0, quarantined: 0 });
+  });
+});
+
+describe("assertIdShape", () => {
+  test("accepts the safe id alphabet on id-like fields", () => {
+    expect(() => assertIdShape({ id: "k8ezp0tp", parentEntryId: "ujvbg8ex", owner_id: "seed-user-1" })).not.toThrow();
+  });
+
+  test("treats an empty-string id field as a no-reference sentinel (FIX-041)", () => {
+    // `drive_entries` root rows carry `parent_entry_id = ""`; a backup of them
+    // must import rather than be rejected as a bad id format.
+    expect(() => assertIdShape({ id: "9zo46dcg", parentEntryId: "" })).not.toThrow();
+  });
+
+  test("rejects an unsafe id format on an id-like field", () => {
+    expect(() => assertIdShape({ parentEntryId: "../etc/passwd" })).toThrow(/Invalid id format on field parentEntryId/);
+  });
+
+  test("ignores non-id fields and non-string values", () => {
+    expect(() => assertIdShape({ name: "a/b c", favorite: 0, id: null })).not.toThrow();
   });
 });

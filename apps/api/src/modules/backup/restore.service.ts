@@ -106,7 +106,9 @@ const RE_SAFE_ID = /^[\w-]{1,128}$/;
  */
 export function assertIdShape(row: Record<string, unknown>): void {
   for (const [k, v] of Object.entries(row)) {
-    if (v === null || v === undefined || typeof v !== "string")
+    // Empty string is a "no reference" sentinel (e.g. `drive_entries`'
+    // `parent_entry_id = ""` for root entries) — treat it like null/absent.
+    if (v === null || v === undefined || typeof v !== "string" || v === "")
       continue;
     if (k === "id" || k.endsWith("Id") || k.endsWith("_id")) {
       if (!RE_SAFE_ID.test(v))

@@ -107,6 +107,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Fixed
 
+- Backup import no longer rejects the empty-string id sentinel (FIX-041): the
+  import id-shape validator (`assertIdShape`) treated `""` on `*Id` fields as a
+  bad format, so any backup containing a root `drive_entries` row
+  (`parent_entry_id = ""`) failed with `Invalid id format on field
+  parentEntryId`. Empty strings are now treated as "no reference", restoring
+  full real-data round-trips. The CLI round-trip e2e gains a root drive entry to
+  lock the regression.
+
 - App display branding now loads from server runtime settings through
   `/api/system/branding`, seeded by `APP_DISPLAY_NAME`, so packaged installs
   can update the title and visible brand labels without rebuilding the web

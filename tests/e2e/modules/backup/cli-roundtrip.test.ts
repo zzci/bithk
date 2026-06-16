@@ -201,6 +201,24 @@ describe("backup CLI export → import round-trip", () => {
       api = null;
     }
 
+    // 2b. Seed a ROOT drive entry whose `parent_entry_id` is the empty-string
+    //     "no parent" sentinel. This locks FIX-041: the import id-shape
+    //     validator used to reject "" on `*Id` fields, so any backup with a
+    //     root drive entry failed to import. `created_by` FKs the seeded admin.
+    const srcDb = new Database(sourceDbPath());
+    try {
+      const adminId = (srcDb.query("SELECT id FROM users WHERE username = ?").get(USERNAME) as { id: string }).id;
+      const now = "2026-01-01T00:00:00.000Z";
+      srcDb.run(
+        "INSERT INTO drive_entries (id, owner_type, owner_id, parent_entry_id, entry_type, name, favorite, status, created_by, created_at, updated_at) "
+        + "VALUES ('e2erootfolder', 'user', ?, '', 'folder', 'E2E Root', 0, 'normal', ?, ?, ?)",
+        [adminId, adminId, now, now],
+      );
+    }
+    finally {
+      srcDb.close();
+    }
+
     // 3. EXPORT the full source DB to an archive.
     const exportRes = await runCli(["backup:export", archivePath()], cliEnv(sourceDbPath(), sourceDir));
     expect(exportRes.exitCode, `export failed:\n${exportRes.stdout}\n${exportRes.stderr}`).toBe(0);
@@ -227,6 +245,10 @@ describe("backup CLI export → import round-trip", () => {
       const settingsRow = db.query("SELECT count(*) AS c FROM settings").get() as { c: number };
       expect(userRow.c).toBeGreaterThan(0);
       expect(settingsRow.c).toBeGreaterThan(0);
+      // The root drive entry round-tripped with its empty-string sentinel intact (FIX-041).
+      const driveRow = db.query("SELECT parent_entry_id AS p FROM drive_entries WHERE id = 'e2erootfolder'").get() as { p: string } | null;
+      expect(driveRow, "root drive entry did not round-trip").not.toBeNull();
+      expect(driveRow!.p).toBe("");
     }
     finally {
       db.close();
