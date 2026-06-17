@@ -1,6 +1,7 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired } from "@/shared/middleware/auth";
 import {
   createApproval,
@@ -43,6 +44,46 @@ const decisionBodySchema = z.object({
   note: z.string().max(2000).optional(),
 });
 
+const idParamSchema = z.object({ id: z.string() });
+
+// Response data shape (mirrors the service view) for the generated spec.
+const approvalViewSchema = z.object({
+  id: z.string(),
+  colleagueId: z.string(),
+  type: z.enum(HR_APPROVAL_TYPES),
+  title: z.string(),
+  reason: z.string().nullable(),
+  status: z.enum(HR_APPROVAL_STATUSES),
+  decisionNote: z.string().nullable(),
+  decidedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  decidedByName: z.string().nullable(),
+  applicant: z.object({
+    name: z.string(),
+    username: z.string(),
+    isVirtual: z.boolean(),
+  }),
+});
+const pageMetaSchema = z.object({
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+  totalPages: z.number(),
+});
+
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+// `{ success:true, data }` response doc for `schema`.
+function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+// `{ success:true, data:[…], meta }` response doc for a paginated list.
+function paginatedJson(itemSchema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
+}
+// Withdraw returns a bare `{ success:true }` with no data payload.
+const okEmpty = { description: "Success", content: { "application/json": { schema: resolver(z.object({ success: z.literal(true) })) } } };
+
 // Auth: the parent `hrRoutes()` router applies `authRequired` to everything
 // mounted under it; access is owned by the protected router's module gate
 // (non-admins need the `hr` module on their global role, admins bypass).
@@ -51,60 +92,140 @@ export function hrApprovalsRoutes() {
 
   // ── /hr/approvals — approval request management ──
 
-  router.get("/hr/approvals", async (c) => {
-    const db = c.get("db");
-    const query = listQuerySchema.parse(c.req.query());
-    const result = await listApprovals(db, {
-      ...query.q ? { q: query.q } : {},
-      ...query.status ? { status: query.status } : {},
-      ...query.type ? { type: query.type } : {},
-      page: query.page,
-      limit: query.limit,
-    });
-    return c.json({
-      success: true,
-      data: result.data,
-      meta: {
-        total: result.total,
-        page: result.page,
-        limit: result.limit,
-        totalPages: result.totalPages,
+  router.get(
+    "/hr/approvals",
+    describeRoute({
+      tags: ["hr"],
+      summary: "List approval requests",
+      responses: {
+        200: paginatedJson(approvalViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
       },
-    });
-  });
+    }),
+    validator("query", listQuerySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const query = c.req.valid("query");
+      const result = await listApprovals(db, {
+        ...query.q ? { q: query.q } : {},
+        ...query.status ? { status: query.status } : {},
+        ...query.type ? { type: query.type } : {},
+        page: query.page,
+        limit: query.limit,
+      });
+      return c.json({
+        success: true,
+        data: result.data,
+        meta: {
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages,
+        },
+      });
+    },
+  );
 
-  router.post("/hr/approvals", async (c) => {
-    const db = c.get("db");
-    const body = createBodySchema.parse(await c.req.json());
-    const created = await createApproval(db, body);
-    return c.json({ success: true, data: created }, 201);
-  });
+  router.post(
+    "/hr/approvals",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Create an approval request",
+      responses: {
+        201: okJson(approvalViewSchema, "Created"),
+        400: { description: "Colleague not active", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("json", createBodySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const created = await createApproval(db, body);
+      return c.json({ success: true, data: created }, 201);
+    },
+  );
 
   // Only pending requests are editable; decided records return 409.
-  router.patch("/hr/approvals/:id", async (c) => {
-    const db = c.get("db");
-    const body = updateBodySchema.parse(await c.req.json());
-    const updated = await updateApproval(db, c.req.param("id"), body);
-    return c.json({ success: true, data: updated });
-  });
+  router.patch(
+    "/hr/approvals/:id",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Update a pending approval request",
+      responses: {
+        200: okJson(approvalViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        409: { description: "Already decided", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", updateBodySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const updated = await updateApproval(db, id, body);
+      return c.json({ success: true, data: updated });
+    },
+  );
 
-  router.post("/hr/approvals/:id/decision", adminRequired, async (c) => {
-    const db = c.get("db");
-    const body = decisionBodySchema.parse(await c.req.json());
-    const decided = await decideApproval(db, c.req.param("id"), {
-      status: body.status,
-      ...body.note !== undefined ? { note: body.note } : {},
-      deciderId: c.get("user").id,
-    });
-    return c.json({ success: true, data: decided });
-  });
+  // Deciding an approval is admin-only; the module gate already guards reads.
+  router.post(
+    "/hr/approvals/:id/decision",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Decide an approval request",
+      responses: {
+        200: okJson(approvalViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        409: { description: "Already decided", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", decisionBodySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const decided = await decideApproval(db, id, {
+        status: body.status,
+        ...body.note !== undefined ? { note: body.note } : {},
+        deciderId: c.get("user").id,
+      });
+      return c.json({ success: true, data: decided });
+    },
+  );
 
   // Withdraw a pending request; decided records are immutable history.
-  router.delete("/hr/approvals/:id", async (c) => {
-    const db = c.get("db");
-    await deleteApproval(db, c.req.param("id"));
-    return c.json({ success: true });
-  });
+  router.delete(
+    "/hr/approvals/:id",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Withdraw a pending approval request",
+      responses: {
+        200: okEmpty,
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        409: { description: "Already decided", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      await deleteApproval(db, id);
+      return c.json({ success: true });
+    },
+  );
 
   return router;
 }
