@@ -5,6 +5,7 @@ import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   composeContactCategory,
@@ -17,7 +18,7 @@ import {
 import * as contactService from "./contact.service";
 import { CONTACT_KINDS, CONTACT_SENSITIVITIES, CONTACT_STATUSES, CONTACT_VISIBILITIES } from "./schema";
 
-const idSchema = z.string().min(1);
+const idParamSchema = z.object({ id: z.string().min(1) });
 
 // Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
 // Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
@@ -140,6 +141,62 @@ const grantTargetSchema = z.object({
   message: "Provide exactly one of userId or groupId",
 });
 
+// ─── Response doc schemas (mirror the service view shapes) ──────────
+const contactCategoryViewSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  code: z.string().nullable(),
+  description: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const contactTagViewSchema = z.object({ id: z.string(), name: z.string() });
+
+const contactOrganizationSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  website: z.string().nullable(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  address: z.string().nullable(),
+  taxId: z.string().nullable(),
+});
+
+const contactViewSchema = z.object({
+  id: z.string(),
+  kind: z.enum(CONTACT_KINDS),
+  ownerId: z.string(),
+  name: z.string(),
+  phone: z.string().nullable(),
+  email: z.string().nullable(),
+  website: z.string().nullable(),
+  position: z.string().nullable(),
+  organizationId: z.string().nullable(),
+  organizationName: z.string().nullable(),
+  organization: contactOrganizationSummarySchema.nullable(),
+  taxId: z.string().nullable(),
+  address: z.string().nullable(),
+  note: z.string().nullable(),
+  attributes: z.record(z.string(), z.string()).nullable(),
+  avatarReferenceId: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
+  categoryId: z.string().nullable(),
+  status: z.enum(CONTACT_STATUSES).nullable(),
+  visibility: z.enum(CONTACT_VISIBILITIES),
+  confidential: z.boolean(),
+  tags: z.array(contactTagViewSchema),
+  canManage: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+// `{ success:true, data }` response doc for `schema`.
+function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+
 function actorOf(c: Context<ProtectedEnv>) {
   const user = c.get("user");
   return { id: user.id, role: user.role };
@@ -166,249 +223,451 @@ export function contactRoutes() {
 
   // ─── Global contact categories (admin only) ────────────────────────
   // A standalone, admin-maintained vocabulary referenced by `contacts.category_id`.
-  router.get("/contact-categories", adminRequired, async (c) => {
-    const db = c.get("db");
-    return c.json({ success: true, data: (await listContactCategories(db)).map(composeContactCategory) });
-  });
+  router.get(
+    "/contact-categories",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "List contact categories",
+      responses: {
+        200: okJson(z.array(contactCategoryViewSchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+      },
+    }),
+    adminRequired,
+    async (c) => {
+      const db = c.get("db");
+      return c.json({ success: true, data: (await listContactCategories(db)).map(composeContactCategory) });
+    },
+  );
 
-  router.post("/contact-categories", adminRequired, async (c) => {
-    const user = c.get("user");
-    const db = c.get("db");
-    const body = createContactCategorySchema.parse(await c.req.json());
-    const category = await createContactCategory(db, body);
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact_category.created",
-      resourceType: "contact_category",
-      resourceId: category.id,
-      resourceName: category.name,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: composeContactCategory(category) }, 201);
-  });
+  router.post(
+    "/contact-categories",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Create a contact category",
+      responses: {
+        201: okJson(contactCategoryViewSchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("json", createContactCategorySchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const category = await createContactCategory(db, body);
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact_category.created",
+        resourceType: "contact_category",
+        resourceId: category.id,
+        resourceName: category.name,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: composeContactCategory(category) }, 201);
+    },
+  );
 
-  router.patch("/contact-categories/:id", adminRequired, async (c) => {
-    const user = c.get("user");
-    const db = c.get("db");
-    const id = idSchema.parse(c.req.param("id"));
-    const body = updateContactCategorySchema.parse(await c.req.json());
-    const category = await updateContactCategory(db, id, body);
-    if (!category)
-      throw new NotFoundError("Contact category", id);
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact_category.updated",
-      resourceType: "contact_category",
-      resourceId: category.id,
-      resourceName: category.name,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: composeContactCategory(category) });
-  });
+  router.patch(
+    "/contact-categories/:id",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Update a contact category",
+      responses: {
+        200: okJson(contactCategoryViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", updateContactCategorySchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const category = await updateContactCategory(db, id, body);
+      if (!category)
+        throw new NotFoundError("Contact category", id);
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact_category.updated",
+        resourceType: "contact_category",
+        resourceId: category.id,
+        resourceName: category.name,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: composeContactCategory(category) });
+    },
+  );
 
-  router.delete("/contact-categories/:id", adminRequired, async (c) => {
-    const user = c.get("user");
-    const db = c.get("db");
-    const id = idSchema.parse(c.req.param("id"));
-    const category = await resolveContactCategory(db, id);
-    if (!category || !await deleteContactCategory(db, id))
-      throw new NotFoundError("Contact category", id);
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact_category.deleted",
-      resourceType: "contact_category",
-      resourceId: category.id,
-      resourceName: category.name,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: null });
-  });
+  router.delete(
+    "/contact-categories/:id",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Delete a contact category",
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const category = await resolveContactCategory(db, id);
+      if (!category || !await deleteContactCategory(db, id))
+        throw new NotFoundError("Contact category", id);
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact_category.deleted",
+        resourceType: "contact_category",
+        resourceId: category.id,
+        resourceName: category.name,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: null });
+    },
+  );
 
-  router.get("/contacts", async (c) => {
-    const tagIds = parseTagIds(c.req.queries("tagIds"));
-    const categoryId = c.req.query("categoryId")?.trim() || undefined;
-    const qRaw = c.req.query("q")?.trim();
-    const q = qRaw || undefined;
-    const statusRaw = c.req.query("status");
-    const status = statusRaw && (CONTACT_STATUSES as readonly string[]).includes(statusRaw)
-      ? statusRaw as (typeof CONTACT_STATUSES)[number]
-      : undefined;
-    const kindRaw = c.req.query("kind");
-    const kind = kindRaw && (CONTACT_KINDS as readonly string[]).includes(kindRaw)
-      ? kindRaw as (typeof CONTACT_KINDS)[number]
-      : undefined;
-    const sensitivityRaw = c.req.query("sensitivity");
-    const sensitivity = sensitivityRaw && (CONTACT_SENSITIVITIES as readonly string[]).includes(sensitivityRaw)
-      ? sensitivityRaw as (typeof CONTACT_SENSITIVITIES)[number]
-      : undefined;
-    const pageRaw = c.req.query("page");
-    const paginate = pageRaw !== undefined;
-    const page = paginate ? Math.max(1, Math.floor(Number.parseInt(pageRaw, 10)) || 1) : undefined;
-    const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
+  router.get(
+    "/contacts",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "List contacts",
+      parameters: [
+        { name: "tagIds", in: "query", required: false, description: "Repeatable or comma-separated tag ids (max 50)", schema: { type: "string" } },
+        { name: "categoryId", in: "query", required: false, schema: { type: "string" } },
+        { name: "q", in: "query", required: false, description: "Free-text search over name/contact fields", schema: { type: "string" } },
+        { name: "status", in: "query", required: false, schema: { type: "string", enum: [...CONTACT_STATUSES] } },
+        { name: "kind", in: "query", required: false, schema: { type: "string", enum: [...CONTACT_KINDS] } },
+        { name: "sensitivity", in: "query", required: false, schema: { type: "string", enum: [...CONTACT_SENSITIVITIES] } },
+        { name: "page", in: "query", required: false, description: "1-based page; enables pagination when present", schema: { type: "integer", minimum: 1 } },
+        { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+      ],
+      responses: {
+        200: {
+          description: "Contacts page",
+          content: { "application/json": { schema: resolver(z.object({
+            success: z.literal(true),
+            data: z.array(contactViewSchema),
+            meta: z.object({ total: z.number(), page: z.number(), limit: z.number() }),
+          })) } },
+        },
+        401: { description: "Unauthenticated", ...errorJson },
+      },
+    }),
+    async (c) => {
+      const tagIds = parseTagIds(c.req.queries("tagIds"));
+      const categoryId = c.req.query("categoryId")?.trim() || undefined;
+      const qRaw = c.req.query("q")?.trim();
+      const q = qRaw || undefined;
+      const statusRaw = c.req.query("status");
+      const status = statusRaw && (CONTACT_STATUSES as readonly string[]).includes(statusRaw)
+        ? statusRaw as (typeof CONTACT_STATUSES)[number]
+        : undefined;
+      const kindRaw = c.req.query("kind");
+      const kind = kindRaw && (CONTACT_KINDS as readonly string[]).includes(kindRaw)
+        ? kindRaw as (typeof CONTACT_KINDS)[number]
+        : undefined;
+      const sensitivityRaw = c.req.query("sensitivity");
+      const sensitivity = sensitivityRaw && (CONTACT_SENSITIVITIES as readonly string[]).includes(sensitivityRaw)
+        ? sensitivityRaw as (typeof CONTACT_SENSITIVITIES)[number]
+        : undefined;
+      const pageRaw = c.req.query("page");
+      const paginate = pageRaw !== undefined;
+      const page = paginate ? Math.max(1, Math.floor(Number.parseInt(pageRaw, 10)) || 1) : undefined;
+      const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
 
-    const result = await contactService.list(c.get("db"), actorOf(c), {
-      ...(kind ? { kind } : {}),
-      ...(tagIds.length > 0 ? { tagIds } : {}),
-      ...(categoryId ? { categoryId } : {}),
-      q,
-      status,
-      sensitivity,
-      ...(paginate ? { page, limit } : {}),
-    });
-    return c.json({
-      success: true,
-      data: result.data,
-      meta: paginate
-        ? { total: result.total, page: page!, limit }
-        : { total: result.total, page: 1, limit: result.total },
-    });
-  });
+      const result = await contactService.list(c.get("db"), actorOf(c), {
+        ...(kind ? { kind } : {}),
+        ...(tagIds.length > 0 ? { tagIds } : {}),
+        ...(categoryId ? { categoryId } : {}),
+        q,
+        status,
+        sensitivity,
+        ...(paginate ? { page, limit } : {}),
+      });
+      return c.json({
+        success: true,
+        data: result.data,
+        meta: paginate
+          ? { total: result.total, page: page!, limit }
+          : { total: result.total, page: 1, limit: result.total },
+      });
+    },
+  );
 
-  router.post("/contacts", async (c) => {
-    const user = c.get("user");
-    const body = contactBodySchema.parse(await c.req.json());
-    const data = await contactService.create(c.get("db"), actorOf(c), body);
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact.created",
-      resourceType: "contact",
-      resourceId: data.id,
-      resourceName: data.name,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data }, 201);
-  });
+  router.post(
+    "/contacts",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Create a contact",
+      responses: {
+        201: okJson(contactViewSchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("json", contactBodySchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const body = c.req.valid("json");
+      const data = await contactService.create(c.get("db"), actorOf(c), body);
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact.created",
+        resourceType: "contact",
+        resourceId: data.id,
+        resourceName: data.name,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data }, 201);
+    },
+  );
 
-  router.get("/contacts/:id", async (c) => {
-    const id = idSchema.parse(c.req.param("id"));
-    const data = await contactService.get(c.get("db"), actorOf(c), id);
-    return c.json({ success: true, data });
-  });
+  router.get(
+    "/contacts/:id",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Get a contact",
+      responses: {
+        200: okJson(contactViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      const data = await contactService.get(c.get("db"), actorOf(c), id);
+      return c.json({ success: true, data });
+    },
+  );
 
-  router.patch("/contacts/:id", async (c) => {
-    const user = c.get("user");
-    const id = idSchema.parse(c.req.param("id"));
-    const body = updateBodySchema.parse(await c.req.json());
-    const data = await contactService.update(c.get("db"), actorOf(c), id, body);
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact.updated",
-      resourceType: "contact",
-      resourceId: data.id,
-      resourceName: data.name,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data });
-  });
+  router.patch(
+    "/contacts/:id",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Update a contact",
+      responses: {
+        200: okJson(contactViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", updateBodySchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const data = await contactService.update(c.get("db"), actorOf(c), id, body);
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact.updated",
+        resourceType: "contact",
+        resourceId: data.id,
+        resourceName: data.name,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data });
+    },
+  );
 
-  router.delete("/contacts/:id", async (c) => {
-    const user = c.get("user");
-    const id = idSchema.parse(c.req.param("id"));
-    await contactService.delete(c.get("db"), actorOf(c), id, c.get("config"));
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact.deleted",
-      resourceType: "contact",
-      resourceId: id,
-      resourceName: id,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: { id } });
-  });
+  router.delete(
+    "/contacts/:id",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Delete a contact",
+      responses: {
+        200: okJson(z.object({ id: z.string() })),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const { id } = c.req.valid("param");
+      await contactService.delete(c.get("db"), actorOf(c), id, c.get("config"));
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact.deleted",
+        resourceType: "contact",
+        resourceId: id,
+        resourceName: id,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: { id } });
+    },
+  );
 
   // POST /contacts/:id/avatar — set / replace the avatar/logo (contact update).
-  router.post("/contacts/:id/avatar", async (c) => {
-    const user = c.get("user");
-    const id = idSchema.parse(c.req.param("id"));
+  router.post(
+    "/contacts/:id/avatar",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Set a contact avatar/logo",
+      requestBody: {
+        content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] } } },
+      },
+      responses: {
+        200: okJson(contactViewSchema),
+        400: { description: "No file provided", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const { id } = c.req.valid("param");
 
-    const formData = await c.req.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File))
-      throw new AppError("No file provided", 400, "VALIDATION_ERROR");
+      const formData = await c.req.formData();
+      const file = formData.get("file");
+      if (!(file instanceof File))
+        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
 
-    const data = await contactService.setAvatar(c.get("db"), actorOf(c), id, file, c.get("config"));
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact.avatar_set",
-      resourceType: "contact",
-      resourceId: id,
-      resourceName: data.name,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data });
-  });
+      const data = await contactService.setAvatar(c.get("db"), actorOf(c), id, file, c.get("config"));
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact.avatar_set",
+        resourceType: "contact",
+        resourceId: id,
+        resourceName: data.name,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data });
+    },
+  );
 
   // DELETE /contacts/:id/avatar — remove the avatar/logo (contact update).
-  router.delete("/contacts/:id/avatar", async (c) => {
-    const user = c.get("user");
-    const id = idSchema.parse(c.req.param("id"));
-    const data = await contactService.removeAvatar(c.get("db"), actorOf(c), id, c.get("config"));
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact.avatar_removed",
-      resourceType: "contact",
-      resourceId: id,
-      resourceName: data.name,
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data });
-  });
+  router.delete(
+    "/contacts/:id/avatar",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Remove a contact avatar/logo",
+      responses: {
+        200: okJson(contactViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const { id } = c.req.valid("param");
+      const data = await contactService.removeAvatar(c.get("db"), actorOf(c), id, c.get("config"));
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact.avatar_removed",
+        resourceType: "contact",
+        resourceId: id,
+        resourceName: data.name,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data });
+    },
+  );
 
-  router.post("/contacts/:id/grant", async (c) => {
-    const user = c.get("user");
-    const id = idSchema.parse(c.req.param("id"));
-    const body = grantTargetSchema.parse(await c.req.json());
-    const target = grantTarget(body);
-    await contactService.grant(c.get("db"), actorOf(c), id, target);
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact.access_granted",
-      resourceType: "contact",
-      resourceId: id,
-      resourceName: id,
-      detail: { type: target.type, id: target.id },
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: { id, target } });
-  });
+  router.post(
+    "/contacts/:id/grant",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Grant contact access to a user or group",
+      responses: {
+        200: okJson(z.object({ id: z.string(), target: z.object({ type: z.enum(["user", "group"]), id: z.string() }) })),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", grantTargetSchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const target = grantTarget(body);
+      await contactService.grant(c.get("db"), actorOf(c), id, target);
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact.access_granted",
+        resourceType: "contact",
+        resourceId: id,
+        resourceName: id,
+        detail: { type: target.type, id: target.id },
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: { id, target } });
+    },
+  );
 
-  router.post("/contacts/:id/revoke", async (c) => {
-    const user = c.get("user");
-    const id = idSchema.parse(c.req.param("id"));
-    const body = grantTargetSchema.parse(await c.req.json());
-    const target = grantTarget(body);
-    const revoked = await contactService.revoke(c.get("db"), actorOf(c), id, target);
-    await audit(c.get("db"), c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "contact.access_revoked",
-      resourceType: "contact",
-      resourceId: id,
-      resourceName: id,
-      detail: { ...target, revoked },
-      ...auditMeta(c),
-      result: "success",
-    });
-    return c.json({ success: true, data: { id, target, revoked } });
-  });
+  router.post(
+    "/contacts/:id/revoke",
+    describeRoute({
+      tags: ["contacts"],
+      summary: "Revoke contact access from a user or group",
+      responses: {
+        200: okJson(z.object({ id: z.string(), target: z.object({ type: z.enum(["user", "group"]), id: z.string() }), revoked: z.boolean() })),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", grantTargetSchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const target = grantTarget(body);
+      const revoked = await contactService.revoke(c.get("db"), actorOf(c), id, target);
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "contact.access_revoked",
+        resourceType: "contact",
+        resourceId: id,
+        resourceName: id,
+        detail: { ...target, revoked },
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: { id, target, revoked } });
+    },
+  );
 
   return router;
 }
