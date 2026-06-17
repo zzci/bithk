@@ -2,6 +2,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { NotFoundError } from "@/shared/lib/errors";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { getAuditEventById, listAuditEvents } from "./audit.service";
 
@@ -33,47 +34,108 @@ const auditQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
+const idParamSchema = z.object({ id: z.string() });
+
+// Mirrors a persisted `audit_events` row (camelCase drizzle select keys).
+const auditEventSchema = z.object({
+  id: z.string(),
+  actorId: z.string(),
+  actorName: z.string(),
+  action: z.string(),
+  resourceType: z.string(),
+  resourceId: z.string(),
+  resourceName: z.string(),
+  detail: z.string().nullable(),
+  ip: z.string(),
+  userAgent: z.string(),
+  result: z.enum(["success", "failure"]),
+  createdAt: z.string(),
+});
+
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+// `{ success:true, data }` response doc for `schema`.
+function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+
 export function auditRoutes() {
   const router = new Hono<ProtectedEnv>();
 
   router.use("*", authRequired);
 
-  router.get("/audit", adminRequired, async (c) => {
-    const db = c.get("db");
-    const q = auditQuerySchema.parse(c.req.query());
+  router.get(
+    "/audit",
+    describeRoute({
+      tags: ["infra2"],
+      summary: "List audit events with filters and pagination",
+      responses: {
+        200: {
+          description: "Success",
+          content: { "application/json": { schema: resolver(z.object({
+            success: z.literal(true),
+            data: z.array(auditEventSchema),
+            meta: z.object({ total: z.number(), page: z.number(), limit: z.number() }),
+          })) } },
+        },
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("query", auditQuerySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const q = c.req.valid("query");
 
-    const { data, total } = await listAuditEvents(db, {
-      actorId: q.actor_id,
-      action: q.action,
-      resourceType: q.resource_type,
-      resourceId: q.resource_id,
-      result: q.result,
-      from: q.from,
-      to: normaliseToBoundary(q.to),
-      page: q.page,
-      limit: q.limit,
-    });
-
-    return c.json({
-      success: true,
-      data,
-      meta: {
-        total,
+      const { data, total } = await listAuditEvents(db, {
+        actorId: q.actor_id,
+        action: q.action,
+        resourceType: q.resource_type,
+        resourceId: q.resource_id,
+        result: q.result,
+        from: q.from,
+        to: normaliseToBoundary(q.to),
         page: q.page,
         limit: q.limit,
-      },
-    });
-  });
+      });
 
-  router.get("/audit/:id", adminRequired, async (c) => {
-    const db = c.get("db");
-    const id = c.req.param("id");
-    const event = await getAuditEventById(db, id);
-    if (!event) {
-      throw new NotFoundError("Audit event", id);
-    }
-    return c.json({ success: true, data: event });
-  });
+      return c.json({
+        success: true,
+        data,
+        meta: {
+          total,
+          page: q.page,
+          limit: q.limit,
+        },
+      });
+    },
+  );
+
+  router.get(
+    "/audit/:id",
+    describeRoute({
+      tags: ["infra2"],
+      summary: "Get a single audit event by id",
+      responses: {
+        200: okJson(auditEventSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("param", idParamSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const { id } = c.req.valid("param");
+      const event = await getAuditEventById(db, id);
+      if (!event) {
+        throw new NotFoundError("Audit event", id);
+      }
+      return c.json({ success: true, data: event });
+    },
+  );
 
   return router;
 }

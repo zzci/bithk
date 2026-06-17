@@ -5,11 +5,16 @@ import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { buildContentDisposition } from "@/shared/lib/content-disposition";
 import { AppError } from "@/shared/lib/errors";
+import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { serviceTokenRequired } from "@/shared/middleware/service-token";
 import { streamJsonBackup } from "./export.service";
 import { getDataModules, getModuleNames } from "./registry";
 import { redactSecretFields } from "./secret-fields";
+
+const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+const jsonBackupDownload = { description: "Streaming JSON backup", content: { "application/json": {} } };
+const exportBodySchema = z.object({ modules: z.array(z.string()).min(1) });
 
 // Per-token in-flight semaphore + minimum-interval gate. A leaked
 // backup token must not double as a DOS lever: each token can have
@@ -71,210 +76,254 @@ export function backupExportRoutes() {
   // REMAINING: binding the allowed module scope to the token itself (so the
   // sidecar token cannot request modules it was never granted) needs a config
   // schema change (per-token scope storage) and is out of this lane.
-  router.post("/backup/export-via-token", serviceTokenRequired("backup"), async (c) => {
-    const db = c.get("db");
-    const config = c.get("config");
+  router.post(
+    "/backup/export-via-token",
+    describeRoute({
+      tags: ["infra2"],
+      summary: "Service-token redacted backup export (streaming JSON)",
+      requestBody: { content: { "application/json": { schema: { type: "object", properties: { modules: { type: "array", items: { type: "string" } } }, required: ["modules"] } } } },
+      responses: {
+        200: jsonBackupDownload,
+        400: { description: "Unknown modules", ...errorJson },
+        401: { description: "Missing/invalid service token", ...errorJson },
+        403: { description: "Module scope required", ...errorJson },
+        429: { description: "Export throttled / already in progress", ...errorJson },
+      },
+    }),
+    serviceTokenRequired("backup"),
+    async (c) => {
+      const db = c.get("db");
+      const config = c.get("config");
 
-    const authz = c.req.header("authorization") ?? "";
-    const token = authz.startsWith("Bearer ") ? authz.slice(7) : "";
-    const bucket = tokenBucketKey(token);
+      const authz = c.req.header("authorization") ?? "";
+      const token = authz.startsWith("Bearer ") ? authz.slice(7) : "";
+      const bucket = tokenBucketKey(token);
 
-    // Scope enforcement — FAIL CLOSED. The caller must name the modules to
-    // export; a missing/empty/invalid-JSON body is treated as "no scope" and
-    // rejected so a token can never trigger a blanket full-DB dump.
-    let requestedModules: string[] | undefined;
-    try {
-      const parsed = z.object({ modules: z.array(z.string()).min(1) }).safeParse(await c.req.json());
-      if (parsed.success)
-        requestedModules = parsed.data.modules;
-    }
-    catch {
+      // Scope enforcement — FAIL CLOSED. The caller must name the modules to
+      // export; a missing/empty/invalid-JSON body is treated as "no scope" and
+      // rejected so a token can never trigger a blanket full-DB dump.
+      let requestedModules: string[] | undefined;
+      try {
+        const parsed = z.object({ modules: z.array(z.string()).min(1) }).safeParse(await c.req.json());
+        if (parsed.success)
+          requestedModules = parsed.data.modules;
+      }
+      catch {
       // No body / non-JSON body → unscoped.
-    }
-    if (!requestedModules) {
-      await audit(db, c.get("logger"), {
-        actorId: "system",
-        actorName: "system:backup-sidecar",
-        action: "backup.export",
-        resourceType: "system",
-        resourceId: "database",
-        resourceName: "database-backup-export",
-        detail: { reason: "unscoped" },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "service-token",
-        result: "failure",
-      });
-      return c.json({ success: false, error: { code: "SCOPE_REQUIRED", message: "A non-empty module scope is required for token export." } }, 403);
-    }
+      }
+      if (!requestedModules) {
+        await audit(db, c.get("logger"), {
+          actorId: "system",
+          actorName: "system:backup-sidecar",
+          action: "backup.export",
+          resourceType: "system",
+          resourceId: "database",
+          resourceName: "database-backup-export",
+          detail: { reason: "unscoped" },
+          ip: getClientIp(c),
+          userAgent: c.req.header("user-agent") ?? "service-token",
+          result: "failure",
+        });
+        return c.json({ success: false, error: { code: "SCOPE_REQUIRED", message: "A non-empty module scope is required for token export." } }, 403);
+      }
 
-    const known = new Set(getModuleNames());
-    const invalidModules = requestedModules.filter(m => !known.has(m));
-    if (invalidModules.length > 0) {
-      return c.json({ success: false, error: { code: "INVALID_MODULES", message: `Unknown modules: ${invalidModules.join(", ")}` } }, 400);
-    }
+      const known = new Set(getModuleNames());
+      const invalidModules = requestedModules.filter(m => !known.has(m));
+      if (invalidModules.length > 0) {
+        return c.json({ success: false, error: { code: "INVALID_MODULES", message: `Unknown modules: ${invalidModules.join(", ")}` } }, 400);
+      }
 
-    // Already streaming for this token → reject loudly so a misbehaving
-    // sidecar cannot run 10 exports in parallel and pin the WAL.
-    if (backupExportInFlight.has(bucket)) {
-      c.header("Retry-After", "60");
-      await audit(db, c.get("logger"), {
-        actorId: "system",
-        actorName: "system:backup-sidecar",
-        action: "backup.export",
-        resourceType: "system",
-        resourceId: "database",
-        resourceName: "database-backup-export",
-        detail: { reason: "in-flight" },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "service-token",
-        result: "failure",
-      });
-      return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Another export is in progress for this token." } }, 429);
-    }
+      // Already streaming for this token → reject loudly so a misbehaving
+      // sidecar cannot run 10 exports in parallel and pin the WAL.
+      if (backupExportInFlight.has(bucket)) {
+        c.header("Retry-After", "60");
+        await audit(db, c.get("logger"), {
+          actorId: "system",
+          actorName: "system:backup-sidecar",
+          action: "backup.export",
+          resourceType: "system",
+          resourceId: "database",
+          resourceName: "database-backup-export",
+          detail: { reason: "in-flight" },
+          ip: getClientIp(c),
+          userAgent: c.req.header("user-agent") ?? "service-token",
+          result: "failure",
+        });
+        return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Another export is in progress for this token." } }, 429);
+      }
 
-    // Min-interval gate. Counted from the moment the previous export
-    // returned a response — leaves the WAL room to be reclaimed.
-    const minIntervalMs = config.BACKUP_EXPORT_MIN_INTERVAL_SECONDS * 1000;
-    if (minIntervalMs > 0) {
-      const last = backupExportLastSuccess.get(bucket);
-      if (last !== undefined) {
-        const elapsed = Date.now() - last;
-        if (elapsed < minIntervalMs) {
-          const retryAfter = Math.ceil((minIntervalMs - elapsed) / 1000);
-          c.header("Retry-After", String(retryAfter));
-          await audit(db, c.get("logger"), {
-            actorId: "system",
-            actorName: "system:backup-sidecar",
-            action: "backup.export",
-            resourceType: "system",
-            resourceId: "database",
-            resourceName: "database-backup-export",
-            detail: { reason: "min-interval", retryAfter },
-            ip: getClientIp(c),
-            userAgent: c.req.header("user-agent") ?? "service-token",
-            result: "failure",
-          });
-          return c.json({ success: false, error: { code: "RATE_LIMITED", message: `Backup export throttled. Retry after ${retryAfter}s.` } }, 429);
+      // Min-interval gate. Counted from the moment the previous export
+      // returned a response — leaves the WAL room to be reclaimed.
+      const minIntervalMs = config.BACKUP_EXPORT_MIN_INTERVAL_SECONDS * 1000;
+      if (minIntervalMs > 0) {
+        const last = backupExportLastSuccess.get(bucket);
+        if (last !== undefined) {
+          const elapsed = Date.now() - last;
+          if (elapsed < minIntervalMs) {
+            const retryAfter = Math.ceil((minIntervalMs - elapsed) / 1000);
+            c.header("Retry-After", String(retryAfter));
+            await audit(db, c.get("logger"), {
+              actorId: "system",
+              actorName: "system:backup-sidecar",
+              action: "backup.export",
+              resourceType: "system",
+              resourceId: "database",
+              resourceName: "database-backup-export",
+              detail: { reason: "min-interval", retryAfter },
+              ip: getClientIp(c),
+              userAgent: c.req.header("user-agent") ?? "service-token",
+              result: "failure",
+            });
+            return c.json({ success: false, error: { code: "RATE_LIMITED", message: `Backup export throttled. Retry after ${retryAfter}s.` } }, 429);
+          }
         }
       }
-    }
 
-    const { modules, body } = streamJsonBackup(db, requestedModules);
-    const timestamp = new Date().toISOString().replace(RE_TIMESTAMP_CHARS, "-").slice(0, 19);
-    // Audit is critical for this data-exfiltrating action: a failed write
-    // re-throws. Mark in-flight only after it succeeds so a thrown audit
-    // never leaks the semaphore (the marker is released when the stream
-    // below drains, which would never start on a throw here).
-    await audit(db, c.get("logger"), {
-      actorId: "system",
-      actorName: "system:backup-sidecar",
-      action: "backup.export",
-      resourceType: "system",
-      resourceId: "database",
-      resourceName: "database-backup-export",
-      detail: { modules, via: "service-token", redacted: true },
-      ip: getClientIp(c),
-      userAgent: c.req.header("user-agent") ?? "service-token",
-      result: "success",
-    }, { critical: true });
-    backupExportInFlight.add(bucket);
-    backupExportLastSuccess.set(bucket, Date.now());
-    // Clear the in-flight marker after the stream actually drains. We
-    // wrap the underlying ReadableStream so a client disconnect mid-
-    // stream still releases the semaphore — and redact secret-typed
-    // fields chunk-by-chunk as the rows stream out.
-    const released = new ReadableStream({
-      async start(controller) {
-        const reader = body.getReader();
-        const dec = new TextDecoder();
-        const enc = new TextEncoder();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done)
-              break;
-            controller.enqueue(enc.encode(redactBackupChunk(dec.decode(value))));
+      const { modules, body } = streamJsonBackup(db, requestedModules);
+      const timestamp = new Date().toISOString().replace(RE_TIMESTAMP_CHARS, "-").slice(0, 19);
+      // Audit is critical for this data-exfiltrating action: a failed write
+      // re-throws. Mark in-flight only after it succeeds so a thrown audit
+      // never leaks the semaphore (the marker is released when the stream
+      // below drains, which would never start on a throw here).
+      await audit(db, c.get("logger"), {
+        actorId: "system",
+        actorName: "system:backup-sidecar",
+        action: "backup.export",
+        resourceType: "system",
+        resourceId: "database",
+        resourceName: "database-backup-export",
+        detail: { modules, via: "service-token", redacted: true },
+        ip: getClientIp(c),
+        userAgent: c.req.header("user-agent") ?? "service-token",
+        result: "success",
+      }, { critical: true });
+      backupExportInFlight.add(bucket);
+      backupExportLastSuccess.set(bucket, Date.now());
+      // Clear the in-flight marker after the stream actually drains. We
+      // wrap the underlying ReadableStream so a client disconnect mid-
+      // stream still releases the semaphore — and redact secret-typed
+      // fields chunk-by-chunk as the rows stream out.
+      const released = new ReadableStream({
+        async start(controller) {
+          const reader = body.getReader();
+          const dec = new TextDecoder();
+          const enc = new TextEncoder();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done)
+                break;
+              controller.enqueue(enc.encode(redactBackupChunk(dec.decode(value))));
+            }
+            controller.close();
           }
-          controller.close();
-        }
-        catch (err) {
-          controller.error(err);
-        }
-        finally {
+          catch (err) {
+            controller.error(err);
+          }
+          finally {
+            backupExportInFlight.delete(bucket);
+          }
+        },
+        cancel() {
           backupExportInFlight.delete(bucket);
-        }
-      },
-      cancel() {
-        backupExportInFlight.delete(bucket);
-      },
-    });
-    return new Response(released, {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Content-Disposition": buildContentDisposition("attachment", `${c.get("config").APP_NAME}-backup-${timestamp}.json`),
-        "Cache-Control": "no-store",
-        "Pragma": "no-cache",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
-  });
+        },
+      });
+      return new Response(released, {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": buildContentDisposition("attachment", `${c.get("config").APP_NAME}-backup-${timestamp}.json`),
+          "Cache-Control": "no-store",
+          "Pragma": "no-cache",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    },
+  );
 
   // Everything else under this router is session-auth gated.
   router.use("*", authRequired);
 
-  router.get("/backup/modules", adminRequired, (c) => {
-    const registry = getDataModules();
-    return c.json({
-      modules: getModuleNames().map(name => ({
-        name,
-        deps: registry[name]!.deps,
-      })),
-    });
-  });
-
-  router.post("/backup/export", adminRequired, async (c) => {
-    const db = c.get("db");
-    const user = c.get("user");
-
-    const bodySchema = z.object({
-      modules: z.array(z.string()).min(1),
-    });
-    const body = bodySchema.parse(await c.req.json());
-
-    const known = new Set(getModuleNames());
-    const invalidModules = body.modules.filter(m => !known.has(m));
-    if (invalidModules.length > 0) {
-      throw new AppError(`Unknown modules: ${invalidModules.join(", ")}`, 400, "INVALID_MODULES");
-    }
-
-    const { modules, body: stream } = streamJsonBackup(db, body.modules);
-    const timestamp = new Date().toISOString().replace(RE_TIMESTAMP_CHARS, "-").slice(0, 19);
-
-    // Emit the audit row before the stream starts — once the response body
-    // begins flowing, the request is committed; failure mid-stream still
-    // wants the "export attempted" row in the audit log.
-    await audit(db, c.get("logger"), {
-      actorId: user.id,
-      actorName: user.name,
-      action: "backup.export",
-      resourceType: "system",
-      resourceId: "database",
-      resourceName: "database-backup-export",
-      detail: { modules },
-      ip: getClientIp(c),
-      userAgent: c.req.header("user-agent") ?? "unknown",
-      result: "success",
-    }, { critical: true });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Content-Disposition": buildContentDisposition("attachment", `${c.get("config").APP_NAME}-backup-${timestamp}.json`),
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
+  router.get(
+    "/backup/modules",
+    describeRoute({
+      tags: ["infra2"],
+      summary: "List exportable data modules and their dependencies",
+      responses: {
+        200: { description: "Success", content: { "application/json": { schema: resolver(z.object({
+          modules: z.array(z.object({ name: z.string(), deps: z.array(z.string()) })),
+        })) } } },
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
       },
-    });
-  });
+    }),
+    adminRequired,
+    (c) => {
+      const registry = getDataModules();
+      return c.json({
+        modules: getModuleNames().map(name => ({
+          name,
+          deps: registry[name]!.deps,
+        })),
+      });
+    },
+  );
+
+  router.post(
+    "/backup/export",
+    describeRoute({
+      tags: ["infra2"],
+      summary: "Admin streaming backup export (unredacted JSON)",
+      responses: {
+        200: jsonBackupDownload,
+        400: { description: "Unknown modules", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Admin only", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    adminRequired,
+    validator("json", exportBodySchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const user = c.get("user");
+
+      const body = c.req.valid("json");
+
+      const known = new Set(getModuleNames());
+      const invalidModules = body.modules.filter(m => !known.has(m));
+      if (invalidModules.length > 0) {
+        throw new AppError(`Unknown modules: ${invalidModules.join(", ")}`, 400, "INVALID_MODULES");
+      }
+
+      const { modules, body: stream } = streamJsonBackup(db, body.modules);
+      const timestamp = new Date().toISOString().replace(RE_TIMESTAMP_CHARS, "-").slice(0, 19);
+
+      // Emit the audit row before the stream starts — once the response body
+      // begins flowing, the request is committed; failure mid-stream still
+      // wants the "export attempted" row in the audit log.
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "backup.export",
+        resourceType: "system",
+        resourceId: "database",
+        resourceName: "database-backup-export",
+        detail: { modules },
+        ip: getClientIp(c),
+        userAgent: c.req.header("user-agent") ?? "unknown",
+        result: "success",
+      }, { critical: true });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": buildContentDisposition("attachment", `${c.get("config").APP_NAME}-backup-${timestamp}.json`),
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    },
+  );
 
   return router;
 }
