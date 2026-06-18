@@ -210,7 +210,7 @@ function buildOuterApp(api: Hono<AppEnv>, config: Config) {
       fontSrc: ["'self'", "data:"],
       connectSrc: ["'self'"],
       frameAncestors: ["'self'"],
-      frameSrc: ["'self'", "https://tally.so"],
+      frameSrc: ["'self'", "blob:", "https://tally.so"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
       objectSrc: ["'none'"],
