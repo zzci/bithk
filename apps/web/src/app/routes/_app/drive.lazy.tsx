@@ -85,6 +85,7 @@ function DrivePage() {
     [openShare],
   );
   const [previewEditing, setPreviewEditing] = useState(false);
+  const [sheetEditing, setSheetEditing] = useState(false);
   // Single open-routing chokepoint for every drive list (file browser, recent,
   // favorites, share lists — they all funnel through here). Univer spreadsheets
   // open the state-driven editor dialog (closing stays in the current folder);
@@ -93,6 +94,7 @@ function DrivePage() {
   const openPreview = useCallback((entry: DriveEntry, edit = false) => {
     if (isUniverSheetEntry(entry)) {
       setSheetEntry(entry);
+      setSheetEditing(edit);
       return;
     }
     setPreviewEntry(entry);
@@ -205,6 +207,7 @@ function DrivePage() {
           <UniverSheetEditorDialog
             entry={sheetEntry}
             open
+            initialEditing={sheetEditing}
             onOpenChange={open => !open && setSheetEntry(null)}
           />
         </Suspense>

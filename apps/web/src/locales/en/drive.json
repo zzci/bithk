@@ -210,6 +210,8 @@
     "editingBy": "{{user}} is editing",
     "takenOver": "Editing was taken over by someone else; your changes can't be saved.",
     "takeOver": "Take over editing",
+    "startEditing": "Edit",
+    "noEditPermission": "You don't have permission to edit this file",
     "retryEditing": "Retry editing",
     "saveAsVersion": "Save as version",
     "lockError": "Couldn't acquire the edit lock",

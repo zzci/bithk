@@ -145,6 +145,7 @@ export function FileBrowser({
   // Internal Univer editor target, used when this browser owns preview (no
   // parent handler). Drive renders its own editor dialog via `onPreviewEntry`.
   const [sheetEntry, setSheetEntry] = useState<DriveEntry | null>(null);
+  const [sheetEditing, setSheetEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
@@ -178,6 +179,7 @@ export function FileBrowser({
   const internalOpenPreview = useCallback((entry: DriveEntry, edit = false) => {
     if (isUniverSheetEntry(entry)) {
       setSheetEntry(entry);
+      setSheetEditing(edit);
       return;
     }
     setPreviewEntry(entry);
@@ -246,7 +248,7 @@ export function FileBrowser({
     }
     createSpreadsheet.mutate(
       { name: `${baseName}.sheet`, content, parentEntryId, ownerType, ownerId },
-      { onSuccess: entry => handlePreview?.(entry) },
+      { onSuccess: entry => handlePreview?.(entry, true) },
     );
   };
 
@@ -462,7 +464,7 @@ export function FileBrowser({
           createSpreadsheet.mutate({ name, content: emptyUniverSnapshotJson(name), parentEntryId, ownerType, ownerId }, {
             onSuccess: (entry) => {
               closeDialog();
-              handlePreview?.(entry);
+              handlePreview?.(entry, true);
             },
           })}
       />
@@ -532,6 +534,7 @@ export function FileBrowser({
           <UniverSheetEditorDialog
             entry={sheetEntry}
             open
+            initialEditing={sheetEditing}
             onOpenChange={open => !open && setSheetEntry(null)}
           />
         </Suspense>

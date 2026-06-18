@@ -5,12 +5,14 @@
 // Closing clears the caller's state and stays in the current drive folder —
 // there is no editor route to navigate back from.
 //
-// Editing is Google-Sheets-style: a single writer at a time. On open the
-// dialog acquires a pessimistic exclusive edit lock; a second opener becomes
-// read-only with a banner + "Retry editing". While editing it heartbeats the
-// lock every 30s and autosaves the live (mutable) content after 30s of idle,
-// surfacing an always-visible status indicator. "Save as version" still
-// snapshots an immutable version. There is NO realtime collaboration.
+// Editing is Google-Sheets-style: a single writer at a time. The sheet opens
+// read-only by default (mirroring markdown/text files, which open in a
+// read-only preview); the reader must press "Edit" to acquire a pessimistic
+// exclusive edit lock. A second opener stays read-only with a banner naming
+// the holder. While editing it heartbeats the lock every 30s and autosaves the
+// live (mutable) content after 30s of idle, surfacing an always-visible status
+// indicator. "Save as version" still snapshots an immutable version. There is
+// NO realtime collaboration.
 //
 // This is the ONLY module that imports `@univerjs/*`, so the spreadsheet
 // engine ships in its own async chunk and never enters the main bundle. Every
@@ -64,6 +66,10 @@ interface UniverSheetEditorDialogProps {
   readonly entry: DriveEntry;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
+  // Open straight into edit mode (acquire the lock once on open). Used right
+  // after creating a blank/imported sheet so creation flows into editing,
+  // mirroring `FilePreviewDialog`'s `initialEditing` for markdown/text.
+  readonly initialEditing?: boolean;
 }
 
 function localeBundle(locale: LocaleType) {
@@ -74,7 +80,7 @@ function formatNow(): string {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverSheetEditorDialogProps) {
+export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEditing = false }: UniverSheetEditorDialogProps) {
   const { t, i18n } = useTranslation("drive");
   const entryId = entry.id;
 
@@ -115,6 +121,12 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
   const modeRef = useRef<EditMode>("loading");
   const dirtyRef = useRef(false);
   const releasedRef = useRef(false);
+  // Whether this session actually holds the edit lock. False for a read-only
+  // session (never unlocked), so close/unmount skips the release call.
+  const lockHeldRef = useRef(false);
+  // Guards the one-shot auto-edit (initialEditing) so it fires only on the
+  // initial open, never again after a take-over drops the session to read-only.
+  const autoEditDoneRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveRef = useRef<() => void>(() => {});
@@ -151,6 +163,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
     if (modeRef.current !== "editable")
       return;
     setMode("readonly");
+    lockHeldRef.current = false;
     setSaveFailed(false);
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -163,6 +176,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
     toast.error(t("sheet.takenOver"));
     acquireEditLock({ entryId, editId: editIdRef.current })
       .then(() => {
+        lockHeldRef.current = true;
         setMode("editable");
         setLockBy(null);
       })
@@ -219,6 +233,10 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
   const flushAndRelease = useCallback(() => {
     if (releasedRef.current)
       return;
+    // A read-only session never acquired the lock, so there is nothing to
+    // flush or release — calling release would 403 (no update capability).
+    if (!lockHeldRef.current)
+      return;
     const editId = editIdRef.current;
     if (!editId)
       return;
@@ -233,42 +251,25 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
     releaseEditLockMutate({ entryId, editId });
   }, [entryId, updateLiveContentAsync, releaseEditLockMutate]);
 
-  // ── Acquire the lock when the dialog opens (regenerate the session id) ──
+  // ── Open read-only; mint a fresh session id for the eventual unlock ──
+  // The sheet no longer grabs the edit lock on open. The reader stays
+  // read-only (mirroring markdown/text files, which open in a read-only
+  // preview) and must press "Edit" to acquire the exclusive lock via
+  // `retryEditing`.
   useEffect(() => {
     if (!open)
       return undefined;
-    const editId = crypto.randomUUID();
-    editIdRef.current = editId;
+    editIdRef.current = crypto.randomUUID();
     releasedRef.current = false;
+    lockHeldRef.current = false;
+    autoEditDoneRef.current = false;
     setDirty(false);
     setSaveFailed(false);
     setSavedTime(null);
     setLockBy(null);
-    setMode("loading");
-    let cancelled = false;
-    acquireEditLock({ entryId, editId })
-      .then(() => {
-        if (!cancelled)
-          setMode("editable");
-      })
-      .catch((err: EditLockError) => {
-        if (cancelled)
-          return;
-        if (err.code === "DRIVE_EDIT_LOCKED") {
-          setLockBy(err.lockBy ?? null);
-        }
-        else {
-          toast.error(t("sheet.lockError"));
-        }
-        setMode("readonly");
-      });
-    return () => {
-      cancelled = true;
-    };
-    // Intentionally acquire only on open/entry change; `t` would re-acquire
-    // (and regenerate the editId) on a language switch mid-edit.
-    // eslint-disable-next-line react/exhaustive-deps
-  }, [open, entryId, acquireEditLock]);
+    setMode("readonly");
+    return undefined;
+  }, [open, entryId]);
 
   // ── Flush + release on close (open true→false) / unmount ──
   useEffect(() => {
@@ -366,11 +367,12 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
     };
   }, []);
 
-  // Re-attempt acquiring the lock (the holder may have released or the TTL
-  // expired) from the read-only banner.
+  // Acquire the edit lock from the read-only banner: the initial unlock, or a
+  // retry after another holder released / the TTL expired.
   const retryEditing = useCallback(async () => {
     try {
       await acquireEditLock({ entryId, editId: editIdRef.current });
+      lockHeldRef.current = true;
       setMode("editable");
       setLockBy(null);
     }
@@ -378,10 +380,22 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
       const e = err as EditLockError;
       if (e.code === "DRIVE_EDIT_LOCKED")
         setLockBy(e.lockBy ?? null);
+      else if (e.status === 403)
+        toast.error(t("sheet.noEditPermission"));
       else
         toast.error(t("sheet.lockError"));
     }
   }, [entryId, acquireEditLock, t]);
+
+  // Freshly-created sheets (initialEditing) jump straight into edit mode by
+  // acquiring the lock once; every other open stays read-only until the reader
+  // explicitly unlocks. Runs after the open effect has reset the session id.
+  useEffect(() => {
+    if (!open || !initialEditing || autoEditDoneRef.current)
+      return;
+    autoEditDoneRef.current = true;
+    void retryEditing();
+  }, [open, initialEditing, retryEditing]);
 
   async function handleSave() {
     const workbook = univerRef.current?.univerAPI.getActiveWorkbook();
@@ -484,8 +498,8 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange }: UniverShe
               disabled={acquiring}
               onClick={() => void retryEditing()}
             >
-              {acquiring && <Spinner />}
-              {t("sheet.retryEditing")}
+              {acquiring ? <Spinner /> : !lockBy && <Pencil className="size-4" />}
+              {lockBy ? t("sheet.retryEditing") : t("sheet.startEditing")}
             </Button>
           </div>
         )}
