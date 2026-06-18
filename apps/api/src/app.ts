@@ -208,7 +208,11 @@ function buildOuterApp(api: Hono<AppEnv>, config: Config) {
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:"],
       fontSrc: ["'self'", "data:"],
-      connectSrc: ["'self'"],
+      // blob: lets pdf.js fetch the PDF preview's object URL (react-pdf hands
+      // it a blob: URL, which pdf.js loads via fetch()). CSP3 does not match
+      // blob: against 'self', so it must be listed explicitly — same reason
+      // img-src already enumerates blob:.
+      connectSrc: ["'self'", "blob:"],
       frameAncestors: ["'self'"],
       frameSrc: ["'self'", "blob:", "https://tally.so"],
       baseUri: ["'self'"],
