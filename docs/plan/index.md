@@ -87,3 +87,4 @@
 | [PLAN-086](PLAN-086.md) | HR approvals/payroll completeness + colleague-salary auto-pay | Completed | 2026-06-16 |
 | [PLAN-087](PLAN-087.md) | Currency two-decimal formatting + global MoneyInput | Completed | 2026-06-19 |
 | [PLAN-089](PLAN-089.md) | Editable user name + upstream username sync + virtual-user email binding | Completed | 2026-06-19 |
+| [PLAN-090](PLAN-090.md) | Decouple session lifetime from access-token TTL + background refresh | Draft | 2026-06-19 |
