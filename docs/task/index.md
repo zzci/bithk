@@ -146,3 +146,4 @@
 | [FEAT-037](FEAT-037.md) | Unify currency input/display to two decimals + global MoneyInput | [PLAN-087](../plan/PLAN-087.md) | Completed | 2026-06-19 |
 | [FEAT-038](FEAT-038.md) | Editable user name + upstream username sync + virtual-user email binding | [PLAN-089](../plan/PLAN-089.md) | Completed | 2026-06-19 |
 | [FIX-046](FIX-046.md) | OIDC session expires at access-token TTL instead of session max-age | [PLAN-090](../plan/PLAN-090.md) | Pending | 2026-06-19 |
+| [UI-027](UI-027.md) | Unify file/drive upload UX (global queue, folder grouping, attach-from-drive) | [PLAN-088](../plan/PLAN-088.md) | Completed | 2026-06-19 |

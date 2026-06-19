@@ -39,6 +39,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- Unified file/drive upload UX (UI-027, PLAN-088). The upload-queue panel moved
+  to `shared/components/file` and is now mounted once in the app layout, so
+  upload progress shows on every surface instead of only the drive page;
+  same-folder uploads are grouped under a folder header with a file count and
+  aggregate progress alongside an overall summary. A new
+  `POST /:id/attachments/from-drive` endpoint (documents, issues, procurements,
+  HR) attaches an already-stored drive file by registering a new
+  `file_reference` to its blob (refcount bump, no re-upload), after an
+  authoritative server-side READ check on the drive entry. A "Choose from Drive"
+  button in resource attachment areas drives it via the existing drive file
+  picker.
+
 - Personal Access Tokens for API/CLI/AI-agent access (FEAT-034, PLAN-084).
   Users mint a `bithk_pat_…` bearer in **Settings → API tokens**; admins can
   mint one for any user (including virtual users) from **Admin → Users**. A
