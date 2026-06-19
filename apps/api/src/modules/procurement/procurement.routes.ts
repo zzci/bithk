@@ -3,7 +3,10 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
+import { assertEntryCapability } from "@/modules/drive/drive.permission";
+import { getDriveEntryById } from "@/modules/drive/drive.service";
 import {
+  addReference,
   buildDownloadResponse,
   getFileById,
   getReferenceById,
@@ -146,6 +149,8 @@ const attachmentViewSchema = z.object({
   createdBy: z.string(),
   createdAt: z.string(),
 });
+// Attach an already-stored drive file by entry id (no re-upload).
+const fromDriveSchema = z.object({ entryId: z.string().min(1) });
 
 // Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
 // Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
@@ -448,6 +453,68 @@ export function procurementRoutes() {
         resourceId: procurement.id,
         resourceName: procurement.itemName,
         detail: { attachmentId: reference.id, filename: file.name, size: file.size },
+        ...auditMeta(c),
+        result: "success",
+      });
+
+      return c.json({ success: true, data: view }, 201);
+    },
+  );
+
+  // Attach an existing drive file to this procurement without re-uploading the
+  // blob: register a new reference to the entry's already-stored file. The
+  // actor's READ access on the drive entry is verified server-side — the
+  // client-supplied id is never trusted.
+  router.post(
+    "/projects/:projectId/procurements/:id/attachments/from-drive",
+    describeRoute({
+      tags: ["procurements"],
+      summary: "Attach a drive file to a procurement",
+      responses: {
+        201: okJson(attachmentViewSchema, "Created"),
+        400: { description: "Drive entry is not a file or already attached", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", procurementParam, onValidationFailure),
+    validator("json", fromDriveSchema, onValidationFailure),
+    async (c) => {
+      const { projectId, id } = c.req.valid("param");
+      const { procurement } = await requireProcurement(c, projectId, id, true);
+      const db = c.get("db");
+      const user = c.get("user");
+      const item = await resolveProcurementItem(db, procurement.id);
+      if (!item)
+        throw new NotFoundError("Procurement", procurement.id);
+      const { entryId } = c.req.valid("json");
+
+      // Authoritative READ check on the drive entry (throws 404/403).
+      const actor = { id: user.id, role: user.role };
+      await assertEntryCapability(db, actor, entryId, "read");
+      const entry = await getDriveEntryById(db, entryId);
+      if (!entry || !entry.file)
+        throw new AppError("Drive entry is not a file", 400, "INVALID_ENTRY");
+
+      const reference = await addReference(db, {
+        fileId: entry.file.fileId,
+        ownerType: "item_attachment",
+        ownerId: item.id,
+        filename: entry.name,
+        createdBy: user.id,
+      });
+      const fileRow = await getFileById(db, entry.file.fileId);
+      const view = makeAttachmentView(reference, fileRow!);
+
+      await audit(db, c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "procurement.attachment_attached_from_drive",
+        resourceType: "procurement",
+        resourceId: procurement.id,
+        resourceName: procurement.itemName,
+        detail: { attachmentId: reference.id, entryId, filename: entry.name },
         ...auditMeta(c),
         result: "success",
       });

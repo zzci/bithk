@@ -1,7 +1,10 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
+import { assertEntryCapability } from "@/modules/drive/drive.permission";
+import { getDriveEntryById } from "@/modules/drive/drive.service";
 import {
+  addReference,
   buildDownloadResponse,
   getFileById,
   getReferenceById,
@@ -92,6 +95,8 @@ const updateBodySchema = z.object({
 const idParamSchema = z.object({ id: z.string() });
 const attachmentParamSchema = z.object({ id: z.string(), aid: z.string() });
 const downloadQuerySchema = z.object({ inline: z.string().optional() });
+// Attach an already-stored drive file by entry id (no re-upload).
+const fromDriveSchema = z.object({ entryId: z.string().min(1) });
 
 // Response data shapes (mirror the service views) for the generated spec.
 const userBriefSchema = z.object({
@@ -309,6 +314,53 @@ export function hrRoutes() {
         uploadedBy: user.id,
       });
       return c.json({ success: true, data: makeAttachmentView(reference, uploaded) }, 201);
+    },
+  );
+
+  // Attach an existing drive file as a colleague document without re-uploading
+  // the blob: register a new reference to the entry's already-stored file. The
+  // actor's READ access on the drive entry is verified server-side — the
+  // client-supplied id is never trusted.
+  router.post(
+    "/hr/colleagues/:id/attachments/from-drive",
+    describeRoute({
+      tags: ["hr"],
+      summary: "Attach a drive file as a colleague document",
+      responses: {
+        201: okJson(attachmentViewSchema, "Created"),
+        400: { description: "Drive entry is not a file or already attached", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    validator("param", idParamSchema, onValidationFailure),
+    validator("json", fromDriveSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const user = c.get("user");
+      const { id: colleagueId } = c.req.valid("param");
+      const { entryId } = c.req.valid("json");
+      const colleague = await getColleagueById(db, colleagueId);
+      if (!colleague)
+        throw new NotFoundError("HR colleague", colleagueId);
+
+      // Authoritative READ check on the drive entry (throws 404/403).
+      const actor = { id: user.id, role: user.role };
+      await assertEntryCapability(db, actor, entryId, "read");
+      const entry = await getDriveEntryById(db, entryId);
+      if (!entry || !entry.file)
+        throw new AppError("Drive entry is not a file", 400, "INVALID_ENTRY");
+
+      const reference = await addReference(db, {
+        fileId: entry.file.fileId,
+        ownerType: COLLEAGUE_DOC_OWNER_TYPE,
+        ownerId: colleagueId,
+        filename: entry.name,
+        createdBy: user.id,
+      });
+      const fileRow = await getFileById(db, entry.file.fileId);
+      return c.json({ success: true, data: makeAttachmentView(reference, fileRow!) }, 201);
     },
   );
 

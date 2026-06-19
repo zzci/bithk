@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 307 routes total.
+> 311 routes total.
 
 | Method | Path |
 |---|---|
@@ -98,6 +98,7 @@
 | POST | `/api/documents/:id/attachments` |
 | DELETE | `/api/documents/:id/attachments/:aid` |
 | GET | `/api/documents/:id/attachments/:aid` |
+| POST | `/api/documents/:id/attachments/from-drive` |
 | GET | `/api/documents/:id/comments` |
 | POST | `/api/documents/:id/comments` |
 | DELETE | `/api/documents/:id/comments/:cid` |
@@ -177,6 +178,7 @@
 | POST | `/api/hr/colleagues/:id/attachments` |
 | DELETE | `/api/hr/colleagues/:id/attachments/:aid` |
 | GET | `/api/hr/colleagues/:id/attachments/:aid` |
+| POST | `/api/hr/colleagues/:id/attachments/from-drive` |
 | GET | `/api/hr/payroll` |
 | POST | `/api/hr/payroll` |
 | DELETE | `/api/hr/payroll/:id` |
@@ -232,6 +234,7 @@
 | POST | `/api/projects/:projectId/issues/:id/attachments` |
 | DELETE | `/api/projects/:projectId/issues/:id/attachments/:aid` |
 | GET | `/api/projects/:projectId/issues/:id/attachments/:aid` |
+| POST | `/api/projects/:projectId/issues/:id/attachments/from-drive` |
 | GET | `/api/projects/:projectId/issues/:id/comments` |
 | POST | `/api/projects/:projectId/issues/:id/comments` |
 | DELETE | `/api/projects/:projectId/issues/:id/comments/:cid` |
@@ -250,6 +253,7 @@
 | POST | `/api/projects/:projectId/procurements/:id/attachments` |
 | DELETE | `/api/projects/:projectId/procurements/:id/attachments/:aid` |
 | GET | `/api/projects/:projectId/procurements/:id/attachments/:aid` |
+| POST | `/api/projects/:projectId/procurements/:id/attachments/from-drive` |
 | GET | `/api/projects/:projectId/procurements/:id/comments` |
 | POST | `/api/projects/:projectId/procurements/:id/comments` |
 | DELETE | `/api/projects/:projectId/procurements/:id/comments/:cid` |
