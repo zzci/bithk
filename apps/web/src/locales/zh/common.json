@@ -81,5 +81,16 @@
     "projects": "项目",
     "ships": "船舶",
     "drive": "文件"
+  },
+  "upload": {
+    "progress": "上传中 {{done}}/{{total}}",
+    "complete": "上传完成",
+    "dismiss": "关闭",
+    "collapse": "收起",
+    "expand": "展开",
+    "preparing": "正在创建文件夹…",
+    "folderFiles": "{{count}} 个文件",
+    "chooseFromDrive": "从网盘选择",
+    "alreadyAttached": "该文件已附加"
   }
 }

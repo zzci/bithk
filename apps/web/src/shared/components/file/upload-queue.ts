@@ -13,28 +13,33 @@ import { BASE_PATH } from "@/shared/lib/http";
 
 type UploadStatus = "uploading" | "done" | "error";
 
-interface UploadTask {
+export interface UploadTask {
   readonly id: string;
   readonly name: string;
   readonly size: number;
   readonly status: UploadStatus;
   readonly progress: number;
+  readonly relativePath?: string | undefined;
   readonly error?: string | undefined;
 }
 
 interface UploadState {
   readonly tasks: readonly UploadTask[];
+  readonly preparing: boolean;
   readonly add: (task: UploadTask) => void;
   readonly patch: (id: string, patch: Partial<UploadTask>) => void;
+  readonly setPreparing: (v: boolean) => void;
   readonly clearFinished: () => void;
 }
 
 export const useFileUploadStore = create<UploadState>(set => ({
   tasks: [],
+  preparing: false,
   add: task => set(state => ({ tasks: [...state.tasks, task] })),
   patch: (id, patch) => set(state => ({
     tasks: state.tasks.map(task => (task.id === id ? { ...task, ...patch } : task)),
   })),
+  setPreparing: v => set({ preparing: v }),
   clearFinished: () => set(state => ({
     tasks: state.tasks.filter(task => task.status === "uploading"),
   })),
@@ -56,11 +61,12 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
   const queryClient = useQueryClient();
   const add = useFileUploadStore(state => state.add);
   const patch = useFileUploadStore(state => state.patch);
+  const setPreparing = useFileUploadStore(state => state.setPreparing);
 
   return useCallback((files, owner) => {
     const uploadOne = (file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
       const id = crypto.randomUUID();
-      add({ id, name: file.name, size: file.size, status: "uploading", progress: 0 });
+      add({ id, name: file.name, size: file.size, status: "uploading", progress: 0, relativePath: relativePathOf(file) });
 
       const form = new FormData();
       form.set("file", file);
@@ -102,30 +108,37 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
       void uploadOne(file, owner.parentEntryId);
 
     if (folderFiles.length > 0) {
+      setPreparing(true);
       void (async () => {
-        const folderCache = new Map<string, string | null>([["", owner.parentEntryId]]);
-        for (const file of folderFiles) {
-          try {
-            const path = relativePathOf(file);
-            const parts = path.split("/").filter(Boolean);
-            const folders = parts.slice(0, -1);
-            const parentEntryId = await ensureFolderPath(owner, folders, folderCache);
-            await uploadOne(file, parentEntryId);
+        try {
+          const folderCache = new Map<string, string | null>([["", owner.parentEntryId]]);
+          for (const file of folderFiles) {
+            try {
+              const path = relativePathOf(file);
+              const parts = path.split("/").filter(Boolean);
+              const folders = parts.slice(0, -1);
+              const parentEntryId = await ensureFolderPath(owner, folders, folderCache);
+              await uploadOne(file, parentEntryId);
+            }
+            catch (err) {
+              add({
+                id: crypto.randomUUID(),
+                name: file.name,
+                size: file.size,
+                status: "error",
+                progress: 0,
+                relativePath: relativePathOf(file),
+                error: err instanceof Error ? err.message : "folder",
+              });
+            }
           }
-          catch (err) {
-            add({
-              id: crypto.randomUUID(),
-              name: file.name,
-              size: file.size,
-              status: "error",
-              progress: 0,
-              error: err instanceof Error ? err.message : "folder",
-            });
-          }
+        }
+        finally {
+          setPreparing(false);
         }
       })();
     }
-  }, [add, patch, queryClient]);
+  }, [add, patch, setPreparing, queryClient]);
 }
 
 function relativePathOf(file: File): string {

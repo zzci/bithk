@@ -81,5 +81,16 @@
     "projects": "Projects",
     "ships": "Ships",
     "drive": "Files"
+  },
+  "upload": {
+    "progress": "Uploading {{done}}/{{total}}",
+    "complete": "Upload complete",
+    "dismiss": "Dismiss",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "preparing": "Preparing folders…",
+    "folderFiles": "{{count}} files",
+    "chooseFromDrive": "Choose from Drive",
+    "alreadyAttached": "This file is already attached"
   }
 }
