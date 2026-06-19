@@ -11,7 +11,7 @@ import { Menu } from "lucide-react";
 import { lazy, Suspense, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { FilePreviewDialog, UploadQueuePanel } from "@/shared/components/file";
+import { FilePreviewDialog } from "@/shared/components/file";
 import { useShare } from "@/shared/components/share";
 import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
@@ -211,8 +211,6 @@ function DrivePage() {
           />
         </Suspense>
       )}
-
-      <UploadQueuePanel />
     </TooltipProvider>
   );
 }

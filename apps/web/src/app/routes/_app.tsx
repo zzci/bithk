@@ -3,6 +3,7 @@ import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-rout
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppSidebar } from "@/shared/components/app-sidebar";
+import { UploadQueuePanel } from "@/shared/components/file";
 import { FullPageLoader } from "@/shared/components/full-page-loader";
 import { Logo } from "@/shared/components/logo";
 import { Button } from "@/shared/components/ui/button";
@@ -125,6 +126,10 @@ function AppLayout() {
           </ModuleGuard>
         </main>
       </SidebarInset>
+      {/* Global upload progress — mounted once for every authenticated route so
+          drive, project, and ship file uploads all surface the same panel. It
+          self-hides (returns null) when there are no active tasks. */}
+      <UploadQueuePanel />
     </SidebarProvider>
   );
 }
