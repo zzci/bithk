@@ -23,7 +23,7 @@ import {
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { FileUploadButton } from "@/shared/components/file";
+import { FileUploadButton, useFileUploader } from "@/shared/components/file";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import {
@@ -40,7 +40,6 @@ import {
 } from "@/shared/lib/api/drive";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
-import { useDriveUploader } from "./-drive-upload";
 import { CreateFolderDialog, CreateTextFileDialog } from "./-entry-create-dialogs";
 import { DirectoryEditDialog } from "./-team-directory-list";
 import { TeamDirectoryMembersPanel } from "./-team-directory-members";
@@ -105,7 +104,7 @@ export function DriveSidebar({
   // so the new entry/upload is visible.
   const createFolder = useCreateDriveFolder();
   const createTextFile = useCreateTextFile();
-  const enqueueUploads = useDriveUploader();
+  const enqueueUploads = useFileUploader();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dialog, setDialog] = useState<"folder" | "text" | null>(null);
 

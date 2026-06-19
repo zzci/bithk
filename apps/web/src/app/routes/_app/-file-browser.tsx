@@ -20,7 +20,7 @@ import { FolderInput, History, Upload } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { DriveFileListSurface, FilePreviewDialog, FileUploadButton } from "@/shared/components/file";
+import { DriveFileListSurface, FilePreviewDialog, FileUploadButton, useFileUploader } from "@/shared/components/file";
 import { DriveVersionHistoryDialog } from "@/shared/components/file/version-history-dialog";
 import { useShare } from "@/shared/components/share";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -40,7 +40,6 @@ import {
 import { entryToDisplayItem } from "@/shared/lib/file";
 import { csvToUniverSnapshotJson, emptyUniverSnapshotJson } from "@/shared/lib/univer-snapshot";
 import { cn } from "@/shared/lib/utils";
-import { useDriveUploader } from "./-drive-upload";
 import {
   CreateFolderDialog,
   CreateSpreadsheetDialog,
@@ -162,7 +161,7 @@ export function FileBrowser({
   const createFolder = useCreateDriveFolder();
   const createTextFile = useCreateTextFile();
   const createSpreadsheet = useCreateSpreadsheet();
-  const enqueueUploads = useDriveUploader();
+  const enqueueUploads = useFileUploader();
   const updateEntry = useUpdateDriveEntry();
   const trashEntry = useTrashDriveEntry();
 

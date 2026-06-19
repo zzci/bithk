@@ -1,4 +1,4 @@
-// Bottom-right upload queue panel. Reads the global drive upload store and
+// Bottom-right upload queue panel. Reads the global file upload store and
 // shows per-file progress; collapsible, dismissable once everything settles.
 
 import {
@@ -15,12 +15,12 @@ import { Button } from "@/shared/components/ui/button";
 import { Spinner } from "@/shared/components/ui/spinner";
 import { formatBytes } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
-import { useDriveUploadStore } from "./-drive-upload";
+import { useFileUploadStore } from "./upload-queue";
 
-export function DriveUploadPanel() {
+export function UploadQueuePanel() {
   const { t } = useTranslation("drive");
-  const tasks = useDriveUploadStore(state => state.tasks);
-  const clearFinished = useDriveUploadStore(state => state.clearFinished);
+  const tasks = useFileUploadStore(state => state.tasks);
+  const clearFinished = useFileUploadStore(state => state.clearFinished);
   const [open, setOpen] = useState(true);
 
   if (tasks.length === 0)

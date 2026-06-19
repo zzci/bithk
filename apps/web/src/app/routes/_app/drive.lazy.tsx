@@ -11,7 +11,7 @@ import { Menu } from "lucide-react";
 import { lazy, Suspense, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { FilePreviewDialog } from "@/shared/components/file";
+import { FilePreviewDialog, UploadQueuePanel } from "@/shared/components/file";
 import { useShare } from "@/shared/components/share";
 import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
@@ -21,7 +21,6 @@ import { useAuthStore } from "@/shared/stores/auth";
 
 import { DriveEntryListView } from "./-drive-entry-list";
 import { DriveSidebar } from "./-drive-sidebar";
-import { DriveUploadPanel } from "./-drive-upload-panel";
 import { FileBrowser } from "./-file-browser";
 import { OutgoingSharesList, ReceivedSharesList } from "./-share-lists";
 
@@ -213,7 +212,7 @@ function DrivePage() {
         </Suspense>
       )}
 
-      <DriveUploadPanel />
+      <UploadQueuePanel />
     </TooltipProvider>
   );
 }

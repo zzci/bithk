@@ -1,8 +1,8 @@
-// Drive upload queue: a small global store of in-flight/finished uploads plus
+// File upload queue: a small global store of in-flight/finished uploads plus
 // an XHR-based uploader that reports byte progress (the react-query mutation
 // uses fetch, which can't surface upload progress). The bottom-right
-// `-drive-upload-panel.tsx` renders this store; FileBrowser and the sidebar
-// "+" enqueue through `useDriveUploader`.
+// `upload-queue-panel.tsx` renders this store; FileBrowser and the sidebar
+// "+" enqueue through `useFileUploader`.
 
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,7 +29,7 @@ interface UploadState {
   readonly clearFinished: () => void;
 }
 
-export const useDriveUploadStore = create<UploadState>(set => ({
+export const useFileUploadStore = create<UploadState>(set => ({
   tasks: [],
   add: task => set(state => ({ tasks: [...state.tasks, task] })),
   patch: (id, patch) => set(state => ({
@@ -52,10 +52,10 @@ interface UploadOwner {
  * Auth mirrors `httpRaw`: cookie credentials + the `X-Requested-With` CSRF
  * header.
  */
-export function useDriveUploader(): (files: readonly File[], owner: UploadOwner) => void {
+export function useFileUploader(): (files: readonly File[], owner: UploadOwner) => void {
   const queryClient = useQueryClient();
-  const add = useDriveUploadStore(state => state.add);
-  const patch = useDriveUploadStore(state => state.patch);
+  const add = useFileUploadStore(state => state.add);
+  const patch = useFileUploadStore(state => state.patch);
 
   return useCallback((files, owner) => {
     const uploadOne = (file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
