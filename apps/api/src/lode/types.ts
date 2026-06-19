@@ -18,6 +18,14 @@ export interface LodeSummary {
   readonly active: boolean;
   readonly status: LodeStateStatus;
   readonly current?: string;
+  // The newer version lode has detected as available (state.json `available`).
+  // Present only when lode has seen an update; compare against `current` to
+  // decide whether an update is pending.
+  readonly available?: string;
+  // Last update-check timestamp + error (state.json `last_check`/`last_error`),
+  // surfaced so the About page can show a stale/failing check (e.g. a GitHub 504).
+  readonly lastCheckAt?: string;
+  readonly lastError?: string;
   readonly stateStatus?: string;
   readonly readiness: {
     // True once this instance has signalled serving (any phase of the

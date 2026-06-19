@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { ArrowUpCircle, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -32,6 +32,9 @@ interface LodeStatus {
   readonly active?: boolean | null;
   readonly status?: string | null;
   readonly current?: string | null;
+  readonly available?: string | null;
+  readonly lastCheckAt?: string | null;
+  readonly lastError?: string | null;
   readonly stateStatus?: string | null;
   readonly readiness?: {
     readonly ready?: boolean | null;
@@ -105,9 +108,14 @@ export function AboutSettingsTab() {
 function LodeStatusCard({ lode }: { readonly lode: LodeStatus | null | undefined }) {
   const { t } = useTranslation(["settings"]);
   const readinessReady = lode?.readiness?.ready;
+  // An update is pending when lode has detected a version different from the
+  // running one (compare to `current`, not just presence — they're equal once
+  // the update has been applied).
+  const updateAvailable = !!lode?.available && lode.available !== lode.current;
   const lifecycleRows = [
     { label: t("settings:about.lode.status"), value: safeText(lode?.status) },
     { label: t("settings:about.lode.current"), value: safeText(lode?.current) },
+    { label: t("settings:about.lode.available"), value: safeText(lode?.available) },
     { label: t("settings:about.lode.stateStatus"), value: safeText(lode?.stateStatus) },
     { label: t("settings:about.lode.readiness"), value: readinessReady == null ? null : boolText(readinessReady, t) },
   ].filter(row => row.value !== null);
@@ -118,6 +126,8 @@ function LodeStatusCard({ lode }: { readonly lode: LodeStatus | null | undefined
     { label: t("settings:about.lode.asset"), value: safeText(lode?.update?.asset) },
     { label: t("settings:about.lode.sourceType"), value: safeText(lode?.update?.sourceType) },
     { label: t("settings:about.lode.source"), value: safeText(lode?.update?.source) },
+    { label: t("settings:about.lode.lastCheck"), value: safeText(lode?.lastCheckAt) },
+    { label: t("settings:about.lode.lastError"), value: safeText(lode?.lastError) },
   ].filter(row => row.value !== null);
 
   return (
@@ -130,6 +140,13 @@ function LodeStatusCard({ lode }: { readonly lode: LodeStatus | null | undefined
         {lode
           ? (
               <>
+                {updateAvailable && (
+                  <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+                    <ArrowUpCircle className="size-4 shrink-0 text-primary" />
+                    <span>{t("settings:about.lode.updateAvailable", { version: lode.available, current: lode.current ?? "?" })}</span>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
                   <BooleanBadge label={t("settings:about.lode.configured")} value={lode.configured} />
                   <BooleanBadge label={t("settings:about.lode.active")} value={lode.active} />

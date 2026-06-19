@@ -35,6 +35,28 @@ describe("getLodeSummary readiness", () => {
     }
   });
 
+  test("surfaces available version + last check/error from state.json", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bit-lode-summary-"));
+    try {
+      writeFileSync(join(dir, "state.json"), JSON.stringify({
+        current: "0.1.6",
+        available: "0.1.7",
+        status: "running",
+        last_check: "2026-06-19T16:23:58Z",
+        last_error: "update check: http status: 504",
+        ready: `${INSTANCE}-0`,
+      }));
+      const s = getLodeSummary({ LODE_DATA_DIR: dir, LODE_INSTANCE: INSTANCE });
+      expect(s.current).toBe("0.1.6");
+      expect(s.available).toBe("0.1.7");
+      expect(s.lastCheckAt).toBe("2026-06-19T16:23:58Z");
+      expect(s.lastError).toContain("504");
+    }
+    finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("accepts the bare legacy token as serving", () => {
     withState(INSTANCE, (dir) => {
       expect(getLodeSummary({ LODE_DATA_DIR: dir, LODE_INSTANCE: INSTANCE }).readiness).toEqual({ ready: true, phase: 0 });

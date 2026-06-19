@@ -35,7 +35,7 @@ function safeGithubSource(value: unknown): string | undefined {
   return source && /^[\w.-]+\/[\w.-]+$/.test(source) ? source : undefined;
 }
 
-function readLodeStateSummary(env: LodeRuntimeEnv): Pick<LodeSummary, "status" | "current" | "stateStatus" | "readiness"> {
+function readLodeStateSummary(env: LodeRuntimeEnv): Pick<LodeSummary, "status" | "current" | "available" | "lastCheckAt" | "lastError" | "stateStatus" | "readiness"> {
   const path = summaryStatePath(env);
   if (!path || !env.LODE_DATA_DIR) {
     return { status: "not_configured", readiness: { ready: null, phase: null } };
@@ -73,6 +73,9 @@ function readLodeStateSummary(env: LodeRuntimeEnv): Pick<LodeSummary, "status" |
   const result: {
     status: LodeStateStatus;
     current?: string;
+    available?: string;
+    lastCheckAt?: string;
+    lastError?: string;
     stateStatus?: string;
     readiness: { ready: boolean | null; phase: number | null };
   } = {
@@ -82,6 +85,15 @@ function readLodeStateSummary(env: LodeRuntimeEnv): Pick<LodeSummary, "status" |
   const current = safeString(parsed.current);
   if (current)
     result.current = current;
+  const available = safeString(parsed.available);
+  if (available)
+    result.available = available;
+  const lastCheckAt = safeString(parsed.last_check);
+  if (lastCheckAt)
+    result.lastCheckAt = lastCheckAt;
+  const lastError = safeString(parsed.last_error);
+  if (lastError)
+    result.lastError = lastError;
   const stateStatus = safeString(parsed.status);
   if (stateStatus)
     result.stateStatus = stateStatus;
