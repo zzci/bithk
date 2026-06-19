@@ -28,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
 import { FileUploadButton } from "@/shared/components/file";
 import { MoneyInput } from "@/shared/components/money-input";
+import { AttachFromDriveButton } from "@/shared/components/resource/attach-from-drive-button";
 import { ResourceAttachmentSection } from "@/shared/components/resource/attachment-section";
 import { validateAttachmentSelection } from "@/shared/components/resource/attachment-upload";
 import { useResourceAttachmentUpload } from "@/shared/components/resource/use-attachment-upload";
@@ -448,12 +449,19 @@ function ColleagueDocuments({ colleagueId }: { readonly colleagueId: string }) {
   return (
     <div className="space-y-3">
       {error && <ErrorBanner message={error} />}
-      <FileUploadButton multiple disabled={upload.isPending} onSelect={handleUpload}>
-        <Button type="button" variant="outline" size="sm" disabled={upload.isPending}>
-          <Upload aria-hidden="true" />
-          {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
-        </Button>
-      </FileUploadButton>
+      <div className="flex flex-wrap items-center gap-2">
+        <FileUploadButton multiple disabled={upload.isPending} onSelect={handleUpload}>
+          <Button type="button" variant="outline" size="sm" disabled={upload.isPending}>
+            <Upload aria-hidden="true" />
+            {upload.isPending ? t("attachments.uploading") : t("attachments.upload")}
+          </Button>
+        </FileUploadButton>
+        <AttachFromDriveButton
+          resource="hr/colleagues"
+          resourceId={colleagueId}
+          onError={err => setError(errorMessage(err, t("common:common.error.uploadFailed")))}
+        />
+      </div>
       <ResourceAttachmentSection
         resource="hr/colleagues"
         resourceId={colleagueId}

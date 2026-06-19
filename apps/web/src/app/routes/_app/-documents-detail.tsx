@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { MarkdownEditor } from "@/shared/components/editor";
 import { FileUploadButton } from "@/shared/components/file";
 import {
+  AttachFromDriveButton,
   partitionBySize,
   ResourceFooterSections,
   useResourceAttachmentUpload,
@@ -281,6 +282,11 @@ export function DocumentDetail({
                     accept="any"
                     multiple
                     onSelect={handleUploadFiles}
+                  />
+                  <AttachFromDriveButton
+                    resource="documents"
+                    resourceId={docId}
+                    onError={err => toast.error(errorMessage(err, t("common.error.operationFailed")))}
                   />
                   <Tooltip>
                     <TooltipTrigger

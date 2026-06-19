@@ -27,6 +27,7 @@ import {
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
 import { PRIORITY_BADGE_VARIANT } from "@/shared/components/priority-variant";
 import {
+  AttachFromDriveButton,
   ResourceFooterSections,
   useResourceAttachmentUpload,
   validateAttachmentSelection,
@@ -310,6 +311,13 @@ export function ProjectIssuePanel({
             fileInputRef={fileInputRef}
             onFilesSelected={handleUpload}
           />
+          {canUploadAttachment && (
+            <AttachFromDriveButton
+              resource={`projects/${projectId}/issues`}
+              resourceId={issueId}
+              onError={err => setError(errorMessage(err, t("common.error.uploadFailed")))}
+            />
+          )}
         </DetailMetaRow>
 
         {/* Tags */}
