@@ -169,6 +169,5 @@ export function getLodeSummary(env: LodeRuntimeEnv = currentLodeEnv()): LodeSumm
     active: !!(env.LODE_DATA_DIR && env.LODE_INSTANCE),
     ...state,
     update: readLodeUpdateSummary(env),
-    manualOperations: { check: false, apply: false },
   };
 }

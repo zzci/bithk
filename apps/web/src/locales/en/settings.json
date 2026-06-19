@@ -61,12 +61,6 @@
       "source": "Source",
       "lifecycle": "Runtime",
       "update": "Update configuration",
-      "manualOperations": "Manual operations",
-      "manualCheck": "Check for update",
-      "manualApply": "Apply update",
-      "manualUnsupportedHint": "Manual check/apply controls are intentionally unavailable unless the server exposes a verified operation surface.",
-      "supported": "Supported",
-      "unsupported": "Unsupported",
       "unavailable": "Lode status is not available."
     }
   },

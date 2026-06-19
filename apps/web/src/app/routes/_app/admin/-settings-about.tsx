@@ -47,10 +47,6 @@ interface LodeStatus {
     readonly sourceType?: string | null;
     readonly source?: string | null;
   } | null;
-  readonly manualOperations?: {
-    readonly check?: boolean | null;
-    readonly apply?: boolean | null;
-  } | null;
 }
 
 const versionQueryKey = ["system", "version"] as const;
@@ -154,15 +150,6 @@ function LodeStatusCard({ lode }: { readonly lode: LodeStatus | null | undefined
 
                 <InfoSection title={t("settings:about.lode.lifecycle")} rows={lifecycleRows} />
                 <InfoSection title={t("settings:about.lode.update")} rows={updateRows} />
-
-                <div className="rounded-lg border bg-muted/30 p-3">
-                  <div className="text-sm font-medium">{t("settings:about.lode.manualOperations")}</div>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <ManualOperation label={t("settings:about.lode.manualCheck")} supported={lode.manualOperations?.check === true} />
-                    <ManualOperation label={t("settings:about.lode.manualApply")} supported={lode.manualOperations?.apply === true} />
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{t("settings:about.lode.manualUnsupportedHint")}</p>
-                </div>
               </>
             )
           : (
@@ -214,18 +201,6 @@ function BooleanBadge({ label, value }: { readonly label: string; readonly value
       <span>{`${label}:`}</span>
       <span>{boolText(value, t)}</span>
     </Badge>
-  );
-}
-
-function ManualOperation({ label, supported }: { readonly label: string; readonly supported: boolean }) {
-  const { t } = useTranslation("settings");
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2 text-sm">
-      <span>{label}</span>
-      <Badge variant={supported ? "secondary" : "outline"}>
-        {supported ? t("about.lode.supported") : t("about.lode.unsupported")}
-      </Badge>
-    </div>
   );
 }
 

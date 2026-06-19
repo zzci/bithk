@@ -44,10 +44,6 @@ function routeVersionFetch() {
           sourceType: "github",
           source: "owner/repo",
         },
-        manualOperations: {
-          check: false,
-          apply: false,
-        },
       },
     },
   }));
@@ -66,18 +62,14 @@ describe("aboutSettingsTab", () => {
     expect(screen.getByText("valid")).toBeInTheDocument();
     expect(screen.getByText("stable")).toBeInTheDocument();
     expect(screen.getByText("owner/repo")).toBeInTheDocument();
-    expect(screen.getAllByText("Unsupported")).toHaveLength(2);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/system/version");
   });
 
-  it("refreshes the version query without exposing manual controls", async () => {
+  it("refreshes the version query", async () => {
     routeVersionFetch();
 
     renderWithProviders(<AboutSettingsTab />);
     await waitFor(() => expect(screen.getAllByText("0.1.5")).toHaveLength(2));
-
-    expect(screen.queryByRole("button", { name: "Check for update" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Apply update" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
 

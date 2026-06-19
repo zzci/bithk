@@ -186,7 +186,6 @@ describe("GET /system/version", () => {
       status: "not_configured",
       readiness: { ready: null, phase: null },
       update: { configStatus: "not_configured" },
-      manualOperations: { check: false, apply: false },
     });
   });
 
@@ -231,7 +230,6 @@ trusted_keys = ["trusted-key-material"]
         sourceType: "github",
         source: "zzci/bithk",
       },
-      manualOperations: { check: false, apply: false },
     });
   });
 

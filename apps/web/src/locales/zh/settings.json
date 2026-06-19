@@ -61,12 +61,6 @@
       "source": "来源",
       "lifecycle": "运行时",
       "update": "更新配置",
-      "manualOperations": "手动操作",
-      "manualCheck": "检查更新",
-      "manualApply": "应用更新",
-      "manualUnsupportedHint": "除非服务端暴露已验证的操作入口，否则手动检查/应用控件会保持不可用。",
-      "supported": "支持",
-      "unsupported": "不支持",
       "unavailable": "Lode 状态不可用。"
     }
   },

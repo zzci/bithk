@@ -44,8 +44,4 @@ export interface LodeSummary {
     readonly sourceType?: LodeSourceType;
     readonly source?: string;
   };
-  readonly manualOperations: {
-    readonly check: false;
-    readonly apply: false;
-  };
 }
