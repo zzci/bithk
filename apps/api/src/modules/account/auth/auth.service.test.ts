@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
+import { createVirtualUser } from "@/modules/account/users/users.service";
 import { upsertSingleUser, upsertUser } from "./auth.service";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
@@ -294,5 +295,117 @@ describe("upsertUser DEFAULT_ADMIN bootstrap", () => {
 
     const attackerRow = await db.select().from(users).where(eq(users.oauthSub, "attacker-sub")).get();
     expect(attackerRow).toBeUndefined();
+  });
+});
+
+describe("upsertUser identity ownership (FEAT-038)", () => {
+  test("does not re-derive local name or username from the token on re-login", async () => {
+    const created = await upsertUser(
+      db,
+      { sub: "sub-x", preferred_username: "alice", email: "alice@example.com", email_verified: true, name: "Alice" },
+      authConfig([]),
+      logger,
+    );
+    // Admin edits the name locally; identity is keyed on sub.
+    await db.update(users).set({ name: "Alice Local" }).where(eq(users.id, created.id)).run();
+
+    // Upstream later sends a different name AND a renamed username.
+    const relogin = await upsertUser(
+      db,
+      { sub: "sub-x", preferred_username: "alice-renamed", email: "alice@example.com", email_verified: true, name: "Alice Upstream" },
+      authConfig([]),
+      logger,
+    );
+    expect(relogin.id).toBe(created.id);
+
+    const row = await db.select().from(users).where(eq(users.id, created.id)).get();
+    expect(row?.name).toBe("Alice Local");
+    expect(row?.username).toBe("alice");
+  });
+});
+
+describe("upsertUser virtual-user binding (FEAT-038)", () => {
+  test("binds a virtual user when a username claim AND verified email match", async () => {
+    const v = await createVirtualUser(db, { username: "zhangsan", name: "Zhang San", email: "zhangsan@corp.com" });
+
+    const bound = await upsertUser(
+      db,
+      { sub: "idp-zs", preferred_username: "zhangsan", email: "zhangsan@corp.com", email_verified: true, name: "Upstream Name" },
+      authConfig([]),
+      logger,
+    );
+
+    expect(bound.id).toBe(v!.id);
+    expect(bound.isVirtual).toBe(false);
+    expect(bound.oauthSub).toBe("idp-zs");
+    // Local name and username survive the conversion.
+    expect(bound.name).toBe("Zhang San");
+    expect(bound.username).toBe("zhangsan");
+
+    const rows = await db.select().from(users).all();
+    expect(rows.length).toBe(1);
+  });
+
+  test("matches the `username` claim, not only `preferred_username`", async () => {
+    const v = await createVirtualUser(db, { username: "lisi", name: "Li Si", email: "lisi@corp.com" });
+
+    const bound = await upsertUser(
+      db,
+      { sub: "idp-ls", preferred_username: "l.si", username: "lisi", email: "lisi@corp.com", email_verified: true },
+      authConfig([]),
+      logger,
+    );
+
+    expect(bound.id).toBe(v!.id);
+    expect(bound.isVirtual).toBe(false);
+    expect(bound.username).toBe("lisi");
+  });
+
+  test("binds by verified email alone when the token carries no username claim", async () => {
+    const v = await createVirtualUser(db, { username: "wangwu", name: "Wang Wu", email: "wangwu@corp.com" });
+
+    const bound = await upsertUser(
+      db,
+      { sub: "idp-ww", email: "wangwu@corp.com", email_verified: true },
+      authConfig([]),
+      logger,
+    );
+
+    expect(bound.id).toBe(v!.id);
+    expect(bound.isVirtual).toBe(false);
+  });
+
+  test("does not bind a virtual user on an unverified email", async () => {
+    const v = await createVirtualUser(db, { username: "zhaoliu", name: "Zhao Liu", email: "zhaoliu@corp.com" });
+
+    // Username would match but the email is not verified → no bind; a fresh
+    // real user is created with the distinct upstream email instead.
+    const result = await upsertUser(
+      db,
+      { sub: "idp-zl", preferred_username: "zhaoliu2", email: "zhaoliu2@corp.com" },
+      authConfig([]),
+      logger,
+    );
+    expect(result.id).not.toBe(v!.id);
+
+    const stillVirtual = await db.select().from(users).where(eq(users.id, v!.id)).get();
+    expect(stillVirtual?.isVirtual).toBe(true);
+  });
+
+  test("requires BOTH username and email to match when a username claim is present", async () => {
+    const v = await createVirtualUser(db, { username: "qian", name: "Qian", email: "qian@corp.com" });
+
+    // Username claim present but differs; email matches the virtual row. Since a
+    // username claim exists, email-only fallback does not apply, so no bind —
+    // and the fresh insert collides on the unique email.
+    await expect(upsertUser(
+      db,
+      { sub: "idp-q", preferred_username: "different", email: "qian@corp.com", email_verified: true },
+      authConfig([]),
+      logger,
+    )).rejects.toThrow();
+
+    const stillVirtual = await db.select().from(users).where(eq(users.id, v!.id)).get();
+    expect(stillVirtual?.isVirtual).toBe(true);
   });
 });

@@ -6,7 +6,7 @@ import type { Logger } from "@/shared/lib/logger";
 import type { AppEnv, User } from "@/shared/lib/types";
 import { Buffer } from "node:buffer";
 import { randomBytes } from "node:crypto";
-import { count as countFn, eq, lte, or } from "drizzle-orm";
+import { and, count as countFn, eq, inArray, lte, or } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { openPkceVerifier, sealPkceVerifier } from "@/modules/account/auth/pkce-secret";
 import { pkceChallenges, sessions } from "@/modules/account/auth/schema";
@@ -132,13 +132,22 @@ export async function upsertUser(
   // An unverified email is attacker-chosen at many IdPs; only match/bootstrap
   // on it when the IdP asserts it verified. Username path is left intact.
   const emailTrusted = userInfo.email_verified === true && email !== "";
+  // IdPs may expose distinct `preferred_username` and `username` claims; collect
+  // both (lowercased) as candidate keys when matching an existing local row.
+  const usernameCandidates = [...new Set(
+    [userInfo.preferred_username, userInfo.username]
+      .filter((u): u is string => typeof u === "string" && u !== "")
+      .map(u => u.toLowerCase()),
+  )];
 
   const existing = await db.select().from(users).where(eq(users.oauthSub, userInfo.sub)).get();
 
   if (existing) {
+    // Identity is keyed on `sub`. `name` and `username` are locally owned and
+    // stable — never re-derived from the token, so an upstream rename cannot
+    // desync the local row. Only email/avatar/lastLogin track upstream.
     await db.update(users)
       .set({
-        name: userInfo.name ?? existing.name,
         email: userInfo.email ?? existing.email,
         avatar: userInfo.picture ?? existing.avatar,
         lastLoginAt: now,
@@ -166,9 +175,9 @@ export async function upsertUser(
     // created the same user. If so, fall through to update behaviour.
     const dupe = tx.select().from(users).where(eq(users.oauthSub, userInfo.sub)).get();
     if (dupe) {
+      // Same as the sub-match path above: keep local name/username stable.
       tx.update(users)
         .set({
-          name: userInfo.name ?? dupe.name,
           email: userInfo.email ?? dupe.email,
           avatar: userInfo.picture ?? dupe.avatar,
           lastLoginAt: now,
@@ -179,46 +188,76 @@ export async function upsertUser(
       return { ...dupe, lastLoginAt: now, updatedAt: now };
     }
 
-    // Take-over path: an existing row matches by username or email but not
-    // by sub. Most common trigger is the operator toggling
+    // Virtual-user binding (FEAT-038): convert a virtual row in place to this
+    // real identity. Email is the mandatory match key and must be verified; a
+    // username claim (preferred_username or username) must also match, EXCEPT
+    // when the token carries no username claim at all, in which case the
+    // verified email alone binds. The row keeps its id, local name and local
+    // username — only the OAuth identity is attached and `isVirtual` cleared —
+    // so its project memberships survive.
+    if (emailTrusted) {
+      const virtualMatch = usernameCandidates.length > 0
+        ? tx.select().from(users).where(and(
+            eq(users.isVirtual, true),
+            eq(users.email, email),
+            inArray(users.username, usernameCandidates),
+          )).get()
+        : tx.select().from(users).where(and(
+            eq(users.isVirtual, true),
+            eq(users.email, email),
+          )).get();
+      if (virtualMatch) {
+        logger.info(
+          { id: virtualMatch.id, newSub: userInfo.sub },
+          "binding virtual user to real oauth identity",
+        );
+        const bound = {
+          oauthSub: userInfo.sub,
+          isVirtual: false,
+          email: userInfo.email ?? virtualMatch.email,
+          avatar: userInfo.picture ?? virtualMatch.avatar,
+          lastLoginAt: now,
+          updatedAt: now,
+        };
+        tx.update(users).set(bound).where(eq(users.id, virtualMatch.id)).run();
+        return { ...virtualMatch, ...bound };
+      }
+    }
+
+    // Real-user take-over: an existing REAL row matches by username or email
+    // but not by sub. Most common trigger is the operator toggling
     // SINGLE_USER_MODE — single-user mode rewrites the row's oauth_sub to
     // the `"single-user"` sentinel, so the next OAuth login can no longer
     // resolve by sub and would otherwise crash on the username/email
-    // unique constraint. Rewriting oauth_sub back to the IdP value
-    // re-binds the row to the OAuth identity. Role is preserved
-    // deliberately — if the row was an admin under either flow it stays
-    // an admin; the bootstrap path below only fires for true first-time
-    // logins.
+    // unique constraint. Rewriting oauth_sub back to the IdP value re-binds
+    // the row to the OAuth identity. Role is preserved deliberately. Scoped to
+    // `isVirtual = false` so a virtual row only ever converts via the strict
+    // binding path above; name and username are locally stable and preserved.
+    const usernameMatch = usernameCandidates.length > 0
+      ? inArray(users.username, usernameCandidates)
+      : undefined;
     const conflict = emailTrusted
-      ? tx.select().from(users).where(or(eq(users.username, username), eq(users.email, email))).get()
-      : tx.select().from(users).where(eq(users.username, username)).get();
+      ? tx.select().from(users).where(and(
+          eq(users.isVirtual, false),
+          usernameMatch ? or(usernameMatch, eq(users.email, email)) : eq(users.email, email),
+        )).get()
+      : usernameMatch
+        ? tx.select().from(users).where(and(eq(users.isVirtual, false), usernameMatch)).get()
+        : undefined;
     if (conflict) {
       logger.info(
         { id: conflict.id, prevSub: conflict.oauthSub, newSub: userInfo.sub },
         "rebinding existing user to new oauth_sub (identity migration)",
       );
-      tx.update(users)
-        .set({
-          oauthSub: userInfo.sub,
-          username,
-          name: userInfo.name ?? conflict.name,
-          email: userInfo.email ?? conflict.email,
-          avatar: userInfo.picture ?? conflict.avatar,
-          lastLoginAt: now,
-          updatedAt: now,
-        })
-        .where(eq(users.id, conflict.id))
-        .run();
-      return {
-        ...conflict,
+      const rebound = {
         oauthSub: userInfo.sub,
-        username,
-        name: userInfo.name ?? conflict.name,
         email: userInfo.email ?? conflict.email,
         avatar: userInfo.picture ?? conflict.avatar,
         lastLoginAt: now,
         updatedAt: now,
       };
+      tx.update(users).set(rebound).where(eq(users.id, conflict.id)).run();
+      return { ...conflict, ...rebound };
     }
 
     // Gate bootstrap on "no admin exists" rather than "no user exists" so a

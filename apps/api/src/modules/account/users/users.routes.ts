@@ -30,6 +30,7 @@ import {
   listActiveUsers,
   listAssignableUsers,
   listUsers,
+  updateUser,
   updateVirtualUser,
 } from "./users.service";
 
@@ -43,8 +44,9 @@ const listQuerySchema = z.object({
 });
 
 // `username` matches the virtual-user create rule: lowercase handle of
-// [a-z0-9_.-]. `name`/`username` are only honoured for virtual targets (the
-// handler rejects them for real users).
+// [a-z0-9_.-]. `name` is editable for every user; `username`/`email` are only
+// honoured for virtual targets (the handler rejects them for real users, whose
+// identity is owned by the IdP).
 const usernameSchema = z.string().min(1).max(100).regex(/^[a-z0-9_.-]+$/);
 
 const updateBodySchema = z.object({
@@ -52,14 +54,16 @@ const updateBodySchema = z.object({
   status: z.enum(["active", "disabled"]).optional(),
   name: z.string().min(1).max(255).optional(),
   username: usernameSchema.optional(),
+  email: z.string().email().max(255).optional(),
 }).refine(
-  d => d.role !== undefined || d.status !== undefined || d.name !== undefined || d.username !== undefined,
-  { message: "At least one of role, status, name or username must be provided" },
+  d => d.role !== undefined || d.status !== undefined || d.name !== undefined || d.username !== undefined || d.email !== undefined,
+  { message: "At least one of role, status, name, username or email must be provided" },
 );
 
 const createVirtualUserSchema = z.object({
   username: usernameSchema,
   name: z.string().min(1).max(255),
+  email: z.string().email().max(255).optional(),
 });
 
 const idParamSchema = z.object({ id: z.string() });
@@ -571,12 +575,14 @@ export function userRoutes() {
 
       const body = updateBodySchema.parse(await c.req.json());
 
-      // name / username are display edits reserved for virtual users — a real
-      // user's username/name are owned by the IdP and must not be overwritten.
-      const renaming = body.name !== undefined || body.username !== undefined;
-      if (renaming && !existing.isVirtual) {
-        throw new AppError("Only virtual users can be renamed", 400, "BAD_REQUEST");
+      // `name` is locally editable for every user (login no longer overwrites
+      // it). `username`/`email` are identity fields owned by the IdP for real
+      // users, so they are only honoured for virtual targets.
+      const editsIdentity = body.username !== undefined || body.email !== undefined;
+      if (editsIdentity && !existing.isVirtual) {
+        throw new AppError("Only virtual users can change username or email", 400, "BAD_REQUEST");
       }
+      const editsProfile = body.name !== undefined || editsIdentity;
 
       const roleChanged = body.role !== undefined && body.role !== existing.role;
       const statusChanged = body.status !== undefined && body.status !== existing.status;
@@ -621,12 +627,17 @@ export function userRoutes() {
       const ip = getClientIp(c);
       const userAgent = c.req.header("user-agent") ?? "unknown";
 
-      if (renaming) {
-        await updateVirtualUser(db, id, { name: body.name, username: body.username });
+      if (editsProfile) {
+        // Virtual rows carry editable identity fields; real rows only accept a
+        // local name change (identity stays IdP-owned).
+        if (existing.isVirtual)
+          await updateVirtualUser(db, id, { name: body.name, username: body.username, email: body.email });
+        else
+          await updateUser(db, id, { name: body.name });
         await audit(db, c.get("logger"), {
           actorId: currentUser.id,
           actorName: currentUser.name,
-          action: "user.virtual_updated",
+          action: existing.isVirtual ? "user.virtual_updated" : "user.profile_updated",
           resourceType: "user",
           resourceId: id,
           resourceName: body.username ?? existing.username,

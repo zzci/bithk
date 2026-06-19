@@ -299,13 +299,18 @@ function UsersTab() {
                                 </>
                               )
                             : (
-                                <Button
-                                  variant="ghost"
-                                  disabled={isSelf(user.id)}
-                                  onClick={() => void toggleStatus(user)}
-                                >
-                                  {user.status === "active" ? t("disable") : t("enable")}
-                                </Button>
+                                <>
+                                  <Button variant="ghost" onClick={() => setEditTarget(user)}>
+                                    {t("edit")}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    disabled={isSelf(user.id)}
+                                    onClick={() => void toggleStatus(user)}
+                                  >
+                                    {user.status === "active" ? t("disable") : t("enable")}
+                                  </Button>
+                                </>
                               )}
                         </div>
                       </TableCell>
@@ -394,8 +399,13 @@ interface VirtualUserDialogProps {
 
 function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualUserDialogProps) {
   const { t } = useTranslation("users");
+  // Identity fields (username, email) are editable only for virtual rows;
+  // a real user's identity is owned by the IdP, so the dialog edits its name
+  // alone. Create mode always targets a new virtual user.
+  const isVirtual = mode === "create" || (user?.isVirtual ?? false);
   const [username, setUsername] = useState(user?.username ?? "");
   const [name, setName] = useState(user?.name ?? "");
+  const [email, setEmail] = useState(user?.email ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -403,7 +413,8 @@ function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualU
     event.preventDefault();
     const trimmedUsername = username.trim();
     const trimmedName = name.trim();
-    if (!trimmedUsername || !trimmedName || pending)
+    const trimmedEmail = email.trim();
+    if (!trimmedName || pending || (isVirtual && !trimmedUsername))
       return;
     setPending(true);
     setError(null);
@@ -411,16 +422,23 @@ function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualU
       if (mode === "create") {
         await http("/account/users", {
           method: "POST",
-          body: JSON.stringify({ username: trimmedUsername, name: trimmedName }),
+          body: JSON.stringify({
+            username: trimmedUsername,
+            name: trimmedName,
+            ...(trimmedEmail ? { email: trimmedEmail } : {}),
+          }),
         });
         toast.success(t("virtual.toast.created"));
       }
       else if (user) {
+        const body = isVirtual
+          ? { username: trimmedUsername, name: trimmedName, email: trimmedEmail }
+          : { name: trimmedName };
         await http(`/account/users/${user.id}`, {
           method: "PATCH",
-          body: JSON.stringify({ username: trimmedUsername, name: trimmedName }),
+          body: JSON.stringify(body),
         });
-        toast.success(t("virtual.toast.updated"));
+        toast.success(isVirtual ? t("virtual.toast.updated") : t("toast.updated"));
       }
       onOpenChange(false);
       onSaved();
@@ -433,13 +451,18 @@ function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualU
     }
   };
 
+  const title = mode === "create"
+    ? t("virtual.createTitle")
+    : isVirtual ? t("virtual.editTitle") : t("editTitle");
+  const description = isVirtual ? t("virtual.dialogDescription") : t("editDescription");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? t("virtual.createTitle") : t("virtual.editTitle")}</DialogTitle>
-            <DialogDescription>{t("virtual.dialogDescription")}</DialogDescription>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
 
           {error && (
@@ -448,22 +471,25 @@ function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualU
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="virtual-user-username">{t("field.username")}</Label>
-            <Input
-              id="virtual-user-username"
-              autoFocus
-              required
-              maxLength={50}
-              value={username}
-              onChange={e => setUsername(e.target.value.toLowerCase())}
-            />
-          </div>
+          {isVirtual && (
+            <div className="space-y-1.5">
+              <Label htmlFor="virtual-user-username">{t("field.username")}</Label>
+              <Input
+                id="virtual-user-username"
+                autoFocus
+                required
+                maxLength={50}
+                value={username}
+                onChange={e => setUsername(e.target.value.toLowerCase())}
+              />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="virtual-user-name">{t("field.name")}</Label>
             <Input
               id="virtual-user-name"
+              autoFocus={!isVirtual}
               required
               maxLength={255}
               value={name}
@@ -471,11 +497,26 @@ function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualU
             />
           </div>
 
+          {isVirtual && (
+            <div className="space-y-1.5">
+              <Label htmlFor="virtual-user-email">{t("field.email")}</Label>
+              <Input
+                id="virtual-user-email"
+                type="email"
+                maxLength={255}
+                value={email}
+                placeholder={t("virtual.emailPlaceholder")}
+                onChange={e => setEmail(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">{t("virtual.emailHint")}</p>
+            </div>
+          )}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit" disabled={pending || !username.trim() || !name.trim()}>
+            <Button type="submit" disabled={pending || !name.trim() || (isVirtual && !username.trim())}>
               {t("common.save")}
             </Button>
           </DialogFooter>

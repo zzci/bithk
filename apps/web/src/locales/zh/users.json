@@ -8,7 +8,14 @@
     "role": "角色",
     "status": "状态",
     "username": "用户名",
-    "name": "姓名"
+    "name": "姓名",
+    "email": "邮箱"
+  },
+  "edit": "编辑",
+  "editTitle": "编辑用户",
+  "editDescription": "修改显示姓名。用户名和邮箱由身份提供方管理，不能在此修改。",
+  "toast": {
+    "updated": "用户已更新"
   },
   "virtual": {
     "badge": "虚拟",
@@ -16,6 +23,8 @@
     "createTitle": "新增虚拟用户",
     "editTitle": "编辑虚拟用户",
     "dialogDescription": "虚拟用户是无法登录的受管账号。",
+    "emailHint": "填写该员工未来的真实邮箱，其首次登录时将自动绑定到此账号。",
+    "emailPlaceholder": "留空则自动生成",
     "edit": "编辑",
     "delete": "删除",
     "deleteTitle": "删除虚拟用户",

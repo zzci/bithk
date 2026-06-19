@@ -166,6 +166,12 @@ describe("updateUser", () => {
     const updated = await updateUser(db, id, { status: "disabled" });
     expect(updated?.status).toBe("disabled");
   });
+
+  test("updates name (editable for any user)", async () => {
+    const id = await seedUser({ name: "Old Name" });
+    const updated = await updateUser(db, id, { name: "New Name" });
+    expect(updated?.name).toBe("New Name");
+  });
 });
 
 describe("getUserGroups", () => {
@@ -210,6 +216,18 @@ describe("createVirtualUser", () => {
       .rejects
       .toMatchObject({ statusCode: 409 });
   });
+
+  test("accepts an explicit email (the binding key)", async () => {
+    const created = await createVirtualUser(db, { username: "vmail", name: "V Mail", email: "future@corp.com" });
+    expect(created?.email).toBe("future@corp.com");
+  });
+
+  test("rejects an email already used by another user (409)", async () => {
+    await seedUser({ username: "ereal", email: "dup@corp.com" });
+    await expect(createVirtualUser(db, { username: "evirtual", name: "Dup", email: "dup@corp.com" }))
+      .rejects
+      .toMatchObject({ statusCode: 409 });
+  });
 });
 
 describe("updateVirtualUser", () => {
@@ -224,6 +242,20 @@ describe("updateVirtualUser", () => {
     await seedUser({ username: "occupied" });
     const created = await createVirtualUser(db, { username: "free", name: "V" });
     await expect(updateVirtualUser(db, created!.id, { username: "occupied" }))
+      .rejects
+      .toMatchObject({ statusCode: 409 });
+  });
+
+  test("updates the email", async () => {
+    const created = await createVirtualUser(db, { username: "vedit", name: "V" });
+    const updated = await updateVirtualUser(db, created!.id, { email: "real@corp.com" });
+    expect(updated?.email).toBe("real@corp.com");
+  });
+
+  test("rejects an email that collides with another user (409)", async () => {
+    await seedUser({ username: "owner", email: "owned@corp.com" });
+    const created = await createVirtualUser(db, { username: "vfree", name: "V" });
+    await expect(updateVirtualUser(db, created!.id, { email: "owned@corp.com" }))
       .rejects
       .toMatchObject({ statusCode: 409 });
   });

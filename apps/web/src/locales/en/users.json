@@ -8,7 +8,14 @@
     "role": "Role",
     "status": "Status",
     "username": "Username",
-    "name": "Name"
+    "name": "Name",
+    "email": "Email"
+  },
+  "edit": "Edit",
+  "editTitle": "Edit user",
+  "editDescription": "Edit the display name. The username and email are managed by the identity provider and cannot be changed here.",
+  "toast": {
+    "updated": "User updated"
   },
   "virtual": {
     "badge": "Virtual",
@@ -16,6 +23,8 @@
     "createTitle": "New virtual user",
     "editTitle": "Edit virtual user",
     "dialogDescription": "Virtual users are managed accounts that cannot sign in.",
+    "emailHint": "Set this to the person's real email so their account binds automatically on first sign-in.",
+    "emailPlaceholder": "Leave blank to auto-generate",
     "edit": "Edit",
     "delete": "Delete",
     "deleteTitle": "Delete virtual user",

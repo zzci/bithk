@@ -202,21 +202,42 @@ describe("virtual user admin endpoints", () => {
     expect(del.status).toBe(200);
   });
 
-  test("PATCH renames a virtual user; rejects renaming a real user (400)", async () => {
+  test("admin creates a virtual user with an explicit binding email (201)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const res = await app.request("/account/users", jsonReq("POST", admin.cookie, { username: "vbind", name: "V Bind", email: "bind@corp.com" }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { data: { email: string } };
+    expect(body.data.email).toBe("bind@corp.com");
+  });
+
+  test("PATCH: virtual user edits username/email/name; real user edits name only", async () => {
     const app = buildApp(db);
     const admin = await sessionForRole("admin");
     const real = await sessionForRole("user");
 
     const created = await app.request("/account/users", jsonReq("POST", admin.cookie, { username: "vren", name: "Old" }));
     const cbody = await created.json() as { data: { id: string } };
-    const patched = await app.request(`/account/users/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, { name: "New", username: "vren2" }));
+
+    // Virtual user: username + name + email all editable.
+    const patched = await app.request(`/account/users/${cbody.data.id}`, jsonReq("PATCH", admin.cookie, { name: "New", username: "vren2", email: "future@corp.com" }));
     expect(patched.status).toBe(200);
-    const pbody = await patched.json() as { data: { username: string; name: string } };
+    const pbody = await patched.json() as { data: { username: string; name: string; email: string } };
     expect(pbody.data.username).toBe("vren2");
     expect(pbody.data.name).toBe("New");
+    expect(pbody.data.email).toBe("future@corp.com");
 
+    // Real user: name edit succeeds.
+    const realName = await app.request(`/account/users/${real.id}`, jsonReq("PATCH", admin.cookie, { name: "Renamed Real" }));
+    expect(realName.status).toBe(200);
+    const rbody = await realName.json() as { data: { name: string } };
+    expect(rbody.data.name).toBe("Renamed Real");
+
+    // Real user: username / email are IdP-owned → rejected (400).
     const realRename = await app.request(`/account/users/${real.id}`, jsonReq("PATCH", admin.cookie, { username: "hacker" }));
     expect(realRename.status).toBe(400);
+    const realEmail = await app.request(`/account/users/${real.id}`, jsonReq("PATCH", admin.cookie, { email: "x@corp.com" }));
+    expect(realEmail.status).toBe(400);
   });
 });
 

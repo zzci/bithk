@@ -144,3 +144,4 @@
 | [FEAT-036](FEAT-036.md) | HR colleague salary + one-click payroll generation + governance split | [PLAN-086](../plan/PLAN-086.md) | Completed | 2026-06-16 |
 | [UI-026](UI-026.md) | HR approvals/payroll page completeness + colleague salary fields | [PLAN-086](../plan/PLAN-086.md) | Completed | 2026-06-16 |
 | [FEAT-037](FEAT-037.md) | Unify currency input/display to two decimals + global MoneyInput | [PLAN-087](../plan/PLAN-087.md) | Completed | 2026-06-19 |
+| [FEAT-038](FEAT-038.md) | Editable user name + upstream username sync + virtual-user email binding | [PLAN-089](../plan/PLAN-089.md) | Completed | 2026-06-19 |

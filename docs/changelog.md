@@ -13,6 +13,21 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- User identity is now keyed solely on the OAuth `sub`; on re-login the local
+  `name` and `username` are no longer re-derived from the IdP token, so an
+  upstream rename cannot desync the local row (FEAT-038, PLAN-089). `name` is
+  locally editable for every user (real and virtual) and survives subsequent
+  logins; only email/avatar/last-login still track upstream for real users.
+- Virtual users can be created/edited with an explicit `email` (uniqueness-
+  checked); setting it to a person's real address lets their first OAuth login
+  bind to the virtual row in place — `isVirtual` is cleared, the OAuth identity
+  attaches, and the local name/username plus all project memberships are kept.
+  Binding requires a verified upstream email AND a matching username claim
+  (`preferred_username` or `username`), falling back to email-only when the
+  token carries no username claim. The admin Users page gains a name-edit dialog
+  for real users and an email field (with binding hint) on the virtual-user
+  dialog.
+
 - Currency amounts are now entered and displayed as two-decimal major-unit
   values (e.g. `1,234.56`) while storage stays minor-unit integer (FEAT-037,
   PLAN-087). `formatMoney` renders two fraction digits over `value / 100`; a new

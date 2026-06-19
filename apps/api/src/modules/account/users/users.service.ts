@@ -162,13 +162,17 @@ export function assertNotLastActiveAdmin(db: Pick<AppDatabase, "select">, target
   }
 }
 
-export async function updateUser(db: AppDatabase, id: string, data: { role?: UserRole | undefined; status?: UserStatus | undefined }) {
+export async function updateUser(db: AppDatabase, id: string, data: { role?: UserRole | undefined; status?: UserStatus | undefined; name?: string | undefined }) {
   const now = new Date().toISOString();
   const setData: Record<string, unknown> = { updatedAt: now };
   if (data.role !== undefined)
     setData.role = data.role;
   if (data.status !== undefined)
     setData.status = data.status;
+  // `name` is locally owned and editable for ALL users (real and virtual); the
+  // OAuth login path no longer overwrites it, so an admin edit here is durable.
+  if (data.name !== undefined)
+    setData.name = data.name;
   await db.update(users)
     .set(setData)
     .where(eq(users.id, id))
@@ -233,12 +237,19 @@ export async function listAssignableUsers(db: AppDatabase) {
  * Create a virtual user: a first-class `users` row without a login identity.
  * Username uniqueness is enforced GLOBALLY (against real and virtual users)
  * before the insert so the collision surfaces as a clean 409, not a raw
- * unique-constraint 500.
+ * unique-constraint 500. An explicit `email` may be supplied (the future real
+ * user's address, so OAuth login can bind to this row); it falls back to the
+ * synthetic `<username>@virtual.local` when omitted and is uniqueness-checked.
  */
-export async function createVirtualUser(db: AppDatabase, input: { username: string; name: string }) {
+export async function createVirtualUser(db: AppDatabase, input: { username: string; name: string; email?: string | undefined }) {
   const taken = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).get();
   if (taken)
     throw new AppError("Username already taken", 409, "CONFLICT");
+
+  const email = input.email ?? `${input.username}@virtual.local`;
+  const emailTaken = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+  if (emailTaken)
+    throw new AppError("Email already taken", 409, "CONFLICT");
 
   const id = nanoid();
   const now = new Date().toISOString();
@@ -247,7 +258,7 @@ export async function createVirtualUser(db: AppDatabase, input: { username: stri
     oauthSub: `virtual:${id}`,
     username: input.username,
     name: input.name,
-    email: `${input.username}@virtual.local`,
+    email,
     role: "user",
     status: "active",
     isVirtual: true,
@@ -258,15 +269,22 @@ export async function createVirtualUser(db: AppDatabase, input: { username: stri
 }
 
 /**
- * Update a virtual user's display fields. Rejects a rename that collides with
- * any existing username (real or virtual), self excluded. Callers must ensure
- * the target is virtual; renaming real users is not supported.
+ * Update a virtual user's display + identity fields. Rejects a username or
+ * email that collides with any existing row (real or virtual), self excluded.
+ * The editable `email` is the binding key: setting it to a future real user's
+ * address lets the OAuth login path convert this virtual row in place. Callers
+ * must ensure the target is virtual; real users' username/email are IdP-owned.
  */
-export async function updateVirtualUser(db: AppDatabase, id: string, data: { name?: string | undefined; username?: string | undefined }) {
+export async function updateVirtualUser(db: AppDatabase, id: string, data: { name?: string | undefined; username?: string | undefined; email?: string | undefined }) {
   if (data.username !== undefined) {
     const taken = await db.select({ id: users.id }).from(users).where(eq(users.username, data.username)).get();
     if (taken && taken.id !== id)
       throw new AppError("Username already taken", 409, "CONFLICT");
+  }
+  if (data.email !== undefined) {
+    const taken = await db.select({ id: users.id }).from(users).where(eq(users.email, data.email)).get();
+    if (taken && taken.id !== id)
+      throw new AppError("Email already taken", 409, "CONFLICT");
   }
   const now = new Date().toISOString();
   const setData: Record<string, unknown> = { updatedAt: now };
@@ -274,6 +292,8 @@ export async function updateVirtualUser(db: AppDatabase, id: string, data: { nam
     setData.name = data.name;
   if (data.username !== undefined)
     setData.username = data.username;
+  if (data.email !== undefined)
+    setData.email = data.email;
   await db.update(users).set(setData).where(eq(users.id, id)).run();
   return await db.select(userColumns).from(users).where(eq(users.id, id)).get();
 }
