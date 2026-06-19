@@ -33,14 +33,33 @@ export function formatDateTime(value: Date | string | number): string {
   }).format(d);
 }
 
-// Thousands-separated integer money. Amounts are stored as integers in a
-// currency's minor unit, so grouping is applied with no fraction digits.
-// Locale-aware grouping follows the active i18n language like the dates above.
-export function formatMoney(value: number): string {
+// Money is stored as integers in a currency's minor unit (e.g. cents). These
+// helpers convert between that minor-unit integer and the major-unit,
+// two-decimal representation shown to and entered by users. Locale-aware
+// grouping follows the active i18n language like the dates above.
+export function formatMoney(minor: number): string {
   return new Intl.NumberFormat(lang(), {
     useGrouping: true,
-    maximumFractionDigits: 0,
-  }).format(value);
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(minor / 100);
+}
+
+// Parse a major-unit string ("1234.56") into a minor-unit integer (123456),
+// or null when blank, non-numeric, or negative.
+export function parseMoneyToMinor(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "")
+    return null;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0)
+    return null;
+  return Math.round(value * 100);
+}
+
+// Render a minor-unit integer as an editable major-unit string ("1234.56").
+export function minorToInput(minor: number): string {
+  return (minor / 100).toFixed(2);
 }
 
 // Human-readable byte size (B/KB/MB/GB/TB), one decimal below 10 units.

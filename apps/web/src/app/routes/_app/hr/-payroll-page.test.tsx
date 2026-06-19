@@ -99,8 +99,8 @@ describe("hrPayrollPage", () => {
     renderWithProviders(<HrPayrollPage />);
     expect(await screen.findByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("2026-06")).toBeInTheDocument();
-    expect(screen.getByText("100,000 USD")).toBeInTheDocument();
-    expect(screen.getByText("103,000 USD")).toBeInTheDocument();
+    expect(screen.getByText("1,000.00 USD")).toBeInTheDocument();
+    expect(screen.getByText("1,030.00 USD")).toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
   });
 
@@ -133,7 +133,7 @@ describe("hrPayrollPage", () => {
 
     // jsdom month inputs accept plain value typing.
     await user.type(within(dialog).getByLabelText("Period"), "2026-06");
-    await user.type(within(dialog).getByLabelText("Base salary"), "100000");
+    await user.type(within(dialog).getByLabelText("Base salary"), "1000.00");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
@@ -191,10 +191,10 @@ describe("hrPayrollPage", () => {
     renderWithProviders(<HrPayrollPage />);
     expect(await screen.findByText("Alice")).toBeInTheDocument();
     // Row money is grouped with thousands separators.
-    expect(screen.getByText("100,000 USD")).toBeInTheDocument();
+    expect(screen.getByText("1,000.00 USD")).toBeInTheDocument();
     // Summary row reflects meta.totals, also thousands-separated.
     expect(screen.getByText(/Net total/)).toBeInTheDocument();
-    expect(screen.getByText("250,000 USD")).toBeInTheDocument();
+    expect(screen.getByText("2,500.00 USD")).toBeInTheDocument();
   });
 
   it("renders the paid-at column", async () => {

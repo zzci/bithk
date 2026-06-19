@@ -99,7 +99,7 @@ describe("projectProcurementTab", () => {
     expect(await screen.findByText("Cement")).toBeInTheDocument();
     expect(await screen.findByText("Acme Supply")).toBeInTheDocument();
     expect(await screen.findByText("Materials")).toBeInTheDocument();
-    expect(screen.getAllByText("500 USD").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("5.00 USD").length).toBeGreaterThan(0);
     const urls = fetchMock.mock.calls.map(c => String(c[0]));
     expect(urls).toContain("/api/contacts");
     expect(urls).not.toContain("/api/projects/p1/contacts?type=supplier");

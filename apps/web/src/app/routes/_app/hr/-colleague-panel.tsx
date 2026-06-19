@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
 import { FileUploadButton } from "@/shared/components/file";
+import { MoneyInput } from "@/shared/components/money-input";
 import { ResourceAttachmentSection } from "@/shared/components/resource/attachment-section";
 import { validateAttachmentSelection } from "@/shared/components/resource/attachment-upload";
 import { useResourceAttachmentUpload } from "@/shared/components/resource/use-attachment-upload";
@@ -344,15 +345,14 @@ function ColleaguePanelForm({
 
         <PanelSection title={t("colleagues.section.salary")}>
           <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
-            <FieldInput
-              id="colleague-salaryAmount"
-              type="number"
-              min={0}
-              step={1}
-              label={t("colleagues.field.salaryAmount")}
-              value={form.salaryAmount}
-              onChange={v => set("salaryAmount", v)}
-            />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="colleague-salaryAmount">{t("colleagues.field.salaryAmount")}</Label>
+              <MoneyInput
+                id="colleague-salaryAmount"
+                value={form.salaryAmount}
+                onChange={v => set("salaryAmount", v)}
+              />
+            </div>
             <EnumField
               label={t("colleagues.field.salaryCurrency")}
               value={form.salaryCurrency}

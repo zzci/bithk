@@ -85,3 +85,4 @@
 | [PLAN-084](PLAN-084.md) | Personal Access Tokens + repo skill for AI-driven API access | Completed | 2026-06-16 |
 | [PLAN-085](PLAN-085.md) | Adopt hono-openapi for a code-derived OpenAPI spec | Implementing | 2026-06-16 |
 | [PLAN-086](PLAN-086.md) | HR approvals/payroll completeness + colleague-salary auto-pay | Completed | 2026-06-16 |
+| [PLAN-087](PLAN-087.md) | Currency two-decimal formatting + global MoneyInput | Completed | 2026-06-19 |

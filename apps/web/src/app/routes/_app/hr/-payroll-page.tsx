@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
+import { MoneyInput } from "@/shared/components/money-input";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
@@ -382,17 +383,6 @@ interface PayrollDialogProps {
   readonly onOpenChange: (open: boolean) => void;
 }
 
-// Amount inputs are kept as strings and parsed on submit so intermediate
-// states ("", partial typing) never coerce to 0 silently.
-function parseAmount(raw: string): number | null {
-  if (!raw.trim())
-    return null;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < 0)
-    return null;
-  return value;
-}
-
 function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps) {
   const { t } = useTranslation("hr");
   const createRecord = useCreateHrPayrollRecord();
@@ -402,9 +392,9 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
 
   const [colleagueId, setColleagueId] = useState(record?.colleagueId ?? "");
   const [period, setPeriod] = useState(record?.period ?? "");
-  const [baseSalary, setBaseSalary] = useState(record ? String(record.baseSalary) : "");
-  const [bonus, setBonus] = useState(record ? String(record.bonus) : "0");
-  const [deduction, setDeduction] = useState(record ? String(record.deduction) : "0");
+  const [baseSalary, setBaseSalary] = useState<number | null>(record ? record.baseSalary : null);
+  const [bonus, setBonus] = useState<number | null>(record ? record.bonus : 0);
+  const [deduction, setDeduction] = useState<number | null>(record ? record.deduction : 0);
   const [currency, setCurrency] = useState(record?.currency ?? "CNY");
   const [notes, setNotes] = useState(record?.notes ?? "");
 
@@ -412,10 +402,7 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
   const pending = createRecord.isPending || updateRecord.isPending;
   const mutationError = mode === "create" ? createRecord.error : updateRecord.error;
 
-  const parsedBase = parseAmount(baseSalary);
-  const parsedBonus = parseAmount(bonus);
-  const parsedDeduction = parseAmount(deduction);
-  const valid = Boolean(colleagueId && period && parsedBase !== null && parsedBonus !== null && parsedDeduction !== null);
+  const valid = Boolean(colleagueId && period && baseSalary !== null && bonus !== null && deduction !== null);
 
   const close = () => onOpenChange(false);
 
@@ -427,9 +414,9 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
       const body: CreateHrPayrollInput = {
         colleagueId,
         period,
-        baseSalary: parsedBase!,
-        bonus: parsedBonus!,
-        deduction: parsedDeduction!,
+        baseSalary: baseSalary!,
+        bonus: bonus!,
+        deduction: deduction!,
         currency,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       };
@@ -446,9 +433,9 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
       id: record!.id,
       colleagueId,
       period,
-      baseSalary: parsedBase!,
-      bonus: parsedBonus!,
-      deduction: parsedDeduction!,
+      baseSalary: baseSalary!,
+      bonus: bonus!,
+      deduction: deduction!,
       currency,
       notes: notes.trim(),
     }, {
@@ -525,36 +512,15 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="payroll-base">{t("payroll.field.baseSalary")}</Label>
-              <Input
-                id="payroll-base"
-                type="number"
-                min={0}
-                step={1}
-                value={baseSalary}
-                onChange={e => setBaseSalary(e.target.value)}
-              />
+              <MoneyInput id="payroll-base" value={baseSalary} onChange={setBaseSalary} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payroll-bonus">{t("payroll.field.bonus")}</Label>
-              <Input
-                id="payroll-bonus"
-                type="number"
-                min={0}
-                step={1}
-                value={bonus}
-                onChange={e => setBonus(e.target.value)}
-              />
+              <MoneyInput id="payroll-bonus" value={bonus} onChange={setBonus} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payroll-deduction">{t("payroll.field.deduction")}</Label>
-              <Input
-                id="payroll-deduction"
-                type="number"
-                min={0}
-                step={1}
-                value={deduction}
-                onChange={e => setDeduction(e.target.value)}
-              />
+              <MoneyInput id="payroll-deduction" value={deduction} onChange={setDeduction} />
             </div>
           </div>
 

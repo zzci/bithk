@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
 import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
+import { MoneyInput } from "@/shared/components/money-input";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { PinToggle } from "@/shared/components/pin-toggle";
 import { PrioritySignal } from "@/shared/components/priority-signal";
@@ -57,6 +58,7 @@ import {
 } from "@/shared/lib/api/procurement";
 import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
+import { formatMoney } from "@/shared/lib/format";
 import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { buildMemberLabelMap } from "./-member-helpers";
@@ -141,7 +143,7 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   const formatAmount = (row: ProcurementRow) => {
     if (row.amount === null)
       return "—";
-    return row.currency ? `${row.amount} ${row.currency}` : String(row.amount);
+    return row.currency ? `${formatMoney(row.amount)} ${row.currency}` : formatMoney(row.amount);
   };
 
   // Filter dimensions: status / priority / category single-selects, plus a tags
@@ -337,7 +339,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
   const [priority, setPriority] = useState<ProcurementPriority>("low");
   const [dueDate, setDueDate] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState<number | null>(null);
   const [currency, setCurrency] = useState("");
   const [supplierId, setSupplierId] = useState("__none__");
   const [categoryId, setCategoryId] = useState("__none__");
@@ -353,7 +355,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
     setPriority("low");
     setDueDate("");
     setQuantity("");
-    setAmount("");
+    setAmount(null);
     setCurrency("");
     setSupplierId("__none__");
     setCategoryId("__none__");
@@ -373,7 +375,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(dueDate ? { dueDate } : {}),
       ...(quantity ? { quantity: Number(quantity) } : {}),
-      ...(amount ? { amount: Number(amount) } : {}),
+      ...(amount !== null ? { amount } : {}),
       ...(currency.trim() ? { currency: currency.trim() } : {}),
       ...(supplierId !== "__none__" ? { supplierId } : {}),
       ...(categoryId !== "__none__" ? { categoryId } : {}),
@@ -466,7 +468,7 @@ function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, 
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="proc-amount">{t("procurement.field.amount")}</Label>
-              <Input id="proc-amount" type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} />
+              <MoneyInput id="proc-amount" value={amount} onChange={setAmount} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="proc-currency">{t("procurement.field.currency")}</Label>

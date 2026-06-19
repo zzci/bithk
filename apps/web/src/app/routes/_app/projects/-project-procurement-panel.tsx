@@ -58,7 +58,7 @@ import {
 } from "@/shared/lib/api/procurement";
 import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDateTime, formatMoney, minorToInput, parseMoneyToMinor } from "@/shared/lib/format";
 import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
@@ -195,6 +195,17 @@ export function ProjectProcurementPanel({
     const trimmed = raw.trim();
     const next = trimmed === "" ? null : Number(trimmed);
     if (next !== null && (!Number.isFinite(next) || next < 0))
+      return;
+    if (next !== current)
+      apply(next);
+  };
+
+  // Commit a currency amount: parse the major-unit input into a minor-unit
+  // integer (or null when emptied); reject invalid input by leaving it unchanged.
+  const commitMoney = (raw: string, current: number | null, apply: (next: number | null) => void) => {
+    const trimmed = raw.trim();
+    const next = trimmed === "" ? null : parseMoneyToMinor(trimmed);
+    if (trimmed !== "" && next === null)
       return;
     if (next !== current)
       apply(next);
@@ -426,12 +437,13 @@ export function ProjectProcurementPanel({
 
                 <ProcurementDetailRow label={t("procurement.field.amount")}>
                   <InlineValue
-                    display={procurement.amount === null ? null : String(procurement.amount)}
-                    initial={procurement.amount === null ? "" : String(procurement.amount)}
+                    display={procurement.amount === null ? null : formatMoney(procurement.amount)}
+                    initial={procurement.amount === null ? "" : minorToInput(procurement.amount)}
                     canEdit={canEdit}
                     type="number"
+                    step="0.01"
                     notSetLabel={t("procurement.detail.notSet")}
-                    onCommit={raw => commitNumber(raw, procurement.amount, next => patch({ amount: next }))}
+                    onCommit={raw => commitMoney(raw, procurement.amount, next => patch({ amount: next }))}
                   />
                 </ProcurementDetailRow>
 
@@ -533,6 +545,8 @@ interface InlineValueProps {
   readonly initial: string;
   readonly canEdit: boolean;
   readonly type?: "text" | "number";
+  /** Step for number inputs; pass "0.01" to allow two-decimal currency entry. */
+  readonly step?: string;
   readonly maxLength?: number;
   readonly notSetLabel: string;
   readonly onCommit: (raw: string) => void;
@@ -542,7 +556,7 @@ interface InlineValueProps {
 // already carries the label). A click reveals a borderless input that commits on
 // blur/Enter. The input is uncontrolled and seeded from `initial`; a successful
 // patch refreshes `initial`, so the next edit starts from the committed value.
-function InlineValue({ display, initial, canEdit, type = "text", maxLength, notSetLabel, onCommit }: InlineValueProps) {
+function InlineValue({ display, initial, canEdit, type = "text", step, maxLength, notSetLabel, onCommit }: InlineValueProps) {
   const [editing, setEditing] = useState(false);
 
   if (!canEdit)
@@ -554,6 +568,7 @@ function InlineValue({ display, initial, canEdit, type = "text", maxLength, notS
         autoFocus
         type={type}
         min={type === "number" ? "0" : undefined}
+        step={type === "number" ? step : undefined}
         maxLength={maxLength}
         defaultValue={initial}
         className="h-5 w-24 border-b border-primary bg-transparent text-sm text-foreground outline-none"

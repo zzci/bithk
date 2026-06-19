@@ -11,6 +11,17 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Changed
+
+- Currency amounts are now entered and displayed as two-decimal major-unit
+  values (e.g. `1,234.56`) while storage stays minor-unit integer (FEAT-037,
+  PLAN-087). `formatMoney` renders two fraction digits over `value / 100`; a new
+  reusable `MoneyInput` component (with `parseMoneyToMinor` / `minorToInput`
+  helpers) backs the procurement amount, HR colleague salary, and HR payroll
+  (base/bonus/deduction) inputs, replacing the integer-only fields that silently
+  rejected or truncated decimals. Procurement seed amounts were rescaled to
+  minor units to match the existing convention.
+
 ### Added
 
 - Personal Access Tokens for API/CLI/AI-agent access (FEAT-034, PLAN-084).

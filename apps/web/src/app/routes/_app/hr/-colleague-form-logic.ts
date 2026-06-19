@@ -19,8 +19,9 @@ export interface AssignableUserOption {
   readonly isVirtual: boolean;
 }
 
-// Local form mirror: every scalar is a string ("" = empty/unset), the two JSON
-// columns are arrays of plain rows. Enums carry "" when unset.
+// Local form mirror: scalars are strings ("" = empty/unset) except the
+// minor-unit salary amount (number | null); the two JSON columns are arrays of
+// plain rows. Enums carry "" when unset.
 export interface ColleagueForm {
   userId: string;
   code: string;
@@ -38,8 +39,8 @@ export interface ColleagueForm {
   personalEmail: string;
   address: string;
   workLocation: string;
-  // Integer minor-unit amount kept as a string ("" = unset); mapped to number | null on submit.
-  salaryAmount: string;
+  // Integer minor-unit amount (null = unset); MoneyInput handles major-unit display.
+  salaryAmount: number | null;
   salaryCurrency: string;
   status: HrColleagueStatus;
   paymentInfo: HrPaymentField[];
@@ -71,7 +72,7 @@ export const EMPTY_COLLEAGUE_FORM: ColleagueForm = {
   personalEmail: "",
   address: "",
   workLocation: "",
-  salaryAmount: "",
+  salaryAmount: null,
   salaryCurrency: "",
   status: "active",
   paymentInfo: [],
@@ -96,7 +97,7 @@ export function colleagueFormFromRow(row: HrColleagueRow): ColleagueForm {
     personalEmail: row.personalEmail ?? "",
     address: row.address ?? "",
     workLocation: row.workLocation ?? "",
-    salaryAmount: row.salaryAmount === null ? "" : String(row.salaryAmount),
+    salaryAmount: row.salaryAmount,
     salaryCurrency: row.salaryCurrency ?? "",
     status: row.status,
     paymentInfo: row.paymentInfo.map(p => ({ ...p })),
@@ -123,7 +124,7 @@ export function colleagueFormToProfileInput(form: ColleagueForm): HrColleaguePro
     personalEmail: form.personalEmail.trim(),
     address: form.address.trim(),
     workLocation: form.workLocation.trim(),
-    salaryAmount: form.salaryAmount.trim() === "" ? null : Number(form.salaryAmount),
+    salaryAmount: form.salaryAmount,
     salaryCurrency: form.salaryCurrency === "" ? null : form.salaryCurrency,
     paymentInfo: form.paymentInfo
       .map(p => ({ label: p.label.trim(), value: p.value.trim() }))

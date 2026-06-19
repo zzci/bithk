@@ -193,7 +193,7 @@ describe("hrColleaguesPage", () => {
     const listbox = await screen.findByRole("listbox");
     await user.click(await within(listbox).findByRole("option", { name: /Alice/ }));
 
-    await user.type(within(drawer).getByLabelText("Monthly salary"), "500000");
+    await user.type(within(drawer).getByLabelText("Monthly salary"), "5000.00");
     await user.click(within(drawer).getByRole("combobox", { name: "Currency" }));
     const currencyList = await screen.findByRole("listbox");
     await user.click(await within(currencyList).findByRole("option", { name: "USD" }));
@@ -217,7 +217,7 @@ describe("hrColleaguesPage", () => {
 
     const drawer = await openDrawer(user, /Alice/);
     await user.click(within(drawer).getByRole("button", { name: "Edit" }));
-    expect(within(drawer).getByLabelText("Monthly salary")).toHaveValue(320050);
+    expect(within(drawer).getByLabelText("Monthly salary")).toHaveValue(3200.5);
     await user.click(within(drawer).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
