@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import type { OpenAPIV3_1 } from "openapi-types";
 import { describeRoute, resolver, validator } from "hono-openapi";
 import { z } from "zod";
 
@@ -35,6 +36,21 @@ export function onValidationFailure(
       422,
     );
   }
+}
+
+/**
+ * A `describeRoute` `requestBody` documenting `schema` as JSON. Use for routes
+ * that validate their body inline (not via `validator`) so the body still
+ * appears in the spec — `resolver()` is NOT honoured in the `requestBody`
+ * position (only in `responses`), so emit a concrete JSON Schema instead.
+ * Doc-only: it changes no runtime behaviour.
+ */
+export function jsonRequestBody(schema: z.ZodType): OpenAPIV3_1.RequestBodyObject {
+  const json = z.toJSONSchema(schema) as Record<string, unknown>;
+  delete json.$schema; // redundant inside an OpenAPI Schema Object
+  return {
+    content: { "application/json": { schema: json as OpenAPIV3_1.SchemaObject } },
+  };
 }
 
 export { describeRoute, resolver, validator };

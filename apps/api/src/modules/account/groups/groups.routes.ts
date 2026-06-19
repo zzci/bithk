@@ -5,7 +5,7 @@ import { getUserById } from "@/modules/account/users/users.service";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, ErrorEnvelope, jsonRequestBody, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   addGroupMember,
@@ -157,6 +157,7 @@ export function groupRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "Update a group",
+      requestBody: jsonRequestBody(updateGroupSchema),
       responses: { 200: okJson(groupSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Admin only", ...errorJson }, 404: { description: "Not found", ...errorJson }, 409: { description: "Name conflict", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     adminRequired,
@@ -266,6 +267,7 @@ export function groupRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "Add a member to a group",
+      requestBody: jsonRequestBody(addMemberSchema),
       responses: { 201: okJson(z.null(), "Created"), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Admin only", ...errorJson }, 404: { description: "Not found", ...errorJson }, 409: { description: "Already a member", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     adminRequired,

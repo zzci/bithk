@@ -8,7 +8,7 @@ import { userPreferences, users } from "@/modules/account/users/schema";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, ErrorEnvelope, jsonRequestBody, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { rateLimit } from "@/shared/middleware/rate-limit";
 import {
@@ -221,6 +221,7 @@ export function userRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "Upsert a preference value",
+      requestBody: jsonRequestBody(preferenceBodySchema),
       responses: { 200: okJson(z.null()), 401: { description: "Unauthenticated", ...errorJson }, 413: { description: "Value too large", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("param", z.object({ key: preferenceKeySchema }), onValidationFailure),
@@ -309,6 +310,7 @@ export function userRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "Confirm (verify) a TOTP device",
+      requestBody: jsonRequestBody(z.object({ code: z.string().length(6) })),
       responses: { 200: okJson(z.null()), 400: { description: "Invalid code or device", ...errorJson }, 401: { description: "Step-up required", ...errorJson }, 422: { description: "Validation error", ...errorJson }, 429: { description: "Rate limited", ...errorJson } },
     }),
     rateLimit({ windowMs: 5 * 60 * 1000, max: 10, bucket: "totp-stepup" }),
@@ -555,6 +557,7 @@ export function userRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "Update a user's role/status, or rename a virtual user (admin)",
+      requestBody: jsonRequestBody(updateBodySchema),
       responses: { 200: okJson(userColumnsSchema), 400: { description: "Bad request", ...errorJson }, 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 409: { description: "Conflict", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     adminRequired,

@@ -2,7 +2,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { ForbiddenError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, ErrorEnvelope, jsonRequestBody, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired } from "@/shared/middleware/auth";
 import {
   createPayrollRecord,
@@ -151,6 +151,7 @@ export function hrPayrollRoutes() {
     describeRoute({
       tags: ["hr"],
       summary: "Generate payroll records for a period from colleague salaries",
+      requestBody: jsonRequestBody(z.object({ period: periodSchema })),
       responses: {
         200: okJson(z.object({ created: z.number(), skipped: z.number() })),
         401: { description: "Unauthenticated", ...errorJson },

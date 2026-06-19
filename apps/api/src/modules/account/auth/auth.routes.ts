@@ -16,7 +16,7 @@ import {
 import { audit } from "@/modules/audit/audit.service";
 import { deriveOrigin, getAuthConfig, getOAuthConfig, getOidcLogoutUrl, getSingleUserConfig, isOAuthConfigured, isSingleUserMode } from "@/shared/lib/app-config";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { describeRoute, ErrorEnvelope, resolver } from "@/shared/lib/openapi";
+import { describeRoute, ErrorEnvelope, jsonRequestBody, resolver } from "@/shared/lib/openapi";
 import {
   consumePkceEntry,
   createPkceChallenge,
@@ -617,6 +617,7 @@ export function authRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "Single-user (env-credential) login",
+      requestBody: jsonRequestBody(z.object({ username: z.string(), password: z.string() })),
       responses: { 200: okJson(z.object({ id: z.string(), username: z.string(), name: z.string() })), 400: { description: "Invalid body or credentials", ...errorJson }, 401: { description: "Invalid credentials", ...errorJson }, 404: { description: "Single-user mode disabled", ...errorJson }, 429: { description: "Rate limited or account locked", ...errorJson } },
     }),
     async (c) => {
@@ -742,6 +743,7 @@ export function authRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "Verify a TOTP challenge to complete login",
+      requestBody: jsonRequestBody(z.object({ code: z.string().length(6) })),
       responses: { 200: okJson(z.object({ redirect: z.string() })), 400: { description: "Invalid/expired challenge or code", ...errorJson }, 429: { description: "Rate limited or user locked", ...errorJson } },
     }),
     async (c) => {
