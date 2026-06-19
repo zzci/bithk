@@ -34,3 +34,15 @@ OAUTH_ISSUER = "https://login.gid.io/oidc"
 OAUTH_CLIENT_ID = "68yxzpc6z7u89jh058dqp"
 OAUTH_PKCE = "true"
 DEFAULT_ADMIN = "a@roy.me"
+
+# Real client IP behind the Cloudflare -> Traefik -> app chain. The app prefers
+# Cloudflare's `CF-Connecting-IP` (the true visitor IP) but only when forwarding
+# headers are trusted, so BOTH must be set together:
+#   TRUST_PROXY=true          honour forwarding headers
+#   TRUSTED_PROXY_IPS=<cidr>  the immediate peer (Traefik) range. In production
+#                             an EMPTY allow-list makes the app ignore headers
+#                             and return the peer IP (fail-closed), so this MUST
+#                             be the address Traefik connects from as seen by the
+#                             app (e.g. the Docker network range, 172.16.0.0/12).
+# TRUST_PROXY = "true"
+# TRUSTED_PROXY_IPS = "172.16.0.0/12"

@@ -127,6 +127,40 @@ describe("getClientIp (TRUST_PROXY=true)", () => {
   });
 });
 
+describe("getClientIp (Cloudflare CF-Connecting-IP / True-Client-IP)", () => {
+  test("CF-Connecting-IP wins over XFF/X-Real-IP on the trusted path (CF → Traefik → app)", () => {
+    // Peer is Traefik (allow-listed); XFF right-most + X-Real-IP are the
+    // Cloudflare edge, CF-Connecting-IP is the real visitor.
+    expect(
+      getClientIp(
+        ctx(
+          { "x-forwarded-for": "203.0.113.5, 162.158.1.1", "x-real-ip": "162.158.1.1", "cf-connecting-ip": "203.0.113.5" },
+          { IP: { address: "172.20.0.2" } },
+        ),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "172.16.0.0/12" },
+      ),
+    ).toBe("203.0.113.5");
+  });
+
+  test("falls back to True-Client-IP when CF-Connecting-IP is absent", () => {
+    expect(
+      getClientIp(
+        ctx({ "true-client-ip": "198.51.100.7", "x-forwarded-for": "162.158.1.1" }, { IP: { address: "10.0.0.2" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "10.0.0.0/8" },
+      ),
+    ).toBe("198.51.100.7");
+  });
+
+  test("CF-Connecting-IP from an UNtrusted peer is ignored (anti-spoof)", () => {
+    expect(
+      getClientIp(
+        ctx({ "cf-connecting-ip": "203.0.113.5" }, { IP: { address: "8.8.8.8" } }),
+        { TRUST_PROXY: true, TRUSTED_PROXY_IPS: "172.16.0.0/12" },
+      ),
+    ).toBe("8.8.8.8");
+  });
+});
+
 describe("getClientIp (TRUST_PROXY=true with TRUSTED_PROXY_IPS allow-list)", () => {
   test("honours forwarding headers when the peer is inside an allowed CIDR", () => {
     expect(

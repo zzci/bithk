@@ -16,11 +16,14 @@ interface ClientIpConfig {
  * IGNORED to prevent header-spoofing attacks; only the connection peer
  * IP from the Bun runtime (`c.env.IP.address`) is used.
  *
- * When `TRUST_PROXY=true` the function honours the rightmost entry of
- * `X-Forwarded-For` (the hop closest to our process — the one controlled
- * by the trusted proxy). `X-Real-IP` is read only as a fallback, behind
- * XFF, because in most production stacks the proxy explicitly sets XFF
- * and `X-Real-IP` is either absent or operator-defined.
+ * When `TRUST_PROXY=true` the function resolves the client IP from forwarding
+ * headers, in priority order: `CF-Connecting-IP` / `True-Client-IP` (Cloudflare's
+ * real-visitor headers — authoritative behind a Cloudflare → proxy chain such
+ * as Cloudflare → Traefik → app), then the rightmost entry of
+ * `X-Forwarded-For` (the hop closest to our process), then `X-Real-IP` as a
+ * last fallback. Cloudflare's headers win because XFF's rightmost entry is the
+ * Cloudflare edge IP and `X-Real-IP` is the immediate upstream — neither is the
+ * end user.
  *
  * If `TRUSTED_PROXY_IPS` is set (a comma-separated list of IPv4 or IPv6
  * CIDR / IP literals), forwarding headers are accepted only when the
@@ -63,6 +66,19 @@ export function getClientIp(c: Context, config?: ClientIpConfig): string {
   const lowered: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(headers)) {
     lowered[key.toLowerCase()] = value;
+  }
+
+  // Cloudflare sets `CF-Connecting-IP` (and, on Enterprise, `True-Client-IP`)
+  // to the real visitor IP. Behind a Cloudflare → reverse-proxy chain
+  // (e.g. Cloudflare → Traefik → app) this is the authoritative client IP:
+  // XFF's right-most entry is the Cloudflare *edge* IP and `X-Real-IP` is the
+  // immediate upstream, neither of which is the end user. Honoured only on
+  // this trusted path (the peer was gated above), so a caller reaching the
+  // process directly cannot forge it.
+  for (const header of ["cf-connecting-ip", "true-client-ip"] as const) {
+    const value = lowered[header]?.trim();
+    if (value && !isSentinel(value))
+      return value;
   }
 
   // Prefer XFF (right-most). The rightmost hop is the one our trusted
