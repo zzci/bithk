@@ -11,6 +11,8 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.1.7 — 2026-06-19
+
 ### Changed
 
 - User identity is now keyed solely on the OAuth `sub`; on re-login the local
