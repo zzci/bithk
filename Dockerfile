@@ -13,6 +13,7 @@ WORKDIR /srv/lode
 
 COPY --from=lode /usr/bin/lode /usr/local/bin/lode
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends libcap2 \
  && rm -rf /var/lib/apt/lists/* \
  && ln -sf /usr/local/bin/lode /usr/local/bin/lode-cli \
