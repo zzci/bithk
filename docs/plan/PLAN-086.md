@@ -43,13 +43,13 @@ Implemented as parallel BKD lanes (file-disjoint), folded by L2:
   admins (plain field edits stay module-gated).
 - **D — approvals routes + service.** `POST /hr/approvals/:id/decision` stays
   admin-only; list ordered newest-first (`createdAt desc, id desc`).
-- **E — colleague form.** A Salary section (标准月薪 + 币种) on the colleague
-  panel; blank amount/currency persist as `null`.
-- **F — approvals page.** 申请时间 / 裁决时间 columns, full reason + decision-note
-  detail view, Textarea inputs; approve/reject hidden for non-admins.
-- **G — payroll page.** Colleague filter, 发放时间 column, per-currency net
+- **E — colleague form.** A Salary section (standard monthly salary + currency)
+  on the colleague panel; blank amount/currency persist as `null`.
+- **F — approvals page.** Submitted-at / decided-at columns, full reason +
+  decision-note detail view, Textarea inputs; approve/reject hidden for non-admins.
+- **G — payroll page.** Colleague filter, paid-at column, per-currency net
   summary, thousands-separated money via a new `formatMoney` helper, Textarea
-  notes, an admin-only 生成本月薪资 one-click button; mark-paid and generate
+  notes, an admin-only "generate this month's payroll" one-click button; mark-paid and generate
   hidden for non-admins.
 - **H — i18n.** `en/zh` `hr.json` extended for the salary fields, the columns,
   the detail view, the totals summary, and the generate action.

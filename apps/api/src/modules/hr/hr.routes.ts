@@ -119,6 +119,8 @@ const colleagueViewSchema = z.object({
   personalEmail: z.string().nullable(),
   address: z.string().nullable(),
   workLocation: z.string().nullable(),
+  salaryAmount: z.number().int().min(0).nullable(),
+  salaryCurrency: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
   paymentInfo: z.array(paymentFieldSchema),

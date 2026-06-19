@@ -23,13 +23,17 @@ export interface TokenModuleDefinition {
   readonly prefixes: readonly string[];
 }
 
-// Ordered, prefix-disjoint registry. First match wins, exactly like
-// `moduleForPath` in the nav-module gate.
+// Ordered registry; first match wins, exactly like `moduleForPath` in the
+// nav-module gate. Prefixes are disjoint with ONE deliberate, ordered
+// exception: `/admin/project-default-cover` (a project-domain setting that
+// happens to be mounted under `/admin`) is claimed by `projects` above the
+// `account` entry that owns the rest of `/admin`, so a project-scoped token —
+// not an account-scoped one — governs it.
 export const TOKEN_MODULES = [
   { key: "documents", prefixes: ["/documents", "/shared"] },
   { key: "drive", prefixes: ["/drive"] },
   { key: "files", prefixes: ["/files"] },
-  { key: "projects", prefixes: ["/projects", "/issues", "/global-procurement-categories"] },
+  { key: "projects", prefixes: ["/projects", "/issues", "/global-procurement-categories", "/admin/project-default-cover"] },
   { key: "ships", prefixes: ["/ships", "/worklists", "/global-equipment-categories", "/global-equipment-manufacturers"] },
   { key: "contacts", prefixes: ["/contacts", "/contact-categories"] },
   { key: "hr", prefixes: ["/hr"] },

@@ -79,13 +79,6 @@ function toView(row: {
   };
 }
 
-function parseCreateBody(raw: unknown) {
-  const body = createSchema.parse(raw);
-  if (!isValidScopeInput(body.scopes))
-    throw new ValidationError("Unknown token scope module or level", { scopes: body.scopes });
-  return body;
-}
-
 export function tokenRoutes() {
   const router = new Hono<ProtectedEnv>();
 
@@ -212,6 +205,7 @@ export function tokenRoutes() {
     adminRequired,
     cookieSessionOnly,
     validator("param", idParamSchema, onValidationFailure),
+    validator("json", createSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
       const actor = c.get("user");
@@ -219,7 +213,9 @@ export function tokenRoutes() {
       const target = await getUserById(db, userId);
       if (!target)
         throw new NotFoundError("User", userId);
-      const body = parseCreateBody(await c.req.json());
+      const body = c.req.valid("json");
+      if (!isValidScopeInput(body.scopes))
+        throw new ValidationError("Unknown token scope module or level", { scopes: body.scopes });
       const { token, row } = await createToken(db, {
         userId,
         name: body.name,

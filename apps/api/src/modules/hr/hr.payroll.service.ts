@@ -1,6 +1,7 @@
 import type { HrPayrollStatus } from "./schema";
 import type { AppDatabase } from "@/db";
 import { and, asc, count, desc, eq, isNotNull, ne, sum } from "drizzle-orm";
+import { runWrite } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
@@ -189,7 +190,11 @@ export async function generatePayrollForPeriod(db: AppDatabase, period: string):
     // unset salaries, so this guard is a type-safety backstop only.
     if (candidate.salaryAmount === null || candidate.salaryCurrency === null)
       continue;
-    await db.insert(hrPayrollRecords).values({
+    // `existing` is a fast-path; the unique (colleague_id, period) index is the
+    // source of truth. `onConflictDoNothing` keeps generation idempotent under
+    // concurrent runs — a row another request inserted between our snapshot and
+    // this insert counts as skipped (changes === 0), never a 409.
+    const insertStmt = db.insert(hrPayrollRecords).values({
       id: nanoid(),
       colleagueId: candidate.id,
       period,
@@ -201,8 +206,12 @@ export async function generatePayrollForPeriod(db: AppDatabase, period: string):
       status: "pending",
       createdAt: now,
       updatedAt: now,
-    }).run();
-    created++;
+    }).onConflictDoNothing();
+    const res = runWrite(() => insertStmt.run());
+    if (res.changes > 0)
+      created++;
+    else
+      skipped++;
   }
   return { created, skipped };
 }

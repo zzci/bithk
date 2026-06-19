@@ -24,6 +24,15 @@ describe("tokenModuleForPath", () => {
     expect(tokenModuleForPath("/totally-unknown")).toBeNull();
   });
 
+  test("project default cover under /admin is a projects-scoped exception", () => {
+    // The project-default-cover routes live under /admin but belong to the
+    // projects domain; the ordered registry must claim them for `projects`,
+    // while every other /admin path stays `account`.
+    expect(tokenModuleForPath("/admin/project-default-cover")).toBe("projects");
+    expect(tokenModuleForPath("/admin/users")).toBe("account");
+    expect(tokenModuleForPath("/admin")).toBe("account");
+  });
+
   test("does not confuse /shares with /shared", () => {
     expect(tokenModuleForPath("/shared/tok")).toBe("documents");
     expect(tokenModuleForPath("/shares/links")).toBe("shares");
