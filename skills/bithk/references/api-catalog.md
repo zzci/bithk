@@ -1,5 +1,9 @@
 # bithk API catalog
 
+> This is the human-readable module map (which endpoint, which scope). For a
+> route's **exact parameters and responses**, query the complete OpenAPI 3.1
+> spec shipped with this skill: `references/api-spec.json`.
+
 Every route is under `$BITHK_URL` (the `/api` root) and needs
 `Authorization: Bearer $BITHK_TOKEN`. The **scope** column is the token module
 key + level the route requires: `read` = `GET`/`HEAD`, `write` = any mutating

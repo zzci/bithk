@@ -22,13 +22,13 @@ Fixed-value bodies are safe to inline: `-d '{"status":"working"}'`.
 
 ## Discovering exact parameters
 
-Request/response field names are defined by Zod schemas in the API source — the
-authoritative reference. Three ways to find them:
+The authoritative, complete parameter reference is **`api-spec.json`** (OpenAPI
+3.1) shipped alongside this skill — it has every route's body/query/path params
+(types, enums, required) and responses, with no codebase access required.
 
-1. **Read the schema** (this skill ships in the repo). Each module's
-   `apps/api/src/modules/<module>/*.routes.ts` holds the `z.object({...})`
-   create/update schemas and the route handlers. Work-order fields and enums
-   are detailed in `work-orders.md`.
+1. **Query the spec.** e.g. the request body for creating a work order:
+   `jq '.paths["/projects/{projectId}/issues"].post.requestBody' references/api-spec.json`
+   (path-param routes use `{param}` form in the spec).
 2. **Let a 422 tell you.** A bad body returns
    `{ success:false, error:{ code:"VALIDATION_ERROR", message, details } }`
    where `details` lists the offending fields — fix and retry.

@@ -80,14 +80,20 @@ curl -s -X POST "$BITHK_URL/projects/<projectId>/issues/<issueId>/attachments" \
 
 ## References
 
-- `references/work-orders.md` — **field-level** parameters for the work-order
-  (issue) lifecycle: create/list/update bodies, the `status`/`priority` enums,
-  `assigneeMemberId` (a project-member id), comments (field is `content`), and
-  attachments. Read this for the "create / comment on a work order" flow.
-- `references/api-catalog.md` — every module, its base paths, scope key, and the
-  CRUD + sub-resource shape. The exhaustive machine index is the repo's
-  `docs/reference/api-routes.md`.
+- `references/api-spec.json` — the **complete, authoritative OpenAPI 3.1
+  spec** for every endpoint: exact request body / query / path params (with
+  types, enums, required flags), response shapes, and the bearer security
+  scheme. Generated from the live routes (`hono-openapi`), so it never drifts.
+  This is the source of truth for parameters — load and query it (e.g. with
+  `jq '.paths["/projects/{projectId}/issues"].post'`) when you need a route's
+  exact shape; it works standalone, no codebase access required.
+- `references/work-orders.md` — a worked walkthrough of the work-order (issue)
+  lifecycle (create/list/update, `status`/`priority` enums, `assigneeMemberId`,
+  comments where the field is `content`, attachments). Read this for the
+  "create / comment on a work order" flow.
+- `references/api-catalog.md` — human-readable module map: each module's base
+  paths and scope key. Use it to find *which* endpoint, then `api-spec.json`
+  for its exact parameters.
 - `references/recipes.md` — pagination & filtering, multipart upload, downloads,
-  shortId-vs-id, comments/attachments, a per-module recipe set, and **how to
-  discover exact parameters** (read the Zod schema in `apps/api/src/modules/`,
-  or let a 422 `details` tell you).
+  shortId-vs-id, comments/attachments, a per-module recipe set, and how to
+  resolve a 422 from its `error.details`.
