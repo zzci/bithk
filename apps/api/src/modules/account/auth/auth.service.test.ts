@@ -1,16 +1,20 @@
+import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { AuthConfig } from "@/shared/lib/app-config";
 import type { Logger } from "@/shared/lib/logger";
+import type { AppEnv } from "@/shared/lib/types";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { createVirtualUser } from "@/modules/account/users/users.service";
-import { upsertSingleUser, upsertUser } from "./auth.service";
+import { createSession, oauthSessionAuthProvider, upsertSingleUser, upsertUser } from "./auth.service";
+import { sessions } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -407,5 +411,64 @@ describe("upsertUser virtual-user binding (FEAT-038)", () => {
 
     const stillVirtual = await db.select().from(users).where(eq(users.id, v!.id)).get();
     expect(stillVirtual?.isVirtual).toBe(true);
+  });
+});
+
+describe("session lifetime (FIX-046)", () => {
+  // oauthSessionAuthProvider only reads NODE_ENV + BASE_PATH off the config.
+  const cfg = { NODE_ENV: "test", BASE_PATH: "" } as unknown as Config;
+
+  async function resolveWithCookie(sessionId: string): Promise<string | null> {
+    const app = new Hono<AppEnv>();
+    app.use("*", async (c, next) => {
+      c.set("config", cfg);
+      await next();
+    });
+    app.get("/probe", async c =>
+      c.json({ id: (await oauthSessionAuthProvider(db, c))?.id ?? null }));
+    const res = await app.request("/probe", { headers: { cookie: `session_id=${sessionId}` } });
+    return (await res.json() as { id: string | null }).id;
+  }
+
+  test("ceiling uses sessionMaxAge; access-token expiry is tracked separately", async () => {
+    const user = await createVirtualUser(db, { username: "sess1", name: "Sess One" });
+    const sessionId = await createSession(db, user!.id, "tok", "refresh", 86400, 3600);
+
+    const row = await db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    const ceilingMs = new Date(row!.expiresAt).getTime() - Date.now();
+    const tokenMs = new Date(row!.accessTokenExpiresAt!).getTime() - Date.now();
+    // Ceiling ~ 24h (driven by sessionMaxAge), not ~1h (the old access-token bug).
+    expect(ceilingMs).toBeGreaterThan(80_000 * 1000);
+    // Access-token clock tracks the IdP TTL independently.
+    expect(tokenMs).toBeLessThan(2 * 3600 * 1000);
+  });
+
+  test("keeps the user logged in when the access token expired, no refresh token, within ceiling", async () => {
+    const user = await createVirtualUser(db, { username: "sess2", name: "Sess Two" });
+    const sessionId = await createSession(db, user!.id, "tok", undefined, 86400, 3600);
+    // Access token already expired; ceiling still far in the future.
+    await db.update(sessions)
+      .set({ accessTokenExpiresAt: new Date(Date.now() - 1000).toISOString() })
+      .where(eq(sessions.id, sessionId))
+      .run();
+
+    // Reproduces FIX-046: previously this path tore the session down.
+    expect(await resolveWithCookie(sessionId)).toBe(user!.id);
+    const row = await db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    expect(row).toBeDefined();
+  });
+
+  test("tears the session down once the ceiling is reached", async () => {
+    const user = await createVirtualUser(db, { username: "sess3", name: "Sess Three" });
+    const sessionId = await createSession(db, user!.id, "tok", undefined, 86400, 3600);
+    // Force the ceiling into the past.
+    await db.update(sessions)
+      .set({ expiresAt: new Date(Date.now() - 1000).toISOString() })
+      .where(eq(sessions.id, sessionId))
+      .run();
+
+    expect(await resolveWithCookie(sessionId)).toBeNull();
+    const row = await db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    expect(row).toBeUndefined();
   });
 });

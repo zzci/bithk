@@ -482,6 +482,7 @@ export function authRoutes() {
         user.id,
         tokens.access_token,
         tokens.refresh_token,
+        authCfg.sessionMaxAge,
         tokens.expires_in,
       );
 
@@ -714,6 +715,7 @@ export function authRoutes() {
         SINGLE_USER_ACCESS_TOKEN,
         undefined,
         authCfg.sessionMaxAge,
+        undefined,
       );
       writeSessionCookie(c, config.NODE_ENV, config.BASE_PATH, sessionId, authCfg.sessionMaxAge);
 
@@ -843,6 +845,7 @@ export function authRoutes() {
         challenge.userId,
         challenge.accessToken,
         challenge.refreshToken ?? undefined,
+        authCfg.sessionMaxAge,
         challenge.expiresIn ?? undefined,
       );
 

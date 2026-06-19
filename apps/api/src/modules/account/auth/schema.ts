@@ -6,7 +6,12 @@ export const sessions = sqliteTable("sessions", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token"),
+  // Session ceiling: createdAt + SESSION_MAX_AGE. Independent of the IdP
+  // access-token lifetime so a short access token no longer forces logout.
   expiresAt: text("expires_at").notNull(),
+  // When the IdP access token itself expires (createdAt + token expires_in).
+  // NULL when unknown (e.g. single-user mode) → no background refresh needed.
+  accessTokenExpiresAt: text("access_token_expires_at"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()).$onUpdateFn(() => new Date().toISOString()),
 }, t => [

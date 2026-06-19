@@ -1,8 +1,9 @@
 # PLAN-090 Decouple session lifetime from access-token TTL + background refresh
 
-- **status**: draft
+- **status**: completed
 - **createdAt**: 2026-06-19 12:55
-- **approvedAt**: (pending)
+- **approvedAt**: 2026-06-19 13:13
+- **completedAt**: 2026-06-19 13:26
 - **relatedTask**: FIX-046
 
 ## Context

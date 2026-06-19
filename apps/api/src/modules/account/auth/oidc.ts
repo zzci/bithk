@@ -131,7 +131,10 @@ export function buildAuthorizeUrl(args: {
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", args.oauth.clientId);
   url.searchParams.set("redirect_uri", args.callbackUrl);
-  url.searchParams.set("scope", "openid profile email");
+  // offline_access asks the IdP for a refresh token so the access token can be
+  // renewed in the background; without it the session could only live as long
+  // as a single access token. Cooperating IdPs (incl. dev dex) honour it.
+  url.searchParams.set("scope", "openid profile email offline_access");
   url.searchParams.set("state", args.state);
   if (args.codeChallenge) {
     url.searchParams.set("code_challenge", args.codeChallenge);

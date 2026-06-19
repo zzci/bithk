@@ -78,7 +78,7 @@ describe("buildAuthorizeUrl", () => {
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("client_id")).toBe("client-abc");
     expect(url.searchParams.get("redirect_uri")).toBe("https://app.example.com/callback");
-    expect(url.searchParams.get("scope")).toBe("openid profile email");
+    expect(url.searchParams.get("scope")).toBe("openid profile email offline_access");
     expect(url.searchParams.get("state")).toBe("state-xyz");
     expect(url.searchParams.get("code_challenge")).toBe("challenge-123");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");

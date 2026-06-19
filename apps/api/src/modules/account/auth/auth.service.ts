@@ -387,11 +387,17 @@ export async function createSession(
   userId: string,
   accessToken: string,
   refreshToken: string | undefined,
-  expiresIn: number | undefined,
+  sessionMaxAge: number,
+  accessTokenExpiresIn?: number,
 ): Promise<string> {
   const id = randomBytes(32).toString("hex");
   const now = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + (expiresIn ?? 3600) * 1000).toISOString();
+  // Ceiling: how long the application session itself lives.
+  const expiresAt = new Date(Date.now() + sessionMaxAge * 1000).toISOString();
+  // Independent: when the IdP access token expires and a refresh is due.
+  const accessTokenExpiresAt = accessTokenExpiresIn == null
+    ? null
+    : new Date(Date.now() + accessTokenExpiresIn * 1000).toISOString();
 
   await db.insert(sessions).values({
     id,
@@ -399,6 +405,7 @@ export async function createSession(
     accessToken,
     refreshToken: refreshToken ?? null,
     expiresAt,
+    accessTokenExpiresAt,
     createdAt: now,
     updatedAt: now,
   }).run();
@@ -430,13 +437,17 @@ async function updateSessionTokens(
   expiresIn: number | undefined,
 ) {
   const now = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + (expiresIn ?? 3600) * 1000).toISOString();
+  // Refresh only moves the access-token clock; the session ceiling (expiresAt)
+  // is fixed at login and must not slide.
+  const accessTokenExpiresAt = expiresIn == null
+    ? null
+    : new Date(Date.now() + expiresIn * 1000).toISOString();
 
   await db.update(sessions)
     .set({
       accessToken,
       refreshToken: refreshToken ?? undefined,
-      expiresAt,
+      accessTokenExpiresAt,
       updatedAt: now,
     })
     .where(eq(sessions.id, sessionId))
@@ -489,21 +500,28 @@ export async function oauthSessionAuthProvider(db: AppDatabase, c: Context<AppEn
     return undefined;
   }
 
+  // Hard ceiling: the application session has outlived SESSION_MAX_AGE.
   if (isSessionExpired(session.expiresAt)) {
-    if (session.refreshToken) {
-      try {
-        await refreshSessionWithMutex(db, session.id, session.refreshToken, config);
-        return user;
-      }
-      catch {
-        await deleteSession(db, sessionId);
-        clearSessionCookie(c, config.NODE_ENV, config.BASE_PATH);
-        return undefined;
-      }
-    }
     await deleteSession(db, sessionId);
     clearSessionCookie(c, config.NODE_ENV, config.BASE_PATH);
     return undefined;
+  }
+
+  // Access token expired but the session is still within its ceiling: refresh
+  // it in the background when a refresh token is available. A failed or
+  // impossible refresh is NOT fatal — the user stays logged in until the
+  // ceiling with a stale access token (the app does not use the access token
+  // for per-request auth, only login-time userinfo and logout revocation).
+  const accessTokenExpired = session.accessTokenExpiresAt != null
+    && new Date(session.accessTokenExpiresAt).getTime() <= Date.now();
+  if (accessTokenExpired && session.refreshToken) {
+    try {
+      await refreshSessionWithMutex(db, session.id, session.refreshToken, config);
+    }
+    catch {
+      // Keep the session; the refresh is retried on the next request while the
+      // session remains within its ceiling.
+    }
   }
 
   return user;

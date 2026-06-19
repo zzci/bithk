@@ -37,6 +37,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   rejected or truncated decimals. Procurement seed amounts were rescaled to
   minor units to match the existing convention.
 
+- OIDC login sessions now last `SESSION_MAX_AGE` (default 24h) instead of the
+  IdP access-token TTL (FIX-046, PLAN-090). Previously the server session row
+  was keyed to the access token's `expires_in`, so a short-lived access token
+  (commonly ~1h) forced re-authentication even though the cookie was good for a
+  day. The session now tracks two independent clocks: a ceiling
+  (`createdAt + SESSION_MAX_AGE`) and the access-token expiry
+  (`access_token_expires_at`, new nullable column, migration 0003). An expired
+  access token is refreshed in the background when a refresh token is present;
+  with no refresh token (or on refresh failure) the user stays logged in until
+  the ceiling rather than being torn down. The authorize request now requests
+  the `offline_access` scope so cooperating IdPs issue a refresh token.
+
 ### Added
 
 - Unified file/drive upload UX (UI-027, PLAN-088). The upload-queue panel moved

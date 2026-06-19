@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `access_token_expires_at` text;
