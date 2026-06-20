@@ -7,7 +7,8 @@
     "section": {
       "files": "文件",
       "shared": "分享",
-      "team": "团队"
+      "team": "团队",
+      "projects": "项目"
     },
     "myFiles": "我的文件",
     "recent": "最近",
@@ -15,6 +16,7 @@
     "trash": "回收站",
     "sharedWithMe": "与我共享",
     "sharedByMe": "我的分享",
+    "projectsEmpty": "暂无项目",
     "empty": {
       "recent": "暂无最近文件",
       "favorites": "暂无收藏",

@@ -7,7 +7,8 @@
     "section": {
       "files": "Files",
       "shared": "Shared",
-      "team": "Team"
+      "team": "Team",
+      "projects": "Projects"
     },
     "myFiles": "My files",
     "recent": "Recent",
@@ -15,6 +16,7 @@
     "trash": "Trash",
     "sharedWithMe": "Shared with me",
     "sharedByMe": "Shared by me",
+    "projectsEmpty": "No projects",
     "empty": {
       "recent": "No recent files",
       "favorites": "No favorites yet",

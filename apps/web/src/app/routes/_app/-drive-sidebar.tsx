@@ -5,12 +5,14 @@
 
 import type { EditState } from "./-team-directory-list";
 import type { DriveEntry, TeamDirectory } from "@/shared/lib/api/drive";
+import type { ProjectView } from "@/shared/lib/api/projects";
 import {
   Clock,
   FilePlus2,
   FolderCog,
   FolderPlus,
   HardDrive,
+  Layers,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -38,6 +40,7 @@ import {
   useDeleteTeamDirectory,
   useTeamDirectories,
 } from "@/shared/lib/api/drive";
+import { useProjects } from "@/shared/lib/api/projects";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
 import { CreateFolderDialog, CreateTextFileDialog } from "./-entry-create-dialogs";
@@ -89,12 +92,16 @@ export function DriveSidebar({
   onSelect,
   activeTeamDirId,
   onSelectTeamDir,
+  activeProjectId,
+  onSelectProject,
   onOpenEntry,
 }: {
   readonly activeView: DriveView | null;
   readonly onSelect: (view: DriveView) => void;
   readonly activeTeamDirId: string | null;
   readonly onSelectTeamDir: (directory: TeamDirectory) => void;
+  readonly activeProjectId: string | null;
+  readonly onSelectProject: (project: ProjectView) => void;
   readonly onOpenEntry?: (entry: DriveEntry, edit?: boolean) => void;
 }) {
   const { t } = useTranslation("drive");
@@ -113,6 +120,11 @@ export function DriveSidebar({
   const dirsQuery = useTeamDirectories();
   const directories = dirsQuery.data ?? [];
   const deleteDirectory = useDeleteTeamDirectory();
+
+  // Projects the current user can access (membership-filtered server-side).
+  // Selecting one opens its project-scoped file browser in the main pane.
+  const projectsQuery = useProjects();
+  const projects = projectsQuery.data?.data ?? [];
   const [edit, setEdit] = useState<EditState>(null);
   const [deleteTarget, setDeleteTarget] = useState<TeamDirectory | null>(null);
   const [membersDir, setMembersDir] = useState<TeamDirectory | null>(null);
@@ -304,6 +316,39 @@ export function DriveSidebar({
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {/* Accessible projects listed inline; selecting one opens its files. */}
+        <div className="mb-2">
+          <div className="px-4 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+            {t("sidebar.section.projects")}
+          </div>
+          <ul>
+            {projects.length === 0 && (
+              <li className="px-4 py-1 text-xs text-muted-foreground/60">{t("sidebar.projectsEmpty")}</li>
+            )}
+            {projects.map((project) => {
+              const isActive = activeProjectId === project.id;
+              return (
+                <li key={project.id}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => onSelectProject(project)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      NAV_ITEM_CLASS,
+                      "h-auto justify-start font-normal",
+                      isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/40",
+                    )}
+                  >
+                    <Layers className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+                    <span className="flex-1 truncate">{project.name}</span>
+                  </Button>
                 </li>
               );
             })}

@@ -6,6 +6,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { DriveView } from "./-drive-sidebar";
 import type { DriveEntry, TeamDirectory } from "@/shared/lib/api/drive";
+import type { ProjectView } from "@/shared/lib/api/projects";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import { lazy, Suspense, useCallback, useState } from "react";
@@ -17,6 +18,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { isUniverSheetEntry } from "@/shared/lib/api/drive";
+import { useProject } from "@/shared/lib/api/projects";
 import { useAuthStore } from "@/shared/stores/auth";
 
 import { DriveEntryListView } from "./-drive-entry-list";
@@ -73,6 +75,7 @@ function DrivePage() {
 
   const [activeView, setActiveView] = useState<DriveView | null>("my-files");
   const [activeTeamDir, setActiveTeamDir] = useState<TeamDirectory | null>(null);
+  const [activeProject, setActiveProject] = useState<ProjectView | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
 
@@ -120,12 +123,21 @@ function DrivePage() {
   const selectView = (view: DriveView) => {
     setActiveView(view);
     setActiveTeamDir(null);
+    setActiveProject(null);
     setSidebarOpen(false);
   };
 
   const selectTeamDir = (directory: TeamDirectory) => {
     setActiveTeamDir(directory);
     setActiveView(null);
+    setActiveProject(null);
+    setSidebarOpen(false);
+  };
+
+  const selectProject = (project: ProjectView) => {
+    setActiveProject(project);
+    setActiveView(null);
+    setActiveTeamDir(null);
     setSidebarOpen(false);
   };
 
@@ -134,6 +146,8 @@ function DrivePage() {
     onSelect: selectView,
     activeTeamDirId: activeTeamDir?.id ?? null,
     onSelectTeamDir: selectTeamDir,
+    activeProjectId: activeProject?.id ?? null,
+    onSelectProject: selectProject,
     onOpenEntry: openPreview,
   } as const;
 
@@ -185,6 +199,7 @@ function DrivePage() {
               view={activeView}
               userId={user?.id ?? null}
               activeTeamDir={activeTeamDir}
+              activeProject={activeProject}
               onShareEntry={shareEntry}
               onPreviewEntry={openPreview}
             />
@@ -224,17 +239,32 @@ function DriveViewContent({
   view,
   userId,
   activeTeamDir,
+  activeProject,
   onShareEntry,
   onPreviewEntry,
 }: ViewCallbacks & {
   readonly view: DriveView | null;
   readonly userId: string | null;
   readonly activeTeamDir: TeamDirectory | null;
+  readonly activeProject: ProjectView | null;
 }) {
   const { t } = useTranslation("drive");
 
   if (!userId)
     return null;
+
+  // A selected project takes over the main pane and reuses the file browser
+  // surface scoped to the project (ownerType="project").
+  if (activeProject) {
+    return (
+      <ProjectFileBrowser
+        key={activeProject.id}
+        project={activeProject}
+        onShareEntry={onShareEntry}
+        onPreviewEntry={onPreviewEntry}
+      />
+    );
+  }
 
   // A selected team directory takes over the main pane and reuses the file
   // browser surface directly — no intermediate list.
@@ -291,4 +321,30 @@ function DriveViewContent({
     default:
       return null;
   }
+}
+
+// A project's files reuse the shared FileBrowser scoped to ownerType="project".
+// The project detail carries the caller's effective capabilities; manage
+// affordances are gated on `files.manage` (read-only until the detail loads — a
+// safe default). The parent keys this by project id so switching projects
+// resets the folder navigation.
+function ProjectFileBrowser({
+  project,
+  onShareEntry,
+  onPreviewEntry,
+}: ViewCallbacks & {
+  readonly project: ProjectView;
+}) {
+  const detail = useProject(project.id);
+  const canManage = detail.data?.capabilities?.includes("files.manage") ?? false;
+  return (
+    <FileBrowser
+      ownerType="project"
+      ownerId={project.id}
+      canManage={canManage}
+      rootLabel={project.name}
+      onShareEntry={onShareEntry}
+      onPreviewEntry={onPreviewEntry}
+    />
+  );
 }
