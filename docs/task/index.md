@@ -147,5 +147,8 @@
 | [FEAT-038](FEAT-038.md) | Editable user name + upstream username sync + virtual-user email binding | [PLAN-089](../plan/PLAN-089.md) | Completed | 2026-06-19 |
 | [FIX-046](FIX-046.md) | OIDC session expires at access-token TTL instead of session max-age | [PLAN-090](../plan/PLAN-090.md) | Completed | 2026-06-19 |
 | [UI-027](UI-027.md) | Unify file/drive upload UX (global queue, folder grouping, attach-from-drive) | [PLAN-088](../plan/PLAN-088.md) | Completed | 2026-06-19 |
+| [FEAT-039](FEAT-039.md) | Drive sidebar Projects entry: browse files of accessible projects | [PLAN-091](../plan/PLAN-091.md) | Completed | 2026-06-19 |
 | [FEAT-040](FEAT-040.md) | Procurement drawer form for item details with confirm-lock | [PLAN-092](../plan/PLAN-092.md) | Completed | 2026-06-19 |
 | [FEAT-041](FEAT-041.md) | Procurement status transitions + rename confirmed to paid | [PLAN-093](../plan/PLAN-093.md) | Completed | 2026-06-19 |
+| [FEAT-042](FEAT-042.md) | Global currency list referenced by procurement & HR (+ THB) | [PLAN-094](../plan/PLAN-094.md) | Completed | 2026-06-20 |
+| [FEAT-043](FEAT-043.md) | Editable built-in Default group for ungrouped users | [PLAN-095](../plan/PLAN-095.md) | Completed | 2026-06-20 |

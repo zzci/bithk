@@ -13,6 +13,25 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Added
 
+- The admin **Groups** tab now surfaces a built-in **Default** group alongside
+  Administrators (FEAT-043, PLAN-095). It is the fallback for users in no group:
+  its module grants define what an ungrouped user sees, and admins can edit them
+  (modules only — the entry is system-owned, not renamable or deletable). The
+  modules are stored under the `account.default_modules` setting (default empty,
+  matching the previous zero-module floor) and exposed via admin-only
+  `GET`/`PATCH /account/groups/default`. Semantics are **fallback, not
+  additive**: a user placed in any group (even a grant-less one) leaves the
+  Default group and sees only their groups' union, so an admin can tighten a
+  specific user by group assignment.
+
+- Global currency list managed in a new admin **Settings → General** tab: a
+  read-only built-in set plus admin-added custom 3-letter codes (stored under
+  the `app.currencies` setting). A non-admin `GET /currencies` endpoint serves
+  the merged list so the procurement and HR forms reference one managed source.
+  The Contact Categories section moves into this tab and the standalone Contact
+  tab is removed. `THB` (Thai Baht) is added to the built-in list (FEAT-042,
+  PLAN-094).
+
 - Procurement create and edit now share one drawer form in the shared
   `ResizableDrawer`: item details (item name / title / supplier / category /
   quantity / amount / currency) are edited through an "edit details" form
@@ -41,6 +60,17 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   `ordered`/`requested`, and a `received`/`accepted` order can no longer be
   `cancelled`. The status picker hides disallowed targets and the API rejects them
   with `409 PROCUREMENT_INVALID_TRANSITION` (FEAT-041, PLAN-093).
+- The procurement currency field (free-text input) and the HR salary / payroll
+  currency pickers (a hard-coded list) now offer the global currency list. Each
+  picker unions in the record's own current code, so legacy 3-letter codes stay
+  selectable; the stored `currency` columns and validators are unchanged
+  (FEAT-042, PLAN-094).
+
+### Removed
+
+- Dropped the unused `HR_PAYROLL_CURRENCIES` web constant and the dead
+  `procurement.default_currency` seed setting, both superseded by the global
+  currency list (FEAT-042, PLAN-094).
 
 ## v0.1.7 — 2026-06-19
 

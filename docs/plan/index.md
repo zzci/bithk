@@ -89,5 +89,8 @@
 | [PLAN-088](PLAN-088.md) | Unified upload UX: global queue, folder grouping, attach-from-drive | Completed | 2026-06-19 |
 | [PLAN-089](PLAN-089.md) | Editable user name + upstream username sync + virtual-user email binding | Completed | 2026-06-19 |
 | [PLAN-090](PLAN-090.md) | Decouple session lifetime from access-token TTL + background refresh | Completed | 2026-06-19 |
+| [PLAN-091](PLAN-091.md) | Drive sidebar Projects entry: browse files of accessible projects | Completed | 2026-06-19 |
 | [PLAN-092](PLAN-092.md) | Procurement drawer form for item details with confirm-lock | Completed | 2026-06-19 |
 | [PLAN-093](PLAN-093.md) | Procurement status transitions + rename confirmed to paid | Completed | 2026-06-19 |
+| [PLAN-094](PLAN-094.md) | Global currency list referenced by procurement & HR (+ THB) | Completed | 2026-06-20 |
+| [PLAN-095](PLAN-095.md) | Editable built-in Default group for ungrouped users | Completed | 2026-06-20 |
