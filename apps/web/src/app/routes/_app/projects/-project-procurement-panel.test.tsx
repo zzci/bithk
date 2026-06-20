@@ -152,7 +152,7 @@ describe("projectProcurementPanel", () => {
     });
   });
 
-  it("patches the item name through inline title editing", async () => {
+  it("edits the item name through the edit-details form (PATCH)", async () => {
     const user = userEvent.setup();
     routeFetch(procurement());
     renderWithProviders(
@@ -166,16 +166,36 @@ describe("projectProcurementPanel", () => {
         onClose={vi.fn()}
       />,
     );
-    await user.click(await screen.findByRole("heading", { name: "Cement" }));
-    const input = screen.getByDisplayValue("Cement");
+    await screen.findByRole("heading", { name: "Cement" });
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const input = await screen.findByDisplayValue("Cement");
     await user.clear(input);
-    await user.type(input, "Steel{Enter}");
+    await user.type(input, "Steel");
+    await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => {
       const patch = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "PATCH");
       expect(patch).toBeDefined();
       expect(String(patch![0])).toContain("/projects/p1/procurements/pr1");
       expect(JSON.parse(String(patch![1]?.body))).toMatchObject({ itemName: "Steel" });
     });
+  });
+
+  it("hides the edit-details affordance once confirmed (item details locked)", async () => {
+    routeFetch(procurement({ status: "confirmed" }));
+    renderWithProviders(
+      <ProjectProcurementPanel
+        projectId="p1"
+        procurementId="pr1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByRole("heading", { name: "Cement" });
+    expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
+    expect(screen.getByText("Locked after confirmation")).toBeInTheDocument();
   });
 
   it("renders a read-only view for non-managers", async () => {
@@ -214,7 +234,7 @@ describe("projectProcurementPanel", () => {
     expect(screen.getByRole("button", { name: /back to list/i })).toBeInTheDocument();
   });
 
-  it("patches a procurement field (quantity) through inline editing", async () => {
+  it("edits the quantity through the edit-details form (PATCH)", async () => {
     const user = userEvent.setup();
     routeFetch(procurement());
     renderWithProviders(
@@ -229,12 +249,11 @@ describe("projectProcurementPanel", () => {
       />,
     );
     await screen.findByRole("heading", { name: "Cement" });
-    // Quantity renders as an inline "10" affordance; click reveals the editor.
-    await user.click(screen.getByRole("button", { name: "10" }));
-    const input = screen.getByDisplayValue("10");
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const input = await screen.findByDisplayValue("10");
     await user.clear(input);
     await user.type(input, "25");
-    await user.tab(); // blur commits the inline edit
+    await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => {
       const patch = fetchMock.mock.calls.find(c => String(c[1]?.method ?? "").toUpperCase() === "PATCH");
       expect(patch).toBeDefined();

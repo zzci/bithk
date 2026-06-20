@@ -11,6 +11,24 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- Procurement create and edit now share one drawer form in the shared
+  `ResizableDrawer`: item details (item name / title / supplier / category /
+  quantity / amount / currency) are edited through an "edit details" form
+  instead of inline per-field editing, and creation opens the same form in the
+  drawer (the modal create dialog is removed). Workflow fields (status,
+  priority, assignee, due date, tags, description) keep their issue-style inline
+  click-to-edit in the detail view (FEAT-040, PLAN-092).
+
+### Changed
+
+- Procurement item details freeze once the record is confirmed: from
+  `confirmed` onward (and when `cancelled`) the item-detail fields can no longer
+  be modified — the "edit details" affordance is hidden and the API rejects such
+  a PATCH with `409 PROCUREMENT_DETAILS_LOCKED`. They remain editable while the
+  record is `requested` or `ordered` (FEAT-040, PLAN-092).
+
 ## v0.1.7 — 2026-06-19
 
 ### Changed

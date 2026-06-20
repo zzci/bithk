@@ -395,6 +395,33 @@ describe("detail / update / delete (cross-project + manage gate)", () => {
     const stillThere = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, { headers: { Cookie: cookie } });
     expect(stillThere.status).toBe(200);
   });
+
+  test("once confirmed, item details are locked (409) but workflow fields stay editable", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    // While editable (ordered), an item-detail PATCH succeeds.
+    await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: "ordered" }));
+    expect((await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { itemName: "Y", quantity: 3 }))).status).toBe(200);
+
+    // Confirm the procurement → item-detail fields freeze.
+    await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: "confirmed" }));
+
+    const locked = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { itemName: "Z" }));
+    expect(locked.status).toBe(409);
+    expect((await locked.json() as { error: { code: string } }).error.code).toBe("PROCUREMENT_DETAILS_LOCKED");
+
+    // A money/supplier/category touch is equally rejected.
+    expect((await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { amount: 1000 }))).status).toBe(409);
+
+    // Workflow fields remain patchable after confirmation.
+    const workflow = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { priority: "urgent", description: "note" }));
+    expect(workflow.status).toBe(200);
+    expect((await res2json(workflow)).data.priority).toBe("urgent");
+  });
 });
 
 describe("status change", () => {

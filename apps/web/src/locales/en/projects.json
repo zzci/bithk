@@ -218,7 +218,6 @@
       "tags": "Tags"
     },
     "createTitle": "New procurement",
-    "createDescription": "Add a new procurement record to this project.",
     "changeStatus": "Change status",
     "status": {
       "requested": "Requested",
@@ -239,7 +238,6 @@
       "title": "Procurement detail",
       "backToList": "Back to list",
       "openFullPage": "Open full page",
-      "clickToEditTitle": "Click to edit",
       "creator": "Creator",
       "createdAt": "Created",
       "updatedAt": "Updated",
@@ -249,6 +247,9 @@
       "descriptionPlaceholder": "Add a description...",
       "loadFailed": "Failed to load procurement",
       "procurementDetails": "Procurement details",
+      "editTitle": "Edit procurement details",
+      "editDetails": "Edit details",
+      "detailsLockedHint": "Locked after confirmation",
       "resizeDrawer": "Resize procurement drawer"
     }
   },

@@ -6,6 +6,29 @@ import { procurementCategories, projectMembers, projects } from "@/modules/proje
 export const PROCUREMENT_STATUSES = ["requested", "ordered", "confirmed", "in_transit", "received", "accepted", "cancelled"] as const;
 export type ProcurementStatus = typeof PROCUREMENT_STATUSES[number];
 
+// Item details may be edited only before a procurement is confirmed. Once it
+// reaches `confirmed` (and any later or terminal state), the item-detail fields
+// are frozen — see `PROCUREMENT_LOCKED_DETAIL_FIELDS` and the PATCH guard.
+export const PROCUREMENT_EDITABLE_STATUSES = ["requested", "ordered"] as const;
+
+// Item-detail fields that the confirm-lock freezes. Workflow fields
+// (description, priority, dueDate, tags, assigneeMemberId) stay editable in any
+// status.
+export const PROCUREMENT_LOCKED_DETAIL_FIELDS = [
+  "itemName",
+  "title",
+  "supplierId",
+  "categoryId",
+  "quantity",
+  "amount",
+  "currency",
+] as const;
+
+/** True once a procurement is confirmed or beyond, when item details are frozen. */
+export function isProcurementDetailLocked(status: ProcurementStatus): boolean {
+  return !(PROCUREMENT_EDITABLE_STATUSES as readonly string[]).includes(status);
+}
+
 // Issue-parity priority levels, mirroring `issue_details.priority` exactly.
 export const PROCUREMENT_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type ProcurementPriority = typeof PROCUREMENT_PRIORITIES[number];

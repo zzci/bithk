@@ -4,6 +4,7 @@
 // so it assumes read access; create/pin need canManage. Procurement is
 // non-deletable — retire a record via the `cancelled` status instead.
 
+import type { ProcurementFormValues } from "./-project-procurement-form-logic";
 import type { FilterDimension } from "@/shared/components/list-filter";
 import type {
   CreateProcurementInput,
@@ -11,41 +12,23 @@ import type {
   ProcurementRow,
   ProcurementStatus,
 } from "@/shared/lib/api/procurement";
-import type { ProjectMemberView, ProjectTag } from "@/shared/lib/api/projects";
+import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ListFilter } from "@/shared/components/list-filter";
 import { ListRowsSkeleton } from "@/shared/components/list-skeleton";
-import { MoneyInput } from "@/shared/components/money-input";
 import { PaginationFooter } from "@/shared/components/pagination-footer";
 import { PinToggle } from "@/shared/components/pin-toggle";
 import { PrioritySignal } from "@/shared/components/priority-signal";
+import { ResizableDrawer } from "@/shared/components/resizable-drawer";
 import { SearchCreateBar } from "@/shared/components/search-create-bar";
-import { tagFilterDimension, TagInput } from "@/shared/components/tags";
+import { tagFilterDimension } from "@/shared/components/tags";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyHint } from "@/shared/components/ui/centered-hint";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
-import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useContacts } from "@/shared/lib/api/contacts";
 import { useToggleProcurementPin } from "@/shared/lib/api/pins";
@@ -62,6 +45,11 @@ import { formatMoney } from "@/shared/lib/format";
 import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { buildMemberLabelMap } from "./-member-helpers";
+import { ProcurementForm } from "./-project-procurement-form";
+import {
+  EMPTY_PROCUREMENT_FORM,
+  PROCUREMENT_FORM_NONE,
+} from "./-project-procurement-form-logic";
 
 // Shared grid template so the header row and every data row align on the same
 // column tracks. Fixed track widths (not `auto`) guarantee cross-row alignment;
@@ -127,9 +115,41 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
   );
   const supplierNames = useMemo(() => new Map(suppliers.map(s => [s.id, s.name])), [suppliers]);
   const categoryNames = useMemo(() => new Map(categories.map(c => [c.id, c.name])), [categories]);
+  const tagSuggestions = useMemo(() => procurementTags.map(tag => tag.name), [procurementTags]);
   const rows = procurementsQuery.data?.data ?? [];
   const meta = procurementsQuery.data?.meta;
   const totalPages = meta ? Math.ceil(meta.total / meta.limit) : 1;
+
+  const createProcurement = useCreateProcurement();
+
+  // Create runs through the same drawer form as edit (mode="create"), mapping
+  // the form values to the create payload (sentinel/empty fields are dropped).
+  const handleCreate = (values: ProcurementFormValues) => {
+    if (!values.itemName.trim() || createProcurement.isPending)
+      return;
+    const body: CreateProcurementInput = {
+      itemName: values.itemName.trim(),
+      status: values.status,
+      priority: values.priority,
+      ...(values.title.trim() ? { title: values.title.trim() } : {}),
+      ...(values.description.trim() ? { description: values.description.trim() } : {}),
+      ...(values.dueDate ? { dueDate: values.dueDate } : {}),
+      ...(values.quantity.trim() ? { quantity: Number(values.quantity) } : {}),
+      ...(values.amount !== null ? { amount: values.amount } : {}),
+      ...(values.currency.trim() ? { currency: values.currency.trim() } : {}),
+      ...(values.supplierId !== PROCUREMENT_FORM_NONE ? { supplierId: values.supplierId } : {}),
+      ...(values.categoryId !== PROCUREMENT_FORM_NONE ? { categoryId: values.categoryId } : {}),
+      ...(values.assigneeMemberId !== PROCUREMENT_FORM_NONE ? { assigneeMemberId: values.assigneeMemberId } : {}),
+      ...(values.tags.length > 0 ? { tags: values.tags } : {}),
+    };
+    createProcurement.mutate({ projectId, ...body }, {
+      onSuccess: () => {
+        toast.success(t("toast.procurementCreated"));
+        setCreateOpen(false);
+      },
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
+  };
 
   const openProcurement = useCallback((id: string) => {
     void navigate({ to: "/projects/$projectId/procurements/$procurementId", params: { projectId, procurementId: id } });
@@ -211,7 +231,12 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
             },
             placeholder: t("procurement.searchPlaceholder"),
           }}
-          {...(canManage ? { create: { label: t("procurement.create"), onClick: () => setCreateOpen(true) } } : {})}
+          {...(canManage
+            ? { create: { label: t("procurement.create"), onClick: () => {
+                createProcurement.reset();
+                setCreateOpen(true);
+              } } }
+            : {})}
         />
       </div>
 
@@ -278,17 +303,26 @@ export function ProjectProcurementTab({ projectId, members, userNames, canManage
         />
       )}
 
-      {canManage && (
-        <CreateProcurementDialog
-          projectId={projectId}
-          members={members}
-          memberLabels={memberLabels}
-          suppliers={suppliers}
-          categories={categories}
-          procurementTags={procurementTags}
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-        />
+      {canManage && createOpen && (
+        <ResizableDrawer
+          ariaLabel={t("procurement.createTitle")}
+          resizeLabel={t("common:common.resize")}
+          onClose={() => setCreateOpen(false)}
+        >
+          <ProcurementForm
+            mode="create"
+            initial={EMPTY_PROCUREMENT_FORM}
+            members={members}
+            memberLabels={memberLabels}
+            suppliers={suppliers}
+            categories={categories}
+            tagSuggestions={tagSuggestions}
+            pending={createProcurement.isPending}
+            error={createProcurement.error ? errorMessage(createProcurement.error, t("common:common.error.operationFailed")) : null}
+            onSubmit={handleCreate}
+            onCancel={() => setCreateOpen(false)}
+          />
+        </ResizableDrawer>
       )}
     </div>
   );
@@ -315,238 +349,5 @@ function ProcurementPinToggle({ projectId, row }: ProcurementPinToggleProps) {
         });
       }}
     />
-  );
-}
-
-interface CreateProcurementDialogProps {
-  readonly projectId: string;
-  readonly members: readonly ProjectMemberView[];
-  readonly memberLabels: ReadonlyMap<string, string>;
-  readonly suppliers: readonly { readonly id: string; readonly name: string }[];
-  readonly categories: readonly { readonly id: string; readonly name: string }[];
-  readonly procurementTags: readonly ProjectTag[];
-  readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
-}
-
-function CreateProcurementDialog({ projectId, members, memberLabels, suppliers, categories, procurementTags, open, onOpenChange }: CreateProcurementDialogProps) {
-  const { t } = useTranslation(["projects", "common"]);
-  const createProcurement = useCreateProcurement();
-  const [itemName, setItemName] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<ProcurementStatus>("requested");
-  const [priority, setPriority] = useState<ProcurementPriority>("low");
-  const [dueDate, setDueDate] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [amount, setAmount] = useState<number | null>(null);
-  const [currency, setCurrency] = useState("");
-  const [supplierId, setSupplierId] = useState("__none__");
-  const [categoryId, setCategoryId] = useState("__none__");
-  const [assigneeMemberId, setAssigneeMemberId] = useState("__none__");
-  const [tags, setTags] = useState<readonly string[]>([]);
-  const tagSuggestions = useMemo(() => procurementTags.map(tag => tag.name), [procurementTags]);
-
-  const reset = () => {
-    setItemName("");
-    setTitle("");
-    setDescription("");
-    setStatus("requested");
-    setPriority("low");
-    setDueDate("");
-    setQuantity("");
-    setAmount(null);
-    setCurrency("");
-    setSupplierId("__none__");
-    setCategoryId("__none__");
-    setAssigneeMemberId("__none__");
-    setTags([]);
-  };
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!itemName.trim() || createProcurement.isPending)
-      return;
-    const body: CreateProcurementInput = {
-      itemName: itemName.trim(),
-      status,
-      priority,
-      ...(title.trim() ? { title: title.trim() } : {}),
-      ...(description.trim() ? { description: description.trim() } : {}),
-      ...(dueDate ? { dueDate } : {}),
-      ...(quantity ? { quantity: Number(quantity) } : {}),
-      ...(amount !== null ? { amount } : {}),
-      ...(currency.trim() ? { currency: currency.trim() } : {}),
-      ...(supplierId !== "__none__" ? { supplierId } : {}),
-      ...(categoryId !== "__none__" ? { categoryId } : {}),
-      ...(assigneeMemberId !== "__none__" ? { assigneeMemberId } : {}),
-      ...(tags.length > 0 ? { tags } : {}),
-    };
-    createProcurement.mutate({ projectId, ...body }, {
-      onSuccess: () => {
-        toast.success(t("toast.procurementCreated"));
-        reset();
-        onOpenChange(false);
-      },
-      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-        <form onSubmit={submit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>{t("procurement.createTitle")}</DialogTitle>
-            <DialogDescription>{t("procurement.createDescription")}</DialogDescription>
-          </DialogHeader>
-
-          {createProcurement.error && <ErrorBanner message={errorMessage(createProcurement.error, t("common:common.error.operationFailed"))} />}
-
-          <div className="space-y-1.5">
-            <Label htmlFor="proc-item">{t("procurement.field.itemName")}</Label>
-            <Input id="proc-item" autoFocus required value={itemName} onChange={e => setItemName(e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="proc-title">{t("procurement.field.title")}</Label>
-            <Input id="proc-title" value={title} onChange={e => setTitle(e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="proc-description">{t("procurement.field.description")}</Label>
-            <Textarea
-              id="proc-description"
-              rows={4}
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder={t("procurement.detail.descriptionPlaceholder")}
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label>{t("procurement.field.status")}</Label>
-              <Select value={status} onValueChange={v => v !== null && setStatus(v as ProcurementStatus)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: string) => t(`procurement.status.${v}` as const)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {PROCUREMENT_STATUSES.map(s => (
-                    <SelectItem key={s} value={s}>{t(`procurement.status.${s}` as const)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t("procurement.field.priority")}</Label>
-              <Select value={priority} onValueChange={v => v !== null && setPriority(v as ProcurementPriority)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: string) => t(`procurement.priority.${v}` as const)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {PROCUREMENT_PRIORITIES.map(p => (
-                    <SelectItem key={p} value={p}>{t(`procurement.priority.${p}` as const)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="proc-due">{t("procurement.field.dueDate")}</Label>
-              <Input id="proc-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="proc-qty">{t("procurement.field.quantity")}</Label>
-              <Input id="proc-qty" type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="proc-amount">{t("procurement.field.amount")}</Label>
-              <MoneyInput id="proc-amount" value={amount} onChange={setAmount} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="proc-currency">{t("procurement.field.currency")}</Label>
-              <Input id="proc-currency" value={currency} onChange={e => setCurrency(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>{t("procurement.field.category")}</Label>
-              <Select value={categoryId} onValueChange={v => v !== null && setCategoryId(v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: string) => (v === "__none__" ? t("procurement.none") : categories.find(c => c.id === v)?.name ?? v)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">{t("procurement.none")}</SelectItem>
-                  {categories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t("procurement.field.supplier")}</Label>
-              <Select value={supplierId} onValueChange={v => v !== null && setSupplierId(v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: string) => (v === "__none__" ? t("procurement.none") : suppliers.find(s => s.id === v)?.name ?? v)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">{t("procurement.none")}</SelectItem>
-                  {suppliers.map(s => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>{t("procurement.field.assignee")}</Label>
-            <Select value={assigneeMemberId} onValueChange={v => v !== null && setAssigneeMemberId(v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {(v: string) => (v === "__none__" ? t("procurement.none") : memberLabels.get(v) ?? v)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t("procurement.none")}</SelectItem>
-                {members.map(m => (
-                  <SelectItem key={m.id} value={m.id}>{memberLabels.get(m.id) ?? m.id}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>{t("procurement.field.tags")}</Label>
-            <TagInput
-              value={tags}
-              onChange={setTags}
-              suggestions={tagSuggestions}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t("common:common.cancel")}
-            </Button>
-            <Button type="submit" disabled={createProcurement.isPending || !itemName.trim()}>
-              {t("procurement.create")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

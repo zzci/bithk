@@ -31,7 +31,7 @@ import {
   resolveProcurementItem,
   updateProcurement,
 } from "./procurement.service";
-import { PROCUREMENT_STATUSES } from "./schema";
+import { isProcurementDetailLocked, PROCUREMENT_LOCKED_DETAIL_FIELDS, PROCUREMENT_STATUSES } from "./schema";
 
 // Shared priority levels for procurement create / update / list edges.
 const PROCUREMENT_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
@@ -311,6 +311,7 @@ export function procurementRoutes() {
         200: okJson(procurementSchema),
         401: { description: "Unauthenticated", ...errorJson },
         404: { description: "Procurement not found", ...errorJson },
+        409: { description: "Item details locked (procurement confirmed)", ...errorJson },
         422: { description: "Validation error", ...errorJson },
       },
     }),
@@ -321,6 +322,17 @@ export function procurementRoutes() {
       const { procurement } = await requireProcurement(c, projectId, id, true);
       const db = c.get("db");
       const body = c.req.valid("json");
+      // Confirm-lock: once a procurement is confirmed (or beyond), its item-detail
+      // fields are frozen. Workflow fields (description / priority / dueDate /
+      // tags / assignee) stay editable, so the guard is field-selective.
+      if (isProcurementDetailLocked(procurement.status)
+        && PROCUREMENT_LOCKED_DETAIL_FIELDS.some(field => body[field] !== undefined)) {
+        throw new AppError(
+          "Procurement is confirmed; item details can no longer be modified",
+          409,
+          "PROCUREMENT_DETAILS_LOCKED",
+        );
+      }
       const updated = await updateProcurement(db, procurement.id, body);
       if (!updated)
         throw new NotFoundError("Procurement", procurement.id);

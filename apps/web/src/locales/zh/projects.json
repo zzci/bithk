@@ -218,7 +218,6 @@
       "tags": "标签"
     },
     "createTitle": "新增采购",
-    "createDescription": "为该项目添加一条新的采购记录。",
     "changeStatus": "变更状态",
     "status": {
       "requested": "已申请",
@@ -239,7 +238,6 @@
       "title": "采购详情",
       "backToList": "返回列表",
       "openFullPage": "打开全屏页面",
-      "clickToEditTitle": "点击编辑",
       "creator": "创建人",
       "createdAt": "创建时间",
       "updatedAt": "更新时间",
@@ -249,6 +247,9 @@
       "descriptionPlaceholder": "添加描述...",
       "loadFailed": "加载采购失败",
       "procurementDetails": "采购细节",
+      "editTitle": "编辑采购详情",
+      "editDetails": "编辑详情",
+      "detailsLockedHint": "确认后不可修改",
       "resizeDrawer": "调整采购抽屉大小"
     }
   },

@@ -147,3 +147,4 @@
 | [FEAT-038](FEAT-038.md) | Editable user name + upstream username sync + virtual-user email binding | [PLAN-089](../plan/PLAN-089.md) | Completed | 2026-06-19 |
 | [FIX-046](FIX-046.md) | OIDC session expires at access-token TTL instead of session max-age | [PLAN-090](../plan/PLAN-090.md) | Completed | 2026-06-19 |
 | [UI-027](UI-027.md) | Unify file/drive upload UX (global queue, folder grouping, attach-from-drive) | [PLAN-088](../plan/PLAN-088.md) | Completed | 2026-06-19 |
+| [FEAT-040](FEAT-040.md) | Procurement drawer form for item details with confirm-lock | [PLAN-092](../plan/PLAN-092.md) | Completed | 2026-06-19 |

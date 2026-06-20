@@ -89,3 +89,4 @@
 | [PLAN-088](PLAN-088.md) | Unified upload UX: global queue, folder grouping, attach-from-drive | Completed | 2026-06-19 |
 | [PLAN-089](PLAN-089.md) | Editable user name + upstream username sync + virtual-user email binding | Completed | 2026-06-19 |
 | [PLAN-090](PLAN-090.md) | Decouple session lifetime from access-token TTL + background refresh | Completed | 2026-06-19 |
+| [PLAN-092](PLAN-092.md) | Procurement drawer form for item details with confirm-lock | Completed | 2026-06-19 |

@@ -7,9 +7,11 @@
 // non-deletable, so — unlike the issue panel — there is no delete affordance,
 // and status changes go through the dedicated status endpoint (not PATCH).
 
+import type { ProcurementFormValues } from "./-project-procurement-form-logic";
 import type { ProcurementStatus, UpdateProcurementInput } from "@/shared/lib/api/procurement";
 import type { ProjectMemberView } from "@/shared/lib/api/projects";
 import {
+  Lock,
   Pencil,
 } from "lucide-react";
 import {
@@ -41,15 +43,9 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { useContacts } from "@/shared/lib/api/contacts";
 import {
+  isProcurementDetailLocked,
   PROCUREMENT_PRIORITIES,
   PROCUREMENT_STATUSES,
   useChangeProcurementStatus,
@@ -59,14 +55,15 @@ import {
 } from "@/shared/lib/api/procurement";
 import { useProcurementCategories } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
-import { formatDateTime, formatMoney, minorToInput, parseMoneyToMinor } from "@/shared/lib/format";
+import { formatDateTime, formatMoney } from "@/shared/lib/format";
 import { PROCUREMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
-
-// ── Helpers ──
-
-const NONE = "__none__";
+import { ProcurementForm } from "./-project-procurement-form";
+import {
+  PROCUREMENT_FORM_NONE,
+  procurementFormFromRow,
+} from "./-project-procurement-form-logic";
 
 // ── ProjectProcurementPanel ──
 
@@ -111,6 +108,8 @@ export function ProjectProcurementPanel({
   const [error, setError] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
+  // view → read-only detail with inline workflow edits; edit → item-detail form.
+  const [mode, setMode] = useState<"view" | "edit">("view");
   const panelRef = useRef<HTMLDivElement>(null);
 
   const memberLabels = useMemo(() => buildMemberLabelMap(members, userNames), [members, userNames]);
@@ -190,33 +189,24 @@ export function ProjectProcurementPanel({
     setEditingDesc(false);
   };
 
-  // Commit a non-negative number from a raw inline-field string (or null when
-  // emptied); reject invalid input by leaving the committed value unchanged.
-  const commitNumber = (raw: string, current: number | null, apply: (next: number | null) => void) => {
-    const trimmed = raw.trim();
-    const next = trimmed === "" ? null : Number(trimmed);
-    if (next !== null && (!Number.isFinite(next) || next < 0))
-      return;
-    if (next !== current)
-      apply(next);
-  };
-
-  // Commit a currency amount: parse the major-unit input into a minor-unit
-  // integer (or null when emptied); reject invalid input by leaving it unchanged.
-  const commitMoney = (raw: string, current: number | null, apply: (next: number | null) => void) => {
-    const trimmed = raw.trim();
-    const next = trimmed === "" ? null : parseMoneyToMinor(trimmed);
-    if (trimmed !== "" && next === null)
-      return;
-    if (next !== current)
-      apply(next);
-  };
-
-  const commitText = (raw: string, current: string | null, apply: (next: string | null) => void) => {
-    const trimmed = raw.trim();
-    const next = trimmed === "" ? null : trimmed;
-    if (next !== current)
-      apply(next);
+  // Save the item-detail edit form. Only the item-detail fields are sent; the
+  // workflow fields stay inline in the view. A null clears the optional fields.
+  const handleEditSubmit = (values: ProcurementFormValues) => {
+    setError(null);
+    updateProcurement.mutate({
+      projectId,
+      id: procurementId,
+      itemName: values.itemName.trim(),
+      title: values.title.trim() ? values.title.trim() : null,
+      supplierId: values.supplierId === PROCUREMENT_FORM_NONE ? null : values.supplierId,
+      categoryId: values.categoryId === PROCUREMENT_FORM_NONE ? null : values.categoryId,
+      quantity: values.quantity.trim() === "" ? null : Number(values.quantity),
+      amount: values.amount,
+      currency: values.currency.trim() ? values.currency.trim() : null,
+    }, {
+      onSuccess: () => setMode("view"),
+      onError: err => setError(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -250,6 +240,33 @@ export function ProjectProcurementPanel({
   const procurementTags = procurement.tags ?? [];
   const tagVocabulary = (procurementTagsQuery.data ?? []).map(tag => tag.name);
   const currentTagNames = procurementTags.map(tag => tag.name);
+  // Item details freeze once the procurement is confirmed (or beyond).
+  const detailsLocked = isProcurementDetailLocked(procurement.status);
+
+  // Edit mode: the item-detail form replaces the whole panel (workflow fields
+  // are edited inline back in the view). Keyed by id so navigating between
+  // procurements re-seeds the form.
+  if (mode === "edit") {
+    return (
+      <ProcurementForm
+        key={procurementId}
+        mode="edit"
+        initial={procurementFormFromRow(procurement)}
+        members={members}
+        memberLabels={memberLabels}
+        suppliers={suppliers}
+        categories={categories}
+        tagSuggestions={tagVocabulary}
+        pending={updateProcurement.isPending}
+        error={error}
+        onSubmit={handleEditSubmit}
+        onCancel={() => {
+          setError(null);
+          setMode("view");
+        }}
+      />
+    );
+  }
 
   return (
     <div
@@ -262,9 +279,6 @@ export function ProjectProcurementPanel({
       <DetailPanelHeader
         variant={variant}
         title={procurement.itemName}
-        {...(canEdit
-          ? { titleEdit: { canEdit: true, onSave: (next: string) => patch({ itemName: next }), editHint: t("procurement.detail.clickToEditTitle") } }
-          : {})}
         labels={{
           back: t("procurement.detail.backToList"),
           maximize: t("procurement.detail.openFullPage"),
@@ -364,13 +378,37 @@ export function ProjectProcurementPanel({
               ))}
         </div>
 
-        {/* Procurement details — procurement-specific fields presented as a clean
-            table, distinct from the generic meta row shared with issues. Inline
-            edit is preserved for the editable fields. */}
+        {/* Procurement details — procurement-specific fields, read-only. Editing
+            happens in the item-detail form (the "edit details" button), which is
+            hidden once the procurement is confirmed and its details freeze. */}
         <section className="mt-1">
-          <h2 className="mb-1.5 text-xs font-medium text-muted-foreground">
-            {t("procurement.detail.procurementDetails")}
-          </h2>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <h2 className="text-xs font-medium text-muted-foreground">
+              {t("procurement.detail.procurementDetails")}
+            </h2>
+            {canEdit && (detailsLocked
+              ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/70">
+                    <Lock className="size-3" aria-hidden="true" />
+                    {t("procurement.detail.detailsLockedHint")}
+                  </span>
+                )
+              : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto gap-1 px-2 py-1 text-xs font-normal text-muted-foreground hover:text-primary"
+                    onClick={() => {
+                      setError(null);
+                      setMode("edit");
+                    }}
+                  >
+                    <Pencil className="size-3" aria-hidden="true" />
+                    {t("procurement.detail.editDetails")}
+                  </Button>
+                ))}
+          </div>
           <div className="overflow-hidden rounded-md border border-border/60">
             <table className="w-full text-sm">
               <tbody className="divide-y divide-border/60">
@@ -379,91 +417,23 @@ export function ProjectProcurementPanel({
                 </ProcurementDetailRow>
 
                 <ProcurementDetailRow label={t("procurement.field.supplier")}>
-                  {canEdit
-                    ? (
-                        <Select
-                          value={procurement.supplierId ?? NONE}
-                          onValueChange={(v) => {
-                            if (v === null)
-                              return;
-                            patch({ supplierId: v === NONE ? null : v });
-                          }}
-                        >
-                          <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-sm text-foreground hover:text-primary [&>svg:last-child]:size-3">
-                            <SelectValue>
-                              {(v: string) => (v === NONE ? <span className="text-muted-foreground">{t("procurement.none")}</span> : suppliers.find(s => s.id === v)?.name ?? v)}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE}>{t("procurement.none")}</SelectItem>
-                            {suppliers.map(s => (
-                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )
-                    : <span className="text-foreground">{supplierName ?? t("procurement.none")}</span>}
+                  <span className="text-foreground">{supplierName ?? t("procurement.none")}</span>
                 </ProcurementDetailRow>
 
                 <ProcurementDetailRow label={t("procurement.field.category")}>
-                  {canEdit
-                    ? (
-                        <Select
-                          value={procurement.categoryId ?? NONE}
-                          onValueChange={(v) => {
-                            if (v === null)
-                              return;
-                            patch({ categoryId: v === NONE ? null : v });
-                          }}
-                        >
-                          <SelectTrigger className="h-auto border-0 bg-transparent p-0 shadow-none gap-1 text-sm text-foreground hover:text-primary [&>svg:last-child]:size-3">
-                            <SelectValue>
-                              {(v: string) => (v === NONE ? <span className="text-muted-foreground">{t("procurement.none")}</span> : categories.find(c => c.id === v)?.name ?? v)}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE}>{t("procurement.none")}</SelectItem>
-                            {categories.map(c => (
-                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )
-                    : <span className="text-foreground">{categoryName ?? t("procurement.none")}</span>}
+                  <span className="text-foreground">{categoryName ?? t("procurement.none")}</span>
                 </ProcurementDetailRow>
 
                 <ProcurementDetailRow label={t("procurement.field.quantity")}>
-                  <InlineValue
-                    display={procurement.quantity === null ? null : String(procurement.quantity)}
-                    initial={procurement.quantity === null ? "" : String(procurement.quantity)}
-                    canEdit={canEdit}
-                    type="number"
-                    notSetLabel={t("procurement.detail.notSet")}
-                    onCommit={raw => commitNumber(raw, procurement.quantity, next => patch({ quantity: next }))}
-                  />
+                  <span className="text-foreground">{procurement.quantity === null ? "—" : String(procurement.quantity)}</span>
                 </ProcurementDetailRow>
 
                 <ProcurementDetailRow label={t("procurement.field.amount")}>
-                  <InlineValue
-                    display={procurement.amount === null ? null : formatMoney(procurement.amount)}
-                    initial={procurement.amount === null ? "" : minorToInput(procurement.amount)}
-                    canEdit={canEdit}
-                    type="number"
-                    step="0.01"
-                    notSetLabel={t("procurement.detail.notSet")}
-                    onCommit={raw => commitMoney(raw, procurement.amount, next => patch({ amount: next }))}
-                  />
+                  <span className="text-foreground">{procurement.amount === null ? "—" : formatMoney(procurement.amount)}</span>
                 </ProcurementDetailRow>
 
                 <ProcurementDetailRow label={t("procurement.field.currency")}>
-                  <InlineValue
-                    display={procurement.currency}
-                    initial={procurement.currency ?? ""}
-                    canEdit={canEdit}
-                    maxLength={10}
-                    notSetLabel={t("procurement.detail.notSet")}
-                    onCommit={raw => commitText(raw, procurement.currency, next => patch({ currency: next }))}
-                  />
+                  <span className="text-foreground">{procurement.currency ?? "—"}</span>
                 </ProcurementDetailRow>
               </tbody>
             </table>
@@ -543,68 +513,5 @@ function ProcurementDetailRow({ label, children }: ProcurementDetailRowProps) {
       </th>
       <td className="px-3 py-2 align-top">{children}</td>
     </tr>
-  );
-}
-
-interface InlineValueProps {
-  /** Formatted current value, or null when unset (shows the "not set" affordance). */
-  readonly display: string | null;
-  /** Initial input value when entering edit mode. */
-  readonly initial: string;
-  readonly canEdit: boolean;
-  readonly type?: "text" | "number";
-  /** Step for number inputs; pass "0.01" to allow two-decimal currency entry. */
-  readonly step?: string;
-  readonly maxLength?: number;
-  readonly notSetLabel: string;
-  readonly onCommit: (raw: string) => void;
-}
-
-// Value-only inline edit cell for the procurement-details table (the row header
-// already carries the label). A click reveals a borderless input that commits on
-// blur/Enter. The input is uncontrolled and seeded from `initial`; a successful
-// patch refreshes `initial`, so the next edit starts from the committed value.
-function InlineValue({ display, initial, canEdit, type = "text", step, maxLength, notSetLabel, onCommit }: InlineValueProps) {
-  const [editing, setEditing] = useState(false);
-
-  if (!canEdit)
-    return <span className="text-foreground">{display ?? "—"}</span>;
-
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        type={type}
-        min={type === "number" ? "0" : undefined}
-        step={type === "number" ? step : undefined}
-        maxLength={maxLength}
-        defaultValue={initial}
-        className="h-5 w-24 border-b border-primary bg-transparent text-sm text-foreground outline-none"
-        onBlur={(e) => {
-          onCommit(e.currentTarget.value);
-          setEditing(false);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter")
-            e.currentTarget.blur();
-        }}
-      />
-    );
-  }
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="h-auto gap-1 rounded px-0 text-sm font-normal text-foreground hover:bg-transparent hover:text-primary"
-      onClick={() => setEditing(true)}
-    >
-      {display ?? (
-        <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-          {notSetLabel}
-          <Pencil className="size-2.5" />
-        </span>
-      )}
-    </Button>
   );
 }

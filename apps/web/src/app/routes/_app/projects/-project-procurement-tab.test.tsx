@@ -122,6 +122,25 @@ describe("projectProcurementTab", () => {
     expect(await screen.findByRole("button", { name: "New" })).toBeInTheDocument();
   });
 
+  it("creates a procurement through the drawer form (POST)", async () => {
+    const user = userEvent.setup();
+    routeFetch([]);
+    renderWithProviders(
+      <ProjectProcurementTab projectId="p1" members={noMembers} userNames={new Map()} canManage />,
+    );
+    await user.click(await screen.findByRole("button", { name: "New" }));
+    const nameInput = await screen.findByLabelText("Item name");
+    await user.type(nameInput, "Rebar");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        c => String(c[1]?.method ?? "").toUpperCase() === "POST" && String(c[0]).endsWith("/projects/p1/procurements"),
+      );
+      expect(post).toBeDefined();
+      expect(JSON.parse(String(post![1]?.body))).toMatchObject({ itemName: "Rebar" });
+    });
+  });
+
   it("does not render the procurement pipeline summary cards", async () => {
     routeFetch([row()]);
     renderWithProviders(

@@ -25,6 +25,17 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "cancelled",
 ];
 
+// Item details may be edited only before a procurement is confirmed. Mirrors the
+// backend guard in `apps/api/src/modules/procurement/schema.ts`; once a
+// procurement reaches `confirmed` (or beyond), the item-detail fields freeze and
+// the edit-details affordance is hidden.
+const PROCUREMENT_EDITABLE_STATUSES: readonly ProcurementStatus[] = ["requested", "ordered"];
+
+/** True once a procurement is confirmed or beyond, when item details are frozen. */
+export function isProcurementDetailLocked(status: ProcurementStatus): boolean {
+  return !PROCUREMENT_EDITABLE_STATUSES.includes(status);
+}
+
 // Tag reference carried on procurement rows and detail (name resolved by the
 // API). Mirrors `IssueTagRef` (type='procurement').
 interface ProcurementTagRef {
