@@ -27499,6 +27499,7 @@
                             "enum": [
                               "requested",
                               "ordered",
+                              "confirmed",
                               "paid",
                               "in_transit",
                               "received",
@@ -27827,6 +27828,7 @@
               "enum": [
                 "requested",
                 "ordered",
+                "confirmed",
                 "paid",
                 "in_transit",
                 "received",
@@ -27896,6 +27898,7 @@
                           "enum": [
                             "requested",
                             "ordered",
+                            "confirmed",
                             "paid",
                             "in_transit",
                             "received",
@@ -28210,6 +28213,7 @@
                     "enum": [
                       "requested",
                       "ordered",
+                      "confirmed",
                       "paid",
                       "in_transit",
                       "received",
@@ -28374,6 +28378,7 @@
                           "enum": [
                             "requested",
                             "ordered",
+                            "confirmed",
                             "paid",
                             "in_transit",
                             "received",
@@ -28677,6 +28682,7 @@
                           "enum": [
                             "requested",
                             "ordered",
+                            "confirmed",
                             "paid",
                             "in_transit",
                             "received",
@@ -29184,6 +29190,7 @@
                           "enum": [
                             "requested",
                             "ordered",
+                            "confirmed",
                             "paid",
                             "in_transit",
                             "received",
@@ -29489,6 +29496,7 @@
                           "enum": [
                             "requested",
                             "ordered",
+                            "confirmed",
                             "paid",
                             "in_transit",
                             "received",
@@ -29794,6 +29802,7 @@
                           "enum": [
                             "requested",
                             "ordered",
+                            "confirmed",
                             "paid",
                             "in_transit",
                             "received",
@@ -30142,6 +30151,7 @@
                     "enum": [
                       "requested",
                       "ordered",
+                      "confirmed",
                       "paid",
                       "in_transit",
                       "received",

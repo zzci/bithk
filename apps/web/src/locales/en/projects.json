@@ -222,6 +222,7 @@
     "status": {
       "requested": "Requested",
       "ordered": "Ordered",
+      "confirmed": "Confirmed",
       "paid": "Paid",
       "in_transit": "In transit",
       "received": "Received",

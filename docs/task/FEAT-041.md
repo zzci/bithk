@@ -68,3 +68,12 @@ Two related procurement-status changes:
   status-colors / procurement enum unit tests; api 62 / web 30 procurement tests
   pass. Regenerated api-spec (status route 409). `bun run check` EXIT 0. Note: dev
   DB needs `bun run seed` to realign old `confirmed` rows.
+- 2026-06-19: Revised per user — instead of renaming, **keep `confirmed` and add a
+  new `paid` status after it** (lifecycle: requested → ordered → confirmed → paid →
+  in_transit → received → accepted; + cancelled). Item-detail lock and the
+  no-regress transition rule now apply from `confirmed` onward (paid inherits both);
+  `received`/`accepted` still cannot be cancelled. Updated enum/i18n/colour
+  (confirmed = primary tint, paid = primary solid)/seed (one confirmed + one paid
+  template) + routes/service/panel/unit tests (api 62, web 49 pass). Spec
+  committed without the concurrent FEAT-042 `/account/groups/default` path (that
+  route's mounting is not in this commit).

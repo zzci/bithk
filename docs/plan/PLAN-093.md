@@ -99,3 +99,11 @@ test; 2 i18n files; regenerated api-spec; changelog. No migration.
   已付款. Confirmed (via "proceed"): full value rename `confirmed`→`paid`, and
   forward progress from `paid` stays allowed ("only cancel" reading = no
   regression to pre-payment states, not "cancel is the sole option").
+- 2026-06-19 (revision): User reversed the rename — **keep `confirmed`, add a
+  separate `paid`** after it (8-status lifecycle). The "确认后" lock + no-regress
+  rules now key off `confirmed` (the earlier committed state); `paid` is a later
+  milestone that inherits both. `isAllowedProcurementTransition` generalised to
+  "any committed state (not requested/ordered/cancelled) cannot regress to
+  ordered/requested". Status colour: confirmed = primary tint, paid = primary
+  solid. Seed keeps one `confirmed` + one `paid` example. No migration (free-text
+  status); dev DB reseed realigns old rows.

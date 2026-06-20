@@ -13,11 +13,12 @@ import { http } from "../http";
 
 // ── Types ──
 
-export type ProcurementStatus = "requested" | "ordered" | "paid" | "in_transit" | "received" | "accepted" | "cancelled";
+export type ProcurementStatus = "requested" | "ordered" | "confirmed" | "paid" | "in_transit" | "received" | "accepted" | "cancelled";
 
 export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "requested",
   "ordered",
+  "confirmed",
   "paid",
   "in_transit",
   "received",
@@ -25,13 +26,13 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "cancelled",
 ];
 
-// Item details may be edited only before a procurement is paid. Mirrors the
+// Item details may be edited only before a procurement is confirmed. Mirrors the
 // backend guard in `apps/api/src/modules/procurement/schema.ts`; once a
-// procurement reaches `paid` (or beyond), the item-detail fields freeze and the
-// edit-details affordance is hidden.
+// procurement reaches `confirmed` (or beyond, including `paid`), the item-detail
+// fields freeze and the edit-details affordance is hidden.
 const PROCUREMENT_EDITABLE_STATUSES: readonly ProcurementStatus[] = ["requested", "ordered"];
 
-/** True once a procurement is paid or beyond, when item details are frozen. */
+/** True once a procurement is confirmed or beyond, when item details are frozen. */
 export function isProcurementDetailLocked(status: ProcurementStatus): boolean {
   return !PROCUREMENT_EDITABLE_STATUSES.includes(status);
 }
@@ -40,7 +41,8 @@ export function isProcurementDetailLocked(status: ProcurementStatus): boolean {
 // in `apps/api/src/modules/procurement/schema.ts`. Drives the panel's status
 // picker so it never offers a transition the API would reject with 409.
 export function isAllowedProcurementTransition(from: ProcurementStatus, to: ProcurementStatus): boolean {
-  if (from === "paid" && (to === "requested" || to === "ordered"))
+  const committed = from !== "requested" && from !== "ordered" && from !== "cancelled";
+  if (committed && (to === "requested" || to === "ordered"))
     return false;
   if ((from === "received" || from === "accepted") && to === "cancelled")
     return false;

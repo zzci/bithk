@@ -180,8 +180,8 @@ describe("projectProcurementPanel", () => {
     });
   });
 
-  it("hides the edit-details affordance once paid (item details locked)", async () => {
-    routeFetch(procurement({ status: "paid" }));
+  it("hides the edit-details affordance once confirmed (item details locked)", async () => {
+    routeFetch(procurement({ status: "confirmed" }));
     renderWithProviders(
       <ProjectProcurementPanel
         projectId="p1"
@@ -198,9 +198,9 @@ describe("projectProcurementPanel", () => {
     expect(screen.getByText("Locked after confirmation")).toBeInTheDocument();
   });
 
-  it("omits regressive status options once paid (no Ordered/Requested)", async () => {
+  it("omits regressive status options once confirmed (no Ordered/Requested)", async () => {
     const user = userEvent.setup();
-    routeFetch(procurement({ status: "paid" }));
+    routeFetch(procurement({ status: "confirmed" }));
     renderWithProviders(
       <ProjectProcurementPanel
         projectId="p1"

@@ -69,18 +69,19 @@ export const CRON_STATUS_VARIANT: Record<string, "default" | "secondary" | "dest
   failed: "destructive",
 };
 
-// Procurement order status chip (7-status vocabulary). Maps the lifecycle to
+// Procurement order status chip (8-status vocabulary). Maps the lifecycle to
 // the same semantic-token hue families as the issue badge: pending (warning) →
-// in-flight (info) → paid (primary) → arrived/closed (success) → cancelled
-// (muted). Each phase has two lifecycle states, so the later state of a phase
-// uses the SOLID token (filled chip) while the earlier uses the tinted token
-// (pale chip) — keeping every state on its phase hue yet visually distinct:
-// ordered (info tint) vs in_transit (info solid); received (success tint) vs
-// accepted (success solid).
+// in-flight (info) → confirmed/paid (primary) → arrived/closed (success) →
+// cancelled (muted). Phases that carry two states use the tinted token (pale
+// chip) for the earlier state and the SOLID token (filled chip) for the later —
+// keeping every state on its phase hue yet visually distinct: ordered (info
+// tint) vs in_transit (info solid); confirmed (primary tint) vs paid (primary
+// solid); received (success tint) vs accepted (success solid).
 export const PROCUREMENT_STATUS_BADGE: Record<ProcurementStatus, string> = {
   requested: "bg-warning/10 text-warning",
   ordered: "bg-info/10 text-info",
-  paid: "bg-primary/10 text-primary",
+  confirmed: "bg-primary/10 text-primary",
+  paid: "bg-primary text-primary-foreground",
   in_transit: "bg-info text-info-foreground",
   received: "bg-success/10 text-success",
   accepted: "bg-success text-success-foreground",

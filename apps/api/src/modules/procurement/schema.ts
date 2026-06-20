@@ -3,12 +3,13 @@ import { contacts } from "@/modules/contact/schema";
 import { items } from "@/modules/item/schema";
 import { procurementCategories, projectMembers, projects } from "@/modules/project/schema";
 
-export const PROCUREMENT_STATUSES = ["requested", "ordered", "paid", "in_transit", "received", "accepted", "cancelled"] as const;
+export const PROCUREMENT_STATUSES = ["requested", "ordered", "confirmed", "paid", "in_transit", "received", "accepted", "cancelled"] as const;
 export type ProcurementStatus = typeof PROCUREMENT_STATUSES[number];
 
-// Item details may be edited only before a procurement is paid. Once it reaches
-// `paid` (and any later or terminal state), the item-detail fields are frozen —
-// see `PROCUREMENT_LOCKED_DETAIL_FIELDS` and the PATCH guard.
+// Item details may be edited only before a procurement is confirmed. Once it
+// reaches `confirmed` (and any later or terminal state — including `paid`), the
+// item-detail fields are frozen — see `PROCUREMENT_LOCKED_DETAIL_FIELDS` and the
+// PATCH guard.
 export const PROCUREMENT_EDITABLE_STATUSES = ["requested", "ordered"] as const;
 
 // Item-detail fields that the lock freezes. Workflow fields (description,
@@ -23,18 +24,21 @@ export const PROCUREMENT_LOCKED_DETAIL_FIELDS = [
   "currency",
 ] as const;
 
-/** True once a procurement is paid or beyond, when item details are frozen. */
+/** True once a procurement is confirmed or beyond, when item details are frozen. */
 export function isProcurementDetailLocked(status: ProcurementStatus): boolean {
   return !(PROCUREMENT_EDITABLE_STATUSES as readonly string[]).includes(status);
 }
 
 // Status-transition rules (enforced in `changeStatus`, mirrored in the web
-// status picker). Transitions are otherwise free; only these two regressions are
+// status picker). Transitions are otherwise free; only these regressions are
 // blocked:
-//   - once `paid`, the status cannot return to `ordered` / `requested`;
+//   - once confirmed (confirmed / paid / in_transit / received / accepted), the
+//     status cannot return to `ordered` / `requested`;
 //   - once `received` / `accepted`, the status cannot be `cancelled`.
+// `cancelled` is exempt from the first rule so a cancelled record can be revived.
 export function isAllowedProcurementTransition(from: ProcurementStatus, to: ProcurementStatus): boolean {
-  if (from === "paid" && (to === "requested" || to === "ordered"))
+  const committed = from !== "requested" && from !== "ordered" && from !== "cancelled";
+  if (committed && (to === "requested" || to === "ordered"))
     return false;
   if ((from === "received" || from === "accepted") && to === "cancelled")
     return false;

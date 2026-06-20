@@ -396,7 +396,7 @@ describe("detail / update / delete (cross-project + manage gate)", () => {
     expect(stillThere.status).toBe(200);
   });
 
-  test("once paid, item details are locked (409) but workflow fields stay editable", async () => {
+  test("once confirmed, item details are locked (409) but workflow fields stay editable", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
@@ -407,8 +407,8 @@ describe("detail / update / delete (cross-project + manage gate)", () => {
     await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: "ordered" }));
     expect((await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { itemName: "Y", quantity: 3 }))).status).toBe(200);
 
-    // Mark the procurement paid → item-detail fields freeze.
-    await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: "paid" }));
+    // Confirm the procurement → item-detail fields freeze (already before paid).
+    await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: "confirmed" }));
 
     const locked = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { itemName: "Z" }));
     expect(locked.status).toBe(409);
@@ -417,7 +417,7 @@ describe("detail / update / delete (cross-project + manage gate)", () => {
     // A money/supplier/category touch is equally rejected.
     expect((await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { amount: 1000 }))).status).toBe(409);
 
-    // Workflow fields remain patchable after payment.
+    // Workflow fields remain patchable after confirmation.
     const workflow = await app.request(`/projects/${project.shortId}/procurements/${proc.id}`, jsonReq("PATCH", cookie, { priority: "urgent", description: "note" }));
     expect(workflow.status).toBe(200);
     expect((await res2json(workflow)).data.priority).toBe("urgent");
@@ -449,7 +449,7 @@ describe("status change", () => {
     const cookie = await cookieForUser(owner);
 
     let lastVersion = proc.version;
-    for (const next of ["ordered", "paid", "in_transit", "received", "accepted"]) {
+    for (const next of ["ordered", "confirmed", "paid", "in_transit", "received", "accepted"]) {
       const res = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: next }));
       expect(res.status).toBe(200);
       const body = await res.json() as { data: { status: string; version: number } };
@@ -459,22 +459,23 @@ describe("status change", () => {
     }
   });
 
-  test("a paid procurement cannot regress to ordered/requested (409)", async () => {
+  test("a confirmed or paid procurement cannot regress to ordered/requested (409)", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
     const project = await createProject(db, { name: "P", creatorId: owner });
-    const proc = await createProcurement(db, { projectId: project.id, itemName: "X", creatorId: owner });
     const cookie = await cookieForUser(owner);
 
-    await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: "paid" }));
-
-    for (const target of ["ordered", "requested"]) {
-      const res = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: target }));
-      expect(res.status).toBe(409);
-      expect((await res.json() as { error: { code: string } }).error.code).toBe("PROCUREMENT_INVALID_TRANSITION");
+    for (const committed of ["confirmed", "paid"]) {
+      const proc = await createProcurement(db, { projectId: project.id, itemName: `X-${committed}`, creatorId: owner });
+      await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: committed }));
+      for (const target of ["ordered", "requested"]) {
+        const res = await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: target }));
+        expect(res.status).toBe(409);
+        expect((await res.json() as { error: { code: string } }).error.code).toBe("PROCUREMENT_INVALID_TRANSITION");
+      }
+      // Forward and cancel from a committed state stay allowed.
+      expect((await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: "cancelled" }))).status).toBe(200);
     }
-    // Forward and cancel from paid stay allowed.
-    expect((await app.request(`/projects/${project.shortId}/procurements/${proc.id}/status`, jsonReq("POST", cookie, { status: "cancelled" }))).status).toBe(200);
   });
 
   test("a received or accepted procurement cannot be cancelled (409)", async () => {
