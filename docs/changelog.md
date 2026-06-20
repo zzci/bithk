@@ -23,18 +23,24 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
-- Procurement item details freeze once the record is paid: from `paid` onward
-  (and when `cancelled`) the item-detail fields can no longer be modified — the
-  "edit details" affordance is hidden and the API rejects such a PATCH with
-  `409 PROCUREMENT_DETAILS_LOCKED`. They remain editable while the record is
-  `requested` or `ordered` (FEAT-040, PLAN-092).
-- Renamed the procurement status `confirmed` → `paid` (已确认 → 已付款) across the
-  enum, labels, status colour, and seed data (FEAT-041, PLAN-093).
-- Procurement status transitions are now constrained (previously free): a `paid`
-  order can no longer return to `ordered`/`requested`, and a `received`/`accepted`
-  order can no longer be `cancelled`. The status picker hides disallowed targets
-  and the API rejects them with `409 PROCUREMENT_INVALID_TRANSITION`
-  (FEAT-041, PLAN-093).
+- Procurement item details freeze once the record is confirmed: from `confirmed`
+  onward (including `paid`, and when `cancelled`) the item-detail fields can no
+  longer be modified — the "edit details" affordance is hidden and the API
+  rejects such a PATCH with `409 PROCUREMENT_DETAILS_LOCKED`. They remain editable
+  while the record is `requested` or `ordered` (FEAT-040, PLAN-092).
+- Added new procurement statuses `paid` (已付款, after `confirmed`) and a reversal
+  sub-flow `returned` (已退货) / `refunded` (已退款, after `accepted`) — the lifecycle
+  is now requested → ordered → confirmed → paid → in_transit → received → accepted
+  → returned → refunded (+ cancelled). `confirmed` is kept (not renamed). Returning
+  is optional (accepted → returned → refunded, or received/accepted → refunded
+  directly); received/accepted still cannot be `cancelled` and use return/refund as
+  the reversal path. `paid` shows a solid primary chip; returned/refunded use
+  destructive tints (FEAT-041, PLAN-093).
+- Procurement status transitions are now constrained (previously free): once
+  committed (`confirmed`/`paid` or later) the status can no longer return to
+  `ordered`/`requested`, and a `received`/`accepted` order can no longer be
+  `cancelled`. The status picker hides disallowed targets and the API rejects them
+  with `409 PROCUREMENT_INVALID_TRANSITION` (FEAT-041, PLAN-093).
 
 ## v0.1.7 — 2026-06-19
 
