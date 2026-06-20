@@ -27504,6 +27504,8 @@
                               "in_transit",
                               "received",
                               "accepted",
+                              "returned",
+                              "refunded",
                               "cancelled"
                             ]
                           },
@@ -27833,6 +27835,8 @@
                 "in_transit",
                 "received",
                 "accepted",
+                "returned",
+                "refunded",
                 "cancelled"
               ]
             }
@@ -27903,6 +27907,8 @@
                             "in_transit",
                             "received",
                             "accepted",
+                            "returned",
+                            "refunded",
                             "cancelled"
                           ]
                         },
@@ -28218,6 +28224,8 @@
                       "in_transit",
                       "received",
                       "accepted",
+                      "returned",
+                      "refunded",
                       "cancelled"
                     ]
                   },
@@ -28383,6 +28391,8 @@
                             "in_transit",
                             "received",
                             "accepted",
+                            "returned",
+                            "refunded",
                             "cancelled"
                           ]
                         },
@@ -28687,6 +28697,8 @@
                             "in_transit",
                             "received",
                             "accepted",
+                            "returned",
+                            "refunded",
                             "cancelled"
                           ]
                         },
@@ -29195,6 +29207,8 @@
                             "in_transit",
                             "received",
                             "accepted",
+                            "returned",
+                            "refunded",
                             "cancelled"
                           ]
                         },
@@ -29501,6 +29515,8 @@
                             "in_transit",
                             "received",
                             "accepted",
+                            "returned",
+                            "refunded",
                             "cancelled"
                           ]
                         },
@@ -29807,6 +29823,8 @@
                             "in_transit",
                             "received",
                             "accepted",
+                            "returned",
+                            "refunded",
                             "cancelled"
                           ]
                         },
@@ -30156,6 +30174,8 @@
                       "in_transit",
                       "received",
                       "accepted",
+                      "returned",
+                      "refunded",
                       "cancelled"
                     ]
                   }

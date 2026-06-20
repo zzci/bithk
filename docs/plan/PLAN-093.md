@@ -107,3 +107,9 @@ test; 2 i18n files; regenerated api-spec; changelog. No migration.
   ordered/requested". Status colour: confirmed = primary tint, paid = primary
   solid. Seed keeps one `confirmed` + one `paid` example. No migration (free-text
   status); dev DB reseed realigns old rows.
+- 2026-06-20 (extension): Added a reversal sub-flow — `returned` (已退货) and
+  `refunded` (已退款) after `accepted`. Return is optional (accepted → returned →
+  refunded, or received/accepted → refunded). Both are committed states so the
+  existing `isAllowedProcurementTransition` already covers them (no helper change);
+  received/accepted keep their no-cancel rule and use return/refund as the reversal
+  path instead. Colour = destructive tints. Enum/i18n/colour/seed/tests updated.

@@ -13,7 +13,7 @@ import { http } from "../http";
 
 // ── Types ──
 
-export type ProcurementStatus = "requested" | "ordered" | "confirmed" | "paid" | "in_transit" | "received" | "accepted" | "cancelled";
+export type ProcurementStatus = "requested" | "ordered" | "confirmed" | "paid" | "in_transit" | "received" | "accepted" | "returned" | "refunded" | "cancelled";
 
 export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "requested",
@@ -23,6 +23,8 @@ export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "in_transit",
   "received",
   "accepted",
+  "returned",
+  "refunded",
   "cancelled",
 ];
 

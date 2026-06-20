@@ -227,6 +227,8 @@
       "in_transit": "In transit",
       "received": "Received",
       "accepted": "Accepted",
+      "returned": "Returned",
+      "refunded": "Refunded",
       "cancelled": "Cancelled"
     },
     "priority": {

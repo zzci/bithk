@@ -77,3 +77,13 @@ Two related procurement-status changes:
   template) + routes/service/panel/unit tests (api 62, web 49 pass). Spec
   committed without the concurrent FEAT-042 `/account/groups/default` path (that
   route's mounting is not in this commit).
+- 2026-06-20: Added the reversal sub-flow — two new statuses **`returned`
+  (已退货)** and **`refunded` (已退款)** after `accepted` (lifecycle: … → accepted →
+  returned → refunded; + cancelled). Returning is optional: with goods returned
+  it's accepted → returned → refunded, otherwise received/accepted → refunded
+  directly. No transition-helper change needed — both are "committed" states, so
+  they already block regress to ordered/requested and are reachable from
+  received/accepted (which still cannot be `cancelled`, using return/refund as the
+  proper reversal). Colour: destructive tint (returned) / stronger destructive
+  tint (refunded). Updated enum/i18n/colour/seed (+1 returned, +1 refunded
+  template) + enum/colour unit tests + a routes flow test (api 63, web 49 pass).

@@ -3,7 +3,7 @@ import { contacts } from "@/modules/contact/schema";
 import { items } from "@/modules/item/schema";
 import { procurementCategories, projectMembers, projects } from "@/modules/project/schema";
 
-export const PROCUREMENT_STATUSES = ["requested", "ordered", "confirmed", "paid", "in_transit", "received", "accepted", "cancelled"] as const;
+export const PROCUREMENT_STATUSES = ["requested", "ordered", "confirmed", "paid", "in_transit", "received", "accepted", "returned", "refunded", "cancelled"] as const;
 export type ProcurementStatus = typeof PROCUREMENT_STATUSES[number];
 
 // Item details may be edited only before a procurement is confirmed. Once it

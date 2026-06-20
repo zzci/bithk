@@ -493,6 +493,29 @@ describe("status change", () => {
     }
   });
 
+  test("received goods reverse via return → refund, or refund directly", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "P", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+    const setStatus = (id: string, status: string) =>
+      app.request(`/projects/${project.shortId}/procurements/${id}/status`, jsonReq("POST", cookie, { status }));
+
+    // With a return: accepted → returned → refunded.
+    const a = await createProcurement(db, { projectId: project.id, itemName: "A", creatorId: owner });
+    await setStatus(a.id, "accepted");
+    expect((await setStatus(a.id, "returned")).status).toBe(200);
+    expect((await setStatus(a.id, "refunded")).status).toBe(200);
+
+    // Without a return: received → refunded directly.
+    const b = await createProcurement(db, { projectId: project.id, itemName: "B", creatorId: owner });
+    await setStatus(b.id, "received");
+    expect((await setStatus(b.id, "refunded")).status).toBe(200);
+
+    // A reversed order still cannot regress to ordered/requested.
+    expect((await setStatus(b.id, "ordered")).status).toBe(409);
+  });
+
   test("an unknown status value is rejected with 422", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");
