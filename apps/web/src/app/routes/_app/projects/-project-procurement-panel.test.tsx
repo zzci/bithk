@@ -180,8 +180,8 @@ describe("projectProcurementPanel", () => {
     });
   });
 
-  it("hides the edit-details affordance once confirmed (item details locked)", async () => {
-    routeFetch(procurement({ status: "confirmed" }));
+  it("hides the edit-details affordance once paid (item details locked)", async () => {
+    routeFetch(procurement({ status: "paid" }));
     renderWithProviders(
       <ProjectProcurementPanel
         projectId="p1"
@@ -196,6 +196,49 @@ describe("projectProcurementPanel", () => {
     await screen.findByRole("heading", { name: "Cement" });
     expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
     expect(screen.getByText("Locked after confirmation")).toBeInTheDocument();
+  });
+
+  it("omits regressive status options once paid (no Ordered/Requested)", async () => {
+    const user = userEvent.setup();
+    routeFetch(procurement({ status: "paid" }));
+    renderWithProviders(
+      <ProjectProcurementPanel
+        projectId="p1"
+        procurementId="pr1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByRole("heading", { name: "Cement" });
+    await user.click(screen.getByLabelText("Change status"));
+    // Forward + cancel stay available; regression to ordered/requested is gone.
+    expect(await screen.findByRole("option", { name: "Cancelled" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "In transit" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Ordered" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Requested" })).not.toBeInTheDocument();
+  });
+
+  it("omits Cancelled once received (cannot cancel a received order)", async () => {
+    const user = userEvent.setup();
+    routeFetch(procurement({ status: "received" }));
+    renderWithProviders(
+      <ProjectProcurementPanel
+        projectId="p1"
+        procurementId="pr1"
+        members={noMembers}
+        userNames={userNames}
+        canManage
+        variant="drawer"
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByRole("heading", { name: "Cement" });
+    await user.click(screen.getByLabelText("Change status"));
+    expect(await screen.findByRole("option", { name: "Accepted" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Cancelled" })).not.toBeInTheDocument();
   });
 
   it("renders a read-only view for non-managers", async () => {

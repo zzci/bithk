@@ -480,23 +480,23 @@ describe("capability gating (procurement.view)", () => {
 // audited — NOT a state machine. These tests pin that contract so a future
 // change cannot silently introduce transition restrictions.
 // See docs/decisions/2026-05-23-procurement-free-transitions.md.
-describe("status free transitions (lock-in)", () => {
-  test("every status reachable from every other status, each audited with from/to + version bump", async () => {
+describe("status transitions", () => {
+  test("a valid tour through the lifecycle is audited with from/to + version bump", async () => {
     const creator = await seedUser("Alice");
     const project = await createProject(db, { name: "P", creatorId: creator });
     const row = await createProcurement(db, { projectId: project.id, itemName: "Valves", creatorId: creator });
     expect(row.status).toBe("requested");
 
-    // A deliberately non-linear tour: forward, backward, skip-ahead, and both
-    // into and back OUT of the terminal-looking "accepted" / "cancelled" states.
+    // Forward through the lifecycle, then OUT of accepted (allowed — only
+    // accepted->cancelled is blocked) and finally cancel from in_transit.
     const tour: ProcurementStatus[] = [
       "ordered",
-      "confirmed",
-      "requested", // backward
-      "accepted", // skip ahead to a terminal-looking state
+      "paid",
+      "in_transit",
+      "received",
+      "accepted",
       "in_transit", // OUT of accepted — proves it is not terminal
-      "cancelled", // into the other terminal-looking state
-      "ordered", // OUT of cancelled — proves it is not terminal either
+      "cancelled", // cancel is allowed from in_transit
     ];
 
     let previous = row.status;
@@ -515,7 +515,7 @@ describe("status free transitions (lock-in)", () => {
       lastVersion = updated!.version;
       previous = next;
     }
-    expect(previous).toBe("ordered");
+    expect(previous).toBe("cancelled");
 
     // One audit event per transition, each carrying the correct from/to pair.
     const events = await db.select().from(auditEvents).where(eq(auditEvents.action, "procurement.status_changed")).all();
@@ -525,13 +525,40 @@ describe("status free transitions (lock-in)", () => {
       .map(d => `${d.from}->${d.to}`);
     expect(pairs).toEqual([
       "requested->ordered",
-      "ordered->confirmed",
-      "confirmed->requested",
-      "requested->accepted",
+      "ordered->paid",
+      "paid->in_transit",
+      "in_transit->received",
+      "received->accepted",
       "accepted->in_transit",
       "in_transit->cancelled",
-      "cancelled->ordered",
     ]);
+  });
+
+  test("forbidden transitions are rejected with a 409 and write no audit event", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "P", creatorId: creator });
+    const actor = { id: creator, name: "Alice" };
+    const meta = { ip: "127.0.0.1", userAgent: "test" };
+    const move = (id: string, to: ProcurementStatus) => changeStatus(db, logger, id, to, actor, meta);
+
+    // paid cannot regress to ordered/requested.
+    const a = await createProcurement(db, { projectId: project.id, itemName: "A", creatorId: creator });
+    await move(a.id, "paid");
+    for (const to of ["ordered", "requested"] as const) {
+      await expect(move(a.id, to)).rejects.toMatchObject({ statusCode: 409, code: "PROCUREMENT_INVALID_TRANSITION" });
+    }
+
+    // received / accepted cannot be cancelled.
+    for (const terminal of ["received", "accepted"] as const) {
+      const row = await createProcurement(db, { projectId: project.id, itemName: terminal, creatorId: creator });
+      await move(row.id, terminal);
+      await expect(move(row.id, "cancelled")).rejects.toMatchObject({ statusCode: 409, code: "PROCUREMENT_INVALID_TRANSITION" });
+    }
+
+    // Rejected transitions leave the status untouched and write no audit event.
+    const events = await db.select().from(auditEvents).where(eq(auditEvents.action, "procurement.status_changed")).all();
+    const pairs = events.map(e => JSON.parse(e.detail!) as { to: string }).map(d => d.to);
+    expect(pairs).toEqual(["paid", "received", "accepted"]);
   });
 
   test("the isProcurementStatus guard rejects an unknown status (defence behind the zod boundary)", async () => {

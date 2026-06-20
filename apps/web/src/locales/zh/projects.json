@@ -222,7 +222,7 @@
     "status": {
       "requested": "已申请",
       "ordered": "已下单",
-      "confirmed": "已确认",
+      "paid": "已付款",
       "in_transit": "物流中",
       "received": "已收货",
       "accepted": "已验收",

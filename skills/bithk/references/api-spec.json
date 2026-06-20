@@ -27499,7 +27499,7 @@
                             "enum": [
                               "requested",
                               "ordered",
-                              "confirmed",
+                              "paid",
                               "in_transit",
                               "received",
                               "accepted",
@@ -27827,7 +27827,7 @@
               "enum": [
                 "requested",
                 "ordered",
-                "confirmed",
+                "paid",
                 "in_transit",
                 "received",
                 "accepted",
@@ -27896,7 +27896,7 @@
                           "enum": [
                             "requested",
                             "ordered",
-                            "confirmed",
+                            "paid",
                             "in_transit",
                             "received",
                             "accepted",
@@ -28210,7 +28210,7 @@
                     "enum": [
                       "requested",
                       "ordered",
-                      "confirmed",
+                      "paid",
                       "in_transit",
                       "received",
                       "accepted",
@@ -28374,7 +28374,7 @@
                           "enum": [
                             "requested",
                             "ordered",
-                            "confirmed",
+                            "paid",
                             "in_transit",
                             "received",
                             "accepted",
@@ -28677,7 +28677,7 @@
                           "enum": [
                             "requested",
                             "ordered",
-                            "confirmed",
+                            "paid",
                             "in_transit",
                             "received",
                             "accepted",
@@ -28923,7 +28923,7 @@
             }
           },
           "409": {
-            "description": "Item details locked (procurement confirmed)",
+            "description": "Item details locked (procurement paid)",
             "content": {
               "application/json": {
                 "schema": {
@@ -29184,7 +29184,7 @@
                           "enum": [
                             "requested",
                             "ordered",
-                            "confirmed",
+                            "paid",
                             "in_transit",
                             "received",
                             "accepted",
@@ -29489,7 +29489,7 @@
                           "enum": [
                             "requested",
                             "ordered",
-                            "confirmed",
+                            "paid",
                             "in_transit",
                             "received",
                             "accepted",
@@ -29794,7 +29794,7 @@
                           "enum": [
                             "requested",
                             "ordered",
-                            "confirmed",
+                            "paid",
                             "in_transit",
                             "received",
                             "accepted",
@@ -30039,6 +30039,42 @@
               }
             }
           },
+          "409": {
+            "description": "Forbidden status transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation error",
             "content": {
@@ -30106,7 +30142,7 @@
                     "enum": [
                       "requested",
                       "ordered",
-                      "confirmed",
+                      "paid",
                       "in_transit",
                       "received",
                       "accepted",

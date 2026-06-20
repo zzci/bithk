@@ -11,9 +11,9 @@ import { resolveCategory } from "@/modules/project/project.categories";
 import { resolveAssignableMember } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
 import { listResourceIdsByAnyTag, listResourceTagViews, loadResourceTagsByResource, syncResourceTagsTx } from "@/modules/tag/tag.service";
-import { ValidationError } from "@/shared/lib/errors";
+import { AppError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
-import { PROCUREMENT_STATUSES, procurementDetails } from "./schema";
+import { isAllowedProcurementTransition, PROCUREMENT_STATUSES, procurementDetails } from "./schema";
 
 // The procurement domain's tag binding (tag type='procurement'). Resources are
 // keyed by the procurement's `items.id`. Exported so `routes/protected.ts`
@@ -375,7 +375,17 @@ export async function changeStatus(
   if (!loaded)
     return undefined;
   const { item, details } = loaded;
-  const previous = item.status;
+  const previous = item.status as ProcurementStatus;
+
+  // Enforce the status-transition rules (a paid order cannot regress to
+  // ordered/requested; a received/accepted order cannot be cancelled).
+  if (!isAllowedProcurementTransition(previous, newStatus)) {
+    throw new AppError(
+      `Cannot change procurement status from ${previous} to ${newStatus}`,
+      409,
+      "PROCUREMENT_INVALID_TRANSITION",
+    );
+  }
 
   const now = new Date().toISOString();
   await db.update(items)

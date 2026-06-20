@@ -4,7 +4,7 @@
 //   - edit:   item-detail fields only, used by the detail panel — workflow
 //             fields (status / priority / assignee / due date / tags /
 //             description) stay inline in the view, mirroring the issue panel.
-// Item details freeze once a procurement is confirmed, so edit mode is only
+// Item details freeze once a procurement is paid, so edit mode is only
 // reachable while the procurement is still editable (the caller gates it).
 
 import type {

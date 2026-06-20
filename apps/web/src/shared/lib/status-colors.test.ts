@@ -21,7 +21,7 @@ describe("status-colors", () => {
 
   it("covers every procurement status", () => {
     expect(Object.keys(PROCUREMENT_STATUS_BADGE).sort()).toEqual(
-      ["accepted", "cancelled", "confirmed", "in_transit", "ordered", "received", "requested"],
+      ["accepted", "cancelled", "in_transit", "ordered", "paid", "received", "requested"],
     );
   });
 

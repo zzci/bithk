@@ -311,7 +311,7 @@ export function procurementRoutes() {
         200: okJson(procurementSchema),
         401: { description: "Unauthenticated", ...errorJson },
         404: { description: "Procurement not found", ...errorJson },
-        409: { description: "Item details locked (procurement confirmed)", ...errorJson },
+        409: { description: "Item details locked (procurement paid)", ...errorJson },
         422: { description: "Validation error", ...errorJson },
       },
     }),
@@ -322,13 +322,13 @@ export function procurementRoutes() {
       const { procurement } = await requireProcurement(c, projectId, id, true);
       const db = c.get("db");
       const body = c.req.valid("json");
-      // Confirm-lock: once a procurement is confirmed (or beyond), its item-detail
-      // fields are frozen. Workflow fields (description / priority / dueDate /
-      // tags / assignee) stay editable, so the guard is field-selective.
+      // Lock: once a procurement is paid (or beyond), its item-detail fields are
+      // frozen. Workflow fields (description / priority / dueDate / tags /
+      // assignee) stay editable, so the guard is field-selective.
       if (isProcurementDetailLocked(procurement.status)
         && PROCUREMENT_LOCKED_DETAIL_FIELDS.some(field => body[field] !== undefined)) {
         throw new AppError(
-          "Procurement is confirmed; item details can no longer be modified",
+          "Procurement is paid; item details can no longer be modified",
           409,
           "PROCUREMENT_DETAILS_LOCKED",
         );
@@ -387,6 +387,7 @@ export function procurementRoutes() {
         200: okJson(procurementSchema),
         401: { description: "Unauthenticated", ...errorJson },
         404: { description: "Procurement not found", ...errorJson },
+        409: { description: "Forbidden status transition", ...errorJson },
         422: { description: "Validation error", ...errorJson },
       },
     }),

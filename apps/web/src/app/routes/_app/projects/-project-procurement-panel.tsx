@@ -45,6 +45,7 @@ import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useContacts } from "@/shared/lib/api/contacts";
 import {
+  isAllowedProcurementTransition,
   isProcurementDetailLocked,
   PROCUREMENT_PRIORITIES,
   PROCUREMENT_STATUSES,
@@ -240,8 +241,11 @@ export function ProjectProcurementPanel({
   const procurementTags = procurement.tags ?? [];
   const tagVocabulary = (procurementTagsQuery.data ?? []).map(tag => tag.name);
   const currentTagNames = procurementTags.map(tag => tag.name);
-  // Item details freeze once the procurement is confirmed (or beyond).
+  // Item details freeze once the procurement is paid (or beyond).
   const detailsLocked = isProcurementDetailLocked(procurement.status);
+  // Status picker only offers transitions the API allows from the current status
+  // (keeps the current status, since a self-transition is allowed).
+  const statusOptions = PROCUREMENT_STATUSES.filter(s => isAllowedProcurementTransition(procurement.status, s));
 
   // Edit mode: the item-detail form replaces the whole panel (workflow fields
   // are edited inline back in the view). Keyed by id so navigating between
@@ -298,7 +302,7 @@ export function ProjectProcurementPanel({
           <MetaSelectBadge
             canEdit={canEdit}
             value={procurement.status}
-            options={PROCUREMENT_STATUSES}
+            options={statusOptions}
             renderLabel={s => t(`procurement.status.${s}` as const)}
             variant="secondary"
             badgeClassName={PROCUREMENT_STATUS_BADGE[procurement.status]}
@@ -380,7 +384,7 @@ export function ProjectProcurementPanel({
 
         {/* Procurement details — procurement-specific fields, read-only. Editing
             happens in the item-detail form (the "edit details" button), which is
-            hidden once the procurement is confirmed and its details freeze. */}
+            hidden once the procurement is paid and its details freeze. */}
         <section className="mt-1">
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <h2 className="text-xs font-medium text-muted-foreground">

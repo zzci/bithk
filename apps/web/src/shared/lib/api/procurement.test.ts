@@ -78,7 +78,7 @@ describe("procurementKeys", () => {
 
 describe("pROCUREMENT_STATUSES", () => {
   it("includes the cancelled stage in pipeline order", () => {
-    expect(PROCUREMENT_STATUSES).toEqual(["requested", "ordered", "confirmed", "in_transit", "received", "accepted", "cancelled"]);
+    expect(PROCUREMENT_STATUSES).toEqual(["requested", "ordered", "paid", "in_transit", "received", "accepted", "cancelled"]);
   });
 });
 
