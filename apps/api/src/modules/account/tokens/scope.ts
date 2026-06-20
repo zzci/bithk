@@ -41,7 +41,7 @@ export const TOKEN_MODULES = [
   { key: "shares", prefixes: ["/shares"] },
   { key: "search", prefixes: ["/search"] },
   { key: "account", prefixes: ["/account", "/admin"] },
-  { key: "settings", prefixes: ["/settings"] },
+  { key: "settings", prefixes: ["/settings", "/currencies"] },
   { key: "policy", prefixes: ["/policy"] },
   { key: "audit", prefixes: ["/audit"] },
   { key: "backup", prefixes: ["/backup"] },

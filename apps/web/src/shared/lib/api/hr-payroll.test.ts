@@ -3,7 +3,6 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeWrapper } from "@/test/utils";
 import {
-  HR_PAYROLL_CURRENCIES,
   HR_PAYROLL_STATUSES,
   hrPayrollKeys,
   useCreateHrPayrollRecord,
@@ -64,11 +63,8 @@ describe("hrPayrollKeys", () => {
 });
 
 describe("payroll enums", () => {
-  it("cover the record lifecycle and the curated currency list", () => {
+  it("cover the record lifecycle", () => {
     expect(HR_PAYROLL_STATUSES).toEqual(["pending", "paid"]);
-    expect(HR_PAYROLL_CURRENCIES).toContain("CNY");
-    expect(HR_PAYROLL_CURRENCIES).toContain("USD");
-    expect(HR_PAYROLL_CURRENCIES.every(code => /^[A-Z]{3}$/.test(code))).toBe(true);
   });
 });
 

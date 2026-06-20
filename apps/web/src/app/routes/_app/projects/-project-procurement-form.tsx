@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { useGlobalCurrencies, withCurrency } from "@/shared/lib/api/currency";
 import {
   PROCUREMENT_PRIORITIES,
   PROCUREMENT_STATUSES,
@@ -68,6 +69,9 @@ export function ProcurementForm({
   // Seeded once on mount; the form is remounted on every entry into create /
   // edit, so a background row refetch never clobbers in-progress input.
   const [form, setForm] = useState<ProcurementFormValues>(initial);
+  // Global currency list unioned with the row's own value so a legacy code that
+  // is no longer in the configured list stays selectable.
+  const currencyOptions = withCurrency(useGlobalCurrencies(), form.currency);
 
   const set = <K extends keyof ProcurementFormValues>(key: K, value: ProcurementFormValues[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
@@ -111,8 +115,23 @@ export function ProcurementForm({
             <MoneyInput id="proc-amount" value={form.amount} onChange={v => set("amount", v)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="proc-currency">{t("procurement.field.currency")}</Label>
-            <Input id="proc-currency" value={form.currency} onChange={e => set("currency", e.target.value)} maxLength={10} />
+            <Label>{t("procurement.field.currency")}</Label>
+            <Select
+              value={form.currency === "" ? NONE : form.currency}
+              onValueChange={v => v !== null && set("currency", v === NONE ? "" : v)}
+            >
+              <SelectTrigger className="w-full" aria-label={t("procurement.field.currency")}>
+                <SelectValue>
+                  {(v: string) => (v === NONE ? t("procurement.none") : v)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>{t("procurement.none")}</SelectItem>
+                {currencyOptions.map(code => (
+                  <SelectItem key={code} value={code}>{code}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

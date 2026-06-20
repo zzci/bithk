@@ -45,9 +45,9 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { useGlobalCurrencies, withCurrency } from "@/shared/lib/api/currency";
 import { useHrColleagues } from "@/shared/lib/api/hr";
 import {
-  HR_PAYROLL_CURRENCIES,
   HR_PAYROLL_STATUSES,
   useCreateHrPayrollRecord,
   useDeleteHrPayrollRecord,
@@ -398,6 +398,10 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
   const [currency, setCurrency] = useState(record?.currency ?? "CNY");
   const [notes, setNotes] = useState(record?.notes ?? "");
 
+  // Global currency list unioned with the record's own value so a legacy code
+  // stays selectable.
+  const currencyOptions = withCurrency(useGlobalCurrencies(), currency);
+
   const colleagues = colleaguesQuery.data?.data ?? [];
   const pending = createRecord.isPending || updateRecord.isPending;
   const mutationError = mode === "create" ? createRecord.error : updateRecord.error;
@@ -499,7 +503,7 @@ function PayrollDialog({ mode, record, open, onOpenChange }: PayrollDialogProps)
                   <SelectValue>{(v: string) => v}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {HR_PAYROLL_CURRENCIES.map(code => (
+                  {currencyOptions.map(code => (
                     <SelectItem key={code} value={code}>
                       {code}
                     </SelectItem>

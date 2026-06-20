@@ -71,6 +71,8 @@ function routeFetch(
   fetchMock.mockImplementation(async (url, init) => {
     const path = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
+    if (method === "GET" && path.includes("/currencies"))
+      return jsonResponse({ success: true, data: { builtin: ["CNY", "USD", "EUR", "GBP", "JPY", "HKD", "SGD", "THB"], custom: [] } });
     if (method === "GET" && path.includes("/hr/colleagues"))
       return jsonResponse({ success: true, data: colleagues, meta: { total: 1, page: 1, limit: 100, totalPages: 1 } });
     if (method === "POST" && path.includes("/hr/payroll/generate"))

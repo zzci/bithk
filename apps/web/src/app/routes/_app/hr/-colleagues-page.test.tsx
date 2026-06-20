@@ -64,6 +64,8 @@ function routeFetch(rows: readonly HrColleagueRow[]) {
   fetchMock.mockImplementation(async (url, init) => {
     const path = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
+    if (method === "GET" && path.includes("/currencies"))
+      return jsonResponse({ success: true, data: { builtin: ["CNY", "USD", "EUR", "GBP", "JPY", "HKD", "SGD", "THB"], custom: [] } });
     if (method === "GET" && path.includes("/assignable-users"))
       return jsonResponse({ success: true, data: assignableUsers, meta: { total: assignableUsers.length, page: 1, limit: 50 } });
     // Personal-document block (view mode) reads these — keep them empty so the

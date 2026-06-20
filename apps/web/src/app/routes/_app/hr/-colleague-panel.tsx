@@ -45,12 +45,12 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { useGlobalCurrencies, withCurrency } from "@/shared/lib/api/currency";
 import {
   HR_COLLEAGUE_STATUSES,
   HR_EMPLOYMENT_TYPES,
   HR_GENDERS,
 } from "@/shared/lib/api/hr";
-import { HR_PAYROLL_CURRENCIES } from "@/shared/lib/api/hr-payroll";
 import { errorMessage } from "@/shared/lib/errors";
 import { useAuthStore } from "@/shared/stores/auth";
 import {
@@ -241,6 +241,10 @@ function ColleaguePanelForm({
   const set = <K extends keyof ColleagueForm>(key: K, value: ColleagueForm[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
+  // Global currency list unioned with the record's own value (keeps a legacy
+  // code selectable even if it is not in the configured list).
+  const currencyOptions = withCurrency(useGlobalCurrencies(), form.salaryCurrency || null);
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.userId || pending)
@@ -358,7 +362,7 @@ function ColleaguePanelForm({
               label={t("colleagues.field.salaryCurrency")}
               value={form.salaryCurrency}
               onChange={v => set("salaryCurrency", v)}
-              options={HR_PAYROLL_CURRENCIES}
+              options={currencyOptions}
               optionLabel={v => v}
               noneLabel={t("colleagues.unset")}
             />

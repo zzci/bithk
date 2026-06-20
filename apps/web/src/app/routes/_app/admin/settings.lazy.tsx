@@ -1,12 +1,12 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { Contact, DatabaseBackup, FolderCog, Info, Mail, Shield, Ship, Webhook } from "lucide-react";
+import { DatabaseBackup, FolderCog, Info, Mail, Shield, Ship, SlidersHorizontal, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { AboutSettingsTab } from "./-settings-about";
 import { AuthSettingsTab } from "./-settings-auth";
 import { BackupSettingsTab } from "./-settings-backup";
-import { ContactSettingsTab } from "./-settings-contact";
+import { GeneralSettingsTab } from "./-settings-general";
 import { ProjectDefaultsTab } from "./-settings-project-defaults";
 import { ShipSettingsTab } from "./-settings-ship";
 import { SmtpSettingsTab } from "./-settings-smtp";
@@ -44,9 +44,9 @@ function SettingsPage() {
             <FolderCog className="mr-1.5 size-4" />
             {t("tabs.projectDefaults")}
           </TabsTrigger>
-          <TabsTrigger value="contact">
-            <Contact className="mr-1.5 size-4" />
-            {t("tabs.contact")}
+          <TabsTrigger value="general">
+            <SlidersHorizontal className="mr-1.5 size-4" />
+            {t("tabs.general")}
           </TabsTrigger>
           <TabsTrigger value="ship">
             <Ship className="mr-1.5 size-4" />
@@ -74,8 +74,8 @@ function SettingsPage() {
         <TabsContent value="projectDefaults">
           <ProjectDefaultsTab />
         </TabsContent>
-        <TabsContent value="contact">
-          <ContactSettingsTab />
+        <TabsContent value="general">
+          <GeneralSettingsTab />
         </TabsContent>
         <TabsContent value="ship">
           <ShipSettingsTab />

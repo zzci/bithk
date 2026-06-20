@@ -1,6 +1,7 @@
-// Body of the admin "Contact" settings tab. Hosts the global contact-categories
-// vocabulary used to classify contacts. Mirrors GlobalCategoriesSection but is
-// wired to the standalone contact-categories data layer.
+// Global contact-categories vocabulary used to classify contacts. Exposed as a
+// reusable section so the "General" settings tab can host it alongside the
+// currency category. Mirrors GlobalCategoriesSection but is wired to the
+// standalone contact-categories data layer.
 
 import type { ContactCategory, ContactCategoryInput } from "@/shared/lib/api/contact-categories";
 import { useState } from "react";
@@ -21,15 +22,7 @@ import {
 } from "@/shared/lib/api/contact-categories";
 import { errorMessage } from "@/shared/lib/errors";
 
-export function ContactSettingsTab() {
-  return (
-    <div className="space-y-8 pt-4">
-      <ContactCategoriesSection />
-    </div>
-  );
-}
-
-function ContactCategoriesSection() {
+export function ContactCategoriesSection() {
   const { t } = useTranslation(["settings", "common"]);
   const categoriesQuery = useContactCategories();
   const deleteCategory = useDeleteContactCategory();

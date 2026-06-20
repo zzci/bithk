@@ -24,10 +24,28 @@
     "smtp": "SMTP",
     "webhook": "Webhooks",
     "projectDefaults": "Project Defaults",
-    "contact": "Contacts",
+    "general": "General",
     "ship": "Ship",
     "backup": "Backup",
     "about": "About"
+  },
+  "currency": {
+    "title": "Currencies",
+    "description": "The global currency list offered when entering amounts (procurement, HR). Built-in codes are always available; add your own below.",
+    "builtinLabel": "Built-in",
+    "customLabel": "Custom",
+    "empty": "No custom currencies yet.",
+    "addLabel": "Add a currency",
+    "addPlaceholder": "e.g. AUD",
+    "add": "Add",
+    "hint": "Use a 3-letter ISO code (e.g. AUD, CAD, KRW).",
+    "invalid": "Enter a valid 3-letter currency code.",
+    "duplicate": "\"{{code}}\" is already in the list.",
+    "remove": "Remove {{code}}",
+    "toast": {
+      "added": "Currency added.",
+      "removed": "Currency removed."
+    }
   },
   "about": {
     "title": "About",

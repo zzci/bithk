@@ -24,10 +24,28 @@
     "smtp": "SMTP",
     "webhook": "Webhook",
     "projectDefaults": "项目默认值",
-    "contact": "联系人",
+    "general": "通用",
     "ship": "船舶",
     "backup": "备份",
     "about": "关于"
+  },
+  "currency": {
+    "title": "货币",
+    "description": "录入金额（采购、人事）时可选用的全局货币列表。内置货币始终可用；可在下方添加自定义货币。",
+    "builtinLabel": "内置",
+    "customLabel": "自定义",
+    "empty": "暂无自定义货币。",
+    "addLabel": "添加货币",
+    "addPlaceholder": "如 AUD",
+    "add": "添加",
+    "hint": "使用 3 位 ISO 代码（如 AUD、CAD、KRW）。",
+    "invalid": "请输入有效的 3 位货币代码。",
+    "duplicate": "「{{code}}」已在列表中。",
+    "remove": "移除 {{code}}",
+    "toast": {
+      "added": "货币已添加。",
+      "removed": "货币已移除。"
+    }
   },
   "about": {
     "title": "关于",

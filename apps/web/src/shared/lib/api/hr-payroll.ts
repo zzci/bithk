@@ -20,18 +20,6 @@ export const HR_PAYROLL_STATUSES: readonly HrPayrollStatus[] = [
   "paid",
 ];
 
-// Curated picker list only — the backend accepts any 3-letter uppercase
-// code, so extending this is a UI tweak, not a schema change.
-export const HR_PAYROLL_CURRENCIES: readonly string[] = [
-  "CNY",
-  "USD",
-  "EUR",
-  "GBP",
-  "JPY",
-  "HKD",
-  "SGD",
-];
-
 // Joined colleague display data carried on every payroll row.
 export interface HrPayrollColleague {
   readonly name: string;

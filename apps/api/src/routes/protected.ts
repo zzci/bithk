@@ -6,6 +6,7 @@ import { auditRoutes } from "@/modules/audit";
 import { backupRoutes } from "@/modules/backup";
 import { contactRoutes } from "@/modules/contact";
 import { cronRoutes } from "@/modules/cron";
+import { currencyRoutes } from "@/modules/currency";
 import { documentRoutes } from "@/modules/document";
 import { driveRoutes } from "@/modules/drive";
 import { fileRoutes } from "@/modules/file";
@@ -67,6 +68,7 @@ export function protectedRoutes() {
   app.route("/", worklistRoutes()); // global worklist KB (admin only)
   app.route("/", hrRoutes());
   app.route("/", settingsRoutes());
+  app.route("/", currencyRoutes());
   app.route("/", auditRoutes());
   app.route("/", backupRoutes());
   app.route("/", cronRoutes());
