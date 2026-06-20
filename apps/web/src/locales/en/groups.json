@@ -16,6 +16,14 @@
     "membersDescription": "Adding a member promotes them to administrator; removing demotes them.",
     "addDescription": "Search a user to promote to administrator."
   },
+  "default": {
+    "name": "Default",
+    "description": "Built-in: users in no group fall back to these modules.",
+    "edit": "Edit default modules",
+    "editTitle": "Edit Default Group",
+    "editDescription": "Set the modules visible to users who belong to no group. A user placed in any group uses that group's modules instead.",
+    "membersDescription": "Applies to every user not in any group; membership is implicit, so there is nothing to add here."
+  },
   "membersTitle": "Group Members",
   "membersDescription": "View and manage members of the selected group.",
   "selectGroup": "Select a group to view its members.",

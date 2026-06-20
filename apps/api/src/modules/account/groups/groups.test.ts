@@ -15,8 +15,10 @@ import {
   getGroupMembers,
   listGroups,
   removeGroupMember,
+  setDefaultModules,
   updateGroup,
 } from "./groups.service";
+import { resolveDefaultModules } from "./module-gate";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -114,6 +116,28 @@ describe("deleteGroup", () => {
     await deleteGroup(db, g.id);
     expect(await getGroupById(db, g.id)).toBeUndefined();
     expect((await getGroupMembers(db, g.id)).length).toBe(0);
+  });
+});
+
+describe("default group modules (FEAT-043)", () => {
+  test("resolveDefaultModules is empty until set", async () => {
+    expect(await resolveDefaultModules(db)).toEqual([]);
+  });
+
+  test("setDefaultModules persists in registry order and reads back", async () => {
+    const actor = await seedUser();
+    const stored = await setDefaultModules(db, ["contacts", "documents"], actor);
+    expect(stored).toEqual(["documents", "contacts"]);
+    expect(await resolveDefaultModules(db)).toEqual(["documents", "contacts"]);
+
+    // Overwrites, not merges.
+    await setDefaultModules(db, ["drive"], actor);
+    expect(await resolveDefaultModules(db)).toEqual(["drive"]);
+  });
+
+  test("setDefaultModules rejects unknown module keys", async () => {
+    const actor = await seedUser();
+    await expect(setDefaultModules(db, ["contacts", "bogus"], actor)).rejects.toThrow();
   });
 });
 

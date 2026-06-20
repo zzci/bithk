@@ -1,7 +1,8 @@
 import type { AppDatabase } from "@/db";
+import type { ModuleKey } from "@/shared/modules";
 import { eq, inArray } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
-import { parseModules } from "@/modules/account/groups/module-gate";
+import { DEFAULT_MODULES_SETTING_KEY, parseModules } from "@/modules/account/groups/module-gate";
 import { groups } from "@/modules/account/groups/schema";
 import { users } from "@/modules/account/users/schema";
 import {
@@ -11,6 +12,7 @@ import {
   listGroupMembersWithJoinedAt,
   removeGroupMembership,
 } from "@/modules/policy/policy.service";
+import { setSetting } from "@/modules/settings/settings.service";
 import { ValidationError } from "@/shared/lib/errors";
 import { MODULE_KEYS } from "@/shared/modules";
 
@@ -81,6 +83,18 @@ export async function updateGroup(db: AppDatabase, id: string, data: { name?: st
 export async function deleteGroup(db: AppDatabase, id: string) {
   await deleteTuplesForEntity(db, "group", id);
   await db.delete(groups).where(eq(groups.id, id)).run();
+}
+
+/**
+ * Persist the built-in Default group's module grants (FEAT-043): validate the
+ * keys, store them in registry order under {@link DEFAULT_MODULES_SETTING_KEY},
+ * and return the ordered list. Reads go through `resolveDefaultModules`.
+ */
+export async function setDefaultModules(db: AppDatabase, modules: readonly string[], updatedBy: string): Promise<ModuleKey[]> {
+  assertValidModules(modules);
+  const ordered = MODULE_KEYS.filter(key => modules.includes(key));
+  await setSetting(db, DEFAULT_MODULES_SETTING_KEY, JSON.stringify(ordered), { updatedBy });
+  return ordered;
 }
 
 export async function getGroupMembers(db: AppDatabase, groupId: string) {

@@ -11,7 +11,7 @@ import { NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
 import { MODULE_KEYS, MODULES } from "@/shared/modules";
 import { mountRoutes, sessionCookieFor, testNanoid } from "@/shared/test/route-harness";
-import { addGroupMember, createGroup } from "./groups.service";
+import { addGroupMember, createGroup, setDefaultModules } from "./groups.service";
 import { moduleForPath, moduleGate, resolveUserModules, UNGATED_PREFIXES } from "./module-gate";
 // Registers the session-cookie auth provider that the gate resolves through.
 import "@/modules/account";
@@ -138,6 +138,24 @@ describe("moduleGate", () => {
     expect((await app.request("/drive/entries", { headers: { Cookie: cookie } })).status).toBe(404);
     expect((await app.request("/hr/colleagues", { headers: { Cookie: cookie } })).status).toBe(404);
   });
+
+  test("an ungrouped user reaches a route granted by the Default group (FEAT-043)", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    await setDefaultModules(db, ["hr"], userId);
+    const app = buildApp();
+    expect((await app.request("/hr/colleagues", { headers: { Cookie: cookie } })).status).toBe(200);
+    // A module the Default group does not grant stays concealed.
+    expect((await app.request("/contacts", { headers: { Cookie: cookie } })).status).toBe(404);
+  });
+
+  test("a grouped user is NOT lifted by the Default group (fallback only)", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    await setDefaultModules(db, ["hr"], userId);
+    await grantModules(userId, ["contacts"]); // in a group → Default no longer applies
+    const app = buildApp();
+    expect((await app.request("/hr/colleagues", { headers: { Cookie: cookie } })).status).toBe(404);
+    expect((await app.request("/contacts", { headers: { Cookie: cookie } })).status).toBe(200);
+  });
 });
 
 describe("resolveUserModules", () => {
@@ -153,13 +171,28 @@ describe("resolveUserModules", () => {
     expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual(["documents", "drive", "ships"]);
   });
 
-  test("no groups resolves to the empty floor", async () => {
+  test("no groups + no Default modules resolves to the empty floor", async () => {
     const { userId } = await sessionCookieFor(db, "user");
     expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual([]);
   });
 
-  test("a member of a grant-less group still sees nothing", async () => {
+  test("an ungrouped user falls back to the Default group's modules (FEAT-043)", async () => {
     const { userId } = await sessionCookieFor(db, "user");
+    await setDefaultModules(db, ["contacts", "drive"], userId);
+    // Registry order, not input order.
+    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual(["drive", "contacts"]);
+  });
+
+  test("a grouped user does NOT inherit the Default group's modules (fallback, not additive)", async () => {
+    const { userId } = await sessionCookieFor(db, "user");
+    await setDefaultModules(db, ["hr"], userId);
+    await grantModules(userId, ["contacts"]);
+    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual(["contacts"]);
+  });
+
+  test("a member of a grant-less group sees nothing even when Default grants modules", async () => {
+    const { userId } = await sessionCookieFor(db, "user");
+    await setDefaultModules(db, ["contacts"], userId);
     await grantModules(userId, []);
     expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual([]);
   });

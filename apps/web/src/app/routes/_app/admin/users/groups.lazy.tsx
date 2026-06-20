@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ModuleKey } from "@/shared/lib/modules";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { Pencil, Plus, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { Pencil, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -34,6 +34,10 @@ export const Route = createLazyFileRoute("/_app/admin/users/groups")({
 // Selection sentinel for the built-in Administrators entry (FEAT-032): it is
 // backed by `users.role = "admin"`, not a group row.
 const ADMINS = "__admins__";
+// Selection sentinel for the built-in Default entry (FEAT-043): the fallback
+// modules for users in no group, backed by the `account.default_modules`
+// setting, not a group row.
+const DEFAULT = "__default__";
 
 interface Group {
   readonly id: string;
@@ -63,6 +67,11 @@ interface MemberListResponse {
   data: GroupMember[];
 }
 
+interface DefaultModulesResponse {
+  success: boolean;
+  data: { modules: ModuleKey[] };
+}
+
 interface UserSearchItem {
   readonly id: string;
   readonly username: string;
@@ -82,6 +91,8 @@ export function GroupsTab() {
   const currentUser = useAuthStore(s => s.user);
   const [groups, setGroups] = useState<Group[]>([]);
   const [adminCount, setAdminCount] = useState(0);
+  const [defaultModules, setDefaultModules] = useState<ModuleKey[]>([]);
+  const [editDefaultOpen, setEditDefaultOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -96,10 +107,12 @@ export function GroupsTab() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const isAdminsSelected = selectedId === ADMINS;
+  const isDefaultSelected = selectedId === DEFAULT;
+  const isBuiltinSelected = isAdminsSelected || isDefaultSelected;
   // Derive the selected group from the live list so an edit/rename reflects
   // immediately in the member panel header instead of a stale snapshot.
-  const selectedGroup = !isAdminsSelected ? groups.find(g => g.id === selectedId) ?? null : null;
-  const selectionLabel = isAdminsSelected ? t("admins.name") : selectedGroup?.name ?? null;
+  const selectedGroup = !isBuiltinSelected ? groups.find(g => g.id === selectedId) ?? null : null;
+  const selectionLabel = isAdminsSelected ? t("admins.name") : isDefaultSelected ? t("default.name") : selectedGroup?.name ?? null;
 
   const fetchGroups = useCallback(async () => {
     setLoading(true);
@@ -126,10 +139,21 @@ export function GroupsTab() {
     }
   }, []);
 
+  const fetchDefaultModules = useCallback(async () => {
+    try {
+      const res = await http<DefaultModulesResponse>("/account/groups/default");
+      setDefaultModules(res.data.modules);
+    }
+    catch {
+      // Non-fatal: the Default entry just shows its last-known modules.
+    }
+  }, []);
+
   useEffect(() => {
     void fetchGroups();
     void fetchAdminCount();
-  }, [fetchGroups, fetchAdminCount]);
+    void fetchDefaultModules();
+  }, [fetchGroups, fetchAdminCount, fetchDefaultModules]);
 
   const fetchMembers = useCallback(async (selection: string) => {
     setMembersLoading(true);
@@ -153,7 +177,10 @@ export function GroupsTab() {
 
   const select = (id: string) => {
     setSelectedId(id);
-    void fetchMembers(id);
+    // The Default entry has no membership rows — its "members" are implicitly
+    // every ungrouped user — so there is nothing to fetch.
+    if (id !== DEFAULT)
+      void fetchMembers(id);
   };
 
   const handleUserSearchChange = (q: string) => {
@@ -347,6 +374,76 @@ export function GroupsTab() {
                       </div>
                     </div>
 
+                    {/* Built-in Default entry (FEAT-043): the fallback modules
+                        for users in no group. Editable modules, no members,
+                        not deletable. */}
+                    <div
+                      className={cn(
+                        "group flex items-center gap-3 rounded-md border px-3 py-2.5 cursor-pointer transition-colors",
+                        isDefaultSelected ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+                      )}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isDefaultSelected}
+                      onClick={() => select(DEFAULT)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          select(DEFAULT);
+                        }
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <span className="font-medium truncate">{t("default.name")}</span>
+                          <Badge variant="outline" className="shrink-0 text-xs">{t("system")}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{t("default.description")}</p>
+                        {defaultModules.length > 0 && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            {defaultModules.map(k => t(`modules.${k}`)).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                      <div
+                        className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[active=true]:opacity-100"
+                        data-active={isDefaultSelected}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <Dialog open={editDefaultOpen} onOpenChange={setEditDefaultOpen}>
+                          <DialogTrigger
+                            render={(
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={t("default.edit")}
+                                onClick={() => setEditDefaultOpen(true)}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            )}
+                          />
+                          <DialogContent>
+                            <DefaultModulesDialog
+                              initialModules={defaultModules}
+                              onSubmit={async (modules) => {
+                                const res = await http<DefaultModulesResponse>("/account/groups/default", {
+                                  method: "PATCH",
+                                  body: JSON.stringify({ modules }),
+                                });
+                                setDefaultModules(res.data.modules);
+                                setEditDefaultOpen(false);
+                              }}
+                              title={t("default.editTitle")}
+                              description={t("default.editDescription")}
+                              submitLabel={t("common.save")}
+                            />
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </div>
+
                     {groups.length === 0 && (
                       <p className="px-1 text-sm text-muted-foreground">{t("noResults")}</p>
                     )}
@@ -456,10 +553,10 @@ export function GroupsTab() {
                   {selectionLabel ? t("membersOf", { name: selectionLabel }) : t("membersTitle")}
                 </CardTitle>
                 <CardDescription>
-                  {isAdminsSelected ? t("admins.membersDescription") : t("membersDescription")}
+                  {isAdminsSelected ? t("admins.membersDescription") : isDefaultSelected ? t("default.membersDescription") : t("membersDescription")}
                 </CardDescription>
               </div>
-              {selectedId !== null && (
+              {selectedId !== null && !isDefaultSelected && (
                 <Dialog
                   open={addMemberOpen}
                   onOpenChange={(open) => {
@@ -518,41 +615,43 @@ export function GroupsTab() {
           <CardContent>
             {selectedId === null
               ? <p className="text-sm text-muted-foreground">{t("selectGroup")}</p>
-              : membersLoading
-                ? <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-                : members.length === 0
-                  ? <p className="text-sm text-muted-foreground">{t("noMembers")}</p>
-                  : (
-                      <div className="space-y-1.5">
-                        {members.map(member => (
-                          <div
-                            key={member.id}
-                            className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{member.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {member.username}
-                                {" · "}
-                                {member.email}
-                              </p>
-                            </div>
-                            {/* The caller cannot demote itself (self-PATCH is
+              : isDefaultSelected
+                ? <p className="text-sm text-muted-foreground">{t("default.membersDescription")}</p>
+                : membersLoading
+                  ? <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+                  : members.length === 0
+                    ? <p className="text-sm text-muted-foreground">{t("noMembers")}</p>
+                    : (
+                        <div className="space-y-1.5">
+                          {members.map(member => (
+                            <div
+                              key={member.id}
+                              className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{member.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {member.username}
+                                  {" · "}
+                                  {member.email}
+                                </p>
+                              </div>
+                              {/* The caller cannot demote itself (self-PATCH is
                                 forbidden server-side). */}
-                            {!(isAdminsSelected && member.id === currentUser?.id) && (
-                              <Button
-                                variant="ghost"
-                                onClick={() => void removeMember(member.id)}
-                                className="shrink-0 text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="mr-1 size-3.5" />
-                                {t("removeMember")}
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                              {!(isAdminsSelected && member.id === currentUser?.id) && (
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => void removeMember(member.id)}
+                                  className="shrink-0 text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="mr-1 size-3.5" />
+                                  {t("removeMember")}
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
           </CardContent>
         </Card>
       </div>
@@ -642,31 +741,115 @@ function GroupFormDialog({
             their groups' modules. */}
         <div className="space-y-2">
           <Label>{t("field.modules")}</Label>
-          <div className="rounded-md border">
-            <Table>
-              <TableBody>
-                {MODULE_KEYS.map(key => (
-                  <TableRow key={key}>
-                    <TableCell className="align-middle">
-                      <Label htmlFor={`group-module-${key}`} className="font-normal">{t(`modules.${key}`)}</Label>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        id={`group-module-${key}`}
-                        checked={modules.includes(key)}
-                        onCheckedChange={() => toggleModule(key)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <ModuleSwitchTable value={modules} onToggle={toggleModule} />
         </div>
       </div>
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline">{t("common.cancel")}</Button>} />
         <Button type="submit" disabled={submitting || !name.trim()}>
+          {submitLabel}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+// Shared module on/off table used by the group form and the Default-group
+// modules dialog.
+function ModuleSwitchTable({
+  value,
+  onToggle,
+}: {
+  readonly value: readonly ModuleKey[];
+  readonly onToggle: (key: ModuleKey) => void;
+}) {
+  const { t } = useTranslation("groups");
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableBody>
+          {MODULE_KEYS.map(key => (
+            <TableRow key={key}>
+              <TableCell className="align-middle">
+                <Label htmlFor={`group-module-${key}`} className="font-normal">{t(`modules.${key}`)}</Label>
+              </TableCell>
+              <TableCell>
+                <Switch
+                  id={`group-module-${key}`}
+                  checked={value.includes(key)}
+                  onCheckedChange={() => onToggle(key)}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Modules-only editor for the built-in Default group (FEAT-043): no name or
+// description, just the module switches.
+function DefaultModulesDialog({
+  initialModules,
+  onSubmit,
+  title,
+  description,
+  submitLabel,
+}: {
+  readonly initialModules: readonly ModuleKey[];
+  readonly onSubmit: (modules: readonly ModuleKey[]) => Promise<void>;
+  readonly title: string;
+  readonly description: string;
+  readonly submitLabel: string;
+}) {
+  const [modules, setModules] = useState<readonly ModuleKey[]>(initialModules);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const { t } = useTranslation("groups");
+
+  const toggleModule = (key: ModuleKey) => {
+    setModules(prev =>
+      prev.includes(key) ? prev.filter(m => m !== key) : [...prev, key],
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      // Persist modules in registry order so the stored set is deterministic.
+      await onSubmit(MODULE_KEYS.filter(key => modules.includes(key)));
+    }
+    catch (err) {
+      setFormError(err instanceof Error ? err.message : t("common.error.operationFailed"));
+    }
+    finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={e => void handleSubmit(e)}>
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-4">
+        {formError && (
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {formError}
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label>{t("field.modules")}</Label>
+          <ModuleSwitchTable value={modules} onToggle={toggleModule} />
+        </div>
+      </div>
+      <DialogFooter>
+        <DialogClose render={<Button type="button" variant="outline">{t("common.cancel")}</Button>} />
+        <Button type="submit" disabled={submitting}>
           {submitLabel}
         </Button>
       </DialogFooter>

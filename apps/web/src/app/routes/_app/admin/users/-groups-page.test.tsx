@@ -73,13 +73,23 @@ interface RouteData {
   adminUsers?: UserFixture[];
   membersByGroup?: Record<string, UserFixture[]>;
   searchUsers?: UserFixture[];
+  defaultModules?: string[];
 }
 
 function routeFetch(data: RouteData) {
-  const { groups = [], adminUsers = [], membersByGroup = {}, searchUsers = [] } = data;
+  const { groups = [], adminUsers = [], membersByGroup = {}, searchUsers = [], defaultModules = [] } = data;
   fetchMock.mockImplementation(async (url, init) => {
     const u = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
+    // Built-in Default group endpoint (FEAT-043) — match before the generic
+    // groups branch, which would otherwise swallow `/groups/default`.
+    if (u.endsWith("/account/groups/default")) {
+      if (method === "PATCH") {
+        const body = JSON.parse(String(init?.body)) as { modules: string[] };
+        return jsonResponse({ success: true, data: { modules: body.modules } });
+      }
+      return jsonResponse({ success: true, data: { modules: defaultModules } });
+    }
     if (method === "GET" && u.startsWith("/api/account/users")) {
       const qs = new URLSearchParams(u.split("?")[1] ?? "");
       const items = qs.get("role") === "admin" ? adminUsers : qs.get("q") ? searchUsers : [];
@@ -227,5 +237,34 @@ describe("groupsTab (FEAT-032)", () => {
     const adminsRow = (await screen.findByText("Administrators")).closest("[role=button]")!;
     expect(within(adminsRow as HTMLElement).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     expect(within(adminsRow as HTMLElement).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("renders the built-in Default entry with its module summary and no delete (FEAT-043)", async () => {
+    routeFetch({ groups: [group()], defaultModules: ["documents"] });
+    renderWithProviders(<GroupsTab />);
+
+    const defaultRow = (await screen.findByText("Default")).closest("[role=button]")!;
+    expect(within(defaultRow as HTMLElement).getByText("System")).toBeInTheDocument();
+    expect(within(defaultRow as HTMLElement).getByText("Documents")).toBeInTheDocument();
+    expect(within(defaultRow as HTMLElement).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("edits the Default group's modules via PATCH /account/groups/default (FEAT-043)", async () => {
+    const u = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
+    routeFetch({ groups: [], defaultModules: [] });
+    renderWithProviders(<GroupsTab />);
+    await screen.findByText("Default");
+
+    await u.click(screen.getByRole("button", { name: "Edit default modules" }));
+    const dialog = await screen.findByRole("dialog");
+    await u.click(within(dialog).getByRole("switch", { name: "Drive" }));
+    await u.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const patch = mutationCall("PATCH");
+      expect(patch).toBeTruthy();
+      expect(String(patch![0])).toBe("/api/account/groups/default");
+      expect(JSON.parse(String(patch![1]?.body)).modules).toEqual(["drive"]);
+    });
   });
 });

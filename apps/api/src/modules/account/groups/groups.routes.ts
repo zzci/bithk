@@ -16,9 +16,10 @@ import {
   getGroupMembers,
   listGroups,
   removeGroupMember,
+  setDefaultModules,
   updateGroup,
 } from "./groups.service";
-import { parseModules } from "./module-gate";
+import { parseModules, resolveDefaultModules } from "./module-gate";
 
 const createGroupSchema = z.object({
   name: z.string().min(1).max(100),
@@ -37,6 +38,15 @@ const updateGroupSchema = z.object({
 
 const addMemberSchema = z.object({
   userId: z.string().min(1),
+});
+
+// Built-in Default group module grants (FEAT-043); keys validated against
+// MODULE_KEYS in the service.
+const defaultModulesSchema = z.object({
+  modules: z.array(z.string()),
+});
+const defaultModulesResponseSchema = z.object({
+  modules: z.array(z.string()),
 });
 
 const idParamSchema = z.object({ id: z.string() });
@@ -127,6 +137,55 @@ export function groupRoutes() {
         result: "success",
       });
       return c.json({ success: true, data: { ...group, modules: parseModules(group.modules) } }, 201);
+    },
+  );
+
+  // GET /groups/default — the built-in Default group's module grants (FEAT-043).
+  // Registered before `/:id` so "default" is not parsed as a group id.
+  router.get(
+    "/account/groups/default",
+    describeRoute({
+      tags: ["account"],
+      summary: "Get the built-in Default group's modules",
+      responses: { 200: okJson(defaultModulesResponseSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Admin only", ...errorJson } },
+    }),
+    adminRequired,
+    async (c) => {
+      const db = c.get("db");
+      const modules = await resolveDefaultModules(db);
+      return c.json({ success: true, data: { modules } });
+    },
+  );
+
+  // PATCH /groups/default — set the built-in Default group's module grants.
+  router.patch(
+    "/account/groups/default",
+    describeRoute({
+      tags: ["account"],
+      summary: "Set the built-in Default group's modules",
+      requestBody: jsonRequestBody(defaultModulesSchema),
+      responses: { 200: okJson(defaultModulesResponseSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Admin only", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
+    }),
+    adminRequired,
+    validator("json", defaultModulesSchema, onValidationFailure),
+    async (c) => {
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const modules = await setDefaultModules(db, body.modules, c.get("user").id);
+      const actor = c.get("user");
+      await audit(db, c.get("logger"), {
+        actorId: actor.id,
+        actorName: actor.name,
+        action: "group.default_updated",
+        resourceType: "group",
+        resourceId: "default",
+        resourceName: "Default",
+        detail: { modules },
+        ip: getClientIp(c),
+        userAgent: c.req.header("user-agent") ?? "unknown",
+        result: "success",
+      });
+      return c.json({ success: true, data: { modules } });
     },
   );
 

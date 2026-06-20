@@ -4,12 +4,35 @@ import type { AppEnv, RequestEnv } from "@/shared/lib/types";
 import type { ModuleKey } from "@/shared/modules";
 import { inArray } from "drizzle-orm";
 import { listGroupIdsForUser } from "@/modules/policy/policy.service";
+import { getSetting } from "@/modules/settings/settings.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { getAuthProvider } from "@/shared/middleware/auth-registry";
 import { MODULE_KEYS, MODULES } from "@/shared/modules";
 import { groups } from "./schema";
 
 const MODULE_KEY_SET = new Set<string>(MODULE_KEYS);
+
+/**
+ * Settings key holding the built-in **Default** group's module grants (FEAT-043),
+ * a JSON `string[]` of `MODULE_KEYS`. The Default group is the fallback for
+ * users in no group: its modules are granted only to ungrouped non-admins.
+ * Unset/empty keeps the historical zero-module visibility floor.
+ */
+export const DEFAULT_MODULES_SETTING_KEY = "account.default_modules";
+
+/**
+ * Resolve the Default group's modules (FEAT-043) in registry order. Granted to
+ * a non-admin user only when they belong to no group; never unioned onto a
+ * grouped user's set, so assigning a user to a (even grant-less) group tightens
+ * them below the default. Unset → `[]`.
+ */
+export async function resolveDefaultModules(db: AppDatabase): Promise<ModuleKey[]> {
+  const raw = await getSetting(db, DEFAULT_MODULES_SETTING_KEY);
+  if (!raw)
+    return [];
+  const parsed = new Set(parseModules(raw));
+  return MODULE_KEYS.filter(key => parsed.has(key));
+}
 
 /** Parse a stored JSON module list, dropping anything unknown. */
 export function parseModules(raw: string): ModuleKey[] {
@@ -30,9 +53,9 @@ export function parseModules(raw: string): ModuleKey[] {
  * protected router is either claimed by exactly one `MODULES` entry or
  * listed here — so a new module cannot be mounted unmapped by accident.
  *
- * - `/account`, `/search`, `/tags`, `/policy`, `/settings` — cross-cutting
- *   surfaces every authenticated user needs (search filters per-module
- *   inside its own handler).
+ * - `/account`, `/search`, `/tags`, `/policy`, `/settings`, `/currencies` —
+ *   cross-cutting surfaces every authenticated user needs (search filters
+ *   per-module inside its own handler).
  * - `/shares` — cross-cutting share management (decision in the registry).
  * - `/admin`, `/audit`, `/backup`, `/cron`, `/global-*`,
  *   `/contact-categories`, `/worklists` — admin-area groups that keep their
@@ -47,6 +70,7 @@ export const UNGATED_PREFIXES: readonly string[] = [
   "/backup",
   "/contact-categories",
   "/cron",
+  "/currencies",
   "/files",
   "/global-equipment-categories",
   "/global-equipment-manufacturers",
@@ -73,8 +97,8 @@ export function moduleForPath(path: string): ModuleKey | null {
 /**
  * Resolve the module set a user may see (FEAT-032): admins get every
  * registered module; everyone else gets the UNION of the modules granted by
- * the groups they belong to. A user in no module-granting group sees nothing
- * — the visibility floor.
+ * the groups they belong to. A user in no group falls back to the built-in
+ * Default group's modules (FEAT-043) — the configurable visibility floor.
  */
 export async function resolveUserModules(
   db: AppDatabase,
@@ -84,8 +108,10 @@ export async function resolveUserModules(
     return [...MODULE_KEYS];
 
   const groupIds = await listGroupIdsForUser(db, user.id);
+  // Ungrouped users fall back to the built-in Default group (FEAT-043); grouped
+  // users get their groups' union only, so a restrictive group tightens access.
   if (groupIds.length === 0)
-    return [];
+    return resolveDefaultModules(db);
 
   const rows = await db
     .select({ modules: groups.modules })

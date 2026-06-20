@@ -16,6 +16,14 @@
     "membersDescription": "添加成员即提升为管理员；移除即降为普通用户。",
     "addDescription": "搜索用户并将其提升为管理员。"
   },
+  "default": {
+    "name": "默认",
+    "description": "内置：未加入任何用户组的用户回退到这些模块。",
+    "edit": "编辑默认模块",
+    "editTitle": "编辑默认组",
+    "editDescription": "设置未加入任何用户组的用户可见的模块。被分入任意用户组的用户改用该组的模块。",
+    "membersDescription": "适用于所有未加入任何用户组的用户；成员是隐式的，无需在此添加。"
+  },
   "membersTitle": "组成员",
   "membersDescription": "查看并管理所选组的成员。",
   "selectGroup": "请选择一个组查看成员。",
