@@ -159,6 +159,26 @@ describe("presignDriveUpload", () => {
     expect((await db.select().from(files).all()).length).toBe(1);
     expect((await db.select().from(driveEntries).all()).length).toBe(2);
   });
+
+  test("a different user does NOT instant-dedup another user's blob (no cross-user poisoning)", async () => {
+    const owner = await seedUser();
+    putObject(deriveStorageKey(sha("f")), 2048, Date.now());
+    await confirmDriveUpload(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, name: "owned.png", sha256: sha("f"), mimetype: "image/png" });
+
+    // A second user presigning the same hash must be told to upload (re-PUT),
+    // never handed the existing blob's content.
+    const other = await seedUser();
+    const res = await presignDriveUpload(db, config, {
+      ownerType: "user",
+      ownerId: other,
+      createdBy: other,
+      name: "guessed.png",
+      sha256: sha("f"),
+      size: 2048,
+      mimetype: "image/png",
+    });
+    expect(res.mode).toBe("upload");
+  });
 });
 
 describe("confirmDriveUpload", () => {
@@ -177,6 +197,17 @@ describe("confirmDriveUpload", () => {
     await expect(confirmDriveUpload(db, config, { ownerType: "user", ownerId: userId, createdBy: userId, name: "missing.png", sha256: sha("e"), mimetype: "image/png" }))
       .rejects
       .toThrow(/not found/i);
+  });
+
+  test("enforces the total quota against the authoritative stat size, not the declared one", async () => {
+    const userId = await seedUser();
+    // A 5 KiB object under a 4 KiB total quota — the client could have declared
+    // 1 byte at presign, but confirm checks the real on-disk size.
+    putObject(deriveStorageKey(sha("9")), 5 * 1024, Date.now());
+    const quotaConfig = { ...config, UPLOADS_TOTAL_BYTES: 4 * 1024 };
+    await expect(confirmDriveUpload(db, quotaConfig, { ownerType: "user", ownerId: userId, createdBy: userId, name: "over.png", sha256: sha("9"), mimetype: "image/png" }))
+      .rejects
+      .toThrow(/quota/i);
   });
 });
 

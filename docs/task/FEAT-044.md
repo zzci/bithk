@@ -101,7 +101,21 @@ Delivered in three phases:
   file + drive content routes parse `?thumb`. Web drive grid uses `?thumb=320`;
   the preview dialog keeps the original. Config `FILE_PREVIEW_CACHE_ENABLED/DIR`.
   Tests: `preview-cache.test.ts` (4 pass, real JPEG→WebP + cache hit). `bun run
-  check` EXIT 0. **FEAT-044 complete (A+B+C).** Not committed/pushed yet.
+  check` EXIT 0. **FEAT-044 complete (A+B+C).** Committed e524444 (not pushed).
+- 2026-06-22: **Security-review hardening** (commit e524444 background review,
+  2 findings). (1) HIGH cross-user content poisoning via the trusted client
+  sha256: `findStoredBlob` is now scoped to `uploadedBy`, so the instant-dedup
+  (skip-upload) path only reuses a blob the SAME user uploaded — a different
+  user who later uploads the same hash re-PUTs (overwriting the content-addressed
+  object) instead of being handed someone else's bytes. Storage-level dedup is
+  still preserved by `UNIQUE(sha256, storage_driver)`; the user's "trust client
+  hash, no server re-read" decision is respected. (2) MEDIUM quota bypass:
+  `confirmDriveUpload` now calls `assertWithinTotalQuota(stat.size)` on the
+  authoritative HEAD size, not the client's pre-upload declaration. MIME XSS
+  angle: already mitigated by the `INLINE_ALLOWED` whitelist (SVG/HTML/text force
+  octet-stream download) + content-type binding, so no server-side sniffing was
+  added. Tests added: cross-user no-dedup + authoritative-quota (8 pass). `bun
+  run check` EXIT 0.
 - 2026-06-22: **Part A complete** (S3 driver + presigned download). New
   `storage/s3.ts` (Bun native `S3Client`: put/getStream/delete/exists/
   presignDownload, key prefixing), self-registered via `index.ts`. Config

@@ -368,10 +368,23 @@ export function directUploadAvailable(): boolean {
   return typeof driver.presignUpload === "function" && typeof driver.stat === "function";
 }
 
-/** Look up the existing blob row for `(sha256, active driver)`, if any. */
-export async function findStoredBlob(db: AppDatabase, sha256: string): Promise<FileRow | undefined> {
+/**
+ * Look up an existing blob row for `(sha256, active driver)` that the SAME user
+ * already uploaded. Scoped to `uploadedBy` on purpose (FEAT-044 security): the
+ * direct-upload key is the *client-declared* sha256, which is not server-verified,
+ * so a user could store mismatched bytes under a hash they don't own. Restricting
+ * the instant-dedup (skip-the-upload) path to the original uploader means a
+ * poisoned blob can never be served to a different user who later uploads the real
+ * file — that user re-uploads instead (overwriting the content-addressed object),
+ * and storage-level dedup is still preserved by `UNIQUE(sha256, storage_driver)`.
+ */
+export async function findStoredBlob(db: AppDatabase, sha256: string, uploadedBy: string): Promise<FileRow | undefined> {
   const driver = getActiveDriver();
-  return db.select().from(files).where(and(eq(files.sha256, sha256), eq(files.storageDriver, driver.name))).get();
+  return db
+    .select()
+    .from(files)
+    .where(and(eq(files.sha256, sha256), eq(files.storageDriver, driver.name), eq(files.uploadedBy, uploadedBy)))
+    .get();
 }
 
 /** Issue a presigned PUT for the content-addressed key of `sha256`. Returns null when the driver can't. */

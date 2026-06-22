@@ -442,7 +442,9 @@ export async function presignDriveUpload(
   await assertWithinTotalQuota(db, config, input.size);
 
   const name = normalizeEntryName(input.name);
-  const existing = await findStoredBlob(db, input.sha256);
+  // Same-uploader scope only (FEAT-044 security): the client-declared sha256 is
+  // not server-verified, so cross-user instant-dedup could serve poisoned bytes.
+  const existing = await findStoredBlob(db, input.sha256, input.createdBy);
   if (existing) {
     const id = nanoid();
     const registered = await registerUploadedBlob(db, {
@@ -487,8 +489,11 @@ export async function confirmDriveUpload(
   const stat = await statStoredBlob(input.sha256);
   if (!stat)
     throw new AppError("Uploaded object was not found in storage", 400, "UPLOAD_NOT_FOUND");
+  // Enforce both ceilings against the AUTHORITATIVE on-disk size from `stat`,
+  // not the client's pre-upload declaration (FEAT-044 security: quota bypass).
   if (stat.size > config.MAX_UPLOAD_BYTES)
     throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
+  await assertWithinTotalQuota(db, config, stat.size);
 
   const name = normalizeEntryName(input.name);
   const id = nanoid();
