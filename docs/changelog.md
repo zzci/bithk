@@ -9,9 +9,15 @@ Upstream cuts versioned tags so forks can anchor diffs against a known
 template version. The boundary entries below summarise what shipped in
 each upstream tag; your fork's `Unreleased` block sits at the top.
 
-## Unreleased
+## v0.1.8 — 2026-06-22
 
 ### Added
+
+- The drive sidebar gains a **Projects** section listing every project the
+  current user can access; selecting one opens its file browser in the main
+  pane, scoped to that project's drive entries. Frontend only — reuses the
+  existing project-scoped drive APIs and the membership-filtered project list
+  (FEAT-039, PLAN-091).
 
 - The admin **Groups** tab now surfaces a built-in **Default** group alongside
   Administrators (FEAT-043, PLAN-095). It is the fallback for users in no group:
