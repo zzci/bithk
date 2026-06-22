@@ -11,7 +11,7 @@ export interface UploadLimits {
 }
 
 const FALLBACK: UploadLimits = {
-  maxFileSize: 10 * 1024 * 1024,
+  maxFileSize: 200 * 1024 * 1024,
   maxAttachmentsPerResource: 20,
   totalQuota: null,
 };

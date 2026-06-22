@@ -128,8 +128,10 @@ export const configSchema = z.object({
   AUDIT_RETENTION_DAYS: z.coerce.number().int().nonnegative().default(0),
 
   // Attachment limits — apply to every upload-capable module (documents,
-  // issues, …). Single source so per-file caps stay consistent.
-  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  // issues, …). Single source so per-file caps stay consistent. Expressed in
+  // MB for ease of editing; `loadConfig` derives the byte value
+  // `MAX_UPLOAD_BYTES` (MB × 1024²) that the rest of the app reads.
+  MAX_UPLOAD_MB: z.coerce.number().int().positive().default(200),
   MAX_ATTACHMENTS_PER_RESOURCE: z.coerce.number().int().positive().default(20),
   // Total disk quota across all attachment tables. 0 = unlimited (default).
   // When set and an upload would push usage past this, the request returns
@@ -219,4 +221,8 @@ export const configSchema = z.object({
   BACKUP_IMPORT_MAX_BLOB_BYTES: z.coerce.number().int().positive().default(256 * 1024 * 1024),
 });
 
-export type Config = z.infer<typeof configSchema>;
+type ParsedEnv = z.infer<typeof configSchema>;
+
+// The MB-denominated `MAX_UPLOAD_MB` env knob is converted by `loadConfig` into
+// the derived `MAX_UPLOAD_BYTES` (in bytes) that the rest of the app consumes.
+export type Config = Omit<ParsedEnv, "MAX_UPLOAD_MB"> & { readonly MAX_UPLOAD_BYTES: number };

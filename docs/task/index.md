@@ -152,3 +152,4 @@
 | [FEAT-041](FEAT-041.md) | Procurement status transitions + rename confirmed to paid | [PLAN-093](../plan/PLAN-093.md) | Completed | 2026-06-19 |
 | [FEAT-042](FEAT-042.md) | Global currency list referenced by procurement & HR (+ THB) | [PLAN-094](../plan/PLAN-094.md) | Completed | 2026-06-20 |
 | [FEAT-043](FEAT-043.md) | Editable built-in Default group for ungrouped users | [PLAN-095](../plan/PLAN-095.md) | Completed | 2026-06-20 |
+| [FIX-047](FIX-047.md) | Raise default upload cap to 200 MB and configure it in MB | - | Completed | 2026-06-22 |

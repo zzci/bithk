@@ -70,7 +70,11 @@ export async function loadConfigStrict(
     const formatted = result.error.flatten().fieldErrors;
     throw new ConfigError(`Invalid configuration: ${JSON.stringify(formatted)}`);
   }
-  const data = result.data;
+  // The upload cap is configured in MB (`MAX_UPLOAD_MB`); derive the byte value
+  // the rest of the app reads. Everything downstream keeps using
+  // `MAX_UPLOAD_BYTES`, so this conversion lives in exactly one place.
+  const { MAX_UPLOAD_MB, ...rest } = result.data;
+  const data = { ...rest, MAX_UPLOAD_BYTES: MAX_UPLOAD_MB * 1024 * 1024 };
 
   // Boot guards in dependency order:
   //   1. Network-boundary requirements (CORS_ORIGIN / APP_URL).

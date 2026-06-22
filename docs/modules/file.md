@@ -209,7 +209,7 @@ doesn't support presign and always streams.
 | `FILE_GC_INTERVAL_SECONDS`    | `3600`                 | Sweeper interval. `0` disables the periodic sweep (manual only).                  |
 | `FILE_PRESIGN_ENABLED`        | `true`                 | Presign downloads when the driver supports it.                                    |
 | `FILE_PRESIGN_TTL_SECONDS`    | `300`                  | Signed-URL lifetime.                                                              |
-| `MAX_UPLOAD_BYTES`            | `10485760` (10 MiB)    | Per-file size cap. Existing global setting; the file module honours it.            |
+| `MAX_UPLOAD_MB`               | `200` (MB)             | Per-file size cap, in MB. Derived to bytes at load; the file module honours it.    |
 | `MAX_ATTACHMENTS_PER_RESOURCE`| `20`                   | Per-owner reference cap.                                                          |
 | `UPLOADS_TOTAL_BYTES`         | `0` (unlimited)        | Global disk quota — `SUM(files.size)`.                                            |
 

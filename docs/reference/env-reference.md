@@ -36,7 +36,7 @@
 | `LOG_LEVEL` | enum(debug,info,warn,error) | `info` | no | Logging |
 | `LOG_TO_STDOUT` | enum(true,false) | `false` | no | When true, write JSON log lines to stdout instead of LOG_FILE — preferred for container deployments that capture stdout/stderr at the runtime level. |
 | `MAX_ATTACHMENTS_PER_RESOURCE` | number | `20` | no | Per-resource attachment count cap. Defaults to 20. |
-| `MAX_UPLOAD_BYTES` | number | `10485760` | no | Per-file cap (bytes). Defaults to 10 MB. Applies to documents and issues. |
+| `MAX_UPLOAD_MB` | number | `200` | no | Per-file upload cap in MB. Defaults to 200. Applies to every upload-capable module. |
 | `NODE_ENV` | enum(development,production,test) | `development` | no | Deployment lifecycle. `development` enables hot dev paths; `production` turns on the stricter boot guards (CORS_ORIGIN + APP_URL required, example-sentinel refusals); `test` is reserved for the e2e harness. |
 | `OAUTH_AUTHORIZE_URL` | url | — | no | Explicit endpoint overrides — only needed when the IdP does not expose OIDC discovery. Each must be a full HTTPS URL. Authorization endpoint the browser is redirected to to start login. |
 | `OAUTH_CLIENT_ID` | string | — | no | OAuth/OIDC is read from environment variables at runtime, not from the settings database. Use OAUTH_ISSUER for discovery or provide all endpoints. Client id registered at the IdP for this deployment. |

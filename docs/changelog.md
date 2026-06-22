@@ -9,6 +9,17 @@ Upstream cuts versioned tags so forks can anchor diffs against a known
 template version. The boundary entries below summarise what shipped in
 each upstream tag; your fork's `Unreleased` block sits at the top.
 
+## Unreleased
+
+### Changed
+
+- Raise the default per-file upload cap from 10 MiB to **200 MB**, and switch
+  the env knob from bytes to MB for easier editing: `MAX_UPLOAD_BYTES` is
+  replaced by `MAX_UPLOAD_MB` (default `200`), which `loadConfig` converts to
+  the internal byte value. The Bun server's `maxRequestBodySize` derives from
+  it, so it scales automatically; every downstream consumer keeps reading the
+  derived `MAX_UPLOAD_BYTES` unchanged (FIX-047).
+
 ## v0.1.8 — 2026-06-22
 
 ### Added
