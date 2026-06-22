@@ -8,12 +8,15 @@ export interface UploadLimits {
   readonly maxAttachmentsPerResource: number;
   /** Total disk quota in bytes, or null when unlimited. */
   readonly totalQuota: number | null;
+  /** True when the backend supports presigned direct upload (S3) (FEAT-044). */
+  readonly directUpload: boolean;
 }
 
 const FALLBACK: UploadLimits = {
   maxFileSize: 200 * 1024 * 1024,
   maxAttachmentsPerResource: 20,
   totalQuota: null,
+  directUpload: false,
 };
 
 /**

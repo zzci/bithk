@@ -5,6 +5,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
+import { parseThumbnailWidth } from "@/modules/file";
 import { policyContext } from "@/modules/policy";
 import { hasCapability, isMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
@@ -21,6 +22,7 @@ import {
 import { assertEntryCapability, driveAccess } from "./drive.permission";
 import {
   buildDriveEntryDownloadResponse,
+  confirmDriveUpload,
   createDriveFolder,
   createDriveSpreadsheet,
   createDriveTextFile,
@@ -31,6 +33,7 @@ import {
   listDriveEntries,
   listFavoriteDriveEntries,
   listRecentDriveEntries,
+  presignDriveUpload,
   restoreDriveEntry,
   searchDriveEntries,
   trashDriveEntry,
@@ -87,6 +90,27 @@ const createTextFileSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   name: z.string().min(1).max(255),
   content: z.string(),
+  ownerType: z.enum(["user", "team_directory", "project"]).optional(),
+  ownerId: z.string().optional(),
+});
+
+// Presigned direct upload (FEAT-044). The client computes the sha256 (lowercase
+// hex) and declares the size/mimetype; the bytes go straight to S3.
+const presignUploadSchema = z.object({
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  size: z.number().int().nonnegative(),
+  mimetype: z.string().min(1).max(255),
+  name: z.string().min(1).max(255),
+  parentEntryId: z.string().nullable().optional(),
+  ownerType: z.enum(["user", "team_directory", "project"]).optional(),
+  ownerId: z.string().optional(),
+});
+
+const confirmUploadSchema = z.object({
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  mimetype: z.string().min(1).max(255),
+  name: z.string().min(1).max(255),
+  parentEntryId: z.string().nullable().optional(),
   ownerType: z.enum(["user", "team_directory", "project"]).optional(),
   ownerId: z.string().optional(),
 });
@@ -494,6 +518,80 @@ export function driveRoutes() {
     },
   );
 
+  // Presigned direct upload (FEAT-044) — phase 1: authorize + dedup or presign.
+  router.post(
+    "/drive/files/presign-upload",
+    describeRoute({
+      tags: ["drive"],
+      summary: "Begin a presigned direct upload (or finish instantly on dedup)",
+      responses: { 200: okJson(z.object({ mode: z.literal("upload"), upload: z.object({ url: z.string(), method: z.literal("PUT"), headers: z.record(z.string(), z.string()) }) })), 201: okJson(z.object({ mode: z.literal("done"), entry: driveEntrySchema }), "Created (dedup)"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 409: errJson("Direct upload unavailable"), 413: errJson("Too large"), 422: errJson("Validation error") },
+    }),
+    validator("json", presignUploadSchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const body = c.req.valid("json");
+      const owner = await resolveCreateOwner(c, body.ownerType, body.ownerId);
+      const result = await presignDriveUpload(c.get("db"), c.get("config"), {
+        ...owner,
+        createdBy: user.id,
+        parentEntryId: body.parentEntryId ?? null,
+        name: body.name,
+        sha256: body.sha256,
+        size: body.size,
+        mimetype: body.mimetype,
+      });
+      if (result.mode === "done") {
+        await audit(c.get("db"), c.get("logger"), {
+          actorId: user.id,
+          actorName: user.name,
+          action: "drive.file.uploaded",
+          resourceType: "drive_entry",
+          resourceId: result.entry.id,
+          resourceName: result.entry.name,
+          ...auditMeta(c),
+          result: "success",
+        });
+        return c.json({ success: true, data: { mode: "done", entry: result.entry } }, 201);
+      }
+      return c.json({ success: true, data: { mode: "upload", upload: result.upload } });
+    },
+  );
+
+  // Presigned direct upload (FEAT-044) — phase 2: register the uploaded object.
+  router.post(
+    "/drive/files/confirm-upload",
+    describeRoute({
+      tags: ["drive"],
+      summary: "Confirm a presigned direct upload and create the drive entry",
+      responses: { 201: okJson(driveEntrySchema, "Created"), 400: errJson("Upload not found"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 413: errJson("Too large"), 422: errJson("Validation error") },
+    }),
+    validator("json", confirmUploadSchema, onValidationFailure),
+    async (c) => {
+      const user = c.get("user");
+      const body = c.req.valid("json");
+      const owner = await resolveCreateOwner(c, body.ownerType, body.ownerId);
+      const entry = await confirmDriveUpload(c.get("db"), c.get("config"), {
+        ...owner,
+        createdBy: user.id,
+        parentEntryId: body.parentEntryId ?? null,
+        name: body.name,
+        sha256: body.sha256,
+        mimetype: body.mimetype,
+      });
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "drive.file.uploaded",
+        resourceType: "drive_entry",
+        resourceId: entry.id,
+        resourceName: entry.name,
+        ...auditMeta(c),
+        result: "success",
+      });
+      return c.json({ success: true, data: entry }, 201);
+    },
+  );
+
   // ── Single entry ────────────────────────────────────────────────────────
 
   router.get(
@@ -540,6 +638,7 @@ export function driveRoutes() {
         owner,
         id,
         c.req.query("inline") === "true",
+        parseThumbnailWidth(c.req.query("thumb")),
       );
     },
   );

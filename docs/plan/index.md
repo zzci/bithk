@@ -94,3 +94,4 @@
 | [PLAN-093](PLAN-093.md) | Procurement status transitions + rename confirmed to paid | Completed | 2026-06-19 |
 | [PLAN-094](PLAN-094.md) | Global currency list referenced by procurement & HR (+ THB) | Completed | 2026-06-20 |
 | [PLAN-095](PLAN-095.md) | Editable built-in Default group for ungrouped users | Completed | 2026-06-20 |
+| [PLAN-096](PLAN-096.md) | S3 storage driver + presigned direct upload + image preview cache | Completed | 2026-06-22 |

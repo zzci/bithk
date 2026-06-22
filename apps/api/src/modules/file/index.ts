@@ -3,11 +3,11 @@ import { registerBackupContribution } from "@/modules/backup/registry";
 import { fileBackupContribution } from "./file.backup";
 import { setFileUrlBasePath } from "./file.service";
 import { getDriver, setActiveDriver } from "./storage/registry";
-// Side-effect import: the local driver self-registers at module load.
-// Downstream projects shipping S3 / Azure / GCS drivers follow the same
-// pattern — a single import here is enough; no patch of initFileModule
-// required.
+// Side-effect imports: each driver self-registers at module load. A single
+// import here is enough to make it selectable; `initFileModule` only picks the
+// active one (via FILE_STORAGE_DRIVER) and runs its `setup` hook.
 import "./storage/local";
+import "./storage/s3";
 
 export { fileRoutes } from "./file.routes";
 export type { DrainedBlob, FileServiceConfig, FileTypePolicy } from "./file.service";
@@ -16,22 +16,28 @@ export {
   ACCEPT_IMAGES,
   addReference,
   buildDownloadResponse,
+  directUploadAvailable,
   fileInlineContentUrl,
   finalizeReleasedBlob,
+  findStoredBlob,
   getFileById,
   getReferenceById,
   listAttachmentsByOwner,
   makeAttachmentView,
   policyAllows,
+  presignBlobUpload,
+  registerUploadedBlob,
   releaseAllByOwner,
   releaseReference,
   releaseReferenceTx,
   setFileUrlBasePath,
+  statStoredBlob,
   uploadAndReference,
 } from "./file.service";
 export { startFileGcSweep, stopFileGcSweep } from "./gc";
 export type { FilePermissionHook } from "./permission";
 export { registerFilePermissionHook } from "./permission";
+export { parseThumbnailWidth, THUMBNAIL_WIDTHS } from "./preview-cache";
 
 registerBackupContribution(fileBackupContribution);
 

@@ -8,6 +8,7 @@ import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { create } from "zustand";
+import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import { driveKeys } from "@/shared/lib/api/drive";
 import { BASE_PATH } from "@/shared/lib/http";
 
@@ -62,9 +63,11 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
   const add = useFileUploadStore(state => state.add);
   const patch = useFileUploadStore(state => state.patch);
   const setPreparing = useFileUploadStore(state => state.setPreparing);
+  const { directUpload } = useUploadLimits();
 
   return useCallback((files, owner) => {
-    const uploadOne = (file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
+    // Stream bytes straight to the API (local driver) — multipart POST.
+    const uploadViaApi = (file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
       const id = crypto.randomUUID();
       add({ id, name: file.name, size: file.size, status: "uploading", progress: 0, relativePath: relativePathOf(file) });
 
@@ -100,6 +103,51 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
       xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
       xhr.send(form);
     });
+
+    // Presigned direct upload (FEAT-044): hash → presign (dedup-skip) → PUT
+    // straight to S3 (progress) → confirm. Falls back to the API path on any
+    // step error so an upload is never silently lost.
+    const uploadDirect = (file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
+      const id = crypto.randomUUID();
+      add({ id, name: file.name, size: file.size, status: "uploading", progress: 0, relativePath: relativePathOf(file) });
+      const mimetype = file.type || "application/octet-stream";
+      const ownerFields = { name: file.name, parentEntryId, ownerType: owner.ownerType, ownerId: owner.ownerId };
+
+      void (async () => {
+        try {
+          const sha256 = await sha256Hex(file);
+          const presign = await postJson("/api/drive/files/presign-upload", { sha256, size: file.size, mimetype, ...ownerFields });
+          if (!presign.ok) {
+            patch(id, { status: "error", error: `HTTP ${presign.status}` });
+            resolve();
+            return;
+          }
+          const data = (presign.body as { data: PresignResponse }).data;
+          if (data.mode === "done") {
+            patch(id, { status: "done", progress: 100 });
+            void queryClient.invalidateQueries({ queryKey: driveKeys.all });
+            resolve();
+            return;
+          }
+          await putToStorage(data.upload, file, p => patch(id, { progress: p }));
+          const confirm = await postJson("/api/drive/files/confirm-upload", { sha256, mimetype, ...ownerFields });
+          if (!confirm.ok) {
+            patch(id, { status: "error", error: `HTTP ${confirm.status}` });
+            resolve();
+            return;
+          }
+          patch(id, { status: "done", progress: 100 });
+          void queryClient.invalidateQueries({ queryKey: driveKeys.all });
+          resolve();
+        }
+        catch (err) {
+          patch(id, { status: "error", error: err instanceof Error ? err.message : "upload" });
+          resolve();
+        }
+      })();
+    });
+
+    const uploadOne = directUpload ? uploadDirect : uploadViaApi;
 
     const folderFiles = files.filter(file => relativePathOf(file).includes("/"));
     const plainFiles = files.filter(file => !relativePathOf(file).includes("/"));
@@ -138,7 +186,59 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
         }
       })();
     }
-  }, [add, patch, setPreparing, queryClient]);
+  }, [add, patch, setPreparing, queryClient, directUpload]);
+}
+
+interface PresignedUpload {
+  readonly url: string;
+  readonly method: "PUT";
+  readonly headers: Record<string, string>;
+}
+
+type PresignResponse
+  = | { readonly mode: "done"; readonly entry: DriveEntry }
+    | { readonly mode: "upload"; readonly upload: PresignedUpload };
+
+/** SHA-256 of the file's bytes as lowercase hex (the content-addressed key). */
+async function sha256Hex(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Same-origin JSON POST to the drive API with cookie + CSRF header. */
+async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const res = await fetch(`${BASE_PATH}/api${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
+    body: JSON.stringify(body),
+  });
+  const parsed = await res.json().catch(() => null);
+  return { ok: res.ok, status: res.status, body: parsed };
+}
+
+/** PUT the file's bytes directly to the presigned (cross-origin) storage URL. */
+function putToStorage(upload: PresignedUpload, file: File, onProgress: (percent: number) => void): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable)
+        onProgress(Math.round((event.loaded / event.total) * 100));
+    });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300)
+        resolve();
+      else
+        reject(new Error(`HTTP ${xhr.status}`));
+    });
+    xhr.addEventListener("error", () => reject(new Error("network")));
+    xhr.open(upload.method, upload.url);
+    // Cross-origin presigned URL carries its own auth — no cookies, only the
+    // signed headers (Content-Type).
+    for (const [k, v] of Object.entries(upload.headers))
+      xhr.setRequestHeader(k, v);
+    xhr.send(file);
+  });
 }
 
 function relativePathOf(file: File): string {

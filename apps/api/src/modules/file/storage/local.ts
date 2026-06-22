@@ -30,7 +30,9 @@ export const localDriver: FileStorageDriver = {
     }
   },
 
-  async put(key, data) {
+  async put(key, data, _opts) {
+    // The local filesystem has no content-type metadata; `_opts.contentType`
+    // is meaningful only for object stores that serve bytes directly.
     const path = resolveKey(key);
     const dir = dirname(path);
     if (!existsSync(dir)) {

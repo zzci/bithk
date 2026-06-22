@@ -3,6 +3,7 @@ import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
 import { deleteUnreferencedFile, listUnreferencedFiles } from "./file.service";
 import { runOrphanSweepOnce } from "./orphan-sweep";
+import { runS3OrphanSweepOnce } from "./s3-sweep";
 
 const SWEEP_BATCH = 500;
 const FIRST_RUN_DELAY_MS = 30 * 1000;
@@ -62,6 +63,11 @@ export function startFileGcSweep(db: AppDatabase, config: Config, logger: Logger
       const collected = await runFileGcOnce(live, SWEEP_BATCH);
       if (collected > 0)
         logger.info({ collected }, "file GC sweep");
+      // Reclaim S3 objects from presigned direct uploads that never confirmed
+      // (FEAT-044). No-op for the local driver.
+      const swept = await runS3OrphanSweepOnce(live, { ttlHours: config.FILE_S3_ORPHAN_TTL_HOURS, nowMs: Date.now() }, logger);
+      if (swept > 0)
+        logger.info({ swept }, "s3 orphan object sweep");
     }
     catch (err) {
       logger.error({ err }, "file GC sweep failed");

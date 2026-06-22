@@ -26,6 +26,15 @@
 | `FILE_GC_MODE` | enum(async,sync) | `async` | no | GC mode. `async` (default) — releases only decrement ref_count; a background sweeper deletes the blob + the files row once per FILE_GC_INTERVAL_SECONDS. `sync` — foreground request also deletes the blob (used by tests and local-only deployments). |
 | `FILE_PRESIGN_ENABLED` | enum(true,false) | `true` | no | When true and the active driver implements presignDownload, file downloads 302 to a short-lived signed URL instead of streaming through the API. Permission is enforced at signing time via the consumer hook. |
 | `FILE_PRESIGN_TTL_SECONDS` | number | `300` | no | TTL for signed URLs in seconds. Short by design: a leaked URL stays valid only briefly; re-issuing requires the consumer permission hook to pass again. |
+| `FILE_PREVIEW_CACHE_DIR` | string | — | no | On-disk root for the thumbnail cache (safe to clear). Default below. |
+| `FILE_PREVIEW_CACHE_ENABLED` | enum(true,false) | — | no | Inline image requests with ?thumb=<w> are served as cached WebP thumbnails (Bun.Image), same-origin + immutable. Set "false" to disable; default on. |
+| `FILE_S3_ACCESS_KEY_ID` | string | — | no |  |
+| `FILE_S3_BUCKET` | string | — | no | Default target is Cloudflare R2. Required when the driver is `s3`; the driver fails fast at boot if bucket/credentials are missing. R2 also needs its bucket CORS configured to allow the app origin (GET/PUT/HEAD, expose ETag). |
+| `FILE_S3_ENDPOINT` | string | — | no | Account endpoint (R2: https://<account>.r2.cloudflarestorage.com). Omit for AWS. |
+| `FILE_S3_ORPHAN_TTL_HOURS` | number | — | no | Grace hours before the orphan sweep deletes an unconfirmed direct-upload object. Default 24. |
+| `FILE_S3_PREFIX` | string | — | no | Optional key prefix (a folder within the bucket) applied to every object. |
+| `FILE_S3_REGION` | string | — | no | R2 uses the literal region `auto`; set a real region for AWS S3. |
+| `FILE_S3_SECRET_ACCESS_KEY` | string | — | no |  |
 | `FILE_STORAGE_DRIVER` | string | `local` | no | Active storage backend. Built-in: `local`. Downstream projects can register additional drivers (e.g. `s3`, `azure-blob`) and switch here. |
 | `FILE_STORAGE_LOCAL_ROOT` | string | `data/uploads/files` | no | On-disk root for the local driver. Relative paths resolve against DATA_DIR when set, otherwise ${LODE_DATA_DIR}/data under lode, otherwise ROOT_DIR. |
 | `HOST` | string | `0.0.0.0` | no | Bind address. `0.0.0.0` is fine inside containers / behind a reverse proxy; restrict to `127.0.0.1` for host-local deployments. |

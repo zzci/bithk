@@ -106,8 +106,11 @@ export function entryToDisplayItem(entry: DriveEntry): DisplayItem {
       ? {
           size: entry.file.size,
           mimeType: entry.file.mimetype,
+          // Grid thumbnail: request a cached WebP thumbnail (FEAT-044) instead
+          // of the full-resolution image. The preview dialog still loads the
+          // original for full-detail viewing.
           ...(entry.file.mimetype.startsWith("image/")
-            ? { thumbnailUrl: `${BASE_PATH}/api/drive/entries/${encodeURIComponent(entry.id)}/content?inline=true` }
+            ? { thumbnailUrl: `${BASE_PATH}/api/drive/entries/${encodeURIComponent(entry.id)}/content?inline=true&thumb=320` }
             : {}),
         }
       : {}),

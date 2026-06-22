@@ -1,3 +1,4 @@
+import type { PresignedUpload } from "./storage/types";
 import type { Config } from "@/config";
 import type { AppDatabase, AppTransaction } from "@/db";
 import { createHash } from "node:crypto";
@@ -8,6 +9,7 @@ import { AppError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { mimeMatchesContent } from "@/shared/lib/mime-sniff";
 import { assertWithinTotalQuota, decrementUploadsUsed, incrementUploadsUsed, isWithinFileSize, maxAttachmentsPerResource } from "@/shared/lib/upload-limits";
+import { getThumbnail, previewCacheEnabled } from "./preview-cache";
 import { deriveStorageKey } from "./storage/key";
 import { getActiveDriver } from "./storage/registry";
 
@@ -49,6 +51,8 @@ export interface FileServiceConfig {
   readonly FILE_GC_MODE: "async" | "sync";
   readonly FILE_PRESIGN_ENABLED: boolean;
   readonly FILE_PRESIGN_TTL_SECONDS: number;
+  readonly FILE_PREVIEW_CACHE_ENABLED?: "true" | "false" | undefined;
+  readonly FILE_PREVIEW_CACHE_DIR?: string | undefined;
 }
 
 /**
@@ -229,7 +233,9 @@ export async function uploadAndReference(
   // insert leaves an orphan blob, which the periodic file GC reclaims.
   const newId = ulid();
   const storageKey = deriveStorageKey(sha256);
-  await driver.put(storageKey, buffer);
+  // Pass the MIME type so object-store drivers (S3) persist it and a later
+  // presigned GET serves the right Content-Type for inline preview.
+  await driver.put(storageKey, buffer, { contentType: file.type });
 
   // Phase 3 — insert the files row + reference in a sync tx. A concurrent
   // uploader may have raced ahead via the dedupe path; re-check and bump
@@ -339,6 +345,131 @@ export async function addReference(db: AppDatabase, input: AddReferenceInput): P
     }
     return tx.select().from(fileReferences).where(eq(fileReferences.id, refId)).get()!;
   });
+}
+
+// ─── Presigned direct upload (FEAT-044, Part B) ───────────────────────────
+//
+// The bytes go straight to the storage backend (S3) via a presigned PUT, so
+// the API never sees them. Integrity uses the CLIENT-supplied sha256 as the
+// content-addressed key (a deliberate trust decision for an internal tool);
+// size is enforced by the S3 backend + an external sweep, with only a cheap
+// advisory check here. `confirm` reads the authoritative size via `stat`.
+
+/** True when the active driver can issue presigned PUTs and HEAD objects. */
+export function directUploadAvailable(): boolean {
+  let driver;
+  try {
+    driver = getActiveDriver();
+  }
+  catch {
+    // No driver selected yet (boot order / unit tests without initFileModule).
+    return false;
+  }
+  return typeof driver.presignUpload === "function" && typeof driver.stat === "function";
+}
+
+/** Look up the existing blob row for `(sha256, active driver)`, if any. */
+export async function findStoredBlob(db: AppDatabase, sha256: string): Promise<FileRow | undefined> {
+  const driver = getActiveDriver();
+  return db.select().from(files).where(and(eq(files.sha256, sha256), eq(files.storageDriver, driver.name))).get();
+}
+
+/** Issue a presigned PUT for the content-addressed key of `sha256`. Returns null when the driver can't. */
+export async function presignBlobUpload(
+  config: Pick<Config, "FILE_PRESIGN_TTL_SECONDS">,
+  sha256: string,
+  mimetype: string,
+): Promise<PresignedUpload | null> {
+  const driver = getActiveDriver();
+  if (!driver.presignUpload)
+    return null;
+  return driver.presignUpload(deriveStorageKey(sha256), {
+    expiresSeconds: config.FILE_PRESIGN_TTL_SECONDS,
+    contentType: mimetype,
+  });
+}
+
+/** HEAD the directly-uploaded object to confirm it landed and read its size. */
+export async function statStoredBlob(sha256: string): Promise<{ readonly size: number } | null> {
+  const driver = getActiveDriver();
+  if (!driver.stat)
+    return null;
+  return driver.stat(deriveStorageKey(sha256));
+}
+
+export interface RegisterUploadedBlobInput {
+  readonly sha256: string;
+  readonly size: number;
+  readonly mimetype: string;
+  readonly ownerType: string;
+  readonly ownerId: string;
+  readonly filename: string;
+  readonly uploadedBy: string;
+  readonly metadata?: Record<string, unknown> | undefined;
+}
+
+/**
+ * Register a `files` row + `file_references` row for a blob that is ALREADY in
+ * the active storage backend (uploaded directly via a presigned PUT). Dedups on
+ * `(sha256, driver)` exactly like {@link uploadAndReference}, but performs no
+ * `driver.put` — the bytes are already there. Quota/size were checked at the
+ * presign step; this only bumps the running total for a genuinely new blob.
+ */
+export async function registerUploadedBlob(db: AppDatabase, input: RegisterUploadedBlobInput): Promise<UploadResult> {
+  const driver = getActiveDriver();
+  const storageKey = deriveStorageKey(input.sha256);
+  const newId = ulid();
+
+  const result = db.transaction((tx) => {
+    let row = tx.select().from(files).where(
+      and(eq(files.sha256, input.sha256), eq(files.storageDriver, driver.name)),
+    ).get();
+    let insertedNewBlob = false;
+
+    if (row) {
+      tx.update(files).set({ refCount: sql`${files.refCount} + 1` }).where(eq(files.id, row.id)).run();
+      row = { ...row, refCount: row.refCount + 1 };
+    }
+    else {
+      tx.insert(files).values({
+        id: newId,
+        sha256: input.sha256,
+        size: input.size,
+        mimetype: input.mimetype,
+        storageDriver: driver.name,
+        storageKey,
+        refCount: 1,
+        uploadedBy: input.uploadedBy,
+      }).run();
+      row = tx.select().from(files).where(eq(files.id, newId)).get()!;
+      insertedNewBlob = true;
+    }
+
+    const refId = nanoid();
+    try {
+      tx.insert(fileReferences).values({
+        id: refId,
+        fileId: row.id,
+        ownerType: input.ownerType,
+        ownerId: input.ownerId,
+        filename: input.filename,
+        metadata: JSON.stringify(input.metadata ?? {}),
+        createdBy: input.uploadedBy,
+      }).run();
+    }
+    catch (err) {
+      if (isUniqueConstraintError(err))
+        throw new AppError("This file is already attached to this resource", 400, "DUPLICATE_REFERENCE");
+      throw err;
+    }
+    const reference = tx.select().from(fileReferences).where(eq(fileReferences.id, refId)).get()!;
+    return { file: row, reference, insertedNewBlob };
+  });
+
+  if (result.insertedNewBlob)
+    incrementUploadsUsed(input.size);
+
+  return { file: result.file, reference: result.reference, deduped: !result.insertedNewBlob };
 }
 
 export interface ReleaseReferenceInput {
@@ -534,6 +665,8 @@ export function makeAttachmentView(ref: FileReferenceRow, file: FileRow): Attach
 
 interface DownloadResponseOpts {
   readonly inline: boolean;
+  /** Whitelisted thumbnail width (px) for an inline image preview (FEAT-044). */
+  readonly thumbWidth?: number | undefined;
 }
 
 /**
@@ -576,7 +709,40 @@ export async function buildDownloadResponse(
 
   const driver = getActiveDriver();
 
-  if (config.FILE_PRESIGN_ENABLED && driver.name === file.storageDriver && driver.presignDownload) {
+  // Image preview cache (FEAT-044, Part C): for an inline image request that
+  // asks for a whitelisted width, serve a cached WebP thumbnail — same-origin
+  // and immutable, so the grid never refetches full-resolution images and a
+  // remote backend is hit at most once per (image, width). Falls through on a
+  // decode failure (corrupt/unsupported image).
+  if (
+    inlineSafe
+    && opts.thumbWidth !== undefined
+    && mt.startsWith("image/")
+    && driver.name === file.storageDriver
+    && previewCacheEnabled(config)
+  ) {
+    const thumb = await getThumbnail(config, { sha256: file.sha256, storageKey: file.storageKey }, opts.thumbWidth);
+    if (thumb) {
+      return new Response(new Blob([thumb]), {
+        headers: {
+          "Content-Type": "image/webp",
+          "Content-Disposition": buildContentDisposition("inline", ref.filename),
+          "Content-Length": String(thumb.byteLength),
+          "Cache-Control": "private, max-age=31536000, immutable",
+          "ETag": `"${file.sha256}-w${opts.thumbWidth}"`,
+          "X-Content-Type-Options": "nosniff",
+          "X-Download-Options": "noopen",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+      });
+    }
+  }
+
+  // Only presign for INLINE-safe previews. A presigned GET serves the object
+  // with its stored Content-Type but cannot force `Content-Disposition`
+  // (Bun's presign signs only method/expiry/type), so attachment downloads
+  // must stream through the API to carry `attachment; filename=…`.
+  if (inlineSafe && config.FILE_PRESIGN_ENABLED && driver.name === file.storageDriver && driver.presignDownload) {
     const url = await driver.presignDownload(file.storageKey, {
       expiresSeconds: config.FILE_PRESIGN_TTL_SECONDS,
       filename: ref.filename,

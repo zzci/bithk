@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { BUILD_INFO } from "@/build-info";
 import { getLodeSummary } from "@/lode";
+import { directUploadAvailable } from "@/modules/file";
 import { getAppSetting } from "@/shared/lib/app-config";
 import { renderPrometheus } from "@/shared/lib/metrics";
 import { describeRoute, ErrorEnvelope, resolver } from "@/shared/lib/openapi";
@@ -33,6 +34,9 @@ const uploadLimitsSchema = z.object({
   maxFileSize: z.number(),
   maxAttachmentsPerResource: z.number(),
   totalQuota: z.number().nullable(),
+  // FEAT-044: true when the active storage backend supports presigned direct
+  // upload (S3); the web uploader then hashes + uploads straight to S3.
+  directUpload: z.boolean(),
 });
 
 export function systemRoutes() {
@@ -149,6 +153,7 @@ export function systemRoutes() {
           maxFileSize: cfg.MAX_UPLOAD_BYTES,
           maxAttachmentsPerResource: cfg.MAX_ATTACHMENTS_PER_RESOURCE,
           totalQuota: cfg.UPLOADS_TOTAL_BYTES > 0 ? cfg.UPLOADS_TOTAL_BYTES : null,
+          directUpload: directUploadAvailable(),
         },
       });
     },

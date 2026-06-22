@@ -6,12 +6,13 @@ import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator 
 import { authRequired } from "@/shared/middleware/auth";
 import { buildDownloadResponse, getFileById, getReferenceById } from "./file.service";
 import { getFilePermissionHook } from "./permission";
+import { parseThumbnailWidth } from "./preview-cache";
 
 const fileParamSchema = z.object({ id: z.string() });
 // `ref`/`inline` are optional: a missing `ref` is answered with a 404 (existence
 // hidden), not a validation error, so they stay free-form here.
 const metadataQuerySchema = z.object({ ref: z.string().optional() });
-const contentQuerySchema = z.object({ ref: z.string().optional(), inline: z.string().optional() });
+const contentQuerySchema = z.object({ ref: z.string().optional(), inline: z.string().optional(), thumb: z.string().optional() });
 
 const fileMetadataSchema = z.object({
   id: z.string(),
@@ -143,7 +144,7 @@ export function fileRoutes() {
       if (!file)
         throw new NotFoundError("File", id);
 
-      return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
+      return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline, thumbWidth: parseThumbnailWidth(query.thumb) });
     },
   );
 

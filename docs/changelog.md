@@ -11,6 +11,27 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- S3-compatible storage driver (default target **Cloudflare R2**) with presigned
+  direct upload and an image preview cache (FEAT-044, PLAN-096), built on Bun's
+  native `S3Client` + `Bun.Image` (no new dependencies):
+  - **Driver** (`FILE_STORAGE_DRIVER=s3`, `FILE_S3_*`): put/get/delete/exists
+    plus presigned GET for inline previews. Attachment downloads keep streaming
+    through the API (Bun's presign can't sign `Content-Disposition`).
+  - **Direct upload**: the drive uploads bytes straight to S3 —
+    `POST /drive/files/presign-upload` (the client computes the sha256; an
+    already-stored hash finishes instantly with no upload) → browser `PUT` to the
+    presigned URL → `POST /drive/files/confirm-upload` (HEADs the object for its
+    authoritative size). Size is enforced by the S3 backend plus an orphan sweep
+    that reclaims unconfirmed objects after `FILE_S3_ORPHAN_TTL_HOURS`.
+    `GET /system/upload-limits` reports `directUpload` so the web uploader
+    feature-detects; the local driver keeps the multipart-through-API path.
+  - **Image preview cache**: inline image requests with `?thumb=<w>` are served
+    as cached WebP thumbnails (same-origin, `immutable`, `ETag`); the drive grid
+    uses `?thumb=320` so it no longer refetches full-resolution images. The
+    full-resolution preview dialog still loads the original. No DB migration.
+
 ### Changed
 
 - Raise the default per-file upload cap from 10 MiB to **200 MB**, and switch

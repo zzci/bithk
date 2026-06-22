@@ -1,19 +1,26 @@
 import type { DriveOwnerType } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
+import type { PresignedUpload } from "@/modules/file/storage/types";
 import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { users } from "@/modules/account/users/schema";
 import {
   buildDownloadResponse,
+  directUploadAvailable,
+  findStoredBlob,
   getFileById,
   getReferenceById,
+  presignBlobUpload,
+  registerUploadedBlob,
   releaseReference,
+  statStoredBlob,
   uploadAndReference,
 } from "@/modules/file";
 import { fileReferences, files } from "@/modules/file/schema";
 import { deleteSharesForResource } from "@/modules/share";
 import { AppError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
+import { assertWithinTotalQuota } from "@/shared/lib/upload-limits";
 import { driveEntries, driveFileVersions, UNIVER_SHEET_MIME } from "./schema";
 
 export type DriveEntryRow = typeof driveEntries.$inferSelect;
@@ -350,7 +357,25 @@ export async function uploadDriveFile(
     ownerId: id,
     uploadedBy: input.createdBy,
   });
+  return commitDriveFileEntry(db, config, owner, id, parentEntryId, name, uploaded.reference.id, input.createdBy);
+}
 
+/**
+ * Insert the `drive_entries` + version-1 `drive_file_versions` rows for a blob
+ * already attached as `reference` (whose `owner_id` is `id`). On failure the
+ * reference is released and a duplicate-name collision is surfaced. Shared by
+ * the through-API upload and the presigned direct-upload paths (FEAT-044).
+ */
+async function commitDriveFileEntry(
+  db: AppDatabase,
+  config: Pick<Config, "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS">,
+  owner: DriveOwner,
+  id: string,
+  parentEntryId: string,
+  name: string,
+  fileReferenceId: string,
+  createdBy: string,
+): Promise<DriveEntryView> {
   try {
     db.transaction((tx) => {
       tx.insert(driveEntries).values({
@@ -360,25 +385,123 @@ export async function uploadDriveFile(
         parentEntryId,
         entryType: "file",
         name,
-        fileReferenceId: uploaded.reference.id,
-        createdBy: input.createdBy,
+        fileReferenceId,
+        createdBy,
       }).run();
       tx.insert(driveFileVersions).values({
         id: nanoid(),
         driveEntryId: id,
-        fileReferenceId: uploaded.reference.id,
+        fileReferenceId,
         versionNo: 1,
-        uploadedBy: input.createdBy,
+        uploadedBy: createdBy,
       }).run();
     });
   }
   catch (err) {
-    await releaseReference(db, config, { referenceId: uploaded.reference.id });
+    await releaseReference(db, config, { referenceId: fileReferenceId });
     throwDuplicateName(err);
     throw err;
   }
-
   return requireDriveEntry(db, owner, id);
+}
+
+type DirectUploadConfig = Pick<Config, "MAX_UPLOAD_BYTES" | "MAX_ATTACHMENTS_PER_RESOURCE" | "UPLOADS_TOTAL_BYTES" | "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS">;
+
+export interface PresignDriveUploadInput extends DriveOwner {
+  readonly createdBy: string;
+  readonly parentEntryId?: string | null | undefined;
+  readonly name: string;
+  readonly sha256: string;
+  readonly size: number;
+  readonly mimetype: string;
+}
+
+export type PresignDriveUploadResult
+  = | { readonly mode: "done"; readonly entry: DriveEntryView }
+    | { readonly mode: "upload"; readonly upload: PresignedUpload };
+
+/**
+ * Phase 1 of presigned direct upload (FEAT-044): authorize the target folder,
+ * advisory-check the declared size, and either (a) finish instantly when the
+ * content already exists in storage — register a reference + create the entry —
+ * or (b) return a presigned PUT for the browser to upload straight to S3. The
+ * client trusts/owns the sha256; integrity is the content-addressed key.
+ */
+export async function presignDriveUpload(
+  db: AppDatabase,
+  config: DirectUploadConfig,
+  input: PresignDriveUploadInput,
+): Promise<PresignDriveUploadResult> {
+  if (!directUploadAvailable())
+    throw new AppError("Direct upload is not available for the active storage backend", 409, "DIRECT_UPLOAD_UNAVAILABLE");
+
+  const owner: DriveOwner = { ownerType: input.ownerType, ownerId: input.ownerId };
+  const parentEntryId = await validateParent(db, owner, input.parentEntryId);
+  if (input.size > config.MAX_UPLOAD_BYTES)
+    throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
+  await assertWithinTotalQuota(db, config, input.size);
+
+  const name = normalizeEntryName(input.name);
+  const existing = await findStoredBlob(db, input.sha256);
+  if (existing) {
+    const id = nanoid();
+    const registered = await registerUploadedBlob(db, {
+      sha256: input.sha256,
+      size: existing.size,
+      mimetype: existing.mimetype,
+      ownerType: "drive_entry",
+      ownerId: id,
+      filename: name,
+      uploadedBy: input.createdBy,
+    });
+    const entry = await commitDriveFileEntry(db, config, owner, id, parentEntryId, name, registered.reference.id, input.createdBy);
+    return { mode: "done", entry };
+  }
+
+  const upload = await presignBlobUpload(config, input.sha256, input.mimetype);
+  if (!upload)
+    throw new AppError("Direct upload is not available", 409, "DIRECT_UPLOAD_UNAVAILABLE");
+  return { mode: "upload", upload };
+}
+
+export interface ConfirmDriveUploadInput extends DriveOwner {
+  readonly createdBy: string;
+  readonly parentEntryId?: string | null | undefined;
+  readonly name: string;
+  readonly sha256: string;
+  readonly mimetype: string;
+}
+
+/**
+ * Phase 2 of presigned direct upload (FEAT-044): after the browser PUT the
+ * bytes to S3, HEAD the object for the authoritative size + proof it landed,
+ * register the blob, and create the drive entry. Re-authorizes the folder.
+ */
+export async function confirmDriveUpload(
+  db: AppDatabase,
+  config: DirectUploadConfig,
+  input: ConfirmDriveUploadInput,
+): Promise<DriveEntryView> {
+  const owner: DriveOwner = { ownerType: input.ownerType, ownerId: input.ownerId };
+  const parentEntryId = await validateParent(db, owner, input.parentEntryId);
+  const stat = await statStoredBlob(input.sha256);
+  if (!stat)
+    throw new AppError("Uploaded object was not found in storage", 400, "UPLOAD_NOT_FOUND");
+  if (stat.size > config.MAX_UPLOAD_BYTES)
+    throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
+
+  const name = normalizeEntryName(input.name);
+  const id = nanoid();
+  const registered = await registerUploadedBlob(db, {
+    sha256: input.sha256,
+    size: stat.size,
+    mimetype: input.mimetype,
+    ownerType: "drive_entry",
+    ownerId: id,
+    filename: name,
+    uploadedBy: input.createdBy,
+  });
+  return commitDriveFileEntry(db, config, owner, id, parentEntryId, name, registered.reference.id, input.createdBy);
 }
 
 export interface CreateDriveTextFileInput extends DriveOwner {
@@ -663,10 +786,11 @@ export async function emptyDriveTrash(
 
 export async function buildDriveEntryDownloadResponse(
   db: AppDatabase,
-  config: Pick<Config, "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS">,
+  config: Pick<Config, "FILE_GC_MODE" | "FILE_PRESIGN_ENABLED" | "FILE_PRESIGN_TTL_SECONDS" | "FILE_PREVIEW_CACHE_ENABLED" | "FILE_PREVIEW_CACHE_DIR">,
   owner: DriveOwner,
   id: string,
   inline: boolean,
+  thumbWidth?: number,
 ): Promise<Response> {
   const entry = await requireDriveEntryRow(db, owner, id);
   if (entry.entryType !== "file" || !entry.fileReferenceId)
@@ -692,7 +816,7 @@ export async function buildDriveEntryDownloadResponse(
     });
   }
 
-  return buildDownloadResponse(config, file, ref, { inline });
+  return buildDownloadResponse(config, file, ref, { inline, thumbWidth });
 }
 
 async function requireDriveEntry(db: AppDatabase, owner: DriveOwner, id: string): Promise<DriveEntryView> {
