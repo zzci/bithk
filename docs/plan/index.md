@@ -95,3 +95,4 @@
 | [PLAN-094](PLAN-094.md) | Global currency list referenced by procurement & HR (+ THB) | Completed | 2026-06-20 |
 | [PLAN-095](PLAN-095.md) | Editable built-in Default group for ungrouped users | Completed | 2026-06-20 |
 | [PLAN-096](PLAN-096.md) | S3 storage driver + presigned direct upload + image preview cache | Completed | 2026-06-22 |
+| [PLAN-097](PLAN-097.md) | Upgrade the update system to the bun-tpl lode SDK with operator controls | Completed | 2026-06-24 |

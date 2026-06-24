@@ -1,6 +1,6 @@
 [global]
 app       = "bit"
-data_dir  = "/srv/lode"
+dir       = "/srv/lode"
 log_level = "info"
 
 [update]

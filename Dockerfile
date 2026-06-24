@@ -29,7 +29,7 @@ ENV PORT=3000
 ENV BASE_PATH=/app
 ENV LOG_TO_STDOUT=true
 ENV LODE_CONFIG=/srv/lode/lode.toml
-ENV LODE_DATA_DIR=/srv/lode
+ENV LODE_DIR=/srv/lode
 ENV DATA_DIR=/srv/lode/data
 
 USER bun

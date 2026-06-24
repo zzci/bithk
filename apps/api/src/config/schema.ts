@@ -20,7 +20,7 @@ export const configSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   HOST: z.string().default("0.0.0.0"),
   // Base directory for mutable app data. Relative DB/log/upload defaults are
-  // anchored here when set. If omitted under lode, LODE_DATA_DIR/data is used
+  // anchored here when set. If omitted under lode, LODE_DIR/data is used
   // by the config loader.
   DATA_DIR: z.string().optional(),
   DB_PATH: z.string().default("data/db/app.db"),

@@ -38,8 +38,8 @@ function resolvePath(p: string): string {
 function resolveDataDir(value: string | undefined): string | undefined {
   if (value)
     return resolvePath(value);
-  if (Bun.env.LODE_DATA_DIR)
-    return resolve(Bun.env.LODE_DATA_DIR, "data");
+  if (Bun.env.LODE_DIR)
+    return resolve(Bun.env.LODE_DIR, "data");
   return undefined;
 }
 

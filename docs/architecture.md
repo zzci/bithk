@@ -279,7 +279,7 @@ visible; owners, admins, and explicit viewers see the full row.
 Runtime data paths are resolved from env configuration. In lode-packaged runs,
 `ROOT_DIR` points at the installed artifact directory for read-only assets.
 Mutable paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted and
-`LODE_DATA_DIR` is present, the app uses `${LODE_DATA_DIR}/data`, so one
+`LODE_DIR` is present, the app uses `${LODE_DIR}/data`, so one
 persistent `/srv/lode` mount can hold both lode state and app data:
 
 | Path | Purpose |
@@ -288,3 +288,35 @@ persistent `/srv/lode` mount can hold both lode state and app data:
 | `DB_PATH` sibling `.pid` file | PID lock file. |
 | `FILE_STORAGE_LOCAL_ROOT` | Uploaded files and content-addressed blobs. |
 | `LOG_FILE` | Structured JSON logs when not writing to stdout. |
+
+## Update System (lode)
+
+The release artifact (`scripts/package.ts`, a `lode/v1` manifest tarball) is run
+under [lode](https://github.com/dotns/lode), a supervisor that downloads,
+verifies, runs, and updates the app. The app talks to lode through
+`$LODE_DIR/state.json`.
+
+`apps/api/src/lode/` is the integration:
+
+- `sdk.ts` — the official single-file SDK, vendored verbatim from
+  `dotns/lode@v0.0.10` (`@ts-nocheck`; re-vendor, never hand-edit). It owns the
+  `state.json` contract: a `flock(2)`-serialised read-modify-write (real lock
+  under Bun via `bun:ffi`, atomic-rename fallback), the readiness signal, the
+  staged-update prepare handshake, the restart/update/rollback/hold requests, and
+  read-only access to `lode.toml` (`readConfig()` via `LODE_CONFIG`).
+- `index.ts` — thin app glue: `getLodeSummary()` for `/api/system/version`,
+  boot wiring (`reportLodeServing` gated on a DB probe, `captureLodeConfigBaseline`,
+  `startLodePrepareWatcher` that WAL-checkpoints before acking cut-over), and the
+  operator actions the admin API calls. The summary also parses `lode.toml` via
+  the SDK's `readConfig()` and exposes a **safe whitelist** of `[update]`
+  (policy / channel / asset / `owner/repo` source) — never the manifest URL,
+  auth headers, or trusted keys.
+
+Admins drive lode from the Settings → About tab through four audited endpoints —
+`POST /api/system/lode/{restart,update,rollback,hold}` — each writing the
+corresponding `state.json` field (`restart_nonce`, `target`, or `hold`); lode
+polls the file and acts. All four are admin-only and recorded as audit events;
+they return `409` when the app is not running under lode.
+
+The lode directory is injected as `LODE_DIR` (the app resolves its own data dir
+as `DATA_DIR > LODE_DIR > ROOT_DIR`); `deploy/lode.toml` `[global].dir` sets it.

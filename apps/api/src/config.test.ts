@@ -9,7 +9,7 @@ const KEYS = [
   "DB_PATH",
   "FILE_STORAGE_LOCAL_ROOT",
   "LOG_FILE",
-  "LODE_DATA_DIR",
+  "LODE_DIR",
 ] as const;
 
 const saved = new Map<string, string | undefined>();
@@ -45,8 +45,8 @@ describe("loadConfigStrict path defaults", () => {
     expect(config.LOG_FILE).toBe("/var/lib/bit/logs/app.log");
   });
 
-  test("keeps mutable defaults under LODE_DATA_DIR/data when lode manages the app", async () => {
-    Bun.env.LODE_DATA_DIR = "/srv/lode";
+  test("keeps mutable defaults under LODE_DIR/data when lode manages the app", async () => {
+    Bun.env.LODE_DIR = "/srv/lode";
 
     const config = await loadConfigStrict(() => {});
 
@@ -56,9 +56,9 @@ describe("loadConfigStrict path defaults", () => {
     expect(config.LOG_FILE).toBe("/srv/lode/data/logs/app.log");
   });
 
-  test("DATA_DIR takes precedence over LODE_DATA_DIR", async () => {
+  test("DATA_DIR takes precedence over LODE_DIR", async () => {
     Bun.env.DATA_DIR = "/var/lib/bit";
-    Bun.env.LODE_DATA_DIR = "/srv/lode";
+    Bun.env.LODE_DIR = "/srv/lode";
 
     const config = await loadConfigStrict(() => {});
 

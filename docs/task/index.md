@@ -154,3 +154,4 @@
 | [FEAT-043](FEAT-043.md) | Editable built-in Default group for ungrouped users | [PLAN-095](../plan/PLAN-095.md) | Completed | 2026-06-20 |
 | [FIX-047](FIX-047.md) | Raise default upload cap to 200 MB and configure it in MB | - | Completed | 2026-06-22 |
 | [FEAT-044](FEAT-044.md) | S3 storage driver + presigned direct upload + image preview cache | [PLAN-096](../plan/PLAN-096.md) | Completed | 2026-06-22 |
+| [FEAT-045](FEAT-045.md) | Upgrade the update system to the bun-tpl lode SDK with operator controls | [PLAN-097](../plan/PLAN-097.md) | Completed | 2026-06-24 |

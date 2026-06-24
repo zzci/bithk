@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import { bootstrap } from "./app";
 import { BUILD_INFO } from "./build-info";
 import { dispatchCliSubcommand } from "./cli";
-import { markLodeReady, startLodePrepareWatcher } from "./lode";
+import { captureLodeConfigBaseline, reportLodeServing, startLodePrepareWatcher } from "./lode";
 import { stopAuditRetentionSweep } from "./modules/audit";
 import { stopCron } from "./modules/cron";
 import { stopFileGcSweep } from "./modules/file";
@@ -101,13 +101,16 @@ import { acquirePidLock, releasePidLock } from "./pid-lock";
   try {
     // Report serving only once the DB answers, so `state.ready` reflects real
     // readiness. Writing phase -0 opts into the staged-update prepare handshake.
-    await markLodeReady({
+    await reportLodeServing({
       logger,
       probe: async () => {
         await db.run(sql`SELECT 1`);
         return true;
       },
     });
+    // Snapshot lode's config generation now so a later lode.toml edit shows up
+    // as "config changed — restart to apply" in the admin About panel.
+    captureLodeConfigBaseline();
     // Handle lode's staged-update prompt: checkpoint the WAL and flush logs
     // before acking, so the next version starts from a consolidated DB file.
     lodePrepare = startLodePrepareWatcher({

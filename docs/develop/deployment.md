@@ -25,7 +25,7 @@ docker build -t bit:lode .
 - `dist/**` built SPA assets
 - `drizzle/**` migrations
 
-The manifest entry is `index.js`; `deploy/lode.toml` launches it with `run = "bun"` and uses `exec = "bun run"` for CLI passthrough. `ROOT_DIR` resolves from the installed version directory. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DATA_DIR` exists, the app uses `${LODE_DATA_DIR}/data` so operators do not have to configure each path separately.
+The manifest entry is `index.js`; `deploy/lode.toml` launches it with `run = "bun"` and uses `exec = "bun run"` for CLI passthrough. `ROOT_DIR` resolves from the installed version directory. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DIR` exists, the app uses `${LODE_DIR}/data` so operators do not have to configure each path separately.
 
 The Dockerfile is a generic `dotns/lode` + Bun 1.3.14 runtime image. It does not bake the application into the image; lode downloads the asset declared by `/srv/lode/lode.toml`, then supervises and updates it.
 
@@ -50,7 +50,7 @@ Verified lode layout after first boot:
   logs/app.log
 ```
 
-Keep `/srv/lode/versions` as immutable downloaded releases. Keep mutable application data under `/srv/lode/data`; this is the default whenever `DATA_DIR=/srv/lode/data`, or when `LODE_DATA_DIR=/srv/lode` and `DATA_DIR` is omitted.
+Keep `/srv/lode/versions` as immutable downloaded releases. Keep mutable application data under `/srv/lode/data`; this is the default whenever `DATA_DIR=/srv/lode/data`, or when `LODE_DIR=/srv/lode` and `DATA_DIR` is omitted.
 
 ## lode configuration
 
@@ -80,7 +80,7 @@ Highlights for a production deploy:
 | `CORS_ORIGIN` | Comma-separated allow-list; fail-closed in prod when unset |
 | `BASE_PATH` | URL prefix the app is mounted under. Leave unset for root mount; set to the reverse-proxy mount (e.g. `/app`) when serving under a prefix |
 | `DATA_DIR` | Base directory for mutable app data; defaults can be anchored here for lode and non-lode runs |
-| `DB_PATH` | SQLite DB path; relative paths resolve under `DATA_DIR`, or `${LODE_DATA_DIR}/data` when lode provides the fallback |
+| `DB_PATH` | SQLite DB path; relative paths resolve under `DATA_DIR`, or `${LODE_DIR}/data` when lode provides the fallback |
 | `OAUTH_*` | OIDC issuer or full endpoint set, plus client id/secret |
 | `DEFAULT_ADMIN` | Comma-separated emails that get admin role on first login (no-op if users exist) |
 | `LOG_FILE` / `LOG_TO_STDOUT` | Either rotates on disk under `DATA_DIR` or hands lines to the runtime |
@@ -97,13 +97,13 @@ The container declares `VOLUME /srv/lode`. The runtime writes:
 | `${FILE_STORAGE_LOCAL_ROOT}` (container default `/srv/lode/data/uploads/files/`) | `FILE_STORAGE_LOCAL_ROOT` | All attachments (documents, issues, …); content-addressable blobs under the `file` module | Critical |
 | `${LOG_FILE}` (container default `/srv/lode/data/logs/app.log`) | `LOG_FILE` | Runtime logs when `LOG_TO_STDOUT=false` | Operational |
 | `${DATA_DIR}` (container default `/srv/lode/data`) | `DATA_DIR` | Default anchor for DB, uploads, and file logs | Critical |
-| `${LODE_DATA_DIR}` (container default `/srv/lode`) | `LODE_DATA_DIR` | `lode.toml`, `state.json`, downloaded versions, runtime cache | Operational |
+| `${LODE_DIR}` (container default `/srv/lode`) | `LODE_DIR` | `lode.toml`, `state.json`, downloaded versions, runtime cache | Operational |
 
 **Watch out — the upload and log paths are *not* re-rooted by `DB_PATH`.** Overriding `DB_PATH` does **not** relocate uploads or logs; set `FILE_STORAGE_LOCAL_ROOT` and `LOG_FILE` only when intentionally splitting storage. The recommended production mode is:
 
 1. Mount one persistent volume at `/srv/lode`.
 2. Let lode keep versions and state directly under `/srv/lode`.
-3. Set `DATA_DIR=/srv/lode/data`, or omit it and let `LODE_DATA_DIR=/srv/lode` derive the same path.
+3. Set `DATA_DIR=/srv/lode/data`, or omit it and let `LODE_DIR=/srv/lode` derive the same path.
 
 ## Health checks
 

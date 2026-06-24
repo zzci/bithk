@@ -34,6 +34,25 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- **Update system reworked onto the official lode SDK with admin operator
+  controls** (FEAT-045, PLAN-097). Replaced the hand-rolled `apps/api/src/lode/`
+  protocol code (`state`/`readiness`/`prepare`/`summary`/`types`) with the
+  single-file SDK vendored from `dotns/lode@v0.0.10` (`sdk.ts`, `flock(2)`-
+  serialised `state.json` writes) plus a thin glue `index.ts`. The admin
+  Settings → About tab gains working **restart / update / rollback / hold**
+  controls (update-available, config-changed, and maintenance-hold banners,
+  rollout history, switch-to-version), backed by four audited admin endpoints
+  `POST /api/system/lode/{restart,update,rollback,hold}` (409 when not under
+  lode). `/api/system/version` now reports a richer lode summary (lastGood,
+  hold, configChanged, history, rollbackTarget, updateAvailable), plus a safe,
+  read-only slice of `lode.toml`'s `[update]` (policy / channel / asset / source)
+  via the SDK's v0.0.10 `readConfig()` (`LODE_CONFIG`) — secrets such as the
+  manifest URL, auth headers, and trusted keys are never surfaced.
+- **lode v0.0.9 env-contract migration (breaking).** Upstream renamed the lode
+  directory env/config key `LODE_DATA_DIR` / `data_dir` → `LODE_DIR` /
+  `[global].dir` (no aliases). The app now resolves its data dir as
+  `DATA_DIR > LODE_DIR > ROOT_DIR` and `deploy/lode.toml` uses `dir`; the
+  deployed lode supervisor must be upgraded to v0.0.9 in lockstep.
 - Raise the default per-file upload cap from 10 MiB to **200 MB**, and switch
   the env knob from bytes to MB for easier editing: `MAX_UPLOAD_BYTES` is
   replaced by `MAX_UPLOAD_MB` (default `200`), which `loadConfig` converts to
