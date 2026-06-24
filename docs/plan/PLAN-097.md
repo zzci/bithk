@@ -265,6 +265,13 @@ ported.
   `sdk.ts` eslint ignore, regenerated api-spec/api-routes, updated
   architecture.md + changelog. `bun run check` EXIT 0 (lint/typecheck/test/
   routes/build/i18n/env-docs/api-docs/api-spec all green). Not committed.
+- 2026-06-24 — Per user direction, de-inlined `release.yml` to match bun-tpl:
+  extracted the metadata/validation/upload steps into
+  `scripts/ci/{release-metadata.sh,validate-lode-release.ts,upload-release.sh}`
+  (same checks; bithk's tarball has no `@libsql` binding so that bun-tpl check is
+  omitted). Also fixed `Dockerfile` `ENV LODE_DATA_DIR` → `LODE_DIR` (missed in
+  the first pass). Verified end-to-end: `bun run package` + `bun
+  scripts/ci/validate-lode-release.ts` pass against a real build.
 - 2026-06-24 — Per user direction, bumped the vendored SDK to **v0.0.10** (latest;
   adds `configPath()`/`readConfig()` reading `lode.toml` via the new `LODE_CONFIG`
   env). Restored the operator update-config display the old summary had: the glue

@@ -34,20 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Resolve release metadata
-        run: |
-          set -euo pipefail
-          tag="${RELEASE_TAG}"
-          version="${tag#v}"
-          asset="${APP_NAME}-${ASSET_SUFFIX}.tar.gz"
-          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${asset}"
-          {
-            echo "TAG_NAME=${tag}"
-            echo "RELEASE_VERSION=${version}"
-            echo "ASSET_NAME=${asset}"
-            echo "ASSET_URL=${url}"
-          } >> "${GITHUB_ENV}"
-
       - uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
@@ -59,6 +45,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      # Resolves TAG_NAME / RELEASE_VERSION / ASSET_NAME / ASSET_URL into
+      # $GITHUB_ENV for the steps below.
+      - name: Resolve release metadata
+        run: bash scripts/ci/release-metadata.sh
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -73,46 +64,9 @@ jobs:
             --asset-url "${ASSET_URL}"
 
       - name: Validate lode release assets
-        run: |
-          set -euo pipefail
-          test -f "dist/${ASSET_NAME}"
-          test -f dist/manifest.json
-          test -f dist/checksums.txt
-          tar -tzf "dist/${ASSET_NAME}" > /tmp/lode-asset-files.txt
-          grep -Eq '^(\./)?index\.js$' /tmp/lode-asset-files.txt
-          grep -Eq '^(\./)?dist/index\.html$' /tmp/lode-asset-files.txt
-          grep -Eq '^(\./)?drizzle/meta/_journal\.json$' /tmp/lode-asset-files.txt
-          node <<'NODE'
-          const fs = require("node:fs");
-          const manifest = JSON.parse(fs.readFileSync("dist/manifest.json", "utf8"));
-          const version = process.env.RELEASE_VERSION;
-          const assetName = process.env.ASSET_NAME;
-          const assetUrl = process.env.ASSET_URL;
-          const asset = manifest.versions?.[version]?.assets?.find(a => a.name === assetName);
-          if (manifest.schema !== "lode/v1") throw new Error("manifest schema must be lode/v1");
-          if (manifest.name !== process.env.APP_NAME) throw new Error("manifest name mismatch");
-          if (manifest.channels?.stable?.latest !== version) throw new Error("stable channel must point at release version");
-          if (!asset) throw new Error("missing " + assetName + " asset in manifest");
-          if (asset.url !== assetUrl) throw new Error("asset URL must match the GitHub release asset URL");
-          if (asset.run !== "bun index.js") throw new Error("asset run command mismatch");
-          if (asset.exec !== "bun run") throw new Error("asset exec command mismatch");
-          if ("entry" in asset) throw new Error("asset entry is not part of lode/v1");
-          if ("platform" in asset) throw new Error("asset platform is not part of lode/v1");
-          if ("format" in asset) throw new Error("asset format is derived from the filename");
-          if (!asset.sha256 || !asset.size) throw new Error("asset integrity fields are required");
-          if (!fs.readFileSync("dist/checksums.txt", "utf8").includes(assetName)) {
-            throw new Error("checksums.txt must reference the tarball");
-          }
-          NODE
+        run: bun scripts/ci/validate-lode-release.ts
 
       - name: Upload assets to GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh release view "${TAG_NAME}" >/dev/null
-          gh release upload "${TAG_NAME}" \
-            "dist/${ASSET_NAME}" \
-            dist/manifest.json \
-            dist/checksums.txt \
-            --clobber
+        run: bash scripts/ci/upload-release.sh
