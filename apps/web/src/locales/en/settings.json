@@ -110,8 +110,14 @@
       "policy": "Update policy",
       "source": "Source",
       "asset": "Asset",
-      "sourceManifest": "Manifest",
-      "updateConfig": "Update configuration"
+      "config": "Update config (lode.toml)",
+      "pin": "Pinned version",
+      "checkInterval": "Check interval",
+      "keepVersions": "Kept versions",
+      "signature": "Signature policy",
+      "runtime": "Runtime",
+      "seconds": "{{n}}s",
+      "configUnavailable": "lode.toml is present but could not be read."
     }
   },
   "projectDefaults": {

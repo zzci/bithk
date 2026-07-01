@@ -96,3 +96,4 @@
 | [PLAN-095](PLAN-095.md) | Editable built-in Default group for ungrouped users | Completed | 2026-06-20 |
 | [PLAN-096](PLAN-096.md) | S3 storage driver + presigned direct upload + image preview cache | Completed | 2026-06-22 |
 | [PLAN-097](PLAN-097.md) | Upgrade the update system to the bun-tpl lode SDK with operator controls | Completed | 2026-06-24 |
+| [PLAN-098](PLAN-098.md) | Port the enriched lode update-config surface from zzci/access | Completed | 2026-07-01 |

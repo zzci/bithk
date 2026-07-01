@@ -43,7 +43,7 @@ const versionBody = {
       history: [{ version: "0.1.5", at: "2026-06-09T12:00:00.000Z", result: "good" }],
       updateAvailable: true,
       rollbackTarget: "0.1.4",
-      updateConfig: { policy: "auto", channel: "stable", asset: "bit-linux-x64.tar.gz", sourceType: "github", source: "zzci/bithk" },
+      config: { status: "available", policy: "auto", channel: "stable", asset: "bit-linux-x64.tar.gz", sourceType: "github", source: "zzci/bithk" },
     },
   },
 };
@@ -72,7 +72,7 @@ describe("aboutSettingsTab", () => {
     expect(screen.getByText("running")).toBeInTheDocument();
     // Operator update config from lode.toml.
     expect(screen.getByText("auto")).toBeInTheDocument();
-    expect(screen.getByText("zzci/bithk")).toBeInTheDocument();
+    expect(screen.getByText("github zzci/bithk")).toBeInTheDocument();
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/system/version");
   });
 

@@ -34,6 +34,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- **Enriched the lode update-config surface** (FEAT-046, PLAN-098), ported from
+  the sibling `zzci/access` fork (same vendored SDK). Extracted `lode.toml`
+  parsing into a dedicated `apps/api/src/lode/config.ts` whose `readLodeConfig()`
+  returns a status-carrying `LodeConfig`
+  (`not_configured` / `unreadable` / `malformed` / `available`) with the
+  non-secret fields `app`, `source` (+ `sourceType`), `asset`, `channel`,
+  `policy`, `checkInterval`, `keepVersions`, `pin`, `requireSignature`
+  (`[trust]`), and `runtime` / `runtimeVersion` (`[runtime]`). Manifest sources
+  now surface the **host** (never the full URL); `[env]`, `[http].headers`, and
+  `[trust].trusted_keys` are still never read. `/api/system/version` exposes this
+  as `lode.config` (always present) in place of the previous optional
+  `lode.updateConfig`, and the Settings → About tab renders the fuller config
+  section with a present-but-unreadable notice.
 - **Update system reworked onto the official lode SDK with admin operator
   controls** (FEAT-045, PLAN-097). Replaced the hand-rolled `apps/api/src/lode/`
   protocol code (`state`/`readiness`/`prepare`/`summary`/`types`) with the

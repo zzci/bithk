@@ -110,8 +110,14 @@
       "policy": "更新策略",
       "source": "来源",
       "asset": "资源",
-      "sourceManifest": "清单源",
-      "updateConfig": "更新配置"
+      "config": "更新配置（lode.toml）",
+      "pin": "锁定版本",
+      "checkInterval": "检查间隔",
+      "keepVersions": "保留版本数",
+      "signature": "签名策略",
+      "runtime": "运行时",
+      "seconds": "{{n}} 秒",
+      "configUnavailable": "lode.toml 存在但无法读取。"
     }
   },
   "projectDefaults": {

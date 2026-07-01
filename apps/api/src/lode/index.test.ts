@@ -13,7 +13,7 @@ import {
   setLodeHold,
 } from "./index";
 
-const LODE_ENV = ["LODE_DIR", "LODE_INSTANCE", "LODE_ACTIVE_VERSION", "LODE_READINESS", "LODE_CONFIG"] as const;
+const LODE_ENV = ["LODE_DIR", "LODE_INSTANCE", "LODE_ACTIVE_VERSION", "LODE_READINESS"] as const;
 const saved: Record<string, string | undefined> = Object.fromEntries(LODE_ENV.map(k => [k, process.env[k]]));
 
 let dir: string;
@@ -37,7 +37,7 @@ function rawState(): Record<string, unknown> {
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "bit-lode-"));
-  setEnv({ LODE_DIR: dir, LODE_INSTANCE: "inst-1", LODE_ACTIVE_VERSION: undefined, LODE_READINESS: undefined, LODE_CONFIG: undefined });
+  setEnv({ LODE_DIR: dir, LODE_INSTANCE: "inst-1", LODE_ACTIVE_VERSION: undefined, LODE_READINESS: undefined });
   captureLodeConfigBaseline(); // no state.json yet → baseline null
 });
 
@@ -92,49 +92,6 @@ describe("getLodeSummary", () => {
     expect(getLodeSummary().configChanged).toBe(false);
     writeState({ config_generation: 4 });
     expect(getLodeSummary().configChanged).toBe(true);
-  });
-});
-
-describe("getLodeSummary updateConfig (from lode.toml via LODE_CONFIG)", () => {
-  test("exposes safe update fields and ignores secrets", () => {
-    const cfgPath = join(dir, "lode.toml");
-    writeFileSync(cfgPath, `
-[update]
-github = "zzci/bithk"
-asset = "bit-linux-x64.tar.gz"
-channel = "stable"
-policy = "auto"
-headers = { authorization = "Bearer SECRET" }
-`);
-    setEnv({ LODE_CONFIG: cfgPath });
-    expect(getLodeSummary().updateConfig).toEqual({
-      policy: "auto",
-      channel: "stable",
-      asset: "bit-linux-x64.tar.gz",
-      sourceType: "github",
-      source: "zzci/bithk",
-    });
-  });
-
-  test("manifest source exposes only the type, never the URL or a path-like asset", () => {
-    const cfgPath = join(dir, "lode.toml");
-    writeFileSync(cfgPath, `
-[update]
-manifest = "https://user:TOKEN@example.com/m.json?token=TOKEN"
-asset = "/srv/lode/private.tar.gz"
-policy = "check"
-`);
-    setEnv({ LODE_CONFIG: cfgPath });
-    const uc = getLodeSummary().updateConfig!;
-    expect(uc.sourceType).toBe("manifest");
-    expect(uc.source).toBeUndefined();
-    expect(uc.asset).toBeUndefined();
-    expect(JSON.stringify(uc)).not.toContain("TOKEN");
-  });
-
-  test("no updateConfig when LODE_CONFIG is unset", () => {
-    setEnv({ LODE_CONFIG: undefined });
-    expect(getLodeSummary().updateConfig).toBeUndefined();
   });
 });
 

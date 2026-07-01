@@ -155,3 +155,4 @@
 | [FIX-047](FIX-047.md) | Raise default upload cap to 200 MB and configure it in MB | - | Completed | 2026-06-22 |
 | [FEAT-044](FEAT-044.md) | S3 storage driver + presigned direct upload + image preview cache | [PLAN-096](../plan/PLAN-096.md) | Completed | 2026-06-22 |
 | [FEAT-045](FEAT-045.md) | Upgrade the update system to the bun-tpl lode SDK with operator controls | [PLAN-097](../plan/PLAN-097.md) | Completed | 2026-06-24 |
+| [FEAT-046](FEAT-046.md) | Port the enriched lode update-config surface from zzci/access | [PLAN-098](../plan/PLAN-098.md) | Completed | 2026-07-01 |

@@ -192,6 +192,7 @@ describe("GET /system/version", () => {
       configChanged: false,
       history: [],
       updateAvailable: false,
+      config: { status: "not_configured" },
     });
   });
 
@@ -230,6 +231,7 @@ describe("GET /system/version", () => {
       history: [{ version: "0.1.5", at: "2026-06-24T00:00:00Z", result: "good" }],
       updateAvailable: true,
       rollbackTarget: "0.1.4",
+      config: { status: "not_configured" },
     });
   });
 
@@ -253,13 +255,14 @@ trusted_keys = ["trusted-key-material"]
 
     const res = await buildApp({ user: adminUser }).request("/system/version");
     expect(res.status).toBe(200);
-    const body = await res.json() as { data: { lode: { updateConfig?: unknown } } };
-    expect(body.data.lode.updateConfig).toEqual({
-      policy: "auto",
-      channel: "stable",
-      asset: "bit-linux-x64.tar.gz",
+    const body = await res.json() as { data: { lode: { config?: unknown } } };
+    expect(body.data.lode.config).toEqual({
+      status: "available",
       sourceType: "github",
       source: "zzci/bithk",
+      asset: "bit-linux-x64.tar.gz",
+      channel: "stable",
+      policy: "auto",
     });
     const json = JSON.stringify(body);
     expect(json).not.toContain("SECRET");

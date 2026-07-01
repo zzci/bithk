@@ -6,9 +6,13 @@
 // the thin app glue: a read-only summary for /system/version, the operator
 // actions the admin UI calls, and the boot-time readiness/prepare wiring.
 
+import type { LodeConfig } from "./config";
 import type { State } from "./sdk";
 import type { Logger } from "@/shared/lib/logger";
-import { activeVersion, isSupervised, Lode, readConfig, readiness } from "./sdk";
+import { readLodeConfig } from "./config";
+import { activeVersion, isSupervised, Lode, readiness } from "./sdk";
+
+export type { LodeConfig, LodeConfigStatus } from "./config";
 
 // ─── Types ───
 
@@ -16,15 +20,6 @@ export interface LodeHistoryEntry {
   readonly version: string;
   readonly at: string;
   readonly result: "good" | "bad";
-}
-
-/** Safe, display-only slice of lode.toml's `[update]` (no secrets/URLs). */
-export interface LodeUpdateConfig {
-  readonly policy?: "off" | "check" | "auto";
-  readonly channel?: string;
-  readonly asset?: string;
-  readonly sourceType?: "github" | "manifest";
-  readonly source?: string;
 }
 
 export interface LodeSummary {
@@ -54,8 +49,8 @@ export interface LodeSummary {
   readonly updateAvailable: boolean;
   /** The version a rollback would target (last_good, when it differs from current). */
   readonly rollbackTarget?: string;
-  /** Safe update config read from lode.toml (via LODE_CONFIG), when present. */
-  readonly updateConfig?: LodeUpdateConfig;
+  /** Operator config read from lode.toml (update source / policy / signing). */
+  readonly config: LodeConfig;
 }
 
 export type LodeActionStatus = "ok" | "not_active" | "no_target";
@@ -180,68 +175,10 @@ function toHistory(entries: State["history"]): LodeHistoryEntry[] {
     .map(e => ({ version: e.version, at: e.at, result: e.result === "bad" ? "bad" : "good" }));
 }
 
-function objectRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function safeConfigString(value: unknown, maxLength = 200): string | undefined {
-  if (typeof value !== "string")
-    return undefined;
-  const trimmed = value.trim();
-  return trimmed && trimmed.length <= maxLength ? trimmed : undefined;
-}
-
-// lode.toml is the operator's file; the SDK reads it as raw text (LODE_CONFIG)
-// and we expose only a safe whitelist. The manifest URL and any auth headers may
-// carry secrets, so a manifest source surfaces its *type* only, never the URL.
-function readUpdateConfig(): LodeUpdateConfig | undefined {
-  const raw = readConfig();
-  if (!raw)
-    return undefined;
-  let parsed: unknown;
-  try {
-    parsed = Bun.TOML.parse(raw);
-  }
-  catch {
-    return undefined;
-  }
-  const update = objectRecord(objectRecord(parsed)?.update);
-  if (!update)
-    return undefined;
-
-  const result: {
-    policy?: "off" | "check" | "auto";
-    channel?: string;
-    asset?: string;
-    sourceType?: "github" | "manifest";
-    source?: string;
-  } = {};
-  const policy = safeConfigString(update.policy);
-  if (policy === "off" || policy === "check" || policy === "auto")
-    result.policy = policy;
-  const channel = safeConfigString(update.channel);
-  if (channel)
-    result.channel = channel;
-  // Reject path-like asset names so a crafted config can't leak a filesystem path.
-  const asset = safeConfigString(update.asset);
-  if (asset && !asset.includes("/") && !asset.includes("\\"))
-    result.asset = asset;
-  const github = safeConfigString(update.github);
-  if (github && /^[\w.-]+\/[\w.-]+$/.test(github)) {
-    result.sourceType = "github";
-    result.source = github;
-  }
-  else if (safeConfigString(update.manifest)) {
-    result.sourceType = "manifest";
-  }
-  return Object.keys(result).length > 0 ? result : undefined;
-}
-
 export function getLodeSummary(): LodeSummary {
   const supervised = isSupervised();
   const lode = clientOrNull();
   const state = lode ? lode.read() : null;
-  const updateConfig = readUpdateConfig();
 
   const current = state?.current;
   const available = state?.available;
@@ -274,7 +211,7 @@ export function getLodeSummary(): LodeSummary {
     history: toHistory(state?.history ?? []),
     updateAvailable: !!available && available !== current,
     ...(lastGood && lastGood !== current ? { rollbackTarget: lastGood } : {}),
-    ...(updateConfig ? { updateConfig } : {}),
+    config: readLodeConfig(),
   };
 }
 
