@@ -209,6 +209,45 @@ describe("confirmDriveUpload", () => {
       .rejects
       .toThrow(/quota/i);
   });
+
+  test("a different user CANNOT attach another user's blob via confirm by sha256 (FIX-048 IDOR)", async () => {
+    // User A uploads + confirms a blob for real.
+    const owner = await seedUser();
+    putObject(deriveStorageKey(sha("7")), 3072, Date.now());
+    await confirmDriveUpload(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, name: "secret.png", sha256: sha("7"), mimetype: "image/png" });
+
+    // User B knows the sha256 (e.g. leaked via a thumbnail ETag) and confirms
+    // against their own folder WITHOUT ever uploading the bytes. The object is
+    // present in storage, so a naive stat-only confirm would attach it — the
+    // uploader-scoping guard must reject instead.
+    const attacker = await seedUser();
+    await expect(confirmDriveUpload(db, config, { ownerType: "user", ownerId: attacker, createdBy: attacker, name: "stolen.png", sha256: sha("7"), mimetype: "image/png" }))
+      .rejects
+      .toThrow(/not found/i);
+
+    // No downloadable entry / reference was created for B, and A's blob refcount
+    // was not bumped (the attach never happened).
+    const attackerEntries = await db.select().from(driveEntries).where(eq(driveEntries.createdBy, attacker)).all();
+    expect(attackerEntries.length).toBe(0);
+    const blob = await db.select().from(files).where(eq(files.sha256, sha("7"))).get();
+    expect(blob?.refCount).toBe(1);
+    expect(blob?.uploadedBy).toBe(owner);
+  });
+
+  test("the original uploader can re-confirm their own blob (no dedup regression)", async () => {
+    const owner = await seedUser();
+    putObject(deriveStorageKey(sha("8")), 3072, Date.now());
+    await confirmDriveUpload(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, name: "first.png", sha256: sha("8"), mimetype: "image/png" });
+
+    // A second confirm of the same hash by the same user dedups onto the single
+    // content-addressed blob (refcount bumped) and creates a second entry.
+    const entry = await confirmDriveUpload(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, name: "second.png", sha256: sha("8"), mimetype: "image/png" });
+    expect(entry.name).toBe("second.png");
+    expect((await db.select().from(files).where(eq(files.sha256, sha("8"))).all()).length).toBe(1);
+    const blob = await db.select().from(files).where(eq(files.sha256, sha("8"))).get();
+    expect(blob?.refCount).toBe(2);
+    expect((await db.select().from(driveEntries).where(eq(driveEntries.createdBy, owner)).all()).length).toBe(2);
+  });
 });
 
 describe("runS3OrphanSweepOnce", () => {

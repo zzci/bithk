@@ -387,6 +387,23 @@ export async function findStoredBlob(db: AppDatabase, sha256: string, uploadedBy
     .get();
 }
 
+/**
+ * Look up the blob row for `(sha256, active driver)` regardless of who uploaded
+ * it. Unlike {@link findStoredBlob} (scoped to the original uploader for the
+ * instant-dedup path), this exposes the row so a caller can enforce the
+ * uploader-scoping rule itself — e.g. the direct-upload `confirm` path must
+ * reject when the already-stored object was uploaded by a *different* user
+ * (FIX-048), rather than silently attaching another user's bytes.
+ */
+export async function findStoredBlobByHash(db: AppDatabase, sha256: string): Promise<FileRow | undefined> {
+  const driver = getActiveDriver();
+  return db
+    .select()
+    .from(files)
+    .where(and(eq(files.sha256, sha256), eq(files.storageDriver, driver.name)))
+    .get();
+}
+
 /** Issue a presigned PUT for the content-addressed key of `sha256`. Returns null when the driver can't. */
 export async function presignBlobUpload(
   config: Pick<Config, "FILE_PRESIGN_TTL_SECONDS">,
