@@ -98,4 +98,4 @@
 | [PLAN-097](PLAN-097.md) | Upgrade the update system to the bun-tpl lode SDK with operator controls | Completed | 2026-06-24 |
 | [PLAN-098](PLAN-098.md) | Port the enriched lode update-config surface from zzci/access | Completed | 2026-07-01 |
 | [PLAN-099](PLAN-099.md) | Version-only Univer sheet editing (drop edit-lock + live-content) | Proposed | 2026-07-01 |
-| [PLAN-100](PLAN-100.md) | Audit remediation (2026-07-01 deep audit): P1 drive IDOR + P2/P3 hardening | Implementing | 2026-07-01 |
+| [PLAN-100](PLAN-100.md) | Audit remediation (2026-07-01 deep audit): P1 drive IDOR + P2/P3 hardening | Completed | 2026-07-01 |

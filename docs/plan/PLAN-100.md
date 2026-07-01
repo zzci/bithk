@@ -1,6 +1,6 @@
 # PLAN-100 - Audit remediation (2026-07-01 deep audit)
 
-- Status: Implementing
+- Status: Completed
 - Tasks: [FIX-048](../task/FIX-048.md), [FIX-049](../task/FIX-049.md), [FIX-050](../task/FIX-050.md), [FIX-051](../task/FIX-051.md), [FIX-052](../task/FIX-052.md)
 - Campaign: `l1-bithk-audit-20260701145456` (BKD three-tier L1/L2/L3)
 - Created: 2026-07-01
