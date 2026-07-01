@@ -35,6 +35,22 @@ function isValidReason(value: string): value is ReasonCode {
 
 const REQUEST_ACCESS_EMAIL = (import.meta.env.VITE_REQUEST_ACCESS_EMAIL ?? "") as string;
 
+const RE_HTTPS = /^https:\/\//i;
+
+// The logout URL is server-owned (OIDC_LOGOUT_URL), but validate its scheme
+// before placing it into an `href`: only an absolute `https://` URL (the IdP
+// end-session endpoint) or a same-origin `/`-relative path is allowed. Mirrors
+// the `isSafeRedirect` check on the login route. Anything else → null (no link).
+function safeLogoutHref(url: string | null): string | null {
+  if (!url)
+    return null;
+  if (url.startsWith("/") && !url.startsWith("//"))
+    return url;
+  if (RE_HTTPS.test(url))
+    return url;
+  return null;
+}
+
 function DeniedPage() {
   const { t } = useTranslation(["common", "denied"]);
   const search = Route.useSearch();
@@ -47,7 +63,7 @@ function DeniedPage() {
 
   useEffect(() => {
     http<{ success: boolean; data: { url: string | null } }>("/account/auth/logout-url")
-      .then(res => setLogoutUrl(res.data.url))
+      .then(res => setLogoutUrl(safeLogoutHref(res.data.url)))
       .catch(() => setLogoutFetchFailed(true));
   }, []);
 

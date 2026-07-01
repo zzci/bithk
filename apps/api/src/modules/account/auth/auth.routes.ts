@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import type { LockoutPolicy, LockoutState } from "./lockout.service";
+import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { AppEnv } from "@/shared/lib/types";
 import { Buffer } from "node:buffer";
@@ -132,18 +133,39 @@ function rateLimitKey(c: Context<AppEnv>): string {
 
 /**
  * True for loopback peers (`127.0.0.0/8`, `::1`, IPv4-mapped loopback).
- * Genuine loopback callers — the e2e suite, local integration runs — share one
- * IP and would trip the per-IP bucket; production traffic never reaches the
- * process from loopback (a reverse proxy forwards a real client IP, which
- * `rateLimitKey` resolves), so exempting it does not weaken the limiter.
  */
 function isLoopback(ip: string): boolean {
   return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip.startsWith("127.");
 }
 
+/**
+ * Whether a loopback caller may skip the per-IP auth limiter.
+ *
+ * The exemption exists so genuine loopback callers — the e2e suite, local
+ * integration runs — aren't throttled by the shared per-IP bucket. But under
+ * the default `TRUST_PROXY=false` a same-host reverse proxy connects to the app
+ * over loopback, so a `127.0.0.1` peer may actually be the proxy fronting every
+ * real client (`getClientIp` returns the raw socket peer when `TRUST_PROXY` is
+ * off). Exempting it there would silently disable IP throttling for the whole
+ * deployment (AUDIT-20260701 → P2 / FIX-049).
+ *
+ * So loopback is exempt only when it genuinely denotes a trusted local caller:
+ *   - `TRUST_PROXY=true` — `getClientIp` then resolves the real end-user IP from
+ *     forwarding headers, so a loopback *result* means a direct, on-host caller
+ *     rather than a proxied client; OR
+ *   - outside production — dev/test ergonomics; no real attacker is present and
+ *     120/min/IP is far above any human loopback login rate anyway.
+ *
+ * In the production + `TRUST_PROXY=false` topology the exemption is withheld, so
+ * the same-host-proxy peer is throttled like any other IP.
+ */
+function isLoopbackRateLimitExempt(ip: string, config: Pick<Config, "NODE_ENV" | "TRUST_PROXY">): boolean {
+  return isLoopback(ip) && (config.TRUST_PROXY || config.NODE_ENV !== "production");
+}
+
 /** Returns 0 when allowed, else seconds remaining until the bucket resets. */
-function checkAuthRateLimit(ip: string): number {
-  if (isLoopback(ip))
+function checkAuthRateLimit(ip: string, config: Pick<Config, "NODE_ENV" | "TRUST_PROXY">): number {
+  if (isLoopbackRateLimitExempt(ip, config))
     return 0;
   const now = Date.now();
   const bucket = authRateBuckets.get(ip);
@@ -275,7 +297,7 @@ export function authRoutes() {
     }),
     async (c) => {
       {
-        const retryAfter = checkAuthRateLimit(rateLimitKey(c));
+        const retryAfter = checkAuthRateLimit(rateLimitKey(c), c.get("config"));
         if (retryAfter > 0) {
           c.header("Retry-After", String(retryAfter));
           return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Too many requests" } }, 429);
@@ -335,7 +357,7 @@ export function authRoutes() {
     }),
     async (c) => {
       {
-        const retryAfter = checkAuthRateLimit(rateLimitKey(c));
+        const retryAfter = checkAuthRateLimit(rateLimitKey(c), c.get("config"));
         if (retryAfter > 0) {
           c.header("Retry-After", String(retryAfter));
           return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Too many requests" } }, 429);
@@ -622,7 +644,7 @@ export function authRoutes() {
     }),
     async (c) => {
       {
-        const retryAfter = checkAuthRateLimit(rateLimitKey(c));
+        const retryAfter = checkAuthRateLimit(rateLimitKey(c), c.get("config"));
         if (retryAfter > 0) {
           c.header("Retry-After", String(retryAfter));
           return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Too many requests" } }, 429);
@@ -748,7 +770,7 @@ export function authRoutes() {
     }),
     async (c) => {
       {
-        const retryAfter = checkAuthRateLimit(rateLimitKey(c));
+        const retryAfter = checkAuthRateLimit(rateLimitKey(c), c.get("config"));
         if (retryAfter > 0) {
           c.header("Retry-After", String(retryAfter));
           return c.json({ success: false, error: { code: "RATE_LIMITED", message: "Too many requests" } }, 429);
