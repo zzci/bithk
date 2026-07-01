@@ -8,6 +8,7 @@ import {
   buildDownloadResponse,
   directUploadAvailable,
   findStoredBlob,
+  findStoredBlobByHash,
   getFileById,
   getReferenceById,
   presignBlobUpload,
@@ -488,6 +489,17 @@ export async function confirmDriveUpload(
   const parentEntryId = await validateParent(db, owner, input.parentEntryId);
   const stat = await statStoredBlob(input.sha256);
   if (!stat)
+    throw new AppError("Uploaded object was not found in storage", 400, "UPLOAD_NOT_FOUND");
+  // Uploader-scoped attach (FIX-048 / FEAT-044 security): carry presign's
+  // `findStoredBlob(..., createdBy)` scoping into confirm. The content-addressed
+  // object may already exist because a DIFFERENT user uploaded it, and the
+  // sha256 is client-declared, never server-verified. Reusing that blob would
+  // let any caller who merely knows the hash attach + download another user's
+  // bytes (cross-user IDOR). Only the original uploader may attach an existing
+  // blob; everyone else is rejected with the same UPLOAD_NOT_FOUND as a truly
+  // absent object so the hash is not turned into an existence oracle.
+  const existing = await findStoredBlobByHash(db, input.sha256);
+  if (existing && existing.uploadedBy !== input.createdBy)
     throw new AppError("Uploaded object was not found in storage", 400, "UPLOAD_NOT_FOUND");
   // Enforce both ceilings against the AUTHORITATIVE on-disk size from `stat`,
   // not the client's pre-upload declaration (FEAT-044 security: quota bypass).

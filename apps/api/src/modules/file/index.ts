@@ -20,6 +20,7 @@ export {
   fileInlineContentUrl,
   finalizeReleasedBlob,
   findStoredBlob,
+  findStoredBlobByHash,
   getFileById,
   getReferenceById,
   listAttachmentsByOwner,
