@@ -73,8 +73,21 @@ export interface FileStorageDriver {
   /**
    * Optional capability: list stored objects under `prefix` (one bounded page)
    * — used by the S3 orphan/oversize sweep to find objects with no `files` row.
+   * This single-page form is the fallback for drivers whose listing never spans
+   * more than one page; backends that paginate implement
+   * {@link FileStorageDriver.listPage} so the sweep can walk every page.
    */
   list?: (prefix: string) => Promise<readonly StoredObject[]>;
+
+  /**
+   * Optional capability: list ONE bounded page of stored objects under `prefix`,
+   * resuming after `continuationToken`. The returned {@link StoredObjectPage}
+   * carries `nextToken` iff more pages remain; the S3 orphan sweep loops on it so
+   * every object is considered on buckets larger than a single ListObjectsV2 page
+   * (~1000 keys). Drivers that expose only {@link FileStorageDriver.list} are
+   * still swept via that single-page fallback.
+   */
+  listPage?: (prefix: string, continuationToken?: string) => Promise<StoredObjectPage>;
 }
 
 export interface PresignUploadOptions {
@@ -94,6 +107,19 @@ export interface StoredObject {
   readonly size: number;
   /** Last-modified epoch milliseconds, for TTL-gating sweeps. */
   readonly lastModified: number;
+}
+
+/**
+ * One bounded page of a paginated object listing (see
+ * {@link FileStorageDriver.listPage}).
+ */
+export interface StoredObjectPage {
+  readonly objects: readonly StoredObject[];
+  /**
+   * Opaque continuation token for the next page. Absent once the listing is
+   * exhausted; pass it back into `listPage` to fetch the following page.
+   */
+  readonly nextToken?: string;
 }
 
 export interface PresignOptions {
