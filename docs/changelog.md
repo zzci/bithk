@@ -11,6 +11,8 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.1.9 — 2026-07-01
+
 ### Added
 
 - S3-compatible storage driver (default target **Cloudflare R2**) with presigned
@@ -72,6 +74,28 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   the internal byte value. The Bun server's `maxRequestBodySize` derives from
   it, so it scales automatically; every downstream consumer keeps reading the
   derived `MAX_UPLOAD_BYTES` unchanged (FIX-047).
+
+### Fixed
+
+- Paginate the S3 orphan sweep via the S3 continuation token so buckets with more
+  than 1000 objects fully reclaim unconfirmed direct-upload blobs beyond the first
+  page (FIX-050, PLAN-100).
+- Stop the backup-staging sweep on shutdown and add a file-GC re-entrancy guard so
+  overlapping sweeps cannot double-process (FIX-052, PLAN-100).
+
+### Security
+
+- **Drive direct-upload `confirm` no longer attaches another user's blob.** The
+  confirm path now scopes blob deduplication to the uploader — matching the presign
+  path — closing a cross-user file-disclosure IDOR where knowing a file's sha256 let
+  an authenticated user attach and download it (FIX-048, PLAN-100; see
+  `docs/audit/AUDIT-20260701.md`).
+- Gate the auth rate-limiter's loopback exemption on `TRUST_PROXY` / non-production
+  so a same-host reverse proxy over loopback no longer disables per-IP login
+  throttling under the default `TRUST_PROXY=false` (FIX-049, PLAN-100).
+- Use a length-independent constant-time comparison for the service token, validate
+  client-side redirect targets on the denied / TOTP-verify screens, and pin all
+  third-party GitHub Actions to verified commit SHAs (FIX-051, FIX-052, PLAN-100).
 
 ## v0.1.8 — 2026-06-22
 
