@@ -316,6 +316,36 @@ describe("GET /account/auth/login", () => {
       last = await app.request("/account/auth/login", {}, env);
     expect(last.status).toBe(302);
   });
+
+  test("still rate-limits a loopback peer in production when TRUST_PROXY=false", async () => {
+    // Regression for AUDIT-20260701 P2 / FIX-049: a same-host reverse proxy
+    // connecting over loopback under the default TRUST_PROXY=false must NOT
+    // silently disable the per-IP limiter. In production the loopback exemption
+    // is withheld, so repeated /login from 127.0.0.1 trips the 120/window cap.
+    const app = buildApp(db, baseConfig({ NODE_ENV: "production", TRUST_PROXY: false }));
+    const env = { IP: { address: "127.0.0.1", port: 0, family: "IPv4" as const } };
+    const statuses: number[] = [];
+    for (let i = 0; i < 130; i++) {
+      const res = await app.request("/account/auth/login", {}, env);
+      statuses.push(res.status);
+    }
+    // First requests pass (302 to oauth_not_configured), then the limiter trips.
+    expect(statuses[0]).toBe(302);
+    expect(statuses.includes(429)).toBe(true);
+    expect(statuses.at(-1)).toBe(429);
+  });
+
+  test("keeps the loopback exemption in production when TRUST_PROXY=true", async () => {
+    // With TRUST_PROXY=true getClientIp resolves the real end-user IP, so a
+    // loopback result means a genuine direct on-host caller — still exempt, so
+    // the fix does not throttle legitimate trusted-proxy loopback traffic.
+    const app = buildApp(db, baseConfig({ NODE_ENV: "production", TRUST_PROXY: true }));
+    const env = { IP: { address: "127.0.0.1", port: 0, family: "IPv4" as const } };
+    let last = await app.request("/account/auth/login", {}, env);
+    for (let i = 0; i < 130; i++)
+      last = await app.request("/account/auth/login", {}, env);
+    expect(last.status).toBe(302);
+  });
 });
 
 describe("GET /account/auth/callback", () => {
