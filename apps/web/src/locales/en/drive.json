@@ -188,7 +188,9 @@
     "description": "Versions for {{name}}.",
     "empty": "No versions yet",
     "current": "Current",
-    "switch": "Make current"
+    "setDisplay": "Set as display",
+    "useLatest": "Use latest",
+    "pinnedHint": "Showing a pinned version, not the latest."
   },
   "picker": {
     "title": "Select a file",
@@ -198,23 +200,15 @@
   "sheet": {
     "loading": "Loading spreadsheet…",
     "loadError": "Could not load this spreadsheet.",
-    "saveError": "Could not save this spreadsheet.",
     "saved": "Saved",
     "untitled": "Untitled spreadsheet",
     "saving": "Saving…",
     "savedAt": "Saved {{time}}",
     "readOnly": "Read-only",
-    "editingBy": "{{user}} is editing",
-    "takenOver": "Editing was taken over by someone else; your changes can't be saved.",
-    "takeOver": "Take over editing",
-    "startEditing": "Edit",
-    "noEditPermission": "You don't have permission to edit this file",
-    "retryEditing": "Retry editing",
-    "saveAsVersion": "Save as version",
-    "lockError": "Couldn't acquire the edit lock",
+    "save": "Save",
     "unsaved": "Unsaved changes",
-    "saveFailed": "Save failed — retrying",
-    "readonlyEditing": "Read-only — {{user}} editing"
+    "saveFailed": "Save failed",
+    "restoredDraft": "Restored unsaved changes"
   },
   "csv": {
     "importError": "Could not import this CSV file.",

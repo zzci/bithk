@@ -82,21 +82,24 @@ function DrivePage() {
   // Page-level dialog targets, driven by the file browser / list callbacks.
   const [previewEntry, setPreviewEntry] = useState<DriveEntry | null>(null);
   const [sheetEntry, setSheetEntry] = useState<DriveEntry | null>(null);
+  // Editability of the sheet editor dialog: threaded from the opener's scope
+  // capability (team-dir role / project files.manage / true for personal;
+  // false for read-only share previews).
+  const [sheetCanEdit, setSheetCanEdit] = useState(false);
   const shareEntry = useCallback(
     (entry: DriveEntry) => openShare({ resourceType: "drive_entry", resourceId: entry.id, name: entry.name }),
     [openShare],
   );
   const [previewEditing, setPreviewEditing] = useState(false);
-  const [sheetEditing, setSheetEditing] = useState(false);
   // Single open-routing chokepoint for every drive list (file browser, recent,
   // favorites, share lists — they all funnel through here). Univer spreadsheets
   // open the state-driven editor dialog (closing stays in the current folder);
-  // everything else uses the preview viewer. `edit` starts the viewer in edit
-  // mode (used after creating a blank file so creation reuses the editor).
-  const openPreview = useCallback((entry: DriveEntry, edit = false) => {
+  // everything else uses the preview viewer. `edit` starts the markdown/text
+  // viewer in edit mode; `canEdit` drives whether the sheet editor is editable.
+  const openPreview = useCallback((entry: DriveEntry, edit = false, canEdit = false) => {
     if (isUniverSheetEntry(entry)) {
       setSheetEntry(entry);
-      setSheetEditing(edit);
+      setSheetCanEdit(canEdit);
       return;
     }
     setPreviewEntry(entry);
@@ -221,7 +224,7 @@ function DrivePage() {
           <UniverSheetEditorDialog
             entry={sheetEntry}
             open
-            initialEditing={sheetEditing}
+            canEdit={sheetCanEdit}
             onOpenChange={open => !open && setSheetEntry(null)}
           />
         </Suspense>
@@ -232,7 +235,7 @@ function DrivePage() {
 
 interface ViewCallbacks {
   readonly onShareEntry: (entry: DriveEntry) => void;
-  readonly onPreviewEntry: (entry: DriveEntry, edit?: boolean) => void;
+  readonly onPreviewEntry: (entry: DriveEntry, edit?: boolean, canEdit?: boolean) => void;
 }
 
 function DriveViewContent({

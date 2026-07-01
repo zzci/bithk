@@ -536,4 +536,62 @@ describe("drive routes owner scope", () => {
     expect(versions.map((v: { versionNo: number }) => v.versionNo)).toEqual([2, 1]);
     expect(versions[0].isCurrent).toBe(true);
   });
+
+  test("creating a version requires the update capability (viewer is denied 403)", async () => {
+    const ownerId = await seedUser("Owner");
+    const viewerId = await seedUser("Viewer");
+    const dir = await createTeamDirectory(db, { name: "Team", createdBy: ownerId });
+    await addTeamMember(db, dir.id, ownerId, { userId: viewerId, role: "viewer" });
+    const entry = await uploadDriveFile(db, config, {
+      ownerType: "team_directory",
+      ownerId: dir.id,
+      createdBy: ownerId,
+      file: textFile("doc.txt", "first"),
+    });
+
+    const app = buildApp();
+    const form = new FormData();
+    form.set("file", new File(["second"], "doc.txt", { type: "text/plain" }));
+    const res = await app.request(`/drive/entries/${entry.id}/versions`, {
+      method: "POST",
+      headers: { "x-uid": viewerId },
+      body: form,
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test("pinning a display version serves it; clearing returns to latest", async () => {
+    const userId = await seedUser("Owner");
+    const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt", "first") });
+
+    const app = buildApp();
+    const form = new FormData();
+    form.set("file", new File(["second"], "doc.txt", { type: "text/plain" }));
+    const versioned = await app.request(`/drive/entries/${entry.id}/versions`, {
+      method: "POST",
+      headers: { "x-uid": userId },
+      body: form,
+    });
+    const versions = (await versioned.json()).data as { id: string; versionNo: number }[];
+    const v1 = versions.find(v => v.versionNo === 1)!;
+
+    // Pin the older version: content GET now serves v1's bytes.
+    const pin = await app.request(`/drive/entries/${entry.id}/display-version`, {
+      method: "PUT",
+      headers: { "x-uid": userId, "content-type": "application/json" },
+      body: JSON.stringify({ versionId: v1.id }),
+    });
+    expect(pin.status).toBe(200);
+    const pinContent = await app.request(`/drive/entries/${entry.id}/content`, { headers: { "x-uid": userId } });
+    expect(await pinContent.text()).toBe("first");
+
+    // Clear the pin: content GET returns to the latest (v2).
+    const clear = await app.request(`/drive/entries/${entry.id}/display-version`, {
+      method: "DELETE",
+      headers: { "x-uid": userId },
+    });
+    expect(clear.status).toBe(200);
+    const clearContent = await app.request(`/drive/entries/${entry.id}/content`, { headers: { "x-uid": userId } });
+    expect(await clearContent.text()).toBe("second");
+  });
 });

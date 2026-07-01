@@ -17,7 +17,7 @@
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { HttpError, httpRaw } from "../http";
+import { httpRaw } from "../http";
 
 // ── Types ──
 
@@ -442,12 +442,53 @@ export function useUploadVersion(): UseMutationResult<readonly DriveFileVersion[
   });
 }
 
-export function useSwitchVersion(): UseMutationResult<readonly DriveFileVersion[], Error, { entryId: string; versionId: string }> {
+/**
+ * Overwrite an existing version's content in place. The sheet editor uses this
+ * for session-coalesced autosave: the first save of an editing session creates
+ * a version, and every later idle/manual/close save overwrites that same
+ * version — so one session yields a single version instead of one per autosave.
+ */
+export function useOverwriteVersion(): UseMutationResult<readonly DriveFileVersion[], Error, { entryId: string; versionId: string; file: File }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ entryId, versionId, file }) => {
+      const form = new FormData();
+      form.set("file", file);
+      const body = await rawJson<ApiEnvelope<readonly DriveFileVersion[]>>(
+        `/drive/entries/${encodeURIComponent(entryId)}/versions/${encodeURIComponent(versionId)}`,
+        { method: "PUT", body: form },
+      );
+      return body.data;
+    },
+    onSuccess: (_data, { entryId }) => {
+      void queryClient.invalidateQueries({ queryKey: driveKeys.versions(entryId) });
+      void queryClient.invalidateQueries({ queryKey: driveKeys.all });
+    },
+  });
+}
+
+/** Pin the entry's display to a specific version. */
+export function useSetDisplayVersion(): UseMutationResult<readonly DriveFileVersion[], Error, { entryId: string; versionId: string }> {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ entryId, versionId }) => rawJson<ApiEnvelope<readonly DriveFileVersion[]>>(
-      `/drive/entries/${encodeURIComponent(entryId)}/versions/${encodeURIComponent(versionId)}/current`,
-      { method: "POST" },
+      `/drive/entries/${encodeURIComponent(entryId)}/display-version`,
+      { method: "PUT", body: JSON.stringify({ versionId }) },
+    ).then(r => r.data),
+    onSuccess: (_data, { entryId }) => {
+      void queryClient.invalidateQueries({ queryKey: driveKeys.versions(entryId) });
+      void queryClient.invalidateQueries({ queryKey: driveKeys.all });
+    },
+  });
+}
+
+/** Clear the pinned display version so the entry follows the latest again. */
+export function useClearDisplayVersion(): UseMutationResult<readonly DriveFileVersion[], Error, { entryId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ entryId }) => rawJson<ApiEnvelope<readonly DriveFileVersion[]>>(
+      `/drive/entries/${encodeURIComponent(entryId)}/display-version`,
+      { method: "DELETE" },
     ).then(r => r.data),
     onSuccess: (_data, { entryId }) => {
       void queryClient.invalidateQueries({ queryKey: driveKeys.versions(entryId) });
@@ -577,138 +618,6 @@ export function useRemoveMember(): UseMutationResult<{ readonly id: string }, Er
     onSuccess: (_data, { directoryId }) => {
       void queryClient.invalidateQueries({ queryKey: driveKeys.directoryMembers(directoryId) });
       void queryClient.invalidateQueries({ queryKey: driveKeys.teamDirectory(directoryId) });
-    },
-  });
-}
-
-// ── Edit lock & live content ──
-//
-// Google-style exclusive editing for spreadsheet entries: the editor
-// acquires a lock on open, heartbeats it while editing, autosaves live
-// content, and releases it on close/unload. Contention and lost locks
-// surface as 409s the editor branches on via `err.code`:
-//   - acquire      → DRIVE_EDIT_LOCKED      (another fresh lock is held)
-//   - heartbeat    → DRIVE_EDIT_LOCK_STALE  (our lock expired / was taken over)
-//   - live-content → DRIVE_EDIT_LOCK_STALE
-//
-// `httpRaw` throws `HttpError` (with `status`, the parsed envelope `code`,
-// and the remaining envelope fields under `details`) on any non-2xx, so
-// these hooks catch it and re-throw a typed `EditLockError` — including the
-// acquire conflict's holder id `lockBy` recovered from `details`.
-
-export interface EditLockResult {
-  readonly editId: string;
-  readonly lockBy: string;
-  readonly lockAt: number;
-  readonly takenOver: boolean;
-}
-
-export interface EditLockError extends Error {
-  status: number;
-  code?: string;
-  lockBy?: string | null;
-}
-
-/**
- * Re-throw an error caught from `httpRaw` as a typed `EditLockError`.
- * `httpRaw` throws `HttpError` for non-2xx with `status`, the envelope
- * `code` (e.g. "DRIVE_EDIT_LOCKED" / "DRIVE_EDIT_LOCK_STALE"), and the
- * remaining envelope fields under `details` — from which the conflict
- * holder id `lockBy` is recovered (null when absent or non-HttpError).
- */
-function throwLockError(err: unknown): never {
-  const e = new Error(err instanceof Error ? err.message : "Edit lock request failed") as EditLockError;
-  e.status = err instanceof HttpError ? err.status : 0;
-  if (err instanceof HttpError && err.code !== undefined)
-    e.code = err.code;
-  e.lockBy = err instanceof HttpError ? ((err.details?.lockBy as string | null | undefined) ?? null) : null;
-  throw e;
-}
-
-/** Acquire (or take over an expired) exclusive edit lock on an entry. */
-export function useAcquireEditLock(): UseMutationResult<EditLockResult, EditLockError, { entryId: string; editId: string }> {
-  return useMutation({
-    mutationFn: async ({ entryId, editId }) => {
-      try {
-        const body = await rawJson<ApiEnvelope<EditLockResult>>(`/drive/entries/${encodeURIComponent(entryId)}/edit-lock`, {
-          method: "POST",
-          body: JSON.stringify({ editId }),
-        });
-        return body.data;
-      }
-      catch (err) {
-        throwLockError(err);
-      }
-    },
-  });
-}
-
-/** Refresh the lock's TTL. A 409 (DRIVE_EDIT_LOCK_STALE) means it was lost. */
-export function useHeartbeatEditLock(): UseMutationResult<{ editId: string; lockAt: number }, EditLockError, { entryId: string; editId: string }> {
-  return useMutation({
-    mutationFn: async ({ entryId, editId }) => {
-      try {
-        const body = await rawJson<ApiEnvelope<{ editId: string; lockAt: number }>>(`/drive/entries/${encodeURIComponent(entryId)}/edit-lock/heartbeat`, {
-          method: "PATCH",
-          body: JSON.stringify({ editId }),
-        });
-        return body.data;
-      }
-      catch (err) {
-        throwLockError(err);
-      }
-    },
-  });
-}
-
-/** Release the lock held under `editId`. Safe to call when already released. */
-export function useReleaseEditLock(): UseMutationResult<{ released: boolean }, Error, { entryId: string; editId: string }> {
-  return useMutation({
-    mutationFn: ({ entryId, editId }) => rawJson<ApiEnvelope<{ released: boolean }>>(`/drive/entries/${encodeURIComponent(entryId)}/edit-lock`, {
-      method: "DELETE",
-      body: JSON.stringify({ editId }),
-    }).then(r => r.data),
-  });
-}
-
-/**
- * Unload-safe lock release. Uses `fetch` `keepalive` (forwarded by `httpRaw`)
- * so the request survives page unload while still carrying the CSRF header
- * and credentials — unlike `navigator.sendBeacon`, which cannot send DELETE
- * with custom headers. Best-effort: failures are swallowed.
- */
-export async function releaseEditLockBeacon(entryId: string, editId: string): Promise<void> {
-  try {
-    await httpRaw(`/drive/entries/${encodeURIComponent(entryId)}/edit-lock`, {
-      method: "DELETE",
-      body: JSON.stringify({ editId }),
-      keepalive: true,
-    });
-  }
-  catch {
-    // Fired during unload; nothing actionable, ignore.
-  }
-}
-
-/**
- * Autosave the live (in-progress) content while holding the lock. A 409
- * (DRIVE_EDIT_LOCK_STALE) means the lock was lost — the editor should go
- * read-only. Never invalidates `driveKeys`: that would clobber the live
- * editor state mid-edit.
- */
-export function useUpdateEntryLiveContent(): UseMutationResult<{ id: string; updatedAt: string }, EditLockError, { entryId: string; editId: string; content: string }> {
-  return useMutation({
-    mutationFn: async ({ entryId, editId, content }) => {
-      try {
-        const body = await rawJson<ApiEnvelope<{ id: string; updatedAt: string }>>(`/drive/entries/${encodeURIComponent(entryId)}/live-content`, {
-          method: "PATCH",
-          body: JSON.stringify({ editId, content }),
-        });
-        return body.data;
-      }
-      catch (err) {
-        throwLockError(err);
-      }
     },
   });
 }

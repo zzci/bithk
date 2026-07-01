@@ -41,7 +41,7 @@ type DriveListSource = "recent" | "favorites" | "trash";
 interface ListProps {
   readonly source: DriveListSource;
   readonly userId: string;
-  readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
+  readonly onPreviewEntry?: ((entry: DriveEntry, edit?: boolean, canEdit?: boolean) => void) | undefined;
 }
 
 // One fetch wrapper per source so only the active view's query runs; React
@@ -142,7 +142,7 @@ interface CollectionProps {
   readonly mode: DriveListSource;
   readonly userId: string;
   readonly query: UseQueryResult<readonly DriveEntry[]>;
-  readonly onPreviewEntry?: ((entry: DriveEntry) => void) | undefined;
+  readonly onPreviewEntry?: ((entry: DriveEntry, edit?: boolean, canEdit?: boolean) => void) | undefined;
 }
 
 function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
@@ -240,7 +240,9 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
     onPreview: (item) => {
       const entry = entryById.get(item.id);
       if (entry)
-        onPreviewEntry?.(entry);
+        // Recent/favorites are the caller's own personal files (editable); a
+        // trashed sheet opens read-only.
+        onPreviewEntry?.(entry, false, !isTrash);
     },
     onRename: (item) => {
       const entry = entryById.get(item.id);

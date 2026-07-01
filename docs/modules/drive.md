@@ -18,7 +18,7 @@ apps/api/src/modules/drive/
   drive.service.ts                 # entry CRUD, listing views, trash/restore, permanent delete
   drive.share-adapter.ts           # registers drive with the unified share module (resolve / list / openFile)
   drive.team-directory.service.ts  # team directory CRUD + membership + role resolution
-  drive.version.service.ts         # version list / upload / switch-current
+  drive.version.service.ts         # version list / upload / set-or-clear display version
   drive.upload-validation.ts       # empty + size gate (any file type allowed)
   drive.permission.ts              # capability resolution + policy resource (`driveAccess`)
   drive.file-permission.ts         # file-module read/delete hook for `drive_entry` references
@@ -55,10 +55,10 @@ are **not** here — they live in the unified [`share`](./share.md) module's
 
 | Table                    | Purpose                                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------------------- |
-| `drive_entries`          | Folder / file nodes. `owner_type` ∈ `{user, team_directory, project}`; `file_reference_id` is the current version pointer; soft delete via `status='trash'`. Unique `(owner_type, owner_id, parent_entry_id, name, status)`. For `project` owners `owner_id` is the project ULID (addressed by the project `short_id` at the API boundary); capabilities resolve against `project_members` (`pm` ≈ admin, internal `member` ≈ editor). See [project.md](project.md). |
+| `drive_entries`          | Folder / file nodes. `owner_type` ∈ `{user, team_directory, project}`; `file_reference_id` is the **display version** pointer (the pinned version, or the latest when unpinned); `display_version_id` is non-null only when a version is pinned (`null` = follow latest by ULID); soft delete via `status='trash'`. Unique `(owner_type, owner_id, parent_entry_id, name, status)`. For `project` owners `owner_id` is the project ULID (addressed by the project `short_id` at the API boundary); capabilities resolve against `project_members` (`pm` ≈ admin, internal `member` ≈ editor). See [project.md](project.md). |
 | `team_directories`       | Shared drive roots. The creator is an implicit admin.                                     |
 | `team_directory_members` | Explicit `{admin, editor, viewer}` membership rows (creator has none).                    |
-| `drive_file_versions`    | Append-only per-entry version history (`version_no` unique per entry).                    |
+| `drive_file_versions`    | Append-only per-entry immutable version history. `id` is a **ULID** (time-sortable); "latest" = max `id`. No stored version number; the UI label is derived by position.                    |
 
 ## Routes
 
@@ -76,7 +76,8 @@ table in [api.md](../reference/api.md#drive). Summary:
 `DELETE /drive/entries/:id/permanent`.
 
 **Versions:** `GET|POST /drive/entries/:id/versions`,
-`POST /drive/entries/:id/versions/:versionId/current`.
+`PUT|DELETE /drive/entries/:id/display-version` (pin a version / clear the pin
+back to latest).
 
 **Team directories:** `GET|POST /drive/team-directories`,
 `GET|PUT|DELETE /drive/team-directories/:id`,
@@ -145,7 +146,8 @@ Write routes call `audit(...)` with `resourceType` `drive_entry` or
 `team_directory`. Action codes:
 
 `drive.folder.created`, `drive.file.created`, `drive.file.uploaded`,
-`drive.file.version_uploaded`, `drive.file.version_switched`,
+`drive.file.version_uploaded`, `drive.file.display_version_set`,
+`drive.file.display_version_cleared`,
 `drive.entry.updated`, `drive.entry.restored`, `drive.entry.trashed`,
 `drive.entry.deleted`, `drive.trash.emptied`, `drive.directory.created`,
 `drive.directory.updated`, `drive.directory.deleted`,
@@ -175,9 +177,10 @@ in `tests/e2e/run.ts`):
   text-file create, empty-trash, the per-file size-cap rejection, the
   unauthenticated `401`, and cross-user isolation (`403` on another user's
   private entry).
-- **`versions.test.ts`** — upload v1, push v2, list (newest-first +
-  `isCurrent`), switch the current pointer back to v1, and download the
-  current bytes at each step.
+- **`drive.version.service.test.ts`** — upload v1, push v2 (ULID id, display
+  advances when unpinned), list (newest-first + `isCurrent`), pin an older
+  version (display serves it), clear the pin (back to latest), and download the
+  display bytes at each step.
 - **`shares.test.ts`** — direct share grants a second user read + download
   (denied before, denied after revoke); sent / received / links inboxes;
   public link with password + single-use cap: unauth metadata, wrong /
@@ -257,9 +260,9 @@ fallback) picks the renderer:
 | everything else | a download fallback card |
 
 Markdown and code/text are **editable inline**: the dialog saves edits by
-uploading a new version through `useUploadVersion` (the version becomes the
-entry's current pointer), so edits flow through the same versioning path as
-any other upload.
+uploading a new version through `useUploadVersion` (an unpinned entry's display
+then follows the new latest version), so edits flow through the same versioning
+path as any other upload.
 
 **Lazy loading.** The heavy renderers (`react-pdf` + `pdfjs-dist`,
 `react-zoom-pan-pinch`, the CodeMirror `CodePreview`) are loaded only on demand

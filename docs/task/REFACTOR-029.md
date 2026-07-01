@@ -1,6 +1,6 @@
 # REFACTOR-029 Rework Univer sheet editing: drop edit-lock, version-only autosave with settable display version
 
-- Status: Proposed
+- Status: Completed
 - Plan: [PLAN-099](../plan/PLAN-099.md)
 - Owner: local-session
 - Updated: 2026-07-01
@@ -56,6 +56,38 @@ not migrated; a DB reset/reseed is required.
   clearing it returns to latest.
 - `bun run check` EXIT 0. No edit-lock / live-content endpoints remain in the
   spec.
+
+## Amendment — session-coalesced idle autosave (2026-07-01)
+
+Follow-up to reduce version churn (approved): the editor no longer appends a new
+version on every autosave tick.
+
+Server saves are split from a continuous local save (approved after iterating on
+cadence):
+
+- **Server version — idle 2 minutes OR manual only**: a version is written ONLY
+  when the sheet has been idle for 2 minutes after the last edit (the timer
+  resets on each edit, so continuous editing never triggers it), or on a manual
+  Save. Editing non-stop for 10 minutes touches the server 0 times until the user
+  pauses (10+2 min) or saves manually. There is no max-wait / forced server save.
+- **Local draft — continuous (localStorage)**: while editing, the workbook is
+  written to a per-user localStorage draft on a short (~3 s) debounce, plus a
+  synchronous flush on close. This is the crash / refresh recovery during a long
+  continuous session; closing does NOT create a server version.
+- **Restore on reopen**: a local draft (unsaved from a prior crashed / closed
+  session) is auto-loaded over the server snapshot, marks the sheet dirty, and
+  toasts once ("Restored unsaved changes"). A successful server save clears the
+  draft; big snapshots (>2 MB) skip localStorage.
+- **Session coalescing**: the first server save of an editing session creates the
+  session's version; every later idle / manual save **overwrites that same
+  version** in place. One editing session ⇒ exactly one version.
+- Backend: `overwriteEntryVersion(entry, versionId, file)` uploads a fresh blob,
+  repoints the version row, advances the entry's display pointer only when it was
+  showing exactly that version's blob, and releases the previous blob (no orphan
+  accrual). New route `PUT /drive/entries/:id/versions/:versionId` (multipart,
+  `update` capability). Frontend hook `useOverwriteVersion`; the editor tracks the
+  session version id and switches create→overwrite after the first save.
+- Verified: `bun run check` EXIT 0 (api 1932 incl. 3 new overwrite tests, web 864).
 
 ## Notes
 

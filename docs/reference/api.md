@@ -297,9 +297,10 @@ shares and global admin (see [drive.md](../modules/drive.md#permissions)).
 | POST   | `/api/drive/entries/:id/restore`                       | Entry update      | Restore a trashed entry subtree.                                                             |
 | DELETE | `/api/drive/entries/:id`                               | Entry delete      | Soft delete (move subtree to trash).                                                         |
 | DELETE | `/api/drive/entries/:id/permanent`                     | Entry delete      | Permanently delete the subtree; releases every file reference it holds.                      |
-| GET    | `/api/drive/entries/:id/versions`                      | Entry read        | List versions, newest first, each flagged `isCurrent`.                                       |
-| POST   | `/api/drive/entries/:id/versions`                      | Entry update      | Upload a new version (multipart `file=`); becomes current.                                   |
-| POST   | `/api/drive/entries/:id/versions/:versionId/current`   | Entry update      | Switch the current pointer to an existing version.                                           |
+| GET    | `/api/drive/entries/:id/versions`                      | Entry read        | List versions (ULID id desc, newest first), each flagged `isCurrent`.                        |
+| POST   | `/api/drive/entries/:id/versions`                      | Entry update      | Upload a new immutable version (multipart `file=`); an unpinned entry's display follows it.  |
+| PUT    | `/api/drive/entries/:id/display-version`               | Entry update      | Pin the display to a version. Body: `{ versionId }`.                                         |
+| DELETE | `/api/drive/entries/:id/display-version`               | Entry update      | Clear the pinned display version (follow latest).                                            |
 | GET    | `/api/drive/entries/:id/shares`                        | Entry share       | List shares created for the entry.                                                           |
 | POST   | `/api/drive/entries/:id/shares`                        | Entry share       | Create a `direct` or `public_link` share.                                                    |
 | GET    | `/api/drive/shares/received`                           | Authenticated     | Active direct shares where the caller is the recipient.                                      |

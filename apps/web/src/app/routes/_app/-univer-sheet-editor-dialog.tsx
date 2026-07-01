@@ -1,28 +1,34 @@
 // State-driven Univer spreadsheet editor, rendered as a fullscreen-capable
 // modal overlay that mirrors the markdown editor shell in
 // `file/file-preview-dialog.tsx` (fixed inset-0 overlay + fullscreen toggle +
-// header status / Save-as-version / version-history / fullscreen / close).
-// Closing clears the caller's state and stays in the current drive folder —
-// there is no editor route to navigate back from.
+// header status / Save / version-history / fullscreen / close). Closing clears
+// the caller's state and stays in the current drive folder — there is no editor
+// route to navigate back from.
 //
-// Editing is Google-Sheets-style: a single writer at a time. The sheet opens
-// read-only by default (mirroring markdown/text files, which open in a
-// read-only preview); the reader must press "Edit" to acquire a pessimistic
-// exclusive edit lock. A second opener stays read-only with a banner naming
-// the holder. While editing it heartbeats the lock every 30s and autosaves the
-// live (mutable) content after 30s of idle, surfacing an always-visible status
-// indicator. "Save as version" still snapshots an immutable version. There is
-// NO realtime collaboration.
+// Lock-free, version-only model (PLAN-099): there is no exclusive edit lock and
+// no shared live-content draft. Editability is driven purely by the actor's
+// capability (`canEdit`): editable when the caller can update the entry,
+// read-only otherwise. Saving is split in two:
+//   - Local draft: while editing, the workbook is persisted frequently to a
+//     client-only localStorage draft (crash / refresh recovery, auto-restored
+//     on reopen). This is the continuous save during a long editing session.
+//   - Server version: written ONLY when the sheet has been idle for 2 minutes
+//     after the last edit, or on a manual Save. During non-stop editing the
+//     server is not touched — the local draft holds the work. A session
+//     coalesces into a single version (first save creates it, later saves
+//     overwrite it).
+// The entry's display version (latest by default, or a pinned one) is what
+// everyone else / preview / download / share sees.
 //
 // This is the ONLY module that imports `@univerjs/*`, so the spreadsheet
 // engine ships in its own async chunk and never enters the main bundle. Every
 // caller loads it via `React.lazy` so the chunk (and Univer) is fetched only
-// when a sheet is actually opened. It loads the entry's snapshot (a Univer
-// `IWorkbookData` JSON string) via the drive data layer, mounts Univer into a
-// container, and persists edits to the live-content slot (autosave) or as a
-// NEW drive file version (manual save).
+// when a sheet is actually opened. It loads the entry's display-version
+// snapshot (a Univer `IWorkbookData` JSON string) via the drive data layer,
+// mounts Univer into a container, and persists edits as new drive file
+// versions.
 import type { IWorkbookData } from "@univerjs/presets";
-import type { DriveEntry, EditLockError } from "@/shared/lib/api/drive";
+import type { DriveEntry } from "@/shared/lib/api/drive";
 import { useQuery } from "@tanstack/react-query";
 import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
 import sheetsCoreEnUS from "@univerjs/preset-sheets-core/locales/en-US";
@@ -41,35 +47,75 @@ import { Spinner } from "@/shared/components/ui/spinner";
 
 import {
   fetchDriveEntryContent,
-  releaseEditLockBeacon,
   UNIVER_SHEET_MIME,
-  useAcquireEditLock,
-  useHeartbeatEditLock,
-  useReleaseEditLock,
-  useUpdateEntryLiveContent,
+  useOverwriteVersion,
   useUploadVersion,
 } from "@/shared/lib/api/drive";
 import { cn } from "@/shared/lib/utils";
+import { useAuthStore } from "@/shared/stores/auth";
 
 import "@univerjs/preset-sheets-core/lib/index.css";
 
-// Lock-lifecycle constants. Heartbeat / autosave-idle are both 30s; the
-// server-side lock TTL (90s) is the backstop and is NOT hardcoded here beyond
-// the heartbeat cadence that keeps the lock alive.
-const HEARTBEAT_MS = 30_000;
-const AUTOSAVE_IDLE_MS = 30_000;
-const SAVE_RETRY_MS = 5_000;
+// Server autosave: write a version 2 minutes after the last edit (the timer
+// resets on every edit — so continuous editing never touches the server; only
+// idling for 2 minutes, or a manual Save, does).
+const AUTOSAVE_IDLE_MS = 120_000;
+// Local draft: debounce the frequent client-only localStorage write while
+// editing (crash / refresh recovery during a long continuous session).
+const LOCAL_DRAFT_DEBOUNCE_MS = 3_000;
+// Skip the localStorage draft for very large snapshots (~5MB per-origin cap).
+const LOCAL_DRAFT_MAX_BYTES = 2_000_000;
 
-type EditMode = "loading" | "editable" | "readonly";
+interface SheetDraft {
+  readonly content: string;
+  readonly updatedAt: string;
+}
+
+function draftKey(userId: string, entryId: string): string {
+  return `drive.sheet.draft.${userId}.${entryId}`;
+}
+
+/** Read a per-user local draft for an entry, or null when absent / unreadable. */
+function readSheetDraft(userId: string, entryId: string): SheetDraft | null {
+  try {
+    const raw = window.localStorage.getItem(draftKey(userId, entryId));
+    if (!raw)
+      return null;
+    const parsed = JSON.parse(raw) as SheetDraft;
+    return typeof parsed?.content === "string" ? parsed : null;
+  }
+  catch {
+    return null;
+  }
+}
+
+/** Best-effort local draft write (quota / private mode failures are ignored). */
+function writeSheetDraft(userId: string, entryId: string, content: string): void {
+  if (content.length > LOCAL_DRAFT_MAX_BYTES)
+    return;
+  try {
+    window.localStorage.setItem(draftKey(userId, entryId), JSON.stringify({ content, updatedAt: new Date().toISOString() }));
+  }
+  catch {
+    // Quota exceeded / storage unavailable — the draft is a best-effort net.
+  }
+}
+
+function clearSheetDraft(userId: string, entryId: string): void {
+  try {
+    window.localStorage.removeItem(draftKey(userId, entryId));
+  }
+  catch {
+    // ignore
+  }
+}
 
 interface UniverSheetEditorDialogProps {
   readonly entry: DriveEntry;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  // Open straight into edit mode (acquire the lock once on open). Used right
-  // after creating a blank/imported sheet so creation flows into editing,
-  // mirroring `FilePreviewDialog`'s `initialEditing` for markdown/text.
-  readonly initialEditing?: boolean;
+  /** Editable when the actor can update the entry; read-only otherwise. */
+  readonly canEdit: boolean;
 }
 
 function localeBundle(locale: LocaleType) {
@@ -80,11 +126,14 @@ function formatNow(): string {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEditing = false }: UniverSheetEditorDialogProps) {
+export function UniverSheetEditorDialog({ entry, open, onOpenChange, canEdit }: UniverSheetEditorDialogProps) {
   const { t, i18n } = useTranslation("drive");
   const entryId = entry.id;
+  // Local drafts are keyed per user so a shared browser never leaks one
+  // account's unsaved sheet into another's session.
+  const userId = useAuthStore(s => s.user?.id) ?? null;
 
-  // Keyed under `["drive", ...]` so the version dialog's switch invalidation
+  // Keyed under `["drive", ...]` so the version dialog's set/clear invalidation
   // (which clears `driveKeys.all`) also refreshes this content.
   const contentQuery = useQuery({
     queryKey: ["drive", "entries", entryId, "content"],
@@ -92,23 +141,17 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEdit
     enabled: open && !!entryId,
     staleTime: 0,
   });
-  // Destructure the (stable) mutate fns so they can sit in effect/callback
-  // dep arrays without dragging in the mutation object whose identity churns
-  // every render (which would re-run the acquire effect on a loop).
+  // Destructure the (stable) mutate fn so it can sit in effect/callback dep
+  // arrays without dragging in the mutation object whose identity churns.
   const { mutateAsync: uploadVersionAsync, isPending: uploadingVersion } = useUploadVersion();
-  const { mutateAsync: acquireEditLock, isPending: acquiring } = useAcquireEditLock();
-  const { mutateAsync: heartbeatEditLock } = useHeartbeatEditLock();
-  const { mutate: releaseEditLockMutate } = useReleaseEditLock();
-  const { mutateAsync: updateLiveContentAsync } = useUpdateEntryLiveContent();
+  const { mutateAsync: overwriteVersionAsync } = useOverwriteVersion();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const univerRef = useRef<ReturnType<typeof createUniver> | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
-  // Lock + autosave UI state.
-  const [mode, setMode] = useState<EditMode>("loading");
-  const [lockBy, setLockBy] = useState<string | null>(null);
+  // Autosave UI state.
   const [univerReady, setUniverReady] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -117,201 +160,167 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEdit
 
   // Mirrors of mutable state read inside timers / engine callbacks, kept in
   // refs to dodge stale closures.
-  const editIdRef = useRef("");
-  const modeRef = useRef<EditMode>("loading");
   const dirtyRef = useRef(false);
-  const releasedRef = useRef(false);
-  // Whether this session actually holds the edit lock. False for a read-only
-  // session (never unlocked), so close/unmount skips the release call.
-  const lockHeldRef = useRef(false);
-  // Guards the one-shot auto-edit (initialEditing) so it fires only on the
-  // initial open, never again after a take-over drops the session to read-only.
-  const autoEditDoneRef = useRef(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autosaveRef = useRef<() => void>(() => {});
+  const canEditRef = useRef(canEdit);
+  // Guards a flush after unmount: once the dialog is gone we must not fire a
+  // save (the mutation + toast would run against a torn-down tree).
+  const unmountedRef = useRef(false);
+  const saveVersionRef = useRef<() => Promise<void>>(async () => {});
+  // Session-coalesced autosave: the version this editing session owns. The first
+  // save of a session creates it; every later save overwrites it — so one open
+  // session yields a single version. Reset per open (null → next save creates).
+  const sessionVersionIdRef = useRef<string | null>(null);
+  // Timers: `idleTimerRef` fires the SERVER save 2 minutes after the last edit
+  // (reset on every edit); `localTimerRef` fires the frequent local draft write.
+  // `savingRef` guards a create from racing into a duplicate version.
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savingRef = useRef(false);
+  const userIdRef = useRef(userId);
+  // Fires the restored-draft toast at most once per open.
+  const restoredToastedRef = useRef(false);
 
-  useEffect(() => {
-    modeRef.current = mode;
-  }, [mode]);
+  const clearAutosaveTimers = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+    if (localTimerRef.current) {
+      clearTimeout(localTimerRef.current);
+      localTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
+  useEffect(() => {
+    canEditRef.current = canEdit;
+  }, [canEdit]);
+  useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
 
   const snapshot = contentQuery.data;
   const locale = i18n.language.toLowerCase().startsWith("zh") ? LocaleType.ZH_CN : LocaleType.EN_US;
 
-  // Parse the snapshot string in render so a malformed file surfaces as a load
-  // error without an effect-driven extra render.
+  // A local draft (from a prior crashed / closed session) takes precedence over
+  // the server snapshot on open; its presence marks the sheet dirty so the
+  // recovered edits are written back as a version on the next idle / manual save.
+  const draft = useMemo(() => (open && userId ? readSheetDraft(userId, entryId) : null), [open, userId, entryId]);
+
+  // Parse the effective snapshot (local draft over server) in render so a
+  // malformed file surfaces as a load error without an effect-driven re-render.
   const parsed = useMemo<{ data: IWorkbookData | null; error: boolean }>(() => {
-    if (snapshot === undefined)
+    const source = draft?.content ?? snapshot;
+    if (source === undefined)
       return { data: null, error: false };
     try {
-      return { data: JSON.parse(snapshot) as IWorkbookData, error: false };
+      return { data: JSON.parse(source) as IWorkbookData, error: false };
     }
     catch {
       return { data: null, error: true };
     }
-  }, [snapshot]);
+  }, [draft, snapshot]);
   const workbookData = parsed.data;
 
-  // ── Take over (lost lock) → read-only + probe the new holder ──
-  // A heartbeat / autosave 409 (DRIVE_EDIT_LOCK_STALE) carries no holder, so
-  // probe once via acquire: if it 409s with `lockBy` we name the holder; if it
-  // succeeds the lock was actually free → resume editing.
-  const handleTakenOver = useCallback(() => {
-    if (modeRef.current !== "editable")
-      return;
-    setMode("readonly");
-    lockHeldRef.current = false;
-    setSaveFailed(false);
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-    if (retryRef.current) {
-      clearTimeout(retryRef.current);
-      retryRef.current = null;
-    }
-    toast.error(t("sheet.takenOver"));
-    acquireEditLock({ entryId, editId: editIdRef.current })
-      .then(() => {
-        lockHeldRef.current = true;
-        setMode("editable");
-        setLockBy(null);
-      })
-      .catch((err: EditLockError) => {
-        setLockBy(err.code === "DRIVE_EDIT_LOCKED" ? (err.lockBy ?? null) : null);
-      });
-  }, [entryId, acquireEditLock, t]);
-
-  // ── Autosave the live (mutable) content ──
-  // Stored behind a ref so timers always call the latest closure. On a 409
-  // (lock lost) go read-only; on any other failure keep the changes dirty,
-  // surface "Save failed", and retry until it lands or the lock is lost.
-  const autosave = useCallback(async () => {
-    if (modeRef.current !== "editable")
+  // ── Save the current workbook into this session's version ──
+  // Stored behind a ref so timers always call the latest closure. The first
+  // save creates the session's version (capturing its id from the returned
+  // newest-first list); every later save overwrites that same version so a
+  // session coalesces into one version. Cancels any pending idle timer, and the
+  // in-flight guard blocks a concurrent create from duplicating the version.
+  const saveVersion = useCallback(async () => {
+    if (!canEditRef.current || savingRef.current)
       return;
     const workbook = univerRef.current?.univerAPI.getActiveWorkbook();
     if (!workbook)
       return;
+    // A save now satisfies both the idle debounce and the max-wait net.
+    clearAutosaveTimers();
     const content = JSON.stringify(workbook.save());
+    savingRef.current = true;
     setSaving(true);
     try {
-      await updateLiveContentAsync({ entryId, editId: editIdRef.current, content });
+      const file = new File([content], entry.name, { type: UNIVER_SHEET_MIME });
+      if (sessionVersionIdRef.current) {
+        await overwriteVersionAsync({ entryId, versionId: sessionVersionIdRef.current, file });
+      }
+      else {
+        const versions = await uploadVersionAsync({ entryId, file });
+        // Newest first (ULID id desc) → [0] is the just-created session version.
+        sessionVersionIdRef.current = versions[0]?.id ?? null;
+      }
+      // Content is now a server version — drop the local recovery draft (later
+      // edits recreate it on the next local tick). Done before the unmount guard
+      // so a close mid-save still clears the now-persisted draft.
+      if (userIdRef.current)
+        clearSheetDraft(userIdRef.current, entryId);
+      if (unmountedRef.current)
+        return;
       setDirty(false);
       setSaveFailed(false);
       setSavedTime(formatNow());
-      if (retryRef.current) {
-        clearTimeout(retryRef.current);
-        retryRef.current = null;
-      }
     }
-    catch (err) {
-      if ((err as EditLockError).code === "DRIVE_EDIT_LOCK_STALE") {
-        handleTakenOver();
-      }
-      else {
+    catch {
+      if (!unmountedRef.current)
         setSaveFailed(true);
-        if (retryRef.current)
-          clearTimeout(retryRef.current);
-        retryRef.current = setTimeout(() => autosaveRef.current(), SAVE_RETRY_MS);
-      }
     }
     finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (!unmountedRef.current)
+        setSaving(false);
     }
-  }, [entryId, updateLiveContentAsync, handleTakenOver]);
+  }, [entryId, entry.name, uploadVersionAsync, overwriteVersionAsync, clearAutosaveTimers]);
 
   useEffect(() => {
-    autosaveRef.current = () => {
-      void autosave();
-    };
-  }, [autosave]);
+    saveVersionRef.current = saveVersion;
+  }, [saveVersion]);
 
-  // ── Flush + release the lock exactly once per session ──
-  const flushAndRelease = useCallback(() => {
-    if (releasedRef.current)
-      return;
-    // A read-only session never acquired the lock, so there is nothing to
-    // flush or release — calling release would 403 (no update capability).
-    if (!lockHeldRef.current)
-      return;
-    const editId = editIdRef.current;
-    if (!editId)
-      return;
-    releasedRef.current = true;
-    if (modeRef.current === "editable" && dirtyRef.current) {
-      const workbook = univerRef.current?.univerAPI.getActiveWorkbook();
-      if (workbook) {
-        const content = JSON.stringify(workbook.save());
-        void updateLiveContentAsync({ entryId, editId, content }).catch(() => {});
-      }
-    }
-    releaseEditLockMutate({ entryId, editId });
-  }, [entryId, updateLiveContentAsync, releaseEditLockMutate]);
-
-  // ── Open read-only; mint a fresh session id for the eventual unlock ──
-  // The sheet no longer grabs the edit lock on open. The reader stays
-  // read-only (mirroring markdown/text files, which open in a read-only
-  // preview) and must press "Edit" to acquire the exclusive lock via
-  // `retryEditing`.
+  // ── Reset per-open session state ──
   useEffect(() => {
     if (!open)
       return undefined;
-    editIdRef.current = crypto.randomUUID();
-    releasedRef.current = false;
-    lockHeldRef.current = false;
-    autoEditDoneRef.current = false;
+    unmountedRef.current = false;
+    sessionVersionIdRef.current = null;
+    restoredToastedRef.current = false;
     setDirty(false);
     setSaveFailed(false);
     setSavedTime(null);
-    setLockBy(null);
-    setMode("readonly");
     return undefined;
   }, [open, entryId]);
 
-  // ── Flush + release on close (open true→false) / unmount ──
+  // ── Persist the local draft on close / unmount ──
+  // Closing does NOT create a server version (versions come only from idle /
+  // manual saves). Instead flush the latest workbook to the local draft so a
+  // close between debounce ticks stays recoverable, then restored on reopen.
   useEffect(() => {
     if (!open)
       return undefined;
-    return () => flushAndRelease();
-  }, [open, flushAndRelease]);
-
-  // ── Heartbeat keeps the lock alive while editing ──
-  useEffect(() => {
-    if (!open || mode !== "editable")
-      return undefined;
-    const interval = setInterval(() => {
-      heartbeatEditLock({ entryId, editId: editIdRef.current })
-        .catch((err: EditLockError) => {
-          if (err.code === "DRIVE_EDIT_LOCK_STALE")
-            handleTakenOver();
-        });
-    }, HEARTBEAT_MS);
-    return () => clearInterval(interval);
-  }, [open, mode, entryId, heartbeatEditLock, handleTakenOver]);
-
-  // ── Free the lock promptly on tab close / crash (TTL is the backstop) ──
-  useEffect(() => {
-    if (!open || mode !== "editable")
-      return undefined;
-    const handler = () => {
-      if (releasedRef.current)
-        return;
-      releasedRef.current = true;
-      void releaseEditLockBeacon(entryId, editIdRef.current);
+    return () => {
+      unmountedRef.current = true;
+      if (canEditRef.current && dirtyRef.current && userIdRef.current) {
+        const workbook = univerRef.current?.univerAPI.getActiveWorkbook();
+        if (workbook)
+          writeSheetDraft(userIdRef.current, entryId, JSON.stringify(workbook.save()));
+      }
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [open, mode, entryId]);
+  }, [open, entryId]);
+
+  // ── Cancel any pending autosave timers when the dialog closes ──
+  // The timers are (re)armed from the edit (MUTATION) handler below.
+  useEffect(() => {
+    if (open)
+      return undefined;
+    clearAutosaveTimers();
+    return undefined;
+  }, [open, clearAutosaveTimers]);
 
   // Mount Univer once the container is in the DOM and the snapshot has parsed.
-  // Re-runs when the data changes (e.g. after a version switch) or the UI
-  // locale changes, tearing down the previous instance first. The command
-  // subscription marks the workbook dirty and (re)starts the idle-autosave
-  // debounce — gated to `editable` via the mode ref so read-only sessions
-  // never autosave.
+  // Re-runs when the data changes (e.g. after setting the display version) or
+  // the UI locale changes, tearing down the previous instance first. The
+  // command subscription marks the workbook dirty — gated to `canEdit` via the
+  // ref so read-only sessions never dirty/autosave.
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !workbookData)
@@ -326,101 +335,74 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEdit
     instance.univerAPI.createWorkbook(workbookData);
 
     const subscription = instance.univerAPI.onCommandExecuted((command) => {
-      if (modeRef.current !== "editable")
+      if (!canEditRef.current)
         return;
       // MUTATIONs are the snapshot-changing edits; ignore selection/operations.
       if (command.type !== CommandType.MUTATION)
         return;
       setDirty(true);
-      if (debounceRef.current)
-        clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => autosaveRef.current(), AUTOSAVE_IDLE_MS);
+      // Server save: (re)arm the idle timer so a version is written 2 minutes
+      // after the LAST edit — continuous editing keeps pushing it back, so the
+      // server is only touched once the user pauses (or saves manually).
+      if (idleTimerRef.current)
+        clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        idleTimerRef.current = null;
+        void saveVersionRef.current();
+      }, AUTOSAVE_IDLE_MS);
+      // Local draft: a short debounce writes the workbook to localStorage so a
+      // long continuous session stays recoverable without touching the server.
+      if (localTimerRef.current)
+        clearTimeout(localTimerRef.current);
+      localTimerRef.current = setTimeout(() => {
+        localTimerRef.current = null;
+        const workbook = univerRef.current?.univerAPI.getActiveWorkbook();
+        if (workbook && userIdRef.current)
+          writeSheetDraft(userIdRef.current, entryId, JSON.stringify(workbook.save()));
+      }, LOCAL_DRAFT_DEBOUNCE_MS);
     });
     setUniverReady(true);
 
     return () => {
       subscription.dispose();
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-        debounceRef.current = null;
-      }
+      clearAutosaveTimers();
       setUniverReady(false);
       instance.univer.dispose();
       univerRef.current = null;
     };
-  }, [workbookData, locale]);
+  }, [workbookData, locale, clearAutosaveTimers]);
 
-  // Apply engine-level read-only whenever the mode or instance changes.
+  // Apply engine-level editability whenever `canEdit` or the instance changes.
   useEffect(() => {
     if (!univerReady)
       return;
-    univerRef.current?.univerAPI.getActiveWorkbook()?.setEditable(mode === "editable");
-  }, [mode, univerReady]);
+    univerRef.current?.univerAPI.getActiveWorkbook()?.setEditable(canEdit);
+  }, [canEdit, univerReady]);
 
-  // Clear any pending timers on unmount (debounce is also cleared on remount).
+  // A recovered local draft: mark the sheet dirty (so it is written back on the
+  // next idle / manual save) and announce the recovery once per open.
   useEffect(() => {
-    return () => {
-      if (debounceRef.current)
-        clearTimeout(debounceRef.current);
-      if (retryRef.current)
-        clearTimeout(retryRef.current);
-    };
-  }, []);
-
-  // Acquire the edit lock from the read-only banner: the initial unlock, or a
-  // retry after another holder released / the TTL expired.
-  const retryEditing = useCallback(async () => {
-    try {
-      await acquireEditLock({ entryId, editId: editIdRef.current });
-      lockHeldRef.current = true;
-      setMode("editable");
-      setLockBy(null);
-    }
-    catch (err) {
-      const e = err as EditLockError;
-      if (e.code === "DRIVE_EDIT_LOCKED")
-        setLockBy(e.lockBy ?? null);
-      else if (e.status === 403)
-        toast.error(t("sheet.noEditPermission"));
-      else
-        toast.error(t("sheet.lockError"));
-    }
-  }, [entryId, acquireEditLock, t]);
-
-  // Freshly-created sheets (initialEditing) jump straight into edit mode by
-  // acquiring the lock once; every other open stays read-only until the reader
-  // explicitly unlocks. Runs after the open effect has reset the session id.
-  useEffect(() => {
-    if (!open || !initialEditing || autoEditDoneRef.current)
+    if (!open || !draft || !univerReady)
       return;
-    autoEditDoneRef.current = true;
-    void retryEditing();
-  }, [open, initialEditing, retryEditing]);
-
-  async function handleSave() {
-    const workbook = univerRef.current?.univerAPI.getActiveWorkbook();
-    if (!workbook)
-      return;
-    const file = new File([JSON.stringify(workbook.save())], entry.name, { type: UNIVER_SHEET_MIME });
-    try {
-      await uploadVersionAsync({ entryId, file });
-      toast.success(t("sheet.saved"));
+    setDirty(true);
+    if (!restoredToastedRef.current) {
+      restoredToastedRef.current = true;
+      toast.info(t("sheet.restoredDraft"));
     }
-    catch {
-      toast.error(t("sheet.saveError"));
-    }
-  }
+  }, [open, draft, univerReady, t]);
 
-  // Always-visible autosave status indicator. Precedence:
+  const handleSave = useCallback(() => {
+    void saveVersion().then(() => {
+      if (!unmountedRef.current && !saveFailed)
+        toast.success(t("sheet.saved"));
+    });
+  }, [saveVersion, saveFailed, t]);
+
+  // Always-visible status indicator. Precedence:
   // read-only > saving > save-failed > unsaved > saved.
   const status = useMemo(() => {
-    if (mode === "readonly") {
-      return {
-        icon: <Lock className="size-3.5" />,
-        text: lockBy ? t("sheet.readonlyEditing", { user: lockBy }) : t("sheet.readOnly"),
-        tone: "text-muted-foreground",
-      };
-    }
+    if (!canEdit)
+      return { icon: <Lock className="size-3.5" />, text: t("sheet.readOnly"), tone: "text-muted-foreground" };
     if (saving)
       return { icon: <Spinner className="size-3.5" />, text: t("sheet.saving"), tone: "text-muted-foreground" };
     if (saveFailed)
@@ -430,7 +412,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEdit
     if (savedTime)
       return { icon: <Check className="size-3.5" />, text: t("sheet.savedAt", { time: savedTime }), tone: "text-muted-foreground" };
     return null;
-  }, [mode, lockBy, saving, saveFailed, dirty, savedTime, t]);
+  }, [canEdit, saving, saveFailed, dirty, savedTime, t]);
 
   if (!open)
     return null;
@@ -460,15 +442,17 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEdit
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              variant="default"
-              disabled={!ready || uploadingVersion || mode !== "editable"}
-              onClick={() => void handleSave()}
-            >
-              {uploadingVersion ? <Spinner /> : <Save className="size-4" />}
-              {t("sheet.saveAsVersion")}
-            </Button>
+            {canEdit && (
+              <Button
+                type="button"
+                variant="default"
+                disabled={!ready || uploadingVersion}
+                onClick={handleSave}
+              >
+                {uploadingVersion ? <Spinner /> : <Save className="size-4" />}
+                {t("sheet.save")}
+              </Button>
+            )}
             <ToolButton label={t("versions.title")} onClick={() => setHistoryOpen(true)}>
               <History className="size-4" />
             </ToolButton>
@@ -484,25 +468,6 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEdit
             </ToolButton>
           </div>
         </div>
-
-        {mode === "readonly" && (
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b bg-muted/50 px-4 py-2 text-sm">
-            <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-              <Lock className="size-4 shrink-0" />
-              <span className="truncate">{lockBy ? t("sheet.editingBy", { user: lockBy }) : t("sheet.readOnly")}</span>
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={acquiring}
-              onClick={() => void retryEditing()}
-            >
-              {acquiring ? <Spinner /> : !lockBy && <Pencil className="size-4" />}
-              {lockBy ? t("sheet.retryEditing") : t("sheet.startEditing")}
-            </Button>
-          </div>
-        )}
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
           {loading && (
@@ -524,6 +489,7 @@ export function UniverSheetEditorDialog({ entry, open, onOpenChange, initialEdit
         entry={entry}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
+        readOnly={!canEdit}
         onSwitched={() => {
           setHistoryOpen(false);
           setDirty(false);

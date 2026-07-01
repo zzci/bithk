@@ -1,8 +1,9 @@
 # PLAN-099 Version-only Univer sheet editing (drop edit-lock + live-content)
 
-- status: Proposed
+- status: Completed
 - createdAt: 2026-07-01
-- approvedAt:
+- approvedAt: 2026-07-01
+- completedAt: 2026-07-01
 - relatedTask: REFACTOR-029
 
 ## Context
@@ -84,6 +85,19 @@ openers see. No drafts, no lock, no shared mutable content. No backward compat.
 - Frontend: editor opens editable with `update` capability and read-only without;
   MUTATION marks dirty; the 120s interval and manual Save both POST a version;
   no `/edit-lock` or `/live-content` calls are made.
+
+## Amendment — session-coalesced idle autosave (2026-07-01, approved)
+
+The fixed 120s interval is replaced by an **idle 2-minute debounce** (resets on
+each edit) and autosaves **coalesce into one version per session**: the first
+save creates the session version, later saves overwrite it in place via
+`overwriteEntryVersion` / `PUT /drive/entries/:id/versions/:versionId` (frontend
+`useOverwriteVersion`). The overwrite advances the entry's display pointer only
+when it was showing exactly that version, and releases the previous blob so
+drafts do not accrue orphans. Net effect: far fewer versions (one per open→close
+session) while keeping a 2-minute server-side safety net. Tests: 3 new
+`overwriteEntryVersion` cases (in-place replace + blob release, display untouched
+when a different version is pinned, 404 on unknown id). `bun run check` EXIT 0.
 
 ## Notes
 

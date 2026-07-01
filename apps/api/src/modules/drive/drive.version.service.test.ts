@@ -13,7 +13,7 @@ import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { buildDriveEntryDownloadResponse, createDriveFolder, deleteDriveEntryPermanently, uploadDriveFile } from "./drive.service";
-import { listEntryVersions, switchEntryVersion, uploadEntryVersion } from "./drive.version.service";
+import { clearDisplayVersion, listEntryVersions, overwriteEntryVersion, setDisplayVersion, uploadEntryVersion } from "./drive.version.service";
 import { driveEntries } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
@@ -95,7 +95,7 @@ describe("listEntryVersions", () => {
 });
 
 describe("uploadEntryVersion", () => {
-  test("bumps versionNo and switches the current pointer to the newest", async () => {
+  test("creates a ULID version and advances the display pointer when unpinned", async () => {
     const userId = await seedUser();
     const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt", "first") });
     const versions = await uploadEntryVersion(db, config, {
@@ -104,26 +104,21 @@ describe("uploadEntryVersion", () => {
       uploadedBy: userId,
     });
 
-    // Newest first.
+    // Newest first; ascending display labels.
     expect(versions.map(v => v.versionNo)).toEqual([2, 1]);
     expect(versions[0]!.isCurrent).toBe(true);
     expect(versions[1]!.isCurrent).toBe(false);
+    // ULID ids are time-sortable: the newest sorts highest.
+    expect(versions[0]!.id > versions[1]!.id).toBe(true);
 
-    // The entry's current reference now points at v2's bytes (size differs).
+    // The entry stays unpinned and its display now serves the newest bytes.
     const refreshed = await rowOf(entry.id);
-    expect(refreshed.fileReferenceId).toBe(
-      (await db.select().from(fileReferences).where(eq(fileReferences.id, refreshed.fileReferenceId!)).get())!.id,
-    );
-    expect(versions[0]!.size).toBe("second body".length);
-
-    // The live content slot now mirrors the just-saved snapshot so a
-    // content-read (which prefers the live body) returns the saved version.
-    expect(refreshed.currentContentBody).toBe("second body");
+    expect(refreshed.displayVersionId).toBeNull();
+    const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await res.text()).toBe("second body");
   });
-});
 
-describe("switchEntryVersion", () => {
-  test("points the current pointer back at an older version", async () => {
+  test("a pinned entry keeps its display pointer when a new version arrives", async () => {
     const userId = await seedUser();
     const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt", "first") });
     const afterUpload = await uploadEntryVersion(db, config, {
@@ -133,14 +128,87 @@ describe("switchEntryVersion", () => {
     });
     const v1 = afterUpload.find(v => v.versionNo === 1)!;
 
-    const switched = await switchEntryVersion(db, await rowOf(entry.id), v1.id);
-    const current = switched.find(v => v.isCurrent)!;
-    expect(current.versionNo).toBe(1);
+    // Pin the older version, then upload a third version.
+    await setDisplayVersion(db, await rowOf(entry.id), v1.id);
+    await uploadEntryVersion(db, config, { entry: await rowOf(entry.id), file: textFile("doc.txt", "third"), uploadedBy: userId });
 
-    // Switching clears the live slot; the content-read then falls back to the
-    // switched (v1) versioned blob.
+    // Display stays pinned on v1's bytes even though newer versions exist.
     const refreshed = await rowOf(entry.id);
-    expect(refreshed.currentContentBody).toBeNull();
+    expect(refreshed.displayVersionId).toBe(v1.id);
+    const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await res.text()).toBe("first");
+  });
+});
+
+describe("setDisplayVersion / clearDisplayVersion", () => {
+  test("pinning an older version makes content GET serve it; clearing returns to latest", async () => {
+    const userId = await seedUser();
+    const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt", "first") });
+    const afterUpload = await uploadEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      file: textFile("doc.txt", "second"),
+      uploadedBy: userId,
+    });
+    const v1 = afterUpload.find(v => v.versionNo === 1)!;
+
+    const pinned = await setDisplayVersion(db, await rowOf(entry.id), v1.id);
+    expect(pinned.find(v => v.isCurrent)!.versionNo).toBe(1);
+    expect((await rowOf(entry.id)).displayVersionId).toBe(v1.id);
+    const pinnedRes = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await pinnedRes.text()).toBe("first");
+
+    const cleared = await clearDisplayVersion(db, await rowOf(entry.id));
+    expect(cleared.find(v => v.isCurrent)!.versionNo).toBe(2);
+    expect((await rowOf(entry.id)).displayVersionId).toBeNull();
+    const clearedRes = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await clearedRes.text()).toBe("second");
+  });
+
+  test("rejects an unknown version id", async () => {
+    const userId = await seedUser();
+    const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt") });
+    await expect(setDisplayVersion(db, await rowOf(entry.id), "nope")).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe("overwriteEntryVersion", () => {
+  test("replaces a version's content in place — no new version row, old blob released, display follows", async () => {
+    const userId = await seedUser();
+    const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt", "first") });
+    // First autosave of a session creates the session version (v2).
+    const created = await uploadEntryVersion(db, config, { entry: await rowOf(entry.id), file: textFile("doc.txt", "draft-a"), uploadedBy: userId });
+    const sessionId = created[0]!.id; // newest by ULID
+    expect(created).toHaveLength(2);
+    expect((await db.select({ value: count() }).from(files).get())?.value).toBe(2); // first + draft-a
+
+    // Later saves overwrite the same version instead of appending.
+    const afterOverwrite = await overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: sessionId,
+      file: textFile("doc.txt", "draft-b"),
+      uploadedBy: userId,
+    });
+    expect(afterOverwrite).toHaveLength(2); // still two versions — coalesced
+    // The old draft-a blob is released, so blobs did not accrue.
+    expect((await db.select({ value: count() }).from(files).get())?.value).toBe(2); // first + draft-b
+
+    const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await res.text()).toBe("draft-b");
+  });
+
+  test("does not move the display when the entry shows a different version", async () => {
+    const userId = await seedUser();
+    const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt", "first") });
+    const created = await uploadEntryVersion(db, config, { entry: await rowOf(entry.id), file: textFile("doc.txt", "second"), uploadedBy: userId });
+    const v1 = created.find(v => v.versionNo === 1)!;
+    const v2 = created.find(v => v.versionNo === 2)!;
+
+    // Pin the display to v1, then overwrite the (non-displayed) v2.
+    await setDisplayVersion(db, await rowOf(entry.id), v1.id);
+    await overwriteEntryVersion(db, config, { entry: await rowOf(entry.id), versionId: v2.id, file: textFile("doc.txt", "second-edited"), uploadedBy: userId });
+
+    // Display stays on v1's bytes.
+    expect((await rowOf(entry.id)).displayVersionId).toBe(v1.id);
     const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
     expect(await res.text()).toBe("first");
   });
@@ -148,7 +216,12 @@ describe("switchEntryVersion", () => {
   test("rejects an unknown version id", async () => {
     const userId = await seedUser();
     const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt") });
-    await expect(switchEntryVersion(db, await rowOf(entry.id), "nope")).rejects.toMatchObject({ statusCode: 404 });
+    await expect(overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: "nope",
+      file: textFile("doc.txt", "x"),
+      uploadedBy: userId,
+    })).rejects.toMatchObject({ statusCode: 404 });
   });
 });
 

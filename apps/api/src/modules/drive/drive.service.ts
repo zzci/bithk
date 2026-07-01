@@ -20,7 +20,7 @@ import {
 import { fileReferences, files } from "@/modules/file/schema";
 import { deleteSharesForResource } from "@/modules/share";
 import { AppError } from "@/shared/lib/errors";
-import { nanoid } from "@/shared/lib/id";
+import { nanoid, ulid } from "@/shared/lib/id";
 import { assertWithinTotalQuota } from "@/shared/lib/upload-limits";
 import { driveEntries, driveFileVersions, UNIVER_SHEET_MIME } from "./schema";
 
@@ -390,10 +390,9 @@ async function commitDriveFileEntry(
         createdBy,
       }).run();
       tx.insert(driveFileVersions).values({
-        id: nanoid(),
+        id: ulid(),
         driveEntryId: id,
         fileReferenceId,
-        versionNo: 1,
         uploadedBy: createdBy,
       }).run();
     });
@@ -564,10 +563,9 @@ export async function createDriveTextFile(
         createdBy: input.createdBy,
       }).run();
       tx.insert(driveFileVersions).values({
-        id: nanoid(),
+        id: ulid(),
         driveEntryId: id,
         fileReferenceId: uploaded.reference.id,
-        versionNo: 1,
         uploadedBy: input.createdBy,
       }).run();
     });
@@ -626,10 +624,9 @@ export async function createDriveSpreadsheet(
         createdBy: input.createdBy,
       }).run();
       tx.insert(driveFileVersions).values({
-        id: nanoid(),
+        id: ulid(),
         driveEntryId: id,
         fileReferenceId: uploaded.reference.id,
-        versionNo: 1,
         uploadedBy: input.createdBy,
       }).run();
     });
@@ -820,19 +817,8 @@ export async function buildDriveEntryDownloadResponse(
   if (!file)
     throw new AppError("File not found", 404, "NOT_FOUND");
 
-  // Prefer the live, mutable content body (Google-Sheets-style autosave) when
-  // present so GET /content, downloads and previews all reflect in-progress
-  // edits before they are snapshotted into a version. The editor reads
-  // `.text()`, so the body + content-type are what matter here.
-  if (entry.currentContentBody != null) {
-    return new Response(entry.currentContentBody, {
-      headers: {
-        "Content-Type": file.mimetype || "application/octet-stream",
-        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(ref.filename)}`,
-      },
-    });
-  }
-
+  // Serve the entry's display version blob (`fileReferenceId` = the pinned
+  // version, or the latest when unpinned). There is no live/draft slot.
   return buildDownloadResponse(config, file, ref, { inline, thumbWidth });
 }
 

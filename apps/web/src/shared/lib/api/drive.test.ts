@@ -7,6 +7,7 @@ import {
   driveKeys,
   parseContentDispositionFilename,
   useAddMember,
+  useClearDisplayVersion,
   useCreateDriveFolder,
   useCreateTeamDirectory,
   useCreateTextFile,
@@ -18,7 +19,7 @@ import {
   useFavoriteEntries,
   useRemoveMember,
   useRestoreDriveEntry,
-  useSwitchVersion,
+  useSetDisplayVersion,
   useTeamDirectories,
   useTrashDriveEntry,
   useUpdateDriveEntry,
@@ -220,18 +221,26 @@ describe("file versions", () => {
     expect(urlOf()).toBe("/api/drive/entries/e1/versions");
   });
 
-  it("uploads a new version as FormData and switches the current version", async () => {
+  it("uploads a new version as FormData", async () => {
     fetchMock.mockImplementation(ok([]));
     const upload = renderHook(() => useUploadVersion(), { wrapper: makeWrapper() });
     await upload.result.current.mutateAsync({ entryId: "e1", file: new File(["v2"], "v2.bin") });
     expect(urlOf()).toBe("/api/drive/entries/e1/versions");
     expect(fetchMock.mock.calls[0]![1]?.body).toBeInstanceOf(FormData);
+  });
+
+  it("pins a display version (PUT) and clears it (DELETE)", async () => {
+    fetchMock.mockImplementation(ok([]));
+    const setV = renderHook(() => useSetDisplayVersion(), { wrapper: makeWrapper() });
+    await setV.result.current.mutateAsync({ entryId: "e1", versionId: "v0" });
+    expect(urlOf()).toBe("/api/drive/entries/e1/display-version");
+    expect(methodOf()).toBe("PUT");
 
     fetchMock.mockClear();
-    const switchV = renderHook(() => useSwitchVersion(), { wrapper: makeWrapper() });
-    await switchV.result.current.mutateAsync({ entryId: "e1", versionId: "v0" });
-    expect(urlOf()).toBe("/api/drive/entries/e1/versions/v0/current");
-    expect(methodOf()).toBe("POST");
+    const clearV = renderHook(() => useClearDisplayVersion(), { wrapper: makeWrapper() });
+    await clearV.result.current.mutateAsync({ entryId: "e1" });
+    expect(urlOf()).toBe("/api/drive/entries/e1/display-version");
+    expect(methodOf()).toBe("DELETE");
   });
 });
 

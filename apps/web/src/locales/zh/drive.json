@@ -188,7 +188,9 @@
     "description": "{{name}} 的版本。",
     "empty": "暂无版本",
     "current": "当前版本",
-    "switch": "设为当前版本"
+    "setDisplay": "设为显示版本",
+    "useLatest": "使用最新版本",
+    "pinnedHint": "当前显示的是固定版本，而非最新版本。"
   },
   "picker": {
     "title": "选择文件",
@@ -198,23 +200,15 @@
   "sheet": {
     "loading": "正在加载表格…",
     "loadError": "无法加载该表格。",
-    "saveError": "无法保存该表格。",
     "saved": "已保存",
     "untitled": "未命名表格",
     "saving": "保存中…",
     "savedAt": "已保存 {{time}}",
     "readOnly": "只读",
-    "editingBy": "{{user}} 正在编辑",
-    "takenOver": "编辑权已被他人接管，你的更改无法保存。",
-    "takeOver": "接管编辑",
-    "startEditing": "编辑",
-    "noEditPermission": "你没有编辑此文件的权限",
-    "retryEditing": "重试编辑",
-    "saveAsVersion": "另存为版本",
-    "lockError": "无法获取编辑锁",
+    "save": "保存",
     "unsaved": "未保存的更改",
-    "saveFailed": "保存失败，正在重试",
-    "readonlyEditing": "只读 — {{user}} 正在编辑"
+    "saveFailed": "保存失败",
+    "restoredDraft": "已恢复未保存的更改"
   },
   "csv": {
     "importError": "无法导入该 CSV 文件。",

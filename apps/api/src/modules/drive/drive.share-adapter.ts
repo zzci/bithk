@@ -78,11 +78,9 @@ async function resolveSubtreePath(
   return null;
 }
 
-// Public-link shares serve the last saved version's blob; the live
-// `currentContentBody` autosave draft is not surfaced here (ShareContent is a
-// blob descriptor and the serving path lives in the share module). Accepted
-// limitation for the pessimistic single-writer model — readers see committed
-// versions, never an in-progress edit.
+// Public-link shares serve the entry's display version blob (`fileReferenceId`
+// = the pinned version, or the latest when unpinned). There is no live/draft
+// slot; readers always see an immutable committed version.
 async function fileOfEntry(db: AppDatabase, entryId: string): Promise<ShareContent> {
   const entry = await db.select().from(driveEntries).where(eq(driveEntries.id, entryId)).get();
   if (!entry || entry.status !== "normal" || entry.entryType !== "file" || !entry.fileReferenceId)

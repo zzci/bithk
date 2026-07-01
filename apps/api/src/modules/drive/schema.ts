@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 import { fileReferences } from "@/modules/file/schema";
 
@@ -33,15 +33,11 @@ export const driveEntries = sqliteTable("drive_entries", {
   createdBy: text("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: text("created_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text("updated_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
-  // Google-Sheets-style autosave: a live, mutable content body written outside
-  // the immutable version/blob pipeline. Null until the first autosave.
-  currentContentBody: text("current_content_body"),
-  // Exclusive edit lock. `editLockId` is the holder's per-session edit token,
-  // `editLockBy` the holder's userId, `editLockAt` the epoch-ms of the last
-  // heartbeat. All null when the entry is unlocked. See drive.edit-lock.service.
-  editLockId: text("edit_lock_id"),
-  editLockBy: text("edit_lock_by"),
-  editLockAt: integer("edit_lock_at"),
+  // Pinned display version. When null the display follows the latest version
+  // (max ULID id); when set, that `drive_file_versions.id` is authoritative for
+  // open / preview / download / share. Plain nullable text (no FK) so the
+  // SQLite table rebuild carries no extra FK action to preserve.
+  displayVersionId: text("display_version_id"),
 }, table => [
   index("drive_entries_owner_parent_status_idx").on(table.ownerType, table.ownerId, table.parentEntryId, table.status),
   index("drive_entries_owner_status_favorite_idx").on(table.ownerType, table.ownerId, table.status, table.favorite),
@@ -81,11 +77,13 @@ export const driveFileVersions = sqliteTable("drive_file_versions", {
   id: text("id").primaryKey(),
   driveEntryId: text("drive_entry_id").notNull().references(() => driveEntries.id, { onDelete: "cascade" }),
   fileReferenceId: text("file_reference_id").notNull().references(() => fileReferences.id, { onDelete: "restrict" }),
-  versionNo: integer("version_no").notNull(),
   uploadedBy: text("uploaded_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 }, table => [
-  uniqueIndex("drive_file_versions_entry_version_idx").on(table.driveEntryId, table.versionNo),
+  // Version ids are ULIDs (time-sortable); ordering / "latest" is by id desc.
+  // No unique version-number index: lockless concurrent version creation makes
+  // a monotonic per-entry number unsafe (UNIQUE collisions).
+  index("drive_file_versions_entry_id_idx").on(table.driveEntryId, table.id),
   index("drive_file_versions_entry_created_idx").on(table.driveEntryId, table.createdAt),
   index("drive_file_versions_file_reference_idx").on(table.fileReferenceId),
 ]);

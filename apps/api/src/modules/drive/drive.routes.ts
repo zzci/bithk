@@ -12,13 +12,6 @@ import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError } from "@/shared/lib/errors";
 import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
-import {
-  acquireEditLock,
-  EditLockConflictError,
-  heartbeatEditLock,
-  releaseEditLock,
-  updateEntryLiveContent,
-} from "./drive.edit-lock.service";
 import { assertEntryCapability, driveAccess } from "./drive.permission";
 import {
   buildDriveEntryDownloadResponse,
@@ -53,7 +46,7 @@ import {
   updateTeamMember,
 } from "./drive.team-directory.service";
 import { validateDriveUpload } from "./drive.upload-validation";
-import { listEntryVersions, switchEntryVersion, uploadEntryVersion } from "./drive.version.service";
+import { clearDisplayVersion, listEntryVersions, overwriteEntryVersion, setDisplayVersion, uploadEntryVersion } from "./drive.version.service";
 
 const entryIdSchema = z.string().min(1);
 
@@ -144,14 +137,13 @@ const addMemberSchema = z.object({
 
 const updateMemberSchema = z.object({ role: directoryRoleSchema });
 
-const editLockSchema = z.object({ editId: z.string().min(1) });
-const liveContentSchema = z.object({ editId: z.string().min(1), content: z.string() });
+const setDisplayVersionSchema = z.object({ versionId: z.string().min(1) });
 
 // Path-param validators. Reuse `entryIdSchema` so the param contract matches
 // the previous inline `entryIdSchema.parse(c.req.param(...))` checks.
 const idParamSchema = z.object({ id: entryIdSchema });
-const versionParamSchema = z.object({ id: entryIdSchema, versionId: entryIdSchema });
 const memberParamSchema = z.object({ id: entryIdSchema, memberId: entryIdSchema });
+const versionParamSchema = z.object({ id: entryIdSchema, versionId: entryIdSchema });
 
 // ── Response data schemas (mirror the service view shapes for the spec) ──
 const ownerTypeSchema = z.enum(["user", "team_directory", "project"]);
@@ -207,15 +199,6 @@ const teamMemberSchema = z.object({
   createdAt: z.string(),
 });
 
-const acquireEditLockResultSchema = z.object({
-  editId: z.string(),
-  lockBy: z.string(),
-  lockAt: z.number(),
-  takenOver: z.boolean(),
-});
-const heartbeatEditLockResultSchema = z.object({ editId: z.string(), lockAt: z.number() });
-const releaseEditLockResultSchema = z.object({ released: z.boolean() });
-const liveContentResultSchema = z.object({ id: z.string(), updatedAt: z.string() });
 const idResultSchema = z.object({ id: z.string() });
 const trashEmptiedSchema = z.object({ removed: z.number() });
 
@@ -242,31 +225,6 @@ function personalOwner(userId: string): DriveOwner {
 function actorOf(c: Context<ProtectedEnv>): DriveAccessActor {
   const user = c.get("user");
   return { id: user.id, role: user.role };
-}
-
-/**
- * Resolve the `editId` for a lock release. The unload-path release arrives via
- * `fetch(..., { keepalive: true })` — normally a JSON body, but parse leniently:
- * read the raw text ONCE (calling `c.req.json()` first would poison Hono's body
- * cache on a parse error), accept a JSON `{ editId }`, and fall back to the
- * `?editId=` query so a degraded unload still releases the lock.
- */
-async function readEditId(c: Context<ProtectedEnv>): Promise<string> {
-  const raw = await c.req.text().catch(() => "");
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as { editId?: unknown };
-      if (typeof parsed.editId === "string" && parsed.editId.length > 0)
-        return parsed.editId;
-    }
-    catch {
-      // Not JSON — fall through to the query-string fallback.
-    }
-  }
-  const fromQuery = c.req.query("editId");
-  if (fromQuery)
-    return fromQuery;
-  throw new AppError("editId is required", 400, "VALIDATION_ERROR");
 }
 
 /**
@@ -702,23 +660,38 @@ export function driveRoutes() {
     },
   );
 
-  router.post(
-    "/drive/entries/:id/versions/:versionId/current",
+  router.put(
+    "/drive/entries/:id/versions/:versionId",
     describeRoute({
       tags: ["drive"],
-      summary: "Make a version the entry's current pointer",
-      responses: { 200: okJson(z.array(driveVersionSchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      summary: "Overwrite a version's content in place (session-coalesced autosave)",
+      requestBody: {
+        required: true,
+        content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] } } },
+      },
+      responses: { 200: okJson(z.array(driveVersionSchema)), 400: errJson("No file provided"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
     }),
     validator("param", versionParamSchema, onValidationFailure),
     async (c) => {
       const user = c.get("user");
       const { id, versionId } = c.req.valid("param");
       const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
-      const data = await switchEntryVersion(c.get("db"), entry, versionId);
+      const form = await c.req.formData();
+      const file = form.get("file");
+      if (!(file instanceof File))
+        throw new AppError("Upload field 'file' is required", 400, "VALIDATION_ERROR");
+      validateDriveUpload(file, c.get("config"));
+
+      const data = await overwriteEntryVersion(c.get("db"), c.get("config"), {
+        entry,
+        versionId,
+        file,
+        uploadedBy: user.id,
+      });
       await audit(c.get("db"), c.get("logger"), {
         actorId: user.id,
         actorName: user.name,
-        action: "drive.file.version_switched",
+        action: "drive.file.version_overwritten",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
@@ -730,88 +703,34 @@ export function driveRoutes() {
     },
   );
 
-  // ── Edit lock + live content (pessimistic single-writer autosave) ───────
-  // All four routes require the same "update" capability as a version upload.
-  // No realtime collaboration: a single editId holds the lock at a time.
+  // ── Display version (lock-free, version-only model) ─────────────────────
+  // The entry's display pointer follows the latest version by default; these
+  // routes pin it to a chosen version or clear the pin back to latest. Both
+  // require the same "update" capability as a version upload.
 
-  router.post(
-    "/drive/entries/:id/edit-lock",
+  router.put(
+    "/drive/entries/:id/display-version",
     describeRoute({
       tags: ["drive"],
-      summary: "Acquire the exclusive edit lock",
-      responses: { 200: okJson(acquireEditLockResultSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 409: errJson("Edit lock held by another session"), 422: errJson("Validation error") },
+      summary: "Pin the entry's display to a specific version",
+      responses: { 200: okJson(z.array(driveVersionSchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 422: errJson("Validation error") },
     }),
     validator("param", idParamSchema, onValidationFailure),
-    validator("json", editLockSchema, onValidationFailure),
+    validator("json", setDisplayVersionSchema, onValidationFailure),
     async (c) => {
       const user = c.get("user");
       const { id } = c.req.valid("param");
       const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
-      const { editId } = c.req.valid("json");
-      try {
-        const result = await acquireEditLock(c.get("db"), id, editId, user.id);
-        await audit(c.get("db"), c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
-          action: "drive.edit_lock.acquired",
-          resourceType: "drive_entry",
-          resourceId: entry.id,
-          resourceName: entry.name,
-          detail: { takenOver: result.takenOver },
-          ...auditMeta(c),
-          result: "success",
-        });
-        return c.json({ success: true, data: result });
-      }
-      catch (e) {
-        if (e instanceof EditLockConflictError)
-          return c.json({ success: false, error: { code: "DRIVE_EDIT_LOCKED", message: e.message, lockBy: e.lockBy } }, 409);
-        throw e;
-      }
-    },
-  );
-
-  router.patch(
-    "/drive/entries/:id/edit-lock/heartbeat",
-    describeRoute({
-      tags: ["drive"],
-      summary: "Renew the edit lock heartbeat",
-      responses: { 200: okJson(heartbeatEditLockResultSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 409: errJson("Edit lock is no longer held"), 422: errJson("Validation error") },
-    }),
-    validator("param", idParamSchema, onValidationFailure),
-    validator("json", editLockSchema, onValidationFailure),
-    async (c) => {
-      const { id } = c.req.valid("param");
-      await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
-      const { editId } = c.req.valid("json");
-      // Stale/expired editId surfaces as the service's AppError(409).
-      const data = await heartbeatEditLock(c.get("db"), id, editId);
-      return c.json({ success: true, data });
-    },
-  );
-
-  router.delete(
-    "/drive/entries/:id/edit-lock",
-    describeRoute({
-      tags: ["drive"],
-      summary: "Release the edit lock",
-      responses: { 200: okJson(releaseEditLockResultSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
-    }),
-    validator("param", idParamSchema, onValidationFailure),
-    async (c) => {
-      const user = c.get("user");
-      const { id } = c.req.valid("param");
-      const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
-      const editId = await readEditId(c);
-      const data = await releaseEditLock(c.get("db"), id, editId);
+      const { versionId } = c.req.valid("json");
+      const data = await setDisplayVersion(c.get("db"), entry, versionId);
       await audit(c.get("db"), c.get("logger"), {
         actorId: user.id,
         actorName: user.name,
-        action: "drive.edit_lock.released",
+        action: "drive.file.display_version_set",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        detail: { released: data.released },
+        detail: { versionId },
         ...auditMeta(c),
         result: "success",
       });
@@ -819,21 +738,29 @@ export function driveRoutes() {
     },
   );
 
-  router.patch(
-    "/drive/entries/:id/live-content",
+  router.delete(
+    "/drive/entries/:id/display-version",
     describeRoute({
       tags: ["drive"],
-      summary: "Autosave the live content body",
-      responses: { 200: okJson(liveContentResultSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 409: errJson("Edit lock is no longer held"), 422: errJson("Validation error") },
+      summary: "Clear the pinned display version (follow latest)",
+      responses: { 200: okJson(z.array(driveVersionSchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
     }),
     validator("param", idParamSchema, onValidationFailure),
-    validator("json", liveContentSchema, onValidationFailure),
     async (c) => {
+      const user = c.get("user");
       const { id } = c.req.valid("param");
-      await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
-      const { editId, content } = c.req.valid("json");
-      // Live autosave never creates a version/blob; stale/expired editId ⇒ 409.
-      const data = await updateEntryLiveContent(c.get("db"), id, editId, content);
+      const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
+      const data = await clearDisplayVersion(c.get("db"), entry);
+      await audit(c.get("db"), c.get("logger"), {
+        actorId: user.id,
+        actorName: user.name,
+        action: "drive.file.display_version_cleared",
+        resourceType: "drive_entry",
+        resourceId: entry.id,
+        resourceName: entry.name,
+        ...auditMeta(c),
+        result: "success",
+      });
       return c.json({ success: true, data });
     },
   );

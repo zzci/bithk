@@ -1,5 +1,5 @@
 import type { DriveEntry } from "@/shared/lib/api/drive";
-import { Check, History, RotateCcw } from "lucide-react";
+import { Check, History, Pin, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/shared/components/ui/button";
@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import { useEntryVersions, useSwitchVersion } from "@/shared/lib/api/drive";
+import { useClearDisplayVersion, useEntryVersions, useSetDisplayVersion } from "@/shared/lib/api/drive";
 import { formatBytes } from "@/shared/lib/format";
 
 export function DriveVersionHistoryDialog({
@@ -24,12 +24,18 @@ export function DriveVersionHistoryDialog({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly readOnly?: boolean;
+  /** Fired after the display version is set or cleared (refresh the editor). */
   readonly onSwitched?: () => void;
 }) {
   const { t } = useTranslation("drive");
   const versionsQuery = useEntryVersions(open ? entry?.id : undefined);
-  const switchVersion = useSwitchVersion();
+  const setDisplayVersion = useSetDisplayVersion();
+  const clearDisplayVersion = useClearDisplayVersion();
   const versions = versionsQuery.data ?? [];
+  const pending = setDisplayVersion.isPending || clearDisplayVersion.isPending;
+  // Only offer "use latest" when the current display is an older, pinned version
+  // (the newest version is always first in the ULID-desc list).
+  const latestIsCurrent = versions[0]?.isCurrent ?? true;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,6 +47,25 @@ export function DriveVersionHistoryDialog({
           </DialogTitle>
           <DialogDescription>{entry ? t("versions.description", { name: entry.name }) : ""}</DialogDescription>
         </DialogHeader>
+
+        {!readOnly && !latestIsCurrent && entry && (
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">{t("versions.pinnedHint")}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                const options = onSwitched ? { onSuccess: onSwitched } : undefined;
+                clearDisplayVersion.mutate({ entryId: entry.id }, options);
+              }}
+            >
+              <RotateCcw className="size-4" />
+              {t("versions.useLatest")}
+            </Button>
+          </div>
+        )}
 
         <div className="max-h-[56vh] overflow-auto rounded-md border">
           {versionsQuery.isLoading && (
@@ -76,14 +101,14 @@ export function DriveVersionHistoryDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={switchVersion.isPending}
+                  disabled={pending}
                   onClick={() => {
                     const options = onSwitched ? { onSuccess: onSwitched } : undefined;
-                    switchVersion.mutate({ entryId: entry.id, versionId: version.id }, options);
+                    setDisplayVersion.mutate({ entryId: entry.id, versionId: version.id }, options);
                   }}
                 >
-                  <RotateCcw className="size-4" />
-                  {t("versions.switch")}
+                  <Pin className="size-4" />
+                  {t("versions.setDisplay")}
                 </Button>
               )}
             </div>
@@ -91,7 +116,8 @@ export function DriveVersionHistoryDialog({
         </div>
 
         {versionsQuery.error && <p className="text-sm text-destructive">{versionsQuery.error.message}</p>}
-        {switchVersion.error && <p className="text-sm text-destructive">{switchVersion.error.message}</p>}
+        {setDisplayVersion.error && <p className="text-sm text-destructive">{setDisplayVersion.error.message}</p>}
+        {clearDisplayVersion.error && <p className="text-sm text-destructive">{clearDisplayVersion.error.message}</p>}
       </DialogContent>
     </Dialog>
   );

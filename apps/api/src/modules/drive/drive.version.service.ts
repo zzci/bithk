@@ -1,22 +1,23 @@
 import type { DriveEntryRow } from "./drive.service";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
-import { and, desc, eq, max } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { releaseReference, uploadAndReference } from "@/modules/file";
 import { fileReferences, files } from "@/modules/file/schema";
 import { AppError } from "@/shared/lib/errors";
-import { nanoid } from "@/shared/lib/id";
+import { ulid } from "@/shared/lib/id";
 import { driveEntries, driveFileVersions } from "./schema";
 
 export interface DriveVersionView {
   readonly id: string;
+  /** Ascending display label (oldest = 1 … newest = N); not stored. */
   readonly versionNo: number;
   readonly filename: string;
   readonly mimetype: string;
   readonly size: number;
   readonly uploadedBy: string;
   readonly createdAt: string;
-  /** True when this version's reference is the entry's current pointer. */
+  /** True when this version's reference is the entry's display pointer. */
   readonly isCurrent: boolean;
 }
 
@@ -27,7 +28,11 @@ function assertFileEntry(entry: DriveEntryRow): void {
     throw new AppError("Drive entry is not a file", 400, "INVALID_ENTRY_TYPE");
 }
 
-/** Versions for a file entry, newest first, each flagged with `isCurrent`. */
+/**
+ * Versions for a file entry, newest first (ULID id desc), each flagged with
+ * `isCurrent`. `versionNo` is a computed ascending display label (oldest = 1),
+ * derived from position — it is not stored.
+ */
 export async function listEntryVersions(db: AppDatabase, entry: DriveEntryRow): Promise<readonly DriveVersionView[]> {
   assertFileEntry(entry);
   const rows = await db
@@ -41,12 +46,15 @@ export async function listEntryVersions(db: AppDatabase, entry: DriveEntryRow): 
     .innerJoin(fileReferences, eq(driveFileVersions.fileReferenceId, fileReferences.id))
     .innerJoin(files, eq(fileReferences.fileId, files.id))
     .where(eq(driveFileVersions.driveEntryId, entry.id))
-    .orderBy(desc(driveFileVersions.versionNo))
+    .orderBy(desc(driveFileVersions.id))
     .all();
 
-  return rows.map(row => ({
+  // Rows are newest-first; the display label counts up from the oldest, so the
+  // oldest (last row) is 1 and the newest (first row) is N.
+  const total = rows.length;
+  return rows.map((row, index) => ({
     id: row.version.id,
-    versionNo: row.version.versionNo,
+    versionNo: total - index,
     filename: row.filename,
     mimetype: row.mimetype,
     size: row.size,
@@ -63,11 +71,13 @@ export interface UploadEntryVersionInput {
 }
 
 /**
- * Upload a new version of an existing file entry: stores a fresh blob
- * reference, appends a `drive_file_versions` row (`versionNo = max + 1`) and
- * switches the entry's current pointer to it. The previous version's
- * reference is kept (released only on permanent delete). On any failure the
- * just-uploaded reference is released so no orphan accrues.
+ * Upload a new immutable version of an existing file entry: stores a fresh blob
+ * reference and appends a `drive_file_versions` row (ULID id, time-sortable).
+ * When the entry is NOT pinned (`displayVersionId == null`) the entry's display
+ * pointer (`fileReferenceId`) advances to the new version; a pinned entry keeps
+ * its pointer. The previous version's reference is kept (released only on
+ * permanent delete). On any failure the just-uploaded reference is released so
+ * no orphan accrues.
  */
 export async function uploadEntryVersion(
   db: AppDatabase,
@@ -75,10 +85,6 @@ export async function uploadEntryVersion(
   input: UploadEntryVersionInput,
 ): Promise<readonly DriveVersionView[]> {
   assertFileEntry(input.entry);
-  // Read the snapshot text before the transaction so the live content slot can
-  // be set to the just-saved version — GET /content (which prefers the live
-  // body) then returns this snapshot instead of a now-stale autosave draft.
-  const body = await input.file.text();
   const uploaded = await uploadAndReference(db, config, {
     file: input.file,
     ownerType: "drive_entry",
@@ -86,23 +92,21 @@ export async function uploadEntryVersion(
     uploadedBy: input.uploadedBy,
   });
 
+  const pinned = input.entry.displayVersionId != null;
   try {
     db.transaction((tx) => {
-      const top = tx
-        .select({ value: max(driveFileVersions.versionNo) })
-        .from(driveFileVersions)
-        .where(eq(driveFileVersions.driveEntryId, input.entry.id))
-        .get();
-      const versionNo = (top?.value ?? 0) + 1;
       tx.insert(driveFileVersions).values({
-        id: nanoid(),
+        id: ulid(),
         driveEntryId: input.entry.id,
         fileReferenceId: uploaded.reference.id,
-        versionNo,
         uploadedBy: input.uploadedBy,
       }).run();
       tx.update(driveEntries)
-        .set({ fileReferenceId: uploaded.reference.id, currentContentBody: body, updatedAt: new Date().toISOString() })
+        .set({
+          updatedAt: new Date().toISOString(),
+          // Unpinned entries follow the latest version; pinned entries stay put.
+          ...(pinned ? {} : { fileReferenceId: uploaded.reference.id }),
+        })
         .where(eq(driveEntries.id, input.entry.id))
         .run();
     });
@@ -116,8 +120,82 @@ export async function uploadEntryVersion(
   return listEntryVersions(db, refreshed);
 }
 
-/** Point the entry's current reference at an existing version. */
-export async function switchEntryVersion(
+export interface OverwriteEntryVersionInput {
+  readonly entry: DriveEntryRow;
+  readonly versionId: string;
+  readonly file: File;
+  readonly uploadedBy: string;
+}
+
+/**
+ * Overwrite an existing version's content in place — the session-coalesced
+ * autosave. Within one editing session the periodic idle saves update the SAME
+ * version instead of appending new rows, so a session yields a single version
+ * (drastically fewer versions than one-per-autosave). Uploads a fresh blob,
+ * repoints the version row at it, advances the entry's display pointer only when
+ * the entry was displaying exactly this version's (now-previous) blob, then
+ * releases the previous blob reference. 404 when the version is not the entry's.
+ */
+export async function overwriteEntryVersion(
+  db: AppDatabase,
+  config: UploadConfig,
+  input: OverwriteEntryVersionInput,
+): Promise<readonly DriveVersionView[]> {
+  assertFileEntry(input.entry);
+  const version = await db
+    .select()
+    .from(driveFileVersions)
+    .where(and(eq(driveFileVersions.id, input.versionId), eq(driveFileVersions.driveEntryId, input.entry.id)))
+    .get();
+  if (!version)
+    throw new AppError("Version not found", 404, "NOT_FOUND");
+
+  const previousRefId = version.fileReferenceId;
+  const uploaded = await uploadAndReference(db, config, {
+    file: input.file,
+    ownerType: "drive_entry",
+    ownerId: input.entry.id,
+    uploadedBy: input.uploadedBy,
+  });
+
+  // Advance the entry's display pointer only when it was showing exactly this
+  // version's blob (unpinned-and-latest, or pinned to it) — never yank the
+  // display off a different/newer version another session may have produced.
+  const follows = input.entry.fileReferenceId === previousRefId;
+  try {
+    db.transaction((tx) => {
+      tx.update(driveFileVersions)
+        .set({ fileReferenceId: uploaded.reference.id })
+        .where(eq(driveFileVersions.id, input.versionId))
+        .run();
+      tx.update(driveEntries)
+        .set({
+          updatedAt: new Date().toISOString(),
+          ...(follows ? { fileReferenceId: uploaded.reference.id } : {}),
+        })
+        .where(eq(driveEntries.id, input.entry.id))
+        .run();
+    });
+  }
+  catch (err) {
+    await releaseReference(db, config, { referenceId: uploaded.reference.id });
+    throw err;
+  }
+
+  // Nothing references the old blob now — release it so the coalesced draft's
+  // prior bytes do not accrue as orphans.
+  await releaseReference(db, config, { referenceId: previousRefId });
+
+  const refreshed = await requireEntryRow(db, input.entry.id);
+  return listEntryVersions(db, refreshed);
+}
+
+/**
+ * Pin the entry's display to a specific version: sets `displayVersionId` and
+ * points `fileReferenceId` at that version's blob so open / preview / download /
+ * share all serve it. 404 when the version does not belong to the entry.
+ */
+export async function setDisplayVersion(
   db: AppDatabase,
   entry: DriveEntryRow,
   versionId: string,
@@ -131,13 +209,35 @@ export async function switchEntryVersion(
   if (!version)
     throw new AppError("Version not found", 404, "NOT_FOUND");
 
-  // Clear the live content slot on switch: with `currentContentBody = null` the
-  // content-read path falls back to the (now-switched) versioned blob, so
-  // GET /content returns the chosen version. This also discards any unsaved
-  // autosave draft — switching versions is an explicit overwrite. Avoids
-  // re-reading the blob bytes here (no file-module text helper is exported).
   await db.update(driveEntries)
-    .set({ fileReferenceId: version.fileReferenceId, currentContentBody: null, updatedAt: new Date().toISOString() })
+    .set({ displayVersionId: versionId, fileReferenceId: version.fileReferenceId, updatedAt: new Date().toISOString() })
+    .where(eq(driveEntries.id, entry.id))
+    .run();
+
+  const refreshed = await requireEntryRow(db, entry.id);
+  return listEntryVersions(db, refreshed);
+}
+
+/**
+ * Clear the pinned display: `displayVersionId = null` and `fileReferenceId` back
+ * to the latest version (max ULID id) so the entry auto-follows newest again.
+ */
+export async function clearDisplayVersion(
+  db: AppDatabase,
+  entry: DriveEntryRow,
+): Promise<readonly DriveVersionView[]> {
+  assertFileEntry(entry);
+  const latest = await db
+    .select()
+    .from(driveFileVersions)
+    .where(eq(driveFileVersions.driveEntryId, entry.id))
+    .orderBy(desc(driveFileVersions.id))
+    .get();
+  if (!latest)
+    throw new AppError("Version not found", 404, "NOT_FOUND");
+
+  await db.update(driveEntries)
+    .set({ displayVersionId: null, fileReferenceId: latest.fileReferenceId, updatedAt: new Date().toISOString() })
     .where(eq(driveEntries.id, entry.id))
     .run();
 

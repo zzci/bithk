@@ -85,7 +85,7 @@ export interface FileBrowserProps {
   /** Override the built-in share action (defaults to the app share dialog). */
   readonly onShareEntry?: (entry: DriveEntry) => void;
   /** Override the built-in preview (drive funnels every list through one chokepoint). */
-  readonly onPreviewEntry?: (entry: DriveEntry, edit?: boolean) => void;
+  readonly onPreviewEntry?: (entry: DriveEntry, edit?: boolean, canEdit?: boolean) => void;
   /** When false, all mutating affordances are hidden or disabled (viewer role). */
   readonly canManage?: boolean;
   /** Label for the root breadcrumb (defaults to the generic "Root"). */
@@ -144,7 +144,6 @@ export function FileBrowser({
   // Internal Univer editor target, used when this browser owns preview (no
   // parent handler). Drive renders its own editor dialog via `onPreviewEntry`.
   const [sheetEntry, setSheetEntry] = useState<DriveEntry | null>(null);
-  const [sheetEditing, setSheetEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
@@ -174,11 +173,12 @@ export function FileBrowser({
 
   // Default preview handler, mirroring `drive.lazy.tsx`'s openPreview: Univer
   // spreadsheets open the state-driven editor dialog (rendered below);
-  // everything else opens the in-app preview dialog.
+  // everything else opens the in-app preview dialog. Sheets are lock-free and
+  // capability-driven, so the `edit` flag only starts the markdown/text viewer
+  // in edit mode — the sheet editor ignores it (editability = canManage).
   const internalOpenPreview = useCallback((entry: DriveEntry, edit = false) => {
     if (isUniverSheetEntry(entry)) {
       setSheetEntry(entry);
-      setSheetEditing(edit);
       return;
     }
     setPreviewEntry(entry);
@@ -247,7 +247,7 @@ export function FileBrowser({
     }
     createSpreadsheet.mutate(
       { name: `${baseName}.sheet`, content, parentEntryId, ownerType, ownerId },
-      { onSuccess: entry => handlePreview?.(entry, true) },
+      { onSuccess: entry => handlePreview?.(entry, true, canManage) },
     );
   };
 
@@ -369,7 +369,7 @@ export function FileBrowser({
     onPreview: (item) => {
       const entry = entryById.get(item.id);
       if (entry)
-        handlePreview?.(entry);
+        handlePreview?.(entry, false, canManage);
     },
     onRename: (item) => {
       const entry = entryById.get(item.id);
@@ -451,7 +451,7 @@ export function FileBrowser({
           createTextFile.mutate({ name, content: "", parentEntryId, ownerType, ownerId }, {
             onSuccess: (entry) => {
               closeDialog();
-              handlePreview?.(entry, true);
+              handlePreview?.(entry, true, canManage);
             },
           })}
       />
@@ -463,7 +463,7 @@ export function FileBrowser({
           createSpreadsheet.mutate({ name, content: emptyUniverSnapshotJson(name), parentEntryId, ownerType, ownerId }, {
             onSuccess: (entry) => {
               closeDialog();
-              handlePreview?.(entry, true);
+              handlePreview?.(entry, true, canManage);
             },
           })}
       />
@@ -527,13 +527,14 @@ export function FileBrowser({
       )}
 
       {/* Built-in Univer editor — same ownership rule as the preview dialog;
-          drive opens spreadsheets through its own dialog via onPreviewEntry. */}
+          drive opens spreadsheets through its own dialog via onPreviewEntry.
+          Editability is capability-driven off this browser's `canManage`. */}
       {!onPreviewEntry && sheetEntry && (
         <Suspense fallback={null}>
           <UniverSheetEditorDialog
             entry={sheetEntry}
             open
-            initialEditing={sheetEditing}
+            canEdit={canManage}
             onOpenChange={open => !open && setSheetEntry(null)}
           />
         </Suspense>
