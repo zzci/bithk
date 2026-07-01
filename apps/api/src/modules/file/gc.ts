@@ -14,6 +14,9 @@ let firstRunTimer: ReturnType<typeof setTimeout> | undefined;
 // long-lived timer reads this ref so it doesn't outlive the previous
 // connection.
 let currentDb: AppDatabase | undefined;
+// Re-entrancy guard: true while a sweep is running so a tick that fires
+// before the previous one finishes is skipped. Mirrors audit/retention.ts.
+let running = false;
 
 /**
  * One pass of the unreferenced-files sweeper. Walks up to `limit` blobs
@@ -52,6 +55,11 @@ export function startFileGcSweep(db: AppDatabase, config: Config, logger: Logger
     const live = currentDb;
     if (!live)
       return;
+    // Skip this tick if the previous sweep is still in flight (a slow pass
+    // exceeding the interval) rather than running overlapping sweeps.
+    if (running)
+      return;
+    running = true;
     try {
       // First, release file_references rows whose owner row has gone
       // away (e.g. comments deleted without a cascading attachment
@@ -71,6 +79,9 @@ export function startFileGcSweep(db: AppDatabase, config: Config, logger: Logger
     }
     catch (err) {
       logger.error({ err }, "file GC sweep failed");
+    }
+    finally {
+      running = false;
     }
   };
 

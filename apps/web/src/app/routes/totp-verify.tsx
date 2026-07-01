@@ -11,6 +11,22 @@ import { Spinner } from "@/shared/components/ui/spinner";
 import { BASE_PATH, http, HttpError } from "@/shared/lib/http";
 
 const RE_NON_DIGIT = /\D/g;
+const RE_HTTPS = /^https:\/\//i;
+
+// The post-verify redirect is server-owned (sanitizeRedirect'd), but validate
+// its scheme before assigning to `window.location`: only an absolute `https://`
+// URL or a same-origin `/`-relative path is allowed; anything else falls back
+// to the overview page. Mirrors the `isSafeRedirect` check on the login route.
+function safeRedirect(url: string | undefined): string {
+  const fallback = `${BASE_PATH}/overview`;
+  if (!url)
+    return fallback;
+  if (url.startsWith("/") && !url.startsWith("//"))
+    return url;
+  if (RE_HTTPS.test(url))
+    return url;
+  return fallback;
+}
 
 export const Route = createFileRoute("/totp-verify")({
   staticData: { titleKey: "totp:loginTitle" },
@@ -35,7 +51,7 @@ function TotpVerifyPage() {
         "/account/auth/totp/verify",
         { method: "POST", body: JSON.stringify({ code }) },
       );
-      window.location.href = body.data?.redirect ?? `${BASE_PATH}/overview`;
+      window.location.href = safeRedirect(body.data?.redirect);
     }
     catch (err) {
       if (err instanceof HttpError && (err.code === "EXPIRED_CHALLENGE" || err.code === "NO_PENDING_TOTP")) {
