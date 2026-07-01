@@ -1,5 +1,8 @@
 # BITHK Project Audit — Index
 
+> **Follow-up audits:**
+> - [AUDIT-20260701.md](./AUDIT-20260701.md) — 2026-07-01 deep audit @ `99ca196`. 0 P0, 1 P1 (drive confirm-upload IDOR), 3 P2, 6 P3. Remediation: [../plan/PLAN-100.md](../plan/PLAN-100.md) (FIX-048…052), BKD campaign `l1-bithk-audit-20260701145456`.
+
 **Campaign:** `l1-w6c655lo-audit-20260602135842` · **Mode:** AUDIT-ONLY (no source code, dependency, config, or schema was changed — only audit reports were authored).
 
 **Scope:** the full BITHK monorepo — `apps/api` (Bun/Hono backend), `apps/web` (React + Vite SPA), `packages/*` (shared/tsconfig), `scripts/`, `tests/`, and root configuration (`package.json`, `tsconfig*`, `bunfig.toml`, `eslint.config.ts`, CI workflow). Seven independent dimension audits were run by parallel L3 agents; this document aggregates their results. Every finding carries a `file:line`, a severity, a confidence, and a method. Remediation is explicitly out of scope here and is deferred to a separately-approved follow-up campaign (see `./remediation-backlog.md`).
