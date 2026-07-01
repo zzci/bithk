@@ -107,16 +107,28 @@ export const s3Driver: FileStorageDriver = {
     }
   },
 
-  async list(prefix) {
-    const res = await requireClient().list({ prefix: s3ObjectKey(prefix), maxKeys: 1000 });
+  async listPage(prefix, continuationToken) {
+    // One ListObjectsV2 page (S3 caps a page at ~1000 keys). The sweep resumes
+    // from `nextToken` until the listing is exhausted, so buckets larger than a
+    // single page are fully considered.
+    const res = await requireClient().list({
+      prefix: s3ObjectKey(prefix),
+      maxKeys: 1000,
+      ...continuationToken ? { continuationToken } : {},
+    });
     // Strip FILE_S3_PREFIX so callers get the driver-internal key (`ab/cd/<sha>`),
     // the same form stored in `files.storage_key`.
     const strip = keyPrefix ? `${keyPrefix}/` : "";
-    return (res.contents ?? []).map(o => ({
+    const objects = (res.contents ?? []).map(o => ({
       key: strip && o.key.startsWith(strip) ? o.key.slice(strip.length) : o.key,
       size: o.size ?? 0,
       lastModified: o.lastModified ? Date.parse(o.lastModified) : 0,
     }));
+    // Advance only while S3 signals more pages; ignore any token echoed back on
+    // the final (non-truncated) page so the sweep loop terminates.
+    return res.isTruncated && res.nextContinuationToken
+      ? { objects, nextToken: res.nextContinuationToken }
+      : { objects };
   },
 };
 
