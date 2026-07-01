@@ -156,3 +156,9 @@
 | [FEAT-044](FEAT-044.md) | S3 storage driver + presigned direct upload + image preview cache | [PLAN-096](../plan/PLAN-096.md) | Completed | 2026-06-22 |
 | [FEAT-045](FEAT-045.md) | Upgrade the update system to the bun-tpl lode SDK with operator controls | [PLAN-097](../plan/PLAN-097.md) | Completed | 2026-06-24 |
 | [FEAT-046](FEAT-046.md) | Port the enriched lode update-config surface from zzci/access | [PLAN-098](../plan/PLAN-098.md) | Completed | 2026-07-01 |
+| [REFACTOR-029](REFACTOR-029.md) | Rework Univer sheet editing: drop edit-lock, version-only autosave with settable display version | [PLAN-099](../plan/PLAN-099.md) | Proposed | 2026-07-01 |
+| [FIX-048](FIX-048.md) | Drive confirm-upload uploader-scoped dedup (P1 IDOR) | [PLAN-100](../plan/PLAN-100.md) | Planned | 2026-07-01 |
+| [FIX-049](FIX-049.md) | Auth IP rate-limit loopback exemption under TRUST_PROXY=false | [PLAN-100](../plan/PLAN-100.md) | Planned | 2026-07-01 |
+| [FIX-050](FIX-050.md) | S3 orphan sweep continuation-token pagination | [PLAN-100](../plan/PLAN-100.md) | Planned | 2026-07-01 |
+| [FIX-051](FIX-051.md) | Pin GitHub Actions to commit SHAs (supply chain) | [PLAN-100](../plan/PLAN-100.md) | Planned | 2026-07-01 |
+| [FIX-052](FIX-052.md) | P3 hardening bundle (service-token/shutdown/gc/redirects/env) | [PLAN-100](../plan/PLAN-100.md) | Planned | 2026-07-01 |
