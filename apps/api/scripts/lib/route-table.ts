@@ -1,30 +1,13 @@
-// Shared in-process route enumeration. Mounts every module's `*.routes`
-// factory into a bare Hono app and reads the routes table — no live server,
-// no DB. Used by `gen-api-docs.ts` (route index) and `gen-api-spec.ts`
-// (OpenAPI coverage), so both stay in lockstep with the real mounts.
+// Shared in-process route enumeration. Composes the REAL `publicRoutes()` /
+// `protectedRoutes()` factories — the exact mounts `app.ts` serves — into a
+// bare Hono app and reads the routes table; no live server, no DB. Used by
+// `gen-api-docs.ts` (route index) and `gen-api-spec.ts` (OpenAPI coverage).
+// A hand-copied mount list lived here before and drifted twice (FIX-045,
+// then `/admin/storage/*` + `/currencies`); reusing the factories keeps the
+// generated docs in lockstep with the app by construction (REFACTOR-030).
+import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
-import { accountRoutes } from "@/modules/account";
-import { auditRoutes } from "@/modules/audit";
-import { backupRoutes } from "@/modules/backup";
-import { contactRoutes } from "@/modules/contact";
-import { cronRoutes } from "@/modules/cron";
-import { documentRoutes } from "@/modules/document";
-import { driveRoutes } from "@/modules/drive";
-import { fileRoutes } from "@/modules/file";
-import { hrRoutes } from "@/modules/hr";
-import { issueRoutes } from "@/modules/issue";
-import { itemRoutes } from "@/modules/item";
-import { overviewRoutes } from "@/modules/overview";
-import { policyRoutes } from "@/modules/policy";
-import { procurementRoutes } from "@/modules/procurement";
-import { projectRoutes } from "@/modules/project";
-import { searchRoutes } from "@/modules/search";
-import { settingsRoutes } from "@/modules/settings";
-import { sharePublicRoutes, shareRoutes } from "@/modules/share";
-import { shipRoutes } from "@/modules/ship";
-import { worklistRoutes } from "@/modules/ship/ship.worklist.service";
-import { systemRoutes } from "@/modules/system";
-import { tagRoutes } from "@/modules/tag";
+import { protectedRoutes, publicRoutes } from "@/routes";
 
 export interface ApiRoute {
   readonly method: string;
@@ -35,35 +18,16 @@ export interface ApiRoute {
 const SKIP_METHODS = new Set(["ALL", "HEAD", "OPTIONS"]);
 
 /**
- * A bare Hono app with every module's routes (and their `describeRoute` /
- * `validator` OpenAPI metadata) mounted — no DB, no server. Used by
- * `gen-api-spec.ts` (via `generateSpecs`) and `collectApiRoutes` below.
+ * A bare Hono app mounting the same route factories as `app.ts` (with their
+ * `describeRoute` / `validator` OpenAPI metadata) — no DB, no server. The
+ * `use("*")` middleware the factories register is inert here (routes are
+ * enumerated, never dispatched) and is filtered out by `collectApiRoutes`.
+ * Used by `gen-api-spec.ts` (via `generateSpecs`) and `collectApiRoutes`.
  */
-export function buildApiApp(): Hono {
-  const app = new Hono();
-  app.route("/", systemRoutes());
-  app.route("/", sharePublicRoutes());
-  app.route("/", accountRoutes());
-  app.route("/", issueRoutes());
-  app.route("/", itemRoutes());
-  app.route("/", policyRoutes());
-  app.route("/", projectRoutes());
-  app.route("/", contactRoutes());
-  app.route("/", tagRoutes());
-  app.route("/", procurementRoutes());
-  app.route("/", documentRoutes());
-  app.route("/", driveRoutes());
-  app.route("/", shareRoutes());
-  app.route("/", shipRoutes());
-  app.route("/", overviewRoutes());
-  app.route("/", searchRoutes());
-  app.route("/", worklistRoutes());
-  app.route("/", hrRoutes());
-  app.route("/", settingsRoutes());
-  app.route("/", auditRoutes());
-  app.route("/", backupRoutes());
-  app.route("/", cronRoutes());
-  app.route("/", fileRoutes());
+export function buildApiApp(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
+  app.route("/", publicRoutes());
+  app.route("/", protectedRoutes());
   return app;
 }
 
