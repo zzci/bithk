@@ -1,11 +1,11 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { setSetting } from "@/modules/settings/settings.service";
-import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { optionalPageQueryFields } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { applyStorageConfig, readStorageConfig, STORAGE_SETTING_KEYS } from "./storage-config";
 import { listStorageFiles, syncNonSpreadsheetsToS3 } from "./storage.service";
@@ -38,8 +38,7 @@ const putConfigSchema = z.object({
 });
 
 const filesQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  ...optionalPageQueryFields(100),
 });
 
 const storageFileSchema = z.object({
@@ -58,11 +57,6 @@ const syncSummarySchema = z.object({
   skipped: z.number(),
   failed: z.number(),
 });
-
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 /**
  * Admin Storage module (FEAT-047): view / edit the DB-backed storage config
@@ -166,9 +160,7 @@ export function storageRoutes() {
       // Apply the new config to the running drivers (no restart needed).
       await applyStorageConfig(db);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "storage.config.updated",
         resourceType: "storage",
         resourceId: "config",
@@ -182,8 +174,6 @@ export function storageRoutes() {
           prefix: s3.prefix ?? current.s3.prefix,
           secretChanged: Boolean(newSecret),
         },
-        ip: getClientIp(c, c.get("config")),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -198,18 +188,7 @@ export function storageRoutes() {
       tags: ["infra1"],
       summary: "List server files",
       responses: {
-        200: {
-          description: "Files page",
-          content: {
-            "application/json": {
-              schema: resolver(z.object({
-                success: z.literal(true),
-                data: z.array(storageFileSchema),
-                meta: z.object({ total: z.number(), page: z.number(), limit: z.number() }),
-              })),
-            },
-          },
-        },
+        200: okListJson(storageFileSchema, "Files page"),
         401: { description: "Unauthenticated", ...errorJson },
         403: { description: "Admin only", ...errorJson },
       },
@@ -246,22 +225,17 @@ export function storageRoutes() {
     adminRequired,
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       if (!isS3Configured()) {
         throw new AppError("S3 storage is not configured", 400, "STORAGE_S3_NOT_CONFIGURED");
       }
       const summary = await syncNonSpreadsheetsToS3(db);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "storage.sync_to_s3",
         resourceType: "storage",
         resourceId: "sync",
         resourceName: "sync to s3",
         detail: { ...summary },
-        ip: getClientIp(c, c.get("config")),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 

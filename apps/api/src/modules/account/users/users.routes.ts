@@ -2,10 +2,11 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getRequestUserModules } from "@/modules/account/groups/module-gate";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, jsonRequestBody, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, jsonRequestBody, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { pageQueryFields } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { rateLimit } from "@/shared/middleware/rate-limit";
 import {
@@ -38,8 +39,7 @@ const listQuerySchema = z.object({
   role: z.enum(["admin", "user"]).optional(),
   status: z.enum(["active", "disabled"]).optional(),
   group_id: z.string().optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  ...pageQueryFields({ defaultLimit: 20, maxLimit: 100 }),
 });
 
 // `username` matches the virtual-user create rule: lowercase handle of
@@ -115,12 +115,6 @@ const totpDeviceSchema = z.object({
   createdAt: z.string(),
 });
 const preferenceSchema = z.object({ key: z.string(), value: z.unknown() }).nullable();
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 export function userRoutes() {
   const router = new Hono<ProtectedEnv>();
@@ -277,15 +271,11 @@ export function userRoutes() {
       const user = c.get("user");
       const body = c.req.valid("json");
       const result = await createTotpDevice(db, user.id, body.name, user.username, config.APP_DISPLAY_NAME);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "totp.device.created",
         resourceType: "totp_device",
         resourceId: result.id,
         resourceName: body.name,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: result }, 201);
@@ -322,28 +312,20 @@ export function userRoutes() {
       const body = z.object({ code: z.string().length(6) }).parse(await c.req.json());
       const ok = await confirmTotpDevice(db, deviceId, user.id, body.code);
       if (!ok) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "totp.device.confirm",
           resourceType: "totp_device",
           resourceId: deviceId,
           resourceName: deviceId,
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
           result: "failure",
         });
         throw new AppError("Invalid TOTP code or device", 400, "TOTP_VERIFY_FAILED");
       }
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "totp.device.confirmed",
         resourceType: "totp_device",
         resourceId: deviceId,
         resourceName: deviceId,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -377,15 +359,11 @@ export function userRoutes() {
       const ok = await deleteTotpDevice(db, deviceId, user.id);
       if (!ok)
         throw new NotFoundError("TOTP device", deviceId);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "totp.device.deleted",
         resourceType: "totp_device",
         resourceId: deviceId,
         resourceName: deviceId,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -463,18 +441,13 @@ export function userRoutes() {
     validator("json", createVirtualUserSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const currentUser = c.get("user");
       const body = c.req.valid("json");
       const created = await createVirtualUser(db, body);
-      await audit(db, c.get("logger"), {
-        actorId: currentUser.id,
-        actorName: currentUser.name,
+      await auditFromCtx(c, {
         action: "user.virtual_created",
         resourceType: "user",
         resourceId: created!.id,
         resourceName: created!.username,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: created }, 201);
@@ -609,9 +582,7 @@ export function userRoutes() {
           await updateVirtualUser(db, id, { name: body.name, username: body.username, email: body.email });
         else
           await updateUser(db, id, { name: body.name });
-        await audit(db, c.get("logger"), {
-          actorId: currentUser.id,
-          actorName: currentUser.name,
+        await auditFromCtx(c, {
           action: existing.isVirtual ? "user.virtual_updated" : "user.profile_updated",
           resourceType: "user",
           resourceId: id,
@@ -623,9 +594,7 @@ export function userRoutes() {
       }
 
       if (roleChanged) {
-        await audit(db, c.get("logger"), {
-          actorId: currentUser.id,
-          actorName: currentUser.name,
+        await auditFromCtx(c, {
           action: "user.role_changed",
           resourceType: "user",
           resourceId: id,
@@ -638,9 +607,7 @@ export function userRoutes() {
       }
       if (statusChanged) {
         const action = body.status === "disabled" ? "user.disabled" : "user.enabled";
-        await audit(db, c.get("logger"), {
-          actorId: currentUser.id,
-          actorName: currentUser.name,
+        await auditFromCtx(c, {
           action,
           resourceType: "user",
           resourceId: id,
@@ -701,15 +668,11 @@ export function userRoutes() {
 
       const existing = await getUserById(db, id);
       await deleteVirtualUser(db, id);
-      await audit(db, c.get("logger"), {
-        actorId: currentUser.id,
-        actorName: currentUser.name,
+      await auditFromCtx(c, {
         action: "user.virtual_deleted",
         resourceType: "user",
         resourceId: id,
         resourceName: existing?.username ?? id,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: null });

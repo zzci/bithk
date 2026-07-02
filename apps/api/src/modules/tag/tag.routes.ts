@@ -2,7 +2,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { TAG_TYPES } from "./schema";
 import { createTag, deleteTag, listTagsWithUsage, renameTag } from "./tag.service";
@@ -18,12 +18,6 @@ const idParamSchema = z.object({ id: z.string() });
 
 const tagSchema = z.object({ id: z.string(), type: z.string(), name: z.string() });
 const tagWithUsageSchema = tagSchema.extend({ usageCount: z.number() });
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 export function tagRoutes() {
   const router = new Hono<ProtectedEnv>();

@@ -2,10 +2,9 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getUserById } from "@/modules/account/users/users.service";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, jsonRequestBody, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, jsonRequestBody, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   addGroupMember,
@@ -73,12 +72,6 @@ const groupMemberSchema = z.object({
   joinedAt: z.string(),
 });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
 export function groupRoutes() {
   const router = new Hono<ProtectedEnv>();
 
@@ -124,16 +117,11 @@ export function groupRoutes() {
         ...body.description ? { description: body.description } : {},
         ...body.modules ? { modules: body.modules } : {},
       });
-      const actor = c.get("user");
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "group.created",
         resourceType: "group",
         resourceId: group.id,
         resourceName: group.name,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: { ...group, modules: parseModules(group.modules) } }, 201);
@@ -172,17 +160,12 @@ export function groupRoutes() {
       const db = c.get("db");
       const body = c.req.valid("json");
       const modules = await setDefaultModules(db, body.modules, c.get("user").id);
-      const actor = c.get("user");
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "group.default_updated",
         resourceType: "group",
         resourceId: "default",
         resourceName: "Default",
         detail: { modules },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: { modules } });
@@ -244,16 +227,11 @@ export function groupRoutes() {
         ...body.description !== undefined ? { description: body.description } : {},
         ...body.modules !== undefined ? { modules: body.modules } : {},
       });
-      const actor = c.get("user");
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "group.updated",
         resourceType: "group",
         resourceId: id,
         resourceName: existing.name,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: updated ? { ...updated, modules: parseModules(updated.modules) } : updated });
@@ -280,16 +258,11 @@ export function groupRoutes() {
       }
 
       await deleteGroup(db, id);
-      const actor = c.get("user");
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "group.deleted",
         resourceType: "group",
         resourceId: id,
         resourceName: existing.name,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -351,17 +324,12 @@ export function groupRoutes() {
         throw new AppError("User is already a member of this group", 409, "CONFLICT");
       }
 
-      const actor = c.get("user");
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "group.member_added",
         resourceType: "group",
         resourceId: id,
         resourceName: group.name,
         detail: { userId: body.userId, userName: user.name },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: null }, 201);
@@ -392,17 +360,12 @@ export function groupRoutes() {
         throw new NotFoundError("Member", userId);
       }
 
-      const actor = c.get("user");
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "group.member_removed",
         resourceType: "group",
         resourceId: id,
         resourceName: group.name,
         detail: { userId },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: null });

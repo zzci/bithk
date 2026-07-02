@@ -1,18 +1,16 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { buildContentDisposition } from "@/shared/lib/content-disposition";
 import { AppError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { serviceTokenRequired } from "@/shared/middleware/service-token";
 import { streamJsonBackup } from "./export.service";
 import { getDataModules, getModuleNames } from "./registry";
 import { redactSecretFields } from "./secret-fields";
 
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 const jsonBackupDownload = { description: "Streaming JSON backup", content: { "application/json": {} } };
 const exportBodySchema = z.object({ modules: z.array(z.string()).min(1) });
 
@@ -112,7 +110,7 @@ export function backupExportRoutes() {
       // No body / non-JSON body → unscoped.
       }
       if (!requestedModules) {
-        await audit(db, c.get("logger"), {
+        await auditFromCtx(c, {
           actorId: "system",
           actorName: "system:backup-sidecar",
           action: "backup.export",
@@ -120,7 +118,6 @@ export function backupExportRoutes() {
           resourceId: "database",
           resourceName: "database-backup-export",
           detail: { reason: "unscoped" },
-          ip: getClientIp(c),
           userAgent: c.req.header("user-agent") ?? "service-token",
           result: "failure",
         });
@@ -137,7 +134,7 @@ export function backupExportRoutes() {
       // sidecar cannot run 10 exports in parallel and pin the WAL.
       if (backupExportInFlight.has(bucket)) {
         c.header("Retry-After", "60");
-        await audit(db, c.get("logger"), {
+        await auditFromCtx(c, {
           actorId: "system",
           actorName: "system:backup-sidecar",
           action: "backup.export",
@@ -145,7 +142,6 @@ export function backupExportRoutes() {
           resourceId: "database",
           resourceName: "database-backup-export",
           detail: { reason: "in-flight" },
-          ip: getClientIp(c),
           userAgent: c.req.header("user-agent") ?? "service-token",
           result: "failure",
         });
@@ -162,7 +158,7 @@ export function backupExportRoutes() {
           if (elapsed < minIntervalMs) {
             const retryAfter = Math.ceil((minIntervalMs - elapsed) / 1000);
             c.header("Retry-After", String(retryAfter));
-            await audit(db, c.get("logger"), {
+            await auditFromCtx(c, {
               actorId: "system",
               actorName: "system:backup-sidecar",
               action: "backup.export",
@@ -170,7 +166,6 @@ export function backupExportRoutes() {
               resourceId: "database",
               resourceName: "database-backup-export",
               detail: { reason: "min-interval", retryAfter },
-              ip: getClientIp(c),
               userAgent: c.req.header("user-agent") ?? "service-token",
               result: "failure",
             });
@@ -185,7 +180,7 @@ export function backupExportRoutes() {
       // re-throws. Mark in-flight only after it succeeds so a thrown audit
       // never leaks the semaphore (the marker is released when the stream
       // below drains, which would never start on a throw here).
-      await audit(db, c.get("logger"), {
+      await auditFromCtx(c, {
         actorId: "system",
         actorName: "system:backup-sidecar",
         action: "backup.export",
@@ -193,7 +188,6 @@ export function backupExportRoutes() {
         resourceId: "database",
         resourceName: "database-backup-export",
         detail: { modules, via: "service-token", redacted: true },
-        ip: getClientIp(c),
         userAgent: c.req.header("user-agent") ?? "service-token",
         result: "success",
       }, { critical: true });
@@ -285,7 +279,6 @@ export function backupExportRoutes() {
     validator("json", exportBodySchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
 
       const body = c.req.valid("json");
 
@@ -301,16 +294,12 @@ export function backupExportRoutes() {
       // Emit the audit row before the stream starts — once the response body
       // begins flowing, the request is committed; failure mid-stream still
       // wants the "export attempted" row in the audit log.
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "backup.export",
         resourceType: "system",
         resourceId: "database",
         resourceName: "database-backup-export",
         detail: { modules },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       }, { critical: true });
 

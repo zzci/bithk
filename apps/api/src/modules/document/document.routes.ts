@@ -3,13 +3,13 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { listActiveUsers } from "@/modules/account/users/users.service";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { NOOP_POLICY_LOGGER, policyContext } from "@/modules/policy";
-import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { parsePageQuery } from "@/shared/lib/pagination";
 import { authRequired } from "@/shared/middleware/auth";
 import { documentAccess } from "./document.permission";
 import {
@@ -116,19 +116,6 @@ const shareResponseSchema = z.object({
 });
 const pinSchema = z.object({ pinned: z.boolean() });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
-function auditMeta(c: Context) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
-}
-
 async function assertMoveTargetAllowed(
   c: Context<ProtectedEnv>,
   movingShortId: string,
@@ -175,14 +162,7 @@ export function documentRoutes() {
       tags: ["documents"],
       summary: "List my documents",
       responses: {
-        200: {
-          description: "Success",
-          content: { "application/json": { schema: resolver(z.object({
-            success: z.literal(true),
-            data: z.array(documentSchema),
-            meta: z.object({ total: z.number(), page: z.number(), limit: z.number() }),
-          })) } },
-        },
+        200: okListJson(documentSchema, "Success"),
         401: { description: "Unauthenticated", ...errorJson },
       },
     }),
@@ -190,9 +170,8 @@ export function documentRoutes() {
     async (c) => {
       const db = c.get("db");
       const user = c.get("user");
-      const { q, tag, page: pageRaw, limit: limitRaw } = c.req.valid("query");
-      const page = Math.max(1, Math.floor(Number.parseInt(pageRaw ?? "", 10)) || 1);
-      const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(limitRaw ?? "", 10)) || 20));
+      const { q, tag } = c.req.valid("query");
+      const { page, limit } = parsePageQuery(c, { limit: 20 });
 
       // Documents are owner-scoped: every caller — admins included — sees
       // only their own and explicitly-shared documents.
@@ -283,14 +262,11 @@ export function documentRoutes() {
       const actor = c.get("user");
       await assertParentTargetAllowed(c, body.parentId);
       const doc = await createDocument(db, { ...body, creatorId: actor.id });
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "document.created",
         resourceType: "document",
         resourceId: doc.id,
         resourceName: doc.title,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: doc }, 201);
@@ -349,7 +325,6 @@ export function documentRoutes() {
     validator("json", updateSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const existing = await getDocumentById(db, id);
       if (!existing)
@@ -383,14 +358,11 @@ export function documentRoutes() {
         );
       }
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "document.updated",
         resourceType: "document",
         resourceId: id,
         resourceName: existing.title,
-        ...auditMeta(c),
         result: "success",
       });
 
@@ -415,7 +387,6 @@ export function documentRoutes() {
     validator("json", moveSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const existing = await getDocumentById(db, id);
       if (!existing)
@@ -428,15 +399,12 @@ export function documentRoutes() {
       if (!moved || isVersionConflict(moved))
         throw new NotFoundError("Document", id);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "document.updated",
         resourceType: "document",
         resourceId: id,
         resourceName: existing.title,
         detail: { moved: { from: existing.parentId, to: body.parentId } },
-        ...auditMeta(c),
         result: "success",
       });
 
@@ -459,7 +427,6 @@ export function documentRoutes() {
     validator("param", idParam, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const existing = await getDocumentById(db, id);
       if (!existing)
@@ -479,29 +446,22 @@ export function documentRoutes() {
       // roll back) together inside the service.
       await softDeleteDocument(db, id, c.get("config"));
 
-      const meta = auditMeta(c);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "document.deleted",
         resourceType: "document",
         resourceId: id,
         resourceName: existing.title,
-        ...meta,
         result: "success",
       });
       for (const d of descendantRows) {
         if (!d)
           continue;
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "document.deleted",
           resourceType: "document",
           resourceId: d.id,
           resourceName: d.title,
           detail: { cascadedFrom: id },
-          ...meta,
           result: "success",
         });
       }

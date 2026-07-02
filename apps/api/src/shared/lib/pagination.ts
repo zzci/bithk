@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { z } from "zod";
 
 /**
  * Standard `page` / `limit` pagination bounds shared across list endpoints.
@@ -21,11 +22,33 @@ const MAX_LIMIT = 100;
 
 export function parsePageQuery(
   c: Pick<Context, "req">,
-  defaults: { page?: number; limit?: number } = {},
+  defaults: { page?: number; limit?: number; maxLimit?: number } = {},
 ): PageQuery {
   const page = clampInt(c.req.query("page"), defaults.page ?? DEFAULT_PAGE, 1, Number.MAX_SAFE_INTEGER);
-  const limit = clampInt(c.req.query("limit"), defaults.limit ?? DEFAULT_LIMIT, 1, MAX_LIMIT);
+  const limit = clampInt(c.req.query("limit"), defaults.limit ?? DEFAULT_LIMIT, 1, defaults.maxLimit ?? MAX_LIMIT);
   return { page, limit, offset: (page - 1) * limit };
+}
+
+/**
+ * Shared zod fragment for endpoints that validate `page`/`limit` via a query
+ * schema (spread into the endpoint's `z.object({...})`). Unlike
+ * `parsePageQuery` (which clamps), validation REJECTS out-of-range values with
+ * a 422 — both semantics predate this helper; each endpoint keeps its own.
+ * The per-endpoint max limit stays an explicit argument at the call site.
+ */
+export function pageQueryFields(opts: { defaultLimit: number; maxLimit: number }) {
+  return {
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(opts.maxLimit).default(opts.defaultLimit),
+  };
+}
+
+/** `pageQueryFields` variant for schemas whose `page`/`limit` stay optional. */
+export function optionalPageQueryFields(maxLimit: number) {
+  return {
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(maxLimit).optional(),
+  };
 }
 
 function clampInt(raw: string | undefined, fallback: number, lo: number, hi: number): number {

@@ -4,15 +4,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
 import { listPinnedByProject } from "./item.service";
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 const projectIdParam = z.object({ projectId: z.string() });
 

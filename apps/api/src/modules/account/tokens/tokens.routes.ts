@@ -3,10 +3,9 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import { getUserById } from "@/modules/account/users/users.service";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { isValidScopeInput, parseScopes } from "./scope";
 import {
@@ -39,12 +38,6 @@ const tokenViewSchema = z.object({
   expired: z.boolean(),
 });
 const tokenWithSecretSchema = tokenViewSchema.extend({ token: z.string() });
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 // Token management is a session-only surface: a PAT must not be able to mint,
 // list, or revoke tokens (no token-farming / privilege escalation). Cookie
@@ -121,16 +114,12 @@ export function tokenRoutes() {
         scopes: body.scopes,
         expiresInDays: body.expiresInDays,
       });
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "api_token.created",
         resourceType: "api_token",
         resourceId: row.id,
         resourceName: row.name,
         detail: { targetUserId: actor.id, scopes: body.scopes, expiresAt: row.expiresAt },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       // `token` (plaintext) is returned exactly once.
@@ -155,16 +144,12 @@ export function tokenRoutes() {
       if (!row)
         throw new NotFoundError("API token", id);
       await revokeToken(db, id);
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "api_token.revoked",
         resourceType: "api_token",
         resourceId: id,
         resourceName: row.name,
         detail: { targetUserId: actor.id },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -208,7 +193,6 @@ export function tokenRoutes() {
     validator("json", createSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const actor = c.get("user");
       const { id: userId } = c.req.valid("param");
       const target = await getUserById(db, userId);
       if (!target)
@@ -222,16 +206,12 @@ export function tokenRoutes() {
         scopes: body.scopes,
         expiresInDays: body.expiresInDays,
       });
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "api_token.created",
         resourceType: "api_token",
         resourceId: row.id,
         resourceName: row.name,
         detail: { targetUserId: userId, scopes: body.scopes, expiresAt: row.expiresAt },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: { ...toView(row), token } }, 201);
@@ -250,22 +230,17 @@ export function tokenRoutes() {
     validator("param", z.object({ id: z.string(), tokenId: z.string() }), onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const actor = c.get("user");
       const { id: userId, tokenId } = c.req.valid("param");
       const row = await getTokenByIdForUser(db, userId, tokenId);
       if (!row)
         throw new NotFoundError("API token", tokenId);
       await revokeToken(db, tokenId);
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "api_token.revoked",
         resourceType: "api_token",
         resourceId: tokenId,
         resourceName: row.name,
         detail: { targetUserId: userId },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: null });

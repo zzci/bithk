@@ -1,10 +1,9 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   deleteSetting,
@@ -44,12 +43,6 @@ const settingRowSchema = z.object({
   updatedAt: z.string(),
 });
 const settingValueSchema = z.object({ key: z.string(), value: z.string() });
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 function validateSettingKey(key: string): void {
   if (!SETTING_KEY_RE.test(key)) {
@@ -154,16 +147,12 @@ export function settingsRoutes() {
 
       await setSetting(db, key, body.value, { updatedBy: user.id });
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "setting.updated",
         resourceType: "setting",
         resourceId: key,
         resourceName: key,
         detail: { previousValue, newValue: maskValue(key, body.value) },
-        ip: getClientIp(c, c.get("config")),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -190,22 +179,17 @@ export function settingsRoutes() {
       const db = c.get("db");
       const { key } = c.req.valid("param");
       validateSettingKey(key);
-      const user = c.get("user");
 
       const deleted = await deleteSetting(db, key);
       if (!deleted) {
         throw new NotFoundError("Setting", key);
       }
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "setting.deleted",
         resourceType: "setting",
         resourceId: key,
         resourceName: key,
-        ip: getClientIp(c, c.get("config")),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 

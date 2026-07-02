@@ -4,7 +4,9 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { optionalPageQueryFields } from "@/shared/lib/pagination";
+import { parseTagIds } from "@/shared/lib/route-params";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   composeCategory,
@@ -77,26 +79,8 @@ const updateProjectSchema = z.object({
 const listSchema = z.object({
   status: z.enum(PROJECT_STATUSES).optional(),
   q: z.string().min(1).max(200).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  ...optionalPageQueryFields(100),
 });
-
-// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
-// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
-// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
-function parseTagIds(raw: string[] | undefined): string[] {
-  if (!raw || raw.length === 0)
-    return [];
-  const out = new Set<string>();
-  for (const part of raw) {
-    for (const value of part.split(",")) {
-      const trimmed = value.trim();
-      if (trimmed)
-        out.add(trimmed);
-    }
-  }
-  return [...out].slice(0, 50);
-}
 
 const addMemberSchema = z.object({
   roleId: z.string().min(1),
@@ -148,16 +132,6 @@ const updateCategorySchema = z.object({
   description: z.string().max(2000).nullable().optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-// Paginated `{ success:true, data:[…], meta }` response doc.
-const pageMetaSchema = z.object({ total: z.number(), page: z.number(), limit: z.number() });
-function okListJson(itemSchema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 // Multipart upload (`file` field) request-body doc for cover-image uploads.
 const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
 

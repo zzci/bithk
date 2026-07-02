@@ -3,10 +3,9 @@ import type { ShipRow } from "./ship.service";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { parsePageQuery } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { EQUIPMENT_STATUSES, SHIP_STATUSES } from "./schema";
@@ -276,21 +275,8 @@ const worklistViewSchema = z.object({
   updatedAt: z.string(),
 });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
 function actorId(c: Context<ProtectedEnv>): string {
   return c.get("user").id;
-}
-
-function auditMeta(c: Context<ProtectedEnv>) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
 }
 
 /**
@@ -352,18 +338,14 @@ export function shipRoutes() {
     adminRequired,
     validator("json", createEquipmentCategorySchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const body = c.req.valid("json");
       const category = await createGlobalEquipmentCategory(db, body);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "global_equipment_category.created",
         resourceType: "global_equipment_category",
         resourceId: category.id,
         resourceName: category.nameZh,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: composeGlobalEquipmentCategory(category) }, 201);
@@ -400,21 +382,17 @@ export function shipRoutes() {
     validator("param", z.object({ id: idSchema }), onValidationFailure),
     validator("json", updateEquipmentCategorySchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const category = await updateGlobalEquipmentCategory(db, id, body);
       if (!category)
         throw new NotFoundError("Equipment category", id);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "global_equipment_category.updated",
         resourceType: "global_equipment_category",
         resourceId: category.id,
         resourceName: category.nameZh,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: composeGlobalEquipmentCategory(category) });
@@ -431,20 +409,16 @@ export function shipRoutes() {
     adminRequired,
     validator("param", z.object({ id: idSchema }), onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const { id } = c.req.valid("param");
       const category = await resolveGlobalEquipmentCategory(db, id);
       if (!category || !await deleteGlobalEquipmentCategory(db, id))
         throw new NotFoundError("Equipment category", id);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "global_equipment_category.deleted",
         resourceType: "global_equipment_category",
         resourceId: category.id,
         resourceName: category.nameZh,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -480,18 +454,14 @@ export function shipRoutes() {
     adminRequired,
     validator("json", createManufacturerSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const body = c.req.valid("json");
       const manufacturer = await createGlobalEquipmentManufacturer(db, body);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "equipment_manufacturer.created",
         resourceType: "equipment_manufacturer",
         resourceId: manufacturer.id,
         resourceName: manufacturer.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: composeGlobalEquipmentManufacturer(manufacturer) }, 201);
@@ -528,21 +498,17 @@ export function shipRoutes() {
     validator("param", z.object({ id: idSchema }), onValidationFailure),
     validator("json", updateManufacturerSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const manufacturer = await updateGlobalEquipmentManufacturer(db, id, body);
       if (!manufacturer)
         throw new NotFoundError("Equipment manufacturer", id);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "equipment_manufacturer.updated",
         resourceType: "equipment_manufacturer",
         resourceId: manufacturer.id,
         resourceName: manufacturer.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: composeGlobalEquipmentManufacturer(manufacturer) });
@@ -559,20 +525,16 @@ export function shipRoutes() {
     adminRequired,
     validator("param", z.object({ id: idSchema }), onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const { id } = c.req.valid("param");
       const manufacturer = await resolveGlobalEquipmentManufacturer(db, id);
       if (!manufacturer || !await deleteGlobalEquipmentManufacturer(db, id))
         throw new NotFoundError("Equipment manufacturer", id);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "equipment_manufacturer.deleted",
         resourceType: "equipment_manufacturer",
         resourceId: manufacturer.id,
         resourceName: manufacturer.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -587,14 +549,7 @@ export function shipRoutes() {
       tags: ["ships"],
       summary: "List ships",
       responses: {
-        200: {
-          description: "Ship list",
-          content: { "application/json": { schema: resolver(z.object({
-            success: z.literal(true),
-            data: z.array(shipViewSchema),
-            meta: z.object({ total: z.number(), page: z.number(), limit: z.number() }),
-          })) } },
-        },
+        200: okListJson(shipViewSchema, "Ship list"),
         401: { description: "Unauthenticated", ...errorJson },
         422: { description: "Validation error", ...errorJson },
       },

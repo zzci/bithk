@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { describe, expect, it } from "bun:test";
-import { parsePageQuery } from "./pagination";
+import { z } from "zod";
+import { optionalPageQueryFields, pageQueryFields, parsePageQuery } from "./pagination";
 
 // Minimal Hono context stub exposing only `req.query(key)`, the single
 // surface `parsePageQuery` reads.
@@ -46,5 +47,41 @@ describe("parsePageQuery", () => {
   it("lets explicit params override caller-supplied defaults", () => {
     expect(parsePageQuery(ctx({ page: "5", limit: "25" }), { page: 2, limit: 10 }))
       .toEqual({ page: 5, limit: 25, offset: 100 });
+  });
+
+  it("honours a caller-supplied maxLimit", () => {
+    expect(parsePageQuery(ctx({ limit: "150" }), { limit: 50, maxLimit: 200 }).limit).toBe(150);
+    expect(parsePageQuery(ctx({ limit: "500" }), { limit: 50, maxLimit: 200 }).limit).toBe(200);
+    expect(parsePageQuery(ctx({ limit: "50" }), { limit: 8, maxLimit: 20 }).limit).toBe(20);
+  });
+});
+
+describe("pageQueryFields", () => {
+  const schema = z.object(pageQueryFields({ defaultLimit: 50, maxLimit: 200 }));
+
+  it("applies defaults when params are absent", () => {
+    expect(schema.parse({})).toEqual({ page: 1, limit: 50 });
+  });
+
+  it("coerces string params to numbers", () => {
+    expect(schema.parse({ page: "3", limit: "120" })).toEqual({ page: 3, limit: 120 });
+  });
+
+  it("rejects out-of-range values instead of clamping", () => {
+    expect(schema.safeParse({ limit: "201" }).success).toBe(false);
+    expect(schema.safeParse({ page: "0" }).success).toBe(false);
+  });
+});
+
+describe("optionalPageQueryFields", () => {
+  const schema = z.object(optionalPageQueryFields(100));
+
+  it("leaves absent params undefined", () => {
+    expect(schema.parse({})).toEqual({});
+  });
+
+  it("coerces and bounds present params", () => {
+    expect(schema.parse({ page: "2", limit: "100" })).toEqual({ page: 2, limit: 100 });
+    expect(schema.safeParse({ limit: "101" }).success).toBe(false);
   });
 });

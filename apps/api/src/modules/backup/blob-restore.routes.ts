@@ -13,15 +13,13 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { AppError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, resolver } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, resolver } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { restoreBlobArchive } from "./blob-restore";
 import { CONTENT_LENGTH_SLACK } from "./import-v2.routes";
 
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 const blobRestoreReportSchema = z.object({
   written: z.number(),
   skippedExisting: z.number(),
@@ -51,7 +49,6 @@ export function backupBlobRestoreRoutes() {
     async (c) => {
       const db = c.get("db");
       const config = c.get("config");
-      const user = c.get("user");
 
       // Cheap early reject on the declared size; the count while staging is
       // the real enforcement (Content-Length can lie).
@@ -67,9 +64,7 @@ export function backupBlobRestoreRoutes() {
       const report = await restoreBlobArchive(db, config, file, {}, c.get("logger"));
 
       // Critical, v1 pattern: a failed audit write fails the action loudly.
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "backup.import.blobs",
         resourceType: "system",
         resourceId: "database",
@@ -81,8 +76,6 @@ export function backupBlobRestoreRoutes() {
           unquarantined: report.unquarantined,
           reconcile: { checked: report.reconcile.checked, quarantined: report.reconcile.quarantined },
         },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       }, { critical: true });
 

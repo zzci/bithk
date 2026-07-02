@@ -4,13 +4,12 @@ import type { DriveOwner } from "./drive.service";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { parseThumbnailWidth } from "@/modules/file";
 import { policyContext } from "@/modules/policy";
 import { hasCapability, isMember, resolveProjectId } from "@/modules/project/project.service";
-import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
 import { assertEntryCapability, driveAccess } from "./drive.permission";
 import {
@@ -202,22 +201,6 @@ const teamMemberSchema = z.object({
 const idResultSchema = z.object({ id: z.string() });
 const trashEmptiedSchema = z.object({ removed: z.number() });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-// `{ success:false, error }` response doc for an error status.
-function errJson(description: string) {
-  return { description, content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-}
-
-function auditMeta(c: Context) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
-}
-
 function personalOwner(userId: string): DriveOwner {
   return { ownerType: "user", ownerId: userId };
 }
@@ -250,7 +233,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "List drive entries in a folder",
-      responses: { 200: okJson(z.array(driveEntrySchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 422: errJson("Validation error") },
+      responses: { 200: okJson(z.array(driveEntrySchema)), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("query", listSchema, onValidationFailure),
     async (c) => {
@@ -270,7 +253,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "List the caller's recently updated entries",
-      responses: { 200: okJson(z.array(driveEntrySchema)), 401: errJson("Unauthenticated") },
+      responses: { 200: okJson(z.array(driveEntrySchema)), 401: { description: "Unauthenticated", ...errorJson } },
     }),
     async (c) => {
       const user = c.get("user");
@@ -284,7 +267,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "List the caller's favorite entries",
-      responses: { 200: okJson(z.array(driveEntrySchema)), 401: errJson("Unauthenticated") },
+      responses: { 200: okJson(z.array(driveEntrySchema)), 401: { description: "Unauthenticated", ...errorJson } },
     }),
     async (c) => {
       const user = c.get("user");
@@ -298,7 +281,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Search drive entries by name",
-      responses: { 200: okJson(z.array(driveEntrySchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 422: errJson("Validation error") },
+      responses: { 200: okJson(z.array(driveEntrySchema)), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("query", searchEntriesSchema, onValidationFailure),
     async (c) => {
@@ -314,20 +297,17 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Empty the caller's trash",
-      responses: { 200: okJson(trashEmptiedSchema), 401: errJson("Unauthenticated") },
+      responses: { 200: okJson(trashEmptiedSchema), 401: { description: "Unauthenticated", ...errorJson } },
     }),
     async (c) => {
       const user = c.get("user");
       const removed = await emptyDriveTrash(c.get("db"), c.get("config"), personalOwner(user.id));
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.trash.emptied",
         resourceType: "drive_entry",
         resourceId: user.id,
         resourceName: "trash",
         detail: { removed },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { removed } });
@@ -339,7 +319,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Create a text file entry",
-      responses: { 201: okJson(driveEntrySchema, "Created"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 422: errJson("Validation error") },
+      responses: { 201: okJson(driveEntrySchema, "Created"), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("json", createTextFileSchema, onValidationFailure),
     async (c) => {
@@ -353,14 +333,11 @@ export function driveRoutes() {
         name: body.name,
         content: body.content,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.file.created",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: entry }, 201);
@@ -372,7 +349,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Create a spreadsheet entry",
-      responses: { 201: okJson(driveEntrySchema, "Created"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 422: errJson("Validation error") },
+      responses: { 201: okJson(driveEntrySchema, "Created"), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("json", createSpreadsheetSchema, onValidationFailure),
     async (c) => {
@@ -386,14 +363,11 @@ export function driveRoutes() {
         name: body.name,
         content: body.content,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.file.created",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: entry }, 201);
@@ -405,7 +379,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Create a folder",
-      responses: { 201: okJson(driveEntrySchema, "Created"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 422: errJson("Validation error") },
+      responses: { 201: okJson(driveEntrySchema, "Created"), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("json", createFolderSchema, onValidationFailure),
     async (c) => {
@@ -418,14 +392,11 @@ export function driveRoutes() {
         parentEntryId: body.parentEntryId,
         name: body.name,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.folder.created",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: entry }, 201);
@@ -441,7 +412,7 @@ export function driveRoutes() {
         required: true,
         content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" }, parentEntryId: { type: "string" }, ownerType: { type: "string" }, ownerId: { type: "string" } }, required: ["file"] } } },
       },
-      responses: { 201: okJson(driveEntrySchema, "Created"), 400: errJson("No file provided"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden") },
+      responses: { 201: okJson(driveEntrySchema, "Created"), 400: { description: "No file provided", ...errorJson }, 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson } },
     }),
     async (c) => {
       const user = c.get("user");
@@ -462,14 +433,11 @@ export function driveRoutes() {
         parentEntryId,
         file,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.file.uploaded",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: entry }, 201);
@@ -482,7 +450,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Begin a presigned direct upload (or finish instantly on dedup)",
-      responses: { 200: okJson(z.object({ mode: z.literal("upload"), upload: z.object({ url: z.string(), method: z.literal("PUT"), headers: z.record(z.string(), z.string()) }) })), 201: okJson(z.object({ mode: z.literal("done"), entry: driveEntrySchema }), "Created (dedup)"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 409: errJson("Direct upload unavailable"), 413: errJson("Too large"), 422: errJson("Validation error") },
+      responses: { 200: okJson(z.object({ mode: z.literal("upload"), upload: z.object({ url: z.string(), method: z.literal("PUT"), headers: z.record(z.string(), z.string()) }) })), 201: okJson(z.object({ mode: z.literal("done"), entry: driveEntrySchema }), "Created (dedup)"), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 409: { description: "Direct upload unavailable", ...errorJson }, 413: { description: "Too large", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("json", presignUploadSchema, onValidationFailure),
     async (c) => {
@@ -499,14 +467,11 @@ export function driveRoutes() {
         mimetype: body.mimetype,
       });
       if (result.mode === "done") {
-        await audit(c.get("db"), c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "drive.file.uploaded",
           resourceType: "drive_entry",
           resourceId: result.entry.id,
           resourceName: result.entry.name,
-          ...auditMeta(c),
           result: "success",
         });
         return c.json({ success: true, data: { mode: "done", entry: result.entry } }, 201);
@@ -521,7 +486,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Confirm a presigned direct upload and create the drive entry",
-      responses: { 201: okJson(driveEntrySchema, "Created"), 400: errJson("Upload not found"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 413: errJson("Too large"), 422: errJson("Validation error") },
+      responses: { 201: okJson(driveEntrySchema, "Created"), 400: { description: "Upload not found", ...errorJson }, 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 413: { description: "Too large", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("json", confirmUploadSchema, onValidationFailure),
     async (c) => {
@@ -536,14 +501,11 @@ export function driveRoutes() {
         sha256: body.sha256,
         mimetype: body.mimetype,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.file.uploaded",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: entry }, 201);
@@ -557,7 +519,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Get a drive entry",
-      responses: { 200: okJson(driveEntrySchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(driveEntrySchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
@@ -579,9 +541,9 @@ export function driveRoutes() {
       summary: "Download a drive entry's file contents",
       responses: {
         200: { description: "File contents", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } },
-        401: errJson("Unauthenticated"),
-        403: errJson("Forbidden"),
-        404: errJson("Not found"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
       },
     }),
     validator("param", idParamSchema, onValidationFailure),
@@ -608,7 +570,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "List a file entry's versions",
-      responses: { 200: okJson(z.array(driveVersionSchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(z.array(driveVersionSchema)), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
@@ -628,7 +590,7 @@ export function driveRoutes() {
         required: true,
         content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] } } },
       },
-      responses: { 201: okJson(z.array(driveVersionSchema), "Created"), 400: errJson("No file provided"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 201: okJson(z.array(driveVersionSchema), "Created"), 400: { description: "No file provided", ...errorJson }, 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
@@ -646,14 +608,11 @@ export function driveRoutes() {
         file,
         uploadedBy: user.id,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.file.version_uploaded",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data }, 201);
@@ -669,7 +628,7 @@ export function driveRoutes() {
         required: true,
         content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] } } },
       },
-      responses: { 200: okJson(z.array(driveVersionSchema)), 400: errJson("No file provided"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(z.array(driveVersionSchema)), 400: { description: "No file provided", ...errorJson }, 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", versionParamSchema, onValidationFailure),
     async (c) => {
@@ -688,15 +647,12 @@ export function driveRoutes() {
         file,
         uploadedBy: user.id,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.file.version_overwritten",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
         detail: { versionId },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -713,25 +669,21 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Pin the entry's display to a specific version",
-      responses: { 200: okJson(z.array(driveVersionSchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 422: errJson("Validation error") },
+      responses: { 200: okJson(z.array(driveVersionSchema)), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     validator("json", setDisplayVersionSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
       const { versionId } = c.req.valid("json");
       const data = await setDisplayVersion(c.get("db"), entry, versionId);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.file.display_version_set",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
         detail: { versionId },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -743,22 +695,18 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Clear the pinned display version (follow latest)",
-      responses: { 200: okJson(z.array(driveVersionSchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(z.array(driveVersionSchema)), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const entry = await assertEntryCapability(c.get("db"), actorOf(c), id, "update");
       const data = await clearDisplayVersion(c.get("db"), entry);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.file.display_version_cleared",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -774,25 +722,21 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Update a drive entry (rename / move / favorite)",
-      responses: { 200: okJson(driveEntrySchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 422: errJson("Validation error") },
+      responses: { 200: okJson(driveEntrySchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     validator("json", updateEntrySchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       await driveAccess.assert(policyContext(c)!, "drive:update", id);
       const body = c.req.valid("json");
       const owner = await getEntryOwner(c.get("db"), id);
       const entry = await updateDriveEntry(c.get("db"), { ...owner, id, ...body });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.entry.updated",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: entry });
@@ -804,23 +748,19 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Restore a trashed drive entry",
-      responses: { 200: okJson(driveEntrySchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(driveEntrySchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       await driveAccess.assert(policyContext(c)!, "drive:update", id);
       const owner = await getEntryOwner(c.get("db"), id);
       const entry = await restoreDriveEntry(c.get("db"), owner, id);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.entry.restored",
         resourceType: "drive_entry",
         resourceId: entry.id,
         resourceName: entry.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: entry });
@@ -832,23 +772,19 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Permanently delete a drive entry",
-      responses: { 200: okJson(idResultSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(idResultSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       await driveAccess.assert(policyContext(c)!, "drive:delete", id);
       const owner = await getEntryOwner(c.get("db"), id);
       await deleteDriveEntryPermanently(c.get("db"), c.get("config"), owner, id);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.entry.deleted",
         resourceType: "drive_entry",
         resourceId: id,
         resourceName: id,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { id } });
@@ -860,23 +796,19 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Move a drive entry to trash",
-      responses: { 200: okJson(idResultSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(idResultSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       await driveAccess.assert(policyContext(c)!, "drive:delete", id);
       const owner = await getEntryOwner(c.get("db"), id);
       await trashDriveEntry(c.get("db"), owner, id);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.entry.trashed",
         resourceType: "drive_entry",
         resourceId: id,
         resourceName: id,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { id } });
@@ -890,7 +822,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "List the caller's team directories",
-      responses: { 200: okJson(z.array(teamDirectorySchema)), 401: errJson("Unauthenticated") },
+      responses: { 200: okJson(z.array(teamDirectorySchema)), 401: { description: "Unauthenticated", ...errorJson } },
     }),
     async (c) => {
       const user = c.get("user");
@@ -904,7 +836,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Create a team directory",
-      responses: { 201: okJson(teamDirectorySchema, "Created"), 401: errJson("Unauthenticated"), 422: errJson("Validation error") },
+      responses: { 201: okJson(teamDirectorySchema, "Created"), 401: { description: "Unauthenticated", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("json", createDirectorySchema, onValidationFailure),
     async (c) => {
@@ -915,14 +847,11 @@ export function driveRoutes() {
         description: body.description,
         createdBy: user.id,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.directory.created",
         resourceType: "team_directory",
         resourceId: data.id,
         resourceName: data.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data }, 201);
@@ -934,7 +863,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Get a team directory",
-      responses: { 200: okJson(teamDirectorySchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(teamDirectorySchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
@@ -950,7 +879,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Update a team directory",
-      responses: { 200: okJson(teamDirectorySchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 422: errJson("Validation error") },
+      responses: { 200: okJson(teamDirectorySchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     validator("json", updateDirectorySchema, onValidationFailure),
@@ -959,14 +888,11 @@ export function driveRoutes() {
       const { id: directoryId } = c.req.valid("param");
       const body = c.req.valid("json");
       const data = await updateTeamDirectory(c.get("db"), directoryId, user.id, body);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.directory.updated",
         resourceType: "team_directory",
         resourceId: data.id,
         resourceName: data.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -978,21 +904,18 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Delete a team directory",
-      responses: { 200: okJson(idResultSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(idResultSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
       const user = c.get("user");
       const { id: directoryId } = c.req.valid("param");
       await deleteTeamDirectory(c.get("db"), directoryId, user.id);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.directory.deleted",
         resourceType: "team_directory",
         resourceId: directoryId,
         resourceName: directoryId,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { id: directoryId } });
@@ -1004,7 +927,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "List a team directory's members",
-      responses: { 200: okJson(z.array(teamMemberSchema)), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(z.array(teamMemberSchema)), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
@@ -1020,7 +943,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Add a member to a team directory",
-      responses: { 201: okJson(teamMemberSchema, "Created"), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 422: errJson("Validation error") },
+      responses: { 201: okJson(teamMemberSchema, "Created"), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("param", idParamSchema, onValidationFailure),
     validator("json", addMemberSchema, onValidationFailure),
@@ -1029,15 +952,12 @@ export function driveRoutes() {
       const { id: directoryId } = c.req.valid("param");
       const body = c.req.valid("json");
       const data = await addTeamMember(c.get("db"), directoryId, user.id, body);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.directory.member_added",
         resourceType: "team_directory",
         resourceId: directoryId,
         resourceName: directoryId,
         detail: { memberId: data.userId, role: data.role },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data }, 201);
@@ -1049,7 +969,7 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Update a team directory member's role",
-      responses: { 200: okJson(teamMemberSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found"), 422: errJson("Validation error") },
+      responses: { 200: okJson(teamMemberSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     validator("param", memberParamSchema, onValidationFailure),
     validator("json", updateMemberSchema, onValidationFailure),
@@ -1058,15 +978,12 @@ export function driveRoutes() {
       const { id: directoryId, memberId } = c.req.valid("param");
       const body = c.req.valid("json");
       const data = await updateTeamMember(c.get("db"), directoryId, memberId, user.id, body.role);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.directory.member_updated",
         resourceType: "team_directory",
         resourceId: directoryId,
         resourceName: directoryId,
         detail: { memberId, role: data.role },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -1078,22 +995,19 @@ export function driveRoutes() {
     describeRoute({
       tags: ["drive"],
       summary: "Remove a member from a team directory",
-      responses: { 200: okJson(idResultSchema), 401: errJson("Unauthenticated"), 403: errJson("Forbidden"), 404: errJson("Not found") },
+      responses: { 200: okJson(idResultSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
     validator("param", memberParamSchema, onValidationFailure),
     async (c) => {
       const user = c.get("user");
       const { id: directoryId, memberId } = c.req.valid("param");
       await removeTeamMember(c.get("db"), directoryId, memberId, user.id);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "drive.directory.member_removed",
         resourceType: "team_directory",
         resourceId: directoryId,
         resourceName: directoryId,
         detail: { memberId },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { id: memberId } });
