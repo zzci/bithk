@@ -200,8 +200,17 @@ export function policyMiddleware(options: { readonly basePath?: string } = {}): 
 
     const access = getAccessByName(match.binding.resourceName);
     const def = getResource(match.binding.resourceName);
-    if (!access || !def)
-      return next();
+    if (!access || !def) {
+      // A matched binding without its access instance/definition is a wiring
+      // bug (`defineResource` registers binding, definition and access
+      // atomically). Fail closed with a 500 rather than silently admitting
+      // the request — mirrors the empty-registry boot assert in `app.ts`.
+      throw new Error(
+        `[policy] route binding ${match.binding.method} ${match.binding.path} references `
+        + `resource "${match.binding.resourceName}" with no registered access instance/definition — `
+        + `refusing to fail open. This is a wiring bug (defineResource() did not run for it).`,
+      );
+    }
 
     const params: Record<string, string> = {};
     for (let i = 0; i < match.paramNames.length; i++)
