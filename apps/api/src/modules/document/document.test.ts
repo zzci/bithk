@@ -13,6 +13,7 @@ import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { groups } from "@/modules/account/groups/schema";
 import { users } from "@/modules/account/users/schema";
+import { fileReferences, files } from "@/modules/file/schema";
 import { items } from "@/modules/item/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { createShare, listSharesForResource } from "@/modules/share/share.service";
@@ -20,6 +21,7 @@ import { errorHandler } from "@/shared/middleware/error-handler";
 import { documentAccess } from "./document.permission";
 import { documentRoutes } from "./document.routes";
 import {
+  __setCascadeDeleteFailpointForTests,
   addDocumentShare,
   createDocument,
   getDocumentById,
@@ -863,5 +865,66 @@ describe("softDeleteDocument cascades public-link cleanup", () => {
     // Both the directly-shared root and the cascaded child lose their links.
     expect((await listSharesForResource(db, "document", root.id)).length).toBe(0);
     expect((await listSharesForResource(db, "document", child.id)).length).toBe(0);
+  });
+});
+
+describe("softDeleteDocument atomicity (REFACTOR-034)", () => {
+  // Attachment reference for a document's item, matching the wire the
+  // attachment routes produce: owner_type 'item_attachment', owner_id =
+  // the document's internal items.id.
+  async function seedAttachment(owner: string, shortId: string): Promise<string> {
+    const item = await db.select().from(items).where(eq(items.shortId, shortId)).get();
+    const fileId = nanoid();
+    const refId = nanoid();
+    await db.insert(files).values({
+      id: fileId,
+      sha256: `sha-${fileId}`,
+      size: 3,
+      mimetype: "text/plain",
+      storageDriver: "local",
+      storageKey: `ab/cd/${fileId}`,
+      refCount: 1,
+      uploadedBy: owner,
+    }).run();
+    await db.insert(fileReferences).values({
+      id: refId,
+      fileId,
+      ownerType: "item_attachment",
+      ownerId: item!.id,
+      filename: "note.txt",
+      createdBy: owner,
+    }).run();
+    return refId;
+  }
+
+  test("a mid-transaction failure leaves no partial state (docs, shares, references all intact)", async () => {
+    const owner = await seedUser("Owner");
+    const root = await createDocument(db, { title: "Root", creatorId: owner });
+    const child = await createDocument(db, { title: "Child", creatorId: owner, parentId: root.id });
+    await createShare(db, { resourceType: "document", resourceId: child.id, createdBy: owner, shareType: "public_link", permission: "view" });
+    const refId = await seedAttachment(owner, child.id);
+
+    __setCascadeDeleteFailpointForTests(() => {
+      throw new Error("boom");
+    });
+    try {
+      await expect(softDeleteDocument(db, root.id)).rejects.toThrow("boom");
+    }
+    finally {
+      __setCascadeDeleteFailpointForTests(null);
+    }
+
+    // Nothing committed: both docs still live, share and reference intact.
+    expect(await getDocumentById(db, root.id)).toBeDefined();
+    expect(await getDocumentById(db, child.id)).toBeDefined();
+    expect((await listSharesForResource(db, "document", child.id)).length).toBe(1);
+    const ref = await db.select().from(fileReferences).where(eq(fileReferences.id, refId)).get();
+    expect(ref).toBeDefined();
+
+    // With the failpoint cleared the same call succeeds and drains everything.
+    await softDeleteDocument(db, root.id);
+    expect(await getDocumentById(db, root.id)).toBeUndefined();
+    expect((await listSharesForResource(db, "document", child.id)).length).toBe(0);
+    expect(await db.select().from(fileReferences).where(eq(fileReferences.id, refId)).get()).toBeUndefined();
   });
 });

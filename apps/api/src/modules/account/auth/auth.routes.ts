@@ -1,9 +1,5 @@
 import type { Context } from "hono";
-import type { LockoutPolicy, LockoutState } from "./lockout.service";
-import type { Config } from "@/config";
-import type { AppDatabase } from "@/db";
 import type { AppEnv } from "@/shared/lib/types";
-import { Buffer } from "node:buffer";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
@@ -11,7 +7,6 @@ import { clearSessionCookie, cookiePath, readSessionId, writeSessionCookie } fro
 import {
   consumeTotpChallenge,
   createTotpChallenge,
-  hasVerifiedTotp,
   verifyTotpCode,
 } from "@/modules/account/users/totp.service";
 import { audit } from "@/modules/audit/audit.service";
@@ -19,6 +14,7 @@ import { deriveOrigin, getAuthConfig, getOAuthConfig, getOidcLogoutUrl, getSingl
 import { getClientIp } from "@/shared/lib/client-ip";
 import { describeRoute, ErrorEnvelope, jsonRequestBody, resolver } from "@/shared/lib/openapi";
 import {
+  completeOidcLogin,
   consumePkceEntry,
   createPkceChallenge,
   createSession,
@@ -27,61 +23,19 @@ import {
   isSingleUserSession,
   SINGLE_USER_ACCESS_TOKEN,
   upsertSingleUser,
-  upsertUser,
 } from "./auth.service";
-import { clearAllLockouts, clearFailures, isLocked, recordFailure } from "./lockout.service";
-import { buildAuthorizeUrl, exchangeCodeForTokens, fetchUserInfo, revokeToken } from "./oidc";
+import {
+  checkAuthRateLimit,
+  clearSingleUserFailures,
+  isSingleUserLocked,
+  recordSingleUserFailure,
+} from "./lockout.service";
+import { buildAuthorizeUrl, revokeToken } from "./oidc";
 import { verifyPassword } from "./password";
 
 // eslint-disable-next-line no-control-regex
 const RE_CONTROL_CHARS = /[\x00-\x1F\x7F]/g;
 
-/**
- * Thrown when the IdP returned an id_token that is present but cannot be
- * parsed into a usable `sub` (malformed JWT, non-string/absent `sub`
- * claim). This is an auth failure — NOT the same as a token-less pure
- * OAuth2 response. Treating an unparseable id_token as "no id_token"
- * would silently downgrade to `skipSubjectCheck`, dropping the sub
- * binding the IdP intended us to enforce.
- */
-class IdTokenError extends Error {}
-
-/**
- * Decode `sub` from the id_token JWT payload without verifying the
- * signature. We pass it to openid-client's `fetchUserInfo` as
- * `expectedSub` — the library performs the actual sub-match check
- * against the userinfo response.
- *
- * Three outcomes, deliberately distinct:
- *   - id_token genuinely absent (pure OAuth2 provider) → return `null`;
- *     the caller may skip the sub assertion.
- *   - id_token present and yields a string `sub` → return it.
- *   - id_token present but unparseable / missing a string `sub` → throw
- *     `IdTokenError`. The IdP committed to OIDC by sending a token; a
- *     broken one is an auth failure, not a reason to skip the binding.
- */
-function readIdTokenSub(idToken: string | undefined): string | null {
-  if (!idToken)
-    return null;
-  const parts = idToken.split(".");
-  if (parts.length !== 3 || !parts[1])
-    throw new IdTokenError("id_token present but not a well-formed JWT");
-  let payload: { sub?: unknown };
-  try {
-    payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8")) as { sub?: unknown };
-  }
-  catch {
-    throw new IdTokenError("id_token payload is not valid JSON");
-  }
-  if (typeof payload.sub !== "string" || payload.sub === "")
-    throw new IdTokenError("id_token payload has no usable string `sub` claim");
-  return payload.sub;
-}
-
-// Test-only surface for the three-way id_token distinction (absent vs
-// valid vs present-but-unparseable). Not used by runtime callers.
-export const __readIdTokenSubForTests = readIdTokenSub;
-export const __IdTokenErrorForTests = IdTokenError;
 // In production we use `__Secure-` (not `__Host-`) for auxiliary cookies so
 // multiple instances on one origin under different `BASE_PATH`s don't clobber
 // each other's cookies via the forced `Path=/`. Dev uses the plain name
@@ -104,24 +58,6 @@ function oauthStateCookieName(env: "production" | "development" | "test"): strin
   return env === "production" ? OAUTH_STATE_COOKIE_PROD : OAUTH_STATE_COOKIE_DEV;
 }
 
-// --- Per-IP rate limiter for auth endpoints ---
-// 120/min/IP is comfortably above realistic human throughput (a user
-// initiates login at most a handful of times per minute) yet below the
-// "many concurrent test callers behind one NAT" floor that would lock
-// out a developer or an integration suite. Both /login and /callback
-// share this bucket — together they cap the total auth-flow churn from
-// any one peer in a sliding minute.
-const AUTH_RATE_WINDOW_MS = 60_000;
-const AUTH_RATE_MAX = 120;
-const AUTH_RATE_MAX_BUCKETS = 10_000;
-
-interface RateBucket {
-  count: number;
-  resetAt: number;
-}
-
-const authRateBuckets = new Map<string, RateBucket>();
-
 /**
  * Rate-limit key. Defers to `getClientIp` so `TRUST_PROXY=true` deployments
  * key per-end-user IP (X-Real-IP / right-most X-Forwarded-For) instead of
@@ -129,96 +65,6 @@ const authRateBuckets = new Map<string, RateBucket>();
  */
 function rateLimitKey(c: Context<AppEnv>): string {
   return getClientIp(c, c.get("config"));
-}
-
-/**
- * True for loopback peers (`127.0.0.0/8`, `::1`, IPv4-mapped loopback).
- */
-function isLoopback(ip: string): boolean {
-  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip.startsWith("127.");
-}
-
-/**
- * Whether a loopback caller may skip the per-IP auth limiter.
- *
- * The exemption exists so genuine loopback callers — the e2e suite, local
- * integration runs — aren't throttled by the shared per-IP bucket. But under
- * the default `TRUST_PROXY=false` a same-host reverse proxy connects to the app
- * over loopback, so a `127.0.0.1` peer may actually be the proxy fronting every
- * real client (`getClientIp` returns the raw socket peer when `TRUST_PROXY` is
- * off). Exempting it there would silently disable IP throttling for the whole
- * deployment (AUDIT-20260701 → P2 / FIX-049).
- *
- * So loopback is exempt only when it genuinely denotes a trusted local caller:
- *   - `TRUST_PROXY=true` — `getClientIp` then resolves the real end-user IP from
- *     forwarding headers, so a loopback *result* means a direct, on-host caller
- *     rather than a proxied client; OR
- *   - outside production — dev/test ergonomics; no real attacker is present and
- *     120/min/IP is far above any human loopback login rate anyway.
- *
- * In the production + `TRUST_PROXY=false` topology the exemption is withheld, so
- * the same-host-proxy peer is throttled like any other IP.
- */
-function isLoopbackRateLimitExempt(ip: string, config: Pick<Config, "NODE_ENV" | "TRUST_PROXY">): boolean {
-  return isLoopback(ip) && (config.TRUST_PROXY || config.NODE_ENV !== "production");
-}
-
-/** Returns 0 when allowed, else seconds remaining until the bucket resets. */
-function checkAuthRateLimit(ip: string, config: Pick<Config, "NODE_ENV" | "TRUST_PROXY">): number {
-  if (isLoopbackRateLimitExempt(ip, config))
-    return 0;
-  const now = Date.now();
-  const bucket = authRateBuckets.get(ip);
-  if (bucket && now < bucket.resetAt) {
-    if (bucket.count >= AUTH_RATE_MAX) {
-      return Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
-    }
-    bucket.count++;
-    return 0;
-  }
-  if (authRateBuckets.size >= AUTH_RATE_MAX_BUCKETS) {
-    const firstKey = authRateBuckets.keys().next().value;
-    if (firstKey !== undefined)
-      authRateBuckets.delete(firstKey);
-  }
-  authRateBuckets.set(ip, { count: 1, resetAt: now + AUTH_RATE_WINDOW_MS });
-  return 0;
-}
-
-// --- Per-username lockout for single-user login ---
-// The IP-keyed limiter above caps brute-force from one peer, but an
-// attacker rotating proxies / residential IPs can still grind a single
-// account. Lock the account after N consecutive failures for a fixed
-// window, mirroring the per-user TOTP lockout. State lives in
-// `auth_lockouts` (see `lockout.service.ts`) so the counter survives
-// process restarts and is shared across replicas.
-const SINGLE_USER_LOCKOUT_POLICY: LockoutPolicy = {
-  threshold: 10,
-  windowMs: 15 * 60 * 1000,
-};
-
-function singleUserLockoutKey(username: string): string {
-  return `single-user:${username.toLowerCase()}`;
-}
-
-export async function isSingleUserLocked(
-  db: AppDatabase,
-  username: string,
-): Promise<LockoutState> {
-  return isLocked(db, singleUserLockoutKey(username));
-}
-
-async function recordSingleUserFailure(db: AppDatabase, username: string): Promise<LockoutState> {
-  return recordFailure(db, singleUserLockoutKey(username), SINGLE_USER_LOCKOUT_POLICY);
-}
-
-async function clearSingleUserFailures(db: AppDatabase, username: string): Promise<void> {
-  await clearFailures(db, singleUserLockoutKey(username));
-}
-
-/** Test hook — drop every persisted lockout row between specs. */
-export async function __resetSingleUserLockoutForTests(db: AppDatabase): Promise<void> {
-  await clearAllLockouts(db);
 }
 
 // Collapse `/` and `\` runs that browsers may treat as protocol prefixes
@@ -373,8 +219,6 @@ export function authRoutes() {
       if (!isOAuthConfigured(config)) {
         return c.redirect(buildLoginErrorUrl(base, "oauth_not_configured"), 302);
       }
-      const oauth = getOAuthConfig(config);
-      const authCfg = await getAuthConfig(db, config);
 
       const code = c.req.query("code");
       const state = c.req.query("state");
@@ -427,69 +271,22 @@ export function authRoutes() {
       // full set of response parameters in a single pass.
       for (const [k, v] of new URL(c.req.url).searchParams)
         callbackUrl.searchParams.append(k, v);
-      let tokens;
-      try {
-        tokens = await exchangeCodeForTokens({
-          oauth,
-          appConfig: config,
-          callbackUrl,
-          expectedState: state,
-          codeVerifier: oauth.pkce ? pkceEntry.codeVerifier : undefined,
-        });
-      }
-      catch (err) {
-        logger.error({
-          err: err instanceof Error ? err.message : String(err),
-          code: (err as { code?: unknown }).code,
-        }, "OAuth token exchange failed");
-        return c.redirect(buildLoginErrorUrl(base, "oidc_error", "Token exchange failed"), 302);
-      }
-      // Resolve the expected `sub` BEFORE the userinfo call so a present-
-      // but-unparseable id_token fails closed as an auth error instead of
-      // silently downgrading to `skipSubjectCheck`. A genuinely absent
-      // id_token (pure OAuth2 IdP) yields `null` → skip is acceptable.
-      let idTokenSub: string | null;
-      try {
-        idTokenSub = readIdTokenSub(tokens.id_token);
-      }
-      catch (err) {
-        logger.error({ err: err instanceof Error ? err.message : String(err) }, "OAuth id_token rejected");
-        return c.redirect(buildLoginErrorUrl(base, "oidc_error", "Invalid id_token"), 302);
-      }
-      let userInfo;
-      try {
-      // expectedSub === "" tells fetchUserInfo to skipSubjectCheck — only
-      // reached when the IdP sent no id_token at all (pure OAuth2).
-        userInfo = await fetchUserInfo({
-          oauth,
-          appConfig: config,
-          accessToken: tokens.access_token,
-          expectedSub: idTokenSub ?? "",
-        });
-      }
-      catch (err) {
-        logger.error({ err: err instanceof Error ? err.message : String(err) }, "OAuth userinfo fetch failed");
-        return c.redirect(buildLoginErrorUrl(base, "oidc_error", "Userinfo fetch failed"), 302);
-      }
-      const user = await upsertUser(db, userInfo, authCfg, logger);
 
-      if (user.status === "disabled") {
-        logger.warn({ username: user.username }, "login denied: user is disabled");
+      const outcome = await completeOidcLogin(db, config, logger, {
+        callbackUrl,
+        state,
+        codeVerifier: pkceEntry.codeVerifier,
+        redirectUri: pkceEntry.redirectUri,
+      });
+
+      if (outcome.status === "oidc_error") {
+        return c.redirect(buildLoginErrorUrl(base, "oidc_error", outcome.detail), 302);
+      }
+      if (outcome.status === "user_disabled") {
         return c.redirect(buildLoginErrorUrl(base, "user_disabled"), 302);
       }
-
-      // Check if user has TOTP enabled — if so, defer session creation
-      const totpEnabled = await hasVerifiedTotp(db, user.id);
-      if (totpEnabled) {
-        const challengeId = await createTotpChallenge(
-          db,
-          user.id,
-          tokens.access_token,
-          tokens.refresh_token,
-          tokens.expires_in,
-          pkceEntry.redirectUri,
-        );
-        setCookie(c, totpPendingCookieName(config.NODE_ENV), challengeId, {
+      if (outcome.status === "totp_required") {
+        setCookie(c, totpPendingCookieName(config.NODE_ENV), outcome.challengeId, {
           httpOnly: true,
           secure: config.NODE_ENV === "production",
           sameSite: "Lax",
@@ -499,24 +296,15 @@ export function authRoutes() {
         return c.redirect(`${base}/totp-verify`, 302);
       }
 
-      const sessionId = await createSession(
-        db,
-        user.id,
-        tokens.access_token,
-        tokens.refresh_token,
-        authCfg.sessionMaxAge,
-        tokens.expires_in,
-      );
-
-      writeSessionCookie(c, config.NODE_ENV, config.BASE_PATH, sessionId, authCfg.sessionMaxAge);
+      writeSessionCookie(c, config.NODE_ENV, config.BASE_PATH, outcome.sessionId, outcome.sessionMaxAge);
 
       await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+        actorId: outcome.user.id,
+        actorName: outcome.user.name,
         action: "auth.login",
         resourceType: "user",
-        resourceId: user.id,
-        resourceName: user.username,
+        resourceId: outcome.user.id,
+        resourceName: outcome.user.username,
         ip: getClientIp(c),
         userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",

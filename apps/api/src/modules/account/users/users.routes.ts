@@ -1,10 +1,7 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
-import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { sessions } from "@/modules/account/auth/schema";
 import { getRequestUserModules } from "@/modules/account/groups/module-gate";
-import { userPreferences, users } from "@/modules/account/users/schema";
 import { audit } from "@/modules/audit/audit.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
@@ -22,16 +19,18 @@ import {
   verifyTotpCode,
 } from "./totp.service";
 import {
-  assertNotLastActiveAdmin,
+  applyRoleStatusChange,
   createVirtualUser,
   deleteVirtualUser,
   getUserById,
   getUserGroups,
+  getUserPreference,
   listActiveUsers,
   listAssignableUsers,
   listUsers,
   updateUser,
   updateVirtualUser,
+  upsertUserPreference,
 } from "./users.service";
 
 const listQuerySchema = z.object({
@@ -194,12 +193,8 @@ export function userRoutes() {
       const user = c.get("user");
       const { key } = c.req.valid("param");
 
-      const row = await db.select()
-        .from(userPreferences)
-        .where(and(eq(userPreferences.userId, user.id), eq(userPreferences.key, key)))
-        .get();
-
-      return c.json({ success: true, data: row ? { key: row.key, value: row.value } : null });
+      const data = await getUserPreference(db, user.id, key);
+      return c.json({ success: true, data });
     },
   );
 
@@ -245,15 +240,7 @@ export function userRoutes() {
       if (new TextEncoder().encode(value).length > MAX_PREFERENCE_VALUE_BYTES)
         throw new AppError("Preference value too large", 413, "PREFERENCE_TOO_LARGE");
 
-      await db.insert(userPreferences).values({
-        userId: user.id,
-        key,
-        value,
-        updatedAt: new Date().toISOString(),
-      }).onConflictDoUpdate({
-        target: [userPreferences.userId, userPreferences.key],
-        set: { value, updatedAt: new Date().toISOString() },
-      }).run();
+      await upsertUserPreference(db, user.id, key, value);
 
       return c.json({ success: true, data: null });
     },
@@ -596,27 +583,12 @@ export function userRoutes() {
           || (body.status !== undefined && body.status !== "active"));
 
       if (body.role !== undefined || body.status !== undefined) {
-      // Atomic: either both the user mutation AND the session purge land, or
-      // neither does. Without a tx an admin demote could persist while the
-      // user keeps an existing admin session live.
-        db.transaction((tx) => {
-        // Last-admin guard (FEAT-031), inside the tx so two admins demoting
-        // each other concurrently cannot both pass the count.
-          if (losesAdmin)
-            assertNotLastActiveAdmin(tx, id);
-
-          const now = new Date().toISOString();
-          const setData: Record<string, unknown> = { updatedAt: now };
-          if (body.role !== undefined)
-            setData.role = body.role;
-          if (body.status !== undefined)
-            setData.status = body.status;
-
-          tx.update(users).set(setData).where(eq(users.id, id)).run();
-
-          if (roleChanged || statusChanged) {
-            tx.delete(sessions).where(eq(sessions.userId, id)).run();
-          }
+        // Atomic: either both the user mutation AND the session purge land, or
+        // neither does. Without a tx an admin demote could persist while the
+        // user keeps an existing admin session live.
+        applyRoleStatusChange(db, id, { role: body.role, status: body.status }, {
+          losesAdmin,
+          purgeSessions: roleChanged || statusChanged,
         });
 
         // Re-validate the acting admin's authority post-commit. If their role was

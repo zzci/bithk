@@ -1,15 +1,18 @@
 import type { AppDatabase } from "@/db";
+import type { DrainedBlob, FileServiceConfig } from "@/modules/file";
 import type { PolicyContext } from "@/modules/policy";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { runWrite } from "@/db";
 import { groups } from "@/modules/account/groups/schema";
 import { documentAccess } from "@/modules/document/document.permission";
 import { documentDetails, documentPins } from "@/modules/document/schema";
+import { finalizeReleasedBlob, releaseReferenceTx } from "@/modules/file";
+import { fileReferences } from "@/modules/file/schema";
 import { items } from "@/modules/item/schema";
 import { NOOP_POLICY_LOGGER } from "@/modules/policy";
 import { relationTuples } from "@/modules/policy/schema";
 import { listUserResources } from "@/modules/policy/zanzibar.engine";
-import { deleteSharesForResource } from "@/modules/share";
+import { shares } from "@/modules/share/schema";
 import { tags, tagsRefs } from "@/modules/tag/schema";
 import { listResourceIdsByTag, listResourceTagNames, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { NotFoundError } from "@/shared/lib/errors";
@@ -329,12 +332,36 @@ export async function moveDocument(
   return await updateDocument(db, shortId, { parentId: parentShortId, expectedVersion });
 }
 
-export async function softDeleteDocument(db: AppDatabase, shortId: string): Promise<void> {
+// Test-only failure injection for the cascade-delete transaction. When set,
+// the hook runs inside the tx after every destructive statement so a test can
+// force a rollback and assert nothing was committed (REFACTOR-034).
+let cascadeDeleteFailpoint: (() => void) | null = null;
+export function __setCascadeDeleteFailpointForTests(fn: (() => void) | null): void {
+  cascadeDeleteFailpoint = fn;
+}
+
+/**
+ * Soft-delete a document subtree in ONE transaction: attachment references
+ * (refcount drain via `releaseReferenceTx`), the `items` soft-delete, the
+ * policy relation tuples, and every public link in the polymorphic `shares`
+ * table (no FK to items, so cascade cleanup is the owning module's
+ * responsibility). A mid-failure rolls everything back — no orphaned shares
+ * or references.
+ *
+ * `config` drives the post-commit blob finalize for drained attachment
+ * blobs (sync-GC deletes bytes immediately; async leaves them to the
+ * sweeper). When omitted, drained blobs stay at refcount 0 for the sweeper.
+ */
+export async function softDeleteDocument(
+  db: AppDatabase,
+  shortId: string,
+  config?: FileServiceConfig,
+): Promise<void> {
   const item = await getItemByShortId(db, shortId);
   if (!item)
     return;
   const now = new Date().toISOString();
-  const deletedShortIds = db.transaction((tx): readonly string[] => {
+  const drained = db.transaction((tx): readonly DrainedBlob[] => {
     // Walk descendants via document_details.parent_id.
     const desc = tx.all<{ id: string }>(sql`
       WITH RECURSIVE descendants(id) AS (
@@ -346,6 +373,23 @@ export async function softDeleteDocument(db: AppDatabase, shortId: string): Prom
     `);
     const idsToDelete = [item.id, ...desc.map(r => r.id)];
 
+    // Release every attachment in the subtree before stamping deleted_at —
+    // refcounts drain so the GC reclaims blobs that were only referenced by
+    // the deleted documents. Batched: one lookup for the whole subtree.
+    const refs = tx.select({ id: fileReferences.id })
+      .from(fileReferences)
+      .where(and(
+        eq(fileReferences.ownerType, "item_attachment"),
+        inArray(fileReferences.ownerId, idsToDelete),
+      ))
+      .all();
+    const drainedBlobs: DrainedBlob[] = [];
+    for (const ref of refs) {
+      const blob = releaseReferenceTx(tx, ref.id);
+      if (blob)
+        drainedBlobs.push(blob);
+    }
+
     tx.update(items)
       .set({ deletedAt: now, updatedAt: now, version: sql`${items.version} + 1` })
       .where(and(inArray(items.id, idsToDelete), isNull(items.deletedAt)))
@@ -354,20 +398,27 @@ export async function softDeleteDocument(db: AppDatabase, shortId: string): Prom
       eq(relationTuples.namespace, "item"),
       inArray(relationTuples.objectId, idsToDelete),
     )).run();
-    return tx.select({ shortId: items.shortId })
+
+    // Public links are keyed by the document's short_id.
+    const deletedShortIds = tx.select({ shortId: items.shortId })
       .from(items)
       .where(inArray(items.id, idsToDelete))
       .all()
       .map(r => r.shortId);
+    tx.delete(shares).where(and(
+      eq(shares.resourceType, "document"),
+      inArray(shares.resourceId, deletedShortIds),
+    )).run();
+
+    cascadeDeleteFailpoint?.();
+
+    return drainedBlobs;
   });
 
-  // Anonymous public links live in the polymorphic `shares` table (no FK to
-  // items), so the soft-delete above does not cascade to them. Remove every
-  // public link attached to the deleted subtree explicitly — mirroring the
-  // drive module's delete path and honouring the share schema's contract
-  // that cascade cleanup is the owning module's responsibility.
-  for (const sid of deletedShortIds)
-    await deleteSharesForResource(db, "document", sid);
+  if (config) {
+    for (const blob of drained)
+      await finalizeReleasedBlob(db, config, blob);
+  }
 }
 
 /** Returned to admin UI alongside the soft-deleted root. */

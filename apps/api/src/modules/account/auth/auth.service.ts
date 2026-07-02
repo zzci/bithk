@@ -12,7 +12,9 @@ import { openPkceVerifier, sealPkceVerifier } from "@/modules/account/auth/pkce-
 import { pkceChallenges, sessions } from "@/modules/account/auth/schema";
 import { clearSessionCookie, readSessionId } from "@/modules/account/auth/session-cookie";
 import { users } from "@/modules/account/users/schema";
-import { getOAuthConfig } from "@/shared/lib/app-config";
+import { createTotpChallenge, hasVerifiedTotp } from "@/modules/account/users/totp.service";
+import { getAuthConfig, getOAuthConfig } from "@/shared/lib/app-config";
+import { exchangeCodeForTokens, fetchUserInfo } from "./oidc";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -101,6 +103,172 @@ export async function consumePkceEntry(db: AppDatabase, state: string): Promise<
     redirectUri: row.redirectUri,
     expiresAt: row.expiresAt,
   };
+}
+
+// --- OIDC callback orchestration ---
+
+/**
+ * Thrown when the IdP returned an id_token that is present but cannot be
+ * parsed into a usable `sub` (malformed JWT, non-string/absent `sub`
+ * claim). This is an auth failure — NOT the same as a token-less pure
+ * OAuth2 response. Treating an unparseable id_token as "no id_token"
+ * would silently downgrade to `skipSubjectCheck`, dropping the sub
+ * binding the IdP intended us to enforce.
+ */
+class IdTokenError extends Error {}
+
+/**
+ * Decode `sub` from the id_token JWT payload without verifying the
+ * signature. We pass it to openid-client's `fetchUserInfo` as
+ * `expectedSub` — the library performs the actual sub-match check
+ * against the userinfo response.
+ *
+ * Three outcomes, deliberately distinct:
+ *   - id_token genuinely absent (pure OAuth2 provider) → return `null`;
+ *     the caller may skip the sub assertion.
+ *   - id_token present and yields a string `sub` → return it.
+ *   - id_token present but unparseable / missing a string `sub` → throw
+ *     `IdTokenError`. The IdP committed to OIDC by sending a token; a
+ *     broken one is an auth failure, not a reason to skip the binding.
+ */
+function readIdTokenSub(idToken: string | undefined): string | null {
+  if (!idToken)
+    return null;
+  const parts = idToken.split(".");
+  if (parts.length !== 3 || !parts[1])
+    throw new IdTokenError("id_token present but not a well-formed JWT");
+  let payload: { sub?: unknown };
+  try {
+    payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8")) as { sub?: unknown };
+  }
+  catch {
+    throw new IdTokenError("id_token payload is not valid JSON");
+  }
+  if (typeof payload.sub !== "string" || payload.sub === "")
+    throw new IdTokenError("id_token payload has no usable string `sub` claim");
+  return payload.sub;
+}
+
+// Test-only surface for the three-way id_token distinction (absent vs
+// valid vs present-but-unparseable). Not used by runtime callers.
+export const __readIdTokenSubForTests = readIdTokenSub;
+export const __IdTokenErrorForTests = IdTokenError;
+
+export interface OidcLoginInput {
+  /** Full callback URL with the inbound query string mirrored onto it. */
+  readonly callbackUrl: URL;
+  /** The `state` echoed by the IdP (already matched against the cookie). */
+  readonly state: string;
+  /** PKCE verifier from the consumed challenge row (PKCE-enabled IdPs). */
+  readonly codeVerifier: string | undefined;
+  /** Post-login SPA redirect captured at /login time. */
+  readonly redirectUri: string;
+}
+
+export type OidcLoginOutcome
+  = | { readonly status: "oidc_error"; readonly detail: string }
+    | { readonly status: "user_disabled" }
+    | { readonly status: "totp_required"; readonly challengeId: string }
+    | {
+      readonly status: "logged_in";
+      readonly user: typeof users.$inferSelect;
+      readonly sessionId: string;
+      readonly sessionMaxAge: number;
+    };
+
+/**
+ * Token-exchange half of the OAuth callback: swap the code for tokens,
+ * enforce the id_token `sub` binding, fetch userinfo, upsert the local
+ * user, and either mint a session or defer to a TOTP challenge. The
+ * route maps each outcome onto its redirect + cookie side effects.
+ */
+export async function completeOidcLogin(
+  db: AppDatabase,
+  config: Config,
+  logger: Logger,
+  input: OidcLoginInput,
+): Promise<OidcLoginOutcome> {
+  const oauth = getOAuthConfig(config);
+  const authCfg = await getAuthConfig(db, config);
+
+  let tokens;
+  try {
+    tokens = await exchangeCodeForTokens({
+      oauth,
+      appConfig: config,
+      callbackUrl: input.callbackUrl,
+      expectedState: input.state,
+      codeVerifier: oauth.pkce ? input.codeVerifier : undefined,
+    });
+  }
+  catch (err) {
+    logger.error({
+      err: err instanceof Error ? err.message : String(err),
+      code: (err as { code?: unknown }).code,
+    }, "OAuth token exchange failed");
+    return { status: "oidc_error", detail: "Token exchange failed" };
+  }
+
+  // Resolve the expected `sub` BEFORE the userinfo call so a present-
+  // but-unparseable id_token fails closed as an auth error instead of
+  // silently downgrading to `skipSubjectCheck`. A genuinely absent
+  // id_token (pure OAuth2 IdP) yields `null` → skip is acceptable.
+  let idTokenSub: string | null;
+  try {
+    idTokenSub = readIdTokenSub(tokens.id_token);
+  }
+  catch (err) {
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, "OAuth id_token rejected");
+    return { status: "oidc_error", detail: "Invalid id_token" };
+  }
+
+  let userInfo;
+  try {
+    // expectedSub === "" tells fetchUserInfo to skipSubjectCheck — only
+    // reached when the IdP sent no id_token at all (pure OAuth2).
+    userInfo = await fetchUserInfo({
+      oauth,
+      appConfig: config,
+      accessToken: tokens.access_token,
+      expectedSub: idTokenSub ?? "",
+    });
+  }
+  catch (err) {
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, "OAuth userinfo fetch failed");
+    return { status: "oidc_error", detail: "Userinfo fetch failed" };
+  }
+
+  const user = await upsertUser(db, userInfo, authCfg, logger);
+
+  if (user.status === "disabled") {
+    logger.warn({ username: user.username }, "login denied: user is disabled");
+    return { status: "user_disabled" };
+  }
+
+  // If the user has TOTP enabled, defer session creation to the verify step.
+  const totpEnabled = await hasVerifiedTotp(db, user.id);
+  if (totpEnabled) {
+    const challengeId = await createTotpChallenge(
+      db,
+      user.id,
+      tokens.access_token,
+      tokens.refresh_token,
+      tokens.expires_in,
+      input.redirectUri,
+    );
+    return { status: "totp_required", challengeId };
+  }
+
+  const sessionId = await createSession(
+    db,
+    user.id,
+    tokens.access_token,
+    tokens.refresh_token,
+    authCfg.sessionMaxAge,
+    tokens.expires_in,
+  );
+
+  return { status: "logged_in", user, sessionId, sessionMaxAge: authCfg.sessionMaxAge };
 }
 
 // --- User upsert ---

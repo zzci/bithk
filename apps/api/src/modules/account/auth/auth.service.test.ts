@@ -3,6 +3,7 @@ import type { AppDatabase } from "@/db";
 import type { AuthConfig } from "@/shared/lib/app-config";
 import type { Logger } from "@/shared/lib/logger";
 import type { AppEnv } from "@/shared/lib/types";
+import { Buffer } from "node:buffer";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -13,7 +14,7 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { createVirtualUser } from "@/modules/account/users/users.service";
-import { createSession, oauthSessionAuthProvider, upsertSingleUser, upsertUser } from "./auth.service";
+import { __IdTokenErrorForTests, __readIdTokenSubForTests, createSession, oauthSessionAuthProvider, upsertSingleUser, upsertUser } from "./auth.service";
 import { sessions } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
@@ -470,5 +471,34 @@ describe("session lifetime (FIX-046)", () => {
     expect(await resolveWithCookie(sessionId)).toBeNull();
     const row = await db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
     expect(row).toBeUndefined();
+  });
+});
+
+describe("readIdTokenSub — present vs absent vs unparseable", () => {
+  function jwt(payload: object): string {
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    return `${b64({ alg: "none" })}.${b64(payload)}.`;
+  }
+
+  test("absent id_token → null (pure OAuth2, skip is acceptable)", () => {
+    expect(__readIdTokenSubForTests(undefined)).toBeNull();
+  });
+
+  test("valid id_token → returns sub", () => {
+    expect(__readIdTokenSubForTests(jwt({ sub: "user-123" }))).toBe("user-123");
+  });
+
+  test("present but not a JWT (wrong segment count) → throws, no skip", () => {
+    expect(() => __readIdTokenSubForTests("not-a-jwt")).toThrow(__IdTokenErrorForTests);
+  });
+
+  test("present with non-JSON payload → throws, no skip", () => {
+    expect(() => __readIdTokenSubForTests("aaa.%%%notbase64json%%%.ccc")).toThrow(__IdTokenErrorForTests);
+  });
+
+  test("present but sub missing / non-string → throws, no skip", () => {
+    expect(() => __readIdTokenSubForTests(jwt({ email: "a@b.c" }))).toThrow(__IdTokenErrorForTests);
+    expect(() => __readIdTokenSubForTests(jwt({ sub: 42 }))).toThrow(__IdTokenErrorForTests);
+    expect(() => __readIdTokenSubForTests(jwt({ sub: "" }))).toThrow(__IdTokenErrorForTests);
   });
 });

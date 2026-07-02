@@ -1,23 +1,27 @@
 import type { Context } from "hono";
 import type { TaskConfig } from "./executor";
 import type { ProtectedEnv } from "@/shared/lib/types";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
-import { cronJobLogs, cronJobs } from "@/modules/cron/schema";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { nanoid } from "@/shared/lib/id";
 import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
+import { getActionsCatalog } from "./actions";
+import { SUPPORTED_CRON_FORMATS } from "./cron-format";
 import {
-  getAction,
-  getActionsCatalog,
-  validateActionConfig,
-} from "./actions";
-import { isValidCron, normalizeCron, SUPPORTED_CRON_FORMATS } from "./cron-format";
-import { getScheduler } from "./cron.service";
+  createJob,
+  findJobByIdOrName,
+  getJobAnyById,
+  getJobLogById,
+  getScheduler,
+  listJobLogs,
+  listJobs,
+  pauseJob,
+  resumeJob,
+  softDeleteJob,
+} from "./cron.service";
 import { executeTask } from "./executor";
 import { serializeJob } from "./serialize";
 
@@ -148,24 +152,6 @@ export function cronRoutes() {
   router.use("*", authRequired);
   router.use("*", adminRequired);
 
-  async function findJob(c: Context<ProtectedEnv>, identifier: string) {
-    const db = c.get("db");
-    const byId = await db
-      .select()
-      .from(cronJobs)
-      .where(and(eq(cronJobs.isDeleted, false), eq(cronJobs.id, identifier)))
-      .get();
-    if (byId)
-      return byId;
-
-    const byName = await db
-      .select()
-      .from(cronJobs)
-      .where(and(eq(cronJobs.isDeleted, false), eq(cronJobs.name, identifier)))
-      .get();
-    return byName ?? null;
-  }
-
   // GET /cron/actions — registered action catalog + cron-format reference + scheduler state.
   router.get(
     "/cron/actions",
@@ -216,43 +202,17 @@ export function cronRoutes() {
     async (c) => {
       const db = c.get("db");
       const q = c.req.valid("query");
-      const pageLimit = q.limit ?? 20;
 
-      const deletedFlag = resolveDeletedFlag(q.deleted);
-      const conditions = [];
-      if (deletedFlag !== null)
-        conditions.push(eq(cronJobs.isDeleted, deletedFlag));
-      if (q.taskType !== undefined)
-        conditions.push(eq(cronJobs.taskType, q.taskType));
-      if (q.cursor)
-        conditions.push(lt(cronJobs.id, q.cursor));
-      if (q.lastStatus !== undefined) {
-        // Correlated subquery: keep the job iff its newest log row (by
-        // ULID order, which is creation-time monotonic) matches the
-        // requested status. Jobs with no logs at all are excluded from
-        // every `lastStatus` filter because the inner SELECT is NULL.
-        conditions.push(sql`(
-          SELECT ${cronJobLogs.status} FROM ${cronJobLogs}
-          WHERE ${cronJobLogs.jobId} = ${cronJobs.id}
-          ORDER BY ${cronJobLogs.id} DESC
-          LIMIT 1
-        ) = ${q.lastStatus}`);
-      }
-
-      const rows = await db
-        .select()
-        .from(cronJobs)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(cronJobs.createdAt))
-        .limit(pageLimit + 1)
-        .all();
-
-      const hasMore = rows.length > pageLimit;
-      const page = hasMore ? rows.slice(0, pageLimit) : rows;
-      const nextCursor = hasMore ? page.at(-1)!.id : null;
+      const { rows, hasMore, nextCursor } = await listJobs(db, {
+        deletedFlag: resolveDeletedFlag(q.deleted),
+        lastStatus: q.lastStatus,
+        taskType: q.taskType,
+        cursor: q.cursor,
+        limit: q.limit ?? 20,
+      });
 
       const scheduler = getScheduler();
-      const data = await Promise.all(page.map(r => serializeJob(db, scheduler?.baker ?? null, r)));
+      const data = await Promise.all(rows.map(r => serializeJob(db, scheduler?.baker ?? null, r)));
 
       return c.json({
         success: true,
@@ -281,57 +241,18 @@ export function cronRoutes() {
       const user = c.get("user");
       const body = c.req.valid("json");
 
-      if (!isValidCron(body.cron)) {
-        throw new AppError(
-          `Invalid cron expression: "${body.cron}". Supported formats: ${SUPPORTED_CRON_FORMATS.join("; ")}`,
-          400,
-          "INVALID_CRON",
-        );
-      }
-      const normalized = normalizeCron(body.cron);
-
-      const existing = await findJob(c, body.name);
-      if (existing) {
-        throw new AppError(`Job with name "${body.name}" already exists`, 409, "JOB_NAME_CONFLICT");
-      }
-
-      const taskConfig: TaskConfig = { ...(body.config ?? {}), action: body.action };
-      const validationError = await validateActionConfig(body.action, taskConfig);
-      if (validationError) {
-        throw new AppError(validationError, 400, "INVALID_ACTION_CONFIG");
-      }
-
-      const actionDef = getAction(body.action);
-      const id = nanoid();
-      const insertValues: typeof cronJobs.$inferInsert = {
-        id,
-        name: body.name,
-        cron: normalized,
-        taskType: actionDef?.spec.category ?? "custom",
-        taskConfig: JSON.stringify(taskConfig),
-        enabled: true,
-        ...(body.maxConsecutiveFailures !== undefined ? { maxConsecutiveFailures: body.maxConsecutiveFailures } : {}),
-      };
-      await db.insert(cronJobs).values(insertValues).run();
-
-      const row = await db.select().from(cronJobs).where(eq(cronJobs.id, id)).get();
-      if (!row)
-        throw new AppError("Failed to create job", 500, "INTERNAL_ERROR");
-
-      const scheduler = getScheduler();
-      // When the scheduler isn't running the row still lands in the DB
-      // and is picked up the next time `startCron` runs.
-      await scheduler?.syncJob(body.name);
+      const row = await createJob(db, body);
 
       await audit(db, c.get("logger"), {
         actorId: user.id,
         actorName: user.name,
         action: "cron.job.created",
         resourceType: "cron_job",
-        resourceId: id,
+        resourceId: row.id,
         resourceName: body.name,
         detail: {
-          cron: normalized,
+          // `row.cron` is the normalized form persisted by the service.
+          cron: row.cron,
           action: body.action,
           maxConsecutiveFailures: row.maxConsecutiveFailures,
         },
@@ -339,7 +260,7 @@ export function cronRoutes() {
         result: "success",
       });
 
-      const data = await serializeJob(db, scheduler?.baker ?? null, row);
+      const data = await serializeJob(db, getScheduler()?.baker ?? null, row);
       return c.json({ success: true, data }, 201);
     },
   );
@@ -361,25 +282,11 @@ export function cronRoutes() {
       const db = c.get("db");
       const user = c.get("user");
       const { id: identifier } = c.req.valid("param");
-      const row = await findJob(c, identifier);
+      const row = await findJobByIdOrName(db, identifier);
       if (!row)
         throw new NotFoundError("Cron job", identifier);
 
-      await db.update(cronJobs)
-        .set({ isDeleted: true, enabled: false })
-        .where(eq(cronJobs.id, row.id))
-        .run();
-
-      const scheduler = getScheduler();
-      if (scheduler) {
-        try {
-          scheduler.baker.stop(row.name);
-          scheduler.baker.remove(row.name);
-        }
-        catch {
-        // Not loaded in scheduler.
-        }
-      }
+      await softDeleteJob(db, row);
 
       await audit(db, c.get("logger"), {
         actorId: user.id,
@@ -420,40 +327,22 @@ export function cronRoutes() {
       const db = c.get("db");
       const { id: identifier } = c.req.valid("param");
       const q = c.req.valid("query");
-      const pageLimit = q.limit ?? 20;
 
-      const job = await db
-        .select()
-        .from(cronJobs)
-        .where(eq(cronJobs.id, identifier))
-        .get();
-
+      const job = await getJobAnyById(db, identifier);
       if (!job)
         throw new NotFoundError("Cron job", identifier);
 
-      const conditions = [eq(cronJobLogs.jobId, job.id)];
-      if (q.status)
-        conditions.push(eq(cronJobLogs.status, q.status));
-      if (q.cursor)
-        conditions.push(lt(cronJobLogs.id, q.cursor));
-
-      const logs = await db
-        .select()
-        .from(cronJobLogs)
-        .where(and(...conditions))
-        .orderBy(desc(cronJobLogs.id))
-        .limit(pageLimit + 1)
-        .all();
-
-      const hasMore = logs.length > pageLimit;
-      const page = hasMore ? logs.slice(0, pageLimit) : logs;
-      const nextCursor = hasMore ? page.at(-1)!.id : null;
+      const { logs, hasMore, nextCursor } = await listJobLogs(db, job.id, {
+        status: q.status,
+        cursor: q.cursor,
+        limit: q.limit ?? 20,
+      });
 
       return c.json({
         success: true,
         data: {
           jobName: job.name,
-          logs: page,
+          logs,
           hasMore,
           nextCursor,
         },
@@ -489,7 +378,7 @@ export function cronRoutes() {
       const db = c.get("db");
       const user = c.get("user");
       const { id: identifier } = c.req.valid("param");
-      const row = await findJob(c, identifier);
+      const row = await findJobByIdOrName(db, identifier);
       if (!row)
         throw new NotFoundError("Cron job", identifier);
 
@@ -532,7 +421,7 @@ export function cronRoutes() {
         row.maxConsecutiveFailures,
       );
 
-      const log = await db.select().from(cronJobLogs).where(eq(cronJobLogs.id, logId)).get();
+      const log = await getJobLogById(db, logId);
 
       await audit(db, c.get("logger"), {
         actorId: user.id,
@@ -576,18 +465,11 @@ export function cronRoutes() {
       const db = c.get("db");
       const user = c.get("user");
       const { id: identifier } = c.req.valid("param");
-      const row = await findJob(c, identifier);
+      const row = await findJobByIdOrName(db, identifier);
       if (!row)
         throw new NotFoundError("Cron job", identifier);
 
-      await db.update(cronJobs).set({ enabled: false }).where(eq(cronJobs.id, row.id)).run();
-      const scheduler = getScheduler();
-      if (scheduler) {
-        try {
-          scheduler.baker.pause(row.name);
-        }
-        catch {}
-      }
+      await pauseJob(db, row);
 
       await audit(db, c.get("logger"), {
         actorId: user.id,
@@ -621,13 +503,11 @@ export function cronRoutes() {
       const db = c.get("db");
       const user = c.get("user");
       const { id: identifier } = c.req.valid("param");
-      const row = await findJob(c, identifier);
+      const row = await findJobByIdOrName(db, identifier);
       if (!row)
         throw new NotFoundError("Cron job", identifier);
 
-      await db.update(cronJobs).set({ enabled: true }).where(eq(cronJobs.id, row.id)).run();
-      const scheduler = getScheduler();
-      await scheduler?.syncJob(row.name);
+      await resumeJob(db, row);
 
       await audit(db, c.get("logger"), {
         actorId: user.id,
