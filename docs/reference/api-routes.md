@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 317 routes total.
+> 321 routes total.
 
 | Method | Path |
 |---|---|
@@ -149,6 +149,9 @@
 | POST | `/api/drive/team-directories/:id/members` |
 | DELETE | `/api/drive/team-directories/:id/members/:memberId` |
 | PUT | `/api/drive/team-directories/:id/members/:memberId` |
+| GET | `/api/favorites` |
+| DELETE | `/api/favorites/:type/:id` |
+| PUT | `/api/favorites/:type/:id` |
 | GET | `/api/files/:id/content` |
 | GET | `/api/files/:id/metadata` |
 | GET | `/api/global-equipment-categories` |
@@ -190,6 +193,7 @@
 | POST | `/api/issues/:issueShortId/references` |
 | DELETE | `/api/issues/:issueShortId/references/:referenceId` |
 | GET | `/api/metrics` |
+| GET | `/api/overview` |
 | POST | `/api/policy/check` |
 | GET | `/api/policy/entities` |
 | POST | `/api/policy/expand` |

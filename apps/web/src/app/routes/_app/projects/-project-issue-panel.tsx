@@ -25,6 +25,7 @@ import {
   MetaSeparator,
 } from "@/shared/components/detail-meta-row";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
+import { FavoriteToggle } from "@/shared/components/favorite-toggle";
 import { PRIORITY_BADGE_VARIANT } from "@/shared/components/priority-variant";
 import {
   AttachFromDriveButton,
@@ -37,6 +38,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
+import { useFavoriteSet, useToggleFavorite } from "@/shared/lib/api/favorites";
 import { useIssueReferences, useIssueTags } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
@@ -98,6 +100,8 @@ export function ProjectIssuePanel({
   const referencesQuery = useIssueReferences(issueId);
   const updateIssue = useUpdateProjectIssue();
   const deleteIssue = useDeleteProjectIssue();
+  const favorites = useFavoriteSet();
+  const toggleFavorite = useToggleFavorite();
   const issue: ProjectIssueRow | null = issueQuery.data ?? null;
 
   const [error, setError] = useState<string | null>(null);
@@ -244,6 +248,13 @@ export function ProjectIssuePanel({
           delete: t("common.delete"),
         }}
         onClose={onClose}
+        extraActions={(
+          <FavoriteToggle
+            favorited={favorites.has("issue", issue.id)}
+            pending={toggleFavorite.isPending}
+            onToggle={willFavorite => toggleFavorite.mutate({ targetType: "issue", id: issue.id, favorite: willFavorite })}
+          />
+        )}
         {...(variant === "drawer" && onMaximize ? { onMaximize } : {})}
         {...(permissions.canDelete ? { onDelete: () => setDeleteOpen(true) } : {})}
       />

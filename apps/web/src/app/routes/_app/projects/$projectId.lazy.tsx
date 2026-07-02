@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FavoriteToggle } from "@/shared/components/favorite-toggle";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -19,6 +20,7 @@ import {
   TabsTrigger,
 } from "@/shared/components/ui/tabs";
 import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
+import { useFavoriteSet, useToggleFavorite } from "@/shared/lib/api/favorites";
 import { useProcurements } from "@/shared/lib/api/procurement";
 import {
   useProject,
@@ -60,6 +62,8 @@ function ProjectDetailLayout() {
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const project = projectQuery.data;
   const caps = useProjectCapabilities(project);
+  const favorites = useFavoriteSet();
+  const toggleFavorite = useToggleFavorite();
 
   // Use the same `limit: 5` as the overview tab's "latest" queries so the query
   // keys coincide and TanStack Query dedupes them into one request per resource
@@ -158,14 +162,19 @@ function ProjectDetailLayout() {
             )}
           </div>
         </div>
-        {caps.canOpenSettings && (
-          <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          <FavoriteToggle
+            favorited={favorites.has("project", project.id)}
+            pending={toggleFavorite.isPending}
+            onToggle={willFavorite => toggleFavorite.mutate({ targetType: "project", id: project.id, favorite: willFavorite })}
+          />
+          {caps.canOpenSettings && (
             <Button variant="outline" onClick={() => setSettingsOpen(true)}>
               <Settings aria-hidden="true" />
               {t("detail.settings")}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Tabs promoted to the page's primary navigation; each tab is a route. */}

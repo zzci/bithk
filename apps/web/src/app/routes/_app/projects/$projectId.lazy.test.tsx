@@ -59,6 +59,8 @@ function mockRoutes(opts: { detail?: () => Response; issuesTotal?: number } = {}
     const url = String(input);
     if (url.includes("/account/visible-users"))
       return jsonResponse({ success: true, data: [] });
+    if (url.includes("/favorites"))
+      return jsonResponse({ success: true, data: [] });
     if (url.includes("/members"))
       return jsonResponse({ success: true, data: [] });
     if (url.includes("/issues"))

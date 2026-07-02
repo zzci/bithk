@@ -164,3 +164,4 @@
 | [FIX-052](FIX-052.md) | P3 hardening bundle (service-token/shutdown/gc/redirects/env) | [PLAN-100](../plan/PLAN-100.md) | Completed | 2026-07-01 |
 | [FEAT-047](FEAT-047.md) | Storage module: DB-configured multi-driver storage + admin management | [PLAN-101](../plan/PLAN-101.md) | Done | 2026-07-02 |
 | [FIX-053](FIX-053.md) | Backup export: opt-in blobs, per-row driver-aware (DB-record driven; local bytes, S3 skipped) | [PLAN-102](../plan/PLAN-102.md) | Completed | 2026-07-01 |
+| [FEAT-048](FEAT-048.md) | Rework overview page into a real workbench (user favorites + my issues + open procurements) | [PLAN-103](../plan/PLAN-103.md) | Completed | 2026-07-02 |

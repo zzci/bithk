@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { FavoriteItem, OverviewData } from "@/shared/lib/api/favorites";
 import { screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared/stores/auth";
@@ -7,11 +8,11 @@ import { renderWithProviders } from "@/test/utils";
 // The overview route only exports `Route`; its component is closed over by
 // `createLazyFileRoute`. Reduce the route factory to an identity so the test
 // can reach `Route.component`, and stub `Link` as a plain anchor (no router
-// context is mounted here).
+// context is mounted here; `params` are left uninterpolated in `href`).
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: { component: () => ReactNode }) => opts,
-  Link: ({ to, children }: { to: string; children: ReactNode }) => (
-    <a href={to} data-testid="tile-link">{children}</a>
+  Link: ({ to, children, className }: { to: string; children: ReactNode; className?: string }) => (
+    <a href={to} className={className} data-testid="overview-link">{children}</a>
   ),
 }));
 
@@ -19,14 +20,41 @@ const { Route } = await import("./overview.lazy");
 // The mock collapses the route to its plain options object; reach the component.
 const OverviewPage = (Route as unknown as { component: () => ReactNode }).component;
 
-beforeEach(() => {
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+const fetchMock = vi.fn<typeof fetch>();
+
+function routeFetch(favorites: FavoriteItem[] = [], overview: OverviewData = { myIssues: [], openProcurements: [] }) {
+  fetchMock.mockImplementation(async (url) => {
+    const path = String(url);
+    if (path.includes("/favorites"))
+      return jsonResponse({ success: true, data: favorites });
+    if (path.includes("/overview"))
+      return jsonResponse({ success: true, data: overview });
+    return jsonResponse({ success: true, data: [] });
+  });
+}
+
+function setUser(modules: readonly string[], name = "Alice Liddell") {
   useAuthStore.setState({
-    user: { name: "Alice Liddell", username: "alice" } as never,
+    user: { name, username: "alice", modules } as never,
     loading: false,
   });
+}
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  routeFetch();
+  globalThis.fetch = fetchMock;
+  setUser(["projects", "documents"]);
 });
 
 afterEach(() => {
+  fetchMock.mockReset();
   useAuthStore.setState({ user: null, loading: true });
 });
 
@@ -37,30 +65,49 @@ describe("overviewPage", () => {
     expect(screen.getByText("Welcome to your workspace.")).toBeInTheDocument();
   });
 
-  it("falls back to the username when the display name is absent", () => {
-    useAuthStore.setState({ user: { username: "bob" } as never, loading: false });
+  it("renders the workbench sections with empty states when nothing is pinned or assigned", async () => {
     renderWithProviders(<OverviewPage />);
-    expect(screen.getByRole("heading", { name: "Welcome, bob" })).toBeInTheDocument();
+    expect(await screen.findByText("Favorites")).toBeInTheDocument();
+    expect(screen.getByText("My work orders")).toBeInTheDocument();
+    expect(screen.getByText("Open procurements")).toBeInTheDocument();
+    expect(await screen.findByText(/Nothing pinned yet/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Browse projects" })).toHaveAttribute("href", "/projects");
+    expect(screen.getByText("No open work orders assigned to you.")).toBeInTheDocument();
+    expect(screen.getByText("No procurements in progress.")).toBeInTheDocument();
   });
 
-  it("renders an empty greeting when no user is loaded", () => {
-    useAuthStore.setState({ user: null, loading: false });
+  it("renders hydrated favorites with unfavorite toggles and workbench rows", async () => {
+    routeFetch(
+      [
+        { targetType: "project", id: "pj1", name: "Tower", code: "TWR", status: "active", favoritedAt: "2026-07-01T00:00:00Z" },
+        { targetType: "issue", id: "is1", title: "Fix pump", status: "todo", priority: "high", dueDate: null, projectId: "pj1", projectName: "Tower", favoritedAt: "2026-07-01T00:00:00Z" },
+      ],
+      {
+        myIssues: [
+          { id: "is2", title: "Inspect hull", status: "working", priority: "medium", dueDate: null, projectId: "pj1", projectName: "Tower", updatedAt: "2026-07-01T00:00:00Z" },
+        ],
+        openProcurements: [
+          { id: "pr1", itemName: "Anchor chain", status: "requested", priority: "medium", amount: null, currency: null, dueDate: null, projectId: "pj1", projectName: "Tower", updatedAt: "2026-07-01T00:00:00Z" },
+        ],
+      },
+    );
+
     renderWithProviders(<OverviewPage />);
-    // Interpolation collapses to the bare prefix when name is "".
-    expect(screen.getByRole("heading", { name: /Welcome,/ })).toBeInTheDocument();
+    // "Tower" renders as the project favorite's title AND as the project name
+    // on the issue/procurement rows — assert presence, not uniqueness.
+    expect((await screen.findAllByText("Tower")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Fix pump")).toBeInTheDocument();
+    expect(screen.getByText("Inspect hull")).toBeInTheDocument();
+    expect(screen.getByText("Anchor chain")).toBeInTheDocument();
+    // One unfavorite toggle per favorite row.
+    expect(screen.getAllByRole("button", { name: "Remove from favorites" })).toHaveLength(2);
   });
 
-  it("renders a navigable tile per registered destination with i18n copy", () => {
+  it("falls back to module-gated quick-nav tiles without the projects module", () => {
+    setUser(["documents"]);
     renderWithProviders(<OverviewPage />);
-    const links = screen.getAllByTestId("tile-link");
-    expect(links).toHaveLength(2);
-
-    const projects = screen.getByRole("link", { name: /Projects/ });
-    const documents = screen.getByRole("link", { name: /Documents/ });
-    expect(projects).toHaveAttribute("href", "/projects");
-    expect(documents).toHaveAttribute("href", "/documents");
-
-    expect(screen.getByText("Browse projects and their work orders.")).toBeInTheDocument();
-    expect(screen.getByText("Browse and edit documents.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Documents/ })).toHaveAttribute("href", "/documents");
+    expect(screen.queryByRole("link", { name: /Projects/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Favorites")).not.toBeInTheDocument();
   });
 });

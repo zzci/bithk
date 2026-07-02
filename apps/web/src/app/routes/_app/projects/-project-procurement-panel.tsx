@@ -31,6 +31,7 @@ import {
   MetaSeparator,
 } from "@/shared/components/detail-meta-row";
 import { DetailPanelHeader } from "@/shared/components/detail-panel-header";
+import { FavoriteToggle } from "@/shared/components/favorite-toggle";
 import { PRIORITY_BADGE_VARIANT } from "@/shared/components/priority-variant";
 import {
   AttachFromDriveButton,
@@ -44,6 +45,7 @@ import { Button } from "@/shared/components/ui/button";
 import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useContacts } from "@/shared/lib/api/contacts";
+import { useFavoriteSet, useToggleFavorite } from "@/shared/lib/api/favorites";
 import {
   isAllowedProcurementTransition,
   isProcurementDetailLocked,
@@ -104,6 +106,8 @@ export function ProjectProcurementPanel({
   const suppliersQuery = useContacts();
   const categoriesQuery = useProcurementCategories(projectId);
   const procurementTagsQuery = useProcurementTags();
+  const favorites = useFavoriteSet();
+  const toggleFavorite = useToggleFavorite();
   const procurement = procurementQuery.data ?? null;
 
   const [error, setError] = useState<string | null>(null);
@@ -289,6 +293,13 @@ export function ProjectProcurementPanel({
           close: t("common:common.close"),
         }}
         onClose={onClose}
+        extraActions={(
+          <FavoriteToggle
+            favorited={favorites.has("procurement", procurement.id)}
+            pending={toggleFavorite.isPending}
+            onToggle={willFavorite => toggleFavorite.mutate({ targetType: "procurement", id: procurement.id, favorite: willFavorite })}
+          />
+        )}
         {...(variant === "drawer" && onMaximize ? { onMaximize } : {})}
       />
 

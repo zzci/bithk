@@ -11,6 +11,27 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- **Overview workbench + user favorites** (FEAT-048, PLAN-103). The overview
+  page now shows the caller's starred content and cross-project work instead
+  of static navigation tiles:
+  - New standalone `user_favorites` table (own `overview` module, migration
+    0006) — type-generic `(userId, targetType, targetId)`; no changes to any
+    other module's schema. `PUT/DELETE /favorites/:type/:id` (idempotent,
+    fail-closed 404 on invisible targets) and `GET /favorites` (hydrated,
+    visibility re-checked per read; hard-deleted targets pruned lazily).
+    Types wired in v1: `project`, `issue`, `procurement`.
+  - `GET /overview` aggregates: up to 10 open issues assigned to the caller
+    and 10 non-terminal procurements across projects where they hold
+    `procurement.view` (membership/capability scoping mirrors the
+    per-project routes; admins see all).
+  - Web: star toggles on project list cards, the project detail header, and
+    the issue / procurement detail panels; the overview page renders
+    Favorites / My work orders / Open procurements sections with empty
+    states. Callers without the `projects` module keep the module-gated
+    quick-nav tiles.
+
 ## v0.1.9 — 2026-07-01
 
 ### Added

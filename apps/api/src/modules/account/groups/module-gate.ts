@@ -62,6 +62,9 @@ export function parseModules(raw: string): ModuleKey[] {
  *   existing `adminRequired` guards; not group-grantable in v1.
  * - `/files` — attachment infrastructure shared by several modules; every
  *   route enforces its own per-resource permission hooks.
+ * - `/overview`, `/favorites` — workbench home surfaces (FEAT-048). The
+ *   favorites table is type-generic, so the prefixes stay ungated and each
+ *   handler filters by the actor's visible modules (like `/search`).
  */
 export const UNGATED_PREFIXES: readonly string[] = [
   "/account",
@@ -71,10 +74,12 @@ export const UNGATED_PREFIXES: readonly string[] = [
   "/contact-categories",
   "/cron",
   "/currencies",
+  "/favorites",
   "/files",
   "/global-equipment-categories",
   "/global-equipment-manufacturers",
   "/global-procurement-categories",
+  "/overview",
   "/policy",
   "/search",
   "/settings",

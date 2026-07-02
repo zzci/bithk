@@ -7,5 +7,18 @@
   "tile": {
     "projectsDescription": "Browse projects and their work orders.",
     "documentsDescription": "Browse and edit documents."
+  },
+  "favorites": {
+    "title": "Favorites",
+    "empty": "Nothing pinned yet — star projects, work orders, or procurements to keep them here.",
+    "browseProjects": "Browse projects"
+  },
+  "myIssues": {
+    "title": "My work orders",
+    "empty": "No open work orders assigned to you."
+  },
+  "openProcurements": {
+    "title": "Open procurements",
+    "empty": "No procurements in progress."
   }
 }

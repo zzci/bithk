@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { CoverImage } from "@/shared/components/cover-image";
+import { FavoriteToggle } from "@/shared/components/favorite-toggle";
 import { ListFilter } from "@/shared/components/list-filter";
 import { CardGridSkeleton } from "@/shared/components/list-skeleton";
 import { PageHeader } from "@/shared/components/page-header";
@@ -19,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
+import { useFavoriteSet, useToggleFavorite } from "@/shared/lib/api/favorites";
 import {
   useCreateProject,
   useProject,
@@ -217,6 +219,8 @@ function ProjectsGrid({
   readonly openSettings: (projectId: string) => void;
 }) {
   const { t } = useTranslation("projects");
+  const favorites = useFavoriteSet();
+  const toggleFavorite = useToggleFavorite();
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -242,6 +246,11 @@ function ProjectsGrid({
                 </button>
               </CardTitle>
               <div className="relative z-10 flex shrink-0 items-center gap-1">
+                <FavoriteToggle
+                  favorited={favorites.has("project", project.id)}
+                  pending={toggleFavorite.isPending && toggleFavorite.variables?.id === project.id}
+                  onToggle={willFavorite => toggleFavorite.mutate({ targetType: "project", id: project.id, favorite: willFavorite })}
+                />
                 {project.status === "archived" && (
                   <Badge variant="secondary" className="text-2xs tracking-wide uppercase">
                     {t("status.archived")}

@@ -33,7 +33,9 @@ export const TOKEN_MODULES = [
   { key: "documents", prefixes: ["/documents", "/shared"] },
   { key: "drive", prefixes: ["/drive"] },
   { key: "files", prefixes: ["/files"] },
-  { key: "projects", prefixes: ["/projects", "/issues", "/global-procurement-categories", "/admin/project-default-cover"] },
+  // `/overview` + `/favorites` (FEAT-048 workbench) are claimed by `projects`:
+  // every favoritable/aggregated target type in v1 is projects-domain content.
+  { key: "projects", prefixes: ["/projects", "/issues", "/global-procurement-categories", "/admin/project-default-cover", "/overview", "/favorites"] },
   { key: "ships", prefixes: ["/ships", "/worklists", "/global-equipment-categories", "/global-equipment-manufacturers"] },
   { key: "contacts", prefixes: ["/contacts", "/contact-categories"] },
   { key: "hr", prefixes: ["/hr"] },

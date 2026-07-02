@@ -14,6 +14,7 @@ import { fileRoutes } from "@/modules/file";
 import { hrRoutes } from "@/modules/hr";
 import { issueRoutes } from "@/modules/issue";
 import { itemRoutes } from "@/modules/item";
+import { overviewRoutes } from "@/modules/overview";
 import { policyRoutes } from "@/modules/policy";
 import { procurementRoutes } from "@/modules/procurement";
 import { projectRoutes } from "@/modules/project";
@@ -54,6 +55,7 @@ export function buildApiApp(): Hono {
   app.route("/", driveRoutes());
   app.route("/", shareRoutes());
   app.route("/", shipRoutes());
+  app.route("/", overviewRoutes());
   app.route("/", searchRoutes());
   app.route("/", worklistRoutes());
   app.route("/", hrRoutes());

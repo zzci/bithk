@@ -101,3 +101,4 @@
 | [PLAN-100](PLAN-100.md) | Audit remediation (2026-07-01 deep audit): P1 drive IDOR + P2/P3 hardening | Completed | 2026-07-01 |
 | [PLAN-101](PLAN-101.md) | DB-configured multi-driver storage + admin Storage module | Done | 2026-07-02 |
 | [PLAN-102](PLAN-102.md) | Backup export rework: opt-in blobs, per-row driver-aware (DB-record driven) | Completed | 2026-07-01 |
+| [PLAN-103](PLAN-103.md) | Overview workbench: user favorites + my issues + open procurements | Completed | 2026-07-02 |

@@ -43,6 +43,13 @@
       "when": 1782949439185,
       "tag": "0005_nebulous_killraven",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782952119814,
+      "tag": "0006_furry_living_mummy",
+      "breakpoints": true
     }
   ]
 }

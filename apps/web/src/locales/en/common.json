@@ -27,6 +27,8 @@
     "sidebarMobileDescription": "Displays the mobile sidebar.",
     "copy": "Copy",
     "copied": "Copied",
+    "favoriteAction": "Add to favorites",
+    "unfavoriteAction": "Remove from favorites",
     "loading": "Loading...",
     "retry": "Retry",
     "submitting": "Submitting...",

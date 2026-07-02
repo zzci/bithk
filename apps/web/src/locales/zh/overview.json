@@ -7,5 +7,18 @@
   "tile": {
     "projectsDescription": "浏览项目及其工单。",
     "documentsDescription": "浏览和编辑文档。"
+  },
+  "favorites": {
+    "title": "收藏",
+    "empty": "还没有收藏内容——在项目、工单或采购上点击星标即可固定到这里。",
+    "browseProjects": "浏览项目"
+  },
+  "myIssues": {
+    "title": "我的工单",
+    "empty": "没有指派给你的进行中工单。"
+  },
+  "openProcurements": {
+    "title": "进行中的采购",
+    "empty": "没有进行中的采购。"
   }
 }
