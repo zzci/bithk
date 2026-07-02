@@ -12,7 +12,7 @@ export const relationTuples = sqliteTable("relation_tuples", {
   subjectNamespace: text("subject_namespace").notNull(),
   subjectId: text("subject_id").notNull(),
   subjectRelation: text("subject_relation"),
-  createdBy: text("created_by").references(() => users.id),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 }, t => [
   unique("idx_tuples_unique").on(t.namespace, t.objectId, t.relation, t.subjectNamespace, t.subjectId, t.subjectRelation),

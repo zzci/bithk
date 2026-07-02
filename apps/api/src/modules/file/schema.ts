@@ -44,6 +44,9 @@ export const files = sqliteTable("files", {
   // indexes; this keeps the sweeper's `SELECT … WHERE ref_count = 0` cheap
   // even at millions of total rows.
   index("idx_files_unreferenced").on(t.id).where(sql`ref_count = 0`),
+  // FK index: users delete cascades through uploaded_by; without it the
+  // cascade scans the whole table.
+  index("idx_files_uploaded_by").on(t.uploadedBy),
 ]);
 
 // `file_references` is the **reverse table** for the file module's
@@ -82,4 +85,6 @@ export const fileReferences = sqliteTable("file_references", {
   uniqueIndex("idx_file_refs_unique").on(t.ownerType, t.ownerId, t.fileId),
   index("idx_file_refs_owner").on(t.ownerType, t.ownerId),
   index("idx_file_refs_file").on(t.fileId),
+  // FK index for the users → created_by ON DELETE CASCADE path.
+  index("idx_file_refs_created_by").on(t.createdBy),
 ]);

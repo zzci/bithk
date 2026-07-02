@@ -181,38 +181,41 @@ export async function generatePayrollForPeriod(db: AppDatabase, period: string):
   const now = new Date().toISOString();
   let created = 0;
   let skipped = 0;
-  for (const candidate of candidates) {
-    if (existing.has(candidate.id)) {
-      skipped++;
-      continue;
+  // One transaction for the whole batch — a single fsync instead of one per
+  // insert. `onConflictDoNothing` inside it keeps generation idempotent: the
+  // unique (colleague_id, period) index is the source of truth (`existing` is
+  // a fast-path), so a row another request inserted between our snapshot and
+  // this insert counts as skipped (changes === 0), never a 409.
+  db.transaction((tx) => {
+    for (const candidate of candidates) {
+      if (existing.has(candidate.id)) {
+        skipped++;
+        continue;
+      }
+      // Narrow the nullable salary columns; the query filter already excludes
+      // unset salaries, so this guard is a type-safety backstop only.
+      if (candidate.salaryAmount === null || candidate.salaryCurrency === null)
+        continue;
+      const insertStmt = tx.insert(hrPayrollRecords).values({
+        id: nanoid(),
+        colleagueId: candidate.id,
+        period,
+        baseSalary: candidate.salaryAmount,
+        bonus: 0,
+        deduction: 0,
+        currency: candidate.salaryCurrency,
+        netAmount: candidate.salaryAmount,
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      }).onConflictDoNothing();
+      const res = runWrite(() => insertStmt.run());
+      if (res.changes > 0)
+        created++;
+      else
+        skipped++;
     }
-    // Narrow the nullable salary columns; the query filter already excludes
-    // unset salaries, so this guard is a type-safety backstop only.
-    if (candidate.salaryAmount === null || candidate.salaryCurrency === null)
-      continue;
-    // `existing` is a fast-path; the unique (colleague_id, period) index is the
-    // source of truth. `onConflictDoNothing` keeps generation idempotent under
-    // concurrent runs — a row another request inserted between our snapshot and
-    // this insert counts as skipped (changes === 0), never a 409.
-    const insertStmt = db.insert(hrPayrollRecords).values({
-      id: nanoid(),
-      colleagueId: candidate.id,
-      period,
-      baseSalary: candidate.salaryAmount,
-      bonus: 0,
-      deduction: 0,
-      currency: candidate.salaryCurrency,
-      netAmount: candidate.salaryAmount,
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoNothing();
-    const res = runWrite(() => insertStmt.run());
-    if (res.changes > 0)
-      created++;
-    else
-      skipped++;
-  }
+  });
   return { created, skipped };
 }
 
