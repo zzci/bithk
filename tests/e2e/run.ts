@@ -8,7 +8,7 @@
 //   1. dex up (OIDC fixture).
 //   2. API up — plaintext bun:sqlite DB, dex-wired OAuth, DEFAULT_ADMIN set
 //      so the first OIDC login auto-promotes admin@example.com to admin.
-//   3. modules/{system,account,policy,document,issue,settings,audit,backup,cron}
+//   3. modules/* (see MODULE_DIRS below)
 //      → every module test against the live API.
 //   4. Tear everything down; remove the data dir.
 //
@@ -42,6 +42,8 @@ const MODULE_DIRS = [
   "policy",
   "document",
   "issue",
+  "project",
+  "procurement",
   "ship",
   "search",
   "settings",
@@ -49,6 +51,9 @@ const MODULE_DIRS = [
   "backup",
   "cron",
   "drive",
+  "file",
+  "share",
+  "hr",
 ].map(d => join(E2E_DIR, "modules", d));
 
 interface PhaseSummary {
