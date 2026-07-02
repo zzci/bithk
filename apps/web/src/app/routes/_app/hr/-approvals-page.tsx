@@ -60,6 +60,22 @@ import { useAuthStore } from "@/shared/stores/auth";
 
 const ALL = "__all__";
 
+// Static label-key maps for the approval enums. Exhaustive `Record<Enum,
+// string>` maps (instead of dynamic `t(`...${v}`)` template keys) keep every
+// locale key visible to the i18n static analyzer (check-i18n).
+const APPROVAL_STATUS_LABEL_KEY: Record<HrApprovalStatus, string> = {
+  pending: "hr:approvals.status.pending",
+  approved: "hr:approvals.status.approved",
+  rejected: "hr:approvals.status.rejected",
+};
+
+const APPROVAL_TYPE_LABEL_KEY: Record<HrApprovalType, string> = {
+  leave: "hr:approvals.type.leave",
+  overtime: "hr:approvals.type.overtime",
+  business_trip: "hr:approvals.type.business_trip",
+  other: "hr:approvals.type.other",
+};
+
 export function HrApprovalsPage() {
   const { t } = useTranslation("hr");
   // Deciding is admin-only on the backend (non-admins get 403), so the
@@ -87,8 +103,8 @@ export function HrApprovalsPage() {
   const rows = approvalsQuery.data?.data ?? [];
   const meta = approvalsQuery.data?.meta;
 
-  const statusLabel = (status: HrApprovalStatus) => t(`approvals.status.${status}`);
-  const typeLabel = (type: HrApprovalType) => t(`approvals.type.${type}`);
+  const statusLabel = (status: HrApprovalStatus) => t(APPROVAL_STATUS_LABEL_KEY[status]);
+  const typeLabel = (type: HrApprovalType) => t(APPROVAL_TYPE_LABEL_KEY[type]);
   const statusVariant = (status: HrApprovalStatus) =>
     status === "approved" ? "default" : status === "rejected" ? "destructive" : "secondary";
 
@@ -438,13 +454,13 @@ function ApprovalDialog({ mode, approval, open, onOpenChange }: ApprovalDialogPr
             <Select value={type} onValueChange={v => v !== null && setType(v as HrApprovalType)}>
               <SelectTrigger className="w-full">
                 <SelectValue>
-                  {(v: HrApprovalType) => t(`approvals.type.${v}`)}
+                  {(v: HrApprovalType) => t(APPROVAL_TYPE_LABEL_KEY[v])}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {HR_APPROVAL_TYPES.map(value => (
                   <SelectItem key={value} value={value}>
-                    {t(`approvals.type.${value}`)}
+                    {t(APPROVAL_TYPE_LABEL_KEY[value])}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -2,7 +2,7 @@
 import type { AuditEvent } from "@/shared/lib/api/audit";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { Download, Eye } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ListFilter } from "@/shared/components/list-filter";
 import { PageHeader } from "@/shared/components/page-header";
@@ -49,6 +49,50 @@ const ACTION_PREFIXES = [
   "traefik.*",
   "system.*",
 ];
+
+function formatTime(dateStr: string) {
+  try {
+    return formatDateTime(dateStr) || dateStr;
+  }
+  catch {
+    return dateStr;
+  }
+}
+
+// Memoized so page/filter/dialog state changes do not re-render every row;
+// `onView` (a state setter) is referentially stable.
+const AuditRow = memo(({
+  event,
+  onView,
+}: {
+  readonly event: AuditEvent;
+  readonly onView: (event: AuditEvent) => void;
+}) => {
+  return (
+    <TableRow>
+      <TableCell className="text-xs text-muted-foreground">{formatTime(event.createdAt)}</TableCell>
+      <TableCell className="text-sm">{event.actorName}</TableCell>
+      <TableCell><Badge variant="outline">{event.action}</Badge></TableCell>
+      <TableCell className="text-sm">
+        <span className="text-muted-foreground">
+          {event.resourceType}
+          /
+        </span>
+        {event.resourceName || event.resourceId}
+      </TableCell>
+      <TableCell>
+        <Badge variant={event.result === "success" ? "default" : "destructive"}>
+          {event.result}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <Button variant="ghost" size="icon" onClick={() => onView(event)}>
+          <Eye className="size-4" />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 function AuditPage() {
   const { t } = useTranslation("audit");
@@ -103,15 +147,6 @@ function AuditPage() {
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  function formatTime(dateStr: string) {
-    try {
-      return formatDateTime(dateStr) || dateStr;
-    }
-    catch {
-      return dateStr;
-    }
-  }
 
   function parseDetail(detail: string | null): Record<string, unknown> | null {
     if (!detail)
@@ -266,28 +301,7 @@ function AuditPage() {
                     <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">{t("noResults")}</TableCell></TableRow>
                   )
                 : events.map(event => (
-                    <TableRow key={event.id}>
-                      <TableCell className="text-xs text-muted-foreground">{formatTime(event.createdAt)}</TableCell>
-                      <TableCell className="text-sm">{event.actorName}</TableCell>
-                      <TableCell><Badge variant="outline">{event.action}</Badge></TableCell>
-                      <TableCell className="text-sm">
-                        <span className="text-muted-foreground">
-                          {event.resourceType}
-                          /
-                        </span>
-                        {event.resourceName || event.resourceId}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={event.result === "success" ? "default" : "destructive"}>
-                          {event.result}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => setDetailEvent(event)}>
-                          <Eye className="size-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <AuditRow key={event.id} event={event} onView={setDetailEvent} />
                   ))}
           </TableBody>
         </Table>
