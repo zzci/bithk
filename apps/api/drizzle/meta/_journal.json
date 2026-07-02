@@ -50,6 +50,20 @@
       "when": 1782952119814,
       "tag": "0006_furry_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1782982900980,
+      "tag": "0007_clean_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1782982926403,
+      "tag": "0008_drive_timestamps_backfill",
+      "breakpoints": true
     }
   ]
 }

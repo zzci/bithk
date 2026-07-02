@@ -26,8 +26,20 @@ export async function createDb(path: string) {
 
   await runMigrations(db);
 
+  // `PRAGMA optimize` refreshes query-planner statistics; SQLite recommends
+  // running it roughly hourly on long-lived connections. An unref'd timer
+  // here is the simplest scheduling option: it covers every entrypoint
+  // (server, CLI, tests) without coupling to the lode prepare hook, which
+  // only fires on staged updates. The unref keeps short-lived processes from
+  // being held open by it.
+  const optimizeTimer = setInterval(() => sqlite.exec("PRAGMA optimize"), 60 * 60 * 1000);
+  optimizeTimer.unref?.();
+
   return Object.assign(db, {
-    close: () => sqlite.close(),
+    close: () => {
+      clearInterval(optimizeTimer);
+      sqlite.close();
+    },
   });
 }
 
