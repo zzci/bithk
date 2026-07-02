@@ -1,5 +1,5 @@
 import type { BackupContribution } from "@/modules/backup/registry";
-import { fileReferences, files } from "@/modules/file/schema";
+import { fileBlobs, fileReferences, files } from "@/modules/file/schema";
 
 /**
  * Backup contribution for the file module, including the built-in rule-14
@@ -13,7 +13,9 @@ import { fileReferences, files } from "@/modules/file/schema";
 export const fileBackupContribution: BackupContribution = {
   name: "files",
   // `files` first so the FK on `file_references.file_id` resolves on restore.
-  tables: [files, fileReferences],
+  // `file_blob` carries db-driver file bytes (FEAT-047) — no FK either way,
+  // exported so db-stored content travels inside the data archive (FIX-053).
+  tables: [files, fileReferences, fileBlobs],
   deps: ["users"],
   importTransforms: [
     {

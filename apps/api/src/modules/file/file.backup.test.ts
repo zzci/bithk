@@ -151,7 +151,7 @@ async function refCounts(): Promise<{ id: string; refCount: number }[]> {
 describe("file backup contribution", () => {
   test("registers FK-safe tables, deps, and the rule-14 transforms", () => {
     const mod = getDataModules().files;
-    expect(mod?.tables.map(table => getTableName(table))).toEqual(["files", "file_references"]);
+    expect(mod?.tables.map(table => getTableName(table))).toEqual(["files", "file_references", "file_blob"]);
     expect(mod?.deps).toEqual(["users"]);
     expect(mod?.importTransforms?.map(t => t.fromTable)).toEqual(["files", "file_references"]);
   });
