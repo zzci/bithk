@@ -1,19 +1,7 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { assertEntryCapability } from "@/modules/drive/drive.permission";
-import { getDriveEntryById } from "@/modules/drive/drive.service";
-import {
-  addReference,
-  buildDownloadResponse,
-  getFileById,
-  getReferenceById,
-  listAttachmentsByOwner,
-  makeAttachmentView,
-  releaseReference,
-  uploadAndReference,
-} from "@/modules/file";
-import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
 import { hrApprovalsRoutes } from "./hr.approvals.routes";
@@ -93,10 +81,6 @@ const updateBodySchema = z.object({
 );
 
 const idParamSchema = z.object({ id: z.string() });
-const attachmentParamSchema = z.object({ id: z.string(), aid: z.string() });
-const downloadQuerySchema = z.object({ inline: z.string().optional() });
-// Attach an already-stored drive file by entry id (no re-upload).
-const fromDriveSchema = z.object({ entryId: z.string().min(1) });
 
 // Response data shapes (mirror the service views) for the generated spec.
 const userBriefSchema = z.object({
@@ -131,17 +115,6 @@ const colleagueViewSchema = z.object({
   paymentInfo: z.array(paymentFieldSchema),
   emergencyContacts: z.array(emergencyContactSchema),
   user: userBriefSchema,
-});
-const attachmentViewSchema = z.object({
-  id: z.string(),
-  fileId: z.string(),
-  ownerType: z.string(),
-  ownerId: z.string(),
-  filename: z.string(),
-  mimetype: z.string(),
-  size: z.number(),
-  createdBy: z.string(),
-  createdAt: z.string(),
 });
 const pageMetaSchema = z.object({
   total: z.number(),
@@ -270,179 +243,42 @@ export function hrRoutes() {
   );
 
   // ── /hr/colleagues/:id/attachments — personal documents ──
-  // Delegates to the file module's generic attachment registry (ownerType
-  // COLLEAGUE_DOC_OWNER_TYPE), mirroring the procurement/issue attachment
-  // routes. Access stays under the HR module gate above.
-
-  router.post(
-    "/hr/colleagues/:id/attachments",
-    describeRoute({
-      tags: ["hr"],
-      summary: "Upload a colleague document",
-      requestBody: { content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] } } } },
-      responses: {
-        201: okJson(attachmentViewSchema, "Created"),
-        400: { description: "No file provided", ...errorJson },
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-        413: { description: "Upload too large", ...errorJson },
-      },
-    }),
-    validator("param", idParamSchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { id: colleagueId } = c.req.valid("param");
-      const colleague = await getColleagueById(db, colleagueId);
+  // Delegates to the shared item attachment factory (ownerType
+  // COLLEAGUE_DOC_OWNER_TYPE). Access stays under the HR module gate above:
+  // anyone who passes it may read and upload; only an admin or the uploader
+  // may delete. `writeDenial: "not-found"` keeps the generated spec free of
+  // a 403 the upload route can never return (there is no write gate to deny).
+  // Deliberate difference: colleague documents were never audited, so the
+  // factory's audit emission stays off to preserve pre-factory behavior.
+  mountItemAttachmentRoutes(router, {
+    routePrefix: "/hr/colleagues",
+    resourceType: "HR colleague",
+    tag: "hr",
+    ownerType: COLLEAGUE_DOC_OWNER_TYPE,
+    writeDenial: "not-found",
+    auditEnabled: false,
+    summaries: {
+      upload: "Upload a colleague document",
+      fromDrive: "Attach a drive file as a colleague document",
+      list: "List colleague documents",
+      download: "Download a colleague document",
+      delete: "Delete a colleague document",
+    },
+    async resolve(db, idParam) {
+      const colleague = await getColleagueById(db, idParam);
       if (!colleague)
-        throw new NotFoundError("HR colleague", colleagueId);
-
-      const config = c.get("config");
-      const contentLength = Number(c.req.header("content-length") ?? "0");
-      if (contentLength > config.MAX_UPLOAD_BYTES)
-        throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
-
-      const formData = await c.req.formData();
-      const file = formData.get("file");
-      if (!(file instanceof File))
-        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-
-      const { reference, file: uploaded } = await uploadAndReference(db, config, {
-        file,
-        ownerType: COLLEAGUE_DOC_OWNER_TYPE,
-        ownerId: colleagueId,
-        uploadedBy: user.id,
-      });
-      return c.json({ success: true, data: makeAttachmentView(reference, uploaded) }, 201);
+        return null;
+      return { ownerId: colleague.id, resource: colleague, externalId: colleague.id, resourceName: colleague.user.name };
     },
-  );
-
-  // Attach an existing drive file as a colleague document without re-uploading
-  // the blob: register a new reference to the entry's already-stored file. The
-  // actor's READ access on the drive entry is verified server-side — the
-  // client-supplied id is never trusted.
-  router.post(
-    "/hr/colleagues/:id/attachments/from-drive",
-    describeRoute({
-      tags: ["hr"],
-      summary: "Attach a drive file as a colleague document",
-      responses: {
-        201: okJson(attachmentViewSchema, "Created"),
-        400: { description: "Drive entry is not a file or already attached", ...errorJson },
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", idParamSchema, onValidationFailure),
-    validator("json", fromDriveSchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { id: colleagueId } = c.req.valid("param");
-      const { entryId } = c.req.valid("json");
-      const colleague = await getColleagueById(db, colleagueId);
-      if (!colleague)
-        throw new NotFoundError("HR colleague", colleagueId);
-
-      // Authoritative READ check on the drive entry (throws 404/403).
-      const actor = { id: user.id, role: user.role };
-      await assertEntryCapability(db, actor, entryId, "read");
-      const entry = await getDriveEntryById(db, entryId);
-      if (!entry || !entry.file)
-        throw new AppError("Drive entry is not a file", 400, "INVALID_ENTRY");
-
-      const reference = await addReference(db, {
-        fileId: entry.file.fileId,
-        ownerType: COLLEAGUE_DOC_OWNER_TYPE,
-        ownerId: colleagueId,
-        filename: entry.name,
-        createdBy: user.id,
-      });
-      const fileRow = await getFileById(db, entry.file.fileId);
-      return c.json({ success: true, data: makeAttachmentView(reference, fileRow!) }, 201);
+    async permissions(_db, user) {
+      return {
+        canRead: true,
+        canWrite: true,
+        // An admin or the uploader may remove a document.
+        canDelete: createdBy => user.role === "admin" || createdBy === user.id,
+      };
     },
-  );
-
-  router.get(
-    "/hr/colleagues/:id/attachments",
-    describeRoute({
-      tags: ["hr"],
-      summary: "List colleague documents",
-      responses: {
-        200: okJson(z.array(attachmentViewSchema)),
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", idParamSchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const { id: colleagueId } = c.req.valid("param");
-      const colleague = await getColleagueById(db, colleagueId);
-      if (!colleague)
-        throw new NotFoundError("HR colleague", colleagueId);
-      const data = await listAttachmentsByOwner(db, COLLEAGUE_DOC_OWNER_TYPE, colleagueId);
-      return c.json({ success: true, data });
-    },
-  );
-
-  router.get(
-    "/hr/colleagues/:id/attachments/:aid",
-    describeRoute({
-      tags: ["hr"],
-      summary: "Download a colleague document",
-      responses: {
-        200: { description: "File stream", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } },
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", attachmentParamSchema, onValidationFailure),
-    validator("query", downloadQuerySchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const { id: colleagueId, aid } = c.req.valid("param");
-      const ref = await getReferenceById(db, aid);
-      if (!ref || ref.ownerType !== COLLEAGUE_DOC_OWNER_TYPE || ref.ownerId !== colleagueId)
-        throw new NotFoundError("Attachment", aid);
-      const file = await getFileById(db, ref.fileId);
-      if (!file)
-        throw new NotFoundError("File", aid);
-      const wantInline = c.req.valid("query").inline === "true";
-      return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
-    },
-  );
-
-  router.delete(
-    "/hr/colleagues/:id/attachments/:aid",
-    describeRoute({
-      tags: ["hr"],
-      summary: "Delete a colleague document",
-      responses: {
-        200: okJson(z.null()),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", attachmentParamSchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { id: colleagueId, aid } = c.req.valid("param");
-      const ref = await getReferenceById(db, aid);
-      if (!ref || ref.ownerType !== COLLEAGUE_DOC_OWNER_TYPE || ref.ownerId !== colleagueId)
-        throw new NotFoundError("Attachment", aid);
-
-      // An admin or the uploader may remove a document.
-      if (user.role !== "admin" && ref.createdBy !== user.id)
-        throw new ForbiddenError();
-
-      await releaseReference(db, c.get("config"), { referenceId: aid });
-      return c.json({ success: true, data: null });
-    },
-  );
+  });
 
   // Sub-module routers share this router's `authRequired` gate above.
   router.route("/", hrApprovalsRoutes());
