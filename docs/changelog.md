@@ -76,6 +76,14 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   derived `MAX_UPLOAD_BYTES` unchanged (FIX-047).
 
 ### Fixed
+- Backup export now selects blob bytes per `files` row from its own
+  `storage_driver` instead of the single active driver: local rows are packed
+  (a missing disk file becomes a warning instead of failing the whole job), S3
+  rows are summarised in one warning (back up the bucket directly), db rows
+  travel inside the table NDJSON, and `file_blob` is registered in the file
+  module backup contribution. Blob export is opt-in via a checkbox (default
+  off); export warnings surface in the poll responses, the admin UI, and the
+  CLI; NDJSON round-trips BLOB columns as base64 (FIX-053, PLAN-102).
 
 - Paginate the S3 orphan sweep via the S3 continuation token so buckets with more
   than 1000 objects fully reclaim unconfirmed direct-upload blobs beyond the first
