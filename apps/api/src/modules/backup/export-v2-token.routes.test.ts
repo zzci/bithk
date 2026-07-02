@@ -333,6 +333,7 @@ describe("job visibility isolation", () => {
       progress: { tablesDone: number; tablesTotal: number };
       error: string | null;
       archiveSize: number | null;
+      warnings: string[] | null;
       artifacts: { data: { size: number; downloaded: boolean } } | null;
     };
     expect(body.jobId).toBe(jobId);
@@ -341,6 +342,8 @@ describe("job visibility isolation", () => {
     expect(body.progress.tablesDone).toBe(body.progress.tablesTotal);
     expect(body.error).toBeNull();
     expect(body.archiveSize).toBeGreaterThan(0);
+    // Admin-route parity: manifest warnings appear once completed.
+    expect(body.warnings).toEqual([]);
     expect(body.artifacts!.data.downloaded).toBe(false);
   });
 });

@@ -28,6 +28,7 @@ import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { BackupManifestV2, ManifestTable } from "./archive.service";
 import type { BackupImportFallback, BackupImportTransform, BackupRow, TransformContext } from "./registry";
 import type { AppDatabase } from "@/db";
+import { Buffer } from "node:buffer";
 import { getTableColumns, getTableName, sql } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { getDataModules, getImportFallbacksByTable, getImportTransformsByTable, getModuleNames, resolveModulesWithDeps } from "./registry";
@@ -225,6 +226,26 @@ export function buildTableMapping(
 /** Resolve a rule-4 fallback for one row: constants pass through, functions are applied. */
 function resolveFallback(fallback: BackupImportFallback, row: BackupRow): unknown {
   return typeof fallback === "function" ? (fallback as (row: BackupRow) => unknown)(row) : fallback;
+}
+
+/**
+ * NDJSON blob codec, import side (mirrors the archive writer): a value bound
+ * to a blob-typed live column arrives as a base64 string (the v2 exporter's
+ * encoding) or as the legacy `{type:"Buffer",data:[...]}` JSON shape —
+ * bun:sqlite binds neither, so decode both to a `Buffer`. Anything else
+ * (already-binary values, null) passes through untouched.
+ */
+function decodeBlobColumnValue(value: unknown): unknown {
+  if (typeof value === "string")
+    return Buffer.from(value, "base64");
+  if (
+    typeof value === "object" && value !== null
+    && (value as { type?: unknown }).type === "Buffer"
+    && Array.isArray((value as { data?: unknown }).data)
+  ) {
+    return Buffer.from((value as { data: number[] }).data);
+  }
+  return value;
 }
 
 // ─── Dry-run report ──────────────────────────────────────────────────────
@@ -546,6 +567,14 @@ function runMergeEngine(
             tableReport.failed.sample.push({ rowId: rowIdOf(rawRow, keyProps, index), reason });
           return "failed";
         };
+
+        // Blob codec: decode base64 / legacy Buffer-JSON values headed for
+        // blob-typed columns BEFORE the duplicate probe, so key comparisons
+        // and the insert both see the binary value.
+        for (const [prop, value] of Object.entries(mapped)) {
+          if (lt.columns.get(prop)?.type === "blob")
+            mapped[prop] = decodeBlobColumnValue(value);
+        }
 
         // Rule 11: PK (or first-unique-index) probe — existing row wins.
         if (keyProps.length > 0) {

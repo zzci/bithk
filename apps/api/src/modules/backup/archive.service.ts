@@ -5,7 +5,7 @@
  *
  *     manifest.json                  # ALWAYS the first tar entry
  *     data/<table>.ndjson            # one file per table, dependency order
- *     blobs/<ab>/<cd>/<sha256>       # raw bytes from the active storage driver
+ *     blobs/<ab>/<cd>/<sha256>       # raw bytes of local-driver blobs
  *
  * Blob placement is governed by `blobsMode` (R7): `embedded` packs blobs
  * into the data archive (pre-R7 behavior), `none` skips blob bytes, and
@@ -24,6 +24,7 @@ import type { AnyColumn, Table } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { Pack } from "tar-stream";
 import type { AppDatabase } from "@/db";
+import type { FileStorageDriver } from "@/modules/file/storage/types";
 import { Buffer } from "node:buffer";
 import { once } from "node:events";
 import { existsSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
@@ -34,7 +35,7 @@ import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { pack as tarPack } from "tar-stream";
 import { BUILD_INFO } from "@/build-info";
 import { deriveStorageKey } from "@/modules/file/storage/key";
-import { getActiveDriver } from "@/modules/file/storage/registry";
+import { getDriver } from "@/modules/file/storage/registry";
 import { ROOT_DIR } from "@/root";
 import { getDataModules, getTablesForModules, resolveModulesWithDeps } from "./registry";
 import { redactSecretFields } from "./secret-fields";
@@ -43,6 +44,19 @@ export const BACKUP_FORMAT = "bithk-backup";
 export const BACKUP_FORMAT_VERSION = 2;
 
 const STREAM_BATCH_SIZE = 1000;
+/** Tables carrying a blob-typed column batch smaller to bound row-buffer memory. */
+const BLOB_STREAM_BATCH_SIZE = 50;
+
+/**
+ * Per-row blob export policy, keyed on `files.storage_driver` (FIX-053):
+ * `local` rows stream bytes from the registered local driver; `s3` rows are
+ * summarised in one warning (back up the bucket directly); `db` rows carry
+ * their bytes inside the table NDJSON, so the blob stage skips them
+ * silently; anything else (quarantine sentinel, unknown) warns per row.
+ */
+const LOCAL_STORAGE_DRIVER = "local";
+const S3_STORAGE_DRIVER = "s3";
+const DB_STORAGE_DRIVER = "db";
 
 /** Thrown when the caller's abort flag flips mid-export. */
 export class ExportCancelledError extends Error {
@@ -108,7 +122,7 @@ export interface BackupManifestV2 {
   readonly expectedBlobs?: readonly ExpectedBlob[];
   readonly modules: readonly { readonly name: string; readonly deps: readonly string[] }[];
   readonly tables: readonly ManifestTable[];
-  /** Blobs whose bytes this export actually wrote (active driver only). */
+  /** Blobs whose bytes this export actually packed (local-driver rows only). */
   readonly blobs: { readonly count: number; readonly totalBytes: number };
   readonly warnings: readonly string[];
 }
@@ -225,45 +239,90 @@ function throwIfCancelled(isCancelled: () => boolean): void {
 }
 
 /**
- * Stream every row of `table` with the v1 exporter's keyset pagination
- * (LIMIT/OFFSET fallback for keyless tables) — same queries, so NDJSON rows
- * are key-for-key identical to what the v1 JSON exporter emits.
+ * The single-column primary key of `table`, or `undefined` for composite /
+ * keyless tables. Column-level `.primaryKey()` and a one-column table-level
+ * `primaryKey()` both qualify — either gives a total order for keyset
+ * pagination.
  */
-async function* streamTableRows(
+function singleColumnPrimaryKey(table: SQLiteTable): AnyColumn | undefined {
+  const columnLevel = Object.values(getTableColumns(table) as Record<string, AnyColumn>).filter(c => c.primary);
+  if (columnLevel.length === 1)
+    return columnLevel[0];
+  if (columnLevel.length > 1)
+    return undefined;
+  const composite = getTableConfig(table).primaryKeys;
+  if (composite.length === 1 && composite[0]!.columns.length === 1)
+    return composite[0]!.columns[0] as AnyColumn;
+  return undefined;
+}
+
+/** Batch size for row streaming — small when a blob column can inflate rows. */
+export function streamBatchSizeFor(table: SQLiteTable): number {
+  const hasBlob = Object.values(getTableColumns(table) as Record<string, AnyColumn>)
+    .some(col => col.getSQLType() === "blob");
+  return hasBlob ? BLOB_STREAM_BATCH_SIZE : STREAM_BATCH_SIZE;
+}
+
+/**
+ * Stream every row of `table` with the v1 exporter's pagination strategy,
+ * generalised: keyset over ANY single-column primary key (`id`, a text
+ * `key`, …), LIMIT/OFFSET fallback for composite-key / keyless tables.
+ * Blob-carrying tables use a smaller batch to bound memory.
+ */
+export async function* streamTableRows(
   db: AppDatabase,
   table: SQLiteTable,
   isCancelled: () => boolean,
 ): AsyncGenerator<Record<string, unknown>> {
-  const columns = getTableColumns(table) as Record<string, AnyColumn>;
-  const idColumn: AnyColumn | undefined = columns.id;
-  if (idColumn) {
-    let cursor: string | undefined;
+  const batchSize = streamBatchSizeFor(table);
+  const keyColumn = singleColumnPrimaryKey(table);
+  if (keyColumn) {
+    const keyProp = propertyNameOf(table, keyColumn);
+    let cursor: unknown;
     while (true) {
       throwIfCancelled(isCancelled);
       const baseQuery = db.select().from(table).$dynamic();
-      const filtered = cursor === undefined ? baseQuery : baseQuery.where(gt(idColumn, cursor));
-      const rows = await filtered.orderBy(asc(idColumn)).limit(STREAM_BATCH_SIZE).all() as Record<string, unknown>[];
+      const filtered = cursor === undefined ? baseQuery : baseQuery.where(gt(keyColumn, cursor));
+      const rows = await filtered.orderBy(asc(keyColumn)).limit(batchSize).all() as Record<string, unknown>[];
       if (rows.length === 0)
         break;
       yield* rows;
-      if (rows.length < STREAM_BATCH_SIZE)
+      if (rows.length < batchSize)
         break;
-      cursor = String(rows[rows.length - 1]!.id);
+      cursor = rows[rows.length - 1]![keyProp];
     }
   }
   else {
     let offset = 0;
     while (true) {
       throwIfCancelled(isCancelled);
-      const rows = await db.select().from(table).limit(STREAM_BATCH_SIZE).offset(offset).all() as Record<string, unknown>[];
+      const rows = await db.select().from(table).limit(batchSize).offset(offset).all() as Record<string, unknown>[];
       if (rows.length === 0)
         break;
       yield* rows;
-      if (rows.length < STREAM_BATCH_SIZE)
+      if (rows.length < batchSize)
         break;
-      offset += STREAM_BATCH_SIZE;
+      offset += batchSize;
     }
   }
+}
+
+/**
+ * NDJSON value codec: blob-typed values arrive from the driver as
+ * `Uint8Array`/`Buffer`, which `JSON.stringify` would mangle into the
+ * `{type:"Buffer",data:[...]}` shape bun:sqlite refuses to bind on import.
+ * Serialise them as base64 strings instead; the import side decodes any
+ * string hitting a blob-typed live column. Copies the row only when needed.
+ */
+function encodeRowForNdjson(row: Record<string, unknown>): Record<string, unknown> {
+  let out: Record<string, unknown> | undefined;
+  for (const [key, value] of Object.entries(row)) {
+    if (value instanceof Uint8Array) {
+      out ??= { ...row };
+      out[key] = Buffer.from(value.buffer, value.byteOffset, value.byteLength).toString("base64");
+    }
+  }
+  return out ?? row;
 }
 
 /**
@@ -409,7 +468,8 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
     let rowCount = 0;
     try {
       for await (const row of streamTableRows(db, table, isCancelled)) {
-        sink.write(`${JSON.stringify(redacted ? redactSecretFields(row) : row)}\n`);
+        const encoded = encodeRowForNdjson(row);
+        sink.write(`${JSON.stringify(redacted ? redactSecretFields(encoded) : encoded)}\n`);
         rowCount++;
       }
     }
@@ -432,13 +492,17 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
   // 2. Blob selection: DISTINCT sha256 of exported `files` rows. The full
   //    list lands in `manifest.expectedBlobs` in EVERY mode (so import can
   //    report exactly which blobs are expected/missing). Bytes are only
-  //    exported in embedded/separate mode and only from the active driver;
-  //    quarantined rows (sentinel driver) and rows on inactive drivers are
-  //    listed in `warnings` — their bytes cannot be read.
+  //    exported in embedded/separate mode, per row's OWN `storage_driver`
+  //    (never "the active driver"): local rows stream from the local driver,
+  //    s3 rows get one summary warning, db rows travel inside their table
+  //    NDJSON, anything else warns per row. Local blobs are verified
+  //    readable HERE because the manifest — including `blobs.count` /
+  //    `totalBytes` — is the first tar entry and must be final before any
+  //    blob streams; an unreadable blob becomes a warning, never a failure.
   const warnings: string[] = [];
   const blobs: BlobRef[] = [];
   const expectedBlobs: ExpectedBlob[] = [];
-  let activeDriver: ReturnType<typeof getActiveDriver> | undefined;
+  let localDriver: FileStorageDriver | undefined;
   if (manifestTables.some(t => t.name === "files")) {
     const rows = await db.all<{ sha256: string; storage_key: string; size: number; storage_driver: string }>(
       sql`SELECT DISTINCT sha256, storage_key, size, storage_driver FROM files`,
@@ -447,17 +511,41 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
       expectedBlobs.push({ sha256: row.sha256, size: row.size, storageKey: row.storage_key, storageDriver: row.storage_driver });
     if (blobsMode !== "none") {
       try {
-        activeDriver = getActiveDriver();
+        localDriver = getDriver(LOCAL_STORAGE_DRIVER);
       }
       catch {
-        activeDriver = undefined;
+        localDriver = undefined;
       }
+      let s3Skipped = 0;
       for (const row of rows) {
-        if (activeDriver && row.storage_driver === activeDriver.name)
-          blobs.push({ sha256: row.sha256, storageKey: row.storage_key, size: row.size });
-        else
-          warnings.push(`blob not exported (storage driver '${row.storage_driver}' is not the active driver): sha256=${row.sha256}`);
+        switch (row.storage_driver) {
+          case LOCAL_STORAGE_DRIVER: {
+            let readable = false;
+            if (localDriver) {
+              try {
+                readable = await localDriver.exists(row.storage_key);
+              }
+              catch {
+                readable = false; // driver not initialised — same as missing
+              }
+            }
+            if (readable)
+              blobs.push({ sha256: row.sha256, storageKey: row.storage_key, size: row.size });
+            else
+              warnings.push(`blob not exported (unreadable from local storage): sha256=${row.sha256}`);
+            break;
+          }
+          case S3_STORAGE_DRIVER:
+            s3Skipped++;
+            break;
+          case DB_STORAGE_DRIVER:
+            break; // bytes ride inside the table NDJSON — nothing to warn about
+          default:
+            warnings.push(`blob not exported (storage driver '${row.storage_driver}'): sha256=${row.sha256}`);
+        }
       }
+      if (s3Skipped > 0)
+        warnings.push(`${s3Skipped} file(s) stored in S3 are not part of this export — back up the bucket directly`);
       blobBytesTotal = blobs.reduce((sum, b) => sum + b.size, 0);
       report();
     }
@@ -485,11 +573,22 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
   //    tables (+ blobs when embedded); separate mode adds a second
   //    blobs-only artifact. Each commits via `.partial` → rename.
   const packBlobEntries = async (pack: Pack): Promise<void> => {
-    if (!activeDriver)
+    if (!localDriver)
       return;
     for (const blob of blobs) {
       throwIfCancelled(isCancelled);
-      const source = await activeDriver.getStream(blob.storageKey);
+      // Open the stream BEFORE the tar entry: the entry header commits the
+      // size up front, so a blob that vanished since the readability check
+      // must be skipped (with a warning) rather than corrupt the archive —
+      // one unreadable blob never fails the export job.
+      let source: ReadableStream<Uint8Array>;
+      try {
+        source = await localDriver.getStream(blob.storageKey);
+      }
+      catch (err) {
+        warnings.push(`blob not exported (read failed): sha256=${blob.sha256} — ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
       await packEntryFromStream(
         pack,
         { name: `blobs/${deriveStorageKey(blob.sha256)}`, size: blob.size },

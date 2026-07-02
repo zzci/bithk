@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { sql } from "drizzle-orm";
+import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { extract as tarExtract } from "tar-stream";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
@@ -17,7 +18,7 @@ import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storag
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
 import { seedUser, testNanoid } from "@/shared/test/route-harness";
-import { ExportCancelledError, writeArchiveV2 } from "./archive.service";
+import { ExportCancelledError, streamBatchSizeFor, streamTableRows, writeArchiveV2 } from "./archive.service";
 import { streamJsonBackup } from "./export.service";
 import { __resetBackupRegistryForTests, registerBackupContribution } from "./registry";
 import "@/modules/account";
@@ -176,27 +177,37 @@ describe("writeArchiveV2 — NDJSON fidelity", () => {
 
     const usersRows = parseNdjson(entries.find(e => e.name === "data/users.ndjson")!);
     expect(usersRows).toEqual(v1Dump.tables.users!);
-    // 1500 rows spans two keyset batches — pagination parity holds.
+    // 1500 rows spans two keyset batches. v2 keysets on the `key` PK
+    // (lexicographic) while v1 pages by OFFSET (insertion order) — compare
+    // as sets under one order.
+    const byKey = (a: Record<string, unknown>, b: Record<string, unknown>): number => String(a.key).localeCompare(String(b.key));
     const settingsRows = parseNdjson(entries.find(e => e.name === "data/settings.ndjson")!);
-    expect(settingsRows).toEqual(v1Dump.tables.settings!);
+    expect([...settingsRows].sort(byKey)).toEqual([...v1Dump.tables.settings!].sort(byKey));
   });
 });
 
 describe("writeArchiveV2 — blobs", () => {
-  test("dedups by sha256, streams bytes, and warns on inactive-driver rows", async () => {
+  test("per-row driver selection: local packs, s3 summarises, db is silent, unknown warns per row", async () => {
     const userId = await seedUser(db, "admin");
     const shaShared = "ab".repeat(32);
     const shaForeign = "cd".repeat(32);
+    const shaDb = "ef".repeat(32);
+    const shaUnknown = "12".repeat(32);
     const bytes = new Uint8Array(256 * 1024).fill(42);
     await setUpLocalBlob(shaShared, bytes);
 
     // Two rows share one sha → ONE tar entry. The live schema enforces
     // UNIQUE(sha256, storage_driver), so the second row sits on another
-    // driver — its bytes are unreadable here and it is listed in warnings.
+    // driver. Selection branches on EACH ROW's storage_driver, never on
+    // the active driver.
     await insertFileRow("f1", shaShared, bytes.length, "local", userId);
     await insertFileRow("f2", shaShared, bytes.length, "s3", userId);
-    // A row on an inactive driver → warning, bytes not exported.
+    // s3 rows fold into ONE summary warning; bytes stay in the bucket.
     await insertFileRow("f3", shaForeign, 10, "s3", userId);
+    // db rows carry their bytes inside the table NDJSON — silent skip.
+    await insertFileRow("f4", shaDb, 20, "db", userId);
+    // Quarantine sentinel / unknown driver → per-row warning.
+    await insertFileRow("f5", shaUnknown, 30, "missing-since-restore", userId);
 
     const { manifest, archivePath } = await writeArchiveV2({
       db,
@@ -215,16 +226,53 @@ describe("writeArchiveV2 — blobs", () => {
     expect(manifest.blobsMode).toBe("embedded");
     expect(manifest.includeBlobs).toBe(true);
     expect(manifest.blobs).toEqual({ count: 1, totalBytes: bytes.length });
-    // expectedBlobs lists EVERY referenced blob, exported or not.
-    expect([...manifest.expectedBlobs!].sort((a, b) => a.sha256.localeCompare(b.sha256) || a.storageDriver.localeCompare(b.storageDriver))).toEqual([
+    // expectedBlobs lists EVERY referenced blob, on any driver, exported or not.
+    const key = (b: { sha256: string; storageDriver: string }): string => `${b.sha256}/${b.storageDriver}`;
+    expect([...manifest.expectedBlobs!].sort((a, b) => key(a).localeCompare(key(b)))).toEqual([
       { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "local" },
       { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "s3" },
       { sha256: shaForeign, size: 10, storageKey: deriveStorageKey(shaForeign), storageDriver: "s3" },
-    ].sort((a, b) => a.sha256.localeCompare(b.sha256) || a.storageDriver.localeCompare(b.storageDriver)));
+      { sha256: shaDb, size: 20, storageKey: deriveStorageKey(shaDb), storageDriver: "db" },
+      { sha256: shaUnknown, size: 30, storageKey: deriveStorageKey(shaUnknown), storageDriver: "missing-since-restore" },
+    ].sort((a, b) => key(a).localeCompare(key(b))));
+    // Exactly TWO warnings: one s3 summary (2 rows), one per-row unknown.
     expect(manifest.warnings).toHaveLength(2);
-    expect(manifest.warnings.some(w => w.includes(shaForeign) && w.includes("s3"))).toBe(true);
-    expect(manifest.warnings.some(w => w.includes(shaShared) && w.includes("s3"))).toBe(true);
-    expect(manifest.tables.find(t => t.name === "files")!.rowCount).toBe(3);
+    expect(manifest.warnings).toContain("2 file(s) stored in S3 are not part of this export — back up the bucket directly");
+    expect(manifest.warnings.some(w => w.includes(shaUnknown) && w.includes("missing-since-restore"))).toBe(true);
+    // No warning mentions the db-driver row.
+    expect(manifest.warnings.some(w => w.includes(shaDb))).toBe(false);
+    expect(manifest.tables.find(t => t.name === "files")!.rowCount).toBe(5);
+  });
+
+  test("a missing local blob warns and is skipped — the export still succeeds", async () => {
+    const userId = await seedUser(db, "admin");
+    const shaPresent = "ab".repeat(32);
+    const shaMissing = "cd".repeat(32);
+    const bytes = new Uint8Array(1024).fill(7);
+    await setUpLocalBlob(shaPresent, bytes);
+    await insertFileRow("f1", shaPresent, bytes.length, "local", userId);
+    // Row exists but its blob file was never written (deleted from disk).
+    await insertFileRow("f2", shaMissing, 55, "local", userId);
+
+    const { manifest, archivePath } = await writeArchiveV2({
+      db,
+      modules: ["files"],
+      blobsMode: "embedded",
+      stagingDir,
+      appName: "app",
+    });
+
+    const entries = await readArchive(archivePath);
+    const blobEntries = entries.filter(e => e.name.startsWith("blobs/"));
+    expect(blobEntries).toHaveLength(1);
+    expect(blobEntries[0]!.name).toBe(`blobs/${deriveStorageKey(shaPresent)}`);
+    expect(blobEntries[0]!.data.equals(Buffer.from(bytes))).toBe(true);
+    // Counts reflect what was actually packed; the miss is a warning.
+    expect(manifest.blobs).toEqual({ count: 1, totalBytes: bytes.length });
+    expect(manifest.warnings).toHaveLength(1);
+    expect(manifest.warnings[0]).toContain(shaMissing);
+    // Both rows stay inventoried for the import side.
+    expect(manifest.expectedBlobs).toHaveLength(2);
   });
 
   test("blobsMode:none skips blobs/ entirely but still lists expectedBlobs", async () => {
@@ -302,6 +350,74 @@ describe("writeArchiveV2 — blobs", () => {
     expect(entryA.data.equals(Buffer.from(bytesA))).toBe(true);
     const entryB = blobEntries.find(e => e.name === `blobs/${keyB}`)!;
     expect(entryB.data.equals(Buffer.from(bytesB))).toBe(true);
+  });
+});
+
+// ─── Blob-column NDJSON codec + streaming pagination ──────────────────────
+
+/** Synthetic blob-carrying table with a NON-id text PK (FEAT-047 shape). */
+const blobFixtures = sqliteTable("blob_fixtures", {
+  storageKey: text("storage_key").primaryKey(),
+  bytes: blob("bytes", { mode: "buffer" }).notNull(),
+  size: integer("size").notNull(),
+});
+
+async function setUpBlobFixtures(): Promise<void> {
+  await db.run(sql`CREATE TABLE blob_fixtures (storage_key TEXT PRIMARY KEY, bytes BLOB NOT NULL, size INTEGER NOT NULL)`);
+  registerBackupContribution({ name: "blobtest", tables: [blobFixtures], deps: [] });
+}
+
+describe("writeArchiveV2 — blob-typed columns in NDJSON", () => {
+  test("Buffer values serialise as base64 strings and round-trip byte-identically", async () => {
+    await setUpBlobFixtures();
+    const payload = Buffer.from([0, 1, 2, 250, 251, 255, 10, 13, 34, 92]);
+    await db.insert(blobFixtures).values({ storageKey: "k1", bytes: payload, size: payload.length });
+
+    const { archivePath } = await writeArchiveV2({
+      db,
+      modules: ["blobtest"],
+      blobsMode: "none",
+      stagingDir,
+      appName: "app",
+    });
+
+    const entries = await readArchive(archivePath);
+    const rows = parseNdjson(entries.find(e => e.name === "data/blob_fixtures.ndjson")!);
+    expect(rows).toHaveLength(1);
+    // NOT the `{type:"Buffer",data:[...]}` JSON mangle — a plain base64 string.
+    expect(rows[0]!.bytes).toBe(payload.toString("base64"));
+    expect(Buffer.from(rows[0]!.bytes as string, "base64").equals(payload)).toBe(true);
+    // Non-blob columns are untouched.
+    expect(rows[0]!.size).toBe(payload.length);
+  });
+});
+
+describe("streamTableRows — pagination", () => {
+  test("keysets over a single-column non-id PK across batches (blob batch size 50)", async () => {
+    await setUpBlobFixtures();
+    // 120 rows > 2× the blob batch size of 50 → three keyset batches.
+    for (let n = 0; n < 120; n++)
+      await db.insert(blobFixtures).values({ storageKey: `key-${String(n).padStart(3, "0")}`, bytes: Buffer.from([n]), size: 1 });
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of streamTableRows(db, blobFixtures, () => false))
+      rows.push(row);
+
+    expect(rows).toHaveLength(120);
+    // Keyset order + no duplicates/gaps across batch boundaries.
+    expect(rows.map(r => r.storageKey)).toEqual(
+      Array.from({ length: 120 }, (_, n) => `key-${String(n).padStart(3, "0")}`),
+    );
+  });
+
+  test("batch size: 50 for blob-carrying tables, 1000 otherwise", async () => {
+    await setUpBlobFixtures();
+    const plain = sqliteTable("plain_fixtures", {
+      id: text("id").primaryKey(),
+      label: text("label").notNull(),
+    });
+    expect(streamBatchSizeFor(blobFixtures)).toBe(50);
+    expect(streamBatchSizeFor(plain)).toBe(1000);
   });
 });
 
