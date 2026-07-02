@@ -54,6 +54,8 @@ const exportJobStatusSchema = z.object({
   error: z.string().nullable(),
   archiveSize: z.number().nullable(),
   artifacts: z.unknown().nullable(),
+  // Manifest warnings (e.g. blobs skipped per-driver) — null until completed.
+  warnings: z.array(z.string()).nullable(),
 });
 const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 function rawJson(schema: z.ZodType, description = "Success") {
@@ -146,6 +148,7 @@ export function backupExportV2Routes() {
         progress: job.progress,
         error: job.error ?? null,
         archiveSize: job.artifacts?.data.size ?? null,
+        warnings: job.manifest ? [...job.manifest.warnings] : null,
         // Per-artifact view; `blobs` appears only for separate-mode jobs.
         artifacts: job.artifacts
           ? {

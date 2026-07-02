@@ -2,7 +2,7 @@
 // here; the import + standalone blob-restore card is colocated in
 // `-settings-backup-import.tsx`, the report renderer and the API view types
 // in `-settings-backup-report.tsx`.
-import type { BackupModuleView, BlobsMode, ExportJobView } from "./-settings-backup-report";
+import type { BackupModuleView, ExportJobView } from "./-settings-backup-report";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,14 +18,6 @@ import {
 } from "@/shared/components/ui/card";
 import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { Spinner } from "@/shared/components/ui/spinner";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatBytes } from "@/shared/lib/format";
@@ -45,12 +37,12 @@ export function BackupSettingsTab() {
 
 const modulesQueryKey = ["backup", "modules"] as const;
 
-const BLOB_MODES: readonly BlobsMode[] = ["embedded", "separate", "none"];
-
 function BackupExportCard() {
   const { t } = useTranslation(["settings", "common"]);
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(() => new Set());
-  const [blobsMode, setBlobsMode] = useState<BlobsMode>("embedded");
+  // Blobs are OPT-IN (FIX-053): unchecked exports rows only (`none`),
+  // checked adds the separate compressed files archive (`separate`).
+  const [includeBlobs, setIncludeBlobs] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
 
   const modulesQuery = useQuery({
@@ -83,7 +75,7 @@ function BackupExportCard() {
   const generate = useMutation({
     mutationFn: async () => http<{ jobId: string }>("/backup/v2/exports", {
       method: "POST",
-      body: JSON.stringify({ modules: selected, blobs: blobsMode }),
+      body: JSON.stringify({ modules: selected, blobs: includeBlobs ? "separate" : "none" }),
     }),
     onSuccess: res => setJobId(res.jobId),
     onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
@@ -148,29 +140,19 @@ function BackupExportCard() {
             )}
 
         <div className="space-y-1.5">
-          <Label id="backup-blob-mode-label">{t("settings:backup.export.blobMode")}</Label>
-          <Select
-            value={blobsMode}
-            onValueChange={v => v !== null && setBlobsMode(v as BlobsMode)}
-            disabled={jobActive}
-          >
-            <SelectTrigger
-              className="w-full sm:w-80"
-              aria-labelledby="backup-blob-mode-label"
-              aria-describedby="backup-blob-mode-help"
-            >
-              <SelectValue>
-                {(v: BlobsMode) => blobModeLabel(t, v)}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {BLOB_MODES.map(mode => (
-                <SelectItem key={mode} value={mode}>{blobModeLabel(t, mode)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p id="backup-blob-mode-help" className="text-xs text-muted-foreground">
-            {t("settings:backup.export.blobModeHelp")}
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-primary"
+              checked={includeBlobs}
+              disabled={jobActive}
+              aria-describedby="backup-include-blobs-help"
+              onChange={e => setIncludeBlobs(e.currentTarget.checked)}
+            />
+            <span className="font-medium">{t("settings:backup.export.includeBlobs")}</span>
+          </label>
+          <p id="backup-include-blobs-help" className="text-xs text-muted-foreground">
+            {t("settings:backup.export.includeBlobsHint")}
           </p>
         </div>
 
@@ -201,14 +183,6 @@ function BackupExportCard() {
       </CardContent>
     </Card>
   );
-}
-
-function blobModeLabel(t: (key: string) => string, mode: BlobsMode): string {
-  if (mode === "separate")
-    return t("settings:backup.export.blobModeSeparate");
-  if (mode === "none")
-    return t("settings:backup.export.blobModeNone");
-  return t("settings:backup.export.blobModeEmbedded");
 }
 
 function ExportJobPanel({ job, cancelPending, onCancel }: {
@@ -261,6 +235,14 @@ function ExportJobPanel({ job, cancelPending, onCancel }: {
   return (
     <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
       <div className="text-sm font-medium">{t("settings:backup.export.stateCompleted")}</div>
+      {job.warnings !== null && job.warnings.length > 0 && (
+        <div>
+          <div className="text-sm font-medium">{t("settings:backup.export.warnings")}</div>
+          <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+            {job.warnings.map(warning => <li key={warning} className="break-words">{warning}</li>)}
+          </ul>
+        </div>
+      )}
       {job.artifacts && (
         <div className="flex flex-wrap items-center gap-2">
           <ArtifactDownload

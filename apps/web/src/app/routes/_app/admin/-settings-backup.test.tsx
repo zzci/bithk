@@ -35,6 +35,7 @@ const runningJob = {
   progress: { tablesDone: 1, tablesTotal: 4, blobBytesDone: 1024, blobBytesTotal: 4096 },
   error: null,
   archiveSize: null,
+  warnings: null,
   artifacts: null,
 };
 
@@ -43,7 +44,13 @@ const completedJob = {
   state: "completed",
   progress: { tablesDone: 4, tablesTotal: 4, blobBytesDone: 4096, blobBytesTotal: 4096 },
   archiveSize: 2048,
+  warnings: [],
   artifacts: { data: { size: 2048, downloaded: false } },
+};
+
+const completedJobWithWarnings = {
+  ...completedJob,
+  warnings: ["2 file(s) stored in S3 are not part of this export — back up the bucket directly"],
 };
 
 const completedSeparateJob = {
@@ -174,12 +181,41 @@ describe("backupSettingsTab — export", () => {
 
     const post = fetchMock.mock.calls.find(c => c[1]?.method === "POST" && String(c[0]) === "/api/backup/v2/exports");
     expect(post).toBeDefined();
-    expect(JSON.parse(post![1]!.body as string)).toEqual({ modules: ["users", "files"], blobs: "embedded" });
+    // Blobs are opt-in: the default (unchecked) export carries rows only.
+    expect(JSON.parse(post![1]!.body as string)).toEqual({ modules: ["users", "files"], blobs: "none" });
 
     await waitFor(() => expect(screen.getByText("Generating backup…")).toBeInTheDocument());
     expect(screen.getByText("Tables: 1 / 4")).toBeInTheDocument();
     expect(screen.getByText(/Blob bytes:/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("sends blobs:\"separate\" when the export-uploaded-files checkbox is ticked", async () => {
+    routeFetch({ exportJob: () => runningJob });
+
+    renderWithProviders(<BackupSettingsTab />);
+    await waitFor(() => expect(screen.getByText("users")).toBeInTheDocument());
+    expect(screen.getByText(/files stored in S3 are not exported/)).toBeInTheDocument();
+
+    const checkbox = screen.getByRole("checkbox", { name: "Export uploaded files (blobs)" });
+    expect(checkbox).not.toBeChecked();
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Generate backup" }));
+
+    const post = fetchMock.mock.calls.find(c => c[1]?.method === "POST" && String(c[0]) === "/api/backup/v2/exports");
+    expect(JSON.parse(post![1]!.body as string)).toEqual({ modules: ["users", "files"], blobs: "separate" });
+  });
+
+  it("renders manifest warnings in the completed-job panel", async () => {
+    routeFetch({ exportJob: () => completedJobWithWarnings });
+
+    renderWithProviders(<BackupSettingsTab />);
+    await waitFor(() => expect(screen.getByText("users")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Generate backup" }));
+
+    await screen.findByText("Backup ready");
+    expect(screen.getByText("Warnings")).toBeInTheDocument();
+    expect(screen.getByText(completedJobWithWarnings.warnings[0]!)).toBeInTheDocument();
   });
 
   it("shows the download link when the job completes", async () => {

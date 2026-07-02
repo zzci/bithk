@@ -221,6 +221,10 @@ async function runBackupExport(
     const outPath = resolve(out);
     const size = result.archiveSize ?? statSync(out).size;
     consola.success(`wrote backup to ${outPath} (${size} bytes)`);
+    // Surface manifest warnings (blobs skipped per storage driver, …) — the
+    // export still succeeded, but the operator must know what is NOT inside.
+    for (const warning of result.manifest.warnings)
+      consola.warn(warning);
     return 0;
   }
   catch (err) {

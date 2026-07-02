@@ -9,8 +9,9 @@ import { eq, sql } from "drizzle-orm";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { auditEvents } from "@/modules/audit/schema";
+import { fileBackupContribution } from "@/modules/file/file.backup";
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
-import { mountRoutes, sessionCookieFor, testConfig, testNanoid } from "@/shared/test/route-harness";
+import { mountRoutes, seedUser, sessionCookieFor, testConfig, testNanoid } from "@/shared/test/route-harness";
 import {
   __resetExportJobsForTests,
   __setExportJobForTests,
@@ -203,6 +204,7 @@ describe("GET /backup/v2/exports/:jobId", () => {
       progress: { tablesDone: number; tablesTotal: number };
       error: string | null;
       archiveSize: number | null;
+      warnings: string[] | null;
       artifacts: { data: { size: number; downloaded: boolean }; blobs?: { size: number; downloaded: boolean } } | null;
     };
     expect(body.jobId).toBe(jobId);
@@ -211,8 +213,32 @@ describe("GET /backup/v2/exports/:jobId", () => {
     expect(body.progress.tablesDone).toBe(body.progress.tablesTotal);
     expect(body.error).toBeNull();
     expect(body.archiveSize).toBeGreaterThan(0);
+    // Completed without incident → an EMPTY warnings list, not null.
+    expect(body.warnings).toEqual([]);
     expect(body.artifacts!.data).toEqual({ size: body.archiveSize!, downloaded: false });
     expect(body.artifacts!.blobs).toBeUndefined();
+  });
+
+  test("a running job reports warnings:null; manifest warnings surface once completed", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    // A files row on the s3 driver → the archive writer records a summary
+    // warning the poll response must surface.
+    registerBackupContribution(fileBackupContribution);
+    const userId = await seedUser(db, "user");
+    await db.run(sql`
+      INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
+      VALUES ('f1', '${sql.raw("ab".repeat(32))}', 10, 'application/octet-stream', 's3', 'ab/ab/x', 1, ${userId})
+    `);
+
+    const running = syntheticRunningJob();
+    const resRunning = await app().request(`/backup/v2/exports/${running.id}`, { headers: { Cookie: cookie } });
+    expect(((await resRunning.json()) as { warnings: string[] | null }).warnings).toBeNull();
+    __resetExportJobsForTests();
+
+    const jobId = await createCompletedJob(cookie, { modules: ["files"], blobs: "separate" });
+    const res = await app().request(`/backup/v2/exports/${jobId}`, { headers: { Cookie: cookie } });
+    const body = await res.json() as { warnings: string[] | null };
+    expect(body.warnings).toEqual(["1 file(s) stored in S3 are not part of this export — back up the bucket directly"]);
   });
 
   test("a separate-mode job reports both artifacts", async () => {

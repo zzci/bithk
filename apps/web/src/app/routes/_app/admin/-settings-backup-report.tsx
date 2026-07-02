@@ -42,6 +42,8 @@ export interface ExportJobView {
   };
   readonly error: string | null;
   readonly archiveSize: number | null;
+  /** Manifest warnings (blobs skipped per storage driver, …) — null until completed. */
+  readonly warnings: readonly string[] | null;
   readonly artifacts: {
     readonly data: ExportArtifactView;
     readonly blobs?: ExportArtifactView;

@@ -1,16 +1,18 @@
 import type { BackupManifestV2, ManifestColumn, ManifestTable } from "./archive.service";
 import type { AppDatabase } from "@/db";
+import { Buffer } from "node:buffer";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { sql } from "drizzle-orm";
+import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { fileBackupContribution } from "@/modules/file/file.backup";
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
 import { seedUser, testNanoid } from "@/shared/test/route-harness";
-import { buildLiveSchemaView, runImportDryRun } from "./import-mapping";
+import { buildLiveSchemaView, runImportDryRun, runImportMerge } from "./import-mapping";
 import { __resetBackupRegistryForTests, registerBackupContribution } from "./registry";
 import "@/modules/account";
 
@@ -301,6 +303,74 @@ describe("mapping rules (dry-run only)", () => {
     const report = run(mManifest([settingsDef()]), { settings: [settingsRow("k1", "[REDACTED]")] });
     expect(report.tables.settings!.inserted).toBe(1);
     expect(report.warnings).toContain("redacted-secrets: settings contains 1 redacted value(s)");
+  });
+});
+
+// ─── Blob-column NDJSON codec (import side) ───────────────────────────────
+
+/** Synthetic blob-carrying live table with a NON-id text PK (FEAT-047 shape). */
+const blobFixtures = sqliteTable("blob_fixtures", {
+  storageKey: text("storage_key").primaryKey(),
+  bytes: blob("bytes", { mode: "buffer" }).notNull(),
+  size: integer("size").notNull(),
+});
+
+async function setUpBlobFixtures(): Promise<void> {
+  await db.run(sql`CREATE TABLE blob_fixtures (storage_key TEXT PRIMARY KEY, bytes BLOB NOT NULL, size INTEGER NOT NULL)`);
+  registerBackupContribution({ name: "blobtest", tables: [blobFixtures], deps: [] });
+}
+
+function blobFixturesDef(): ManifestTable {
+  return mTable("blob_fixtures", "blobtest", [
+    col("storageKey"),
+    col("bytes", "blob"),
+    col("size", "integer"),
+  ], ["storageKey"]);
+}
+
+describe("blob-typed column codec", () => {
+  test("base64 strings and the legacy Buffer-JSON shape decode to byte-identical blobs on apply", async () => {
+    await setUpBlobFixtures();
+    const payload = Buffer.from([0, 1, 2, 250, 251, 255, 10, 13, 34, 92]);
+
+    const report = runImportMerge(db, mManifest([blobFixturesDef()]), new Map([[
+      "blob_fixtures",
+      [
+        // v2 exporter encoding: base64 string.
+        { storageKey: "k1", bytes: payload.toString("base64"), size: payload.length },
+        // Legacy pre-codec archives: JSON.stringify(Buffer) mangle.
+        { storageKey: "k2", bytes: { type: "Buffer", data: [...payload] }, size: payload.length },
+      ],
+    ]]));
+
+    expect(report.tables.blob_fixtures!.inserted).toBe(2);
+    expect(report.totals.failed).toBe(0);
+
+    const rows = await db.select().from(blobFixtures).all();
+    const byKey = new Map(rows.map(r => [r.storageKey, r.bytes]));
+    expect(Buffer.from(byKey.get("k1")!).equals(payload)).toBe(true);
+    expect(Buffer.from(byKey.get("k2")!).equals(payload)).toBe(true);
+  });
+
+  test("dry-run inserts decoded blob rows and rolls back cleanly", async () => {
+    await setUpBlobFixtures();
+    const before = await dbDump();
+    const report = run(mManifest([blobFixturesDef()]), {
+      blob_fixtures: [{ storageKey: "k1", bytes: Buffer.from("hello").toString("base64"), size: 5 }],
+    });
+    expect(report.tables.blob_fixtures!.inserted).toBe(1);
+    expect(report.totals.failed).toBe(0);
+    expect(await dbDump()).toBe(before);
+  });
+
+  test("an existing blob-keyed row is still detected as duplicate (probe sees decoded values)", async () => {
+    await setUpBlobFixtures();
+    await db.insert(blobFixtures).values({ storageKey: "k1", bytes: Buffer.from("live"), size: 4 });
+    const report = run(mManifest([blobFixturesDef()]), {
+      blob_fixtures: [{ storageKey: "k1", bytes: Buffer.from("incoming").toString("base64"), size: 8 }],
+    });
+    expect(report.tables.blob_fixtures!.skippedDuplicate).toBe(1);
+    expect(report.tables.blob_fixtures!.inserted).toBe(0);
   });
 });
 

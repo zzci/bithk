@@ -65039,6 +65039,19 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "warnings": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -65050,7 +65063,8 @@
                     "progress",
                     "error",
                     "archiveSize",
-                    "artifacts"
+                    "artifacts",
+                    "warnings"
                   ]
                 }
               }
@@ -66081,6 +66095,19 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "warnings": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -66092,7 +66119,8 @@
                     "progress",
                     "error",
                     "archiveSize",
-                    "artifacts"
+                    "artifacts",
+                    "warnings"
                   ]
                 }
               }
