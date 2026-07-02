@@ -149,8 +149,15 @@ export function cronRoutes() {
   // route. Handlers below treat `getScheduler()` as nullable — when
   // the scheduler is not running, DB writes still land and the Baker
   // side effects no-op.
-  router.use("*", authRequired);
-  router.use("*", adminRequired);
+  //
+  // Scope to `/cron/*` — NOT `*`. Hono flattens a sub-app's middleware onto
+  // the parent at mount time, so a bare `*` here would attach `adminRequired`
+  // to every route registered after this router in `protectedRoutes` — the
+  // file module's `/files/:id/metadata|content` pair — locking non-admins
+  // out of attachment downloads and inline cover images. Same leak class as
+  // the share-public rate limiter (see share.public.routes.ts).
+  router.use("/cron/*", authRequired);
+  router.use("/cron/*", adminRequired);
 
   // GET /cron/actions — registered action catalog + cron-format reference + scheduler state.
   router.get(
