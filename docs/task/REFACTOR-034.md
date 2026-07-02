@@ -1,6 +1,6 @@
 # REFACTOR-034 - Extract services from oversized route files; fix non-tx cascades
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-104](../plan/PLAN-104.md)
 - Campaign: `l1-bithk-arch-20260702084717`
 - Owner: L3
@@ -34,3 +34,9 @@ AUDIT-20260702-architecture.md → D7.
 
 - `apps/api/src/modules/account/auth/*`, `account/users/*`, `cron/*`, `document/*`, `drive/*`
   and their co-located tests.
+
+## Status Notes
+
+- 2026-07-02: Completed — auth/cron/users route logic extracted into services; document cascade
+  delete and drive `purgeEntries` now run batched inside single transactions with regression
+  tests.

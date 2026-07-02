@@ -1,6 +1,6 @@
 # REFACTOR-031 - Single module manifest for nav-gate / PAT-scope / prefix matching
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-104](../plan/PLAN-104.md)
 - Campaign: `l1-bithk-arch-20260702084717`
 - Owner: L3
@@ -27,3 +27,9 @@ AUDIT-20260702-architecture.md → D2/D9.
 
 - `apps/api/src/shared/modules.ts`, `apps/api/src/shared/middleware/module-gate.ts` (or its home),
   `apps/api/src/modules/account/tokens/scope.ts`, new manifest file, their tests.
+
+## Status Notes
+
+- 2026-07-02: Completed — single shared module manifest now derives `MODULES`,
+  `UNGATED_PREFIXES`, and `TOKEN_MODULES` with one shared `moduleForPath` matcher; gate/scope
+  semantics unchanged.

@@ -165,16 +165,16 @@
 | [FEAT-047](FEAT-047.md) | Storage module: DB-configured multi-driver storage + admin management | [PLAN-101](../plan/PLAN-101.md) | Done | 2026-07-02 |
 | [FIX-053](FIX-053.md) | Backup export: opt-in blobs, per-row driver-aware (DB-record driven; local bytes, S3 skipped) | [PLAN-102](../plan/PLAN-102.md) | Completed | 2026-07-01 |
 | [FEAT-048](FEAT-048.md) | Rework overview page into a real workbench (user favorites + my issues + open procurements) | [PLAN-103](../plan/PLAN-103.md) | Completed | 2026-07-02 |
-| [REFACTOR-030](REFACTOR-030.md) | Route-table reuses real route factories (kill drifted mount copy) | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [REFACTOR-031](REFACTOR-031.md) | Single module manifest for nav-gate / PAT-scope / prefix matching | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [REFACTOR-032](REFACTOR-032.md) | mountItemAttachmentRoutes factory (dedupe 4x attachment quartet) | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [REFACTOR-033](REFACTOR-033.md) | Shared route-helper sweep: okJson, parseTagIds, pagination, auditFromCtx | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [REFACTOR-034](REFACTOR-034.md) | Extract services from oversized route files; fix non-tx cascades | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [REFACTOR-035](REFACTOR-035.md) | Invert search dependencies via registerSearchSource registry | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [FIX-054](FIX-054.md) | Policy middleware: close silent fail-open branch + direct tests | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [FIX-055](FIX-055.md) | Contact list: batch capability resolution (N+1) | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [FIX-056](FIX-056.md) | Quality-gate dedup, api dev --watch, CI cache, flake retry, lint tests/ | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [FIX-057](FIX-057.md) | Data-layer hardening batch (indexes, onDelete, timestamps, optimize, tx) | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [UI-028](UI-028.md) | Web data-layer discipline: query keys, http() call sites, keepPreviousData | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [UI-029](UI-029.md) | Split web god-components; static i18n label maps; memoized list rows | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
-| [TEST-001](TEST-001.md) | Close HTTP-behavior coverage gap for auth-sensitive modules | [PLAN-104](../plan/PLAN-104.md) | In Progress | 2026-07-02 |
+| [REFACTOR-030](REFACTOR-030.md) | Route-table reuses real route factories (kill drifted mount copy) | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [REFACTOR-031](REFACTOR-031.md) | Single module manifest for nav-gate / PAT-scope / prefix matching | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [REFACTOR-032](REFACTOR-032.md) | mountItemAttachmentRoutes factory (dedupe 4x attachment quartet) | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [REFACTOR-033](REFACTOR-033.md) | Shared route-helper sweep: okJson, parseTagIds, pagination, auditFromCtx | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [REFACTOR-034](REFACTOR-034.md) | Extract services from oversized route files; fix non-tx cascades | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [REFACTOR-035](REFACTOR-035.md) | Invert search dependencies via registerSearchSource registry | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [FIX-054](FIX-054.md) | Policy middleware: close silent fail-open branch + direct tests | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [FIX-055](FIX-055.md) | Contact list: batch capability resolution (N+1) | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [FIX-056](FIX-056.md) | Quality-gate dedup, api dev --watch, CI cache, flake retry, lint tests/ | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [FIX-057](FIX-057.md) | Data-layer hardening batch (indexes, onDelete, timestamps, optimize, tx) | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [UI-028](UI-028.md) | Web data-layer discipline: query keys, http() call sites, keepPreviousData | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [UI-029](UI-029.md) | Split web god-components; static i18n label maps; memoized list rows | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [TEST-001](TEST-001.md) | Close HTTP-behavior coverage gap for auth-sensitive modules | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
