@@ -1,6 +1,7 @@
 # BITHK Project Audit — Index
 
 > **Follow-up audits:**
+> - [AUDIT-20260702-architecture.md](./AUDIT-20260702-architecture.md) — 2026-07-02 whole-system architecture assessment @ `49157032`. No P0/P1 security; 1 HIGH drift (route-table omits `/admin/storage/*` from docs+spec), 1 HIGH test gap (policy middleware untested + fail-open branch), registry proliferation, boilerplate duplication, gate waste. Remediation: [../plan/PLAN-104.md](../plan/PLAN-104.md) (REFACTOR-030…035, FIX-054…057, UI-028/029, TEST-001), BKD campaign `l1-bithk-arch-20260702084717`.
 > - [AUDIT-20260701.md](./AUDIT-20260701.md) — 2026-07-01 deep audit @ `99ca196`. 0 P0, 1 P1 (drive confirm-upload IDOR), 3 P2, 6 P3. Remediation: [../plan/PLAN-100.md](../plan/PLAN-100.md) (FIX-048…052), BKD campaign `l1-bithk-audit-20260701145456`.
 
 **Campaign:** `l1-w6c655lo-audit-20260602135842` · **Mode:** AUDIT-ONLY (no source code, dependency, config, or schema was changed — only audit reports were authored).
