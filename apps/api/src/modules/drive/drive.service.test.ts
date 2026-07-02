@@ -16,8 +16,10 @@ import { setDbDriverDatabase } from "@/modules/file/storage/db";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
+import { shares } from "@/modules/share/schema";
 import { AppError } from "@/shared/lib/errors";
 import {
+  __setPurgeFailpointForTests,
   buildDriveEntryDownloadResponse,
   createDriveFolder,
   createDriveSpreadsheet,
@@ -274,6 +276,43 @@ describe("emptyDriveTrash", () => {
     expect(removed).toBe(2);
 
     expect((await db.select({ value: count() }).from(driveEntries).get())?.value).toBe(0);
+    expect((await db.select({ value: count() }).from(fileReferences).get())?.value).toBe(0);
+    expect((await db.select({ value: count() }).from(files).get())?.value).toBe(0);
+  });
+});
+
+describe("purge atomicity (REFACTOR-034)", () => {
+  test("a mid-transaction failure leaves no partial state (entries, shares, references all intact)", async () => {
+    const owner = await seedUser("Owner");
+    const file = await uploadDriveFile(db, config, { ...personal(owner), createdBy: owner, file: textFile("a.txt", "aaa") });
+    await db.insert(shares).values({
+      id: nanoid(),
+      resourceType: "drive_entry",
+      resourceId: file.id,
+      token: nanoid(),
+      createdBy: owner,
+    }).run();
+    await trashDriveEntry(db, personal(owner), file.id);
+
+    __setPurgeFailpointForTests(() => {
+      throw new Error("boom");
+    });
+    try {
+      await expect(emptyDriveTrash(db, config, personal(owner))).rejects.toThrow("boom");
+    }
+    finally {
+      __setPurgeFailpointForTests(null);
+    }
+
+    // Nothing committed: entry, share and reference all survive the rollback.
+    expect((await db.select({ value: count() }).from(driveEntries).get())?.value).toBe(1);
+    expect((await db.select({ value: count() }).from(shares).get())?.value).toBe(1);
+    expect((await db.select({ value: count() }).from(fileReferences).get())?.value).toBe(1);
+
+    // With the failpoint cleared the same purge drains everything at once.
+    expect(await emptyDriveTrash(db, config, personal(owner))).toBe(1);
+    expect((await db.select({ value: count() }).from(driveEntries).get())?.value).toBe(0);
+    expect((await db.select({ value: count() }).from(shares).get())?.value).toBe(0);
     expect((await db.select({ value: count() }).from(fileReferences).get())?.value).toBe(0);
     expect((await db.select({ value: count() }).from(files).get())?.value).toBe(0);
   });

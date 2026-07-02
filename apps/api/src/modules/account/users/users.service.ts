@@ -1,7 +1,8 @@
 import type { AppDatabase } from "@/db";
 import { and, asc, count, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { sessions } from "@/modules/account/auth/schema";
 import { groups } from "@/modules/account/groups/schema";
-import { users } from "@/modules/account/users/schema";
+import { userPreferences, users } from "@/modules/account/users/schema";
 import {
   listGroupMembershipsForUser,
   listGroupMembershipsForUsers,
@@ -160,6 +161,71 @@ export function assertNotLastActiveAdmin(db: Pick<AppDatabase, "select">, target
   if ((others?.value ?? 0) === 0) {
     throw new AppError("Cannot demote or disable the last active admin", 409, "LAST_ADMIN");
   }
+}
+
+/**
+ * Apply a role/status change atomically with its security side effects:
+ * the last-admin guard runs inside the same transaction (so two admins
+ * demoting each other concurrently cannot both pass the count) and, when
+ * the role or status actually changed, every session of the target user
+ * is purged — a demoted/disabled admin must not keep a live admin
+ * session. Either both the user mutation AND the session purge land, or
+ * neither does.
+ */
+export function applyRoleStatusChange(
+  db: AppDatabase,
+  targetId: string,
+  data: { role?: UserRole | undefined; status?: UserStatus | undefined },
+  opts: { losesAdmin: boolean; purgeSessions: boolean },
+): void {
+  db.transaction((tx) => {
+    // Last-admin guard (FEAT-031), inside the tx so two admins demoting
+    // each other concurrently cannot both pass the count.
+    if (opts.losesAdmin)
+      assertNotLastActiveAdmin(tx, targetId);
+
+    const now = new Date().toISOString();
+    const setData: Record<string, unknown> = { updatedAt: now };
+    if (data.role !== undefined)
+      setData.role = data.role;
+    if (data.status !== undefined)
+      setData.status = data.status;
+
+    tx.update(users).set(setData).where(eq(users.id, targetId)).run();
+
+    if (opts.purgeSessions) {
+      tx.delete(sessions).where(eq(sessions.userId, targetId)).run();
+    }
+  });
+}
+
+export async function getUserPreference(
+  db: AppDatabase,
+  userId: string,
+  key: string,
+): Promise<{ key: string; value: string } | null> {
+  const row = await db.select()
+    .from(userPreferences)
+    .where(and(eq(userPreferences.userId, userId), eq(userPreferences.key, key)))
+    .get();
+  return row ? { key: row.key, value: row.value } : null;
+}
+
+export async function upsertUserPreference(
+  db: AppDatabase,
+  userId: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  await db.insert(userPreferences).values({
+    userId,
+    key,
+    value,
+    updatedAt: new Date().toISOString(),
+  }).onConflictDoUpdate({
+    target: [userPreferences.userId, userPreferences.key],
+    set: { value, updatedAt: new Date().toISOString() },
+  }).run();
 }
 
 export async function updateUser(db: AppDatabase, id: string, data: { role?: UserRole | undefined; status?: UserStatus | undefined; name?: string | undefined }) {

@@ -4,7 +4,6 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { listActiveUsers } from "@/modules/account/users/users.service";
 import { audit } from "@/modules/audit/audit.service";
-import { releaseAllByOwner } from "@/modules/file";
 import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { NOOP_POLICY_LOGGER, policyContext } from "@/modules/policy";
@@ -475,19 +474,10 @@ export function documentRoutes() {
       const descendantIds = await listDescendantIds(db, id);
       const descendantRows = await Promise.all(descendantIds.map(d => getDocumentById(db, d)));
 
-      // Release every attachment in the subtree before stamping deleted_at —
-      // refcounts drain so the async GC reclaims any blobs that were only
-      // referenced by the deleted documents.
-      const item = await resolveDocumentItem(db, id);
-      if (item)
-        await releaseAllByOwner(db, c.get("config"), "item_attachment", item.id);
-      for (const dId of descendantIds) {
-        const dItem = await resolveDocumentItem(db, dId);
-        if (dItem)
-          await releaseAllByOwner(db, c.get("config"), "item_attachment", dItem.id);
-      }
-
-      await softDeleteDocument(db, id);
+      // Atomic cascade (REFACTOR-034): attachment reference release, the
+      // subtree soft-delete, tuple cleanup and share removal all commit (or
+      // roll back) together inside the service.
+      await softDeleteDocument(db, id, c.get("config"));
 
       const meta = auditMeta(c);
       await audit(db, c.get("logger"), {
