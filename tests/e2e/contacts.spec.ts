@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
 import type { Page, Route } from "@playwright/test";
+import { existsSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { contactsFixtureResponse } from "../fixtures/contacts";
 

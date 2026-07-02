@@ -1,17 +1,17 @@
 import type {
+  ProcurementRow,
+  ProcurementsResult,
+  ProcurementStatus,
+} from "../../apps/web/src/shared/lib/api/procurement";
+import type {
+  ProcurementCategoryView,
   ProjectIssueRow,
   ProjectMemberView,
   ProjectRoleView,
   ProjectsListResult,
   ProjectTag,
   ProjectView,
-  ProcurementCategoryView,
 } from "../../apps/web/src/shared/lib/api/projects";
-import type {
-  ProcurementRow,
-  ProcurementStatus,
-  ProcurementsResult,
-} from "../../apps/web/src/shared/lib/api/procurement";
 
 const now = "2026-05-25T00:00:00.000Z";
 
