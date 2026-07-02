@@ -14,6 +14,12 @@ import { createProject } from "@/modules/project/project.service";
 import { MODULE_KEYS } from "@/shared/modules";
 import { globalSearch } from "./search.service";
 import "@/modules/account";
+// Side-effect imports: register each searchable module's search source.
+import "@/modules/document";
+import "@/modules/drive";
+import "@/modules/issue";
+import "@/modules/project";
+import "@/modules/ship";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -87,10 +93,10 @@ describe("globalSearch", () => {
 
     const result = await globalSearch(db, { userId: owner, ...ARGS });
 
-    expect(result.documents.map(h => h.title)).toContain("Quarterly Report");
-    expect(result.issues.map(h => h.title)).toContain("Quarterly Bug");
-    expect(result.projects.map(h => h.id)).toContain(project.shortId);
-    expect(result.drive.map(h => h.title)).toContain("Quarterly Notes.txt");
+    expect(result.documents?.map(h => h.title)).toContain("Quarterly Report");
+    expect(result.issues?.map(h => h.title)).toContain("Quarterly Bug");
+    expect(result.projects?.map(h => h.id)).toContain(project.shortId);
+    expect(result.drive?.map(h => h.title)).toContain("Quarterly Notes.txt");
   });
 
   test("does not leak another user's resources to a non-member", async () => {
@@ -118,7 +124,7 @@ describe("globalSearch", () => {
     expect(asMember.projects).toHaveLength(0);
 
     const asAdmin = await globalSearch(db, { userId: admin, isAdmin: true, q: "Quarterly", limit: 8, modules: MODULE_KEYS });
-    expect(asAdmin.projects.map(h => h.title)).toContain("Quarterly Project");
+    expect(asAdmin.projects?.map(h => h.title)).toContain("Quarterly Project");
   });
 
   test("hidden-module domains are not queried and come back empty", async () => {
@@ -130,7 +136,7 @@ describe("globalSearch", () => {
 
     const result = await globalSearch(db, { userId: owner, ...ARGS, modules: ["documents"] });
 
-    expect(result.documents.map(h => h.title)).toContain("Quarterly Report");
+    expect(result.documents?.map(h => h.title)).toContain("Quarterly Report");
     expect(result.issues).toHaveLength(0);
     expect(result.projects).toHaveLength(0);
     expect(result.drive).toHaveLength(0);
