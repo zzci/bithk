@@ -39,34 +39,47 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       # Single source of truth — matches `package.json`'s `check` script so a
       # green local run is a green CI run. Bundles lint + typecheck + test +
-      # build + check:i18n + check:env-docs + check:api-docs.
+      # build + check:i18n + check:env-docs + check:api-docs. Output is teed
+      # to a file so the coverage gate below can parse the api coverage table
+      # (coverage is always-on via apps/api/bunfig.toml) without re-running
+      # the suite.
       - name: Check
-        run: bun run check
+        run: |
+          set -euo pipefail
+          bun run check 2>&1 | tee "$RUNNER_TEMP/check-output.txt"
 
       # Coverage ratchet — enforced here because Bun 1.3.14 does not fail a
       # run on bunfig `coverageThreshold` (it only prints the table). We parse
       # the text reporter's "All files" row (which honours
-      # `apps/api/bunfig.toml`'s coveragePathIgnorePatterns) and fail below the
-      # realistic floor documented in the root bunfig.toml. Linux only — the
-      # gate is deterministic across OSes, one run is sufficient and keeps the
-      # macOS leg fast.
+      # `apps/api/bunfig.toml`'s coveragePathIgnorePatterns) from the Check
+      # step's output — `bun run --filter` prefixes each api line with
+      # "@app/api test: ", which also disambiguates it from the web (vitest)
+      # coverage table. Linux only — the gate is deterministic across OSes,
+      # one run is sufficient and keeps the macOS leg fast.
       - name: Coverage gate
         if: matrix.os == 'ubuntu-latest'
-        working-directory: apps/api
         env:
           MIN_LINE: "80"
           MIN_FUNC: "70"
         run: |
           set -euo pipefail
-          bun --env-file=/dev/null test --coverage 2>&1 | tee /tmp/cov.txt
-          # "All files | <func%> | <line%> |"
-          line="$(grep -E '^All files' /tmp/cov.txt | tail -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}')"
-          func="$(grep -E '^All files' /tmp/cov.txt | tail -1 | awk -F'|' '{gsub(/ /,"",$2); print $2}')"
+          # "@app/api test: All files | <func%> | <line%> |"
+          row="$(grep -F '@app/api test: All files' "$RUNNER_TEMP/check-output.txt" | tail -1 || true)"
+          line="$(printf '%s' "$row" | awk -F'|' '{gsub(/ /,"",$3); print $3}')"
+          func="$(printf '%s' "$row" | awk -F'|' '{gsub(/ /,"",$2); print $2}')"
           echo "Measured: lines=${line}% functions=${func}% (floor: lines>=${MIN_LINE}% functions>=${MIN_FUNC}%)"
           awk -v l="$line" -v f="$func" -v ml="$MIN_LINE" -v mf="$MIN_FUNC" 'BEGIN{
             if (l=="" || f=="") { print "::error::could not parse coverage from text reporter"; exit 1 }
@@ -186,6 +199,14 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

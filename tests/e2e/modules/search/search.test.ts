@@ -3,8 +3,8 @@
 // unique token in every title keeps the assertions deterministic across runs.
 import { describe, expect, it } from "bun:test";
 import { ApiClient } from "../../lib/api";
-import { createTestProject } from "../../lib/project";
 import { getClient } from "../../lib/oidc";
+import { createTestProject } from "../../lib/project";
 
 interface Hit { type: string; id: string; title: string; subtitle?: string }
 interface SearchResult {

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import process from "node:process";
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.SMOKE_BASE_URL ?? `http://bit.localhost:${process.env.NSL_PORT ?? "1355"}`;

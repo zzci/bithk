@@ -238,7 +238,9 @@ async function main() {
   const stopApi = async () => {
     if (api) {
       api.kill();
-      try { await api.exited; }
+      try {
+        await api.exited;
+      }
       catch {}
       api = null;
     }
@@ -246,7 +248,9 @@ async function main() {
   const stopDex = async () => {
     if (dex) {
       dex.kill();
-      try { await dex.exited; }
+      try {
+        await dex.exited;
+      }
       catch {}
       dex = null;
     }
@@ -300,9 +304,13 @@ async function main() {
     `${JSON.stringify({ runId, phases: summaries, exitCode }, null, 2)}\n`,
   );
   const latest = join(REPORT_ROOT, "latest");
-  try { rmSync(latest, { recursive: true, force: true }); }
+  try {
+    rmSync(latest, { recursive: true, force: true });
+  }
   catch {}
-  try { symlinkSync(reportDir, latest, "dir"); }
+  try {
+    symlinkSync(reportDir, latest, "dir");
+  }
   catch {
     // symlink may fail on some FSes; fall back to a marker file.
     writeFileSync(`${latest}.txt`, reportDir);
@@ -319,4 +327,7 @@ async function main() {
   process.exit(exitCode);
 }
 
-await main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

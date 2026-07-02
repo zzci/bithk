@@ -43,7 +43,10 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-describe("emptyState", () => {
+// Milkdown mounts a real ProseMirror editor whose async teardown can
+// reject after the test completes (known flake: exit 1 with 0 assertion
+// failures). retry: 1 re-runs only a failed attempt in this suite.
+describe("emptyState", { retry: 1 }, () => {
   it("invokes onCreate when the create button is pressed", async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn();
@@ -54,7 +57,7 @@ describe("emptyState", () => {
   });
 });
 
-describe("createForm", () => {
+describe("createForm", { retry: 1 }, () => {
   it("blocks submission and warns when the title is blank", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
