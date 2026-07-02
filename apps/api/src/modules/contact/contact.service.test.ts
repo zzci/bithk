@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve as resolvePath } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
@@ -17,6 +17,7 @@ import { check } from "@/modules/policy/zanzibar.engine";
 import { shares } from "@/modules/share/schema";
 import { tagsRefs } from "@/modules/tag/schema";
 import { createContactCategory } from "./contact-category.service";
+import { resolveContactCapabilities } from "./contact.permission";
 import * as contactService from "./contact.service";
 import { contacts } from "./schema";
 
@@ -783,6 +784,54 @@ describe("contact service — access and masking", () => {
     const all = await contactService.list(db, actor(owner));
     expect(all.data).toHaveLength(3);
     expect(all.total).toBe(3);
+  });
+});
+
+describe("contact service — batched list capability resolution", () => {
+  // Equality oracle for the batched list path: the per-row resolution
+  // (`resolveContactCapabilities` + `compose`, still used by the detail path)
+  // applied to every row in list order must produce the exact same output the
+  // batched `list` returns — same rows kept, same masking on every field.
+  test("list output equals the per-row resolution for a mixed-visibility fixture", async () => {
+    const owner = await seedUser("owner-a");
+    const reader = await seedUser("reader-a");
+    const admin = await seedUser("admin-a", "admin");
+
+    await contactService.create(db, actor(owner), { kind: "organization", name: "Public Co", phone: "111", visibility: "public" });
+    const pubConf = await contactService.create(db, actor(owner), { kind: "organization", name: "Masked Co", phone: "222", note: "masked", visibility: "public", confidential: true });
+    await forcePublicConfidential(pubConf.id);
+    const granted = await contactService.create(db, actor(owner), { kind: "organization", name: "Granted Co", phone: "333", visibility: "private" });
+    await contactService.grant(db, actor(owner), granted.id, { type: "user", id: reader });
+    const groupGranted = await contactService.create(db, actor(owner), { kind: "organization", name: "Group Co", phone: "444", visibility: "private" });
+    await createTuple(db, {
+      namespace: "group",
+      objectId: "group-a",
+      relation: "member",
+      subjectNamespace: "user",
+      subjectId: reader,
+    }, owner);
+    await contactService.grant(db, actor(owner), groupGranted.id, { type: "group", id: "group-a" });
+    await contactService.create(db, actor(owner), { kind: "organization", name: "Hidden Co", visibility: "private" });
+    await contactService.create(db, actor(reader), { kind: "organization", name: "Mine Co", visibility: "private", tags: ["own"] });
+    // A public individual whose employer org is private but viewer-granted to
+    // the reader — exercises the batched org-summary masking path.
+    await contactService.create(db, actor(owner), { kind: "individual", name: "Linked Person", visibility: "public", organizationId: granted.id });
+
+    for (const a of [actor(reader), actor(owner), actor(admin, "admin")]) {
+      const { data, total } = await contactService.list(db, a);
+
+      const rows = await db.select().from(contacts).orderBy(desc(contacts.createdAt), desc(contacts.id)).all();
+      const expected = [];
+      for (const row of rows) {
+        const caps = await resolveContactCapabilities(db, row, a);
+        if (caps.size === 0)
+          continue;
+        expected.push(await contactService.compose(db, a, row));
+      }
+
+      expect(data).toEqual(expected);
+      expect(total).toBe(expected.length);
+    }
   });
 });
 
