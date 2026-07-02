@@ -2,7 +2,8 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getRequestUserModules } from "@/modules/account/groups/module-gate";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { parsePageQuery } from "@/shared/lib/pagination";
 import { authRequired } from "@/shared/middleware/auth";
 import { globalSearch } from "./search.service";
 
@@ -29,12 +30,6 @@ const searchResultSchema = z.object({
   ships: z.array(searchHitSchema),
 });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
 export function searchRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
@@ -53,11 +48,11 @@ export function searchRoutes() {
     async (c) => {
       const db = c.get("db");
       const user = c.get("user");
-      const { q: rawQ, limit: rawLimit } = c.req.valid("query");
+      const { q: rawQ } = c.req.valid("query");
       // Cap q length to avoid pathological LIKE scans (it only feeds parameterized
       // LIKE patterns, so this is a defensive bound rather than an injection guard).
       const q = (rawQ ?? "").slice(0, 256);
-      const limit = Math.min(20, Math.max(1, Math.floor(Number.parseInt(rawLimit ?? "", 10)) || 8));
+      const { limit } = parsePageQuery(c, { limit: 8, maxLimit: 20 });
 
       // Restrict searched domains to the actor's visible modules (PLAN-076);
       // admins resolve to every module key.

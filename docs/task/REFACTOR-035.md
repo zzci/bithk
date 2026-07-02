@@ -1,6 +1,6 @@
 # REFACTOR-035 - Invert search dependencies via `registerSearchSource` registry
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-104](../plan/PLAN-104.md)
 - Campaign: `l1-bithk-arch-20260702084717`
 - Owner: L3
@@ -28,3 +28,8 @@ AUDIT-20260702-architecture.md → D8.
 
 - `apps/api/src/modules/search/*` (new registry), and one registration block in each of
   `drive/index.ts`, `document/index.ts`, `issue/index.ts`, `project/index.ts`, `ship/index.ts`.
+
+## Status Notes
+
+- 2026-07-02: Completed — searchable modules now self-register via `registerSearchSource`; the
+  search module no longer imports domain internals; fan-out, filtering, and ranking unchanged.

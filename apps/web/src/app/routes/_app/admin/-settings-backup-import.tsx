@@ -2,12 +2,7 @@
 // report → explicit confirm (merge / destructive replace) → apply poll →
 // final result report, plus the standalone blob-restore affordance for the
 // separate-mode `blobs.tar.gz` artifact.
-import type {
-  BlobRestoreReport,
-  ImportJobView,
-  ImportReport,
-} from "./-settings-backup-report";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { BlobRestoreReport } from "@/shared/lib/api/backup";
 import { Upload } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -37,8 +32,14 @@ import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import { Separator } from "@/shared/components/ui/separator";
 import { Spinner } from "@/shared/components/ui/spinner";
 import { Switch } from "@/shared/components/ui/switch";
+import {
+  useApplyBackupImport,
+  useBackupImportJob,
+  useDiscardBackupImport,
+  useRestoreBlobArchive,
+  useUploadBackupImport,
+} from "@/shared/lib/api/backup";
 import { errorMessage } from "@/shared/lib/errors";
-import { http } from "@/shared/lib/http";
 import { BlobRestoreReportView, ImportReportView } from "./-settings-backup-report";
 
 const ARCHIVE_ACCEPT = ".tar.gz,application/gzip";
@@ -47,51 +48,37 @@ type ApplyMode = "merge" | "replace";
 
 export function BackupImportCard() {
   const { t } = useTranslation(["settings", "common"]);
-  const queryClient = useQueryClient();
   const [importId, setImportId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const importQueryKey = ["backup", "import-job", importId] as const;
-  const importQuery = useQuery({
-    queryKey: importQueryKey,
-    queryFn: async () => http<ImportJobView>(`/backup/v2/imports/${importId}`),
-    enabled: importId !== null,
-    refetchInterval: query => query.state.data?.state === "applying" ? 800 : false,
-  });
+  const importQuery = useBackupImportJob(importId);
   const job = importQuery.data;
 
-  const upload = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      return http<{ importId: string; report: ImportReport }>("/backup/v2/imports", {
-        method: "POST",
-        body: formData,
-      });
-    },
-    onSuccess: res => setImportId(res.importId),
-    onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
-  });
+  const upload = useUploadBackupImport();
+  const apply = useApplyBackupImport();
+  const discard = useDiscardBackupImport();
 
-  const apply = useMutation({
-    mutationFn: async (body: { mode: ApplyMode; includeUsers?: boolean }) =>
-      http(`/backup/v2/imports/${importId}/apply`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      setConfirmOpen(false);
-      void queryClient.invalidateQueries({ queryKey: importQueryKey });
-    },
-    onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
-  });
+  const uploadArchive = (file: File) => {
+    upload.mutate(file, {
+      onSuccess: res => setImportId(res.importId),
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
+  };
 
-  const discard = useMutation({
-    // The job may already be gone server-side (TTL sweep, restart) — a 404
-    // still means "nothing staged anymore", so always clear the local state.
-    mutationFn: async () => http(`/backup/v2/imports/${importId}`, { method: "DELETE" }).catch(() => undefined),
-    onSuccess: () => setImportId(null),
-  });
+  const applyImport = (mode: ApplyMode, includeUsers: boolean) => {
+    if (importId === null)
+      return;
+    apply.mutate(mode === "replace" ? { importId, mode, includeUsers } : { importId, mode }, {
+      onSuccess: () => setConfirmOpen(false),
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
+  };
+
+  const discardImport = () => {
+    if (importId === null)
+      return;
+    discard.mutate(importId, { onSuccess: () => setImportId(null) });
+  };
 
   return (
     <Card>
@@ -104,7 +91,7 @@ export function BackupImportCard() {
           <FileUploadButton
             acceptOverride={ARCHIVE_ACCEPT}
             disabled={upload.isPending}
-            onSelect={files => files[0] && upload.mutate(files[0])}
+            onSelect={files => files[0] && uploadArchive(files[0])}
           >
             <Button type="button" variant="outline" disabled={upload.isPending}>
               <Upload />
@@ -143,7 +130,7 @@ export function BackupImportCard() {
                 </Button>
               )}
               {job.state !== "applying" && (
-                <Button type="button" variant="outline" disabled={discard.isPending} onClick={() => discard.mutate()}>
+                <Button type="button" variant="outline" disabled={discard.isPending} onClick={discardImport}>
                   {t("settings:backup.import.discard")}
                 </Button>
               )}
@@ -155,8 +142,7 @@ export function BackupImportCard() {
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           pending={apply.isPending}
-          onConfirm={(mode, includeUsers) =>
-            apply.mutate(mode === "replace" ? { mode, includeUsers } : { mode })}
+          onConfirm={applyImport}
         />
 
         <Separator />
@@ -253,18 +239,14 @@ function BlobRestoreSection() {
   const { t } = useTranslation(["settings", "common"]);
   const [report, setReport] = useState<BlobRestoreReport | null>(null);
 
-  const restore = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      return http<{ report: BlobRestoreReport }>("/backup/v2/blob-restores", {
-        method: "POST",
-        body: formData,
-      });
-    },
-    onSuccess: res => setReport(res.report),
-    onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
-  });
+  const restore = useRestoreBlobArchive();
+
+  const restoreArchive = (file: File) => {
+    restore.mutate(file, {
+      onSuccess: res => setReport(res.report),
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
+  };
 
   return (
     <div className="space-y-3">
@@ -275,7 +257,7 @@ function BlobRestoreSection() {
       <FileUploadButton
         acceptOverride={ARCHIVE_ACCEPT}
         disabled={restore.isPending}
-        onSelect={files => files[0] && restore.mutate(files[0])}
+        onSelect={files => files[0] && restoreArchive(files[0])}
       >
         <Button type="button" variant="outline" disabled={restore.isPending}>
           <Upload />

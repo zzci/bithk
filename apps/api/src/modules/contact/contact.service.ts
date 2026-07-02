@@ -1,4 +1,4 @@
-import type { ContactAccessActor, ContactCapability } from "./contact.permission";
+import type { ContactAccessActor, ContactCapability, ContactCapabilityContext } from "./contact.permission";
 import type { ContactKind, ContactStatus, ContactVisibility } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase, AppTransaction } from "@/db";
@@ -8,7 +8,7 @@ import { runWrite } from "@/db";
 import { ACCEPT_IMAGES, fileInlineContentUrl, finalizeReleasedBlob, getReferenceById, releaseReferenceTx, uploadAndReference } from "@/modules/file";
 import { createTuple, deleteTupleByKey } from "@/modules/policy/policy.service";
 import { relationTuples } from "@/modules/policy/schema";
-import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
+import { check } from "@/modules/policy/zanzibar.engine";
 import { shares } from "@/modules/share/schema";
 import { tagsRefs } from "@/modules/tag/schema";
 import { listResourceIdsByAnyTag, listResourceTagViews, syncResourceTagsTx } from "@/modules/tag/tag.service";
@@ -17,7 +17,9 @@ import { nanoid } from "@/shared/lib/id";
 import {
   assertContactCapability,
   canSeeConfidentialFields,
+  loadContactCapabilityContext,
   resolveContactCapabilities,
+  resolveContactCapabilitiesFromContext,
 } from "./contact.permission";
 import { CONTACT_KINDS, contacts } from "./schema";
 
@@ -378,10 +380,13 @@ export async function list(
 ): Promise<ListContactsResult> {
   const conditions = [];
 
-  const isAdmin = actor.role === "admin";
+  // One O(1) grant-set load per request replaces the old per-row policy
+  // checks; its viewer set also backs the access-filter clause below.
+  const capabilityCtx = await loadContactCapabilityContext(db, actor);
+  const isAdmin = capabilityCtx.isAdmin;
   let explicitIds: readonly string[] = [];
   if (!isAdmin) {
-    explicitIds = await listUserResources(db, actor.id, "contact", "viewer");
+    explicitIds = [...capabilityCtx.viewerIds];
     const access = [
       eq(contacts.ownerId, actor.id),
       eq(contacts.visibility, "public" as const),
@@ -463,10 +468,10 @@ export async function list(
 
   const views: ContactView[] = [];
   for (const row of rows) {
-    const caps = await resolveContactCapabilities(db, row, actor);
+    const caps = resolveContactCapabilitiesFromContext(row, actor, capabilityCtx);
     if (caps.size === 0)
       continue;
-    views.push(await composeWithCapabilities(db, actor, row, caps));
+    views.push(await composeWithCapabilities(db, actor, row, caps, capabilityCtx));
   }
   return { data: views, total: paginate ? total! : views.length };
 }
@@ -708,6 +713,7 @@ async function resolveOrganizationSummary(
   db: AppDatabase,
   actor: ContactAccessActor,
   organizationId: string | null,
+  ctx?: ContactCapabilityContext,
 ): Promise<ContactOrganizationSummary | null> {
   if (!organizationId)
     return null;
@@ -717,7 +723,9 @@ async function resolveOrganizationSummary(
 
   const isExplicitViewerOrOwnerOrAdmin = actor.role === "admin"
     || org.ownerId === actor.id
-    || (await check(db, "contact", org.id, "viewer", "user", actor.id)).allowed;
+    || (ctx
+      ? ctx.viewerIds.has(org.id)
+      : (await check(db, "contact", org.id, "viewer", "user", actor.id)).allowed);
   const canSeeFields = canSeeConfidentialFields(actor, org, isExplicitViewerOrOwnerOrAdmin);
 
   return {
@@ -745,14 +753,19 @@ async function composeWithCapabilities(
   actor: ContactAccessActor,
   row: ContactRow,
   caps: Set<ContactCapability>,
+  // Present on the list path only: swaps the per-row viewer policy check for
+  // a pre-loaded grant-set lookup. Detail-path callers omit it.
+  ctx?: ContactCapabilityContext,
 ): Promise<ContactView> {
   const tagList = await listResourceTagViews(db, CONTACT_TAG_BINDING, row.id);
   const isExplicitViewerOrOwnerOrAdmin = actor.role === "admin"
     || row.ownerId === actor.id
-    || (await check(db, "contact", row.id, "viewer", "user", actor.id)).allowed;
+    || (ctx
+      ? ctx.viewerIds.has(row.id)
+      : (await check(db, "contact", row.id, "viewer", "user", actor.id)).allowed);
   const canSeeFields = canSeeConfidentialFields(actor, row, isExplicitViewerOrOwnerOrAdmin);
   const organizationName = await resolveOrganizationName(db, row.organizationId);
-  const organization = await resolveOrganizationSummary(db, actor, row.organizationId);
+  const organization = await resolveOrganizationSummary(db, actor, row.organizationId, ctx);
   const avatarUrl = await resolveAvatarUrl(db, row.avatarReferenceId);
 
   return {

@@ -91,7 +91,10 @@ function renderComposer(stickyComposer: boolean) {
   );
 }
 
-describe("resourceCommentSection attachments", () => {
+// Milkdown mounts a real ProseMirror editor whose async teardown can
+// reject after the test completes (known flake: exit 1 with 0 assertion
+// failures). retry: 1 re-runs only a failed attempt in this suite.
+describe("resourceCommentSection attachments", { retry: 1 }, () => {
   beforeEach(() => {
     mocks.http.mockReset();
     routeHttp();
@@ -136,7 +139,7 @@ describe("resourceCommentSection attachments", () => {
   });
 });
 
-describe("resourceCommentSection composer surface + sticky", () => {
+describe("resourceCommentSection composer surface + sticky", { retry: 1 }, () => {
   beforeEach(() => {
     mocks.http.mockReset();
     routeHttp();
@@ -186,7 +189,7 @@ function composerFileInput(send: HTMLElement): HTMLInputElement {
   return input;
 }
 
-describe("resourceCommentSection composer attachments", () => {
+describe("resourceCommentSection composer attachments", { retry: 1 }, () => {
   const CREATED_ID = "c-new";
 
   beforeEach(() => {
@@ -238,7 +241,7 @@ describe("resourceCommentSection composer attachments", () => {
   });
 });
 
-describe("resourceCommentSection attachment-only render", () => {
+describe("resourceCommentSection attachment-only render", { retry: 1 }, () => {
   const emptyOnly: ResourceComment[] = [
     { id: "ce", authorId: "u-self", content: "", createdAt: "2026-05-30T10:00:00Z", updatedAt: "2026-05-30T10:00:00Z" },
   ];

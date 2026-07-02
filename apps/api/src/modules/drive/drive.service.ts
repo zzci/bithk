@@ -1,12 +1,14 @@
 import type { DriveOwnerType } from "./schema";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
+import type { DrainedBlob } from "@/modules/file";
 import type { PresignedUpload } from "@/modules/file/storage/types";
 import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { users } from "@/modules/account/users/schema";
 import {
   buildDownloadResponse,
   directUploadAvailable,
+  finalizeReleasedBlob,
   findStoredBlob,
   findStoredBlobByHash,
   getFileById,
@@ -14,11 +16,12 @@ import {
   presignBlobUpload,
   registerUploadedBlob,
   releaseReference,
+  releaseReferenceTx,
   statStoredBlob,
   uploadAndReference,
 } from "@/modules/file";
 import { fileReferences, files } from "@/modules/file/schema";
-import { deleteSharesForResource } from "@/modules/share";
+import { shares } from "@/modules/share/schema";
 import { AppError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
 import { assertWithinTotalQuota } from "@/shared/lib/upload-limits";
@@ -732,6 +735,14 @@ export async function deleteDriveEntryPermanently(
   await purgeEntries(db, config, ids);
 }
 
+// Test-only failure injection for the purge transaction. When set, the hook
+// runs inside the tx after every destructive statement so a test can force a
+// rollback and assert nothing was committed (REFACTOR-034).
+let purgeFailpoint: (() => void) | null = null;
+export function __setPurgeFailpointForTests(fn: (() => void) | null): void {
+  purgeFailpoint = fn;
+}
+
 /**
  * Permanently delete a set of entries and release every file reference they
  * hold — both the current pointer (`driveEntries.fileReferenceId`) and every
@@ -739,6 +750,11 @@ export async function deleteDriveEntryPermanently(
  * are de-duplicated so a reference that is simultaneously "current" and a
  * version row is released exactly once. The cascade FK drops version child
  * rows; shares are removed explicitly (polymorphic table, no FK).
+ *
+ * Entry delete, share cleanup and reference release run in ONE transaction —
+ * a mid-failure rolls everything back, leaving no orphaned shares or
+ * references. Drained blobs are finalized post-commit (sync-GC deletes
+ * bytes immediately; async leaves them to the sweeper).
  */
 async function purgeEntries(
   db: AppDatabase,
@@ -748,34 +764,50 @@ async function purgeEntries(
   if (ids.length === 0)
     return;
 
-  const entryRefs = await db
-    .select({ id: driveEntries.fileReferenceId })
-    .from(driveEntries)
-    .where(inArray(driveEntries.id, [...ids]))
-    .all();
-  const versionRefs = await db
-    .select({ id: driveFileVersions.fileReferenceId })
-    .from(driveFileVersions)
-    .where(inArray(driveFileVersions.driveEntryId, [...ids]))
-    .all();
+  const drained = db.transaction((tx): readonly DrainedBlob[] => {
+    const entryRefs = tx
+      .select({ id: driveEntries.fileReferenceId })
+      .from(driveEntries)
+      .where(inArray(driveEntries.id, [...ids]))
+      .all();
+    const versionRefs = tx
+      .select({ id: driveFileVersions.fileReferenceId })
+      .from(driveFileVersions)
+      .where(inArray(driveFileVersions.driveEntryId, [...ids]))
+      .all();
 
-  const refIds = new Set<string>();
-  for (const r of entryRefs) {
-    if (r.id)
+    const refIds = new Set<string>();
+    for (const r of entryRefs) {
+      if (r.id)
+        refIds.add(r.id);
+    }
+    for (const r of versionRefs)
       refIds.add(r.id);
-  }
-  for (const r of versionRefs)
-    refIds.add(r.id);
 
-  await db.delete(driveEntries).where(inArray(driveEntries.id, [...ids])).run();
+    tx.delete(driveEntries).where(inArray(driveEntries.id, [...ids])).run();
 
-  // Shares live in the polymorphic `shares` table (no FK to drive_entries),
-  // so the entry deletion above does not cascade to them — remove explicitly.
-  for (const entryId of ids)
-    await deleteSharesForResource(db, "drive_entry", entryId);
+    // Shares live in the polymorphic `shares` table (no FK to drive_entries),
+    // so the entry deletion above does not cascade to them — remove
+    // explicitly, batched over the whole id set.
+    tx.delete(shares).where(and(
+      eq(shares.resourceType, "drive_entry"),
+      inArray(shares.resourceId, [...ids]),
+    )).run();
 
-  for (const refId of refIds)
-    await releaseReference(db, config, { referenceId: refId });
+    const drainedBlobs: DrainedBlob[] = [];
+    for (const refId of refIds) {
+      const blob = releaseReferenceTx(tx, refId);
+      if (blob)
+        drainedBlobs.push(blob);
+    }
+
+    purgeFailpoint?.();
+
+    return drainedBlobs;
+  });
+
+  for (const blob of drained)
+    await finalizeReleasedBlob(db, config, blob);
 }
 
 /**

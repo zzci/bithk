@@ -3,14 +3,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { deleteUserSessions } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { AppError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, resolver } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, resolver } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { importJsonBackup, validateBackupData, validateFileSize } from "./restore.service";
-
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 const USER_TABLES = ["users", "groups", "user_preferences"] as const;
 
@@ -196,23 +193,17 @@ export function backupImportRoutes() {
 
         // Per-row audit entries so the audit log captures each restored user.
         for (const row of importedUserRows) {
-          await audit(db, c.get("logger"), {
-            actorId: user.id,
-            actorName: user.name,
+          await auditFromCtx(c, {
             action: "user.restored",
             resourceType: "user",
             resourceId: row.id,
             resourceName: row.id,
-            ip: getClientIp(c),
-            userAgent: c.req.header("user-agent") ?? "unknown",
             result: "success",
           }, { critical: true });
         }
       }
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "backup.import",
         resourceType: "system",
         resourceId: "database",
@@ -223,8 +214,6 @@ export function backupImportRoutes() {
           rowsImported: result.rowsImported,
           includeUsers,
         },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       }, { critical: true });
 

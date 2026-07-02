@@ -32,6 +32,35 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
     states. Callers without the `projects` module keep the module-gated
     quick-nav tiles.
 
+### Changed
+
+- **Architecture remediation** (PLAN-104, 13 tasks from the 2026-07-02
+  architecture assessment):
+  - API wiring: route-table now composes the real route factories (fixing
+    registry drift that hid the storage admin routes from generated docs);
+    nav-gate / PAT-scope / prefix matching derive from a single module
+    manifest; search sources register via `registerSearchSource`, removing
+    the search module's imports of domain internals.
+  - Route-layer dedup: shared item-attachment route factory across
+    issue / procurement / document / hr (procurement delete auth unified);
+    `okJson` / `parseTagIds` / pagination / `auditFromCtx` helpers deduped
+    into shared libs; services extracted from oversized auth / cron / users
+    route files.
+  - Correctness & data layer: policy middleware fail-open branch closed
+    (with direct tests); contact list capability resolution batched (N+1);
+    document cascade delete and drive purge made transactional; FK indexes,
+    tuple `onDelete`, drive timestamp normalization, scheduled
+    `PRAGMA optimize`, payroll insert transaction.
+  - Quality gates: `check:routes` deduped out of `check`, CI coverage parsed
+    from the check step, api dev `--watch`, bun install cache, scoped flake
+    retry, `tests/` linted.
+  - Web: inline query keys and direct `http()` call sites moved into the
+    shared api layer with `keepPreviousData` on paginated lists; god
+    components split into co-located units with static i18n label maps and
+    memoized list rows.
+  - Coverage: live-API e2e suites added for file, share, project,
+    procurement, hr, and document authz.
+
 ## v0.1.9 — 2026-07-01
 
 ### Added

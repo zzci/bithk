@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import { index, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 import { fileReferences } from "@/modules/file/schema";
@@ -31,8 +30,8 @@ export const driveEntries = sqliteTable("drive_entries", {
   favorite: text("favorite", { enum: ["0", "1"] }).notNull().default("0"),
   status: text("status", { enum: DRIVE_ENTRY_STATUSES }).notNull().default("normal"),
   createdBy: text("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
-  createdAt: text("created_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
-  updatedAt: text("updated_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
   // Pinned display version. When null the display follows the latest version
   // (max ULID id); when set, that `drive_file_versions.id` is authoritative for
   // open / preview / download / share. Plain nullable text (no FK) so the
@@ -42,6 +41,8 @@ export const driveEntries = sqliteTable("drive_entries", {
   index("drive_entries_owner_parent_status_idx").on(table.ownerType, table.ownerId, table.parentEntryId, table.status),
   index("drive_entries_owner_status_favorite_idx").on(table.ownerType, table.ownerId, table.status, table.favorite),
   index("drive_entries_file_reference_idx").on(table.fileReferenceId),
+  // FK index for the users → created_by ON DELETE CASCADE path.
+  index("drive_entries_created_by_idx").on(table.createdBy),
   uniqueIndex("drive_entries_owner_parent_name_status_idx").on(
     table.ownerType,
     table.ownerId,

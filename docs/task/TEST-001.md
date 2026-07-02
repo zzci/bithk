@@ -1,6 +1,6 @@
 # TEST-001 - Close the HTTP-behavior coverage gap for auth-sensitive modules
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-104](../plan/PLAN-104.md)
 - Campaign: `l1-bithk-arch-20260702084717`
 - Owner: L3 (wave 3 — after route-file surgery settles)
@@ -26,3 +26,8 @@ AUDIT-20260702-architecture.md → D14.
 
 - `tests/e2e/modules/*`, `tests/e2e/run.ts` (MODULE_DIRS), or
   `apps/api/src/modules/{file,share,project,procurement,hr,document}/*.routes.test.ts`.
+
+## Status Notes
+
+- 2026-07-02: Completed — live-API e2e coverage added for file, share, project, procurement, and
+  hr plus document authz, covering denial paths, happy-path CRUD, and attachment flows.

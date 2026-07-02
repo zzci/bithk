@@ -10,6 +10,7 @@ import { users } from "@/modules/account/users/schema";
 import { streamJsonBackup } from "@/modules/backup/export.service";
 import { __resetBackupRegistryForTests, getDataModules, registerBackupContribution } from "@/modules/backup/registry";
 import { importJsonBackup, validateBackupData } from "@/modules/backup/restore.service";
+import { __resetSearchRegistryForTests, getSearchSources, registerSearchSource } from "@/modules/search/search.registry";
 import { shipBackupContribution } from "@/modules/ship/ship.backup";
 import { tagBackupContribution } from "@/modules/tag/tag.backup";
 import { projectBackupContribution } from "./project.backup";
@@ -61,17 +62,29 @@ describe("project backup contribution", () => {
 
   test("project index registers the contribution when imported", async () => {
     __resetBackupRegistryForTests();
+    // The cache-busted re-import also re-runs the index's search-source
+    // registration, whose duplicate keys throw; clear and restore that
+    // process-global registry around the import.
+    const searchSources = getSearchSources();
+    __resetSearchRegistryForTests();
 
-    await import(`./index.ts?backup-registration=${Date.now()}`);
+    try {
+      await import(`./index.ts?backup-registration=${Date.now()}`);
 
-    const mod = getDataModules().projects;
-    expect(mod?.tables.map(table => getTableName(table))).toEqual([
-      "global_procurement_categories",
-      "projects",
-      "project_roles",
-      "project_members",
-      "procurement_categories",
-    ]);
+      const mod = getDataModules().projects;
+      expect(mod?.tables.map(table => getTableName(table))).toEqual([
+        "global_procurement_categories",
+        "projects",
+        "project_roles",
+        "project_members",
+        "procurement_categories",
+      ]);
+    }
+    finally {
+      __resetSearchRegistryForTests();
+      for (const source of searchSources)
+        registerSearchSource(source);
+    }
   });
 
   test("exports and restores projects with roles, members and categories", async () => {

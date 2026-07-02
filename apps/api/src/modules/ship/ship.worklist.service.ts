@@ -12,7 +12,7 @@ import {
 } from "@/modules/tag/tag.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { worklists } from "./schema";
 
@@ -328,12 +328,6 @@ const worklistViewSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 export function worklistRoutes() {
   const router = new Hono<ProtectedEnv>();

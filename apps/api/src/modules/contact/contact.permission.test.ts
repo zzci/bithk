@@ -14,7 +14,9 @@ import {
   assertContactCapability,
   canSeeConfidentialFields,
   contactAccess,
+  loadContactCapabilityContext,
   resolveContactCapabilities,
+  resolveContactCapabilitiesFromContext,
 } from "./contact.permission";
 import { contacts } from "./schema";
 
@@ -140,6 +142,73 @@ describe("contact permissions", () => {
     expect(canSeeConfidentialFields(actor, publicConfidential, true)).toBe(true);
     expect(canSeeConfidentialFields({ id: "owner-a", role: "user" }, publicConfidential, false)).toBe(true);
     expect(canSeeConfidentialFields({ id: "admin-a", role: "admin" }, publicConfidential, false)).toBe(true);
+  });
+});
+
+describe("batched capability context", () => {
+  test("context resolution matches per-row resolveContactCapabilities for every grant shape", async () => {
+    await seedUser("owner-a");
+    await seedUser("reader-a");
+    await seedUser("admin-a", "admin");
+
+    const owned = await seedContact({ ownerId: "reader-a", visibility: "private" });
+    const ownerTuple = await seedContact({ ownerId: "owner-a", visibility: "private" });
+    await createTuple(db, {
+      namespace: "contact",
+      objectId: ownerTuple.id,
+      relation: "owner",
+      subjectNamespace: "user",
+      subjectId: "reader-a",
+    }, "owner-a");
+    const viewerTuple = await seedContact({ ownerId: "owner-a", visibility: "private" });
+    await createTuple(db, {
+      namespace: "contact",
+      objectId: viewerTuple.id,
+      relation: "viewer",
+      subjectNamespace: "user",
+      subjectId: "reader-a",
+    }, "owner-a");
+    const groupViewer = await seedContact({ ownerId: "owner-a", visibility: "private" });
+    await createTuple(db, {
+      namespace: "group",
+      objectId: "group-a",
+      relation: "member",
+      subjectNamespace: "user",
+      subjectId: "reader-a",
+    }, "owner-a");
+    await createTuple(db, {
+      namespace: "contact",
+      objectId: groupViewer.id,
+      relation: "viewer",
+      subjectNamespace: "group",
+      subjectId: "group-a",
+      subjectRelation: "member",
+    }, "owner-a");
+    const publicRow = await seedContact({ ownerId: "owner-a", visibility: "public" });
+    const hidden = await seedContact({ ownerId: "owner-a", visibility: "private" });
+
+    const rows = [owned, ownerTuple, viewerTuple, groupViewer, publicRow, hidden];
+    const actors = [
+      { id: "reader-a", role: "user" },
+      { id: "owner-a", role: "user" },
+      { id: "admin-a", role: "admin" },
+    ];
+    for (const actor of actors) {
+      const ctx = await loadContactCapabilityContext(db, actor);
+      for (const row of rows) {
+        const batched = resolveContactCapabilitiesFromContext(row, actor, ctx);
+        const perRow = await resolveContactCapabilities(db, row, actor);
+        expect([...batched].sort()).toEqual([...perRow].sort());
+      }
+    }
+
+    // Spot-check the grant tiers directly.
+    const readerCtx = await loadContactCapabilityContext(db, { id: "reader-a", role: "user" });
+    expect([...resolveContactCapabilitiesFromContext(ownerTuple, { id: "reader-a", role: "user" }, readerCtx)].sort())
+      .toEqual(["delete", "read", "share", "update"]);
+    expect([...resolveContactCapabilitiesFromContext(viewerTuple, { id: "reader-a", role: "user" }, readerCtx)])
+      .toEqual(["read"]);
+    expect(resolveContactCapabilitiesFromContext(hidden, { id: "reader-a", role: "user" }, readerCtx).size).toBe(0);
   });
 });
 

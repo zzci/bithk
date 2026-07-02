@@ -15,10 +15,10 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { rmSync } from "node:fs";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { startImportApply } from "./import-apply";
 import {
@@ -37,7 +37,6 @@ const applyBodySchema = z.object({
 });
 
 const importParamSchema = z.object({ importId: z.string() });
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 function rawJson(schema: z.ZodType, description = "Success") {
   return { description, content: { "application/json": { schema: resolver(schema) } } };
 }
@@ -63,7 +62,6 @@ export function backupImportV2Routes() {
     async (c) => {
       const db = c.get("db");
       const config = c.get("config");
-      const user = c.get("user");
 
       // Cheap early reject on the declared size; the count while staging is
       // the real enforcement (Content-Length can lie).
@@ -81,9 +79,7 @@ export function backupImportV2Routes() {
       // Critical, v1 pattern: a failed audit write fails the action — the
       // staged upload is discarded and the job is never registered.
       try {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "backup.import.validate",
           resourceType: "system",
           resourceId: "database",
@@ -93,8 +89,6 @@ export function backupImportV2Routes() {
             modules: job.manifest.modules.map(m => m.name),
             totals: job.report.totals,
           },
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
           result: "success",
         }, { critical: true });
       }

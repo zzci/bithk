@@ -1,5 +1,4 @@
-import type { ResourceGroup, ResourceGroupMembersResponse, ResourceGroupsResponse } from "./-policies-shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ResourceGroup } from "./-policies-shared";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,8 +9,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import {
+  useCreateResourceGroup,
+  useDeleteResourceGroup,
+  useRemoveResourceGroupMember,
+  useResourceGroupMembers,
+  useResourceGroups,
+  useUpdateResourceGroup,
+} from "@/shared/lib/api/policy";
 import { errorMessage } from "@/shared/lib/errors";
-import { http } from "@/shared/lib/http";
 import { cn } from "@/shared/lib/utils";
 
 export function ResourceGroupManager() {
@@ -19,26 +25,24 @@ export function ResourceGroupManager() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editGroup, setEditGroup] = useState<ResourceGroup | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceGroup | null>(null);
-  const queryClient = useQueryClient();
 
-  const { data: groupsData, isLoading, isError, refetch } = useQuery({
-    queryKey: ["resource-groups"],
-    queryFn: () => http<ResourceGroupsResponse>("/policy/resource-groups"),
-  });
+  const { data: groupsData, isLoading, isError, refetch } = useResourceGroups();
 
-  const deleteMutation = useMutation({
-    mutationFn: (group: ResourceGroup) => http(`/policy/resource-groups/${group.id}`, { method: "DELETE" }),
-    onSuccess: (_data, group) => {
-      queryClient.invalidateQueries({ queryKey: ["resource-groups"] });
-      if (selectedId === group.id)
-        setSelectedId(null);
-      setDeleteConfirm(null);
-      toast.success(t("toast.resourceGroupDeleted", { name: group.name }));
-    },
-    onError: (err) => {
-      toast.error(errorMessage(err, t("common.error.deleteFailed", { ns: "common" })));
-    },
-  });
+  const deleteMutation = useDeleteResourceGroup();
+
+  function removeGroup(group: ResourceGroup) {
+    deleteMutation.mutate(group, {
+      onSuccess: () => {
+        if (selectedId === group.id)
+          setSelectedId(null);
+        setDeleteConfirm(null);
+        toast.success(t("toast.resourceGroupDeleted", { name: group.name }));
+      },
+      onError: (err) => {
+        toast.error(errorMessage(err, t("common.error.deleteFailed", { ns: "common" })));
+      },
+    });
+  }
 
   const groups = groupsData?.data ?? [];
 
@@ -157,7 +161,7 @@ export function ResourceGroupManager() {
             <DialogClose render={<Button type="button" variant="outline">{t("common.cancel")}</Button>} />
             <Button
               variant="destructive"
-              onClick={() => deleteConfirm && deleteMutation.mutate(deleteConfirm)}
+              onClick={() => deleteConfirm && removeGroup(deleteConfirm)}
               disabled={deleteMutation.isPending}
             >
               {t("common.delete")}
@@ -201,22 +205,20 @@ function EditResourceGroupForm({
   const { t } = useTranslation("policies");
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description ?? "");
-  const queryClient = useQueryClient();
 
-  const mutation = useMutation({
-    mutationFn: () => http(`/policy/resource-groups/${group.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ name: name.trim(), description: description.trim() || null }),
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resource-groups"] });
-      toast.success(t("toast.resourceGroupUpdated", { name: name.trim() }));
-      onClose();
-    },
-    onError: (err) => {
-      toast.error(errorMessage(err, t("common.error.saveFailed", { ns: "common" })));
-    },
-  });
+  const mutation = useUpdateResourceGroup();
+
+  function save() {
+    mutation.mutate({ id: group.id, name: name.trim(), description: description.trim() || null }, {
+      onSuccess: () => {
+        toast.success(t("toast.resourceGroupUpdated", { name: name.trim() }));
+        onClose();
+      },
+      onError: (err) => {
+        toast.error(errorMessage(err, t("common.error.saveFailed", { ns: "common" })));
+      },
+    });
+  }
 
   return (
     <>
@@ -237,7 +239,7 @@ function EditResourceGroupForm({
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
         <Button
-          onClick={() => mutation.mutate()}
+          onClick={save}
           disabled={!name.trim() || mutation.isPending}
         >
           {mutation.isPending ? t("common.saving") : t("common.save")}
@@ -252,24 +254,22 @@ function CreateResourceGroupDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const queryClient = useQueryClient();
 
-  const mutation = useMutation({
-    mutationFn: () => http("/policy/resource-groups", {
-      method: "POST",
-      body: JSON.stringify({ name: name.trim(), description: description.trim() || null }),
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resource-groups"] });
-      toast.success(t("toast.resourceGroupCreated", { name: name.trim() }));
-      setOpen(false);
-      setName("");
-      setDescription("");
-    },
-    onError: (err) => {
-      toast.error(errorMessage(err, t("common.error.saveFailed", { ns: "common" })));
-    },
-  });
+  const mutation = useCreateResourceGroup();
+
+  function create() {
+    mutation.mutate({ name: name.trim(), description: description.trim() || null }, {
+      onSuccess: () => {
+        toast.success(t("toast.resourceGroupCreated", { name: name.trim() }));
+        setOpen(false);
+        setName("");
+        setDescription("");
+      },
+      onError: (err) => {
+        toast.error(errorMessage(err, t("common.error.saveFailed", { ns: "common" })));
+      },
+    });
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -292,7 +292,7 @@ function CreateResourceGroupDialog() {
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>{t("common.cancel")}</Button>
           <Button
-            onClick={() => mutation.mutate()}
+            onClick={create}
             disabled={!name.trim() || mutation.isPending}
           >
             {mutation.isPending ? t("creating") : t("create")}
@@ -305,23 +305,21 @@ function CreateResourceGroupDialog() {
 
 function ResourceGroupMemberList({ groupId }: { readonly groupId: string }) {
   const { t } = useTranslation("policies");
-  const queryClient = useQueryClient();
 
-  const { data: membersData, isLoading, isError, refetch } = useQuery({
-    queryKey: ["resource-group-members", groupId],
-    queryFn: () => http<ResourceGroupMembersResponse>(`/policy/resource-groups/${groupId}/members`),
-  });
+  const { data: membersData, isLoading, isError, refetch } = useResourceGroupMembers(groupId);
 
-  const removeMutation = useMutation({
-    mutationFn: (tupleId: string) => http(`/policy/resource-groups/${groupId}/members/${tupleId}`, { method: "DELETE" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resource-group-members", groupId] });
-      toast.success(t("toast.memberRemoved"));
-    },
-    onError: (err) => {
-      toast.error(errorMessage(err, t("common.error.operationFailed", { ns: "common" })));
-    },
-  });
+  const removeMutation = useRemoveResourceGroupMember(groupId);
+
+  function removeMember(tupleId: string) {
+    removeMutation.mutate(tupleId, {
+      onSuccess: () => {
+        toast.success(t("toast.memberRemoved"));
+      },
+      onError: (err) => {
+        toast.error(errorMessage(err, t("common.error.operationFailed", { ns: "common" })));
+      },
+    });
+  }
 
   const members = membersData?.data ?? [];
 
@@ -349,7 +347,7 @@ function ResourceGroupMemberList({ groupId }: { readonly groupId: string }) {
                       <Button
                         variant="ghost"
                         className="text-destructive hover:text-destructive"
-                        onClick={() => removeMutation.mutate(member.tupleId)}
+                        onClick={() => removeMember(member.tupleId)}
                         disabled={removeMutation.isPending}
                       >
                         {t("common.delete")}

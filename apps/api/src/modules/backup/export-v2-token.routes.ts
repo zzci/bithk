@@ -26,11 +26,11 @@ import type { Context } from "hono";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { buildContentDisposition } from "@/shared/lib/content-disposition";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { serviceTokenRequired } from "@/shared/middleware/service-token";
 import {
   finalizeDownloadedExport,
@@ -62,7 +62,6 @@ const exportJobStatusSchema = z.object({
   // Manifest warnings (e.g. blobs skipped per-driver) — null until completed.
   warnings: z.array(z.string()).nullable(),
 });
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 function rawJson(schema: z.ZodType, description = "Success") {
   return { description, content: { "application/json": { schema: resolver(schema) } } };
 }
@@ -122,7 +121,7 @@ export function backupExportV2TokenRoutes() {
       }
       const scoped = z.object({ modules: z.array(z.string()).min(1) }).safeParse(raw);
       if (!scoped.success) {
-        await audit(db, c.get("logger"), {
+        await auditFromCtx(c, {
           ...tokenAuditBase(c),
           action: "backup.export",
           detail: { reason: "unscoped" },
@@ -148,7 +147,7 @@ export function backupExportV2TokenRoutes() {
       // marker is held until the job's background runner settles.
       if (backupExportInFlight.has(bucket)) {
         c.header("Retry-After", "60");
-        await audit(db, c.get("logger"), {
+        await auditFromCtx(c, {
           ...tokenAuditBase(c),
           action: "backup.export",
           detail: { reason: "in-flight" },
@@ -164,7 +163,7 @@ export function backupExportV2TokenRoutes() {
           if (elapsed < minIntervalMs) {
             const retryAfter = Math.ceil((minIntervalMs - elapsed) / 1000);
             c.header("Retry-After", String(retryAfter));
-            await audit(db, c.get("logger"), {
+            await auditFromCtx(c, {
               ...tokenAuditBase(c),
               action: "backup.export",
               detail: { reason: "min-interval", retryAfter },
@@ -182,7 +181,7 @@ export function backupExportV2TokenRoutes() {
 
       // Audit is critical for this data-exfiltrating action: a failed write
       // re-throws and the job is never started.
-      await audit(db, c.get("logger"), {
+      await auditFromCtx(c, {
         ...tokenAuditBase(c),
         action: "backup.export",
         detail: { modules: body.modules, blobs: blobsMode, via: "token", redacted: true },
@@ -277,7 +276,7 @@ export function backupExportV2TokenRoutes() {
       if (!archive)
         throw new NotFoundError("Export archive", jobId);
 
-      await audit(c.get("db"), c.get("logger"), {
+      await auditFromCtx(c, {
         ...tokenAuditBase(c),
         action: "backup.export.download",
         detail: { jobId, artifact: artifactParam, via: "token" },

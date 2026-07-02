@@ -2,26 +2,15 @@ import type { Context } from "hono";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { assertEntryCapability } from "@/modules/drive/drive.permission";
-import { getDriveEntryById } from "@/modules/drive/drive.service";
-import {
-  addReference,
-  buildDownloadResponse,
-  getFileById,
-  getReferenceById,
-  listAttachmentsByOwner,
-  makeAttachmentView,
-  releaseReference,
-  uploadAndReference,
-} from "@/modules/file";
+import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { AppError, NotFoundError } from "@/shared/lib/errors";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { parsePageQuery } from "@/shared/lib/pagination";
+import { parseTagIds } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
 import {
   changeStatus,
@@ -93,23 +82,8 @@ const listQuerySchema = z.object({
   categoryId: z.preprocess(emptyToUndefined, z.string().max(100).optional()),
 });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-// Paginated `{ success:true, data:[…], meta }` response doc.
-const pageMetaSchema = z.object({ total: z.number(), page: z.number(), limit: z.number() });
-function okListJson(itemSchema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-// Multipart upload (`file` field) request-body doc for attachment uploads.
-const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
-
 const projectIdParam = z.object({ projectId: z.string() });
 const procurementParam = z.object({ projectId: z.string(), id: z.string() });
-const attachmentParam = z.object({ projectId: z.string(), id: z.string(), aid: z.string() });
-const inlineQuery = z.object({ inline: z.string().optional() });
 
 // Mirrors `ProcurementRow` returned by the procurement service.
 const tagRefSchema = z.object({ id: z.string(), name: z.string() });
@@ -137,47 +111,8 @@ const procurementSchema = z.object({
   tags: z.array(tagRefSchema),
 });
 
-// Mirrors `AttachmentView` from the file module.
-const attachmentViewSchema = z.object({
-  id: z.string(),
-  fileId: z.string(),
-  ownerType: z.string(),
-  ownerId: z.string(),
-  filename: z.string(),
-  mimetype: z.string(),
-  size: z.number(),
-  createdBy: z.string(),
-  createdAt: z.string(),
-});
-// Attach an already-stored drive file by entry id (no re-upload).
-const fromDriveSchema = z.object({ entryId: z.string().min(1) });
-
-// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
-// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
-// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
-function parseTagIds(raw: string[] | undefined): string[] {
-  if (!raw || raw.length === 0)
-    return [];
-  const out = new Set<string>();
-  for (const part of raw) {
-    for (const value of part.split(",")) {
-      const trimmed = value.trim();
-      if (trimmed)
-        out.add(trimmed);
-    }
-  }
-  return [...out].slice(0, 50);
-}
-
 function actorId(c: Context<ProtectedEnv>): string {
   return c.get("user").id;
-}
-
-function auditMeta(c: Context<ProtectedEnv>) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
 }
 
 /**
@@ -405,7 +340,7 @@ export function procurementRoutes() {
         procurement.id,
         body.status,
         { id: user.id, name: user.name },
-        auditMeta(c),
+        { ip: getClientIp(c, c.get("config")), userAgent: c.req.header("user-agent") ?? "unknown" },
       );
       if (!updated)
         throw new NotFoundError("Procurement", procurement.id);
@@ -413,233 +348,58 @@ export function procurementRoutes() {
     },
   );
 
-  // ─── Attachments (main-post, delegating to mod-file) ──────────────
+  // ─── Attachments (delegated to mod-item) ───────────────────────────
   // Resource-level attachments are owned by the procurement's backing item
   // (ownerType "item_attachment"), mirroring the issue attachment routes.
-  router.post(
-    "/projects/:projectId/procurements/:id/attachments",
-    describeRoute({
-      tags: ["procurements"],
-      summary: "Upload a procurement attachment",
-      requestBody: fileUploadBody,
-      responses: {
-        201: okJson(attachmentViewSchema, "Created"),
-        400: { description: "No file provided", ...errorJson },
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Procurement not found", ...errorJson },
-        413: { description: "Upload too large", ...errorJson },
-      },
-    }),
-    validator("param", procurementParam, onValidationFailure),
-    async (c) => {
-      const { projectId, id } = c.req.valid("param");
-      const { procurement } = await requireProcurement(c, projectId, id, true);
-      const db = c.get("db");
-      const user = c.get("user");
-      const item = await resolveProcurementItem(db, procurement.id);
-      if (!item)
-        throw new NotFoundError("Procurement", procurement.id);
-
-      const config = c.get("config");
-      const contentLength = Number(c.req.header("content-length") ?? "0");
-      if (contentLength > config.MAX_UPLOAD_BYTES)
-        throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
-
-      const formData = await c.req.formData();
-      const file = formData.get("file");
-      if (!(file instanceof File))
-        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-
-      const { reference, file: uploaded } = await uploadAndReference(db, config, {
-        file,
-        ownerType: "item_attachment",
-        ownerId: item.id,
-        uploadedBy: user.id,
-      });
-      const view = makeAttachmentView(reference, uploaded);
-
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "procurement.attachment_uploaded",
-        resourceType: "procurement",
-        resourceId: procurement.id,
-        resourceName: procurement.itemName,
-        detail: { attachmentId: reference.id, filename: file.name, size: file.size },
-        ...auditMeta(c),
-        result: "success",
-      });
-
-      return c.json({ success: true, data: view }, 201);
+  // Writes are hidden behind the manage capability (`writeDenial:
+  // "not-found"` keeps the pre-factory fail-closed 404 for view-only
+  // members); the delete gate is the unified issue-style
+  // admin ∥ manage ∥ uploader rule.
+  mountItemAttachmentRoutes(router, {
+    routePrefix: "/projects/:projectId/procurements",
+    resourceType: "procurement",
+    tag: "procurements",
+    writeDenial: "not-found",
+    summaries: {
+      upload: "Upload a procurement attachment",
+      fromDrive: "Attach a drive file to a procurement",
+      list: "List procurement attachments",
+      download: "Download a procurement attachment",
+      delete: "Delete a procurement attachment",
     },
-  );
-
-  // Attach an existing drive file to this procurement without re-uploading the
-  // blob: register a new reference to the entry's already-stored file. The
-  // actor's READ access on the drive entry is verified server-side — the
-  // client-supplied id is never trusted.
-  router.post(
-    "/projects/:projectId/procurements/:id/attachments/from-drive",
-    describeRoute({
-      tags: ["procurements"],
-      summary: "Attach a drive file to a procurement",
-      responses: {
-        201: okJson(attachmentViewSchema, "Created"),
-        400: { description: "Drive entry is not a file or already attached", ...errorJson },
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", procurementParam, onValidationFailure),
-    validator("json", fromDriveSchema, onValidationFailure),
-    async (c) => {
-      const { projectId, id } = c.req.valid("param");
-      const { procurement } = await requireProcurement(c, projectId, id, true);
-      const db = c.get("db");
-      const user = c.get("user");
-      const item = await resolveProcurementItem(db, procurement.id);
+    async resolve(db, idParam, params) {
+      const procurement = await getProcurementByShortId(db, idParam);
+      // `procurement.projectId` is the project short_id (the external
+      // identifier), so it must match the URL's `:projectId` short id.
+      if (!procurement || procurement.projectId !== params.projectId)
+        return null;
+      const item = await resolveProcurementItem(db, idParam);
       if (!item)
-        throw new NotFoundError("Procurement", procurement.id);
-      const { entryId } = c.req.valid("json");
-
-      // Authoritative READ check on the drive entry (throws 404/403).
-      const actor = { id: user.id, role: user.role };
-      await assertEntryCapability(db, actor, entryId, "read");
-      const entry = await getDriveEntryById(db, entryId);
-      if (!entry || !entry.file)
-        throw new AppError("Drive entry is not a file", 400, "INVALID_ENTRY");
-
-      const reference = await addReference(db, {
-        fileId: entry.file.fileId,
-        ownerType: "item_attachment",
-        ownerId: item.id,
-        filename: entry.name,
-        createdBy: user.id,
-      });
-      const fileRow = await getFileById(db, entry.file.fileId);
-      const view = makeAttachmentView(reference, fileRow!);
-
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "procurement.attachment_attached_from_drive",
-        resourceType: "procurement",
-        resourceId: procurement.id,
-        resourceName: procurement.itemName,
-        detail: { attachmentId: reference.id, entryId, filename: entry.name },
-        ...auditMeta(c),
-        result: "success",
-      });
-
-      return c.json({ success: true, data: view }, 201);
+        return null;
+      return { ownerId: item.id, resource: procurement, externalId: procurement.id, resourceName: procurement.itemName };
     },
-  );
-
-  router.get(
-    "/projects/:projectId/procurements/:id/attachments",
-    describeRoute({
-      tags: ["procurements"],
-      summary: "List procurement attachments",
-      responses: {
-        200: okJson(z.array(attachmentViewSchema)),
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Procurement not found", ...errorJson },
-      },
-    }),
-    validator("param", procurementParam, onValidationFailure),
-    async (c) => {
-      const { projectId, id } = c.req.valid("param");
-      const { procurement } = await requireProcurement(c, projectId, id);
-      const db = c.get("db");
-      const item = await resolveProcurementItem(db, procurement.id);
-      if (!item)
-        throw new NotFoundError("Procurement", procurement.id);
-      const data = await listAttachmentsByOwner(db, "item_attachment", item.id);
-      return c.json({ success: true, data });
+    async permissions(db, user, subject) {
+      const isAdmin = user.role === "admin";
+      // `procurement.projectId` is the project short_id; the capability
+      // helpers key on the internal ULID, so resolve it first.
+      const projectId = await resolveProjectId(db, subject.resource.projectId);
+      if (!projectId) {
+        return {
+          canRead: isAdmin,
+          canWrite: isAdmin,
+          canDelete: createdBy => isAdmin || createdBy === user.id,
+        };
+      }
+      const isMember = await isProjectMember(db, projectId, user.id);
+      const canView = isAdmin || (isMember && await hasCapability(db, projectId, user.id, "procurement.view"));
+      const canManage = isAdmin || (isMember && await hasCapability(db, projectId, user.id, "procurement.manage"));
+      return {
+        canRead: canView,
+        canWrite: canView && canManage,
+        canDelete: createdBy => isAdmin || canManage || createdBy === user.id,
+      };
     },
-  );
-
-  router.get(
-    "/projects/:projectId/procurements/:id/attachments/:aid",
-    describeRoute({
-      tags: ["procurements"],
-      summary: "Download a procurement attachment",
-      responses: {
-        200: { description: "Attachment file stream", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } },
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Attachment not found", ...errorJson },
-      },
-    }),
-    validator("param", attachmentParam, onValidationFailure),
-    validator("query", inlineQuery, onValidationFailure),
-    async (c) => {
-      const { projectId, id, aid } = c.req.valid("param");
-      const { procurement } = await requireProcurement(c, projectId, id);
-      const db = c.get("db");
-      const item = await resolveProcurementItem(db, procurement.id);
-      if (!item)
-        throw new NotFoundError("Procurement", procurement.id);
-      const ref = await getReferenceById(db, aid);
-      if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
-        throw new NotFoundError("Attachment", aid);
-      const file = await getFileById(db, ref.fileId);
-      if (!file)
-        throw new NotFoundError("File", aid);
-      const wantInline = c.req.query("inline") === "true";
-      return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
-    },
-  );
-
-  router.delete(
-    "/projects/:projectId/procurements/:id/attachments/:aid",
-    describeRoute({
-      tags: ["procurements"],
-      summary: "Delete a procurement attachment",
-      responses: {
-        200: okJson(z.null()),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Attachment not found", ...errorJson },
-      },
-    }),
-    validator("param", attachmentParam, onValidationFailure),
-    async (c) => {
-      const { projectId, id, aid } = c.req.valid("param");
-      const { procurement } = await requireProcurement(c, projectId, id);
-      const db = c.get("db");
-      const user = c.get("user");
-      const item = await resolveProcurementItem(db, procurement.id);
-      if (!item)
-        throw new NotFoundError("Procurement", procurement.id);
-      const ref = await getReferenceById(db, aid);
-      if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
-        throw new NotFoundError("Attachment", aid);
-
-      // `procurement.projectId` is the project short_id; the capability helpers
-      // key on the internal ULID, so resolve it first.
-      const realProjectId = await resolveProjectId(db, procurement.projectId);
-      const allowed = user.role === "admin"
-        || (!!realProjectId && await hasCapability(db, realProjectId, user.id, "procurement.manage"))
-        || ref.createdBy === user.id;
-      if (!allowed)
-        throw new ForbiddenError();
-
-      await releaseReference(db, c.get("config"), { referenceId: aid });
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "procurement.attachment_deleted",
-        resourceType: "procurement",
-        resourceId: procurement.id,
-        resourceName: procurement.itemName,
-        detail: { attachmentId: aid, filename: ref.filename },
-        ...auditMeta(c),
-        result: "success",
-      });
-      return c.json({ success: true, data: null });
-    },
-  );
+  });
 
   // ─── Comments + attachments (delegated to mod-item) ───────────────
   mountItemCommentRoutes(router, {

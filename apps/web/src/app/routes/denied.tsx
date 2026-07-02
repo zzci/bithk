@@ -6,6 +6,9 @@ import { useTranslation } from "react-i18next";
 import { ModeToggle } from "@/shared/components/mode-toggle";
 import { Button } from "@/shared/components/ui/button";
 import { useCopyToClipboard } from "@/shared/hooks/use-copy-to-clipboard";
+// Justified http-layer import (UI-028): the denied page renders outside an
+// authenticated session (module/role rejection), so the one-shot logout-url
+// probe stays on the raw client; BASE_PATH builds the logout redirect.
 import { BASE_PATH, http } from "@/shared/lib/http";
 
 interface DeniedSearchParams {

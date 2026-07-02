@@ -4,6 +4,7 @@
 // report flavours differ only in their `blobs` shape (existence-check counts
 // vs the apply stage's written/skipped/failed counters) — detected by field.
 import type { TFunction } from "i18next";
+import type { BlobRestoreReport, ImportReport, ImportTableReport } from "@/shared/lib/api/backup";
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
@@ -16,110 +17,25 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 
-// ─── API view types (mirror apps/api/src/modules/backup contracts) ────────
+// ─── API view types ────────────────────────────────────────────────────────
+//
+// The backup view types moved to the shared data layer
+// (`@/shared/lib/api/backup`); re-exported here for the sibling backup tab
+// files that historically imported them from this module.
 
-export type BlobsMode = "embedded" | "separate" | "none";
-
-export interface BackupModuleView {
-  readonly name: string;
-  readonly deps: readonly string[];
-}
-
-export interface ExportArtifactView {
-  readonly size: number;
-  readonly downloaded: boolean;
-}
-
-export interface ExportJobView {
-  readonly jobId: string;
-  readonly state: "pending" | "running" | "completed" | "downloaded" | "failed";
-  readonly blobsMode: BlobsMode;
-  readonly progress: {
-    readonly tablesDone: number;
-    readonly tablesTotal: number;
-    readonly blobBytesDone: number;
-    readonly blobBytesTotal: number;
-  };
-  readonly error: string | null;
-  readonly archiveSize: number | null;
-  /** Manifest warnings (blobs skipped per storage driver, …) — null until completed. */
-  readonly warnings: readonly string[] | null;
-  readonly artifacts: {
-    readonly data: ExportArtifactView;
-    readonly blobs?: ExportArtifactView;
-  } | null;
-}
-
-export interface ImportFailedRow {
-  readonly rowId: string;
-  readonly reason: string;
-}
-
-export interface ImportTableReport {
-  readonly inserted: number;
-  readonly skippedDuplicate: number;
-  readonly transformed: number;
-  readonly droppedColumns: Record<string, number>;
-  readonly defaultedColumns: Record<string, number>;
-  readonly failed: { readonly total: number; readonly sample: readonly ImportFailedRow[] };
-  readonly error?: string;
-  readonly noKeyAppend?: boolean;
-}
-
-/** Dry-run blob existence checks — blobs are never written before apply. */
-export interface DryRunBlobCounts {
-  readonly count: number;
-  readonly existing: number;
-  readonly missing: number;
-}
-
-/** Apply-stage blob counters (R7: `expectedInSeparateArchive` vs `missing`). */
-export interface ApplyBlobCounts {
-  readonly written: number;
-  readonly skippedExisting: number;
-  readonly failed: number;
-  readonly unreferenced: number;
-  readonly missing: number;
-  readonly expectedInSeparateArchive: number;
-}
-
-export interface ImportReport {
-  readonly dryRun: boolean;
-  readonly mode?: "merge" | "replace";
-  readonly tables: Record<string, ImportTableReport>;
-  readonly skippedTables: readonly string[];
-  readonly skippedModules: readonly string[];
-  readonly warnings: readonly string[];
-  readonly totals: {
-    readonly inserted: number;
-    readonly skippedDuplicate: number;
-    readonly failed: number;
-    readonly transformed: number;
-  };
-  readonly replace?: {
-    readonly tablesImported: number;
-    readonly rowsImported: number;
-    readonly includeUsers: boolean;
-  };
-  readonly blobs: DryRunBlobCounts | ApplyBlobCounts;
-  readonly reconcile?: { readonly checked: number; readonly quarantined: number };
-}
-
-export interface ImportJobView {
-  readonly importId: string;
-  readonly state: "validated" | "applying" | "completed" | "failed";
-  readonly report: ImportReport;
-  readonly result: ImportReport | null;
-  readonly error: string | null;
-}
-
-export interface BlobRestoreReport {
-  readonly written: number;
-  readonly skippedExisting: number;
-  readonly failed: number;
-  readonly unquarantined: number;
-  readonly reconcile: { readonly checked: number; readonly quarantined: number };
-}
+export type {
+  ApplyBlobCounts,
+  BackupModuleView,
+  BlobRestoreReport,
+  BlobsMode,
+  DryRunBlobCounts,
+  ExportArtifactView,
+  ExportJobView,
+  ImportFailedRow,
+  ImportJobView,
+  ImportReport,
+  ImportTableReport,
+} from "@/shared/lib/api/backup";
 
 // ─── Reason vocabulary → translated labels ────────────────────────────────
 

@@ -8,7 +8,7 @@
 //   1. dex up (OIDC fixture).
 //   2. API up — plaintext bun:sqlite DB, dex-wired OAuth, DEFAULT_ADMIN set
 //      so the first OIDC login auto-promotes admin@example.com to admin.
-//   3. modules/{system,account,policy,document,issue,settings,audit,backup,cron}
+//   3. modules/* (see MODULE_DIRS below)
 //      → every module test against the live API.
 //   4. Tear everything down; remove the data dir.
 //
@@ -42,6 +42,8 @@ const MODULE_DIRS = [
   "policy",
   "document",
   "issue",
+  "project",
+  "procurement",
   "ship",
   "search",
   "settings",
@@ -49,6 +51,9 @@ const MODULE_DIRS = [
   "backup",
   "cron",
   "drive",
+  "file",
+  "share",
+  "hr",
 ].map(d => join(E2E_DIR, "modules", d));
 
 interface PhaseSummary {
@@ -238,7 +243,9 @@ async function main() {
   const stopApi = async () => {
     if (api) {
       api.kill();
-      try { await api.exited; }
+      try {
+        await api.exited;
+      }
       catch {}
       api = null;
     }
@@ -246,7 +253,9 @@ async function main() {
   const stopDex = async () => {
     if (dex) {
       dex.kill();
-      try { await dex.exited; }
+      try {
+        await dex.exited;
+      }
       catch {}
       dex = null;
     }
@@ -300,9 +309,13 @@ async function main() {
     `${JSON.stringify({ runId, phases: summaries, exitCode }, null, 2)}\n`,
   );
   const latest = join(REPORT_ROOT, "latest");
-  try { rmSync(latest, { recursive: true, force: true }); }
+  try {
+    rmSync(latest, { recursive: true, force: true });
+  }
   catch {}
-  try { symlinkSync(reportDir, latest, "dir"); }
+  try {
+    symlinkSync(reportDir, latest, "dir");
+  }
   catch {
     // symlink may fail on some FSes; fall back to a marker file.
     writeFileSync(`${latest}.txt`, reportDir);
@@ -319,4 +332,7 @@ async function main() {
   process.exit(exitCode);
 }
 
-await main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

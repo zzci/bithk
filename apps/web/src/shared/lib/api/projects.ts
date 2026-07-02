@@ -12,7 +12,7 @@
 
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
@@ -140,7 +140,11 @@ export const projectKeys = {
   members: (id: string) => ["projects", id, "members"] as const,
   roles: (id: string) => ["projects", id, "roles"] as const,
   categories: (id: string) => ["projects", id, "categories"] as const,
+  // Root of every issues LIST key for a project — invalidate this to drop all
+  // filtered/paginated variants at once.
+  issuesRoot: (id: string) => ["projects", id, "issues"] as const,
   issues: (id: string, query: string) => ["projects", id, "issues", query] as const,
+  issue: (projectId: string, issueId: string) => ["projects", projectId, "issue", issueId] as const,
   referenceableWorklists: (id: string) => ["projects", id, "referenceable-worklists"] as const,
 };
 
@@ -217,6 +221,9 @@ export function useProjects(query: ProjectsQuery = {}) {
       const res = await http<ApiListEnvelope<ProjectView>>(`/projects?${params.toString()}`);
       return { data: res.data, meta: res.meta };
     },
+    // Keep the prior page/filter results on screen while the next query loads
+    // so the list does not flash empty on page, filter, or search changes.
+    placeholderData: keepPreviousData,
     staleTime: 5_000,
   });
 }
@@ -554,6 +561,9 @@ export function useProjectIssues(projectId: string | undefined, query: ProjectIs
       return { data: res.data.map(r => ({ ...r, tags: r.tags ?? [] })), meta: res.meta };
     },
     enabled: !!projectId,
+    // Keep the prior page/filter rows on screen while the next query loads so
+    // the issues list does not flash empty on page or filter changes.
+    placeholderData: keepPreviousData,
     staleTime: 5_000,
   });
 }
@@ -651,8 +661,72 @@ export function useCreateProjectIssue(): UseMutationResult<ProjectIssueRow, Erro
       body: JSON.stringify(body),
     }).then(r => r.data),
     onSuccess: (_data, { projectId }) => {
-      void queryClient.invalidateQueries({ queryKey: projectKeys.issues(projectId, "") });
-      void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "issues"] });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.issuesRoot(projectId) });
     },
   });
+}
+
+// ── Single issue (work order) ──
+
+export function useProjectIssue(projectId: string | undefined, issueId: string | undefined) {
+  return useQuery({
+    queryKey: projectKeys.issue(projectId ?? "", issueId ?? ""),
+    queryFn: () => http<ApiEnvelope<ProjectIssueRow>>(
+      `/projects/${encodeURIComponent(projectId!)}/issues/${encodeURIComponent(issueId!)}`,
+    ).then(r => r.data),
+    enabled: !!projectId && !!issueId,
+    staleTime: 5_000,
+  });
+}
+
+export interface UpdateProjectIssueInput {
+  readonly title?: string;
+  readonly description?: string | null;
+  readonly status?: IssueStatus;
+  readonly priority?: IssuePriority;
+  readonly assigneeMemberId?: string | null;
+  readonly dueDate?: string | null;
+  readonly tags?: readonly string[];
+}
+
+export function useUpdateProjectIssue(): UseMutationResult<ProjectIssueRow, Error, { projectId: string; issueId: string } & UpdateProjectIssueInput> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, issueId, ...body }) => http<ApiEnvelope<ProjectIssueRow>>(
+      `/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(issueId)}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ).then(r => r.data),
+    onSuccess: (data, { projectId, issueId }) => {
+      queryClient.setQueryData(projectKeys.issue(projectId, issueId), data);
+      void queryClient.invalidateQueries({ queryKey: projectKeys.issuesRoot(projectId) });
+    },
+  });
+}
+
+export function useDeleteProjectIssue(): UseMutationResult<null, Error, { projectId: string; issueId: string }> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, issueId }) => http<ApiEnvelope<null>>(
+      `/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(issueId)}`,
+      { method: "DELETE" },
+    ).then(r => r.data),
+    onSuccess: (_data, { projectId, issueId }) => {
+      queryClient.removeQueries({ queryKey: projectKeys.issue(projectId, issueId) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.issuesRoot(projectId) });
+    },
+  });
+}
+
+/**
+ * Upload one attachment to an issue. A plain request function (not a hook):
+ * the create-issue dialog uploads staged files sequentially AFTER the issue
+ * exists, inside the create mutation's own success path.
+ */
+export async function uploadIssueAttachment(projectId: string, issueId: string, file: File): Promise<void> {
+  const fd = new FormData();
+  fd.append("file", file);
+  await http(
+    `/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(issueId)}/attachments`,
+    { method: "POST", body: fd },
+  );
 }

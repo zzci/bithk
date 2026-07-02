@@ -2,10 +2,11 @@ import type { Context } from "hono";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { AppError, NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { parsePageQuery } from "@/shared/lib/pagination";
+import { parseTagIds } from "@/shared/lib/route-params";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   composeContactCategory,
@@ -19,23 +20,6 @@ import * as contactService from "./contact.service";
 import { CONTACT_KINDS, CONTACT_SENSITIVITIES, CONTACT_STATUSES, CONTACT_VISIBILITIES } from "./schema";
 
 const idParamSchema = z.object({ id: z.string().min(1) });
-
-// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
-// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
-// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
-function parseTagIds(raw: string[] | undefined): string[] {
-  if (!raw || raw.length === 0)
-    return [];
-  const out = new Set<string>();
-  for (const part of raw) {
-    for (const value of part.split(",")) {
-      const trimmed = value.trim();
-      if (trimmed)
-        out.add(trimmed);
-    }
-  }
-  return [...out].slice(0, 50);
-}
 
 // Free-form extra fields: a flat map of string keys (≤200) to string values
 // (≤2000), capped at 50 keys. Nested objects / arrays are rejected by z.record.
@@ -191,22 +175,9 @@ const contactViewSchema = z.object({
   updatedAt: z.string(),
 });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
 function actorOf(c: Context<ProtectedEnv>) {
   const user = c.get("user");
   return { id: user.id, role: user.role };
-}
-
-function auditMeta(c: Context<ProtectedEnv>) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
 }
 
 function grantTarget(body: z.infer<typeof grantTargetSchema>): contactService.ContactGrantTarget {
@@ -256,18 +227,14 @@ export function contactRoutes() {
     adminRequired,
     validator("json", createContactCategorySchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const body = c.req.valid("json");
       const category = await createContactCategory(db, body);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact_category.created",
         resourceType: "contact_category",
         resourceId: category.id,
         resourceName: category.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: composeContactCategory(category) }, 201);
@@ -291,21 +258,17 @@ export function contactRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     validator("json", updateContactCategorySchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const category = await updateContactCategory(db, id, body);
       if (!category)
         throw new NotFoundError("Contact category", id);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact_category.updated",
         resourceType: "contact_category",
         resourceId: category.id,
         resourceName: category.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: composeContactCategory(category) });
@@ -327,20 +290,16 @@ export function contactRoutes() {
     adminRequired,
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const db = c.get("db");
       const { id } = c.req.valid("param");
       const category = await resolveContactCategory(db, id);
       if (!category || !await deleteContactCategory(db, id))
         throw new NotFoundError("Contact category", id);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact_category.deleted",
         resourceType: "contact_category",
         resourceId: category.id,
         resourceName: category.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -363,14 +322,7 @@ export function contactRoutes() {
         { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
       ],
       responses: {
-        200: {
-          description: "Contacts page",
-          content: { "application/json": { schema: resolver(z.object({
-            success: z.literal(true),
-            data: z.array(contactViewSchema),
-            meta: z.object({ total: z.number(), page: z.number(), limit: z.number() }),
-          })) } },
-        },
+        200: okListJson(contactViewSchema, "Contacts page"),
         401: { description: "Unauthenticated", ...errorJson },
       },
     }),
@@ -391,10 +343,10 @@ export function contactRoutes() {
       const sensitivity = sensitivityRaw && (CONTACT_SENSITIVITIES as readonly string[]).includes(sensitivityRaw)
         ? sensitivityRaw as (typeof CONTACT_SENSITIVITIES)[number]
         : undefined;
-      const pageRaw = c.req.query("page");
-      const paginate = pageRaw !== undefined;
-      const page = paginate ? Math.max(1, Math.floor(Number.parseInt(pageRaw, 10)) || 1) : undefined;
-      const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(c.req.query("limit") ?? "", 10)) || 20));
+      // Pagination is opt-in: only a present `page` param switches the list
+      // into paginated mode; `parsePageQuery` supplies the clamped values.
+      const paginate = c.req.query("page") !== undefined;
+      const { page, limit } = parsePageQuery(c, { limit: 20 });
 
       const result = await contactService.list(c.get("db"), actorOf(c), {
         ...(kind ? { kind } : {}),
@@ -409,7 +361,7 @@ export function contactRoutes() {
         success: true,
         data: result.data,
         meta: paginate
-          ? { total: result.total, page: page!, limit }
+          ? { total: result.total, page, limit }
           : { total: result.total, page: 1, limit: result.total },
       });
     },
@@ -428,17 +380,13 @@ export function contactRoutes() {
     }),
     validator("json", contactBodySchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const body = c.req.valid("json");
       const data = await contactService.create(c.get("db"), actorOf(c), body);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact.created",
         resourceType: "contact",
         resourceId: data.id,
         resourceName: data.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data }, 201);
@@ -479,18 +427,14 @@ export function contactRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     validator("json", updateBodySchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const data = await contactService.update(c.get("db"), actorOf(c), id, body);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact.updated",
         resourceType: "contact",
         resourceId: data.id,
         resourceName: data.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -510,17 +454,13 @@ export function contactRoutes() {
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       await contactService.delete(c.get("db"), actorOf(c), id, c.get("config"));
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact.deleted",
         resourceType: "contact",
         resourceId: id,
         resourceName: id,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { id } });
@@ -545,7 +485,6 @@ export function contactRoutes() {
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
 
       const formData = await c.req.formData();
@@ -554,14 +493,11 @@ export function contactRoutes() {
         throw new AppError("No file provided", 400, "VALIDATION_ERROR");
 
       const data = await contactService.setAvatar(c.get("db"), actorOf(c), id, file, c.get("config"));
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact.avatar_set",
         resourceType: "contact",
         resourceId: id,
         resourceName: data.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -582,17 +518,13 @@ export function contactRoutes() {
     }),
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const data = await contactService.removeAvatar(c.get("db"), actorOf(c), id, c.get("config"));
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact.avatar_removed",
         resourceType: "contact",
         resourceId: id,
         resourceName: data.name,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -614,20 +546,16 @@ export function contactRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     validator("json", grantTargetSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const target = grantTarget(body);
       await contactService.grant(c.get("db"), actorOf(c), id, target);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact.access_granted",
         resourceType: "contact",
         resourceId: id,
         resourceName: id,
         detail: { type: target.type, id: target.id },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { id, target } });
@@ -649,20 +577,16 @@ export function contactRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     validator("json", grantTargetSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const target = grantTarget(body);
       const revoked = await contactService.revoke(c.get("db"), actorOf(c), id, target);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "contact.access_revoked",
         resourceType: "contact",
         resourceId: id,
         resourceName: id,
         detail: { ...target, revoked },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { id, target, revoked } });

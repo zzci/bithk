@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { LodeHistoryEntry, LodeStatus } from "@/shared/lib/api/system";
 import { ArrowUpCircle, CheckCircle2, History, PauseCircle, PlayCircle, RefreshCw, RotateCcw, RotateCw, Settings2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,74 +25,16 @@ import {
 } from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
-import { http } from "@/shared/lib/http";
-
-interface SystemVersion {
-  readonly version: string | null;
-  readonly commit: string | null;
-  readonly buildTime: string | null;
-  readonly lode?: LodeStatus | null;
-}
-
-interface LodeHistoryEntry {
-  readonly version: string;
-  readonly at: string;
-  readonly result: "good" | "bad";
-}
-
-interface LodeStatus {
-  readonly supervised?: boolean | null;
-  readonly active?: boolean | null;
-  readonly stateAvailable?: boolean | null;
-  readonly status?: string | null;
-  readonly current?: string | null;
-  readonly lastGood?: string | null;
-  readonly available?: string | null;
-  readonly channel?: string | null;
-  readonly activeVersion?: string | null;
-  readonly readinessMode?: string | null;
-  readonly ready?: boolean | null;
-  readonly hold?: boolean | null;
-  readonly configChanged?: boolean | null;
-  readonly lastCheckAt?: string | null;
-  readonly lastError?: string | null;
-  readonly history?: readonly LodeHistoryEntry[] | null;
-  readonly updateAvailable?: boolean | null;
-  readonly rollbackTarget?: string | null;
-  readonly config?: LodeConfig | null;
-}
-
-interface LodeConfig {
-  readonly status?: string | null;
-  readonly app?: string | null;
-  readonly sourceType?: string | null;
-  readonly source?: string | null;
-  readonly asset?: string | null;
-  readonly channel?: string | null;
-  readonly policy?: string | null;
-  readonly checkInterval?: number | null;
-  readonly keepVersions?: number | null;
-  readonly pin?: string | null;
-  readonly requireSignature?: string | null;
-  readonly runtime?: string | null;
-  readonly runtimeVersion?: string | null;
-}
+import { useLodeHold, useLodeRestart, useLodeRollback, useLodeUpdate, useSystemVersion } from "@/shared/lib/api/system";
 
 type Confirmation
   = | { readonly kind: "restart" }
     | { readonly kind: "update"; readonly target: string }
     | { readonly kind: "rollback"; readonly target?: string };
 
-const versionQueryKey = ["system", "version"] as const;
-
-async function fetchVersion(): Promise<SystemVersion> {
-  return (await http<{ data: SystemVersion }>("/system/version")).data;
-}
-
 export function AboutSettingsTab() {
   const { t } = useTranslation("settings");
-  const qc = useQueryClient();
-  const versionQuery = useQuery({ queryKey: versionQueryKey, queryFn: fetchVersion });
+  const versionQuery = useSystemVersion();
   const [confirm, setConfirm] = useState<Confirmation | null>(null);
 
   const version = versionQuery.data;
@@ -100,44 +42,36 @@ export function AboutSettingsTab() {
   function onError(err: unknown) {
     toast.error(err instanceof Error ? err.message : t("about.lode.actionFailed"));
   }
+  // The version/lode snapshot refresh happens in the api-layer hooks; here we
+  // only surface the toast and close the confirmation dialog.
   function onDone(message: string) {
     toast.success(message);
     setConfirm(null);
-    void qc.invalidateQueries({ queryKey: versionQueryKey });
   }
 
-  const restartMutation = useMutation({
-    mutationFn: () => http("/system/lode/restart", { method: "POST" }),
-    onSuccess: () => onDone(t("about.lode.restartRequested")),
-    onError,
-  });
-  const updateMutation = useMutation({
-    mutationFn: (target: string) => http("/system/lode/update", { method: "POST", body: JSON.stringify({ target }) }),
-    onSuccess: (_d, target) => onDone(t("about.lode.updateRequested", { target })),
-    onError,
-  });
-  const rollbackMutation = useMutation({
-    mutationFn: (target?: string) => http("/system/lode/rollback", { method: "POST", body: JSON.stringify(target ? { version: target } : {}) }),
-    onSuccess: () => onDone(t("about.lode.rollbackRequested")),
-    onError,
-  });
-  const holdMutation = useMutation({
-    mutationFn: (hold: boolean) => http("/system/lode/hold", { method: "POST", body: JSON.stringify({ hold }) }),
-    onSuccess: (_d, hold) => onDone(hold ? t("about.lode.holdSet") : t("about.lode.holdReleased")),
-    onError,
-  });
+  const restartMutation = useLodeRestart();
+  const updateMutation = useLodeUpdate();
+  const rollbackMutation = useLodeRollback();
+  const holdMutation = useLodeHold();
 
   const pending = restartMutation.isPending || updateMutation.isPending || rollbackMutation.isPending || holdMutation.isPending;
+
+  function setHold(hold: boolean) {
+    holdMutation.mutate(hold, {
+      onSuccess: () => onDone(hold ? t("about.lode.holdSet") : t("about.lode.holdReleased")),
+      onError,
+    });
+  }
 
   function runConfirmed() {
     if (!confirm)
       return;
     if (confirm.kind === "restart")
-      restartMutation.mutate();
+      restartMutation.mutate(undefined, { onSuccess: () => onDone(t("about.lode.restartRequested")), onError });
     else if (confirm.kind === "update")
-      updateMutation.mutate(confirm.target);
+      updateMutation.mutate(confirm.target, { onSuccess: () => onDone(t("about.lode.updateRequested", { target: confirm.target })), onError });
     else
-      rollbackMutation.mutate(confirm.target);
+      rollbackMutation.mutate(confirm.target, { onSuccess: () => onDone(t("about.lode.rollbackRequested")), onError });
   }
 
   return (
@@ -182,7 +116,7 @@ export function AboutSettingsTab() {
         onRestart={() => setConfirm({ kind: "restart" })}
         onUpdate={target => setConfirm({ kind: "update", target })}
         onRollback={target => setConfirm(target ? { kind: "rollback", target } : { kind: "rollback" })}
-        onHold={held => holdMutation.mutate(held)}
+        onHold={setHold}
       />
 
       <ConfirmDialog

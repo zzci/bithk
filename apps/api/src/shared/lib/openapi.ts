@@ -53,4 +53,22 @@ export function jsonRequestBody(schema: z.ZodType): OpenAPIV3_1.RequestBodyObjec
   };
 }
 
+// `{ success:true, data }` response doc for `schema`.
+export function okJson(schema: z.ZodType, description = "Success") {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
+}
+
+// The canonical paginated-list `meta` (`{ total, page, limit }`). Modules whose
+// runtime meta carries extra fields extend it (`pageMetaSchema.extend(...)`)
+// and pass the result to `okListJson` so the spec keeps matching the wire.
+export const pageMetaSchema = z.object({ total: z.number(), page: z.number(), limit: z.number() });
+
+// Paginated `{ success:true, data:[…], meta }` response doc.
+export function okListJson(itemSchema: z.ZodType, description = "Success", metaSchema: z.ZodType = pageMetaSchema) {
+  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: metaSchema })) } } };
+}
+
+// Error-body response doc; spread next to a per-status `description`.
+export const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+
 export { describeRoute, resolver, validator };

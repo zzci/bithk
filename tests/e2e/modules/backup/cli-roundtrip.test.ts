@@ -218,7 +218,9 @@ beforeAll(async () => {
 afterAll(async () => {
   if (api) {
     api.kill();
-    try { await api.exited; }
+    try {
+      await api.exited;
+    }
     catch {}
     api = null;
   }
@@ -244,7 +246,9 @@ describe("backup CLI export → import round-trip", () => {
     //    (the running server holds the file).
     if (api) {
       api.kill();
-      try { await api.exited; }
+      try {
+        await api.exited;
+      }
       catch {}
       api = null;
     }

@@ -1,0 +1,208 @@
+// Account admin data layer: users (real + virtual) and groups, mirroring the
+// backend account module (apps/api/src/modules/account). The paginated users
+// list is a TanStack Query hook; the group management page still coordinates
+// its selection/member state imperatively (24 useState — the react-query
+// adoption is tracked with the UI-029 god-component split), so group requests
+// are exposed as typed functions.
+
+import type { ModuleKey } from "@/shared/lib/modules";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { http } from "../http";
+
+// ── Types ──
+
+export interface AccountUserGroupRef {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface AccountUser {
+  readonly id: string;
+  readonly username: string;
+  readonly name: string;
+  readonly email: string;
+  readonly role: "admin" | "user";
+  readonly status: "active" | "disabled";
+  readonly isVirtual: boolean;
+  readonly groups?: AccountUserGroupRef[];
+  readonly lastLoginAt: string | null;
+  readonly createdAt: string;
+}
+
+export interface AccountUsersMeta {
+  readonly total: number;
+  readonly page: number;
+  readonly limit: number;
+  readonly totalPages: number;
+}
+
+export interface AccountUsersResult {
+  readonly data: AccountUser[];
+  readonly meta: AccountUsersMeta;
+}
+
+interface AccountUsersResponse {
+  success: boolean;
+  data: AccountUser[];
+  meta: AccountUsersMeta;
+}
+
+export interface AccountGroup {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly modules: ModuleKey[];
+  readonly memberCount: number;
+  readonly createdAt: string;
+}
+
+export interface AccountGroupMember {
+  readonly id: string;
+  readonly username: string;
+  readonly name: string;
+  readonly email: string;
+  readonly role: string;
+  readonly status: string;
+}
+
+// ── Query keys ──
+
+export const accountKeys = {
+  usersRoot: ["account", "users"] as const,
+  users: (q: string, role: string, status: string, page: number, limit: number) =>
+    ["account", "users", q, role, status, page, limit] as const,
+};
+
+// ── Users ──
+
+export interface AccountUsersQuery {
+  readonly q?: string | undefined;
+  readonly role?: string | undefined;
+  readonly status?: string | undefined;
+  readonly page?: number | undefined;
+  readonly limit?: number | undefined;
+}
+
+function usersQueryString(query: AccountUsersQuery): string {
+  const params = new URLSearchParams();
+  if (query.q)
+    params.set("q", query.q);
+  if (query.role)
+    params.set("role", query.role);
+  if (query.status)
+    params.set("status", query.status);
+  params.set("page", String(query.page ?? 1));
+  params.set("limit", String(query.limit ?? 20));
+  return params.toString();
+}
+
+export async function listAccountUsers(query: AccountUsersQuery = {}): Promise<AccountUsersResult> {
+  const res = await http<AccountUsersResponse>(`/account/users?${usersQueryString(query)}`);
+  return { data: res.data, meta: res.meta };
+}
+
+export function useAccountUsers(query: AccountUsersQuery = {}) {
+  return useQuery<AccountUsersResult>({
+    queryKey: accountKeys.users(query.q ?? "", query.role ?? "", query.status ?? "", query.page ?? 1, query.limit ?? 20),
+    queryFn: () => listAccountUsers(query),
+    // Keep the prior page/filter rows on screen while the next query loads so
+    // the users table does not flash empty on page or filter changes.
+    placeholderData: keepPreviousData,
+  });
+}
+
+export interface CreateAccountUserInput {
+  readonly username: string;
+  readonly name: string;
+  readonly email?: string;
+}
+
+export async function createAccountUser(body: CreateAccountUserInput): Promise<void> {
+  await http("/account/users", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface UpdateAccountUserInput {
+  readonly username?: string;
+  readonly name?: string;
+  readonly email?: string;
+  readonly role?: "admin" | "user";
+  readonly status?: "active" | "disabled";
+}
+
+export async function updateAccountUser(id: string, body: UpdateAccountUserInput): Promise<void> {
+  await http(`/account/users/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteAccountUser(id: string): Promise<void> {
+  await http(`/account/users/${id}`, { method: "DELETE" });
+}
+
+// ── Groups ──
+
+export async function listAccountGroups(): Promise<AccountGroup[]> {
+  const res = await http<{ success: boolean; data: AccountGroup[] }>("/account/groups");
+  return res.data;
+}
+
+export interface AccountGroupInput {
+  readonly name: string;
+  readonly description?: string | undefined;
+  readonly modules: readonly ModuleKey[];
+}
+
+export async function createAccountGroup(body: AccountGroupInput): Promise<void> {
+  await http("/account/groups", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateAccountGroup(id: string, body: AccountGroupInput): Promise<void> {
+  await http(`/account/groups/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteAccountGroup(id: string): Promise<void> {
+  await http(`/account/groups/${id}`, { method: "DELETE" });
+}
+
+export async function listAccountGroupMembers(groupId: string): Promise<AccountGroupMember[]> {
+  const res = await http<{ success: boolean; data: AccountGroupMember[] }>(
+    `/account/groups/${groupId}/members`,
+  );
+  return res.data;
+}
+
+export async function addAccountGroupMember(groupId: string, userId: string): Promise<void> {
+  await http(`/account/groups/${groupId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export async function removeAccountGroupMember(groupId: string, userId: string): Promise<void> {
+  await http(`/account/groups/${groupId}/members/${userId}`, { method: "DELETE" });
+}
+
+// The built-in Default entry (FEAT-043): fallback modules for users in no
+// group, backed by the `account.default_modules` setting rather than a row.
+export async function getDefaultGroupModules(): Promise<ModuleKey[]> {
+  const res = await http<{ success: boolean; data: { modules: ModuleKey[] } }>("/account/groups/default");
+  return res.data.modules;
+}
+
+export async function updateDefaultGroupModules(modules: readonly ModuleKey[]): Promise<ModuleKey[]> {
+  const res = await http<{ success: boolean; data: { modules: ModuleKey[] } }>("/account/groups/default", {
+    method: "PATCH",
+    body: JSON.stringify({ modules }),
+  });
+  return res.data.modules;
+}

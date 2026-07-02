@@ -7,6 +7,9 @@ import { FullPageLoader } from "@/shared/components/full-page-loader";
 import { NotFoundPage } from "@/shared/components/not-found";
 import { Button } from "@/shared/components/ui/button";
 import { useDocumentTitle } from "@/shared/hooks/use-page-title";
+// Justified http-layer import (UI-028): no http() calls here — the root layout
+// subscribes to global http events (session expiry) and uses BASE_PATH for the
+// re-login redirect.
 import { BASE_PATH, onHttpEvent } from "@/shared/lib/http";
 import { useSystemStore } from "@/shared/stores/system";
 

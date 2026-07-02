@@ -4,11 +4,12 @@ import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
 import Baker from "cronbake";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { cronJobLogs, cronJobs } from "@/modules/cron/schema";
+import { AppError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
-import { __resetAndReinitActionsForTests, getAction, getActionExecutor, getDefaultActions } from "./actions";
-import { normalizeCron } from "./cron-format";
+import { __resetAndReinitActionsForTests, getAction, getActionExecutor, getDefaultActions, validateActionConfig } from "./actions";
+import { isValidCron, normalizeCron, SUPPORTED_CRON_FORMATS } from "./cron-format";
 import { awaitInFlightJobs, executeTask, getInFlightJobCount } from "./executor";
 
 export interface SchedulerDeps {
@@ -284,6 +285,215 @@ export async function stopCron(): Promise<void> {
  */
 export function getScheduler(): CronScheduler | null {
   return _scheduler;
+}
+
+// ─── Job CRUD (data layer behind cron.routes.ts) ─────────────────────
+//
+// Routes stay thin: parse/validate the wire shape, call one of these,
+// audit, serialize. All drizzle access and Baker synchronisation for the
+// job lifecycle lives here (REFACTOR-034).
+
+export type CronJobRow = typeof cronJobs.$inferSelect;
+export type CronJobLogRow = typeof cronJobLogs.$inferSelect;
+
+/** Live (non-deleted) job by id, falling back to the unique name. */
+export async function findJobByIdOrName(db: AppDatabase, identifier: string): Promise<CronJobRow | null> {
+  const byId = await db
+    .select()
+    .from(cronJobs)
+    .where(and(eq(cronJobs.isDeleted, false), eq(cronJobs.id, identifier)))
+    .get();
+  if (byId)
+    return byId;
+
+  const byName = await db
+    .select()
+    .from(cronJobs)
+    .where(and(eq(cronJobs.isDeleted, false), eq(cronJobs.name, identifier)))
+    .get();
+  return byName ?? null;
+}
+
+/** Job by id regardless of tombstone state (run-history stays viewable). */
+export async function getJobAnyById(db: AppDatabase, id: string): Promise<CronJobRow | undefined> {
+  return await db.select().from(cronJobs).where(eq(cronJobs.id, id)).get();
+}
+
+export async function getJobLogById(db: AppDatabase, logId: string): Promise<CronJobLogRow | undefined> {
+  return await db.select().from(cronJobLogs).where(eq(cronJobLogs.id, logId)).get();
+}
+
+export interface ListJobsParams {
+  /** `null` = no tombstone constraint; boolean = `is_deleted` must equal. */
+  readonly deletedFlag: boolean | null;
+  readonly lastStatus?: "success" | "failed" | "running" | undefined;
+  readonly taskType?: string | undefined;
+  readonly cursor?: string | undefined;
+  readonly limit: number;
+}
+
+export async function listJobs(
+  db: AppDatabase,
+  params: ListJobsParams,
+): Promise<{ rows: CronJobRow[]; hasMore: boolean; nextCursor: string | null }> {
+  const conditions = [];
+  if (params.deletedFlag !== null)
+    conditions.push(eq(cronJobs.isDeleted, params.deletedFlag));
+  if (params.taskType !== undefined)
+    conditions.push(eq(cronJobs.taskType, params.taskType));
+  if (params.cursor)
+    conditions.push(lt(cronJobs.id, params.cursor));
+  if (params.lastStatus !== undefined) {
+    // Correlated subquery: keep the job iff its newest log row (by
+    // ULID order, which is creation-time monotonic) matches the
+    // requested status. Jobs with no logs at all are excluded from
+    // every `lastStatus` filter because the inner SELECT is NULL.
+    conditions.push(sql`(
+      SELECT ${cronJobLogs.status} FROM ${cronJobLogs}
+      WHERE ${cronJobLogs.jobId} = ${cronJobs.id}
+      ORDER BY ${cronJobLogs.id} DESC
+      LIMIT 1
+    ) = ${params.lastStatus}`);
+  }
+
+  const rows = await db
+    .select()
+    .from(cronJobs)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(cronJobs.createdAt))
+    .limit(params.limit + 1)
+    .all();
+
+  const hasMore = rows.length > params.limit;
+  const page = hasMore ? rows.slice(0, params.limit) : rows;
+  const nextCursor = hasMore ? page.at(-1)!.id : null;
+  return { rows: page, hasMore, nextCursor };
+}
+
+export interface ListJobLogsParams {
+  readonly status?: "running" | "success" | "failed" | undefined;
+  readonly cursor?: string | undefined;
+  readonly limit: number;
+}
+
+export async function listJobLogs(
+  db: AppDatabase,
+  jobId: string,
+  params: ListJobLogsParams,
+): Promise<{ logs: CronJobLogRow[]; hasMore: boolean; nextCursor: string | null }> {
+  const conditions = [eq(cronJobLogs.jobId, jobId)];
+  if (params.status)
+    conditions.push(eq(cronJobLogs.status, params.status));
+  if (params.cursor)
+    conditions.push(lt(cronJobLogs.id, params.cursor));
+
+  const logs = await db
+    .select()
+    .from(cronJobLogs)
+    .where(and(...conditions))
+    .orderBy(desc(cronJobLogs.id))
+    .limit(params.limit + 1)
+    .all();
+
+  const hasMore = logs.length > params.limit;
+  const page = hasMore ? logs.slice(0, params.limit) : logs;
+  const nextCursor = hasMore ? page.at(-1)!.id : null;
+  return { logs: page, hasMore, nextCursor };
+}
+
+export interface CreateJobInput {
+  readonly name: string;
+  readonly cron: string;
+  readonly action: string;
+  readonly config?: Record<string, unknown> | undefined;
+  readonly maxConsecutiveFailures?: number | undefined;
+}
+
+/**
+ * Full create workflow: cron validation + normalisation, name-conflict
+ * check, per-action config validation, insert, and (when the scheduler
+ * is running) Baker sync. Returns the persisted row (`cron` normalized).
+ */
+export async function createJob(db: AppDatabase, input: CreateJobInput): Promise<CronJobRow> {
+  if (!isValidCron(input.cron)) {
+    throw new AppError(
+      `Invalid cron expression: "${input.cron}". Supported formats: ${SUPPORTED_CRON_FORMATS.join("; ")}`,
+      400,
+      "INVALID_CRON",
+    );
+  }
+  const normalized = normalizeCron(input.cron);
+
+  const existing = await findJobByIdOrName(db, input.name);
+  if (existing) {
+    throw new AppError(`Job with name "${input.name}" already exists`, 409, "JOB_NAME_CONFLICT");
+  }
+
+  const taskConfig: TaskConfig = { ...(input.config ?? {}), action: input.action };
+  const validationError = await validateActionConfig(input.action, taskConfig);
+  if (validationError) {
+    throw new AppError(validationError, 400, "INVALID_ACTION_CONFIG");
+  }
+
+  const actionDef = getAction(input.action);
+  const id = nanoid();
+  const insertValues: typeof cronJobs.$inferInsert = {
+    id,
+    name: input.name,
+    cron: normalized,
+    taskType: actionDef?.spec.category ?? "custom",
+    taskConfig: JSON.stringify(taskConfig),
+    enabled: true,
+    ...(input.maxConsecutiveFailures !== undefined ? { maxConsecutiveFailures: input.maxConsecutiveFailures } : {}),
+  };
+  await db.insert(cronJobs).values(insertValues).run();
+
+  const row = await db.select().from(cronJobs).where(eq(cronJobs.id, id)).get();
+  if (!row)
+    throw new AppError("Failed to create job", 500, "INTERNAL_ERROR");
+
+  // When the scheduler isn't running the row still lands in the DB
+  // and is picked up the next time `startCron` runs.
+  await getScheduler()?.syncJob(input.name);
+
+  return row;
+}
+
+/** Soft-delete: tombstone + disable in DB, then detach from Baker. */
+export async function softDeleteJob(db: AppDatabase, job: CronJobRow): Promise<void> {
+  await db.update(cronJobs)
+    .set({ isDeleted: true, enabled: false })
+    .where(eq(cronJobs.id, job.id))
+    .run();
+
+  const scheduler = getScheduler();
+  if (scheduler) {
+    try {
+      scheduler.baker.stop(job.name);
+      scheduler.baker.remove(job.name);
+    }
+    catch {
+      // Not loaded in scheduler.
+    }
+  }
+}
+
+/** Disable in DB + stop the Baker timer (no-op when scheduler is off). */
+export async function pauseJob(db: AppDatabase, job: CronJobRow): Promise<void> {
+  await db.update(cronJobs).set({ enabled: false }).where(eq(cronJobs.id, job.id)).run();
+  const scheduler = getScheduler();
+  if (scheduler) {
+    try {
+      scheduler.baker.pause(job.name);
+    }
+    catch {}
+  }
+}
+
+/** Re-enable in DB + re-sync into Baker (no-op when scheduler is off). */
+export async function resumeJob(db: AppDatabase, job: CronJobRow): Promise<void> {
+  await db.update(cronJobs).set({ enabled: true }).where(eq(cronJobs.id, job.id)).run();
+  await getScheduler()?.syncJob(job.name);
 }
 
 /** Test-only: tear down the singleton + action registry so each test re-boots. */

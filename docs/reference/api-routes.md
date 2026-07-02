@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 321 routes total.
+> 326 routes total.
 
 | Method | Path |
 |---|---|
@@ -52,6 +52,10 @@
 | DELETE | `/api/admin/project-default-cover` |
 | GET | `/api/admin/project-default-cover` |
 | POST | `/api/admin/project-default-cover` |
+| GET | `/api/admin/storage/config` |
+| PUT | `/api/admin/storage/config` |
+| GET | `/api/admin/storage/files` |
+| POST | `/api/admin/storage/sync-to-s3` |
 | GET | `/api/audit` |
 | GET | `/api/audit/:id` |
 | POST | `/api/backup/export` |
@@ -91,6 +95,7 @@
 | POST | `/api/cron/jobs/:id/pause` |
 | POST | `/api/cron/jobs/:id/resume` |
 | POST | `/api/cron/jobs/:id/trigger` |
+| GET | `/api/currencies` |
 | GET | `/api/documents` |
 | POST | `/api/documents` |
 | DELETE | `/api/documents/:id` |

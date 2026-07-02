@@ -2,7 +2,8 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { pageQueryFields } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { getAuditEventById, listAuditEvents } from "./audit.service";
 
@@ -30,8 +31,7 @@ const auditQuerySchema = z.object({
   result: z.enum(["success", "failure"]).optional(),
   from: isoDatetime.optional(),
   to: isoDatetime.optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  ...pageQueryFields({ defaultLimit: 50, maxLimit: 200 }),
 });
 
 const idParamSchema = z.object({ id: z.string() });
@@ -52,12 +52,6 @@ const auditEventSchema = z.object({
   createdAt: z.string(),
 });
 
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-
 export function auditRoutes() {
   const router = new Hono<ProtectedEnv>();
 
@@ -69,14 +63,7 @@ export function auditRoutes() {
       tags: ["infra2"],
       summary: "List audit events with filters and pagination",
       responses: {
-        200: {
-          description: "Success",
-          content: { "application/json": { schema: resolver(z.object({
-            success: z.literal(true),
-            data: z.array(auditEventSchema),
-            meta: z.object({ total: z.number(), page: z.number(), limit: z.number() }),
-          })) } },
-        },
+        200: okListJson(auditEventSchema, "Success"),
         401: { description: "Unauthenticated", ...errorJson },
         403: { description: "Admin only", ...errorJson },
         422: { description: "Validation error", ...errorJson },

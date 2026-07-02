@@ -21,3 +21,20 @@ export function requireParam<E extends Env>(c: Context<E>, name: string): string
     throw new ValidationError(`missing route parameter: ${name}`, { param: name });
   return value;
 }
+
+// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
+// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
+// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
+export function parseTagIds(raw: string[] | undefined): string[] {
+  if (!raw || raw.length === 0)
+    return [];
+  const out = new Set<string>();
+  for (const part of raw) {
+    for (const value of part.split(",")) {
+      const trimmed = value.trim();
+      if (trimmed)
+        out.add(trimmed);
+    }
+  }
+  return [...out].slice(0, 50);
+}

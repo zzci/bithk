@@ -2,8 +2,7 @@
 // here; the import + standalone blob-restore card is colocated in
 // `-settings-backup-import.tsx`, the report renderer and the API view types
 // in `-settings-backup-report.tsx`.
-import type { BackupModuleView, ExportJobView } from "./-settings-backup-report";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import type { ExportJobView } from "@/shared/lib/api/backup";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -19,9 +18,18 @@ import {
 import { EmptyHint } from "@/shared/components/ui/centered-hint";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Spinner } from "@/shared/components/ui/spinner";
+import {
+  useBackupExportJob,
+  useBackupModules,
+  useCancelBackupExport,
+  useStartBackupExport,
+} from "@/shared/lib/api/backup";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatBytes } from "@/shared/lib/format";
-import { BASE_PATH, http, HttpError } from "@/shared/lib/http";
+// Justified http-layer import (no direct http() calls here): BASE_PATH builds
+// the artifact download href and HttpError classifies the poll 404 that means
+// "job gone"; all requests go through the backup api layer above.
+import { BASE_PATH, HttpError } from "@/shared/lib/http";
 import { BackupImportCard } from "./-settings-backup-import";
 
 export function BackupSettingsTab() {
@@ -35,8 +43,6 @@ export function BackupSettingsTab() {
 
 // ─── Export card ──────────────────────────────────────────────────────────
 
-const modulesQueryKey = ["backup", "modules"] as const;
-
 function BackupExportCard() {
   const { t } = useTranslation(["settings", "common"]);
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(() => new Set());
@@ -45,26 +51,11 @@ function BackupExportCard() {
   const [includeBlobs, setIncludeBlobs] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
 
-  const modulesQuery = useQuery({
-    queryKey: modulesQueryKey,
-    queryFn: async () => (await http<{ modules: BackupModuleView[] }>("/backup/modules")).modules,
-  });
+  const modulesQuery = useBackupModules();
   const modules = modulesQuery.data ?? [];
   const selected = modules.map(m => m.name).filter(name => !excluded.has(name));
 
-  const jobQuery = useQuery({
-    queryKey: ["backup", "export-job", jobId],
-    queryFn: async () => http<ExportJobView>(`/backup/v2/exports/${jobId}`),
-    enabled: jobId !== null,
-    // Poll while generating; keep a slow poll on `completed` so per-artifact
-    // downloaded flags refresh after the operator clicks a download link.
-    refetchInterval: (query) => {
-      const state = query.state.data?.state;
-      if (state === "pending" || state === "running")
-        return 800;
-      return state === "completed" ? 3000 : false;
-    },
-  });
+  const jobQuery = useBackupExportJob(jobId);
   const job = jobQuery.data;
   // The in-memory job disappears once every artifact has been downloaded
   // (or after a server restart) — both surface as a poll 404.
@@ -72,20 +63,24 @@ function BackupExportCard() {
   const jobActive = job !== undefined && !jobGone
     && (job.state === "pending" || job.state === "running");
 
-  const generate = useMutation({
-    mutationFn: async () => http<{ jobId: string }>("/backup/v2/exports", {
-      method: "POST",
-      body: JSON.stringify({ modules: selected, blobs: includeBlobs ? "separate" : "none" }),
-    }),
-    onSuccess: res => setJobId(res.jobId),
-    onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
-  });
+  const generate = useStartBackupExport();
+  const cancel = useCancelBackupExport();
 
-  const cancel = useMutation({
-    mutationFn: async () => http(`/backup/v2/exports/${jobId}`, { method: "DELETE" }),
-    onSuccess: () => setJobId(null),
-    onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
-  });
+  const startExport = () => {
+    generate.mutate({ modules: selected, blobs: includeBlobs ? "separate" : "none" }, {
+      onSuccess: res => setJobId(res.jobId),
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
+  };
+
+  const cancelExport = () => {
+    if (jobId === null)
+      return;
+    cancel.mutate(jobId, {
+      onSuccess: () => setJobId(null),
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
+  };
 
   const toggleModule = (name: string, checked: boolean) => {
     setExcluded((prev) => {
@@ -159,7 +154,7 @@ function BackupExportCard() {
         <Button
           type="button"
           disabled={selected.length === 0 || generate.isPending || jobActive}
-          onClick={() => generate.mutate()}
+          onClick={startExport}
         >
           {t("settings:backup.export.generate")}
         </Button>
@@ -177,7 +172,7 @@ function BackupExportCard() {
           <ExportJobPanel
             job={job}
             cancelPending={cancel.isPending}
-            onCancel={() => cancel.mutate()}
+            onCancel={cancelExport}
           />
         )}
       </CardContent>

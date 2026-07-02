@@ -1,7 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
+// Admin groups tab: user-defined groups plus the built-in Administrators and
+// Default entries, with a member panel for the current selection. The form
+// dialogs live in -group-dialogs.tsx, the memoized group row in
+// -group-list-row.tsx, and the member panel card in -group-member-panel.tsx.
+
+import type { AccountGroup, AccountGroupMember, AccountUser } from "@/shared/lib/api/account";
 import type { ModuleKey } from "@/shared/lib/modules";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { Pencil, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { Pencil, Plus, ShieldCheck, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -17,15 +23,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/shared/components/ui/dialog";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import { Switch } from "@/shared/components/ui/switch";
-import { Table, TableBody, TableCell, TableRow } from "@/shared/components/ui/table";
-import { Textarea } from "@/shared/components/ui/textarea";
-import { http } from "@/shared/lib/http";
-import { MODULE_KEYS } from "@/shared/lib/modules";
+import {
+  addAccountGroupMember,
+  createAccountGroup,
+  deleteAccountGroup,
+  getDefaultGroupModules,
+  listAccountGroupMembers,
+  listAccountGroups,
+  listAccountUsers,
+  removeAccountGroupMember,
+  updateAccountGroup,
+  updateAccountUser,
+  updateDefaultGroupModules,
+} from "@/shared/lib/api/account";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
+import { DefaultModulesDialog, GroupFormDialog } from "./-group-dialogs";
+import { MODULE_LABEL_KEY } from "./-group-labels";
+import { GroupListRow } from "./-group-list-row";
+import { GroupMemberPanel } from "./-group-member-panel";
 
 export const Route = createLazyFileRoute("/_app/admin/users/groups")({
   component: GroupsTab,
@@ -39,52 +55,9 @@ const ADMINS = "__admins__";
 // setting, not a group row.
 const DEFAULT = "__default__";
 
-interface Group {
-  readonly id: string;
-  readonly name: string;
-  readonly description: string | null;
-  readonly modules: ModuleKey[];
-  readonly memberCount: number;
-  readonly createdAt: string;
-}
-
-interface GroupMember {
-  readonly id: string;
-  readonly username: string;
-  readonly name: string;
-  readonly email: string;
-  readonly role: string;
-  readonly status: string;
-}
-
-interface GroupListResponse {
-  success: boolean;
-  data: Group[];
-}
-
-interface MemberListResponse {
-  success: boolean;
-  data: GroupMember[];
-}
-
-interface DefaultModulesResponse {
-  success: boolean;
-  data: { modules: ModuleKey[] };
-}
-
-interface UserSearchItem {
-  readonly id: string;
-  readonly username: string;
-  readonly name: string;
-  readonly email: string;
-  readonly role: "admin" | "user";
-}
-
-interface UserListResponse {
-  success: boolean;
-  data: UserSearchItem[];
-  meta: { total: number };
-}
+type Group = AccountGroup;
+type GroupMember = AccountGroupMember;
+type UserSearchItem = AccountUser;
 
 export function GroupsTab() {
   const { t } = useTranslation("groups");
@@ -118,8 +91,7 @@ export function GroupsTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await http<GroupListResponse>("/account/groups");
-      setGroups(res.data);
+      setGroups(await listAccountGroups());
     }
     catch (err) {
       setError(err instanceof Error ? err.message : t("common.error.loadFailed"));
@@ -131,7 +103,7 @@ export function GroupsTab() {
 
   const fetchAdminCount = useCallback(async () => {
     try {
-      const res = await http<UserListResponse>("/account/users?role=admin&limit=1");
+      const res = await listAccountUsers({ role: "admin", limit: 1 });
       setAdminCount(res.meta.total);
     }
     catch {
@@ -141,8 +113,7 @@ export function GroupsTab() {
 
   const fetchDefaultModules = useCallback(async () => {
     try {
-      const res = await http<DefaultModulesResponse>("/account/groups/default");
-      setDefaultModules(res.data.modules);
+      setDefaultModules(await getDefaultGroupModules());
     }
     catch {
       // Non-fatal: the Default entry just shows its last-known modules.
@@ -159,12 +130,11 @@ export function GroupsTab() {
     setMembersLoading(true);
     try {
       if (selection === ADMINS) {
-        const res = await http<UserListResponse>("/account/users?role=admin&limit=100");
+        const res = await listAccountUsers({ role: "admin", limit: 100 });
         setMembers(res.data.map(u => ({ ...u, status: "active" })));
       }
       else {
-        const res = await http<MemberListResponse>(`/account/groups/${selection}/members`);
-        setMembers(res.data);
+        setMembers(await listAccountGroupMembers(selection));
       }
     }
     catch (err) {
@@ -175,15 +145,15 @@ export function GroupsTab() {
     }
   }, [t]);
 
-  const select = (id: string) => {
+  const select = useCallback((id: string) => {
     setSelectedId(id);
     // The Default entry has no membership rows — its "members" are implicitly
     // every ungrouped user — so there is nothing to fetch.
     if (id !== DEFAULT)
       void fetchMembers(id);
-  };
+  }, [fetchMembers]);
 
-  const handleUserSearchChange = (q: string) => {
+  const handleUserSearchChange = useCallback((q: string) => {
     setUserSearch(q);
     clearTimeout(searchTimerRef.current);
     if (!q.trim()) {
@@ -192,35 +162,29 @@ export function GroupsTab() {
     }
     searchTimerRef.current = setTimeout(async () => {
       try {
-        const res = await http<UserListResponse>(`/account/users?q=${encodeURIComponent(q)}&limit=10`);
+        const res = await listAccountUsers({ q, limit: 10 });
         setSearchResults(res.data);
       }
       catch {
         setSearchResults([]);
       }
     }, 300);
-  };
+  }, []);
 
   // Promoting to Administrators only makes sense for non-admins; group adds
   // keep every candidate (the server answers 409 for existing members).
   const candidates = isAdminsSelected ? searchResults.filter(u => u.role !== "admin") : searchResults;
 
-  const addMember = async (userId: string) => {
+  const addMember = useCallback(async (userId: string) => {
     if (!selectedId)
       return;
     try {
-      if (isAdminsSelected) {
-        await http(`/account/users/${userId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ role: "admin" }),
-        });
+      if (selectedId === ADMINS) {
+        await updateAccountUser(userId, { role: "admin" });
         void fetchAdminCount();
       }
       else {
-        await http(`/account/groups/${selectedId}/members`, {
-          method: "POST",
-          body: JSON.stringify({ userId }),
-        });
+        await addAccountGroupMember(selectedId, userId);
         void fetchGroups();
       }
       setAddMemberOpen(false);
@@ -231,23 +195,20 @@ export function GroupsTab() {
     catch (err) {
       setError(err instanceof Error ? err.message : t("common.error.operationFailed"));
     }
-  };
+  }, [selectedId, fetchAdminCount, fetchGroups, fetchMembers, t]);
 
   // Removing from Administrators demotes to a regular user (the server's
   // last-admin guard answers 409 when that would leave no active admin).
-  const removeMember = async (userId: string) => {
+  const removeMember = useCallback(async (userId: string) => {
     if (!selectedId)
       return;
     try {
-      if (isAdminsSelected) {
-        await http(`/account/users/${userId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ role: "user" }),
-        });
+      if (selectedId === ADMINS) {
+        await updateAccountUser(userId, { role: "user" });
         void fetchAdminCount();
       }
       else {
-        await http(`/account/groups/${selectedId}/members/${userId}`, { method: "DELETE" });
+        await removeAccountGroupMember(selectedId, userId);
         void fetchGroups();
       }
       void fetchMembers(selectedId);
@@ -255,13 +216,13 @@ export function GroupsTab() {
     catch (err) {
       setError(err instanceof Error ? err.message : t("common.error.operationFailed"));
     }
-  };
+  }, [selectedId, fetchAdminCount, fetchGroups, fetchMembers, t]);
 
   const confirmDeleteGroup = async () => {
     if (!deleteConfirm)
       return;
     try {
-      await http(`/account/groups/${deleteConfirm.id}`, { method: "DELETE" });
+      await deleteAccountGroup(deleteConfirm.id);
       if (selectedId === deleteConfirm.id)
         setSelectedId(null);
       setDeleteConfirm(null);
@@ -272,6 +233,28 @@ export function GroupsTab() {
       setDeleteConfirm(null);
     }
   };
+
+  const onAddMemberOpenChange = useCallback((open: boolean) => {
+    setAddMemberOpen(open);
+    if (!open) {
+      setUserSearch("");
+      setSearchResults([]);
+    }
+  }, []);
+
+  // Row callbacks are stable so the memoized GroupListRow only re-renders when
+  // its own group / selection / editing state changes.
+  const onEditOpenChange = useCallback((group: Group, open: boolean) => {
+    setEditGroup(open ? group : null);
+  }, []);
+
+  const onSubmitEdit = useCallback(async (group: Group, name: string, description: string, modules: readonly ModuleKey[]) => {
+    await updateAccountGroup(group.id, { name, description: description || undefined, modules });
+    setEditGroup(null);
+    void fetchGroups();
+  }, [fetchGroups]);
+
+  const onDeleteRow = useCallback((group: Group) => setDeleteConfirm(group), []);
 
   return (
     <div className="space-y-4">
@@ -325,10 +308,7 @@ export function GroupsTab() {
                 <DialogContent>
                   <GroupFormDialog
                     onSubmit={async (name, description, modules) => {
-                      await http("/account/groups", {
-                        method: "POST",
-                        body: JSON.stringify({ name, description: description || undefined, modules }),
-                      });
+                      await createAccountGroup({ name, description: description || undefined, modules });
                       setCreateOpen(false);
                       void fetchGroups();
                     }}
@@ -402,7 +382,7 @@ export function GroupsTab() {
                         <p className="text-xs text-muted-foreground truncate">{t("default.description")}</p>
                         {defaultModules.length > 0 && (
                           <p className="text-xs text-muted-foreground truncate">
-                            {defaultModules.map(k => t(`modules.${k}`)).join(" · ")}
+                            {defaultModules.map(k => t(MODULE_LABEL_KEY[k])).join(" · ")}
                           </p>
                         )}
                       </div>
@@ -428,11 +408,7 @@ export function GroupsTab() {
                             <DefaultModulesDialog
                               initialModules={defaultModules}
                               onSubmit={async (modules) => {
-                                const res = await http<DefaultModulesResponse>("/account/groups/default", {
-                                  method: "PATCH",
-                                  body: JSON.stringify({ modules }),
-                                });
-                                setDefaultModules(res.data.modules);
+                                setDefaultModules(await updateDefaultGroupModules(modules));
                                 setEditDefaultOpen(false);
                               }}
                               title={t("default.editTitle")}
@@ -447,412 +423,41 @@ export function GroupsTab() {
                     {groups.length === 0 && (
                       <p className="px-1 text-sm text-muted-foreground">{t("noResults")}</p>
                     )}
-                    {groups.map((group) => {
-                      const active = selectedId === group.id;
-                      return (
-                        <div
-                          key={group.id}
-                          className={cn(
-                            "group flex items-center gap-3 rounded-md border px-3 py-2.5 cursor-pointer transition-colors",
-                            active
-                              ? "border-primary bg-primary/5"
-                              : "hover:bg-muted/50",
-                          )}
-                          role="button"
-                          tabIndex={0}
-                          aria-pressed={active}
-                          onClick={() => select(group.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              select(group.id);
-                            }
-                          }}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium truncate">{group.name}</span>
-                              <Badge variant="secondary" className="shrink-0">{group.memberCount}</Badge>
-                            </div>
-                            {group.description && (
-                              <p className="text-xs text-muted-foreground truncate">{group.description}</p>
-                            )}
-                            {group.modules.length > 0 && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {group.modules.map(k => t(`modules.${k}`)).join(" · ")}
-                              </p>
-                            )}
-                          </div>
-                          <div
-                            className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[active=true]:opacity-100"
-                            data-active={active}
-                            onClick={e => e.stopPropagation()}
-                          >
-                            <Dialog
-                              open={editGroup?.id === group.id}
-                              onOpenChange={(open) => {
-                                if (!open)
-                                  setEditGroup(null);
-                              }}
-                            >
-                              <DialogTrigger
-                                render={(
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label={t("common.edit")}
-                                    onClick={() => setEditGroup(group)}
-                                  >
-                                    <Pencil className="size-3.5" />
-                                  </Button>
-                                )}
-                              />
-                              <DialogContent>
-                                <GroupFormDialog
-                                  initialName={group.name}
-                                  initialDescription={group.description ?? ""}
-                                  initialModules={group.modules}
-                                  onSubmit={async (name, description, modules) => {
-                                    await http(`/account/groups/${group.id}`, {
-                                      method: "PATCH",
-                                      body: JSON.stringify({ name, description: description || undefined, modules }),
-                                    });
-                                    setEditGroup(null);
-                                    void fetchGroups();
-                                  }}
-                                  title={t("editTitle")}
-                                  description={t("editDescription")}
-                                  submitLabel={t("common.save")}
-                                />
-                              </DialogContent>
-                            </Dialog>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={t("common.delete")}
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => setDeleteConfirm(group)}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {groups.map(group => (
+                      <GroupListRow
+                        key={group.id}
+                        group={group}
+                        active={selectedId === group.id}
+                        editing={editGroup?.id === group.id}
+                        onSelect={select}
+                        onEditOpenChange={onEditOpenChange}
+                        onSubmitEdit={onSubmitEdit}
+                        onDelete={onDeleteRow}
+                      />
+                    ))}
                   </div>
                 )}
           </CardContent>
         </Card>
 
         {/* Member panel */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <CardTitle className="truncate">
-                  {selectionLabel ? t("membersOf", { name: selectionLabel }) : t("membersTitle")}
-                </CardTitle>
-                <CardDescription>
-                  {isAdminsSelected ? t("admins.membersDescription") : isDefaultSelected ? t("default.membersDescription") : t("membersDescription")}
-                </CardDescription>
-              </div>
-              {selectedId !== null && !isDefaultSelected && (
-                <Dialog
-                  open={addMemberOpen}
-                  onOpenChange={(open) => {
-                    setAddMemberOpen(open);
-                    if (!open) {
-                      setUserSearch("");
-                      setSearchResults([]);
-                    }
-                  }}
-                >
-                  <DialogTrigger render={(
-                    <Button>
-                      <UserPlus className="mr-1 size-4" />
-                      {t("createMember")}
-                    </Button>
-                  )}
-                  />
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{t("createMemberTitle")}</DialogTitle>
-                      <DialogDescription>
-                        {isAdminsSelected ? t("admins.addDescription") : t("createMemberDescription")}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3">
-                      <Input
-                        placeholder={t("searchUserPlaceholder")}
-                        value={userSearch}
-                        onChange={e => handleUserSearchChange(e.target.value)}
-                      />
-                      {candidates.length > 0 && (
-                        <div className="max-h-48 overflow-y-auto rounded-md border">
-                          {candidates.map(u => (
-                            <Button
-                              key={u.id}
-                              type="button"
-                              variant="ghost"
-                              className="h-auto w-full justify-between rounded-none px-3 py-2 text-left text-sm font-normal transition-colors hover:bg-muted"
-                              onClick={() => void addMember(u.id)}
-                            >
-                              <div>
-                                <div className="font-medium">{u.name}</div>
-                                <div className="text-xs text-muted-foreground">{u.email}</div>
-                              </div>
-                              <Plus className="size-4 text-muted-foreground" />
-                            </Button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {selectedId === null
-              ? <p className="text-sm text-muted-foreground">{t("selectGroup")}</p>
-              : isDefaultSelected
-                ? <p className="text-sm text-muted-foreground">{t("default.membersDescription")}</p>
-                : membersLoading
-                  ? <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-                  : members.length === 0
-                    ? <p className="text-sm text-muted-foreground">{t("noMembers")}</p>
-                    : (
-                        <div className="space-y-1.5">
-                          {members.map(member => (
-                            <div
-                              key={member.id}
-                              className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-                            >
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium truncate">{member.name}</p>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {member.username}
-                                  {" · "}
-                                  {member.email}
-                                </p>
-                              </div>
-                              {/* The caller cannot demote itself (self-PATCH is
-                                forbidden server-side). */}
-                              {!(isAdminsSelected && member.id === currentUser?.id) && (
-                                <Button
-                                  variant="ghost"
-                                  onClick={() => void removeMember(member.id)}
-                                  className="shrink-0 text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="mr-1 size-3.5" />
-                                  {t("removeMember")}
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-          </CardContent>
-        </Card>
+        <GroupMemberPanel
+          selectedId={selectedId}
+          selectionLabel={selectionLabel}
+          isAdminsSelected={isAdminsSelected}
+          isDefaultSelected={isDefaultSelected}
+          members={members}
+          membersLoading={membersLoading}
+          currentUserId={currentUser?.id}
+          addMemberOpen={addMemberOpen}
+          onAddMemberOpenChange={onAddMemberOpenChange}
+          userSearch={userSearch}
+          onUserSearchChange={handleUserSearchChange}
+          candidates={candidates}
+          onAddMember={userId => void addMember(userId)}
+          onRemoveMember={userId => void removeMember(userId)}
+        />
       </div>
     </div>
-  );
-}
-
-function GroupFormDialog({
-  initialName = "",
-  initialDescription = "",
-  initialModules = [],
-  onSubmit,
-  title,
-  description,
-  submitLabel,
-}: {
-  readonly initialName?: string;
-  readonly initialDescription?: string;
-  readonly initialModules?: readonly ModuleKey[];
-  readonly onSubmit: (name: string, description: string, modules: readonly ModuleKey[]) => Promise<void>;
-  readonly title: string;
-  readonly description: string;
-  readonly submitLabel: string;
-}) {
-  const [name, setName] = useState(initialName);
-  const [desc, setDesc] = useState(initialDescription);
-  const [modules, setModules] = useState<readonly ModuleKey[]>(initialModules);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const { t } = useTranslation("groups");
-
-  const toggleModule = (key: ModuleKey) => {
-    setModules(prev =>
-      prev.includes(key) ? prev.filter(m => m !== key) : [...prev, key],
-    );
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim())
-      return;
-    setSubmitting(true);
-    setFormError(null);
-    try {
-      // Persist modules in registry order so the stored set is deterministic.
-      await onSubmit(name.trim(), desc.trim(), MODULE_KEYS.filter(key => modules.includes(key)));
-    }
-    catch (err) {
-      setFormError(err instanceof Error ? err.message : t("common.error.operationFailed"));
-    }
-    finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form onSubmit={e => void handleSubmit(e)}>
-      <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-      </DialogHeader>
-      <div className="space-y-4 py-4">
-        {formError && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {formError}
-          </div>
-        )}
-        <div className="space-y-2">
-          <Label htmlFor="group-name">{t("field.name")}</Label>
-          <Input
-            id="group-name"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="group-desc">{t("field.description")}</Label>
-          <Textarea
-            id="group-desc"
-            value={desc}
-            onChange={e => setDesc(e.target.value)}
-            rows={3}
-          />
-        </div>
-        {/* Module grants (FEAT-032): the group's members see the union of
-            their groups' modules. */}
-        <div className="space-y-2">
-          <Label>{t("field.modules")}</Label>
-          <ModuleSwitchTable value={modules} onToggle={toggleModule} />
-        </div>
-      </div>
-      <DialogFooter>
-        <DialogClose render={<Button type="button" variant="outline">{t("common.cancel")}</Button>} />
-        <Button type="submit" disabled={submitting || !name.trim()}>
-          {submitLabel}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
-// Shared module on/off table used by the group form and the Default-group
-// modules dialog.
-function ModuleSwitchTable({
-  value,
-  onToggle,
-}: {
-  readonly value: readonly ModuleKey[];
-  readonly onToggle: (key: ModuleKey) => void;
-}) {
-  const { t } = useTranslation("groups");
-  return (
-    <div className="rounded-md border">
-      <Table>
-        <TableBody>
-          {MODULE_KEYS.map(key => (
-            <TableRow key={key}>
-              <TableCell className="align-middle">
-                <Label htmlFor={`group-module-${key}`} className="font-normal">{t(`modules.${key}`)}</Label>
-              </TableCell>
-              <TableCell>
-                <Switch
-                  id={`group-module-${key}`}
-                  checked={value.includes(key)}
-                  onCheckedChange={() => onToggle(key)}
-                />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-// Modules-only editor for the built-in Default group (FEAT-043): no name or
-// description, just the module switches.
-function DefaultModulesDialog({
-  initialModules,
-  onSubmit,
-  title,
-  description,
-  submitLabel,
-}: {
-  readonly initialModules: readonly ModuleKey[];
-  readonly onSubmit: (modules: readonly ModuleKey[]) => Promise<void>;
-  readonly title: string;
-  readonly description: string;
-  readonly submitLabel: string;
-}) {
-  const [modules, setModules] = useState<readonly ModuleKey[]>(initialModules);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const { t } = useTranslation("groups");
-
-  const toggleModule = (key: ModuleKey) => {
-    setModules(prev =>
-      prev.includes(key) ? prev.filter(m => m !== key) : [...prev, key],
-    );
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setFormError(null);
-    try {
-      // Persist modules in registry order so the stored set is deterministic.
-      await onSubmit(MODULE_KEYS.filter(key => modules.includes(key)));
-    }
-    catch (err) {
-      setFormError(err instanceof Error ? err.message : t("common.error.operationFailed"));
-    }
-    finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form onSubmit={e => void handleSubmit(e)}>
-      <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-      </DialogHeader>
-      <div className="space-y-4 py-4">
-        {formError && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {formError}
-          </div>
-        )}
-        <div className="space-y-2">
-          <Label>{t("field.modules")}</Label>
-          <ModuleSwitchTable value={modules} onToggle={toggleModule} />
-        </div>
-      </div>
-      <DialogFooter>
-        <DialogClose render={<Button type="button" variant="outline">{t("common.cancel")}</Button>} />
-        <Button type="submit" disabled={submitting}>
-          {submitLabel}
-        </Button>
-      </DialogFooter>
-    </form>
   );
 }

@@ -2,7 +2,7 @@ import type { AppDatabase } from "@/db";
 import type { PolicyContext } from "@/modules/policy";
 import { eq } from "drizzle-orm";
 import { defineResource } from "@/modules/policy";
-import { check } from "@/modules/policy/zanzibar.engine";
+import { check, listUserResources } from "@/modules/policy/zanzibar.engine";
 import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { contacts } from "./schema";
 
@@ -58,6 +58,68 @@ export async function resolveContactCapabilities(
 
   const viewerResult = await check(db, "contact", contact.id, "viewer", "user", actor.id);
   if (viewerResult.allowed)
+    caps.add("read");
+
+  if (contact.visibility === "public")
+    caps.add("read");
+
+  return caps;
+}
+
+/**
+ * Actor-scoped grant sets for batched capability resolution on list paths.
+ * `ownerIds` / `viewerIds` are the contact ids on which the actor holds an
+ * explicit owner / viewer grant (viewer includes owner-implied ids, mirroring
+ * the namespace's `owner → viewer` computed userset). Both sets are empty for
+ * admins, whose role short-circuits every check.
+ */
+export interface ContactCapabilityContext {
+  readonly isAdmin: boolean;
+  readonly ownerIds: ReadonlySet<string>;
+  readonly viewerIds: ReadonlySet<string>;
+}
+
+/**
+ * Load the actor's contact grant sets in O(1) queries (two `listUserResources`
+ * calls), independent of page size. Feed the result to
+ * `resolveContactCapabilitiesFromContext` to resolve per-row capabilities
+ * without per-row policy-engine checks.
+ */
+export async function loadContactCapabilityContext(
+  db: AppDatabase,
+  actor: ContactAccessActor,
+): Promise<ContactCapabilityContext> {
+  if (actor.role === "admin")
+    return { isAdmin: true, ownerIds: new Set(), viewerIds: new Set() };
+  const [ownerIds, viewerIds] = await Promise.all([
+    listUserResources(db, actor.id, "contact", "owner"),
+    listUserResources(db, actor.id, "contact", "viewer"),
+  ]);
+  return { isAdmin: false, ownerIds: new Set(ownerIds), viewerIds: new Set(viewerIds) };
+}
+
+/**
+ * Batched equivalent of `resolveContactCapabilities`: same grant semantics
+ * (admin / row owner / owner tuple → full set; viewer tuple / public → read),
+ * resolved against a pre-loaded `ContactCapabilityContext` instead of per-row
+ * policy-engine checks.
+ */
+export function resolveContactCapabilitiesFromContext(
+  contact: ContactPermissionRow,
+  actor: ContactAccessActor,
+  ctx: ContactCapabilityContext,
+): Set<ContactCapability> {
+  if (ctx.isAdmin)
+    return new Set(ALL_CAPABILITIES);
+
+  const caps = new Set<ContactCapability>();
+
+  if (contact.ownerId === actor.id || ctx.ownerIds.has(contact.id)) {
+    addAll(caps);
+    return caps;
+  }
+
+  if (ctx.viewerIds.has(contact.id))
     caps.add("read");
 
   if (contact.visibility === "public")

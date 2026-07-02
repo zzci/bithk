@@ -1,6 +1,6 @@
 # REFACTOR-033 - Shared route-helper sweep: okJson, parseTagIds, pagination, auditFromCtx
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-104](../plan/PLAN-104.md)
 - Campaign: `l1-bithk-arch-20260702084717`
 - Owner: L3 (wave 3 — run only after all other route-file surgery merges)
@@ -29,3 +29,8 @@ AUDIT-20260702-architecture.md → D6.
 
 - `apps/api/src/shared/lib/` (openapi/pagination helpers), `modules/audit/` (helper), and the
   mechanical sweep across `apps/api/src/modules/**/ *.routes.ts` + affected services.
+
+## Status Notes
+
+- 2026-07-02: Completed — `okJson`/`okListJson`/`errorJson`, `parseTagIds`, pagination clamping,
+  and `auditFromCtx` deduped into shared helpers; route behavior and response shapes unchanged.

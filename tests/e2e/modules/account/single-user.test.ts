@@ -113,7 +113,9 @@ beforeAll(async () => {
 afterAll(async () => {
   if (api) {
     api.kill();
-    try { await api.exited; }
+    try {
+      await api.exited;
+    }
     catch {}
     api = null;
   }

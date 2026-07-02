@@ -12,6 +12,12 @@ import { MODULE_KEYS } from "@/shared/modules";
 import { mountRoutes, seedUser, sessionCookieFor, testNanoid } from "@/shared/test/route-harness";
 import { searchRoutes } from "./search.routes";
 import "@/modules/account";
+// Side-effect imports: register each searchable module's search source.
+import "@/modules/document";
+import "@/modules/drive";
+import "@/modules/issue";
+import "@/modules/project";
+import "@/modules/ship";
 
 let db: AppDatabase;
 let dbPath: string;

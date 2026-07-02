@@ -854,8 +854,8 @@ async function main(): Promise<void> {
   }
 
   const config = await loadConfigStrict(() => {});
-  await initFileModule(config);
   const db = await createDb(dbPath);
+  await initFileModule(config, db);
 
   try {
     await importUsers(db);

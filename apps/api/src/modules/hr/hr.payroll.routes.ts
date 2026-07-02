@@ -2,7 +2,8 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { ForbiddenError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, jsonRequestBody, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, jsonRequestBody, okJson, okListJson, onValidationFailure, pageMetaSchema, resolver, validator } from "@/shared/lib/openapi";
+import { pageQueryFields } from "@/shared/lib/pagination";
 import { adminRequired } from "@/shared/middleware/auth";
 import {
   createPayrollRecord,
@@ -27,8 +28,7 @@ const listQuerySchema = z.object({
   colleagueId: z.string().max(100).optional(),
   period: periodSchema.optional(),
   status: z.enum(HR_PAYROLL_STATUSES).optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  ...pageQueryFields({ defaultLimit: 20, maxLimit: 100 }),
 });
 
 const createBodySchema = z.object({
@@ -79,24 +79,12 @@ const payrollViewSchema = z.object({
     isVirtual: z.boolean(),
   }),
 });
-const pageMetaSchema = z.object({
-  total: z.number(),
-  page: z.number(),
-  limit: z.number(),
+const payrollPageMetaSchema = pageMetaSchema.extend({
   totalPages: z.number(),
   // Net totals per currency across the entire filtered set (not just the page).
   totals: z.array(z.object({ currency: z.string(), net: z.number() })),
 });
 
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-// `{ success:true, data:[…], meta }` response doc for a paginated list.
-function paginatedJson(itemSchema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
-}
 // Delete returns a bare `{ success:true }` with no data payload.
 const okEmpty = { description: "Success", content: { "application/json": { schema: resolver(z.object({ success: z.literal(true) })) } } };
 
@@ -114,7 +102,7 @@ export function hrPayrollRoutes() {
       tags: ["hr"],
       summary: "List payroll records",
       responses: {
-        200: paginatedJson(payrollViewSchema),
+        200: okListJson(payrollViewSchema, "Success", payrollPageMetaSchema),
         401: { description: "Unauthenticated", ...errorJson },
         404: { description: "Not found", ...errorJson },
       },
