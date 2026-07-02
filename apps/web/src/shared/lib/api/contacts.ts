@@ -1,7 +1,7 @@
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ProjectTag } from "./projects";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
@@ -206,6 +206,9 @@ export function useContactsList(query: ContactsListQuery = {}) {
       const res = await http<ApiListEnvelope<ContactView>>(`/contacts?${queryString}`);
       return { data: res.data, meta: res.meta };
     },
+    // Keep the prior page/filter rows on screen while the next query loads so
+    // the list does not flash empty on page or filter changes.
+    placeholderData: keepPreviousData,
     staleTime: 5_000,
   });
 }

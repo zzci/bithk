@@ -8,6 +8,9 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Spinner } from "@/shared/components/ui/spinner";
+// Justified http-layer import (UI-028): TOTP verification happens mid-login,
+// before a session exists, so the verify POST stays on the raw client;
+// BASE_PATH anchors the post-verify redirect.
 import { BASE_PATH, http, HttpError } from "@/shared/lib/http";
 
 const RE_NON_DIGIT = /\D/g;

@@ -1,3 +1,4 @@
+import type { CronJobLog } from "@/shared/lib/api/cron";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -25,8 +26,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { listCronJobLogs } from "@/shared/lib/api/cron";
 import { formatDateTime } from "@/shared/lib/format";
-import { http } from "@/shared/lib/http";
 import { CRON_STATUS_VARIANT } from "@/shared/lib/status-colors";
 
 // Shape mirrored from `apps/api/src/modules/cron/serialize.ts`. Duplicated
@@ -41,21 +42,7 @@ export interface CronJobTarget {
   readonly taskConfig: Record<string, unknown>;
 }
 
-interface LogRow {
-  readonly id: string;
-  readonly jobId: string;
-  readonly startedAt: string;
-  readonly finishedAt: string | null;
-  readonly durationMs: number | null;
-  readonly status: string;
-  readonly result: string | null;
-  readonly error: string | null;
-}
-
-interface LogsResponse {
-  success: true;
-  data: { logs: LogRow[] };
-}
+type LogRow = CronJobLog;
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error)
@@ -105,13 +92,10 @@ export function LogsDialog({
     let cancelled = false;
     // eslint-disable-next-line react/set-state-in-effect -- show spinner while the logs fetch settles.
     setLoading(true);
-    const params = new URLSearchParams({ limit: "100" });
-    if (filter !== "all")
-      params.set("status", filter);
-    http<LogsResponse>(`/cron/jobs/${target.id}/logs?${params.toString()}`)
-      .then((res) => {
+    listCronJobLogs(target.id, { status: filter !== "all" ? filter : undefined })
+      .then((logs) => {
         if (!cancelled)
-          setLogs(res.data.logs);
+          setLogs(logs);
       })
       .catch((err: unknown) => {
         if (!cancelled)

@@ -1,4 +1,3 @@
-import type { SettingRow } from "@/shared/hooks/use-settings-by-prefix";
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,8 +26,7 @@ import {
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useSettingsByPrefix } from "@/shared/hooks/use-settings-by-prefix";
-import { http } from "@/shared/lib/http";
-import { deleteSetting, saveSetting } from "./-settings-shared";
+import { deleteSetting, listSettingsByPrefix, putSetting } from "@/shared/lib/api/settings";
 
 export function WebhookSettingsTab() {
   const { t } = useTranslation(["common", "settings"]);
@@ -56,9 +54,9 @@ export function WebhookSettingsTab() {
   const handleDelete = async (name: string) => {
     try {
       const newList = webhooks.filter(w => w.name !== name).map(w => w.name);
-      await saveSetting("webhook.endpoints", JSON.stringify(newList));
-      const res = await http<{ success: boolean; data: SettingRow[] }>(`/settings?prefix=${encodeURIComponent(`webhook.${name}.`)}`);
-      for (const row of res.data) {
+      await putSetting("webhook.endpoints", JSON.stringify(newList));
+      const rows = await listSettingsByPrefix(`webhook.${name}.`);
+      for (const row of rows) {
         await deleteSetting(row.key);
       }
       void refetch();
@@ -165,12 +163,12 @@ function AddWebhookDialog({
     try {
       const trimmedName = name.trim();
       const newList = [...existingNames, trimmedName];
-      await saveSetting("webhook.endpoints", JSON.stringify(newList));
-      await saveSetting(`webhook.${trimmedName}.url`, url.trim());
+      await putSetting("webhook.endpoints", JSON.stringify(newList));
+      await putSetting(`webhook.${trimmedName}.url`, url.trim());
       if (secret.trim()) {
-        await saveSetting(`webhook.${trimmedName}.secret`, secret.trim());
+        await putSetting(`webhook.${trimmedName}.secret`, secret.trim());
       }
-      await saveSetting(`webhook.${trimmedName}.events`, events.trim() || "*");
+      await putSetting(`webhook.${trimmedName}.events`, events.trim() || "*");
       setName("");
       setUrl("");
       setSecret("");

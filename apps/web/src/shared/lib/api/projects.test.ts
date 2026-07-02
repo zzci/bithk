@@ -1,21 +1,27 @@
+import type { QueryClient } from "@tanstack/react-query";
+import type { ProjectIssueRow } from "./projects";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { makeWrapper } from "@/test/utils";
+import { makeTestQueryClient, makeWrapper } from "@/test/utils";
 import {
   projectKeys,
+  uploadIssueAttachment,
   useAddProjectMember,
   useCreateProcurementCategory,
   useCreateProject,
   useCreateProjectIssue,
   useCreateProjectRole,
   useDeleteProject,
+  useDeleteProjectIssue,
   useProject,
+  useProjectIssue,
   useProjectIssues,
   useProjectMembers,
   useProjectRoles,
   useProjects,
   useTags,
   useUpdateProject,
+  useUpdateProjectIssue,
 } from "./projects";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -218,5 +224,97 @@ describe("project mutations", () => {
     ));
     const { result } = renderHook(() => useCreateProject(), { wrapper: makeWrapper() });
     await expect(result.current.mutateAsync({ name: "dup" })).rejects.toThrow("duplicate name");
+  });
+});
+
+// ── Single-issue hooks (moved from routes/-project-issue-hooks in UI-028) ──
+
+function issue(overrides: Partial<ProjectIssueRow> = {}): ProjectIssueRow {
+  return {
+    id: "i1",
+    title: "Inspect hull",
+    description: null,
+    status: "todo",
+    priority: "medium",
+    creatorId: "u1",
+    assigneeId: null,
+    assigneeMemberId: null,
+    projectId: "p1",
+    dueDate: null,
+    tags: [],
+    pinned: false,
+    pinnedAt: null,
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z",
+    version: 1,
+    ...overrides,
+  };
+}
+
+const ISSUE_KEY = projectKeys.issue("p1", "i1");
+
+describe("useProjectIssue", () => {
+  it("fetches a single issue and unwraps the envelope", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: issue() }));
+
+    const { result } = renderHook(() => useProjectIssue("p1", "i1"), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.id).toBe("i1");
+    expect(calledUrl()).toContain("/projects/p1/issues/i1");
+  });
+
+  it("stays disabled while ids are missing", () => {
+    const { result } = renderHook(() => useProjectIssue(undefined, undefined), { wrapper: makeWrapper() });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("useUpdateProjectIssue", () => {
+  it("writes the updated issue into the per-issue cache and invalidates the list root", async () => {
+    const updated = issue({ title: "Inspect hull thoroughly" });
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: updated }));
+
+    const queryClient: QueryClient = makeTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useUpdateProjectIssue(), { wrapper: makeWrapper(queryClient) });
+
+    await result.current.mutateAsync({ projectId: "p1", issueId: "i1", title: "Inspect hull thoroughly" });
+
+    expect(queryClient.getQueryData(ISSUE_KEY)).toEqual(updated);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: projectKeys.issuesRoot("p1") });
+  });
+});
+
+describe("useDeleteProjectIssue", () => {
+  it("removes the per-issue cache entry and invalidates the list root", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: null }));
+
+    const queryClient: QueryClient = makeTestQueryClient();
+    queryClient.setQueryData(ISSUE_KEY, issue());
+    const removeSpy = vi.spyOn(queryClient, "removeQueries");
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useDeleteProjectIssue(), { wrapper: makeWrapper(queryClient) });
+
+    await result.current.mutateAsync({ projectId: "p1", issueId: "i1" });
+
+    expect(queryClient.getQueryData(ISSUE_KEY)).toBeUndefined();
+    expect(removeSpy).toHaveBeenCalledWith({ queryKey: ISSUE_KEY });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: projectKeys.issuesRoot("p1") });
+  });
+});
+
+describe("uploadIssueAttachment", () => {
+  it("pOSTs the file as multipart form data to the issue attachments route", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, data: null }));
+
+    await uploadIssueAttachment("p1", "i1", new File(["x"], "log.txt", { type: "text/plain" }));
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("/api/projects/p1/issues/i1/attachments");
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBeInstanceOf(FormData);
+    expect((init?.body as FormData).get("file")).toBeInstanceOf(File);
   });
 });

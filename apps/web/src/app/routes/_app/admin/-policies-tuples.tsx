@@ -1,5 +1,4 @@
-import type { EntitiesResponse, RelationTuple, TuplesResponse } from "./-policies-shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { EntitiesResponse, RelationTuple } from "./-policies-shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -18,35 +17,24 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { useCreateTuple, useDeleteTuple, usePolicyTuples, useUpdateTuple } from "@/shared/lib/api/policy";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDate } from "@/shared/lib/format";
-import { http } from "@/shared/lib/http";
 import { handleSelect, NAMESPACES, RELATIONS, SUBJECT_NAMESPACES, useEntities, useEntityNameMap } from "./-policies-shared";
 
 export function TupleManager() {
   const { t } = useTranslation("policies");
   const [filterNs, setFilterNs] = useState<string>("__all__");
   const [page, setPage] = useState(1);
-  const queryClient = useQueryClient();
   const { data: entities } = useEntities();
   const nameMap = useEntityNameMap(entities);
 
-  const params = new URLSearchParams();
-  if (filterNs !== "__all__")
-    params.set("namespace", filterNs);
-  params.set("page", String(page));
-  params.set("limit", "20");
-
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["tuples", filterNs, page],
-    queryFn: () => http<TuplesResponse>(`/policy/tuples?${params.toString()}`),
+  const { data, isLoading, isError, refetch } = usePolicyTuples({
+    namespace: filterNs === "__all__" ? undefined : filterNs,
+    page,
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => http(`/policy/tuples/${id}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tuples"] }),
-    onError: err => toast.error(errorMessage(err, t("common.error.deleteFailed", { ns: "common" }))),
-  });
+  const deleteMutation = useDeleteTuple();
 
   const tuples = data?.data ?? [];
   const total = data?.meta?.total ?? 0;
@@ -143,7 +131,9 @@ export function TupleManager() {
                             <Button
                               variant="ghost"
                               className="text-destructive hover:text-destructive"
-                              onClick={() => deleteMutation.mutate(tuple.id)}
+                              onClick={() => deleteMutation.mutate(tuple.id, {
+                                onError: err => toast.error(errorMessage(err, t("common.error.deleteFailed", { ns: "common" }))),
+                              })}
                               disabled={deleteMutation.isPending}
                             >
                               {t("common.delete")}
@@ -189,26 +179,24 @@ function CreateTupleDialog({ entities }: { readonly entities: EntitiesResponse |
   const [subjectNs, setSubjectNs] = useState("user");
   const [subjectId, setSubjectId] = useState("");
   const [subjectRelation, setSubjectRelation] = useState("");
-  const queryClient = useQueryClient();
 
-  const mutation = useMutation({
-    mutationFn: () => http("/policy/tuples", {
-      method: "POST",
-      body: JSON.stringify({
-        namespace: ns,
-        objectId,
-        relation,
-        subjectNamespace: subjectNs,
-        subjectId,
-        subjectRelation: subjectRelation || null,
-      }),
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tuples"] });
-      setOpen(false);
-      resetForm();
-    },
-  });
+  const mutation = useCreateTuple();
+
+  function create() {
+    mutation.mutate({
+      namespace: ns,
+      objectId,
+      relation,
+      subjectNamespace: subjectNs,
+      subjectId,
+      subjectRelation: subjectRelation || null,
+    }, {
+      onSuccess: () => {
+        setOpen(false);
+        resetForm();
+      },
+    });
+  }
 
   function resetForm() {
     setObjectId("");
@@ -332,7 +320,7 @@ function CreateTupleDialog({ entities }: { readonly entities: EntitiesResponse |
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>{t("common.cancel")}</Button>
           <Button
-            onClick={() => mutation.mutate()}
+            onClick={create}
             disabled={!objectId || !relation || !subjectId || mutation.isPending}
           >
             {mutation.isPending ? t("creating") : t("create")}
@@ -347,20 +335,16 @@ function EditTupleDialog({ tuple }: { readonly tuple: RelationTuple }) {
   const { t } = useTranslation("policies");
   const [open, setOpen] = useState(false);
   const [relation, setRelation] = useState(tuple.relation);
-  const queryClient = useQueryClient();
 
   const availableRelations = RELATIONS[tuple.namespace] ?? [];
 
-  const mutation = useMutation({
-    mutationFn: () => http(`/policy/tuples/${tuple.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ relation }),
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tuples"] });
-      setOpen(false);
-    },
-  });
+  const mutation = useUpdateTuple();
+
+  function save() {
+    mutation.mutate({ id: tuple.id, relation }, {
+      onSuccess: () => setOpen(false),
+    });
+  }
 
   return (
     <Dialog
@@ -394,7 +378,7 @@ function EditTupleDialog({ tuple }: { readonly tuple: RelationTuple }) {
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>{t("common.cancel")}</Button>
           <Button
-            onClick={() => mutation.mutate()}
+            onClick={save}
             disabled={relation === tuple.relation || mutation.isPending}
           >
             {mutation.isPending ? t("common.saving") : t("common.save")}

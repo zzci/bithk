@@ -13,10 +13,44 @@ interface SettingPayload {
   readonly value: string;
 }
 
+/** A settings row as returned by the prefix-list endpoint. */
+export interface SettingRow {
+  readonly key: string;
+  readonly value: string;
+  readonly updatedBy: string | null;
+  readonly updatedAt: string;
+}
+
 export const settingKeys = {
   all: ["settings"] as const,
   detail: (key: string) => ["settings", key] as const,
+  // Prefix/list keys nest under the shared root so saves/deletes that
+  // invalidate the root also drop the list caches.
+  prefix: (prefix: string) => ["settings", "prefix", prefix] as const,
 };
+
+// ── Plain request functions ──
+//
+// Used by the imperative admin settings tabs (SMTP toggle, webhook CRUD)
+// that sequence several writes and refetch explicitly.
+
+export async function putSetting(key: string, value: string): Promise<void> {
+  await http(`/settings/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: JSON.stringify({ value }),
+  });
+}
+
+export async function deleteSetting(key: string): Promise<void> {
+  await http(`/settings/${encodeURIComponent(key)}`, { method: "DELETE" });
+}
+
+export async function listSettingsByPrefix(prefix: string): Promise<SettingRow[]> {
+  const res = await http<{ success: boolean; data: SettingRow[] }>(
+    `/settings?prefix=${encodeURIComponent(prefix)}`,
+  );
+  return res.data;
+}
 
 /**
  * Read a single setting. Resolves to the stored string, or `null` when the key

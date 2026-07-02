@@ -8,7 +8,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { useBranding } from "@/shared/hooks/use-branding";
 import { useSettingsByPrefix } from "@/shared/hooks/use-settings-by-prefix";
-import { saveSetting } from "./-settings-shared";
+import { putSetting } from "@/shared/lib/api/settings";
 
 export function SmtpSettingsTab() {
   const { t } = useTranslation(["common", "settings"]);
@@ -27,7 +27,7 @@ export function SmtpSettingsTab() {
 
   const handleToggle = async (checked: boolean) => {
     try {
-      await saveSetting("smtp.enabled", String(checked));
+      await putSetting("smtp.enabled", String(checked));
       void refetch();
     }
     catch (err) {

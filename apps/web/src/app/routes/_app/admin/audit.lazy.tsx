@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { AuditEvent } from "@/shared/lib/api/audit";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { Download, Eye } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ListFilter } from "@/shared/components/list-filter";
 import { PageHeader } from "@/shared/components/page-header";
@@ -25,35 +26,14 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { useDebounce } from "@/shared/hooks/use-debounce";
+import { useAuditEvents } from "@/shared/lib/api/audit";
 import { formatDateTime } from "@/shared/lib/format";
-import { http } from "@/shared/lib/http";
 
 const RE_DOUBLE_QUOTE = /"/g;
 
 export const Route = createLazyFileRoute("/_app/admin/audit")({
   component: AuditPage,
 });
-
-interface AuditEvent {
-  readonly id: string;
-  readonly actorId: string;
-  readonly actorName: string;
-  readonly action: string;
-  readonly resourceType: string;
-  readonly resourceId: string;
-  readonly resourceName: string;
-  readonly detail: string | null;
-  readonly ip: string;
-  readonly userAgent: string;
-  readonly result: string;
-  readonly createdAt: string;
-}
-
-interface AuditListResponse {
-  success: boolean;
-  data: AuditEvent[];
-  meta: { total: number; page: number; limit: number };
-}
 
 const ACTION_PREFIXES = [
   "__all__",
@@ -72,10 +52,6 @@ const ACTION_PREFIXES = [
 
 function AuditPage() {
   const { t } = useTranslation("audit");
-  const [events, setEvents] = useState<AuditEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const limit = 50;
 
@@ -86,35 +62,21 @@ function AuditPage() {
 
   const [detailEvent, setDetailEvent] = useState<AuditEvent | null>(null);
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("limit", String(limit));
-      if (debouncedActor)
-        params.set("actor_id", debouncedActor);
-      if (actionFilter !== "__all__")
-        params.set("action", actionFilter);
-      if (resultFilter !== "__all__")
-        params.set("result", resultFilter);
-
-      const res = await http<AuditListResponse>(`/audit?${params.toString()}`);
-      setEvents(res.data);
-      setTotal(res.meta.total);
-    }
-    catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error.loadFailed"));
-    }
-    finally {
-      setLoading(false);
-    }
-  }, [page, debouncedActor, actionFilter, resultFilter, t]);
-
-  useEffect(() => {
-    void fetchEvents();
-  }, [fetchEvents]);
+  const eventsQuery = useAuditEvents({
+    actorId: debouncedActor || undefined,
+    action: actionFilter !== "__all__" ? actionFilter : undefined,
+    result: resultFilter !== "__all__" ? resultFilter : undefined,
+    page,
+    limit,
+  });
+  const events = eventsQuery.data?.data ?? [];
+  const total = eventsQuery.data?.meta.total ?? 0;
+  // `isPending` is true only while the FIRST page loads; page/filter changes
+  // keep the previous rows on screen (placeholderData: keepPreviousData).
+  const loading = eventsQuery.isPending;
+  const error = eventsQuery.error
+    ? (eventsQuery.error instanceof Error ? eventsQuery.error.message : t("common.error.loadFailed"))
+    : null;
 
   const totalPages = Math.ceil(total / limit);
 

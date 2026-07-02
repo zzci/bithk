@@ -8,6 +8,10 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { useBranding } from "@/shared/hooks/use-branding";
+// Justified http-layer import (UI-028): the login page runs BEFORE a session
+// exists, so its one-shot auth-mode probe and local-login POST stay on the
+// raw client instead of the session-scoped api layer; BASE_PATH builds the
+// OAuth redirect URL.
 import { BASE_PATH, http, HttpError } from "@/shared/lib/http";
 import { useAuthStore } from "@/shared/stores/auth";
 

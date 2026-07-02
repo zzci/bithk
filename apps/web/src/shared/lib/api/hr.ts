@@ -8,7 +8,7 @@
 
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ApiEnvelope } from "./types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
@@ -140,6 +140,9 @@ export function useHrColleagues(query: HrColleaguesQuery = {}) {
       );
       return { data: res.data, meta: res.meta };
     },
+    // Keep the prior page/filter rows on screen while the next query loads so
+    // the list does not flash empty on page or filter changes.
+    placeholderData: keepPreviousData,
     retry: false,
     staleTime: 5_000,
   });
