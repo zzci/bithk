@@ -1,6 +1,6 @@
 # REFACTOR-032 - `mountItemAttachmentRoutes` factory (dedupe 4x attachment quartet)
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-104](../plan/PLAN-104.md)
 - Campaign: `l1-bithk-arch-20260702084717`
 - Owner: L3
@@ -29,3 +29,9 @@ drifts from issue's unified gate. Mirror the existing `mountItemCommentRoutes` f
 
 - New `apps/api/src/modules/item/attachment.routes.ts` (or similar)
 - `issue.routes.ts`, `procurement.routes.ts`, `document.routes.ts`, `hr.routes.ts`
+
+## Status Notes
+
+- 2026-07-02: Completed — shared attachment route factory mounts the upload/attach-from-drive/
+  list/delete quartet in all four host modules; procurement delete auth unified with the
+  issue-style gate.

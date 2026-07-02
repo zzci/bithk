@@ -1,6 +1,6 @@
 # PLAN-104 - Architecture remediation (2026-07-02 architecture assessment)
 
-- Status: In Progress
+- Status: Completed
 - Tasks: [REFACTOR-030](../task/REFACTOR-030.md), [REFACTOR-031](../task/REFACTOR-031.md),
   [REFACTOR-032](../task/REFACTOR-032.md), [REFACTOR-033](../task/REFACTOR-033.md),
   [REFACTOR-034](../task/REFACTOR-034.md), [REFACTOR-035](../task/REFACTOR-035.md),
@@ -52,3 +52,6 @@ L2 runs in worktree `bkd/{L2_ID}`; L1 merges to local main after gates are green
 
 - 2026-07-02: Plan created from AUDIT-20260702-architecture. Dispatch via BKD campaign
   `l1-bithk-arch-20260702084717`; this session acts as interactive L1.
+- 2026-07-02: Completed — all 13 tasks (REFACTOR-030..035, FIX-054..057, UI-028/029, TEST-001)
+  implemented and merged into the campaign integration branch across three waves; gates green
+  after every merge.

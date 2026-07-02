@@ -1,6 +1,6 @@
 # REFACTOR-030 - Route-table reuses real route factories (kill the drifted mount copy)
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-104](../plan/PLAN-104.md)
 - Campaign: `l1-bithk-arch-20260702084717`
 - Owner: L3
@@ -29,3 +29,9 @@ occurrence of this bug class (FIX-045). See AUDIT-20260702-architecture.md → D
 - `apps/api/scripts/lib/route-table.ts`, `apps/api/scripts/gen-api-docs.ts`, `gen-api-spec.ts`
 - `docs/reference/api-routes.md`, `skills/bithk/references/api-spec.json` (regenerated)
 - `docs/develop/module/playbook.md`
+
+## Status Notes
+
+- 2026-07-02: Completed — route-table now composes the real `publicRoutes()`/`protectedRoutes()`
+  factories; regenerated api-routes.md/api-spec.json include the storage admin routes; playbook
+  lists all wiring registries.
