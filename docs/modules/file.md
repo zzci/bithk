@@ -1,33 +1,47 @@
 # File Module
 
 Centralised blob storage for the whole app. Owns the bytes; every other
-module references files by id. Built for **pluggable storage backends**
-and **content-addressable deduplication**.
+module references files by id. Built for **multi-driver storage** and
+**content-addressable deduplication**.
 
-The module ships schema, the local storage driver, content dedupe,
-refcount, async + sync GC, the presigned-download protocol, file routes,
-and the permission-hook contract. The `item` module registers the
-`item_attachment` hook so item attachments resolve permissions through
-the `item` policy namespace. Disk quota is enforced via a single
-`SELECT SUM(size) FROM files`.
+Storage is **multi-driver** (FEAT-047): `db`, `local`, and `s3` coexist,
+and each blob is served / deleted via its OWN `storage_driver`. In-app
+**created** files (text / markdown / spreadsheet) and their versions are
+stored in the **database** (the `db` driver); **uploaded** files go to the
+DB-configured **upload driver** (`s3` or `local`). Storage configuration
+lives in the DB (settings), managed from the admin **Storage module** — not
+env.
+
+The module ships schema, the local / s3 / db storage drivers, content
+dedupe, refcount, async + sync GC, the presigned-download protocol, file
+routes, the admin Storage routes, and the permission-hook contract. The
+`item` module registers the `item_attachment` hook so item attachments
+resolve permissions through the `item` policy namespace. Disk quota is
+enforced via a single `SELECT SUM(size) FROM files`.
 
 ## File layout
 
 ```text
 apps/api/src/modules/file/
-  schema.ts                  # files + file_references
+  schema.ts                  # files + file_references + file_blob
   file.service.ts            # upload / addReference / release* / read helpers
   file.routes.ts             # GET /api/files/:id/metadata + /content
+  storage.routes.ts          # admin Storage module (config / files / sync-to-s3)
+  storage.service.ts         # admin file list + sync-to-s3 move
+  storage-config.ts          # DB storage config read + applyStorageConfig
   file.backup.ts             # backup contribution
   gc.ts                      # async sweep over ref_count=0 candidates
   permission.ts              # consumer permission hook registry
   index.ts                   # boot wiring (initFileModule) + re-exports
   storage/
     types.ts                 # FileStorageDriver + PresignOptions
-    registry.ts              # registerDriver / setActiveDriver / getActiveDriver
+    registry.ts              # registerDriver / active + upload driver getters
     key.ts                   # sha→storage_key derivation
     local.ts                 # built-in `local` driver
+    s3.ts                    # `s3` driver (client from DB config)
+    db.ts                    # `db` driver (bytes in file_blob)
   file.test.ts
+  storage.test.ts / storage.routes.test.ts
 ```
 
 ## Database
@@ -40,8 +54,8 @@ apps/api/src/modules/file/
 | `sha256`         | text    | Lowercase hex (64 chars). Content key.                                                                              |
 | `size`           | integer | Bytes.                                                                                                              |
 | `mimetype`       | text    | Declared + magic-byte verified at upload.                                                                            |
-| `storage_driver` | text    | `'local'` (built-in). Downstream projects register `s3` / `azure-blob` / etc.                                       |
-| `storage_key`    | text    | Driver-internal address. Local driver maps to `<root>/<ab>/<cd>/<sha>`.                                              |
+| `storage_driver` | text    | `'db'` (created files), `'local'` / `'s3'` (uploads). Blobs are served/deleted via this driver — they legitimately span drivers. |
+| `storage_key`    | text    | Driver-internal address. Local maps to `<root>/<ab>/<cd>/<sha>`; `db` maps to a `file_blob.storage_key`.             |
 | `ref_count`      | integer | Materialised count of `file_references` rows. Async GC sweeps `ref_count = 0`.                                       |
 | `uploaded_by`    | text FK | First uploader; informational. `users.id ON DELETE CASCADE`.                                                         |
 
@@ -74,6 +88,17 @@ just a row here with `owner_type = 'item_attachment'`, `owner_id =
 Indexes: `UNIQUE(owner_type, owner_id, file_id)` — same blob can only
 appear once on any given owner; `(owner_type, owner_id)`, `(file_id)`.
 
+### `file_blob`
+
+Backs the `db` storage driver (FEAT-047). Created files' bytes live here
+rather than on disk / S3.
+
+| Column        | Type    | Notes                                                       |
+| ------------- | ------- | ----------------------------------------------------------- |
+| `storage_key` | text PK | Content-addressed key (`ab/cd/<sha256>`), shared with other drivers. |
+| `content`     | blob    | Raw bytes (a `Buffer`/`Uint8Array` at the driver boundary). |
+| `created_at`  | text    | ISO.                                                        |
+
 ## Storage drivers
 
 A driver implements the `FileStorageDriver` interface in
@@ -87,23 +112,40 @@ interface FileStorageDriver {
   delete(key): Promise<void>;
   exists(key): Promise<boolean>;
   presignDownload?(key, opts: PresignOptions): Promise<string>;
+  stat?(key): Promise<{ size } | null>;
 }
 ```
 
-Drivers register themselves via `registerDriver(...)` and the active one
-is selected at boot from `Config.FILE_STORAGE_DRIVER`. Downstream
-projects add an S3 / Azure / GCS driver in their own code — no fork of
-`apps/api/src/modules/file/` required.
+Drivers register themselves via `registerDriver(...)`. Storage is
+**multi-driver**: three drivers (`db`, `local`, `s3`) are always
+registered and a file is served / deleted through the driver named in its
+own `storage_driver` (`getDriver(file.storageDriver)`). The **upload
+driver** — where new uploads land — is set from the DB config
+(`storage.uploadDriver`, default `local`) via `getActiveUploadDriver()`.
+There is no longer any `FILE_BACKEND_MISMATCH`: blobs legitimately span
+drivers.
 
-The built-in `local` driver:
+- **`db`** — bytes in `file_blob`. Used for in-app created files (text /
+  markdown / spreadsheet) and their versions. Always server-served (no
+  presign). `put` upserts, so a re-save of the same key replaces the bytes.
+- **`local`** — `<root>/<ab>/<cd>/<sha>`; two-phase writes (`tmp → rename`);
+  0o700 perms; no presign (streams through the API).
+- **`s3`** — Bun's native `S3Client`; client built from the DB config
+  (`configureS3Driver`), not env. Presigned inline previews + presigned
+  direct upload.
 
-- `storage_key` shape: `<ab>/<cd>/<sha>` (two-level fanout keeps any one
-  directory below ~4 000 entries even at 100 M uploads).
-- Two-phase writes (`tmp → rename`) so a crash between write and DB
-  insert leaves a sweepable `.tmp` rather than an orphan at the final
-  name.
-- 0o700 directory perms (blob tree is readable only by the runtime user).
-- No `presignDownload` — downloads always stream through the API.
+Downstream projects can still register additional drivers in their own
+code — no fork of `apps/api/src/modules/file/` required.
+
+### Created-vs-uploaded routing
+
+- `createDriveTextFile` / `createDriveSpreadsheet` pass `driverName: "db"`
+  to `uploadAndReference`, so their bytes land in `file_blob`.
+- Versions (`uploadEntryVersion` / `overwriteEntryVersion`) inherit the
+  entry's current file's `storage_driver` — db files keep db versions,
+  uploaded files keep versions on their driver.
+- Binary uploads (`uploadDriveFile`, presigned direct upload) use the
+  configured upload driver.
 
 ## Service surface
 
@@ -201,9 +243,12 @@ doesn't support presign and always streams.
 
 ## Configuration
 
+Storage config is **DB-backed** (FEAT-047), managed from the admin Storage
+module — env no longer selects the driver or carries S3 credentials. The
+following env vars still apply (they are not storage-selection):
+
 | Env var                       | Default                | Notes                                                                            |
 | ----------------------------- | ---------------------- | -------------------------------------------------------------------------------- |
-| `FILE_STORAGE_DRIVER`         | `local`                | Active driver name. Built-in: `local`. Others must `registerDriver` at boot.     |
 | `FILE_STORAGE_LOCAL_ROOT`     | `data/uploads/files`   | Local-driver root. Relative paths resolve under `DATA_DIR` when set, otherwise under lode's data fallback or the project root. |
 | `FILE_GC_MODE`                | `async`                | `async` (sweeper) or `sync` (foreground delete).                                  |
 | `FILE_GC_INTERVAL_SECONDS`    | `3600`                 | Sweeper interval. `0` disables the periodic sweep (manual only).                  |
@@ -213,29 +258,46 @@ doesn't support presign and always streams.
 | `MAX_ATTACHMENTS_PER_RESOURCE`| `20`                   | Per-owner reference cap.                                                          |
 | `UPLOADS_TOTAL_BYTES`         | `0` (unlimited)        | Global disk quota — `SUM(files.size)`.                                            |
 
-### S3 driver (`FILE_STORAGE_DRIVER=s3`)
+> `FILE_STORAGE_DRIVER` / `FILE_S3_*` remain in the config schema for
+> compatibility but are **no longer consulted** for storage. The upload
+> driver and S3 params come from the settings table.
 
-Default target is **Cloudflare R2**, backed by Bun's native `S3Client` (no AWS
-SDK). Required values are validated at boot; the driver fails fast if they are
-missing. Content-addressed keys (`ab/cd/<sha256>`) are shared with the local
-driver, optionally under `FILE_S3_PREFIX`. Inline image/PDF previews 302 to a
-presigned GET (the object is stored with its MIME type so the response Content-Type
-is correct); attachment downloads stream through the API because Bun's presign
-cannot sign a `Content-Disposition`. The R2 bucket must allow the app origin in
-its **CORS** policy (`GET`/`PUT`/`HEAD`, expose `ETag`) for fetch-based previews
-and direct upload.
+### DB storage config (settings keys)
 
-| Env var                       | Default                | Notes                                                                            |
-| ----------------------------- | ---------------------- | -------------------------------------------------------------------------------- |
-| `FILE_S3_BUCKET`              | —                      | Bucket name. Required when the driver is `s3`.                                    |
-| `FILE_S3_REGION`             | `auto`                 | R2 uses `auto`; set a real region for AWS S3.                                     |
-| `FILE_S3_ENDPOINT`           | —                      | Account endpoint (R2: `https://<account>.r2.cloudflarestorage.com`). Omit for AWS. |
-| `FILE_S3_ACCESS_KEY_ID`      | —                      | Access key. Required; secret — never logged.                                     |
-| `FILE_S3_SECRET_ACCESS_KEY`  | —                      | Secret key. Required; secret — never logged.                                     |
-| `FILE_S3_PREFIX`             | (empty)                | Optional key prefix (a folder within the bucket).                                |
-| `FILE_S3_ORPHAN_TTL_HOURS`   | `24`                   | Grace before the orphan sweep deletes an unconfirmed direct-upload object.        |
+Read by `readStorageConfig(db)`; applied to the drivers at boot and after
+every admin change by `applyStorageConfig(db)` (no restart). The secret ends
+in `.secret`, so the settings masking hides it on read — it is write-only.
 
-### Presigned direct upload (`FILE_STORAGE_DRIVER=s3`)
+| Setting key                | Notes                                                              |
+| -------------------------- | ------------------------------------------------------------------ |
+| `storage.uploadDriver`     | `s3` \| `local`. Default `local` when unset.                       |
+| `storage.s3.bucket`        | Required when `uploadDriver=s3`.                                    |
+| `storage.s3.region`        | R2 uses `auto`; set a real region for AWS S3.                      |
+| `storage.s3.endpoint`      | Account endpoint (R2: `https://<account>.r2.cloudflarestorage.com`). |
+| `storage.s3.accessKeyId`   | Required when `uploadDriver=s3`.                                    |
+| `storage.s3.secret`        | Sensitive — masked on read, write-only.                            |
+| `storage.s3.prefix`        | Optional key prefix (a folder within the bucket).                 |
+
+The `s3` driver targets **Cloudflare R2** by default, backed by Bun's native
+`S3Client` (no AWS SDK). Inline image/PDF previews 302 to a presigned GET;
+attachment downloads stream through the API (Bun's presign cannot sign a
+`Content-Disposition`). The R2 bucket must allow the app origin in its **CORS**
+policy (`GET`/`PUT`/`HEAD`, expose `ETag`) for fetch-based previews and direct
+upload. `FILE_S3_ORPHAN_TTL_HOURS` (env, default 24h) is the grace before the
+orphan sweep deletes an unconfirmed direct-upload object.
+
+### Admin Storage module
+
+Admin-only routes (`adminRequired`):
+
+| Method | Path                          | Description                                                        |
+| ------ | ----------------------------- | ----------------------------------------------------------------- |
+| GET    | `/api/admin/storage/config`   | Current config; the S3 secret is never returned (`secretConfigured` boolean instead). |
+| PUT    | `/api/admin/storage/config`   | Update; an omitted/empty secret preserves the stored one; `uploadDriver=s3` requires bucket + accessKeyId + (existing-or-new) secret. Applies at runtime. |
+| GET    | `/api/admin/storage/files`    | Paginated `files` joined to their owning drive entry (`meta {total,page,limit}`). |
+| POST   | `/api/admin/storage/sync-to-s3` | Moves every non-spreadsheet file not on s3 to s3 (upload → repoint → delete old blob); spreadsheets stay in `db`. Returns `{ moved, skipped, failed }`. |
+
+### Presigned direct upload (`uploadDriver=s3`)
 
 When the active driver supports it, the drive uploads bytes straight to S3
 (`POST /drive/files/presign-upload` → browser `PUT` to the presigned URL →
@@ -278,7 +340,7 @@ no longer refetches full-resolution images and S3 is hit at most once per
 
 ## What `mod-file` deliberately does NOT do (v1)
 
-- **Pluggable backends beyond `local`** — the interface is stable; S3 /
+- **Backends beyond `db` / `local` / `s3`** — the interface is stable;
   Azure / GCS land as separate driver files in downstream projects.
 - **Image transforms / thumbnails / EXIF stripping**.
 - **Virus / malware scanning**. A future `onBeforeStore` hook can plug ClamAV.

@@ -29,6 +29,25 @@ function assertFileEntry(entry: DriveEntryRow): void {
 }
 
 /**
+ * The storage driver the entry's CURRENT file lives on. A new version inherits
+ * it (FEAT-047), so versions of a db-backed file stay in the DB and versions of
+ * an uploaded file stay on its driver. Returns `undefined` when the reference /
+ * file cannot be resolved, letting the caller fall back to the default upload
+ * driver.
+ */
+async function currentEntryDriver(db: AppDatabase, entry: DriveEntryRow): Promise<string | undefined> {
+  if (!entry.fileReferenceId)
+    return undefined;
+  const row = await db
+    .select({ storageDriver: files.storageDriver })
+    .from(fileReferences)
+    .innerJoin(files, eq(fileReferences.fileId, files.id))
+    .where(eq(fileReferences.id, entry.fileReferenceId))
+    .get();
+  return row?.storageDriver;
+}
+
+/**
  * Versions for a file entry, newest first (ULID id desc), each flagged with
  * `isCurrent`. `versionNo` is a computed ascending display label (oldest = 1),
  * derived from position — it is not stored.
@@ -85,11 +104,13 @@ export async function uploadEntryVersion(
   input: UploadEntryVersionInput,
 ): Promise<readonly DriveVersionView[]> {
   assertFileEntry(input.entry);
+  const driverName = await currentEntryDriver(db, input.entry);
   const uploaded = await uploadAndReference(db, config, {
     file: input.file,
     ownerType: "drive_entry",
     ownerId: input.entry.id,
     uploadedBy: input.uploadedBy,
+    driverName,
   });
 
   const pinned = input.entry.displayVersionId != null;
@@ -151,11 +172,13 @@ export async function overwriteEntryVersion(
     throw new AppError("Version not found", 404, "NOT_FOUND");
 
   const previousRefId = version.fileReferenceId;
+  const driverName = await currentEntryDriver(db, input.entry);
   const uploaded = await uploadAndReference(db, config, {
     file: input.file,
     ownerType: "drive_entry",
     ownerId: input.entry.id,
     uploadedBy: input.uploadedBy,
+    driverName,
   });
 
   // Advance the entry's display pointer only when it was showing exactly this

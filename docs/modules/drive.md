@@ -296,8 +296,11 @@ item-attachment proxy is the intended first caller).
 
 - **Blob-data migration from backup** — the drive backup carries table
   rows only; blob bytes restore via the `files` contribution.
-- **S3 / remote storage driver** — drive uses whatever driver the `file`
-  module has active; no drive-specific driver.
+- **Storage driver internals** — drive routes in-app *created* files
+  (text / markdown / spreadsheet) and their versions to the `file` module's
+  `db` driver (bytes in `file_blob`), and *uploaded* files to the
+  DB-configured upload driver (`s3` / `local`); there is no drive-specific
+  driver. See [file.md](./file.md).
 - **Client-side encryption** of drive files.
 - **Rich PDF annotation / preview** beyond raw download + inline render.
 - **Granular ACLs beyond the four roles** (owner + team admin / editor /

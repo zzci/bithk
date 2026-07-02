@@ -84,7 +84,7 @@ export async function wireRuntime(
   logger: Logger,
 ): Promise<{ db: AppDatabase; close: () => Promise<void> }> {
   const db = await createDb(config.DB_PATH); // createDb migrates
-  await initFileModule(config); // selects storage driver (needed even with 0 blobs)
+  await initFileModule(config, db); // wires storage drivers from DB config (needed even with 0 blobs)
   logger.debug("wireRuntime: offline runtime initialized (no workers, no server)");
   return { db, close: () => Promise.resolve(db.close()) };
 }
@@ -139,7 +139,7 @@ export async function buildFullApp({ config, db, logger }: AppDeps) {
   await seedSettingsFromEnv(db, config);
   startAuditRetentionSweep(db, config, logger);
   startBackupStagingSweep(config, logger);
-  await initFileModule(config);
+  await initFileModule(config, db);
   startFileGcSweep(db, config, logger);
   // Actions catalog is always populated so admins can plan jobs even
   // with the scheduler off. `startCron` allocates Baker and starts

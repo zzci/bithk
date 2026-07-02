@@ -12,7 +12,7 @@ import { users } from "@/modules/account/users/schema";
 import { runS3OrphanSweepOnce } from "@/modules/file/s3-sweep";
 import { files } from "@/modules/file/schema";
 import { deriveStorageKey } from "@/modules/file/storage/key";
-import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
+import { __resetDriverRegistryForTests, registerDriver, setActiveDriver, setActiveUploadDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { confirmDriveUpload, presignDriveUpload } from "./drive.service";
 import { driveEntries } from "./schema";
@@ -92,6 +92,8 @@ beforeEach(async () => {
   __resetDriverRegistryForTests();
   registerDriver(fakeS3);
   setActiveDriver("s3");
+  // Direct-upload paths (presign/confirm) target the active UPLOAD driver.
+  setActiveUploadDriver("s3");
   loadNamespaces();
 });
 

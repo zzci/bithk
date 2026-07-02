@@ -78,9 +78,24 @@ export const localDriver: FileStorageDriver = {
   },
 };
 
+/**
+ * Ensure the local blob root exists on disk. Called by `applyStorageConfig`
+ * after `localDriver.setup(config)` resolved the root from
+ * `FILE_STORAGE_LOCAL_ROOT`. A no-op when the root is already present; throws
+ * only if the root was never resolved (a boot-order bug).
+ */
+export function ensureLocalDriverRoot(): void {
+  if (!localRoot) {
+    throw new Error("Local driver root not resolved. Ensure localDriver.setup(config) ran before applyStorageConfig.");
+  }
+  if (!existsSync(localRoot)) {
+    mkdirSync(localRoot, { recursive: true, mode: 0o700 });
+  }
+}
+
 function resolveKey(key: string): string {
   if (!localRoot) {
-    throw new Error("Local driver not initialised. Ensure FILE_STORAGE_DRIVER=local and initFileModule(config) ran at boot.");
+    throw new Error("Local driver not initialised. Ensure initFileModule(config, db) ran at boot (it resolves FILE_STORAGE_LOCAL_ROOT).");
   }
   // Defence in depth: refuse absolute keys and `..` traversal. Keys are
   // produced internally from a sha256 prefix so this should never fire,

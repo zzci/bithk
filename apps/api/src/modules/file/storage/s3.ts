@@ -11,19 +11,60 @@ export function s3ObjectKey(key: string): string {
   return keyPrefix ? `${keyPrefix}/${key}` : key;
 }
 
+export interface S3DriverParams {
+  readonly bucket: string;
+  readonly accessKeyId: string;
+  readonly secretAccessKey: string;
+  readonly region?: string | undefined;
+  readonly endpoint?: string | undefined;
+  readonly prefix?: string | undefined;
+}
+
+/**
+ * (Re)build the S3 client from explicit params (FEAT-047: storage config now
+ * lives in the DB, not env). Called by `applyStorageConfig` at boot and after
+ * an admin config change so a new bucket/credentials take effect without a
+ * restart. Fails fast when the required values are missing, mirroring the
+ * former env `setup`.
+ */
+export function configureS3Driver(params: S3DriverParams): void {
+  if (!params.bucket || !params.accessKeyId || !params.secretAccessKey) {
+    const missing = ([
+      ["bucket", params.bucket],
+      ["accessKeyId", params.accessKeyId],
+      ["secret", params.secretAccessKey],
+    ] as const).filter(([, v]) => !v).map(([k]) => k);
+    throw new Error(`S3 storage requires ${missing.join(", ")}.`);
+  }
+  client = new S3Client({
+    bucket: params.bucket,
+    accessKeyId: params.accessKeyId,
+    secretAccessKey: params.secretAccessKey,
+    // R2 convention; AWS callers set a real region.
+    region: params.region ?? "auto",
+    ...params.endpoint ? { endpoint: params.endpoint } : {},
+  });
+  keyPrefix = (params.prefix ?? "").replace(/^\/+|\/+$/g, "");
+}
+
+/** True once {@link configureS3Driver} has built the client. */
+export function isS3Configured(): boolean {
+  return client !== undefined;
+}
+
 function requireClient(): S3ClientType {
   if (!client) {
-    throw new Error("S3 driver not initialised. Ensure FILE_STORAGE_DRIVER=s3 and initFileModule(config) ran at boot.");
+    throw new Error("S3 driver not initialised. Configure S3 storage in the admin Storage module (settings), then applyStorageConfig(db) builds the client.");
   }
   return client;
 }
 
 /**
  * S3-compatible storage driver (default target: Cloudflare R2). Backed by
- * Bun's native S3 client — no AWS SDK. Activated by `FILE_STORAGE_DRIVER=s3`;
- * `setup` builds the client from `FILE_S3_*` config and fails fast when the
- * required values are missing. Content-addressed keys (`ab/cd/<sha256>`) are
- * shared with the local driver, optionally under `FILE_S3_PREFIX`.
+ * Bun's native S3 client — no AWS SDK. Its client is built by
+ * {@link configureS3Driver} from the DB storage settings (FEAT-047), not env.
+ * Content-addressed keys (`ab/cd/<sha256>`) are shared with the local driver,
+ * optionally under the configured prefix.
  *
  * Downloads use `presignDownload` (a signed GET); the object is stored with its
  * MIME type via `put(..., { contentType })` so the presigned response carries
@@ -33,26 +74,6 @@ function requireClient(): S3ClientType {
  */
 export const s3Driver: FileStorageDriver = {
   name: "s3",
-
-  setup(config) {
-    if (!config.FILE_S3_BUCKET || !config.FILE_S3_ACCESS_KEY_ID || !config.FILE_S3_SECRET_ACCESS_KEY) {
-      const missing = ([
-        ["FILE_S3_BUCKET", config.FILE_S3_BUCKET],
-        ["FILE_S3_ACCESS_KEY_ID", config.FILE_S3_ACCESS_KEY_ID],
-        ["FILE_S3_SECRET_ACCESS_KEY", config.FILE_S3_SECRET_ACCESS_KEY],
-      ] as const).filter(([, v]) => !v).map(([k]) => k);
-      throw new Error(`FILE_STORAGE_DRIVER=s3 requires ${missing.join(", ")}.`);
-    }
-    client = new S3Client({
-      bucket: config.FILE_S3_BUCKET,
-      accessKeyId: config.FILE_S3_ACCESS_KEY_ID,
-      secretAccessKey: config.FILE_S3_SECRET_ACCESS_KEY,
-      // R2 convention; AWS callers set a real region.
-      region: config.FILE_S3_REGION ?? "auto",
-      ...config.FILE_S3_ENDPOINT ? { endpoint: config.FILE_S3_ENDPOINT } : {},
-    });
-    keyPrefix = (config.FILE_S3_PREFIX ?? "").replace(/^\/+|\/+$/g, "");
-  },
 
   async put(key, data, opts) {
     await requireClient().write(
@@ -133,7 +154,7 @@ export const s3Driver: FileStorageDriver = {
 };
 
 // Self-register at module load — importing this file is enough to make the
-// driver selectable; `initFileModule` runs `setup` only for the active driver.
+// driver selectable; `configureS3Driver` builds its client from DB settings.
 registerDriver(s3Driver);
 
 /** Test-only: drop the bound client so a later `setup` re-initialises it. */

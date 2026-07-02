@@ -1,23 +1,24 @@
-import type { Config } from "@/config";
+import type { S3DriverParams } from "./s3";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { getDriver, registerDriver } from "./registry";
-import { __resetS3DriverForTests, s3Driver, s3ObjectKey } from "./s3";
+import { __resetS3DriverForTests, configureS3Driver, isS3Configured, s3Driver, s3ObjectKey } from "./s3";
 
 // Importing the driver self-registers it; presign is pure SigV4 (no network),
-// so we can exercise setup + presignDownload offline with dummy credentials.
+// so we can exercise configure + presignDownload offline with dummy credentials.
 // The byte-moving methods (put/getStream/delete/exists) hit S3 and are not
-// covered here.
+// covered here. FEAT-047: the client is built from explicit params
+// (`configureS3Driver`), not env config, since storage config now lives in the DB.
 
-function s3Config(overrides: Record<string, string | undefined> = {}): Config {
+function s3Params(overrides: Partial<Record<keyof S3DriverParams, string | undefined>> = {}): S3DriverParams {
   return {
-    FILE_S3_BUCKET: "test-bucket",
-    FILE_S3_REGION: "auto",
-    FILE_S3_ENDPOINT: "https://acc.r2.cloudflarestorage.com",
-    FILE_S3_ACCESS_KEY_ID: "AKIAEXAMPLE",
-    FILE_S3_SECRET_ACCESS_KEY: "secretEXAMPLE",
-    FILE_S3_PREFIX: "",
+    bucket: "test-bucket",
+    region: "auto",
+    endpoint: "https://acc.r2.cloudflarestorage.com",
+    accessKeyId: "AKIAEXAMPLE",
+    secretAccessKey: "secretEXAMPLE",
+    prefix: "",
     ...overrides,
-  } as unknown as Config;
+  } as S3DriverParams;
 }
 
 // Sibling suites (local.test) reset the shared driver registry, so re-register
@@ -37,37 +38,38 @@ describe("s3 driver registration", () => {
   });
 });
 
-describe("s3 driver setup", () => {
+describe("configureS3Driver", () => {
   test("throws listing every missing required value", () => {
-    expect(() => s3Driver.setup!({ FILE_S3_REGION: "auto", FILE_S3_PREFIX: "" } as unknown as Config))
-      .toThrow(/FILE_S3_BUCKET.*FILE_S3_ACCESS_KEY_ID.*FILE_S3_SECRET_ACCESS_KEY/);
+    expect(() => configureS3Driver({ region: "auto", prefix: "" } as unknown as S3DriverParams))
+      .toThrow(/bucket.*accessKeyId.*secret/);
   });
 
   test("throws when only the secret is missing", () => {
-    expect(() => s3Driver.setup!(s3Config({ FILE_S3_SECRET_ACCESS_KEY: undefined })))
-      .toThrow(/FILE_S3_SECRET_ACCESS_KEY/);
+    expect(() => configureS3Driver(s3Params({ secretAccessKey: undefined })))
+      .toThrow(/secret/);
   });
 
-  test("accepts a complete config", () => {
-    expect(() => s3Driver.setup!(s3Config())).not.toThrow();
+  test("accepts a complete config and marks S3 configured", () => {
+    expect(() => configureS3Driver(s3Params())).not.toThrow();
+    expect(isS3Configured()).toBe(true);
   });
 });
 
 describe("s3ObjectKey prefixing", () => {
   test("no prefix returns the key unchanged", () => {
-    s3Driver.setup!(s3Config({ FILE_S3_PREFIX: "" }));
+    configureS3Driver(s3Params({ prefix: "" }));
     expect(s3ObjectKey("ab/cd/hash")).toBe("ab/cd/hash");
   });
 
   test("trims surrounding slashes from the prefix", () => {
-    s3Driver.setup!(s3Config({ FILE_S3_PREFIX: "/uploads/" }));
+    configureS3Driver(s3Params({ prefix: "/uploads/" }));
     expect(s3ObjectKey("ab/cd/hash")).toBe("uploads/ab/cd/hash");
   });
 });
 
 describe("s3 presignDownload", () => {
   test("returns a signed GET URL carrying the prefixed key", async () => {
-    s3Driver.setup!(s3Config({ FILE_S3_PREFIX: "blobs" }));
+    configureS3Driver(s3Params({ prefix: "blobs" }));
     const url = await s3Driver.presignDownload!("ab/cd/deadbeef", {
       expiresSeconds: 300,
       filename: "photo.png",

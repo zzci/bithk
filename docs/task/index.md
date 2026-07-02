@@ -162,3 +162,4 @@
 | [FIX-050](FIX-050.md) | S3 orphan sweep continuation-token pagination | [PLAN-100](../plan/PLAN-100.md) | Completed | 2026-07-01 |
 | [FIX-051](FIX-051.md) | Pin GitHub Actions to commit SHAs (supply chain) | [PLAN-100](../plan/PLAN-100.md) | Completed | 2026-07-01 |
 | [FIX-052](FIX-052.md) | P3 hardening bundle (service-token/shutdown/gc/redirects/env) | [PLAN-100](../plan/PLAN-100.md) | Completed | 2026-07-01 |
+| [FEAT-047](FEAT-047.md) | Storage module: DB-configured multi-driver storage + admin management | [PLAN-101](../plan/PLAN-101.md) | Done | 2026-07-02 |

@@ -11,6 +11,7 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { fileReferences, files } from "@/modules/file/schema";
+import { setDbDriverDatabase } from "@/modules/file/storage/db";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { policyMiddleware } from "@/modules/policy";
@@ -117,6 +118,8 @@ beforeEach(async () => {
   db = await createDb(dbPath);
   __resetDriverRegistryForTests();
   __setLocalDriverRootForTests(storageRoot);
+  // Created files (text/spreadsheet) store bytes in the DB via the `db` driver.
+  setDbDriverDatabase(db);
   setActiveDriver("local");
   loadNamespaces();
   ensureProjectTables(db);

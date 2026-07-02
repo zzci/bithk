@@ -99,3 +99,4 @@
 | [PLAN-098](PLAN-098.md) | Port the enriched lode update-config surface from zzci/access | Completed | 2026-07-01 |
 | [PLAN-099](PLAN-099.md) | Version-only Univer sheet editing (drop edit-lock + live-content) | Completed | 2026-07-01 |
 | [PLAN-100](PLAN-100.md) | Audit remediation (2026-07-01 deep audit): P1 drive IDOR + P2/P3 hardening | Completed | 2026-07-01 |
+| [PLAN-101](PLAN-101.md) | DB-configured multi-driver storage + admin Storage module | Done | 2026-07-02 |

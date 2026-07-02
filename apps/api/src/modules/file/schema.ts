@@ -1,6 +1,18 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
+
+// `file_blob` backs the `db` storage driver (FEAT-047): in-app created files
+// (text / markdown / spreadsheet) and their versions store their bytes here
+// rather than on S3 / local disk. `storage_key` is the same content-addressed
+// key (`ab/cd/<sha256>`) the other drivers use, so the `db` driver is a
+// drop-in backend selected per `files.storage_driver`. `content` is the raw
+// blob (a Buffer/Uint8Array at the driver boundary).
+export const fileBlobs = sqliteTable("file_blob", {
+  storageKey: text("storage_key").primaryKey(),
+  content: blob("content", { mode: "buffer" }).notNull(),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
 
 // `files.id` is a ULID — same convention as `items.id`. The first 10 chars
 // encode the upload millisecond, so we sort by `id DESC` for newest-first

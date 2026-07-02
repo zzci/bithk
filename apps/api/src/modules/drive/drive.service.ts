@@ -542,12 +542,14 @@ export async function createDriveTextFile(
   const id = nanoid();
   const name = normalizeEntryName(input.name);
   const file = new File([input.content], name, { type: "text/plain" });
+  // In-app created files (text / markdown) store their bytes in the DB (FEAT-047).
   const uploaded = await uploadAndReference(db, config, {
     file,
     ownerType: "drive_entry",
     ownerId: id,
     uploadedBy: input.createdBy,
     allowEmpty: true,
+    driverName: "db",
   });
 
   try {
@@ -603,12 +605,14 @@ export async function createDriveSpreadsheet(
   const id = nanoid();
   const name = normalizeEntryName(input.name);
   const file = new File([input.content], name, { type: UNIVER_SHEET_MIME });
+  // In-app created spreadsheets store their JSON snapshot in the DB (FEAT-047).
   const uploaded = await uploadAndReference(db, config, {
     file,
     ownerType: "drive_entry",
     ownerId: id,
     uploadedBy: input.createdBy,
     allowEmpty: true,
+    driverName: "db",
   });
 
   try {

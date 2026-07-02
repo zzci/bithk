@@ -11,7 +11,7 @@ import { mimeMatchesContent } from "@/shared/lib/mime-sniff";
 import { assertWithinTotalQuota, decrementUploadsUsed, incrementUploadsUsed, isWithinFileSize, maxAttachmentsPerResource } from "@/shared/lib/upload-limits";
 import { getThumbnail, previewCacheEnabled } from "./preview-cache";
 import { deriveStorageKey } from "./storage/key";
-import { getActiveDriver } from "./storage/registry";
+import { getActiveUploadDriver, getDriver } from "./storage/registry";
 
 export type FileRow = typeof files.$inferSelect;
 export type FileReferenceRow = typeof fileReferences.$inferSelect;
@@ -113,6 +113,14 @@ export interface UploadInput {
    * afterwards. The per-file ceiling still applies.
    */
   readonly allowEmpty?: boolean | undefined;
+  /**
+   * Explicit target storage driver (FEAT-047). In-app created files (text /
+   * markdown / spreadsheet) pass `"db"` so their bytes are stored in the
+   * database; versions inherit their entry's current driver. Omitted for
+   * ordinary uploads, which default to the configured upload driver
+   * ({@link getActiveUploadDriver}). Dedup is per `(sha256, storageDriver)`.
+   */
+  readonly driverName?: string | undefined;
 }
 
 export interface UploadResult {
@@ -163,7 +171,9 @@ export async function uploadAndReference(
   }
 
   const sha256 = sha256Hex(buffer);
-  const driver = getActiveDriver();
+  // Explicit target driver (created files → "db") or the configured upload
+  // driver. Resolving by name keeps db/s3/local coexisting per-blob.
+  const driver = input.driverName ? getDriver(input.driverName) : getActiveUploadDriver();
 
   // Enforce per-resource attachment count BEFORE consuming quota. The
   // count is whatever the consumer modelled as "attachments on this
@@ -355,14 +365,14 @@ export async function addReference(db: AppDatabase, input: AddReferenceInput): P
 // size is enforced by the S3 backend + an external sweep, with only a cheap
 // advisory check here. `confirm` reads the authoritative size via `stat`.
 
-/** True when the active driver can issue presigned PUTs and HEAD objects. */
+/** True when the active upload driver can issue presigned PUTs and HEAD objects. */
 export function directUploadAvailable(): boolean {
   let driver;
   try {
-    driver = getActiveDriver();
+    driver = getActiveUploadDriver();
   }
   catch {
-    // No driver selected yet (boot order / unit tests without initFileModule).
+    // No upload driver resolvable yet (boot order / unit tests without config).
     return false;
   }
   return typeof driver.presignUpload === "function" && typeof driver.stat === "function";
@@ -379,7 +389,7 @@ export function directUploadAvailable(): boolean {
  * and storage-level dedup is still preserved by `UNIQUE(sha256, storage_driver)`.
  */
 export async function findStoredBlob(db: AppDatabase, sha256: string, uploadedBy: string): Promise<FileRow | undefined> {
-  const driver = getActiveDriver();
+  const driver = getActiveUploadDriver();
   return db
     .select()
     .from(files)
@@ -396,7 +406,7 @@ export async function findStoredBlob(db: AppDatabase, sha256: string, uploadedBy
  * (FIX-048), rather than silently attaching another user's bytes.
  */
 export async function findStoredBlobByHash(db: AppDatabase, sha256: string): Promise<FileRow | undefined> {
-  const driver = getActiveDriver();
+  const driver = getActiveUploadDriver();
   return db
     .select()
     .from(files)
@@ -410,7 +420,7 @@ export async function presignBlobUpload(
   sha256: string,
   mimetype: string,
 ): Promise<PresignedUpload | null> {
-  const driver = getActiveDriver();
+  const driver = getActiveUploadDriver();
   if (!driver.presignUpload)
     return null;
   return driver.presignUpload(deriveStorageKey(sha256), {
@@ -421,7 +431,7 @@ export async function presignBlobUpload(
 
 /** HEAD the directly-uploaded object to confirm it landed and read its size. */
 export async function statStoredBlob(sha256: string): Promise<{ readonly size: number } | null> {
-  const driver = getActiveDriver();
+  const driver = getActiveUploadDriver();
   if (!driver.stat)
     return null;
   return driver.stat(deriveStorageKey(sha256));
@@ -446,7 +456,7 @@ export interface RegisterUploadedBlobInput {
  * presign step; this only bumps the running total for a genuinely new blob.
  */
 export async function registerUploadedBlob(db: AppDatabase, input: RegisterUploadedBlobInput): Promise<UploadResult> {
-  const driver = getActiveDriver();
+  const driver = getActiveUploadDriver();
   const storageKey = deriveStorageKey(input.sha256);
   const newId = ulid();
 
@@ -606,11 +616,14 @@ async function syncDeleteBlob(
   db: AppDatabase,
   drained: DrainedBlob,
 ): Promise<void> {
-  const driver = getActiveDriver();
-  if (driver.name !== drained.storageDriver) {
-    // Stored under a different driver than the active one — we can't
-    // safely delete it. Leave for an operator / future cross-driver
-    // sweep. The async path handles this case too.
+  // Multi-driver (FEAT-047): delete via the blob's OWN driver so db / s3 /
+  // local all reclaim. An unknown driver name (a stale row from a removed
+  // backend) is left for an operator rather than crashing the release.
+  let driver;
+  try {
+    driver = getDriver(drained.storageDriver);
+  }
+  catch {
     return;
   }
   try {
@@ -737,7 +750,9 @@ export async function buildDownloadResponse(
   const contentType = inlineSafe ? mt : "application/octet-stream";
   const disposition = buildContentDisposition(inlineSafe ? "inline" : "attachment", ref.filename);
 
-  const driver = getActiveDriver();
+  // Multi-driver serving (FEAT-047): resolve the blob's OWN driver so db / s3 /
+  // local files coexist and each is served by the backend it was stored on.
+  const driver = getDriver(file.storageDriver);
 
   // Image preview cache (FEAT-044, Part C): for an inline image request that
   // asks for a whitelisted width, serve a cached WebP thumbnail — same-origin
@@ -748,7 +763,6 @@ export async function buildDownloadResponse(
     inlineSafe
     && opts.thumbWidth !== undefined
     && mt.startsWith("image/")
-    && driver.name === file.storageDriver
     && previewCacheEnabled(config)
   ) {
     const thumb = await getThumbnail(config, { sha256: file.sha256, storageKey: file.storageKey }, opts.thumbWidth);
@@ -768,11 +782,12 @@ export async function buildDownloadResponse(
     }
   }
 
-  // Only presign for INLINE-safe previews. A presigned GET serves the object
-  // with its stored Content-Type but cannot force `Content-Disposition`
+  // Only presign for INLINE-safe previews when the blob's driver supports it
+  // (the db driver never does → always streams). A presigned GET serves the
+  // object with its stored Content-Type but cannot force `Content-Disposition`
   // (Bun's presign signs only method/expiry/type), so attachment downloads
   // must stream through the API to carry `attachment; filename=…`.
-  if (inlineSafe && config.FILE_PRESIGN_ENABLED && driver.name === file.storageDriver && driver.presignDownload) {
+  if (inlineSafe && config.FILE_PRESIGN_ENABLED && driver.presignDownload) {
     const url = await driver.presignDownload(file.storageKey, {
       expiresSeconds: config.FILE_PRESIGN_TTL_SECONDS,
       filename: ref.filename,
@@ -780,12 +795,6 @@ export async function buildDownloadResponse(
       contentType,
     });
     return new Response(null, { status: 302, headers: { Location: url } });
-  }
-
-  if (driver.name !== file.storageDriver) {
-    // Stored under a driver no longer active — surface as 404 rather
-    // than serving bytes that may not even exist on this filesystem.
-    throw new AppError("File backend mismatch", 404, "FILE_BACKEND_MISMATCH");
   }
 
   const stream = await driver.getStream(file.storageKey);
@@ -808,8 +817,13 @@ export async function listUnreferencedFiles(db: AppDatabase, limit: number): Pro
 }
 
 export async function deleteUnreferencedFile(db: AppDatabase, file: FileRow): Promise<boolean> {
-  const driver = getActiveDriver();
-  if (driver.name !== file.storageDriver) {
+  // Multi-driver (FEAT-047): reclaim via the blob's OWN driver. An unknown
+  // driver name (stale row from a removed backend) is skipped, not crashed.
+  let driver;
+  try {
+    driver = getDriver(file.storageDriver);
+  }
+  catch {
     return false;
   }
   try {

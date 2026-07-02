@@ -9,7 +9,7 @@ import { cronRoutes } from "@/modules/cron";
 import { currencyRoutes } from "@/modules/currency";
 import { documentRoutes } from "@/modules/document";
 import { driveRoutes } from "@/modules/drive";
-import { fileRoutes } from "@/modules/file";
+import { fileRoutes, storageRoutes } from "@/modules/file";
 // Importing `hrRoutes` also registers the hr backup contribution.
 import { hrRoutes } from "@/modules/hr";
 import { issueRoutes } from "@/modules/issue";
@@ -73,6 +73,7 @@ export function protectedRoutes() {
   app.route("/", backupRoutes());
   app.route("/", cronRoutes());
   app.route("/", fileRoutes());
+  app.route("/", storageRoutes());
 
   return app;
 }
