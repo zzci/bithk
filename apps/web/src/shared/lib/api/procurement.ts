@@ -8,7 +8,7 @@
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ProjectTag } from "./projects";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
@@ -175,6 +175,9 @@ export function useProcurements(
     },
     enabled: enabled && !!projectId,
     retry: false,
+    // Keep the prior page/filter rows on screen while the next query loads so
+    // the list does not flash empty on page or filter changes.
+    placeholderData: keepPreviousData,
     staleTime: 5_000,
   });
 }

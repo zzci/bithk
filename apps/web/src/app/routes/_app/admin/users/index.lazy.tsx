@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { AccountUser } from "@/shared/lib/api/account";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { KeyRound, Plus, Search } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiTokensPanel } from "@/shared/components/api-tokens-panel";
@@ -28,8 +29,8 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { useDebounce } from "@/shared/hooks/use-debounce";
+import { createAccountUser, deleteAccountUser, updateAccountUser, useAccountUsers } from "@/shared/lib/api/account";
 import { formatDateTime } from "@/shared/lib/format";
-import { http } from "@/shared/lib/http";
 import { useAuthStore } from "@/shared/stores/auth";
 
 export const Route = createLazyFileRoute("/_app/admin/users/")({
@@ -38,89 +39,55 @@ export const Route = createLazyFileRoute("/_app/admin/users/")({
 
 const ALL = "__all__";
 
-interface UserGroup {
-  readonly id: string;
-  readonly name: string;
-}
-
-interface User {
-  readonly id: string;
-  readonly username: string;
-  readonly name: string;
-  readonly email: string;
-  readonly role: "admin" | "user";
-  readonly status: "active" | "disabled";
-  readonly isVirtual: boolean;
-  readonly groups?: UserGroup[];
-  readonly lastLoginAt: string | null;
-  readonly createdAt: string;
-}
-
-interface ListResponse {
-  success: boolean;
-  data: User[];
-  meta: { total: number; page: number; limit: number; totalPages: number };
-}
+type User = AccountUser;
 
 function UsersTab() {
   const { t } = useTranslation(["users", "tokens"]);
   const currentUser = useAuthStore(s => s.user);
-  const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [roleFilter, setRoleFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, totalPages: 0 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Mutation failures overlay the list query's own load error; cleared when
+  // the next mutation attempt starts (the query clears itself on refetch).
+  const [actionError, setActionError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [tokenTarget, setTokenTarget] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (debouncedSearch)
-        params.set("q", debouncedSearch);
-      if (roleFilter !== ALL)
-        params.set("role", roleFilter);
-      if (statusFilter !== ALL)
-        params.set("status", statusFilter);
-      params.set("page", String(page));
-      params.set("limit", "20");
-
-      const res = await http<ListResponse>(`/account/users?${params.toString()}`);
-      setUsers(res.data);
-      setMeta({ total: res.meta.total, totalPages: res.meta.totalPages });
-    }
-    catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error.loadFailed"));
-    }
-    finally {
-      setLoading(false);
-    }
-  }, [debouncedSearch, roleFilter, statusFilter, page, t]);
-
-  useEffect(() => {
-    void fetchUsers();
-  }, [fetchUsers]);
+  const usersQuery = useAccountUsers({
+    q: debouncedSearch || undefined,
+    role: roleFilter !== ALL ? roleFilter : undefined,
+    status: statusFilter !== ALL ? statusFilter : undefined,
+    page,
+    limit: 20,
+  });
+  const users = usersQuery.data?.data ?? [];
+  const meta = {
+    total: usersQuery.data?.meta.total ?? 0,
+    totalPages: usersQuery.data?.meta.totalPages ?? 0,
+  };
+  // `isPending` covers the first load only; page/filter changes keep the
+  // previous rows on screen (placeholderData: keepPreviousData).
+  const loading = usersQuery.isPending;
+  const error = actionError
+    ?? (usersQuery.error
+      ? (usersQuery.error instanceof Error ? usersQuery.error.message : t("common.error.loadFailed"))
+      : null);
+  const refetchUsers = () => void usersQuery.refetch();
 
   const toggleStatus = async (user: User) => {
+    setActionError(null);
     try {
       const newStatus = user.status === "active" ? "disabled" : "active";
-      await http(`/account/users/${user.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: newStatus }),
-      });
-      void fetchUsers();
+      await updateAccountUser(user.id, { status: newStatus });
+      refetchUsers();
     }
     catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error.operationFailed"));
+      setActionError(err instanceof Error ? err.message : t("common.error.operationFailed"));
     }
   };
 
@@ -129,10 +96,10 @@ function UsersTab() {
       return;
     setDeleting(true);
     try {
-      await http(`/account/users/${deleteTarget.id}`, { method: "DELETE" });
+      await deleteAccountUser(deleteTarget.id);
       toast.success(t("virtual.toast.deleted"));
       setDeleteTarget(null);
-      void fetchUsers();
+      refetchUsers();
     }
     catch (err) {
       toast.error(err instanceof Error ? err.message : t("common.error.operationFailed"));
@@ -349,7 +316,7 @@ function UsersTab() {
           mode="create"
           open
           onOpenChange={open => !open && setCreateOpen(false)}
-          onSaved={() => void fetchUsers()}
+          onSaved={refetchUsers}
         />
       )}
       {editTarget && (
@@ -358,7 +325,7 @@ function UsersTab() {
           user={editTarget}
           open
           onOpenChange={open => !open && setEditTarget(null)}
-          onSaved={() => void fetchUsers()}
+          onSaved={refetchUsers}
         />
       )}
 
@@ -420,13 +387,10 @@ function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualU
     setError(null);
     try {
       if (mode === "create") {
-        await http("/account/users", {
-          method: "POST",
-          body: JSON.stringify({
-            username: trimmedUsername,
-            name: trimmedName,
-            ...(trimmedEmail ? { email: trimmedEmail } : {}),
-          }),
+        await createAccountUser({
+          username: trimmedUsername,
+          name: trimmedName,
+          ...(trimmedEmail ? { email: trimmedEmail } : {}),
         });
         toast.success(t("virtual.toast.created"));
       }
@@ -434,10 +398,7 @@ function VirtualUserDialog({ mode, user, open, onOpenChange, onSaved }: VirtualU
         const body = isVirtual
           ? { username: trimmedUsername, name: trimmedName, email: trimmedEmail }
           : { name: trimmedName };
-        await http(`/account/users/${user.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(body),
-        });
+        await updateAccountUser(user.id, body);
         toast.success(isVirtual ? t("virtual.toast.updated") : t("toast.updated"));
       }
       onOpenChange(false);

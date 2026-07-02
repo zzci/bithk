@@ -1,39 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
+// UI-side constants and helpers shared by the admin policies tabs. The API
+// types, query keys, and hooks live in the shared data layer
+// (`@/shared/lib/api/policy`); re-exported here for the sibling tab files.
+
+import type { EntitiesResponse } from "@/shared/lib/api/policy";
 import { useMemo } from "react";
-import { http } from "@/shared/lib/http";
 
-export interface RelationTuple {
-  id: string;
-  namespace: string;
-  objectId: string;
-  relation: string;
-  subjectNamespace: string;
-  subjectId: string;
-  subjectRelation: string | null;
-  createdBy: string | null;
-  createdAt: string;
-}
+export type {
+  CheckResponse,
+  EntitiesResponse,
+  RelationTuple,
+  ResourceGroup,
+  ResourceGroupMembersResponse,
+  ResourceGroupsResponse,
+  TuplesResponse,
+} from "@/shared/lib/api/policy";
 
-export interface TuplesResponse {
-  success: boolean;
-  data: RelationTuple[];
-  meta: { total: number; page: number; limit: number };
-}
-
-export interface CheckResponse {
-  success: boolean;
-  data: { allowed: boolean; resolvedThrough: string[] };
-}
-
-interface EntityOption {
-  readonly id: string;
-  readonly name: string;
-}
-
-export interface EntitiesResponse {
-  success: boolean;
-  data: Record<string, EntityOption[]>;
-}
+export { useEntities } from "@/shared/lib/api/policy";
 
 export const NAMESPACES = ["group", "resource_group"] as const;
 export const RELATIONS: Record<string, string[]> = {
@@ -49,14 +31,6 @@ export function handleSelect(setter: (v: string) => void) {
   };
 }
 
-export function useEntities() {
-  return useQuery({
-    queryKey: ["policy-entities"],
-    queryFn: () => http<EntitiesResponse>("/policy/entities"),
-    staleTime: 60_000,
-  });
-}
-
 export function useEntityNameMap(entities: EntitiesResponse | undefined) {
   return useMemo(() => {
     const map = new Map<string, string>();
@@ -69,28 +43,4 @@ export function useEntityNameMap(entities: EntitiesResponse | undefined) {
     }
     return map;
   }, [entities]);
-}
-
-export interface ResourceGroup {
-  id: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-}
-
-export interface ResourceGroupsResponse {
-  success: boolean;
-  data: ResourceGroup[];
-}
-
-interface ResourceGroupMember {
-  tupleId: string;
-  namespace: string;
-  objectId: string;
-  objectName: string | null;
-}
-
-export interface ResourceGroupMembersResponse {
-  success: boolean;
-  data: ResourceGroupMember[];
 }

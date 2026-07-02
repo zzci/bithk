@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { AccountGroup, AccountGroupMember, AccountUser } from "@/shared/lib/api/account";
 import type { ModuleKey } from "@/shared/lib/modules";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { Pencil, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
@@ -22,7 +23,19 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Table, TableBody, TableCell, TableRow } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { http } from "@/shared/lib/http";
+import {
+  addAccountGroupMember,
+  createAccountGroup,
+  deleteAccountGroup,
+  getDefaultGroupModules,
+  listAccountGroupMembers,
+  listAccountGroups,
+  listAccountUsers,
+  removeAccountGroupMember,
+  updateAccountGroup,
+  updateAccountUser,
+  updateDefaultGroupModules,
+} from "@/shared/lib/api/account";
 import { MODULE_KEYS } from "@/shared/lib/modules";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
@@ -39,52 +52,9 @@ const ADMINS = "__admins__";
 // setting, not a group row.
 const DEFAULT = "__default__";
 
-interface Group {
-  readonly id: string;
-  readonly name: string;
-  readonly description: string | null;
-  readonly modules: ModuleKey[];
-  readonly memberCount: number;
-  readonly createdAt: string;
-}
-
-interface GroupMember {
-  readonly id: string;
-  readonly username: string;
-  readonly name: string;
-  readonly email: string;
-  readonly role: string;
-  readonly status: string;
-}
-
-interface GroupListResponse {
-  success: boolean;
-  data: Group[];
-}
-
-interface MemberListResponse {
-  success: boolean;
-  data: GroupMember[];
-}
-
-interface DefaultModulesResponse {
-  success: boolean;
-  data: { modules: ModuleKey[] };
-}
-
-interface UserSearchItem {
-  readonly id: string;
-  readonly username: string;
-  readonly name: string;
-  readonly email: string;
-  readonly role: "admin" | "user";
-}
-
-interface UserListResponse {
-  success: boolean;
-  data: UserSearchItem[];
-  meta: { total: number };
-}
+type Group = AccountGroup;
+type GroupMember = AccountGroupMember;
+type UserSearchItem = AccountUser;
 
 export function GroupsTab() {
   const { t } = useTranslation("groups");
@@ -118,8 +88,7 @@ export function GroupsTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await http<GroupListResponse>("/account/groups");
-      setGroups(res.data);
+      setGroups(await listAccountGroups());
     }
     catch (err) {
       setError(err instanceof Error ? err.message : t("common.error.loadFailed"));
@@ -131,7 +100,7 @@ export function GroupsTab() {
 
   const fetchAdminCount = useCallback(async () => {
     try {
-      const res = await http<UserListResponse>("/account/users?role=admin&limit=1");
+      const res = await listAccountUsers({ role: "admin", limit: 1 });
       setAdminCount(res.meta.total);
     }
     catch {
@@ -141,8 +110,7 @@ export function GroupsTab() {
 
   const fetchDefaultModules = useCallback(async () => {
     try {
-      const res = await http<DefaultModulesResponse>("/account/groups/default");
-      setDefaultModules(res.data.modules);
+      setDefaultModules(await getDefaultGroupModules());
     }
     catch {
       // Non-fatal: the Default entry just shows its last-known modules.
@@ -159,12 +127,11 @@ export function GroupsTab() {
     setMembersLoading(true);
     try {
       if (selection === ADMINS) {
-        const res = await http<UserListResponse>("/account/users?role=admin&limit=100");
+        const res = await listAccountUsers({ role: "admin", limit: 100 });
         setMembers(res.data.map(u => ({ ...u, status: "active" })));
       }
       else {
-        const res = await http<MemberListResponse>(`/account/groups/${selection}/members`);
-        setMembers(res.data);
+        setMembers(await listAccountGroupMembers(selection));
       }
     }
     catch (err) {
@@ -192,7 +159,7 @@ export function GroupsTab() {
     }
     searchTimerRef.current = setTimeout(async () => {
       try {
-        const res = await http<UserListResponse>(`/account/users?q=${encodeURIComponent(q)}&limit=10`);
+        const res = await listAccountUsers({ q, limit: 10 });
         setSearchResults(res.data);
       }
       catch {
@@ -210,17 +177,11 @@ export function GroupsTab() {
       return;
     try {
       if (isAdminsSelected) {
-        await http(`/account/users/${userId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ role: "admin" }),
-        });
+        await updateAccountUser(userId, { role: "admin" });
         void fetchAdminCount();
       }
       else {
-        await http(`/account/groups/${selectedId}/members`, {
-          method: "POST",
-          body: JSON.stringify({ userId }),
-        });
+        await addAccountGroupMember(selectedId, userId);
         void fetchGroups();
       }
       setAddMemberOpen(false);
@@ -240,14 +201,11 @@ export function GroupsTab() {
       return;
     try {
       if (isAdminsSelected) {
-        await http(`/account/users/${userId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ role: "user" }),
-        });
+        await updateAccountUser(userId, { role: "user" });
         void fetchAdminCount();
       }
       else {
-        await http(`/account/groups/${selectedId}/members/${userId}`, { method: "DELETE" });
+        await removeAccountGroupMember(selectedId, userId);
         void fetchGroups();
       }
       void fetchMembers(selectedId);
@@ -261,7 +219,7 @@ export function GroupsTab() {
     if (!deleteConfirm)
       return;
     try {
-      await http(`/account/groups/${deleteConfirm.id}`, { method: "DELETE" });
+      await deleteAccountGroup(deleteConfirm.id);
       if (selectedId === deleteConfirm.id)
         setSelectedId(null);
       setDeleteConfirm(null);
@@ -325,10 +283,7 @@ export function GroupsTab() {
                 <DialogContent>
                   <GroupFormDialog
                     onSubmit={async (name, description, modules) => {
-                      await http("/account/groups", {
-                        method: "POST",
-                        body: JSON.stringify({ name, description: description || undefined, modules }),
-                      });
+                      await createAccountGroup({ name, description: description || undefined, modules });
                       setCreateOpen(false);
                       void fetchGroups();
                     }}
@@ -428,11 +383,7 @@ export function GroupsTab() {
                             <DefaultModulesDialog
                               initialModules={defaultModules}
                               onSubmit={async (modules) => {
-                                const res = await http<DefaultModulesResponse>("/account/groups/default", {
-                                  method: "PATCH",
-                                  body: JSON.stringify({ modules }),
-                                });
-                                setDefaultModules(res.data.modules);
+                                setDefaultModules(await updateDefaultGroupModules(modules));
                                 setEditDefaultOpen(false);
                               }}
                               title={t("default.editTitle")}
@@ -513,10 +464,7 @@ export function GroupsTab() {
                                   initialDescription={group.description ?? ""}
                                   initialModules={group.modules}
                                   onSubmit={async (name, description, modules) => {
-                                    await http(`/account/groups/${group.id}`, {
-                                      method: "PATCH",
-                                      body: JSON.stringify({ name, description: description || undefined, modules }),
-                                    });
+                                    await updateAccountGroup(group.id, { name, description: description || undefined, modules });
                                     setEditGroup(null);
                                     void fetchGroups();
                                   }}

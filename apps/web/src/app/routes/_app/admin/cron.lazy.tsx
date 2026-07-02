@@ -1,11 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import type {
   ActionCatalogEntry,
-  ActionsResponse,
   CronJob,
   FormState,
-  JobOneResponse,
-  JobsListResponse,
   StatusFilter,
   StatusFilterKey,
 } from "./-cron-types";
@@ -27,7 +24,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
-import { http } from "@/shared/lib/http";
+import {
+  createCronJob,
+  deleteCronJob,
+  listCronActions,
+  listCronJobs,
+  pauseCronJob,
+  resumeCronJob,
+  triggerCronJob,
+} from "@/shared/lib/api/cron";
 import { CRON_STATUS_VARIANT } from "@/shared/lib/status-colors";
 import { CreateJobDrawer } from "./-cron-create-drawer";
 import { buildPayload, errorMessage, formatTime } from "./-cron-form";
@@ -75,16 +80,11 @@ function CronPage() {
   const fetchJobs = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: "100" });
       const filter: StatusFilter = STATUS_FILTERS[statusFilter];
-      if (filter.deleted !== undefined)
-        params.set("deleted", filter.deleted);
-      if (filter.lastStatus !== undefined)
-        params.set("lastStatus", filter.lastStatus);
-      if (typeFilter !== "__all__")
-        params.set("taskType", typeFilter);
-      const res = await http<JobsListResponse>(`/cron/jobs?${params.toString()}`);
-      setJobs(res.data.jobs);
+      setJobs(await listCronJobs({
+        ...filter,
+        taskType: typeFilter !== "__all__" ? typeFilter : undefined,
+      }));
     }
     catch (err) {
       toast.error(errorMessage(err, t("common.error.loadFailed", { ns: "common" })));
@@ -96,10 +96,10 @@ function CronPage() {
 
   const fetchActions = useCallback(async () => {
     try {
-      const res = await http<ActionsResponse>("/cron/actions");
-      setActions(res.data.actions);
-      setSupportedFormats(res.data.cronFormats);
-      setSchedulerEnabled(res.data.schedulerEnabled);
+      const data = await listCronActions();
+      setActions(data.actions);
+      setSupportedFormats(data.cronFormats);
+      setSchedulerEnabled(data.schedulerEnabled);
     }
     catch (err) {
       toast.error(errorMessage(err, t("common.error.loadFailed", { ns: "common" })));
@@ -146,11 +146,8 @@ function CronPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      const res = await http<JobOneResponse>("/cron/jobs", {
-        method: "POST",
-        body: JSON.stringify(payload.body),
-      });
-      toast.success(t("toast.created", { name: res.data.name }));
+      const created = await createCronJob(payload.body);
+      toast.success(t("toast.created", { name: created.name }));
       setCreateOpen(false);
       resetForm();
       void fetchJobs();
@@ -165,7 +162,7 @@ function CronPage() {
 
   async function handleDelete(job: CronJob) {
     try {
-      await http<{ success: true }>(`/cron/jobs/${job.id}`, { method: "DELETE" });
+      await deleteCronJob(job.id);
       toast.success(t("toast.deleted", { name: job.name }));
       setDeleteTarget(null);
       void fetchJobs();
@@ -177,7 +174,7 @@ function CronPage() {
 
   async function handlePause(job: CronJob) {
     try {
-      await http<{ success: true }>(`/cron/jobs/${job.id}/pause`, { method: "POST" });
+      await pauseCronJob(job.id);
       toast.success(t("toast.paused", { name: job.name }));
       void fetchJobs();
     }
@@ -188,7 +185,7 @@ function CronPage() {
 
   async function handleResume(job: CronJob) {
     try {
-      await http<{ success: true }>(`/cron/jobs/${job.id}/resume`, { method: "POST" });
+      await resumeCronJob(job.id);
       toast.success(t("toast.resumed", { name: job.name }));
       void fetchJobs();
     }
@@ -199,13 +196,10 @@ function CronPage() {
 
   async function handleTrigger(job: CronJob) {
     try {
-      const res = await http<{ data: { triggered: boolean; log: { status: string } | null } }>(
-        `/cron/jobs/${job.id}/trigger`,
-        { method: "POST" },
-      );
+      const res = await triggerCronJob(job.id);
       toast.success(t("toast.triggered", {
         name: job.name,
-        logStatus: res.data.log?.status ?? "—",
+        logStatus: res.log?.status ?? "—",
       }));
       void fetchJobs();
     }

@@ -1,91 +1,16 @@
-// Shared types & constants for the cron admin page.
-//
-// Mirrors `apps/api/src/modules/cron/serialize.ts` for `CronJob` and
-// `apps/api/src/modules/cron/actions/types.ts` for the action catalog.
-// Kept in sync manually — the action catalog is a small, public contract
-// and the shape is documented in `docs/modules/cron.md` so external
-// modules can register actions that the SPA renders without a code
-// change.
+// Shared UI types & constants for the cron admin page. The API view types
+// (`CronJob`, the action catalog) and typed request functions moved to the
+// shared data layer (`@/shared/lib/api/cron`); re-exported here for the
+// sibling cron page files.
 
-export interface CronJob {
-  readonly id: string;
-  readonly name: string;
-  readonly cron: string;
-  readonly taskType: string;
-  readonly taskConfig: Record<string, unknown>;
-  readonly enabled: boolean;
-  readonly status: string;
-  readonly nextExecution: string | null;
-  readonly lastRun: {
-    readonly status: string;
-    readonly startedAt: string;
-    readonly durationMs: number | null;
-    readonly result: string | null;
-    readonly error: string | null;
-  } | null;
-  readonly maxConsecutiveFailures: number;
-  readonly isDeleted: boolean;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface JobsListResponse {
-  success: true;
-  data: { jobs: CronJob[]; hasMore: boolean; nextCursor: string | null };
-}
-
-export interface JobOneResponse {
-  success: true;
-  data: CronJob;
-}
-
-type ActionInputType
-  = | "string"
-    | "textarea"
-    | "secret"
-    | "number"
-    | "boolean"
-    | "select"
-    | "json";
-
-export interface ActionInput {
-  readonly key: string;
-  readonly label: string;
-  readonly type: ActionInputType;
-  readonly required?: boolean;
-  readonly description?: string;
-  readonly placeholder?: string;
-  readonly default?: unknown;
-  readonly options?: readonly { value: string; label: string }[];
-  readonly min?: number;
-  readonly max?: number;
-  readonly group?: string;
-}
-
-export interface ActionCatalogEntry {
-  readonly name: string;
-  readonly displayName: string;
-  readonly description: string;
-  readonly category: string;
-  readonly icon: string | null;
-  readonly tags: readonly string[];
-  readonly version: string | null;
-  readonly dangerous: boolean;
-  readonly defaultCron: string | null;
-  readonly inputs: readonly ActionInput[];
-  readonly requiredKeys: readonly string[];
-}
-
-export interface ActionsResponse {
-  success: true;
-  data: {
-    actions: ActionCatalogEntry[];
-    cronFormats: string[];
-    // false when the API was started with CRON_ENABLED=false — admins
-    // can still browse / write, but no scheduled ticks fire.
-    schedulerEnabled: boolean;
-  };
-}
+export type {
+  ActionCatalogEntry,
+  ActionInput,
+  ActionsResponse,
+  CronJob,
+  JobOneResponse,
+  JobsListResponse,
+} from "@/shared/lib/api/cron";
 
 // ─── Schedule presets ───
 //

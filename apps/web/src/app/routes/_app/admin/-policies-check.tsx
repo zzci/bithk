@@ -1,5 +1,4 @@
 import type { CheckResponse } from "./-policies-shared";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -14,7 +13,7 @@ import {
 } from "@/shared/components/ui/combobox";
 import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { http } from "@/shared/lib/http";
+import { useCheckPermission } from "@/shared/lib/api/policy";
 import { handleSelect, NAMESPACES, RELATIONS, SUBJECT_NAMESPACES, useEntities } from "./-policies-shared";
 
 export function PermissionChecker() {
@@ -27,19 +26,14 @@ export function PermissionChecker() {
   const [result, setResult] = useState<CheckResponse["data"] | null>(null);
   const { data: entities } = useEntities();
 
-  const mutation = useMutation({
-    mutationFn: () => http<CheckResponse>("/policy/check", {
-      method: "POST",
-      body: JSON.stringify({
-        namespace: ns,
-        objectId,
-        relation,
-        subjectNamespace: subjectNs,
-        subjectId,
-      }),
-    }),
-    onSuccess: data => setResult(data.data),
-  });
+  const mutation = useCheckPermission();
+
+  function check() {
+    mutation.mutate(
+      { namespace: ns, objectId, relation, subjectNamespace: subjectNs, subjectId },
+      { onSuccess: data => setResult(data.data) },
+    );
+  }
 
   const availableRelations = RELATIONS[ns] ?? [];
   const objectOptions = entities?.data?.[ns] ?? [];
@@ -136,7 +130,7 @@ export function PermissionChecker() {
         </div>
 
         <Button
-          onClick={() => mutation.mutate()}
+          onClick={check}
           disabled={!objectId || !relation || !subjectId || mutation.isPending}
         >
           {mutation.isPending ? t("checking") : t("checkPermission")}

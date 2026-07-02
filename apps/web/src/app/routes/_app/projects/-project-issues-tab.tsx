@@ -62,10 +62,9 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import { useToggleIssuePin } from "@/shared/lib/api/pins";
-import { useCreateProjectIssue, useIssueTags, useProjectIssues } from "@/shared/lib/api/projects";
+import { uploadIssueAttachment, useCreateProjectIssue, useIssueTags, useProjectIssues } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatBytes } from "@/shared/lib/format";
-import { http } from "@/shared/lib/http";
 import { ISSUE_STATUS_ICON_TINT } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
 import { useAuthStore } from "@/shared/stores/auth";
@@ -620,9 +619,7 @@ function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, op
         if (staged.length > 0) {
           try {
             for (const file of staged) {
-              const fd = new FormData();
-              fd.append("file", file);
-              await http(`/projects/${projectId}/issues/${created.id}/attachments`, { method: "POST", body: fd });
+              await uploadIssueAttachment(projectId, created.id, file);
             }
           }
           catch (err) {

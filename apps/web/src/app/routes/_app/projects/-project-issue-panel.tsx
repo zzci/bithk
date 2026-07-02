@@ -5,8 +5,7 @@
 // `projects/{projectId}/issues`. Mounted as a drawer from the Issues tab and as
 // a fullscreen page at `/projects/$projectId/issues/$issueId/full`.
 
-import type { UpdateProjectIssueInput } from "./-project-issue-hooks";
-import type { ProjectIssueRow, ProjectMemberView } from "@/shared/lib/api/projects";
+import type { ProjectIssueRow, ProjectMemberView, UpdateProjectIssueInput } from "@/shared/lib/api/projects";
 import { ClipboardList } from "lucide-react";
 import {
   useEffect,
@@ -39,17 +38,18 @@ import { CenteredHint } from "@/shared/components/ui/centered-hint";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useFavoriteSet, useToggleFavorite } from "@/shared/lib/api/favorites";
-import { useIssueReferences, useIssueTags } from "@/shared/lib/api/projects";
+import {
+  useDeleteProjectIssue,
+  useIssueReferences,
+  useIssueTags,
+  useProjectIssue,
+  useUpdateProjectIssue,
+} from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { useAuthStore } from "@/shared/stores/auth";
 import { buildMemberLabelMap } from "./-member-helpers";
-import {
-  useDeleteProjectIssue,
-  useProjectIssue,
-  useUpdateProjectIssue,
-} from "./-project-issue-hooks";
 
 // ── Helpers ──
 
