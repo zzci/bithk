@@ -8,8 +8,9 @@ import { setItemPinned } from "@/modules/item/item.service";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { parsePageQuery } from "@/shared/lib/pagination";
+import { parseTagIds } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
 import {
   changeStatus,
@@ -81,17 +82,6 @@ const listQuerySchema = z.object({
   categoryId: z.preprocess(emptyToUndefined, z.string().max(100).optional()),
 });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-// Paginated `{ success:true, data:[…], meta }` response doc.
-const pageMetaSchema = z.object({ total: z.number(), page: z.number(), limit: z.number() });
-function okListJson(itemSchema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
 const projectIdParam = z.object({ projectId: z.string() });
 const procurementParam = z.object({ projectId: z.string(), id: z.string() });
 
@@ -121,32 +111,8 @@ const procurementSchema = z.object({
   tags: z.array(tagRefSchema),
 });
 
-// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
-// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
-// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
-function parseTagIds(raw: string[] | undefined): string[] {
-  if (!raw || raw.length === 0)
-    return [];
-  const out = new Set<string>();
-  for (const part of raw) {
-    for (const value of part.split(",")) {
-      const trimmed = value.trim();
-      if (trimmed)
-        out.add(trimmed);
-    }
-  }
-  return [...out].slice(0, 50);
-}
-
 function actorId(c: Context<ProtectedEnv>): string {
   return c.get("user").id;
-}
-
-function auditMeta(c: Context<ProtectedEnv>) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
 }
 
 /**
@@ -374,7 +340,7 @@ export function procurementRoutes() {
         procurement.id,
         body.status,
         { id: user.id, name: user.name },
-        auditMeta(c),
+        { ip: getClientIp(c, c.get("config")), userAgent: c.req.header("user-agent") ?? "unknown" },
       );
       if (!updated)
         throw new NotFoundError("Procurement", procurement.id);

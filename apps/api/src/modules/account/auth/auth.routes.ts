@@ -9,10 +9,10 @@ import {
   createTotpChallenge,
   verifyTotpCode,
 } from "@/modules/account/users/totp.service";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { deriveOrigin, getAuthConfig, getOAuthConfig, getOidcLogoutUrl, getSingleUserConfig, isOAuthConfigured, isSingleUserMode } from "@/shared/lib/app-config";
 import { getClientIp } from "@/shared/lib/client-ip";
-import { describeRoute, ErrorEnvelope, jsonRequestBody, resolver } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, jsonRequestBody, okJson } from "@/shared/lib/openapi";
 import {
   completeOidcLogin,
   consumePkceEntry,
@@ -123,11 +123,6 @@ function sanitizeRedirect(raw: string, basePath: string): string {
   return candidate;
 }
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 const redirect302 = { description: "Redirect (to the IdP, the SPA, or the shared error page)" };
 
 export function authRoutes() {
@@ -228,7 +223,7 @@ export function authRoutes() {
         const rawDesc = c.req.query("error_description") ?? error;
         const desc = rawDesc.replace(RE_CONTROL_CHARS, "").slice(0, 200);
         logger.warn({ error, desc }, "OAuth authorization error");
-        await audit(db, c.get("logger"), {
+        await auditFromCtx(c, {
           actorId: "system",
           actorName: "system",
           action: "auth.login_failed",
@@ -236,8 +231,6 @@ export function authRoutes() {
           resourceId: "",
           resourceName: "oauth",
           detail: { error, description: desc },
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
           result: "failure",
         });
         return c.redirect(buildLoginErrorUrl(base, "oidc_error", desc), 302);
@@ -298,15 +291,13 @@ export function authRoutes() {
 
       writeSessionCookie(c, config.NODE_ENV, config.BASE_PATH, outcome.sessionId, outcome.sessionMaxAge);
 
-      await audit(db, c.get("logger"), {
+      await auditFromCtx(c, {
         actorId: outcome.user.id,
         actorName: outcome.user.name,
         action: "auth.login",
         resourceType: "user",
         resourceId: outcome.user.id,
         resourceName: outcome.user.username,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -357,15 +348,13 @@ export function authRoutes() {
       clearSessionCookie(c, config.NODE_ENV, config.BASE_PATH);
 
       if (logoutUser) {
-        await audit(db, c.get("logger"), {
+        await auditFromCtx(c, {
           actorId: logoutUser.id,
           actorName: logoutUser.name,
           action: "auth.logout",
           resourceType: "user",
           resourceId: logoutUser.id,
           resourceName: logoutUser.username,
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
           result: "success",
         });
       }
@@ -496,7 +485,7 @@ export function authRoutes() {
       // an attacker spraying random usernames against a single real account
       // should hit the same shared lock as a direct attack.
         await recordSingleUserFailure(db, single.username);
-        await audit(db, c.get("logger"), {
+        await auditFromCtx(c, {
           actorId: "system",
           actorName: "system",
           action: "auth.login_failed",
@@ -504,8 +493,6 @@ export function authRoutes() {
           resourceId: "",
           resourceName: "single-user",
           detail: { username: usernameRaw.slice(0, 64) },
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
           result: "failure",
         });
         return c.json({ success: false, error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials" } }, 401);
@@ -530,7 +517,7 @@ export function authRoutes() {
       );
       writeSessionCookie(c, config.NODE_ENV, config.BASE_PATH, sessionId, authCfg.sessionMaxAge);
 
-      await audit(db, c.get("logger"), {
+      await auditFromCtx(c, {
         actorId: user.id,
         actorName: user.name,
         action: "auth.login",
@@ -538,8 +525,6 @@ export function authRoutes() {
         resourceId: user.id,
         resourceName: user.username,
         detail: { mode: "single-user" },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -667,15 +652,13 @@ export function authRoutes() {
       // the opaque id, which makes the audit log unreadable in the UI.
       const { getUserById } = await import("@/modules/account/users/users.service");
       const challengeUser = await getUserById(db, challenge.userId);
-      await audit(db, c.get("logger"), {
+      await auditFromCtx(c, {
         actorId: challenge.userId,
         actorName: challengeUser?.name ?? challenge.userId,
         action: "auth.login",
         resourceType: "user",
         resourceId: challenge.userId,
         resourceName: "totp-verified",
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 

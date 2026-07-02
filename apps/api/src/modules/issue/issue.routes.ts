@@ -2,17 +2,16 @@ import type { Context } from "hono";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
 import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
 import { listReferenceableWorklists } from "@/modules/ship/ship.worklist.service";
-import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { parsePageQuery } from "@/shared/lib/pagination";
-import { requireParam } from "@/shared/lib/route-params";
+import { parseTagIds, requireParam } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
 import {
   createIssue,
@@ -70,17 +69,6 @@ const listQuerySchema = z.object({
   priority: z.preprocess(emptyToUndefined, z.enum(ISSUE_PRIORITIES).optional()),
 });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-// Paginated `{ success:true, data:[…], meta }` response doc.
-const pageMetaSchema = z.object({ total: z.number(), page: z.number(), limit: z.number() });
-function okListJson(itemSchema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
 const projectIdParam = z.object({ projectId: z.string() });
 const issueParam = z.object({ projectId: z.string(), id: z.string() });
 
@@ -119,30 +107,6 @@ const referenceableWorklistsSchema = z.object({
   ship: z.array(worklistViewSchema),
   global: z.array(worklistViewSchema),
 });
-
-function auditMeta(c: Context) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
-}
-
-// Parse the repeatable `tagIds` query into a bounded, de-duplicated list.
-// Accepts repeated params (?tagIds=a&tagIds=b) and comma-separated values
-// (?tagIds=a,b). `tagIds` is untrusted input, so the count is capped.
-function parseTagIds(raw: string[] | undefined): string[] {
-  if (!raw || raw.length === 0)
-    return [];
-  const out = new Set<string>();
-  for (const part of raw) {
-    for (const value of part.split(",")) {
-      const trimmed = value.trim();
-      if (trimmed)
-        out.add(trimmed);
-    }
-  }
-  return [...out].slice(0, 50);
-}
 
 /**
  * Resolve a project's internal id from its short id and assert the actor is a
@@ -288,29 +252,23 @@ export function issueRoutes() {
         creatorId: actor.id,
       });
 
-      await audit(db, c.get("logger"), {
-        actorId: actor.id,
-        actorName: actor.name,
+      await auditFromCtx(c, {
         action: "issue.created",
         resourceType: "issue",
         resourceId: issue.id,
         resourceName: issue.title,
         detail: { projectId: shortId, ...(body.assigneeMemberId ? { assigneeMemberId: body.assigneeMemberId } : {}) },
-        ...auditMeta(c),
         result: "success",
       });
 
       // Mirror access: a create that sets an assignee also emits issue.assigned.
       if (body.assigneeMemberId) {
-        await audit(db, c.get("logger"), {
-          actorId: actor.id,
-          actorName: actor.name,
+        await auditFromCtx(c, {
           action: "issue.assigned",
           resourceType: "issue",
           resourceId: issue.id,
           resourceName: issue.title,
           detail: { from: null, to: body.assigneeMemberId },
-          ...auditMeta(c),
           result: "success",
         });
       }
@@ -358,7 +316,7 @@ export function issueRoutes() {
     validator("param", issueParam, onValidationFailure),
     validator("json", updateSchema, onValidationFailure),
     async (c) => {
-      const { db, user, issueShort, access, isAdmin } = await loadProjectIssue(c);
+      const { db, issueShort, access, isAdmin } = await loadProjectIssue(c);
       const existing = await getIssueByShortId(db, issueShort);
       if (!existing)
         throw new NotFoundError("Issue", issueShort);
@@ -384,42 +342,33 @@ export function issueRoutes() {
         detail.newStatus = body.status;
       }
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "issue.updated",
         resourceType: "issue",
         resourceId: issueShort,
         resourceName: existing.title,
         ...(Object.keys(detail).length > 0 ? { detail } : {}),
-        ...auditMeta(c),
         result: "success",
       });
 
       if (body.status && body.status !== existing.status) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "issue.status_changed",
           resourceType: "issue",
           resourceId: issueShort,
           resourceName: existing.title,
           detail: { previous: existing.status, new: body.status },
-          ...auditMeta(c),
           result: "success",
         });
       }
 
       if (body.assigneeMemberId !== undefined && body.assigneeMemberId !== existing.assigneeMemberId) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "issue.assigned",
           resourceType: "issue",
           resourceId: issueShort,
           resourceName: existing.title,
           detail: { from: existing.assigneeMemberId, to: body.assigneeMemberId },
-          ...auditMeta(c),
           result: "success",
         });
       }
@@ -447,21 +396,18 @@ export function issueRoutes() {
       }),
       validator("param", issueParam, onValidationFailure),
       async (c) => {
-        const { db, user, issueShort, item, access, isAdmin } = await loadProjectIssue(c);
+        const { db, issueShort, item, access, isAdmin } = await loadProjectIssue(c);
         if (!isAdmin && !access.canEdit)
           throw new ForbiddenError();
         await setItemPinned(db, item.id, pinned);
         const updated = await getIssueByShortId(db, issueShort);
         if (!updated)
           throw new NotFoundError("Issue", issueShort);
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: pinned ? "issue.pinned" : "issue.unpinned",
           resourceType: "issue",
           resourceId: issueShort,
           resourceName: updated.title,
-          ...auditMeta(c),
           result: "success",
         });
         return c.json({ success: true, data: updated });
@@ -484,21 +430,18 @@ export function issueRoutes() {
     }),
     validator("param", issueParam, onValidationFailure),
     async (c) => {
-      const { db, user, issueShort, access, isAdmin } = await loadProjectIssue(c);
+      const { db, issueShort, access, isAdmin } = await loadProjectIssue(c);
       const existing = await getIssueByShortId(db, issueShort);
       if (!existing)
         throw new NotFoundError("Issue", issueShort);
       if (!isAdmin && !access.canEdit)
         throw new ForbiddenError();
       await softDeleteIssue(db, issueShort);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "issue.deleted",
         resourceType: "issue",
         resourceId: issueShort,
         resourceName: existing.title,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });

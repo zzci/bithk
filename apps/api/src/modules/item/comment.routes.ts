@@ -3,7 +3,7 @@ import type { AppDatabase } from "@/db";
 import type { ItemRow } from "@/modules/item/item.service";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import {
   buildDownloadResponse,
   getFileById,
@@ -14,9 +14,8 @@ import {
   uploadAndReference,
 } from "@/modules/file";
 import { createComment, deleteComment, getCommentById, listComments } from "@/modules/item/comment.service";
-import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { requireParam } from "@/shared/lib/route-params";
 
 const DEFAULT_COMMENT_MAX_LENGTH = 2000;
@@ -29,11 +28,6 @@ function buildCommentSchema(maxLength: number) {
   });
 }
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 // Multipart upload (`file` field) request-body doc for attachment uploads.
 const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
 
@@ -110,13 +104,6 @@ export interface MountItemCommentRoutesOptions<TResource = unknown> {
     user: { id: string; role: string },
     subject: CommentSubject<TResource>,
   ) => Promise<CommentPermissions>;
-}
-
-function auditMeta(c: Context) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
 }
 
 /**
@@ -208,15 +195,12 @@ export function mountItemCommentRoutes<TResource>(
         content: body.content,
         replyToId: body.replyToId ?? null,
       });
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: `${resourceType}.comment_added`,
         resourceType,
         resourceId: subject.externalId,
         resourceName: subject.resourceName,
         detail: { commentId: comment.id },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: comment }, 201);
@@ -237,7 +221,7 @@ export function mountItemCommentRoutes<TResource>(
     }),
     validator("param", paramSchema("id", "cid"), onValidationFailure),
     async (c) => {
-      const { db, user, subject, perms } = await load(c);
+      const { db, subject, perms } = await load(c);
       const cid = requireParam(c, "cid");
       const comment = await getCommentById(db, subject.item.id, cid);
       if (!comment)
@@ -245,15 +229,12 @@ export function mountItemCommentRoutes<TResource>(
       if (!perms.canDelete(comment.authorId))
         throw new ForbiddenError();
       await deleteComment(db, cid);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: `${resourceType}.comment_deleted`,
         resourceType,
         resourceId: subject.externalId,
         resourceName: subject.resourceName,
         detail: { commentId: cid },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });
@@ -330,15 +311,12 @@ export function mountItemCommentRoutes<TResource>(
       });
       const view = makeAttachmentView(reference, uploaded);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: `${resourceType}.comment_attachment_uploaded`,
         resourceType,
         resourceId: subject.externalId,
         resourceName: subject.resourceName,
         detail: { commentId: cid, attachmentId: reference.id, filename: file.name, size: file.size },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: view }, 201);
@@ -401,15 +379,12 @@ export function mountItemCommentRoutes<TResource>(
       if (user.role !== "admin" && ref.createdBy !== user.id)
         throw new ForbiddenError();
       await releaseReference(db, c.get("config"), { referenceId: aid });
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: `${resourceType}.comment_attachment_deleted`,
         resourceType,
         resourceId: subject.externalId,
         resourceName: subject.resourceName,
         detail: { commentId: cid, attachmentId: aid, filename: ref.filename },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });

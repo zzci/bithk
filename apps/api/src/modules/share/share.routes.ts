@@ -1,11 +1,9 @@
-import type { Context } from "hono";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { AppError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
 import { findShareAdapter } from "./adapter";
 import { SHARE_PERMISSIONS, SHARE_RESOURCE_TYPES, SHARE_TYPES } from "./schema";
@@ -84,16 +82,6 @@ const capabilitiesSchema = z.object({
   shareTypes: z.array(z.enum(SHARE_TYPES)),
   permissions: z.array(permissionSchema),
 });
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
-function auditMeta(c: Context<AppEnv>) {
-  return { ip: getClientIp(c), userAgent: c.req.header("user-agent") ?? "unknown" };
-}
 
 function requireAdapter(resourceType: typeof SHARE_RESOURCE_TYPES[number]) {
   const adapter = findShareAdapter(resourceType);
@@ -228,15 +216,12 @@ export function shareRoutes() {
         expiresAt: body.shareType === "public_link" ? body.expiresAt : undefined,
         maxDownloads: body.shareType === "public_link" ? body.maxDownloads : undefined,
       });
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "share.created",
         resourceType: "share",
         resourceId: data.id,
         resourceName: data.resourceName,
         detail: { resourceType: type, shareType: data.shareType, permission: data.permission },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data }, 201);
@@ -264,15 +249,12 @@ export function shareRoutes() {
       const { shareId } = c.req.valid("param");
       const body = c.req.valid("json");
       const data = await updateShare(c.get("db"), shareId, user.id, body);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "share.updated",
         resourceType: "share",
         resourceId: data.id,
         resourceName: data.resourceName,
         detail: { isActive: data.isActive },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data });
@@ -296,14 +278,11 @@ export function shareRoutes() {
       const user = c.get("user")!;
       const { shareId } = c.req.valid("param");
       await revokeShare(c.get("db"), shareId, user.id);
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "share.revoked",
         resourceType: "share",
         resourceId: shareId,
         resourceName: shareId,
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: { id: shareId } });

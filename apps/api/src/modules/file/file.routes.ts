@@ -2,7 +2,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
 import { buildDownloadResponse, getFileById, getReferenceById } from "./file.service";
 import { getFilePermissionHook } from "./permission";
@@ -23,12 +23,6 @@ const fileMetadataSchema = z.object({
   ownerId: z.string(),
   createdAt: z.string(),
 });
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 /**
  * The `file` module exposes a tiny pair of read endpoints. **Uploads do

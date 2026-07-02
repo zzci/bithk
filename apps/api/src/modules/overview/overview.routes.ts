@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { getRequestUserModules } from "@/modules/account/groups/module-gate";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, resolver } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson } from "@/shared/lib/openapi";
 import { requireParam } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
 import {
@@ -77,11 +77,6 @@ const overviewSchema = z.object({
     updatedAt: z.string(),
   })),
 });
-
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 function isFavoriteTargetType(v: string): v is FavoriteTargetType {
   return (FAVORITE_TARGET_TYPES as readonly string[]).includes(v);

@@ -2,7 +2,8 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, pageMetaSchema, validator } from "@/shared/lib/openapi";
+import { pageQueryFields } from "@/shared/lib/pagination";
 import { authRequired } from "@/shared/middleware/auth";
 import { hrApprovalsRoutes } from "./hr.approvals.routes";
 import { hrPayrollRoutes } from "./hr.payroll.routes";
@@ -22,8 +23,7 @@ const COLLEAGUE_DOC_OWNER_TYPE = "hr_colleague_document";
 const listQuerySchema = z.object({
   q: z.string().max(200).optional(),
   status: z.enum(HR_COLLEAGUE_STATUSES).optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  ...pageQueryFields({ defaultLimit: 20, maxLimit: 100 }),
 });
 
 // `YYYY-MM-DD` or empty (the edit form clears a date by sending "").
@@ -116,22 +116,7 @@ const colleagueViewSchema = z.object({
   emergencyContacts: z.array(emergencyContactSchema),
   user: userBriefSchema,
 });
-const pageMetaSchema = z.object({
-  total: z.number(),
-  page: z.number(),
-  limit: z.number(),
-  totalPages: z.number(),
-});
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-// `{ success:true, data:[…], meta }` response doc for a paginated list.
-function paginatedJson(itemSchema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
+const hrPageMetaSchema = pageMetaSchema.extend({ totalPages: z.number() });
 
 export function hrRoutes() {
   const router = new Hono<ProtectedEnv>();
@@ -149,7 +134,7 @@ export function hrRoutes() {
       tags: ["hr"],
       summary: "List colleagues",
       responses: {
-        200: paginatedJson(colleagueViewSchema),
+        200: okListJson(colleagueViewSchema, "Success", hrPageMetaSchema),
         401: { description: "Unauthenticated", ...errorJson },
         404: { description: "Not found", ...errorJson },
       },

@@ -1,12 +1,10 @@
-import type { Context } from "hono";
 import type { TaskConfig } from "./executor";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { getActionsCatalog } from "./actions";
 import { SUPPORTED_CRON_FORMATS } from "./cron-format";
@@ -126,20 +124,8 @@ const cronLogSchema = z.object({
   error: z.string().nullable(),
 });
 
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
 // Auth + admin gates apply to every route on this router.
 const authErrors = { 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Admin only", ...errorJson } };
-
-function auditMeta(c: Context) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
-}
 
 export function cronRoutes() {
   const router = new Hono<ProtectedEnv>();
@@ -245,14 +231,11 @@ export function cronRoutes() {
     validator("json", createJobSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const body = c.req.valid("json");
 
       const row = await createJob(db, body);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "cron.job.created",
         resourceType: "cron_job",
         resourceId: row.id,
@@ -263,7 +246,6 @@ export function cronRoutes() {
           action: body.action,
           maxConsecutiveFailures: row.maxConsecutiveFailures,
         },
-        ...auditMeta(c),
         result: "success",
       });
 
@@ -287,7 +269,6 @@ export function cronRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id: identifier } = c.req.valid("param");
       const row = await findJobByIdOrName(db, identifier);
       if (!row)
@@ -295,14 +276,11 @@ export function cronRoutes() {
 
       await softDeleteJob(db, row);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "cron.job.deleted",
         resourceType: "cron_job",
         resourceId: row.id,
         resourceName: row.name,
-        ...auditMeta(c),
         result: "success",
       });
 
@@ -383,7 +361,6 @@ export function cronRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id: identifier } = c.req.valid("param");
       const row = await findJobByIdOrName(db, identifier);
       if (!row)
@@ -430,15 +407,12 @@ export function cronRoutes() {
 
       const log = await getJobLogById(db, logId);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "cron.job.triggered",
         resourceType: "cron_job",
         resourceId: row.id,
         resourceName: row.name,
         detail: { logId, status: log?.status },
-        ...auditMeta(c),
         result: "success",
       });
 
@@ -470,7 +444,6 @@ export function cronRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id: identifier } = c.req.valid("param");
       const row = await findJobByIdOrName(db, identifier);
       if (!row)
@@ -478,14 +451,11 @@ export function cronRoutes() {
 
       await pauseJob(db, row);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "cron.job.paused",
         resourceType: "cron_job",
         resourceId: row.id,
         resourceName: row.name,
-        ...auditMeta(c),
         result: "success",
       });
 
@@ -508,7 +478,6 @@ export function cronRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id: identifier } = c.req.valid("param");
       const row = await findJobByIdOrName(db, identifier);
       if (!row)
@@ -516,14 +485,11 @@ export function cronRoutes() {
 
       await resumeJob(db, row);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "cron.job.resumed",
         resourceType: "cron_job",
         resourceId: row.id,
         resourceName: row.name,
-        ...auditMeta(c),
         result: "success",
       });
 

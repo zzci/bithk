@@ -3,10 +3,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { listGroups } from "@/modules/account/groups/groups.service";
 import { listUsers } from "@/modules/account/users/users.service";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { parsePageQuery } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   batchCreateTuples,
@@ -139,11 +140,6 @@ const batchResultSchema = z.object({
   deletedCount: z.number(),
 });
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 const authError = { description: "Unauthenticated", ...errorJson };
 const adminError = { description: "Admin only", ...errorJson };
 const notFoundError = { description: "Not found", ...errorJson };
@@ -159,14 +155,7 @@ export function policyRoutes() {
       tags: ["policy"],
       summary: "List relation tuples",
       responses: {
-        200: {
-          description: "Paginated relation tuples",
-          content: { "application/json": { schema: resolver(z.object({
-            success: z.literal(true),
-            data: z.array(relationTupleSchema),
-            meta: z.object({ total: z.number(), page: z.number(), limit: z.number() }),
-          })) } },
-        },
+        200: okListJson(relationTupleSchema, "Paginated relation tuples"),
         401: authError,
         403: adminError,
       },
@@ -178,8 +167,7 @@ export function policyRoutes() {
       const db = c.get("db");
       const query = c.req.valid("query");
 
-      const page = Math.max(1, Math.floor(Number.parseInt(query.page ?? "", 10)) || 1);
-      const limit = Math.min(100, Math.max(1, Math.floor(Number.parseInt(query.limit ?? "", 10)) || 50));
+      const { page, limit } = parsePageQuery(c, { limit: 50 });
 
       const result = await listTuples(db, {
         namespace: query.namespace,
@@ -224,16 +212,12 @@ export function policyRoutes() {
       const tuple = await createTuple(db, tupleInput, user.id);
 
       const tupleStr = `${tupleInput.namespace}:${tupleInput.objectId}#${tupleInput.relation}@${tupleInput.subjectNamespace}:${tupleInput.subjectId}${tupleInput.subjectRelation ? `#${tupleInput.subjectRelation}` : ""}`;
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "tuple.created",
         resourceType: body.namespace,
         resourceId: body.objectId,
         resourceName: tupleStr,
         detail: { tuple: tupleStr, ...body },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
       return c.json({ success: true, data: tuple }, 201);
@@ -253,7 +237,6 @@ export function policyRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id } = c.req.valid("param");
 
       const existing = await getTupleById(db, id);
@@ -263,15 +246,11 @@ export function policyRoutes() {
       }
 
       if (existing) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "tuple.deleted",
           resourceType: existing.namespace,
           resourceId: existing.objectId,
           resourceName: id,
-          ip: getClientIp(c),
-          userAgent: c.req.header("user-agent") ?? "unknown",
           result: "success",
         });
       }
@@ -316,16 +295,12 @@ export function policyRoutes() {
       }, user.id);
 
       const tupleStr = `${existing.namespace}:${existing.objectId}#${body.relation}@${existing.subjectNamespace}:${existing.subjectId}${existing.subjectRelation ? `#${existing.subjectRelation}` : ""}`;
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "tuple.updated",
         resourceType: existing.namespace,
         resourceId: existing.objectId,
         resourceName: tupleStr,
         detail: { previousRelation: existing.relation, newRelation: body.relation },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -356,9 +331,7 @@ export function policyRoutes() {
       const userAgent = c.req.header("user-agent") ?? "unknown";
       if (created.length > 0) {
         const tuples = created.map(t => `${t.namespace}:${t.objectId}#${t.relation}@${t.subjectNamespace}:${t.subjectId}`);
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "tuple.batch_created",
           resourceType: "tuple",
           resourceId: "batch",
@@ -370,9 +343,7 @@ export function policyRoutes() {
         });
       }
       if (deletedCount > 0) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: "tuple.batch_deleted",
           resourceType: "tuple",
           resourceId: "batch",
@@ -564,15 +535,11 @@ export function policyRoutes() {
 
       const group = await createResourceGroup(db, body, user.id);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "resource_group.created",
         resourceType: "resource_group",
         resourceId: group.id,
         resourceName: group.name,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -593,21 +560,16 @@ export function policyRoutes() {
     validator("json", resourceGroupBodySchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
 
       const group = await updateResourceGroup(db, id, body);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "resource_group.updated",
         resourceType: "resource_group",
         resourceId: group.id,
         resourceName: group.name,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -627,7 +589,6 @@ export function policyRoutes() {
     validator("param", idParamSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id } = c.req.valid("param");
 
       const deleted = await deleteResourceGroup(db, id);
@@ -635,15 +596,11 @@ export function policyRoutes() {
         throw new NotFoundError("ResourceGroup", id);
       }
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "resource_group.deleted",
         resourceType: "resource_group",
         resourceId: id,
         resourceName: id,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -688,15 +645,11 @@ export function policyRoutes() {
 
       const member = await addResourceGroupMember(db, groupId, body.namespace, body.objectId, user.id);
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "resource_group.member_added",
         resourceType: "resource_group",
         resourceId: groupId,
         resourceName: `${body.namespace}:${body.objectId}`,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -716,7 +669,6 @@ export function policyRoutes() {
     validator("param", memberParamSchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
       const { id: groupId, tupleId } = c.req.valid("param");
 
       const removed = await removeResourceGroupMember(db, tupleId);
@@ -724,15 +676,11 @@ export function policyRoutes() {
         throw new NotFoundError("Member", tupleId);
       }
 
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "resource_group.member_removed",
         resourceType: "resource_group",
         resourceId: groupId,
         resourceName: tupleId,
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 

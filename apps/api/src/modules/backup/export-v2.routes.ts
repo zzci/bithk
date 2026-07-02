@@ -19,11 +19,10 @@
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { buildContentDisposition } from "@/shared/lib/content-disposition";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
   cancelOrDiscardExportJob,
@@ -57,7 +56,6 @@ const exportJobStatusSchema = z.object({
   // Manifest warnings (e.g. blobs skipped per-driver) — null until completed.
   warnings: z.array(z.string()).nullable(),
 });
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 function rawJson(schema: z.ZodType, description = "Success") {
   return { description, content: { "application/json": { schema: resolver(schema) } } };
 }
@@ -85,7 +83,6 @@ export function backupExportV2Routes() {
     validator("json", exportV2BodySchema, onValidationFailure),
     async (c) => {
       const db = c.get("db");
-      const user = c.get("user");
 
       const body = c.req.valid("json");
       const blobsMode = body.blobs ?? (body.includeBlobs === false ? "none" : "embedded");
@@ -102,16 +99,12 @@ export function backupExportV2Routes() {
 
       // Audit is critical for this data-exfiltrating action: a failed write
       // re-throws and the job is never started.
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "backup.export",
         resourceType: "system",
         resourceId: "database",
         resourceName: "database-backup-export",
         detail: { modules: body.modules, blobs: blobsMode, via: "admin" },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       }, { critical: true });
 
@@ -193,17 +186,12 @@ export function backupExportV2Routes() {
       if (!archive)
         throw new NotFoundError("Export archive", jobId);
 
-      const user = c.get("user");
-      await audit(c.get("db"), c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "backup.export.download",
         resourceType: "system",
         resourceId: "database",
         resourceName: "database-backup-export",
         detail: { jobId, artifact: artifactParam },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       }, { critical: true });
 

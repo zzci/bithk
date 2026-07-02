@@ -2,7 +2,7 @@ import type { Context, Hono } from "hono";
 import type { AppDatabase } from "@/db";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { assertEntryCapability } from "@/modules/drive/drive.permission";
 import { getDriveEntryById } from "@/modules/drive/drive.service";
 import {
@@ -15,16 +15,10 @@ import {
   releaseReference,
   uploadAndReference,
 } from "@/modules/file";
-import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { requireParam } from "@/shared/lib/route-params";
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 // Multipart upload (`file` field) request-body doc for attachment uploads.
 const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
 
@@ -113,13 +107,6 @@ export interface MountItemAttachmentRoutesOptions<TResource = unknown> {
     user: { id: string; role: string },
     subject: AttachmentSubject<TResource>,
   ) => Promise<AttachmentPermissions>;
-}
-
-function auditMeta(c: Context) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
 }
 
 /**
@@ -223,15 +210,12 @@ export function mountItemAttachmentRoutes<TResource>(
       const view = makeAttachmentView(reference, uploaded);
 
       if (auditEnabled) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: `${resourceType}.attachment_uploaded`,
           resourceType,
           resourceId: subject.externalId,
           resourceName: subject.resourceName,
           detail: { attachmentId: reference.id, filename: file.name, size: file.size },
-          ...auditMeta(c),
           result: "success",
         });
       }
@@ -282,15 +266,12 @@ export function mountItemAttachmentRoutes<TResource>(
       const view = makeAttachmentView(reference, fileRow!);
 
       if (auditEnabled) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: `${resourceType}.attachment_attached_from_drive`,
           resourceType,
           resourceId: subject.externalId,
           resourceName: subject.resourceName,
           detail: { attachmentId: reference.id, entryId, filename: entry.name },
-          ...auditMeta(c),
           result: "success",
         });
       }
@@ -357,7 +338,7 @@ export function mountItemAttachmentRoutes<TResource>(
     }),
     validator("param", paramSchema("id", "aid"), onValidationFailure),
     async (c) => {
-      const { db, user, subject, perms } = await load(c);
+      const { db, subject, perms } = await load(c);
       const aid = requireParam(c, "aid");
       const ref = await loadOwnedReference(db, subject, aid);
       if (!perms.canDelete(ref.createdBy))
@@ -365,15 +346,12 @@ export function mountItemAttachmentRoutes<TResource>(
       await releaseReference(db, c.get("config"), { referenceId: aid });
 
       if (auditEnabled) {
-        await audit(db, c.get("logger"), {
-          actorId: user.id,
-          actorName: user.name,
+        await auditFromCtx(c, {
           action: `${resourceType}.attachment_deleted`,
           resourceType,
           resourceId: subject.externalId,
           resourceName: subject.resourceName,
           detail: { attachmentId: aid, filename: ref.filename },
-          ...auditMeta(c),
           result: "success",
         });
       }

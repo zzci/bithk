@@ -3,11 +3,10 @@ import type { ShareResourceType } from "./schema";
 import type { AppEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { buildDownloadResponse } from "@/modules/file";
-import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { rateLimit } from "@/shared/middleware/rate-limit";
 import { findShareAdapter } from "./adapter";
 import { SHARE_PERMISSIONS, SHARE_RESOURCE_TYPES } from "./schema";
@@ -40,12 +39,6 @@ const publicShareListingSchema = z.object({
   breadcrumb: z.array(z.object({ id: z.string(), name: z.string() })),
   entries: z.array(publicShareEntrySchema),
 });
-
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 function requireAdapter(resourceType: ShareResourceType) {
   const adapter = findShareAdapter(resourceType);
@@ -126,7 +119,7 @@ export function sharePublicRoutes() {
         throw new AppError("Resource does not support content access", 400, "UNSUPPORTED");
       const data = await adapter.getContent(c.get("db"), toGateRow(share), body.childId);
 
-      await audit(c.get("db"), c.get("logger"), {
+      await auditFromCtx(c, {
         actorId: "client:public",
         actorName: "client:public",
         action: "share.accessed",
@@ -134,8 +127,6 @@ export function sharePublicRoutes() {
         resourceId: token,
         resourceName: share.resourceId,
         detail: { resourceType: share.resourceType, kind: "content" },
-        ip: getClientIp(c),
-        userAgent: c.req.header("user-agent") ?? "unknown",
         result: "success",
       });
 
@@ -187,7 +178,7 @@ export function sharePublicRoutes() {
     if (!reserveDownload(c.get("db"), share.id))
       throw new AppError("Share download limit reached", 410, "SHARE_EXHAUSTED");
 
-    await audit(c.get("db"), c.get("logger"), {
+    await auditFromCtx(c, {
       actorId: "client:public",
       actorName: "client:public",
       action: "share.accessed",
@@ -195,8 +186,6 @@ export function sharePublicRoutes() {
       resourceId: token,
       resourceName: content.reference.filename,
       detail: { resourceType: share.resourceType, kind: "download", childId },
-      ip: getClientIp(c),
-      userAgent: c.req.header("user-agent") ?? "unknown",
       result: "success",
     });
 

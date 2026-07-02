@@ -1,10 +1,9 @@
 import type { Context, Hono } from "hono";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { z } from "zod";
-import { audit } from "@/modules/audit/audit.service";
-import { getClientIp } from "@/shared/lib/client-ip";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { requireParam } from "@/shared/lib/route-params";
 import { resolveIssueItem, resolveIssueProjectId, resolveProjectIssueAccess } from "./issue.service";
 import {
@@ -23,12 +22,6 @@ export const referenceInputSchema = z.object({
 
 const addSchema = referenceInputSchema;
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-
 const issueShortIdParam = z.object({ issueShortId: z.string() });
 
 // Mirrors `ResolvedWorklist` / `IssueReferenceView` returned by the service.
@@ -46,13 +39,6 @@ const referenceViewSchema = z.object({
   createdAt: z.string(),
   worklist: resolvedWorklistSchema.nullable().optional(),
 });
-
-function auditMeta(c: Context) {
-  return {
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "unknown",
-  };
-}
 
 /**
  * Resolve an issue by short id and assert the actor's access, reusing the issue
@@ -123,18 +109,15 @@ export function mountIssueReferenceRoutes(router: Hono<ProtectedEnv>): void {
     validator("param", issueShortIdParam, onValidationFailure),
     validator("json", addSchema, onValidationFailure),
     async (c) => {
-      const { db, user, item, issueShort } = await requireIssueAccess(c, true);
+      const { db, item, issueShort } = await requireIssueAccess(c, true);
       const body = c.req.valid("json");
       const ref = await addReference(db, item.id, body);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "issue.reference_added",
         resourceType: "issue",
         resourceId: issueShort,
         resourceName: item.title,
         detail: { referenceId: ref.id, refType: ref.refType, refId: ref.refId },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: ref }, 201);
@@ -156,20 +139,17 @@ export function mountIssueReferenceRoutes(router: Hono<ProtectedEnv>): void {
     }),
     validator("param", z.object({ issueShortId: z.string(), referenceId: z.string() }), onValidationFailure),
     async (c) => {
-      const { db, user, item, issueShort } = await requireIssueAccess(c, true);
+      const { db, item, issueShort } = await requireIssueAccess(c, true);
       const { referenceId } = c.req.valid("param");
       const removed = await deleteReference(db, item.id, referenceId);
       if (!removed)
         throw new NotFoundError("Reference", referenceId);
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
+      await auditFromCtx(c, {
         action: "issue.reference_removed",
         resourceType: "issue",
         resourceId: issueShort,
         resourceName: item.title,
         detail: { referenceId },
-        ...auditMeta(c),
         result: "success",
       });
       return c.json({ success: true, data: null });

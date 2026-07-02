@@ -5,26 +5,20 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { BUILD_INFO } from "@/build-info";
 import { getLodeSummary, requestLodeRestart, requestLodeRollback, requestLodeUpdate, setLodeHold } from "@/lode";
-import { audit } from "@/modules/audit/audit.service";
+import { auditFromCtx } from "@/modules/audit/audit.context";
 import { directUploadAvailable } from "@/modules/file";
 import { getAppSetting } from "@/shared/lib/app-config";
-import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError } from "@/shared/lib/errors";
 import { renderPrometheus } from "@/shared/lib/metrics";
-import { describeRoute, ErrorEnvelope, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, okJson, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { serviceTokenRequired } from "@/shared/middleware/service-token";
 
-// `{ success:true, data }` response doc for `schema`.
-function okJson(schema: z.ZodType, description = "Success") {
-  return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: schema })) } } };
-}
 // Raw (non-envelope) JSON response doc — the health probes return a bare
 // `{ status }` body rather than the app's success envelope.
 function rawJson(schema: z.ZodType, description: string) {
   return { description, content: { "application/json": { schema: resolver(schema) } } };
 }
-const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
 
 const statusSchema = z.object({ status: z.string() });
 const brandingSchema = z.object({ appDisplayName: z.string() });
@@ -55,17 +49,12 @@ const lodeHoldSchema = z.object({ hold: z.boolean() });
 
 // All four lode operations are sensitive admin actions — record an audit event.
 async function auditLodeAction(c: Context<ProtectedEnv>, action: string, detail: Record<string, unknown>): Promise<void> {
-  const user = c.get("user");
-  await audit(c.get("db"), c.get("logger"), {
-    actorId: user.id,
-    actorName: user.name,
+  await auditFromCtx(c, {
     action,
     resourceType: "lode",
     resourceId: "supervisor",
     resourceName: "lode supervisor",
     detail,
-    ip: getClientIp(c),
-    userAgent: c.req.header("user-agent") ?? "",
     result: "success",
   });
 }
