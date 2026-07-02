@@ -34,6 +34,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- **CI: macOS matrix leg removed** (FIX-058). The `check` job now runs on
+  `ubuntu-latest` only — the app deploys exclusively to Linux (Docker/lode)
+  and the mac leg doubled the heaviest job at ~10x runner cost. Re-add
+  `macos-latest` to the matrix if mac CI is ever needed again.
 - **Architecture remediation** (PLAN-104, 13 tasks from the 2026-07-02
   architecture assessment):
   - API wiring: route-table now composes the real route factories (fixing

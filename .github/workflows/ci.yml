@@ -25,7 +25,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # Linux-only: the app deploys to Linux (Docker/lode). The macOS leg was
+        # dropped in FIX-058 — re-add "macos-latest" here if mac CI is needed again.
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:

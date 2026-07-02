@@ -178,3 +178,4 @@
 | [UI-028](UI-028.md) | Web data-layer discipline: query keys, http() call sites, keepPreviousData | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
 | [UI-029](UI-029.md) | Split web god-components; static i18n label maps; memoized list rows | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
 | [TEST-001](TEST-001.md) | Close HTTP-behavior coverage gap for auth-sensitive modules | [PLAN-104](../plan/PLAN-104.md) | Completed | 2026-07-02 |
+| [FIX-058](FIX-058.md) | Drop the macOS CI matrix leg | - | Completed | 2026-07-02 |
