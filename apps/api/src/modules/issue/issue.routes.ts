@@ -3,18 +3,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { audit } from "@/modules/audit/audit.service";
-import { assertEntryCapability } from "@/modules/drive/drive.permission";
-import { getDriveEntryById } from "@/modules/drive/drive.service";
-import {
-  addReference,
-  buildDownloadResponse,
-  getFileById,
-  getReferenceById,
-  listAttachmentsByOwner,
-  makeAttachmentView,
-  releaseReference,
-  uploadAndReference,
-} from "@/modules/file";
+import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
 import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
@@ -91,13 +80,9 @@ function okListJson(itemSchema: z.ZodType, description = "Success") {
   return { description, content: { "application/json": { schema: resolver(z.object({ success: z.literal(true), data: z.array(itemSchema), meta: pageMetaSchema })) } } };
 }
 const errorJson = { content: { "application/json": { schema: resolver(ErrorEnvelope) } } };
-// Multipart upload (`file` field) request-body doc for attachment uploads.
-const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
 
 const projectIdParam = z.object({ projectId: z.string() });
 const issueParam = z.object({ projectId: z.string(), id: z.string() });
-const attachmentParam = z.object({ projectId: z.string(), id: z.string(), aid: z.string() });
-const inlineQuery = z.object({ inline: z.string().optional() });
 
 // Mirrors `IssueRow` returned by the issue service.
 const tagRefSchema = z.object({ id: z.string(), name: z.string() });
@@ -134,21 +119,6 @@ const referenceableWorklistsSchema = z.object({
   ship: z.array(worklistViewSchema),
   global: z.array(worklistViewSchema),
 });
-
-// Mirrors `AttachmentView` from the file module.
-const attachmentViewSchema = z.object({
-  id: z.string(),
-  fileId: z.string(),
-  ownerType: z.string(),
-  ownerId: z.string(),
-  filename: z.string(),
-  mimetype: z.string(),
-  size: z.number(),
-  createdBy: z.string(),
-  createdAt: z.string(),
-});
-// Attach an already-stored drive file by entry id (no re-upload).
-const fromDriveSchema = z.object({ entryId: z.string().min(1) });
 
 function auditMeta(c: Context) {
   return {
@@ -535,208 +505,45 @@ export function issueRoutes() {
     },
   );
 
-  // ─── Attachments (delegating to mod-file) ─────────────────────────
-  router.post(
-    "/projects/:projectId/issues/:id/attachments",
-    describeRoute({
-      tags: ["issues"],
-      summary: "Upload an issue attachment",
-      requestBody: fileUploadBody,
-      responses: {
-        201: okJson(attachmentViewSchema, "Created"),
-        400: { description: "No file provided", ...errorJson },
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Issue not found", ...errorJson },
-        413: { description: "Upload too large", ...errorJson },
-      },
-    }),
-    validator("param", issueParam, onValidationFailure),
-    async (c) => {
-      const { db, user, issueShort, item, access, isAdmin } = await loadProjectIssue(c);
-      if (!isAdmin && !access.canEdit && !access.isAssignee)
-        throw new ForbiddenError();
-      const issue = await getIssueByShortId(db, issueShort);
+  // ─── Attachments (delegated to mod-item) ──────────────────────────
+  mountItemAttachmentRoutes(router, {
+    routePrefix: "/projects/:projectId/issues",
+    resourceType: "issue",
+    tag: "issues",
+    summaries: {
+      upload: "Upload an issue attachment",
+      fromDrive: "Attach a drive file to an issue",
+      list: "List issue attachments",
+      download: "Download an issue attachment",
+      delete: "Delete an issue attachment",
+    },
+    async resolve(db, idParam, params) {
+      const item = await resolveIssueItem(db, idParam);
+      if (!item)
+        return null;
+      const issue = await getIssueByShortId(db, idParam);
       if (!issue)
-        throw new NotFoundError("Issue", issueShort);
-
-      const config = c.get("config");
-      const contentLength = Number(c.req.header("content-length") ?? "0");
-      if (contentLength > config.MAX_UPLOAD_BYTES)
-        throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
-
-      const formData = await c.req.formData();
-      const file = formData.get("file");
-      if (!(file instanceof File))
-        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-
-      const { reference, file: uploaded } = await uploadAndReference(db, config, {
-        file,
-        ownerType: "item_attachment",
-        ownerId: item.id,
-        uploadedBy: user.id,
-      });
-      const view = makeAttachmentView(reference, uploaded);
-
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "issue.attachment_uploaded",
-        resourceType: "issue",
-        resourceId: issueShort,
-        resourceName: issue.title,
-        detail: { attachmentId: reference.id, filename: file.name, size: file.size },
-        ...auditMeta(c),
-        result: "success",
-      });
-
-      return c.json({ success: true, data: view }, 201);
+        return null;
+      // The path project must actually own the issue; a mismatch is the same
+      // fail-closed 404 the parent routes produce (mirrors loadProjectIssue).
+      const pathProject = params.projectId ? await resolveProjectId(db, params.projectId) : null;
+      const ownerProject = await resolveIssueProjectId(db, idParam);
+      if (!ownerProject || ownerProject !== pathProject)
+        return null;
+      return { ownerId: item.id, resource: { item, projectId: ownerProject }, externalId: idParam, resourceName: issue.title };
     },
-  );
-
-  // Attach an existing drive file to this issue without re-uploading the blob:
-  // register a new reference to the entry's already-stored file. The actor's
-  // READ access on the drive entry is verified server-side — the client-supplied
-  // id is never trusted.
-  router.post(
-    "/projects/:projectId/issues/:id/attachments/from-drive",
-    describeRoute({
-      tags: ["issues"],
-      summary: "Attach a drive file to an issue",
-      responses: {
-        201: okJson(attachmentViewSchema, "Created"),
-        400: { description: "Drive entry is not a file or already attached", ...errorJson },
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", issueParam, onValidationFailure),
-    validator("json", fromDriveSchema, onValidationFailure),
-    async (c) => {
-      const { db, user, issueShort, item, access, isAdmin } = await loadProjectIssue(c);
-      if (!isAdmin && !access.canEdit && !access.isAssignee)
-        throw new ForbiddenError();
-      const issue = await getIssueByShortId(db, issueShort);
-      if (!issue)
-        throw new NotFoundError("Issue", issueShort);
-      const { entryId } = c.req.valid("json");
-
-      // Authoritative READ check on the drive entry (throws 404/403).
-      const actor = { id: user.id, role: user.role };
-      await assertEntryCapability(db, actor, entryId, "read");
-      const entry = await getDriveEntryById(db, entryId);
-      if (!entry || !entry.file)
-        throw new AppError("Drive entry is not a file", 400, "INVALID_ENTRY");
-
-      const reference = await addReference(db, {
-        fileId: entry.file.fileId,
-        ownerType: "item_attachment",
-        ownerId: item.id,
-        filename: entry.name,
-        createdBy: user.id,
-      });
-      const fileRow = await getFileById(db, entry.file.fileId);
-      const view = makeAttachmentView(reference, fileRow!);
-
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "issue.attachment_attached_from_drive",
-        resourceType: "issue",
-        resourceId: issueShort,
-        resourceName: issue.title,
-        detail: { attachmentId: reference.id, entryId, filename: entry.name },
-        ...auditMeta(c),
-        result: "success",
-      });
-
-      return c.json({ success: true, data: view }, 201);
+    async permissions(db, user, subject) {
+      const { item, projectId } = subject.resource;
+      const access = await resolveProjectIssueAccess(db, item, projectId, user.id);
+      const isAdmin = user.role === "admin";
+      return {
+        // Membership + issue.view, exactly the requireProjectMember gate.
+        canRead: isAdmin || access.canRead,
+        canWrite: isAdmin || access.canEdit || access.isAssignee,
+        canDelete: createdBy => isAdmin || access.canEdit || createdBy === user.id,
+      };
     },
-  );
-
-  router.get(
-    "/projects/:projectId/issues/:id/attachments",
-    describeRoute({
-      tags: ["issues"],
-      summary: "List issue attachments",
-      responses: {
-        200: okJson(z.array(attachmentViewSchema)),
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Issue not found", ...errorJson },
-      },
-    }),
-    validator("param", issueParam, onValidationFailure),
-    async (c) => {
-      const { db, item } = await loadProjectIssue(c);
-      const data = await listAttachmentsByOwner(db, "item_attachment", item.id);
-      return c.json({ success: true, data });
-    },
-  );
-
-  router.get(
-    "/projects/:projectId/issues/:id/attachments/:aid",
-    describeRoute({
-      tags: ["issues"],
-      summary: "Download an issue attachment",
-      responses: {
-        200: { description: "Attachment file stream", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } },
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Attachment not found", ...errorJson },
-      },
-    }),
-    validator("param", attachmentParam, onValidationFailure),
-    validator("query", inlineQuery, onValidationFailure),
-    async (c) => {
-      const { db, item } = await loadProjectIssue(c);
-      const { aid } = c.req.valid("param");
-      const ref = await getReferenceById(db, aid);
-      if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
-        throw new NotFoundError("Attachment", aid);
-      const file = await getFileById(db, ref.fileId);
-      if (!file)
-        throw new NotFoundError("File", aid);
-      const wantInline = c.req.query("inline") === "true";
-      return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
-    },
-  );
-
-  router.delete(
-    "/projects/:projectId/issues/:id/attachments/:aid",
-    describeRoute({
-      tags: ["issues"],
-      summary: "Delete an issue attachment",
-      responses: {
-        200: okJson(z.null()),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Attachment not found", ...errorJson },
-      },
-    }),
-    validator("param", attachmentParam, onValidationFailure),
-    async (c) => {
-      const { db, user, issueShort, item, access, isAdmin } = await loadProjectIssue(c);
-      const { aid } = c.req.valid("param");
-      const ref = await getReferenceById(db, aid);
-      if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
-        throw new NotFoundError("Attachment", aid);
-      if (!isAdmin && !access.canEdit && ref.createdBy !== user.id)
-        throw new ForbiddenError();
-      await releaseReference(db, c.get("config"), { referenceId: aid });
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "issue.attachment_deleted",
-        resourceType: "issue",
-        resourceId: issueShort,
-        resourceName: item.title,
-        detail: { attachmentId: aid, filename: ref.filename },
-        ...auditMeta(c),
-        result: "success",
-      });
-      return c.json({ success: true, data: null });
-    },
-  );
+  });
 
   // ─── Comments + attachments (delegated to mod-item) ───────────────
   mountItemCommentRoutes(router, {

@@ -12190,7 +12190,7 @@
             }
           },
           "404": {
-            "description": "Issue not found",
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -12391,7 +12391,7 @@
             }
           },
           "404": {
-            "description": "Issue not found",
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -12758,7 +12758,7 @@
             }
           },
           "404": {
-            "description": "Attachment not found",
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -12931,7 +12931,7 @@
             }
           },
           "404": {
-            "description": "Attachment not found",
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -31446,7 +31446,7 @@
             }
           },
           "404": {
-            "description": "Procurement not found",
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -31647,7 +31647,7 @@
             }
           },
           "404": {
-            "description": "Procurement not found",
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -32014,7 +32014,7 @@
             }
           },
           "404": {
-            "description": "Attachment not found",
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -32187,7 +32187,7 @@
             }
           },
           "404": {
-            "description": "Attachment not found",
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -35631,10 +35631,7 @@
                     "type": "string",
                     "format": "binary"
                   }
-                },
-                "required": [
-                  "file"
-                ]
+                }
               }
             }
           }
@@ -36309,7 +36306,7 @@
         "summary": "Download a document attachment",
         "responses": {
           "200": {
-            "description": "File stream",
+            "description": "Attachment file stream",
             "content": {
               "application/octet-stream": {
                 "schema": {
@@ -60452,10 +60449,7 @@
                     "type": "string",
                     "format": "binary"
                   }
-                },
-                "required": [
-                  "file"
-                ]
+                }
               }
             }
           }
@@ -61094,7 +61088,7 @@
         "summary": "Download a colleague document",
         "responses": {
           "200": {
-            "description": "File stream",
+            "description": "Attachment file stream",
             "content": {
               "application/octet-stream": {
                 "schema": {

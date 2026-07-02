@@ -4,19 +4,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { listActiveUsers } from "@/modules/account/users/users.service";
 import { audit } from "@/modules/audit/audit.service";
-import { assertEntryCapability } from "@/modules/drive/drive.permission";
-import { getDriveEntryById } from "@/modules/drive/drive.service";
-import {
-  addReference,
-  buildDownloadResponse,
-  getFileById,
-  getReferenceById,
-  listAttachmentsByOwner,
-  makeAttachmentView,
-  releaseAllByOwner,
-  releaseReference,
-  uploadAndReference,
-} from "@/modules/file";
+import { releaseAllByOwner } from "@/modules/file";
+import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { NOOP_POLICY_LOGGER, policyContext } from "@/modules/policy";
 import { getClientIp } from "@/shared/lib/client-ip";
@@ -78,7 +67,6 @@ const shareSchema = z.object({
 // generated OpenAPI spec and the handler reads typed `string` values via
 // `c.req.valid("param")` instead of `string | undefined`.
 const idParam = z.object({ id: z.string() });
-const attachmentParam = z.object({ id: z.string(), aid: z.string() });
 const shareParam = z.object({ id: z.string(), shareId: z.string() });
 const listQuery = z.object({
   q: z.string().optional(),
@@ -86,7 +74,6 @@ const listQuery = z.object({
   page: z.string().optional(),
   limit: z.string().optional(),
 });
-const inlineQuery = z.object({ inline: z.string().optional() });
 
 // Response `data` schemas mirroring the real composed shapes.
 const documentSchema = z.object({
@@ -109,19 +96,6 @@ const documentTreeNodeSchema = z.object({
   childCount: z.number(),
   pinned: z.boolean(),
 });
-const attachmentViewSchema = z.object({
-  id: z.string(),
-  fileId: z.string(),
-  ownerType: z.string(),
-  ownerId: z.string(),
-  filename: z.string(),
-  mimetype: z.string(),
-  size: z.number(),
-  createdBy: z.string(),
-  createdAt: z.string(),
-});
-// Attach an already-stored drive file by entry id (no re-upload).
-const fromDriveSchema = z.object({ entryId: z.string().min(1) });
 const userPickerSchema = z.object({ id: z.string(), name: z.string(), username: z.string() });
 const groupSchema = z.object({ id: z.string(), name: z.string() });
 const shareWithSourceSchema = z.object({
@@ -603,247 +577,50 @@ export function documentRoutes() {
     },
   );
 
-  // ── Attachment endpoints ──
-
-  router.post(
-    "/documents/:id/attachments",
-    describeRoute({
-      tags: ["documents"],
-      summary: "Upload a document attachment",
-      requestBody: {
-        content: {
-          "multipart/form-data": {
-            schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] },
-          },
-        },
-      },
-      responses: {
-        201: okJson(attachmentViewSchema, "Created"),
-        400: { description: "No file provided", ...errorJson },
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-        413: { description: "Upload too large", ...errorJson },
-      },
-    }),
-    validator("param", idParam, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { id } = c.req.valid("param");
-      const doc = await getDocumentById(db, id);
+  // ── Attachments (delegated to mod-item) ──
+  // The primary gate stays the global policy middleware (route table in
+  // document.permission.ts); the factory callbacks are the same checks as
+  // defense in depth. `canRead` fail-closes to 404 per decision 003.
+  mountItemAttachmentRoutes(router, {
+    routePrefix: "/documents",
+    resourceType: "document",
+    tag: "documents",
+    summaries: {
+      upload: "Upload a document attachment",
+      fromDrive: "Attach a drive file to a document",
+      list: "List document attachments",
+      download: "Download a document attachment",
+      delete: "Delete a document attachment",
+    },
+    async resolve(db, idParam) {
+      const doc = await getDocumentById(db, idParam);
       if (!doc)
-        throw new NotFoundError("Document", id);
-      const item = await resolveDocumentItem(db, id);
+        return null;
+      const item = await resolveDocumentItem(db, idParam);
       if (!item)
-        throw new NotFoundError("Document", id);
-      // Defense in depth (see GET /documents/:id).
-      await documentAccess.assert(policyContext(c)!, "document:upload", item.id);
-
-      const config = c.get("config");
-      const contentLength = Number(c.req.header("content-length") ?? "0");
-      if (contentLength > config.MAX_UPLOAD_BYTES) {
-        throw new AppError("Upload too large", 413, "UPLOAD_TOO_LARGE");
-      }
-
-      const formData = await c.req.formData();
-      const file = formData.get("file");
-      if (!(file instanceof File)) {
-        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-      }
-      const { reference, file: uploaded } = await uploadAndReference(db, config, {
-        file,
-        ownerType: "item_attachment",
-        ownerId: item.id,
-        uploadedBy: user.id,
-      });
-      const view = makeAttachmentView(reference, uploaded);
-
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "document.attachment_uploaded",
-        resourceType: "document",
-        resourceId: id,
-        resourceName: doc.title,
-        detail: { attachmentId: reference.id, filename: file.name, size: file.size },
-        ...auditMeta(c),
-        result: "success",
-      });
-
-      return c.json({ success: true, data: view }, 201);
+        return null;
+      return { ownerId: item.id, resource: doc, externalId: idParam, resourceName: doc.title };
     },
-  );
-
-  // Attach an existing drive file to this document without re-uploading the
-  // blob: register a new reference to the entry's already-stored file. The
-  // actor's READ access on the drive entry is verified server-side — the
-  // client-supplied id is never trusted.
-  router.post(
-    "/documents/:id/attachments/from-drive",
-    describeRoute({
-      tags: ["documents"],
-      summary: "Attach a drive file to a document",
-      responses: {
-        201: okJson(attachmentViewSchema, "Created"),
-        400: { description: "Drive entry is not a file or already attached", ...errorJson },
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", idParam, onValidationFailure),
-    validator("json", fromDriveSchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { id } = c.req.valid("param");
-      const { entryId } = c.req.valid("json");
-      const doc = await getDocumentById(db, id);
-      if (!doc)
-        throw new NotFoundError("Document", id);
-      const item = await resolveDocumentItem(db, id);
-      if (!item)
-        throw new NotFoundError("Document", id);
-      // Defense in depth (see GET /documents/:id).
-      await documentAccess.assert(policyContext(c)!, "document:upload", item.id);
-
-      // Authoritative READ check on the drive entry (throws 404/403).
-      const actor = { id: user.id, role: user.role };
-      await assertEntryCapability(db, actor, entryId, "read");
-      const entry = await getDriveEntryById(db, entryId);
-      if (!entry || !entry.file)
-        throw new AppError("Drive entry is not a file", 400, "INVALID_ENTRY");
-
-      const reference = await addReference(db, {
-        fileId: entry.file.fileId,
-        ownerType: "item_attachment",
-        ownerId: item.id,
-        filename: entry.name,
-        createdBy: user.id,
-      });
-      const fileRow = await getFileById(db, entry.file.fileId);
-      const view = makeAttachmentView(reference, fileRow!);
-
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "document.attachment_attached_from_drive",
-        resourceType: "document",
-        resourceId: id,
-        resourceName: doc.title,
-        detail: { attachmentId: reference.id, entryId, filename: entry.name },
-        ...auditMeta(c),
-        result: "success",
-      });
-
-      return c.json({ success: true, data: view }, 201);
+    async permissions(db, user, subject) {
+      // Same minimal-ctx bridge as the comment mount below (see its comment).
+      const ctx = {
+        db,
+        logger: NOOP_POLICY_LOGGER,
+        actor: { id: user.id, type: "user", role: user.role },
+      };
+      // For documents the attachment owner id IS the policy object id
+      // (the backing `items.id`).
+      const itemId = subject.ownerId;
+      const canDeleteAttachment = await documentAccess.can(ctx, "document:delete_attachment", itemId);
+      return {
+        canRead: await documentAccess.can(ctx, "document:read", itemId),
+        canWrite: await documentAccess.can(ctx, "document:upload", itemId),
+        // Editor-level policy action; the uploader gets no self-delete
+        // override (pre-factory behavior, unlike issue/procurement).
+        canDelete: () => canDeleteAttachment,
+      };
     },
-  );
-
-  router.get(
-    "/documents/:id/attachments",
-    describeRoute({
-      tags: ["documents"],
-      summary: "List document attachments",
-      responses: {
-        200: okJson(z.array(attachmentViewSchema)),
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", idParam, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const { id } = c.req.valid("param");
-      const item = await resolveDocumentItem(db, id);
-      if (!item)
-        throw new NotFoundError("Document", id);
-      // No read access ⇒ hide existence (404), not 403. See decision 003.
-      if (!(await documentAccess.can(policyContext(c)!, "document:read", item.id)))
-        throw new NotFoundError("Document", id);
-      const data = await listAttachmentsByOwner(db, "item_attachment", item.id);
-      return c.json({ success: true, data });
-    },
-  );
-
-  router.get(
-    "/documents/:id/attachments/:aid",
-    describeRoute({
-      tags: ["documents"],
-      summary: "Download a document attachment",
-      responses: {
-        200: { description: "File stream", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } },
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", attachmentParam, onValidationFailure),
-    validator("query", inlineQuery, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const { id, aid } = c.req.valid("param");
-      const item = await resolveDocumentItem(db, id);
-      if (!item)
-        throw new NotFoundError("Document", id);
-      // No read access ⇒ hide existence (404), not 403. Download is viewer-
-      // level for documents, so readability is the existence gate. Decision 003.
-      if (!(await documentAccess.can(policyContext(c)!, "document:read", item.id)))
-        throw new NotFoundError("Document", id);
-      const ref = await getReferenceById(db, aid);
-      if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
-        throw new NotFoundError("Attachment", aid);
-      const file = await getFileById(db, ref.fileId);
-      if (!file)
-        throw new NotFoundError("File", aid);
-      const wantInline = c.req.valid("query").inline === "true";
-      return await buildDownloadResponse(c.get("config"), file, ref, { inline: wantInline });
-    },
-  );
-
-  router.delete(
-    "/documents/:id/attachments/:aid",
-    describeRoute({
-      tags: ["documents"],
-      summary: "Delete a document attachment",
-      responses: {
-        200: okJson(z.null()),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    validator("param", attachmentParam, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { id, aid } = c.req.valid("param");
-      const doc = await getDocumentById(db, id);
-      if (!doc)
-        throw new NotFoundError("Document", id);
-      const item = await resolveDocumentItem(db, id);
-      if (!item)
-        throw new NotFoundError("Document", id);
-      // Defense in depth (see GET /documents/:id).
-      await documentAccess.assert(policyContext(c)!, "document:delete_attachment", item.id);
-      const ref = await getReferenceById(db, aid);
-      if (!ref || ref.ownerType !== "item_attachment" || ref.ownerId !== item.id)
-        throw new NotFoundError("Attachment", aid);
-      await releaseReference(db, c.get("config"), { referenceId: aid });
-      await audit(db, c.get("logger"), {
-        actorId: user.id,
-        actorName: user.name,
-        action: "document.attachment_deleted",
-        resourceType: "document",
-        resourceId: id,
-        resourceName: doc.title,
-        detail: { attachmentId: aid, filename: ref.filename },
-        ...auditMeta(c),
-        result: "success",
-      });
-      return c.json({ success: true, data: null });
-    },
-  );
+  });
 
   // ── Comments + attachments (delegated to mod-item) ──
   mountItemCommentRoutes(router, {
