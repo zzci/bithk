@@ -21,8 +21,10 @@ const defaultCoverKeys = {
 
 const PATH = "/admin/project-default-cover";
 
-/** Read the current global default project cover. `referenceId`/`url` are both
- *  `null` when unset (or when the stored reference dangles). */
+/**
+ * Read the current global default project cover. `referenceId`/`url` are both
+ *  `null` when unset (or when the stored reference dangles).
+ */
 export function useDefaultCover(): UseQueryResult<DefaultCover> {
   return useQuery<DefaultCover>({
     queryKey: defaultCoverKeys.all,
@@ -31,8 +33,10 @@ export function useDefaultCover(): UseQueryResult<DefaultCover> {
   });
 }
 
-/** Upload (or replace) the default cover via multipart `file`. The server
- *  releases any prior reference. */
+/**
+ * Upload (or replace) the default cover via multipart `file`. The server
+ *  releases any prior reference.
+ */
 export function useUploadDefaultCover(): UseMutationResult<DefaultCover, Error, File> {
   const queryClient = useQueryClient();
   return useMutation({
