@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { protectedRoutes } from "@/routes/protected";
+import { TOKEN_MODULES, tokenModuleForPath } from "@/shared/module-manifest";
 import {
   isValidScopeInput,
   levelForMethod,
   parseScopes,
   scopeSatisfies,
-  TOKEN_MODULES,
-  tokenModuleForPath,
 } from "./scope";
 
 describe("tokenModuleForPath", () => {

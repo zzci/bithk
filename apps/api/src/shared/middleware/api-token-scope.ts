@@ -1,8 +1,9 @@
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "@/shared/lib/types";
-import { isApiTokenSecret, levelForMethod, scopeSatisfies, tokenModuleForPath } from "@/modules/account/tokens/scope";
+import { isApiTokenSecret, levelForMethod, scopeSatisfies } from "@/modules/account/tokens/scope";
 import { AppError } from "@/shared/lib/errors";
 import { getAuthProvider } from "@/shared/middleware/auth-registry";
+import { tokenModuleForPath } from "@/shared/module-manifest";
 
 /**
  * Per-module ceiling for Personal Access Token requests (FEAT-034). Mounted on

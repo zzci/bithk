@@ -9,10 +9,11 @@ import { createDb } from "@/db";
 import { protectedRoutes } from "@/routes/protected";
 import { NotFoundError } from "@/shared/lib/errors";
 import { authRequired } from "@/shared/middleware/auth";
+import { moduleForPath, UNGATED_PREFIXES } from "@/shared/module-manifest";
 import { MODULE_KEYS, MODULES } from "@/shared/modules";
 import { mountRoutes, sessionCookieFor, testNanoid } from "@/shared/test/route-harness";
 import { addGroupMember, createGroup, setDefaultModules } from "./groups.service";
-import { moduleForPath, moduleGate, resolveUserModules, UNGATED_PREFIXES } from "./module-gate";
+import { moduleGate, resolveUserModules } from "./module-gate";
 // Registers the session-cookie auth provider that the gate resolves through.
 import "@/modules/account";
 

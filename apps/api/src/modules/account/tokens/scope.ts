@@ -1,13 +1,16 @@
 // Personal Access Token scope model (FEAT-034).
 //
 // A token carries a per-module access level — "read" (safe methods only),
-// "write" (read + mutate), or none (key absent). The set of scope modules is a
-// SUPERSET of the 6 nav modules in `@/shared/modules`: it must cover EVERY
-// protected route so a token can be scoped down to any part of the API. The
-// `tokens.scope.coverage.test.ts` enumerates the real mounted routes and
-// asserts each one maps to exactly one module here — a new route cannot ship
-// unmapped. The guard is independent of the policy engine: effective access is
-// `owner policy permissions ∩ token scope`.
+// "write" (read + mutate), or none (key absent). The scope-module registry
+// itself (`TOKEN_MODULES`) lives in the single module manifest
+// (`@/shared/module-manifest`, REFACTOR-031) alongside the nav-module
+// registry it supersets; `scope.test.ts` enumerates the real mounted routes
+// and asserts each one maps to exactly one module there — a new route cannot
+// ship unmapped. The guard is independent of the policy engine: effective
+// access is `owner policy permissions ∩ token scope`.
+
+import type { TokenModuleKey } from "@/shared/module-manifest";
+import { TOKEN_MODULE_KEYS } from "@/shared/module-manifest";
 
 export type ScopeLevel = "read" | "write";
 
@@ -18,59 +21,11 @@ export function isApiTokenSecret(value: string): boolean {
   return value.startsWith(TOKEN_SECRET_PREFIX);
 }
 
-export interface TokenModuleDefinition {
-  readonly key: string;
-  readonly prefixes: readonly string[];
-}
-
-// Ordered registry; first match wins, exactly like `moduleForPath` in the
-// nav-module gate. Prefixes are disjoint with ONE deliberate, ordered
-// exception: `/admin/project-default-cover` (a project-domain setting that
-// happens to be mounted under `/admin`) is claimed by `projects` above the
-// `account` entry that owns the rest of `/admin`, so a project-scoped token —
-// not an account-scoped one — governs it.
-export const TOKEN_MODULES = [
-  { key: "documents", prefixes: ["/documents", "/shared"] },
-  { key: "drive", prefixes: ["/drive"] },
-  { key: "files", prefixes: ["/files"] },
-  // `/overview` + `/favorites` (FEAT-048 workbench) are claimed by `projects`:
-  // every favoritable/aggregated target type in v1 is projects-domain content.
-  { key: "projects", prefixes: ["/projects", "/issues", "/global-procurement-categories", "/admin/project-default-cover", "/overview", "/favorites"] },
-  { key: "ships", prefixes: ["/ships", "/worklists", "/global-equipment-categories", "/global-equipment-manufacturers"] },
-  { key: "contacts", prefixes: ["/contacts", "/contact-categories"] },
-  { key: "hr", prefixes: ["/hr"] },
-  { key: "tags", prefixes: ["/tags"] },
-  { key: "shares", prefixes: ["/shares"] },
-  { key: "search", prefixes: ["/search"] },
-  { key: "account", prefixes: ["/account", "/admin"] },
-  { key: "settings", prefixes: ["/settings", "/currencies"] },
-  { key: "policy", prefixes: ["/policy"] },
-  { key: "audit", prefixes: ["/audit"] },
-  { key: "backup", prefixes: ["/backup"] },
-  { key: "cron", prefixes: ["/cron"] },
-  { key: "system", prefixes: ["/system", "/health", "/metrics"] },
-] as const satisfies readonly TokenModuleDefinition[];
-
-export type TokenModuleKey = typeof TOKEN_MODULES[number]["key"];
-
-export const TOKEN_MODULE_KEYS: readonly TokenModuleKey[] = TOKEN_MODULES.map(m => m.key);
-
 const TOKEN_MODULE_KEY_SET = new Set<string>(TOKEN_MODULE_KEYS);
 
 export type TokenScopeMap = Partial<Record<TokenModuleKey, ScopeLevel>>;
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-
-/** Map a protected-router path (base + `/api` already stripped) to its scope module. */
-export function tokenModuleForPath(path: string): TokenModuleKey | null {
-  for (const m of TOKEN_MODULES) {
-    for (const p of m.prefixes) {
-      if (path === p || path.startsWith(`${p}/`))
-        return m.key;
-    }
-  }
-  return null;
-}
 
 /** Required scope level for a request method. */
 export function levelForMethod(method: string): ScopeLevel {

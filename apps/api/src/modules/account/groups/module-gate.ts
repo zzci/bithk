@@ -7,7 +7,8 @@ import { listGroupIdsForUser } from "@/modules/policy/policy.service";
 import { getSetting } from "@/modules/settings/settings.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { getAuthProvider } from "@/shared/middleware/auth-registry";
-import { MODULE_KEYS, MODULES } from "@/shared/modules";
+import { moduleForPath } from "@/shared/module-manifest";
+import { MODULE_KEYS } from "@/shared/modules";
 import { groups } from "./schema";
 
 const MODULE_KEY_SET = new Set<string>(MODULE_KEYS);
@@ -45,58 +46,6 @@ export function parseModules(raw: string): ModuleKey[] {
   catch {
     return [];
   }
-}
-
-/**
- * Protected-router prefixes that are deliberately NOT gated by module
- * visibility. The route-coverage test asserts every prefix mounted on the
- * protected router is either claimed by exactly one `MODULES` entry or
- * listed here — so a new module cannot be mounted unmapped by accident.
- *
- * - `/account`, `/search`, `/tags`, `/policy`, `/settings`, `/currencies` —
- *   cross-cutting surfaces every authenticated user needs (search filters
- *   per-module inside its own handler).
- * - `/shares` — cross-cutting share management (decision in the registry).
- * - `/admin`, `/audit`, `/backup`, `/cron`, `/global-*`,
- *   `/contact-categories`, `/worklists` — admin-area groups that keep their
- *   existing `adminRequired` guards; not group-grantable in v1.
- * - `/files` — attachment infrastructure shared by several modules; every
- *   route enforces its own per-resource permission hooks.
- * - `/overview`, `/favorites` — workbench home surfaces (FEAT-048). The
- *   favorites table is type-generic, so the prefixes stay ungated and each
- *   handler filters by the actor's visible modules (like `/search`).
- */
-export const UNGATED_PREFIXES: readonly string[] = [
-  "/account",
-  "/admin",
-  "/audit",
-  "/backup",
-  "/contact-categories",
-  "/cron",
-  "/currencies",
-  "/favorites",
-  "/files",
-  "/global-equipment-categories",
-  "/global-equipment-manufacturers",
-  "/global-procurement-categories",
-  "/overview",
-  "/policy",
-  "/search",
-  "/settings",
-  "/shares",
-  "/tags",
-  "/worklists",
-];
-
-/** Map a protected-router path to the module claiming it, if any. */
-export function moduleForPath(path: string): ModuleKey | null {
-  for (const m of MODULES) {
-    for (const p of m.prefixes) {
-      if (path === p || path.startsWith(`${p}/`))
-        return m.key;
-    }
-  }
-  return null;
 }
 
 /**
