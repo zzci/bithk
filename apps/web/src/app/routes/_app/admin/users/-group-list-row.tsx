@@ -65,7 +65,9 @@ export const GroupListRow = memo(({
         )}
         {group.modules.length > 0 && (
           <p className="text-xs text-muted-foreground truncate">
-            {group.modules.map(k => t(MODULE_LABEL_KEY[k])).join(" · ")}
+            {/* The spec types `modules` as plain strings; the backend only
+              stores keys from the frontend module registry. */}
+            {group.modules.map(k => t(MODULE_LABEL_KEY[k as ModuleKey])).join(" · ")}
           </p>
         )}
       </div>
@@ -94,7 +96,7 @@ export const GroupListRow = memo(({
             <GroupFormDialog
               initialName={group.name}
               initialDescription={group.description ?? ""}
-              initialModules={group.modules}
+              initialModules={group.modules as readonly ModuleKey[]}
               onSubmit={(name, description, modules) => onSubmitEdit(group, name, description, modules)}
               title={t("editTitle")}
               description={t("editDescription")}

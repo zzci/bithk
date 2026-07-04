@@ -6,13 +6,22 @@
 // (mutations return 409). All routes are admin-only.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiResponse, ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export type HrApprovalStatus = "pending" | "approved" | "rejected";
+// One approval row from GET /hr/approvals — carries the joined applicant
+// display data.
+export type HrApprovalRow = ApiRow<"getHrApprovals">;
+
+export type HrApprovalStatus = HrApprovalRow["status"];
 
 export const HR_APPROVAL_STATUSES: readonly HrApprovalStatus[] = [
   "pending",
@@ -20,7 +29,7 @@ export const HR_APPROVAL_STATUSES: readonly HrApprovalStatus[] = [
   "rejected",
 ];
 
-export type HrApprovalType = "leave" | "overtime" | "business_trip" | "other";
+export type HrApprovalType = HrApprovalRow["type"];
 
 export const HR_APPROVAL_TYPES: readonly HrApprovalType[] = [
   "leave",
@@ -30,39 +39,9 @@ export const HR_APPROVAL_TYPES: readonly HrApprovalType[] = [
 ];
 
 // Joined applicant display data carried on every approval row.
-export interface HrApprovalApplicant {
-  readonly name: string;
-  readonly username: string;
-  readonly isVirtual: boolean;
-}
+export type HrApprovalApplicant = HrApprovalRow["applicant"];
 
-export interface HrApprovalRow {
-  readonly id: string;
-  readonly colleagueId: string;
-  readonly type: HrApprovalType;
-  readonly title: string;
-  readonly reason: string | null;
-  readonly status: HrApprovalStatus;
-  readonly decisionNote: string | null;
-  readonly decidedAt: string | null;
-  readonly decidedByName: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly applicant: HrApprovalApplicant;
-}
-
-interface HrApprovalListMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly limit: number;
-  readonly totalPages: number;
-}
-
-interface HrApprovalListEnvelope {
-  readonly success: boolean;
-  readonly data: readonly HrApprovalRow[];
-  readonly meta: HrApprovalListMeta;
-}
+type HrApprovalListMeta = ApiResponse<"getHrApprovals">["meta"];
 
 // ── Query keys ──
 
@@ -104,7 +83,7 @@ export function useHrApprovals(query: HrApprovalsQuery = {}) {
   return useQuery<HrApprovalsResult>({
     queryKey: hrApprovalKeys.list(queryString),
     queryFn: async () => {
-      const res = await http<HrApprovalListEnvelope>(
+      const res = await http<ApiResponse<"getHrApprovals">>(
         `/hr/approvals?${queryString}`,
       );
       return { data: res.data, meta: res.meta };

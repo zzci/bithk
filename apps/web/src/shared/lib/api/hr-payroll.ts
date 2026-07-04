@@ -7,13 +7,22 @@
 // (mutations return 409). All routes are admin-only.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiResponse, ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export type HrPayrollStatus = "pending" | "paid";
+// One payroll row from GET /hr/payroll — carries the joined colleague display
+// data.
+export type HrPayrollRow = ApiRow<"getHrPayroll">;
+
+export type HrPayrollStatus = HrPayrollRow["status"];
 
 export const HR_PAYROLL_STATUSES: readonly HrPayrollStatus[] = [
   "pending",
@@ -21,49 +30,13 @@ export const HR_PAYROLL_STATUSES: readonly HrPayrollStatus[] = [
 ];
 
 // Joined colleague display data carried on every payroll row.
-export interface HrPayrollColleague {
-  readonly name: string;
-  readonly username: string;
-  readonly isVirtual: boolean;
-}
+export type HrPayrollColleague = HrPayrollRow["colleague"];
 
-export interface HrPayrollRow {
-  readonly id: string;
-  readonly colleagueId: string;
-  readonly period: string;
-  readonly baseSalary: number;
-  readonly bonus: number;
-  readonly deduction: number;
-  readonly currency: string;
-  readonly netAmount: number;
-  readonly status: HrPayrollStatus;
-  readonly paidAt: string | null;
-  readonly notes: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly colleague: HrPayrollColleague;
-}
+type HrPayrollListMeta = ApiResponse<"getHrPayroll">["meta"];
 
 // Per-currency net total across the ENTIRE filtered set (not just the page),
 // computed server-side and carried on the list meta.
-export interface HrPayrollNetTotal {
-  readonly currency: string;
-  readonly net: number;
-}
-
-interface HrPayrollListMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly limit: number;
-  readonly totalPages: number;
-  readonly totals: readonly HrPayrollNetTotal[];
-}
-
-interface HrPayrollListEnvelope {
-  readonly success: boolean;
-  readonly data: readonly HrPayrollRow[];
-  readonly meta: HrPayrollListMeta;
-}
+export type HrPayrollNetTotal = HrPayrollListMeta["totals"][number];
 
 // ── Query keys ──
 
@@ -105,7 +78,7 @@ export function useHrPayrollRecords(query: HrPayrollQuery = {}) {
   return useQuery<HrPayrollResult>({
     queryKey: hrPayrollKeys.list(queryString),
     queryFn: async () => {
-      const res = await http<HrPayrollListEnvelope>(
+      const res = await http<ApiResponse<"getHrPayroll">>(
         `/hr/payroll?${queryString}`,
       );
       return { data: res.data, meta: res.meta };
@@ -173,10 +146,7 @@ export interface GeneratePayrollInput {
   readonly period: string;
 }
 
-export interface GeneratePayrollResult {
-  readonly created: number;
-  readonly skipped: number;
-}
+export type GeneratePayrollResult = ApiData<"postHrPayrollGenerate">;
 
 /**
  * One-click monthly generation (admin-only). Creates a pending record for

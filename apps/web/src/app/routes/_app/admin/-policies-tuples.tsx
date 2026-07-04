@@ -20,7 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCreateTuple, useDeleteTuple, usePolicyTuples, useUpdateTuple } from "@/shared/lib/api/policy";
 import { errorMessage } from "@/shared/lib/errors";
 import { formatDate } from "@/shared/lib/format";
-import { handleSelect, NAMESPACES, RELATIONS, SUBJECT_NAMESPACES, useEntities, useEntityNameMap } from "./-policies-shared";
+import { entityOptionsFor, handleSelect, NAMESPACES, RELATIONS, SUBJECT_NAMESPACES, useEntities, useEntityNameMap } from "./-policies-shared";
 
 export function TupleManager() {
   const { t } = useTranslation("policies");
@@ -206,8 +206,8 @@ function CreateTupleDialog({ entities }: { readonly entities: EntitiesResponse |
   }
 
   const availableRelations = RELATIONS[ns] ?? [];
-  const objectOptions = entities?.data?.[ns] ?? [];
-  const subjectOptions = entities?.data?.[subjectNs] ?? [];
+  const objectOptions = entityOptionsFor(entities, ns);
+  const subjectOptions = entityOptionsFor(entities, subjectNs);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

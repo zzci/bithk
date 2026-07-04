@@ -3,6 +3,7 @@
 // procurement and HR forms can offer it. Custom codes are persisted through the
 // admin-only generic settings CRUD under `app.currencies` (a JSON array string).
 
+import type { ApiData } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -10,10 +11,9 @@ import { http } from "../http";
 
 export const CURRENCIES_SETTING_KEY = "app.currencies";
 
-export interface CurrencyConfig {
-  readonly builtin: readonly string[];
-  readonly custom: readonly string[];
-}
+// Server view shape is an alias of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+export type CurrencyConfig = ApiData<"getCurrencies">;
 
 export const currencyKeys = {
   all: ["currencies"] as const,

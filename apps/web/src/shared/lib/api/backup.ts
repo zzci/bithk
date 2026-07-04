@@ -4,25 +4,38 @@
 // the admin settings tab (`-settings-backup-report.tsx`).
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiResponse, operations } from "./_generated";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes derive from the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes. The
+// backup spec leaves several payloads untyped (`unknown` / bare `string`) —
+// those keep narrow local shapes below, each marked with a TODO(spec).
 
-export type BlobsMode = "embedded" | "separate" | "none";
+// Blob handling mode, from the POST /backup/v2/exports request body.
+export type BlobsMode = NonNullable<
+  operations["postBackupV2Exports"]["requestBody"]["content"]["application/json"]["blobs"]
+>;
 
-export interface BackupModuleView {
-  readonly name: string;
-  readonly deps: readonly string[];
-}
+export type BackupModuleView = ApiResponse<"getBackupModules">["modules"][number];
 
+// TODO(spec): `artifacts` is `unknown` in the OpenAPI spec — backend
+// describeRoute bug; per-artifact shape kept locally.
 export interface ExportArtifactView {
   readonly size: number;
   readonly downloaded: boolean;
 }
 
-export interface ExportJobView {
-  readonly jobId: string;
+// TODO(spec): `state`/`blobsMode` are bare `string` and `progress`/`artifacts`
+// are `unknown` in the OpenAPI spec — backend describeRoute bug; the
+// intersection below re-narrows them without touching the generated file.
+export type ExportJobView = Omit<
+  ApiResponse<"getBackupV2ExportsByJobId">,
+  "state" | "blobsMode" | "progress" | "artifacts"
+> & {
   readonly state: "pending" | "running" | "completed" | "downloaded" | "failed";
   readonly blobsMode: BlobsMode;
   readonly progress: {
@@ -31,16 +44,15 @@ export interface ExportJobView {
     readonly blobBytesDone: number;
     readonly blobBytesTotal: number;
   };
-  readonly error: string | null;
-  readonly archiveSize: number | null;
-  /** Manifest warnings (blobs skipped per storage driver, …) — null until completed. */
-  readonly warnings: readonly string[] | null;
   readonly artifacts: {
     readonly data: ExportArtifactView;
     readonly blobs?: ExportArtifactView;
   } | null;
-}
+};
 
+// TODO(spec): the import `report`/`result` payloads are `unknown` in the
+// OpenAPI spec — backend describeRoute bug; the `ImportReport` family below
+// stays a hand-written mirror of apps/api/src/modules/backup until fixed.
 export interface ImportFailedRow {
   readonly rowId: string;
   readonly reason: string;
@@ -96,21 +108,18 @@ export interface ImportReport {
   readonly reconcile?: { readonly checked: number; readonly quarantined: number };
 }
 
-export interface ImportJobView {
-  readonly importId: string;
+// TODO(spec): `state` is bare `string` and `report`/`result` are `unknown` in
+// the OpenAPI spec — backend describeRoute bug; re-narrowed locally.
+export type ImportJobView = Omit<
+  ApiResponse<"getBackupV2ImportsByImportId">,
+  "state" | "report" | "result"
+> & {
   readonly state: "validated" | "applying" | "completed" | "failed";
   readonly report: ImportReport;
   readonly result: ImportReport | null;
-  readonly error: string | null;
-}
+};
 
-export interface BlobRestoreReport {
-  readonly written: number;
-  readonly skippedExisting: number;
-  readonly failed: number;
-  readonly unquarantined: number;
-  readonly reconcile: { readonly checked: number; readonly quarantined: number };
-}
+export type BlobRestoreReport = ApiResponse<"postBackupV2BlobRestores">["report"];
 
 // ── Query keys ──
 
@@ -125,7 +134,7 @@ export const backupKeys = {
 export function useBackupModules() {
   return useQuery({
     queryKey: backupKeys.modules,
-    queryFn: async () => (await http<{ modules: BackupModuleView[] }>("/backup/modules")).modules,
+    queryFn: async () => (await http<ApiResponse<"getBackupModules">>("/backup/modules")).modules,
   });
 }
 
@@ -152,9 +161,12 @@ export interface StartBackupExportInput {
   readonly blobs: BlobsMode;
 }
 
-export function useStartBackupExport(): UseMutationResult<{ jobId: string }, Error, StartBackupExportInput> {
+// Export start is a 202 Accepted with the job handle.
+type StartBackupExportResult = ApiResponse<"postBackupV2Exports", 202>;
+
+export function useStartBackupExport(): UseMutationResult<StartBackupExportResult, Error, StartBackupExportInput> {
   return useMutation({
-    mutationFn: async body => http<{ jobId: string }>("/backup/v2/exports", {
+    mutationFn: async body => http<StartBackupExportResult>("/backup/v2/exports", {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -178,12 +190,19 @@ export function useBackupImportJob(importId: string | null) {
   });
 }
 
-export function useUploadBackupImport(): UseMutationResult<{ importId: string; report: ImportReport }, Error, File> {
+// Upload is a 201 Created with the staged import id + dry-run report.
+// TODO(spec): `report` is `unknown` in the OpenAPI spec — backend
+// describeRoute bug; re-narrowed to the local `ImportReport`.
+type UploadBackupImportResult = Omit<ApiResponse<"postBackupV2Imports", 201>, "report"> & {
+  readonly report: ImportReport;
+};
+
+export function useUploadBackupImport(): UseMutationResult<UploadBackupImportResult, Error, File> {
   return useMutation({
     mutationFn: async (file) => {
       const formData = new FormData();
       formData.append("file", file);
-      return http<{ importId: string; report: ImportReport }>("/backup/v2/imports", {
+      return http<UploadBackupImportResult>("/backup/v2/imports", {
         method: "POST",
         body: formData,
       });

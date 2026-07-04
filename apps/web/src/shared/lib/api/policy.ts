@@ -4,67 +4,35 @@
 // client; the admin policies page consumes these hooks.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiResponse, ApiRow } from "./_generated";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view/response shapes are aliases of the generated OpenAPI types
+// (REFACTOR-037); regenerate with `bun run gen:api-types` after backend route
+// changes. Frontend-only input types stay hand-written below.
 
-export interface RelationTuple {
-  id: string;
-  namespace: string;
-  objectId: string;
-  relation: string;
-  subjectNamespace: string;
-  subjectId: string;
-  subjectRelation: string | null;
-  createdBy: string | null;
-  createdAt: string;
-}
+export type RelationTuple = ApiRow<"getPolicyTuples">;
 
-export interface TuplesResponse {
-  success: boolean;
-  data: RelationTuple[];
-  meta: { total: number; page: number; limit: number };
-}
+export type TuplesResponse = ApiResponse<"getPolicyTuples">;
 
-export interface CheckResponse {
-  success: boolean;
-  data: { allowed: boolean; resolvedThrough: string[] };
-}
+export type CheckResponse = ApiResponse<"postPolicyCheck">;
 
-interface EntityOption {
-  readonly id: string;
-  readonly name: string;
-}
+// One selectable entity option (id + display name). The catalog is a fixed
+// record of the three subject namespaces: user / group / resource_group.
+export type EntityOption = ApiData<"getPolicyEntities">["user"][number];
 
-export interface EntitiesResponse {
-  success: boolean;
-  data: Record<string, EntityOption[]>;
-}
+export type EntitiesResponse = ApiResponse<"getPolicyEntities">;
 
-export interface ResourceGroup {
-  id: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-}
+export type ResourceGroup = ApiRow<"getPolicyResourceGroups">;
 
-export interface ResourceGroupsResponse {
-  success: boolean;
-  data: ResourceGroup[];
-}
+export type ResourceGroupsResponse = ApiResponse<"getPolicyResourceGroups">;
 
-export interface ResourceGroupMember {
-  tupleId: string;
-  namespace: string;
-  objectId: string;
-  objectName: string | null;
-}
+export type ResourceGroupMember = ApiRow<"getPolicyResourceGroupsByIdMembers">;
 
-export interface ResourceGroupMembersResponse {
-  success: boolean;
-  data: ResourceGroupMember[];
-}
+export type ResourceGroupMembersResponse = ApiResponse<"getPolicyResourceGroupsByIdMembers">;
 
 // ── Query keys ──
 

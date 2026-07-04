@@ -2,29 +2,20 @@
 // command palette. The endpoint returns hits already permission-scoped by the
 // API; the client only renders and navigates.
 
+import type { ApiData } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useQuery } from "@tanstack/react-query";
 import { http } from "../http";
 
-type SearchHitType = "document" | "issue" | "project" | "drive" | "ship";
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
 
-export interface SearchHit {
-  readonly type: SearchHitType;
-  readonly id: string;
-  readonly title: string;
-  readonly subtitle?: string;
-  // For issue hits: the owning project's short_id, used to deep-link into the
-  // project-scoped issue route.
-  readonly projectId?: string;
-}
+export type GlobalSearchResult = ApiData<"getSearch">;
 
-export interface GlobalSearchResult {
-  readonly documents: readonly SearchHit[];
-  readonly issues: readonly SearchHit[];
-  readonly projects: readonly SearchHit[];
-  readonly drive: readonly SearchHit[];
-  readonly ships: readonly SearchHit[];
-}
+// Every result bucket carries the same hit shape; for issue hits `projectId`
+// is the owning project's short_id, used to deep-link into the project-scoped
+// issue route.
+export type SearchHit = GlobalSearchResult["documents"][number];
 
 /**
  * Fetch global search results for a trimmed query. Disabled while the query is

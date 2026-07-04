@@ -14,7 +14,7 @@ import {
 import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { useCheckPermission } from "@/shared/lib/api/policy";
-import { handleSelect, NAMESPACES, RELATIONS, SUBJECT_NAMESPACES, useEntities } from "./-policies-shared";
+import { entityOptionsFor, handleSelect, NAMESPACES, RELATIONS, SUBJECT_NAMESPACES, useEntities } from "./-policies-shared";
 
 export function PermissionChecker() {
   const { t } = useTranslation("policies");
@@ -36,8 +36,8 @@ export function PermissionChecker() {
   }
 
   const availableRelations = RELATIONS[ns] ?? [];
-  const objectOptions = entities?.data?.[ns] ?? [];
-  const subjectOptions = entities?.data?.[subjectNs] ?? [];
+  const objectOptions = entityOptionsFor(entities, ns);
+  const subjectOptions = entityOptionsFor(entities, subjectNs);
 
   return (
     <Card>

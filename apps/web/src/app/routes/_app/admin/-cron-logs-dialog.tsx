@@ -79,7 +79,7 @@ export function LogsDialog({
   readonly onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation("cron");
-  const [logs, setLogs] = useState<LogRow[]>([]);
+  const [logs, setLogs] = useState<readonly LogRow[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [loading, setLoading] = useState(false);
 
