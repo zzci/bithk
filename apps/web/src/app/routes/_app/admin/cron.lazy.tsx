@@ -54,7 +54,7 @@ function CronPage() {
   const { t } = useTranslation("cron");
 
   const [jobs, setJobs] = useState<readonly CronJob[]>([]);
-  const [actions, setActions] = useState<ActionCatalogEntry[]>([]);
+  const [actions, setActions] = useState<readonly ActionCatalogEntry[]>([]);
   const [supportedFormats, setSupportedFormats] = useState<readonly string[]>([]);
   const [loading, setLoading] = useState(true);
   // Compound status filter — maps to /api/cron/jobs `deleted` +

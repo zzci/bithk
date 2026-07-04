@@ -41,6 +41,60 @@ function rawJson(schema: z.ZodType, description = "Success") {
   return { description, content: { "application/json": { schema: resolver(schema) } } };
 }
 
+// ─── Report schemas (mirror import-mapping.ts / import-apply.ts) ─────────
+const importFailedRowSchema = z.object({ rowId: z.string(), reason: z.string() });
+const importTableReportSchema = z.object({
+  inserted: z.number(),
+  skippedDuplicate: z.number(),
+  transformed: z.number(),
+  droppedColumns: z.record(z.string(), z.number()),
+  defaultedColumns: z.record(z.string(), z.number()),
+  fallbackColumns: z.array(z.string()).optional(),
+  remapped: z.number().optional(),
+  failed: z.object({ total: z.number(), sample: z.array(importFailedRowSchema) }),
+  error: z.string().optional(),
+  noKeyAppend: z.boolean().optional(),
+});
+const importReportBaseFields = {
+  tables: z.record(z.string(), importTableReportSchema),
+  skippedTables: z.array(z.string()),
+  skippedModules: z.array(z.string()),
+  warnings: z.array(z.string()),
+  totals: z.object({
+    inserted: z.number(),
+    skippedDuplicate: z.number(),
+    failed: z.number(),
+    transformed: z.number(),
+  }),
+};
+// Upload/poll `report`: the staged dry-run (`ImportDryRunReport`) — blobs are
+// existence-check counters, never written in this phase.
+const importDryRunReportSchema = z.object({
+  dryRun: z.boolean(),
+  ...importReportBaseFields,
+  blobs: z.object({ count: z.number(), existing: z.number(), missing: z.number() }),
+});
+// Poll `result`: the final apply report (`ImportApplyReport`).
+const importApplyReportSchema = z.object({
+  dryRun: z.literal(false),
+  mode: z.enum(["merge", "replace"]),
+  ...importReportBaseFields,
+  replace: z.object({
+    tablesImported: z.number(),
+    rowsImported: z.number(),
+    includeUsers: z.boolean(),
+  }).optional(),
+  blobs: z.object({
+    written: z.number(),
+    skippedExisting: z.number(),
+    failed: z.number(),
+    unreferenced: z.number(),
+    missing: z.number(),
+    expectedInSeparateArchive: z.number(),
+  }),
+  reconcile: z.object({ checked: z.number(), quarantined: z.number() }),
+});
+
 export function backupImportV2Routes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
@@ -52,7 +106,7 @@ export function backupImportV2Routes() {
       summary: "Upload and stage a backup import for dry-run (multipart upload)",
       requestBody: { content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } } } } } },
       responses: {
-        201: rawJson(z.object({ importId: z.string(), report: z.unknown() }), "Staged"),
+        201: rawJson(z.object({ importId: z.string(), report: importDryRunReportSchema }), "Staged"),
         400: { description: "Archive too large / no file", ...errorJson },
         401: { description: "Unauthenticated", ...errorJson },
         403: { description: "Admin only", ...errorJson },
@@ -110,10 +164,10 @@ export function backupImportV2Routes() {
       responses: {
         200: rawJson(z.object({
           importId: z.string(),
-          state: z.string(),
+          state: z.enum(["validated", "applying", "completed", "failed"]),
           createdAt: z.string(),
-          report: z.unknown(),
-          result: z.unknown().nullable(),
+          report: importDryRunReportSchema,
+          result: importApplyReportSchema.nullable(),
           error: z.string().nullable(),
         })),
         401: { description: "Unauthenticated", ...errorJson },

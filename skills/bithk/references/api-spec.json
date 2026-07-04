@@ -17,6 +17,32 @@
         "scheme": "bearer",
         "description": "Personal Access Token (`bithk_pat_…`). Effective access is the owner's permissions intersected with the token's per-module scope."
       }
+    },
+    "schemas": {
+      "__schema0": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/__schema0"
+            }
+          }
+        },
+        "required": [
+          "namespace",
+          "id"
+        ]
+      }
     }
   },
   "security": [
@@ -174,7 +200,180 @@
                         "version": {
                           "type": "string"
                         },
-                        "lode": {}
+                        "lode": {
+                          "type": "object",
+                          "properties": {
+                            "supervised": {
+                              "type": "boolean"
+                            },
+                            "active": {
+                              "type": "boolean"
+                            },
+                            "stateAvailable": {
+                              "type": "boolean"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "current": {
+                              "type": "string"
+                            },
+                            "lastGood": {
+                              "type": "string"
+                            },
+                            "available": {
+                              "type": "string"
+                            },
+                            "channel": {
+                              "type": "string"
+                            },
+                            "activeVersion": {
+                              "type": "string"
+                            },
+                            "readinessMode": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "state"
+                              ]
+                            },
+                            "ready": {
+                              "anyOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "hold": {
+                              "type": "boolean"
+                            },
+                            "configGeneration": {
+                              "type": "number"
+                            },
+                            "configChanged": {
+                              "type": "boolean"
+                            },
+                            "lastCheckAt": {
+                              "type": "string"
+                            },
+                            "lastError": {
+                              "type": "string"
+                            },
+                            "history": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "version": {
+                                    "type": "string"
+                                  },
+                                  "at": {
+                                    "type": "string"
+                                  },
+                                  "result": {
+                                    "type": "string",
+                                    "enum": [
+                                      "good",
+                                      "bad"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "version",
+                                  "at",
+                                  "result"
+                                ]
+                              }
+                            },
+                            "updateAvailable": {
+                              "type": "boolean"
+                            },
+                            "rollbackTarget": {
+                              "type": "string"
+                            },
+                            "config": {
+                              "type": "object",
+                              "properties": {
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "not_configured",
+                                    "unreadable",
+                                    "malformed",
+                                    "available"
+                                  ]
+                                },
+                                "app": {
+                                  "type": "string"
+                                },
+                                "sourceType": {
+                                  "type": "string",
+                                  "enum": [
+                                    "github",
+                                    "manifest"
+                                  ]
+                                },
+                                "source": {
+                                  "type": "string"
+                                },
+                                "asset": {
+                                  "type": "string"
+                                },
+                                "channel": {
+                                  "type": "string"
+                                },
+                                "policy": {
+                                  "type": "string",
+                                  "enum": [
+                                    "off",
+                                    "check",
+                                    "auto"
+                                  ]
+                                },
+                                "checkInterval": {
+                                  "type": "number"
+                                },
+                                "keepVersions": {
+                                  "type": "number"
+                                },
+                                "pin": {
+                                  "type": "string"
+                                },
+                                "requireSignature": {
+                                  "type": "string",
+                                  "enum": [
+                                    "off",
+                                    "auto",
+                                    "enforce"
+                                  ]
+                                },
+                                "runtime": {
+                                  "type": "string"
+                                },
+                                "runtimeVersion": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "supervised",
+                            "active",
+                            "stateAvailable",
+                            "ready",
+                            "hold",
+                            "configChanged",
+                            "history",
+                            "updateAvailable",
+                            "config"
+                          ]
+                        }
                       },
                       "required": [
                         "commit",
@@ -4223,9 +4422,6 @@
                           },
                           "username": {
                             "type": "string"
-                          },
-                          "isVirtual": {
-                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -4323,7 +4519,8 @@
                         "required": [
                           "id",
                           "name",
-                          "username"
+                          "username",
+                          "isVirtual"
                         ]
                       }
                     }
@@ -4716,6 +4913,24 @@
                           },
                           "updatedAt": {
                             "type": "string"
+                          },
+                          "groups": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name"
+                              ]
+                            }
                           }
                         },
                         "required": [
@@ -4729,14 +4944,39 @@
                           "isVirtual",
                           "lastLoginAt",
                           "createdAt",
-                          "updatedAt"
+                          "updatedAt",
+                          "groups"
                         ]
                       }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "number"
+                        },
+                        "page": {
+                          "type": "number"
+                        },
+                        "limit": {
+                          "type": "number"
+                        },
+                        "totalPages": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "page",
+                        "limit",
+                        "totalPages"
+                      ]
                     }
                   },
                   "required": [
                     "success",
-                    "data"
+                    "data",
+                    "meta"
                   ]
                 }
               }
@@ -14399,7 +14639,12 @@
                             "type": "string"
                           },
                           "refType": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "worklist",
+                              "url",
+                              "document"
+                            ]
                           },
                           "refId": {
                             "type": "string"
@@ -14589,7 +14834,12 @@
                           "type": "string"
                         },
                         "refType": {
-                          "type": "string"
+                          "type": "string",
+                          "enum": [
+                            "worklist",
+                            "url",
+                            "document"
+                          ]
                         },
                         "refId": {
                           "type": "string"
@@ -15057,13 +15307,34 @@
                             "type": "string"
                           },
                           "type": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "issue",
+                              "procurement"
+                            ]
                           },
                           "title": {
                             "type": "string"
                           },
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "todo",
+                              "working",
+                              "review",
+                              "done",
+                              "cancel",
+                              "requested",
+                              "ordered",
+                              "confirmed",
+                              "paid",
+                              "in_transit",
+                              "received",
+                              "accepted",
+                              "returned",
+                              "refunded",
+                              "cancelled"
+                            ]
                           },
                           "pinnedAt": {
                             "type": "string"
@@ -16560,33 +16831,7 @@
                   "required": [
                     "success",
                     "data"
-                  ],
-                  "$defs": {
-                    "__schema0": {
-                      "type": "object",
-                      "properties": {
-                        "namespace": {
-                          "type": "string"
-                        },
-                        "id": {
-                          "type": "string"
-                        },
-                        "relation": {
-                          "type": "string"
-                        },
-                        "children": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/__schema0"
-                          }
-                        }
-                      },
-                      "required": [
-                        "namespace",
-                        "id"
-                      ]
-                    }
-                  }
+                  ]
                 }
               }
             }
@@ -19743,11 +19988,15 @@
                                 },
                                 "name": {
                                   "type": "string"
+                                },
+                                "usageCount": {
+                                  "type": "number"
                                 }
                               },
                               "required": [
                                 "id",
-                                "name"
+                                "name",
+                                "usageCount"
                               ]
                             }
                           },
@@ -19996,11 +20245,15 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "usageCount": {
+                                "type": "number"
                               }
                             },
                             "required": [
                               "id",
-                              "name"
+                              "name",
+                              "usageCount"
                             ]
                           }
                         },
@@ -20235,11 +20488,15 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "usageCount": {
+                                "type": "number"
                               }
                             },
                             "required": [
                               "id",
-                              "name"
+                              "name",
+                              "usageCount"
                             ]
                           }
                         },
@@ -20458,11 +20715,15 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "usageCount": {
+                                "type": "number"
                               }
                             },
                             "required": [
                               "id",
-                              "name"
+                              "name",
+                              "usageCount"
                             ]
                           }
                         },
@@ -20912,11 +21173,15 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "usageCount": {
+                                "type": "number"
                               }
                             },
                             "required": [
                               "id",
-                              "name"
+                              "name",
+                              "usageCount"
                             ]
                           }
                         },
@@ -21150,11 +21415,15 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "usageCount": {
+                                "type": "number"
                               }
                             },
                             "required": [
                               "id",
-                              "name"
+                              "name",
+                              "usageCount"
                             ]
                           }
                         },
@@ -28563,6 +28832,101 @@
           "procurements"
         ],
         "summary": "List a project's procurements",
+        "parameters": [
+          {
+            "name": "tagIds",
+            "in": "query",
+            "required": false,
+            "description": "Repeatable tag-id filter (OR/union semantics).",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "1-based page number (clamped to >= 1; default 1).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size (clamped to [1, 100]; default 20).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "in": "path",
+            "name": "projectId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "requested",
+                "ordered",
+                "confirmed",
+                "paid",
+                "in_transit",
+                "received",
+                "accepted",
+                "returned",
+                "refunded",
+                "cancelled"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "urgent"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -28902,65 +29266,7 @@
               }
             }
           }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projectId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          },
-          {
-            "in": "query",
-            "name": "q",
-            "schema": {
-              "type": "string",
-              "maxLength": 200
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "requested",
-                "ordered",
-                "confirmed",
-                "paid",
-                "in_transit",
-                "received",
-                "accepted",
-                "returned",
-                "refunded",
-                "cancelled"
-              ]
-            }
-          },
-          {
-            "in": "query",
-            "name": "priority",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                "urgent"
-              ]
-            }
-          },
-          {
-            "in": "query",
-            "name": "categoryId",
-            "schema": {
-              "type": "string",
-              "maxLength": 100
-            }
-          }
-        ]
+        }
       },
       "post": {
         "operationId": "postProjectsByProjectIdProcurements",
@@ -45773,7 +46079,14 @@
                                 "type": "string"
                               },
                               "status": {
-                                "type": "string"
+                                "type": "string",
+                                "enum": [
+                                  "todo",
+                                  "working",
+                                  "review",
+                                  "done",
+                                  "cancel"
+                                ]
                               },
                               "priority": {
                                 "type": "string"
@@ -45822,7 +46135,19 @@
                                 "type": "string"
                               },
                               "status": {
-                                "type": "string"
+                                "type": "string",
+                                "enum": [
+                                  "requested",
+                                  "ordered",
+                                  "confirmed",
+                                  "paid",
+                                  "in_transit",
+                                  "received",
+                                  "accepted",
+                                  "returned",
+                                  "refunded",
+                                  "cancelled"
+                                ]
                               },
                               "priority": {
                                 "type": "string"
@@ -45975,7 +46300,11 @@
                                 "type": "string"
                               },
                               "status": {
-                                "type": "string"
+                                "type": "string",
+                                "enum": [
+                                  "active",
+                                  "archived"
+                                ]
                               },
                               "favoritedAt": {
                                 "type": "string"
@@ -46004,7 +46333,14 @@
                                 "type": "string"
                               },
                               "status": {
-                                "type": "string"
+                                "type": "string",
+                                "enum": [
+                                  "todo",
+                                  "working",
+                                  "review",
+                                  "done",
+                                  "cancel"
+                                ]
                               },
                               "priority": {
                                 "type": "string"
@@ -46055,7 +46391,19 @@
                                 "type": "string"
                               },
                               "status": {
-                                "type": "string"
+                                "type": "string",
+                                "enum": [
+                                  "requested",
+                                  "ordered",
+                                  "confirmed",
+                                  "paid",
+                                  "in_transit",
+                                  "received",
+                                  "accepted",
+                                  "returned",
+                                  "refunded",
+                                  "cancelled"
+                                ]
                               },
                               "amount": {
                                 "anyOf": [
@@ -53325,7 +53673,11 @@
                             "type": "string"
                           },
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "archived"
+                            ]
                           },
                           "description": {
                             "anyOf": [
@@ -53534,7 +53886,11 @@
                             "type": "string"
                           },
                           "status": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "archived"
+                            ]
                           },
                           "description": {
                             "anyOf": [
@@ -66839,7 +67195,14 @@
                       "type": "string"
                     },
                     "state": {
-                      "type": "string"
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "running",
+                        "completed",
+                        "downloaded",
+                        "failed"
+                      ]
                     },
                     "modules": {
                       "type": "array",
@@ -66848,7 +67211,12 @@
                       }
                     },
                     "blobsMode": {
-                      "type": "string"
+                      "type": "string",
+                      "enum": [
+                        "embedded",
+                        "separate",
+                        "none"
+                      ]
                     },
                     "createdAt": {
                       "anyOf": [
@@ -66860,7 +67228,29 @@
                         }
                       ]
                     },
-                    "progress": {},
+                    "progress": {
+                      "type": "object",
+                      "properties": {
+                        "tablesDone": {
+                          "type": "number"
+                        },
+                        "tablesTotal": {
+                          "type": "number"
+                        },
+                        "blobBytesDone": {
+                          "type": "number"
+                        },
+                        "blobBytesTotal": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tablesDone",
+                        "tablesTotal",
+                        "blobBytesDone",
+                        "blobBytesTotal"
+                      ]
+                    },
                     "error": {
                       "anyOf": [
                         {
@@ -66883,7 +67273,44 @@
                     },
                     "artifacts": {
                       "anyOf": [
-                        {},
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "object",
+                              "properties": {
+                                "size": {
+                                  "type": "number"
+                                },
+                                "downloaded": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "size",
+                                "downloaded"
+                              ]
+                            },
+                            "blobs": {
+                              "type": "object",
+                              "properties": {
+                                "size": {
+                                  "type": "number"
+                                },
+                                "downloaded": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "size",
+                                "downloaded"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "data"
+                          ]
+                        },
                         {
                           "type": "null"
                         }
@@ -67402,7 +67829,174 @@
                     "importId": {
                       "type": "string"
                     },
-                    "report": {}
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "dryRun": {
+                          "type": "boolean"
+                        },
+                        "tables": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "inserted": {
+                                "type": "number"
+                              },
+                              "skippedDuplicate": {
+                                "type": "number"
+                              },
+                              "transformed": {
+                                "type": "number"
+                              },
+                              "droppedColumns": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "number"
+                                }
+                              },
+                              "defaultedColumns": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "number"
+                                }
+                              },
+                              "fallbackColumns": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "remapped": {
+                                "type": "number"
+                              },
+                              "failed": {
+                                "type": "object",
+                                "properties": {
+                                  "total": {
+                                    "type": "number"
+                                  },
+                                  "sample": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "rowId": {
+                                          "type": "string"
+                                        },
+                                        "reason": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "rowId",
+                                        "reason"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "total",
+                                  "sample"
+                                ]
+                              },
+                              "error": {
+                                "type": "string"
+                              },
+                              "noKeyAppend": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "inserted",
+                              "skippedDuplicate",
+                              "transformed",
+                              "droppedColumns",
+                              "defaultedColumns",
+                              "failed"
+                            ]
+                          }
+                        },
+                        "skippedTables": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "skippedModules": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "totals": {
+                          "type": "object",
+                          "properties": {
+                            "inserted": {
+                              "type": "number"
+                            },
+                            "skippedDuplicate": {
+                              "type": "number"
+                            },
+                            "failed": {
+                              "type": "number"
+                            },
+                            "transformed": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "inserted",
+                            "skippedDuplicate",
+                            "failed",
+                            "transformed"
+                          ]
+                        },
+                        "blobs": {
+                          "type": "object",
+                          "properties": {
+                            "count": {
+                              "type": "number"
+                            },
+                            "existing": {
+                              "type": "number"
+                            },
+                            "missing": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "count",
+                            "existing",
+                            "missing"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "dryRun",
+                        "tables",
+                        "skippedTables",
+                        "skippedModules",
+                        "warnings",
+                        "totals",
+                        "blobs"
+                      ]
+                    }
                   },
                   "required": [
                     "importId",
@@ -67542,15 +68136,411 @@
                       "type": "string"
                     },
                     "state": {
-                      "type": "string"
+                      "type": "string",
+                      "enum": [
+                        "validated",
+                        "applying",
+                        "completed",
+                        "failed"
+                      ]
                     },
                     "createdAt": {
                       "type": "string"
                     },
-                    "report": {},
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "dryRun": {
+                          "type": "boolean"
+                        },
+                        "tables": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "inserted": {
+                                "type": "number"
+                              },
+                              "skippedDuplicate": {
+                                "type": "number"
+                              },
+                              "transformed": {
+                                "type": "number"
+                              },
+                              "droppedColumns": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "number"
+                                }
+                              },
+                              "defaultedColumns": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "number"
+                                }
+                              },
+                              "fallbackColumns": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "remapped": {
+                                "type": "number"
+                              },
+                              "failed": {
+                                "type": "object",
+                                "properties": {
+                                  "total": {
+                                    "type": "number"
+                                  },
+                                  "sample": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "rowId": {
+                                          "type": "string"
+                                        },
+                                        "reason": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "rowId",
+                                        "reason"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "total",
+                                  "sample"
+                                ]
+                              },
+                              "error": {
+                                "type": "string"
+                              },
+                              "noKeyAppend": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "inserted",
+                              "skippedDuplicate",
+                              "transformed",
+                              "droppedColumns",
+                              "defaultedColumns",
+                              "failed"
+                            ]
+                          }
+                        },
+                        "skippedTables": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "skippedModules": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "totals": {
+                          "type": "object",
+                          "properties": {
+                            "inserted": {
+                              "type": "number"
+                            },
+                            "skippedDuplicate": {
+                              "type": "number"
+                            },
+                            "failed": {
+                              "type": "number"
+                            },
+                            "transformed": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "inserted",
+                            "skippedDuplicate",
+                            "failed",
+                            "transformed"
+                          ]
+                        },
+                        "blobs": {
+                          "type": "object",
+                          "properties": {
+                            "count": {
+                              "type": "number"
+                            },
+                            "existing": {
+                              "type": "number"
+                            },
+                            "missing": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "count",
+                            "existing",
+                            "missing"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "dryRun",
+                        "tables",
+                        "skippedTables",
+                        "skippedModules",
+                        "warnings",
+                        "totals",
+                        "blobs"
+                      ]
+                    },
                     "result": {
                       "anyOf": [
-                        {},
+                        {
+                          "type": "object",
+                          "properties": {
+                            "dryRun": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "merge",
+                                "replace"
+                              ]
+                            },
+                            "tables": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "inserted": {
+                                    "type": "number"
+                                  },
+                                  "skippedDuplicate": {
+                                    "type": "number"
+                                  },
+                                  "transformed": {
+                                    "type": "number"
+                                  },
+                                  "droppedColumns": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "defaultedColumns": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "fallbackColumns": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "remapped": {
+                                    "type": "number"
+                                  },
+                                  "failed": {
+                                    "type": "object",
+                                    "properties": {
+                                      "total": {
+                                        "type": "number"
+                                      },
+                                      "sample": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "rowId": {
+                                              "type": "string"
+                                            },
+                                            "reason": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "rowId",
+                                            "reason"
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "total",
+                                      "sample"
+                                    ]
+                                  },
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "noKeyAppend": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "inserted",
+                                  "skippedDuplicate",
+                                  "transformed",
+                                  "droppedColumns",
+                                  "defaultedColumns",
+                                  "failed"
+                                ]
+                              }
+                            },
+                            "skippedTables": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "skippedModules": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "warnings": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "totals": {
+                              "type": "object",
+                              "properties": {
+                                "inserted": {
+                                  "type": "number"
+                                },
+                                "skippedDuplicate": {
+                                  "type": "number"
+                                },
+                                "failed": {
+                                  "type": "number"
+                                },
+                                "transformed": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "inserted",
+                                "skippedDuplicate",
+                                "failed",
+                                "transformed"
+                              ]
+                            },
+                            "replace": {
+                              "type": "object",
+                              "properties": {
+                                "tablesImported": {
+                                  "type": "number"
+                                },
+                                "rowsImported": {
+                                  "type": "number"
+                                },
+                                "includeUsers": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "tablesImported",
+                                "rowsImported",
+                                "includeUsers"
+                              ]
+                            },
+                            "blobs": {
+                              "type": "object",
+                              "properties": {
+                                "written": {
+                                  "type": "number"
+                                },
+                                "skippedExisting": {
+                                  "type": "number"
+                                },
+                                "failed": {
+                                  "type": "number"
+                                },
+                                "unreferenced": {
+                                  "type": "number"
+                                },
+                                "missing": {
+                                  "type": "number"
+                                },
+                                "expectedInSeparateArchive": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "written",
+                                "skippedExisting",
+                                "failed",
+                                "unreferenced",
+                                "missing",
+                                "expectedInSeparateArchive"
+                              ]
+                            },
+                            "reconcile": {
+                              "type": "object",
+                              "properties": {
+                                "checked": {
+                                  "type": "number"
+                                },
+                                "quarantined": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "checked",
+                                "quarantined"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "dryRun",
+                            "mode",
+                            "tables",
+                            "skippedTables",
+                            "skippedModules",
+                            "warnings",
+                            "totals",
+                            "blobs",
+                            "reconcile"
+                          ]
+                        },
                         {
                           "type": "null"
                         }
@@ -68416,7 +69406,149 @@
                       "properties": {
                         "actions": {
                           "type": "array",
-                          "items": {}
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "displayName": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "category": {
+                                "type": "string"
+                              },
+                              "icon": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "tags": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "version": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "dangerous": {
+                                "type": "boolean"
+                              },
+                              "defaultCron": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "inputs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "key": {
+                                      "type": "string"
+                                    },
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "string",
+                                        "textarea",
+                                        "secret",
+                                        "number",
+                                        "boolean",
+                                        "select",
+                                        "json"
+                                      ]
+                                    },
+                                    "required": {
+                                      "type": "boolean"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "placeholder": {
+                                      "type": "string"
+                                    },
+                                    "default": {},
+                                    "options": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "value": {
+                                            "type": "string"
+                                          },
+                                          "label": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "value",
+                                          "label"
+                                        ]
+                                      }
+                                    },
+                                    "min": {
+                                      "type": "number"
+                                    },
+                                    "max": {
+                                      "type": "number"
+                                    },
+                                    "group": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "key",
+                                    "label",
+                                    "type"
+                                  ]
+                                }
+                              },
+                              "requiredKeys": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "displayName",
+                              "description",
+                              "category",
+                              "icon",
+                              "tags",
+                              "version",
+                              "dangerous",
+                              "defaultCron",
+                              "inputs",
+                              "requiredKeys"
+                            ]
+                          }
                         },
                         "cronFormats": {
                           "type": "array",

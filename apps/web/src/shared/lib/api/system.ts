@@ -9,62 +9,15 @@ import { http } from "../http";
 // ── Types ──
 //
 // Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
-// regenerate with `bun run gen:api-types` after backend route changes.
-//
-// TODO(spec): missing in OpenAPI spec — backend describeRoute bug. The
-// /system/version route documents `lode: z.unknown()` (versionSchema in
-// system.routes.ts) so the generated type carries no structure; the
-// LodeStatus/LodeConfig/LodeHistoryEntry mirrors of the runtime LodeSummary
-// payload stay hand-written until the backend describes it.
+// regenerate with `bun run gen:api-types` after backend route changes. `lode`
+// mirrors the backend `LodeSummary` (FIX-059): optional fields are OMITTED
+// (not null) when lode has nothing to report for them.
 
-export interface LodeHistoryEntry {
-  readonly version: string;
-  readonly at: string;
-  readonly result: "good" | "bad";
-}
+export type SystemVersion = ApiData<"getSystemVersion">;
 
-export interface LodeConfig {
-  readonly status?: string | null;
-  readonly app?: string | null;
-  readonly sourceType?: string | null;
-  readonly source?: string | null;
-  readonly asset?: string | null;
-  readonly channel?: string | null;
-  readonly policy?: string | null;
-  readonly checkInterval?: number | null;
-  readonly keepVersions?: number | null;
-  readonly pin?: string | null;
-  readonly requireSignature?: string | null;
-  readonly runtime?: string | null;
-  readonly runtimeVersion?: string | null;
-}
-
-export interface LodeStatus {
-  readonly supervised?: boolean | null;
-  readonly active?: boolean | null;
-  readonly stateAvailable?: boolean | null;
-  readonly status?: string | null;
-  readonly current?: string | null;
-  readonly lastGood?: string | null;
-  readonly available?: string | null;
-  readonly channel?: string | null;
-  readonly activeVersion?: string | null;
-  readonly readinessMode?: string | null;
-  readonly ready?: boolean | null;
-  readonly hold?: boolean | null;
-  readonly configChanged?: boolean | null;
-  readonly lastCheckAt?: string | null;
-  readonly lastError?: string | null;
-  readonly history?: readonly LodeHistoryEntry[] | null;
-  readonly updateAvailable?: boolean | null;
-  readonly rollbackTarget?: string | null;
-  readonly config?: LodeConfig | null;
-}
-
-// Spec data plus the structured `lode` override (see TODO(spec) above).
-export type SystemVersion = Omit<ApiData<"getSystemVersion">, "lode"> & {
-  readonly lode?: LodeStatus | null;
-};
+export type LodeStatus = SystemVersion["lode"];
+export type LodeConfig = LodeStatus["config"];
+export type LodeHistoryEntry = LodeStatus["history"][number];
 
 // ── Query keys ──
 

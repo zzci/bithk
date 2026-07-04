@@ -14,8 +14,7 @@ import { http } from "../http";
 // ── Types ──
 //
 // Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
-// regenerate with `bun run gen:api-types` after backend route changes. The
-// action catalog stays hand-written below (see the TODO(spec) note).
+// regenerate with `bun run gen:api-types` after backend route changes.
 
 /** One cron job as serialized by the API (list, create, and single-job responses). */
 export type CronJob = ApiData<"getCronJobs">["jobs"][number];
@@ -24,57 +23,16 @@ export type JobsListResponse = ApiResponse<"getCronJobs">;
 
 export type JobOneResponse = ApiResponse<"postCronJobs", 201>;
 
-type ActionInputType
-  = | "string"
-    | "textarea"
-    | "secret"
-    | "number"
-    | "boolean"
-    | "select"
-    | "json";
+/** One catalog entry from GET /cron/actions (mirrors the backend ActionSpec). */
+export type ActionCatalogEntry = ApiData<"getCronActions">["actions"][number];
 
-// TODO(spec): GET /cron/actions describes `actions` as `unknown[]` in the
-// OpenAPI spec — backend describeRoute bug (no catalog-entry schema). The
-// `ActionInput`/`ActionCatalogEntry` shapes below stay hand-written mirrors
-// of apps/api/src/modules/cron/actions/types.ts until the spec is fixed.
-export interface ActionInput {
-  readonly key: string;
-  readonly label: string;
-  readonly type: ActionInputType;
-  readonly required?: boolean;
-  readonly description?: string;
-  readonly placeholder?: string;
-  readonly default?: unknown;
-  readonly options?: readonly { value: string; label: string }[];
-  readonly min?: number;
-  readonly max?: number;
-  readonly group?: string;
-}
+/** One declared config field of an action — drives the dynamic job form. */
+export type ActionInput = ActionCatalogEntry["inputs"][number];
 
-export interface ActionCatalogEntry {
-  readonly name: string;
-  readonly displayName: string;
-  readonly description: string;
-  readonly category: string;
-  readonly icon: string | null;
-  readonly tags: readonly string[];
-  readonly version: string | null;
-  readonly dangerous: boolean;
-  readonly defaultCron: string | null;
-  readonly inputs: readonly ActionInput[];
-  readonly requiredKeys: readonly string[];
-}
-
-// Generated response with the untyped `actions` re-narrowed to the local
-// catalog-entry shape (see the TODO(spec) note above). `schedulerEnabled` is
-// false when the API was started with CRON_ENABLED=false — admins can still
-// browse / write, but no scheduled ticks fire.
-export interface ActionsResponse {
-  success: true;
-  data: Omit<ApiData<"getCronActions">, "actions"> & {
-    readonly actions: ActionCatalogEntry[];
-  };
-}
+// `schedulerEnabled` is false when the API was started with
+// CRON_ENABLED=false — admins can still browse / write, but no scheduled
+// ticks fire.
+export type ActionsResponse = ApiResponse<"getCronActions">;
 
 export type CronJobLog = ApiData<"getCronJobsByIdLogs">["logs"][number];
 

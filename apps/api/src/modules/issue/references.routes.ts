@@ -6,6 +6,7 @@ import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { requireParam } from "@/shared/lib/route-params";
 import { resolveIssueItem, resolveIssueProjectId, resolveProjectIssueAccess } from "./issue.service";
+import { ISSUE_REFERENCE_TYPES } from "./references.schema";
 import {
   addReference,
   deleteReference,
@@ -33,7 +34,9 @@ const resolvedWorklistSchema = z.object({
 });
 const referenceViewSchema = z.object({
   id: z.string(),
-  refType: z.string(),
+  // Stored as open-ended text, but every write path validates against the
+  // known set, so responses always carry one of these.
+  refType: z.enum(ISSUE_REFERENCE_TYPES),
   refId: z.string(),
   label: z.string().nullable(),
   createdAt: z.string(),

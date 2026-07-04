@@ -22,11 +22,55 @@ function rawJson(schema: z.ZodType, description: string) {
 
 const statusSchema = z.object({ status: z.string() });
 const brandingSchema = z.object({ appDisplayName: z.string() });
+// Mirrors `LodeSummary` / `LodeConfig` from `@/lode` — optional fields are
+// OMITTED (not null) when lode has nothing to report for them.
+const lodeHistoryEntrySchema = z.object({
+  version: z.string(),
+  at: z.string(),
+  result: z.enum(["good", "bad"]),
+});
+const lodeConfigSchema = z.object({
+  status: z.enum(["not_configured", "unreadable", "malformed", "available"]),
+  app: z.string().optional(),
+  sourceType: z.enum(["github", "manifest"]).optional(),
+  source: z.string().optional(),
+  asset: z.string().optional(),
+  channel: z.string().optional(),
+  policy: z.enum(["off", "check", "auto"]).optional(),
+  checkInterval: z.number().optional(),
+  keepVersions: z.number().optional(),
+  pin: z.string().optional(),
+  requireSignature: z.enum(["off", "auto", "enforce"]).optional(),
+  runtime: z.string().optional(),
+  runtimeVersion: z.string().optional(),
+});
+const lodeSummarySchema = z.object({
+  supervised: z.boolean(),
+  active: z.boolean(),
+  stateAvailable: z.boolean(),
+  status: z.string().optional(),
+  current: z.string().optional(),
+  lastGood: z.string().optional(),
+  available: z.string().optional(),
+  channel: z.string().optional(),
+  activeVersion: z.string().optional(),
+  readinessMode: z.enum(["none", "state"]).optional(),
+  ready: z.boolean().nullable(),
+  hold: z.boolean(),
+  configGeneration: z.number().optional(),
+  configChanged: z.boolean(),
+  lastCheckAt: z.string().optional(),
+  lastError: z.string().optional(),
+  history: z.array(lodeHistoryEntrySchema),
+  updateAvailable: z.boolean(),
+  rollbackTarget: z.string().optional(),
+  config: lodeConfigSchema,
+});
 const versionSchema = z.object({
   commit: z.string(),
   buildTime: z.string(),
   version: z.string(),
-  lode: z.unknown(),
+  lode: lodeSummarySchema,
 });
 const uploadLimitsSchema = z.object({
   maxFileSize: z.number(),

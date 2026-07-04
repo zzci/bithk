@@ -6,6 +6,12 @@ import { projectMembers, projects } from "@/modules/project/schema";
 // aggregated `db/schema.ts` picks it up via its single `export *` per module.
 export * from "./references.schema";
 
+// Issue lifecycle statuses, stored on the `items` base row (`items.status` is
+// free `text`; the vocabulary is enforced at the route edge). Exported so
+// other modules that surface issue rows (overview, pinned items) document the
+// same enum in their OpenAPI schemas.
+export const ISSUE_STATUSES = ["todo", "working", "review", "done", "cancel"] as const;
+
 // `issue` is a Tier-C sub-type of the `item` base. The base owns the
 // universal columns (title / status / creator / version / soft-delete /
 // timestamps) and the comments / attachments machinery; this table holds

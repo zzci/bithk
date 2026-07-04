@@ -123,6 +123,35 @@ const cronLogSchema = z.object({
   result: z.string().nullable(),
   error: z.string().nullable(),
 });
+// Mirrors `ActionInput` / `ActionCatalogEntry` (actions/types.ts + registry
+// `getActionsCatalog`) — the /cron/actions catalog external SPAs build their
+// job forms from.
+const actionInputSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  type: z.enum(["string", "textarea", "secret", "number", "boolean", "select", "json"]),
+  required: z.boolean().optional(),
+  description: z.string().optional(),
+  placeholder: z.string().optional(),
+  default: z.unknown().optional(),
+  options: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  group: z.string().optional(),
+});
+const actionCatalogEntrySchema = z.object({
+  name: z.string(),
+  displayName: z.string(),
+  description: z.string(),
+  category: z.string(),
+  icon: z.string().nullable(),
+  tags: z.array(z.string()),
+  version: z.string().nullable(),
+  dangerous: z.boolean(),
+  defaultCron: z.string().nullable(),
+  inputs: z.array(actionInputSchema),
+  requiredKeys: z.array(z.string()),
+});
 
 // Auth + admin gates apply to every route on this router.
 const authErrors = { 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Admin only", ...errorJson } };
@@ -153,7 +182,7 @@ export function cronRoutes() {
       summary: "List registered cron actions, formats, and scheduler state",
       responses: {
         200: okJson(z.object({
-          actions: z.array(z.unknown()),
+          actions: z.array(actionCatalogEntrySchema),
           cronFormats: z.array(z.string()),
           schedulerEnabled: z.boolean(),
         })),

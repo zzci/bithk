@@ -272,7 +272,7 @@ export function ImportReportView({ title, report }: {
         <SummaryStat label={t("backup.report.transformed")} value={report.totals.transformed} />
       </div>
 
-      {report.replace && (
+      {"replace" in report && report.replace && (
         <p className="text-sm text-muted-foreground">
           {t("backup.report.replaceSummary", {
             tables: report.replace.tablesImported,
@@ -289,7 +289,7 @@ export function ImportReportView({ title, report }: {
 
       <CountList title={t("backup.report.blobs")} rows={blobRows} />
 
-      {report.reconcile && (
+      {"reconcile" in report && (
         <CountList
           title={t("backup.report.reconcile")}
           rows={[

@@ -26,6 +26,43 @@ const { values: cli } = parseArgs({
 const ROOT = resolve(import.meta.dir, "..", "..", "..");
 const OUT_PATH = resolve(ROOT, "skills/bithk/references/api-spec.json");
 
+// hono-openapi emits recursive zod schemas (e.g. /policy/expand's subject
+// node) as schema-local `$defs` whose `$ref`s point at
+// `#/components/schemas/<name>` — a target it never creates, leaving the spec
+// with dangling refs. Hoist every `$defs` entry into components.schemas so the
+// emitted spec is self-contained; collide loudly rather than silently
+// overwrite.
+interface SpecDoc {
+  components?: { schemas?: Record<string, unknown> };
+  [key: string]: unknown;
+}
+function hoistLocalDefs(doc: SpecDoc): SpecDoc {
+  const schemas: Record<string, unknown> = { ...doc.components?.schemas };
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== "object")
+      return;
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    const obj = node as Record<string, unknown>;
+    const defs = obj.$defs;
+    if (defs && typeof defs === "object" && !Array.isArray(defs)) {
+      for (const [name, schema] of Object.entries(defs as Record<string, unknown>)) {
+        if (name in schemas && JSON.stringify(schemas[name]) !== JSON.stringify(schema))
+          throw new Error(`[gen-api-spec] conflicting $defs schema "${name}" — cannot hoist`);
+        schemas[name] = schema;
+      }
+      delete obj.$defs;
+    }
+    Object.values(obj).forEach(visit);
+  };
+  visit(doc);
+  if (Object.keys(schemas).length === 0)
+    return doc;
+  return { ...doc, components: { ...doc.components, schemas } };
+}
+
 function appVersion(): string {
   try {
     const pkg = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf-8")) as { version?: string };
@@ -36,7 +73,7 @@ function appVersion(): string {
   }
 }
 
-const doc = await generateSpecs(buildApiApp(), {
+const rawDoc = await generateSpecs(buildApiApp(), {
   documentation: {
     info: {
       title: "bithk API",
@@ -62,6 +99,7 @@ const doc = await generateSpecs(buildApiApp(), {
   },
   excludeMethods: ["OPTIONS", "HEAD"],
 });
+const doc = hoistLocalDefs(rawDoc as SpecDoc);
 
 const rendered = `${JSON.stringify(doc, null, 2)}\n`;
 const pathCount = Object.keys((doc as { paths?: Record<string, unknown> }).paths ?? {}).length;

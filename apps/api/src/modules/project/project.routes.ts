@@ -141,7 +141,9 @@ const roleParam = z.object({ id: z.string(), roleId: z.string() });
 const categoryParam = z.object({ id: z.string(), categoryId: z.string() });
 
 // Response `data` schemas mirroring the project service view composers.
-const projectTagSchema = z.object({ id: z.string(), name: z.string() });
+// Tags carry the type-wide `usageCount` (`ProjectTagView` / the shared
+// `ResourceTagUsageView`), matching the ship module's bound-project rows.
+const projectTagSchema = z.object({ id: z.string(), name: z.string(), usageCount: z.number() });
 const projectViewSchema = z.object({
   id: z.string(),
   code: z.string(),

@@ -3,6 +3,9 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getRequestUserModules } from "@/modules/account/groups/module-gate";
+import { ISSUE_STATUSES } from "@/modules/issue/schema";
+import { PROCUREMENT_STATUSES } from "@/modules/procurement/schema";
+import { PROJECT_STATUSES } from "@/modules/project/schema";
 import { NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson } from "@/shared/lib/openapi";
 import { requireParam } from "@/shared/lib/route-params";
@@ -22,14 +25,14 @@ const favoriteProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   code: z.string(),
-  status: z.string(),
+  status: z.enum(PROJECT_STATUSES),
   favoritedAt: z.string(),
 });
 const favoriteIssueSchema = z.object({
   targetType: z.literal("issue"),
   id: z.string(),
   title: z.string(),
-  status: z.string(),
+  status: z.enum(ISSUE_STATUSES),
   priority: z.string(),
   dueDate: z.string().nullable(),
   projectId: z.string(),
@@ -40,7 +43,7 @@ const favoriteProcurementSchema = z.object({
   targetType: z.literal("procurement"),
   id: z.string(),
   itemName: z.string(),
-  status: z.string(),
+  status: z.enum(PROCUREMENT_STATUSES),
   amount: z.number().nullable(),
   currency: z.string().nullable(),
   projectId: z.string(),
@@ -57,7 +60,7 @@ const overviewSchema = z.object({
   myIssues: z.array(z.object({
     id: z.string(),
     title: z.string(),
-    status: z.string(),
+    status: z.enum(ISSUE_STATUSES),
     priority: z.string(),
     dueDate: z.string().nullable(),
     projectId: z.string(),
@@ -67,7 +70,7 @@ const overviewSchema = z.object({
   openProcurements: z.array(z.object({
     id: z.string(),
     itemName: z.string(),
-    status: z.string(),
+    status: z.enum(PROCUREMENT_STATUSES),
     priority: z.string(),
     amount: z.number().nullable(),
     currency: z.string().nullable(),

@@ -168,6 +168,14 @@ export function procurementRoutes() {
     describeRoute({
       tags: ["procurements"],
       summary: "List a project's procurements",
+      // Doc-only: these are read outside the query validator (`parseTagIds`
+      // repeated-param normalization + `parsePageQuery` clamping), so they are
+      // declared here instead of in `listQuerySchema`.
+      parameters: [
+        { name: "tagIds", in: "query", required: false, description: "Repeatable tag-id filter (OR/union semantics).", schema: { type: "array", items: { type: "string" } }, style: "form", explode: true },
+        { name: "page", in: "query", required: false, description: "1-based page number (clamped to >= 1; default 1).", schema: { type: "integer", minimum: 1, default: 1 } },
+        { name: "limit", in: "query", required: false, description: "Page size (clamped to [1, 100]; default 20).", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+      ],
       responses: {
         200: okListJson(procurementSchema),
         401: { description: "Unauthenticated", ...errorJson },

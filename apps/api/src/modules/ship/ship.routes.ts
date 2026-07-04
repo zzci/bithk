@@ -4,6 +4,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { auditFromCtx } from "@/modules/audit/audit.context";
+import { PROJECT_STATUSES } from "@/modules/project/schema";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { parsePageQuery } from "@/shared/lib/pagination";
@@ -216,7 +217,7 @@ const shipProjectViewSchema = z.object({
   id: z.string(),
   code: z.string(),
   name: z.string(),
-  status: z.string(),
+  status: z.enum(PROJECT_STATUSES),
   description: z.string().nullable(),
   shipId: z.string().nullable(),
   tags: z.array(projectTagSchema),

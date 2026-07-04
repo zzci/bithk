@@ -16,39 +16,21 @@ import { http } from "../http";
 // regenerate with `bun run gen:api-types` after backend route changes.
 // Frontend-only types (inputs, query params) stay hand-written below.
 
-// TODO(spec): missing in OpenAPI spec — backend describeRoute bug. The GET
-// /account/users handler attaches `groups` to every row (users.service
-// listUsers) but documents only `userColumnsSchema`.
-export interface AccountUserGroupRef {
-  readonly id: string;
-  readonly name: string;
-}
+// User row from GET /account/users — the user columns plus the `groups` refs
+// the service attaches to every row.
+export type AccountUser = ApiRow<"getAccountUsers">;
 
-// User row from GET /account/users, plus the runtime-only `groups`.
-// TODO(spec): `groups` missing in OpenAPI spec — backend describeRoute bug.
-export type AccountUser = ApiRow<"getAccountUsers"> & {
-  readonly groups?: readonly AccountUserGroupRef[];
-};
+export type AccountUserGroupRef = AccountUser["groups"][number];
 
-// TODO(spec): missing in OpenAPI spec — backend describeRoute bug. The GET
-// /account/users handler returns `meta: { total, page, limit, totalPages }`
-// (pagination the users table relies on) but documents only the data array.
-export interface AccountUsersMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly limit: number;
-  readonly totalPages: number;
-}
+// GET /account/users meta: `{ total, page, limit, totalPages }`.
+export type AccountUsersMeta = ApiResponse<"getAccountUsers">["meta"];
 
 export interface AccountUsersResult {
   readonly data: readonly AccountUser[];
   readonly meta: AccountUsersMeta;
 }
 
-type AccountUsersResponse = Omit<ApiResponse<"getAccountUsers">, "data"> & {
-  readonly data: readonly AccountUser[];
-  readonly meta: AccountUsersMeta;
-};
+type AccountUsersResponse = ApiResponse<"getAccountUsers">;
 
 export type AccountGroup = ApiRow<"getAccountGroups">;
 
