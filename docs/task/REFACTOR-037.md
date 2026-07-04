@@ -1,6 +1,6 @@
 # REFACTOR-037 - Adopt generated API types across the web api layer
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-105](../plan/PLAN-105.md)
 - Campaign: `l1-bithk-followups-20260704`
 - Owner: L3 (after FEAT-049 merges)
@@ -24,3 +24,9 @@ generated types from FEAT-049, following the reference adoption in `projects.ts`
 ## Files in Scope
 
 - `apps/web/src/shared/lib/api/*.ts` (+ their tests where type imports change).
+
+## Status Notes
+
+- 2026-07-04: Completed — 30 lib/api modules adopted generated aliases (net -476 lines of
+  hand-mirrored types); 18 spec-vs-server describeRoute gaps catalogued (9 TODO(spec) in code)
+  for a follow-up backend fix task.

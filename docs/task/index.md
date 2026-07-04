@@ -181,5 +181,5 @@
 | [FIX-058](FIX-058.md) | Drop the macOS CI matrix leg | - | Completed | 2026-07-02 |
 | [REFACTOR-036](REFACTOR-036.md) | Final migration collapse to a fresh 0000 baseline | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
 | [DOC-001](DOC-001.md) | ADR-014: HR module keeps flat module-gate RBAC | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
-| [FEAT-049](FEAT-049.md) | OpenAPI -> TS type generation pipeline for the web api layer | [PLAN-105](../plan/PLAN-105.md) | In Progress | 2026-07-04 |
-| [REFACTOR-037](REFACTOR-037.md) | Adopt generated API types across the web api layer | [PLAN-105](../plan/PLAN-105.md) | In Progress | 2026-07-04 |
+| [FEAT-049](FEAT-049.md) | OpenAPI -> TS type generation pipeline for the web api layer | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
+| [REFACTOR-037](REFACTOR-037.md) | Adopt generated API types across the web api layer | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |

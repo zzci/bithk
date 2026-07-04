@@ -1,6 +1,6 @@
 # FEAT-049 - OpenAPI -> TS type generation pipeline for the web api layer
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-105](../plan/PLAN-105.md)
 - Campaign: `l1-bithk-followups-20260704`
 - Owner: L3
@@ -29,3 +29,8 @@ Add a generation step: spec -> TypeScript types consumed by `apps/web/src/shared
 - root `package.json`, `apps/web/package.json`, new script under `scripts/` or `apps/web/scripts/`,
   `apps/web/src/shared/lib/api/_generated/*`, `apps/web/src/shared/lib/api/projects.ts`,
   `apps/web/vitest.config.ts` / `eslint.config.ts` (exclusions), docs/reference note.
+
+## Status Notes
+
+- 2026-07-04: Completed — openapi-typescript 7.13.0 pipeline (gen:api-types + check:api-types in
+  root check), committed generated types + operation-keyed helper, projects.ts reference adoption.

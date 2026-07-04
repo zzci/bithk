@@ -34,6 +34,17 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- **Web API types are now generated from the OpenAPI spec** (FEAT-049 +
+  REFACTOR-037, PLAN-105). `gen:api-types` (openapi-typescript) emits committed
+  types from `api-spec.json` with a `check:api-types` drift gate in `check`;
+  all 30 `shared/lib/api` modules consume generated aliases instead of
+  hand-mirrored view types (net -476 lines). Known spec-vs-server describeRoute
+  gaps are catalogued as TODO(spec) for a follow-up backend fix.
+- **Migrations collapsed to a fresh baseline** (REFACTOR-036). 0000-0008 folded
+  into a single drizzle-kit-generated 0000; existing dev DBs must be reseeded
+  (`bun run seed`); deployed instances restore via backup import. ADR-014
+  records HR's flat module-gate RBAC as deliberate (DOC-001).
+
 - **CI: macOS matrix leg removed** (FIX-058). The `check` job now runs on
   `ubuntu-latest` only — the app deploys exclusively to Linux (Docker/lode)
   and the mac leg doubled the heaviest job at ~10x runner cost. Re-add

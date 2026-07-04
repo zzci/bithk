@@ -1,6 +1,6 @@
 # PLAN-105 - Deferred follow-ups from the 2026-07-02 architecture assessment
 
-- Status: In Progress
+- Status: Completed
 - Tasks: [REFACTOR-036](../task/REFACTOR-036.md), [DOC-001](../task/DOC-001.md),
   [FEAT-049](../task/FEAT-049.md), [REFACTOR-037](../task/REFACTOR-037.md)
 - Campaign: `l1-bithk-followups-20260704` (FEAT-049/REFACTOR-037 only; REFACTOR-036 and DOC-001
@@ -44,3 +44,5 @@ Out:
 
 - 2026-07-04: Plan created; REFACTOR-036 + DOC-001 direct, FEAT-049 + REFACTOR-037 via BKD
   campaign `l1-bithk-followups-20260704`.
+- 2026-07-04: Completed — REFACTOR-036 + DOC-001 landed directly; FEAT-049 + REFACTOR-037 merged
+  via campaign l1-bithk-followups-20260704. Follow-up candidate: backend describeRoute spec fixes.

@@ -103,4 +103,4 @@
 | [PLAN-102](PLAN-102.md) | Backup export rework: opt-in blobs, per-row driver-aware (DB-record driven) | Completed | 2026-07-01 |
 | [PLAN-103](PLAN-103.md) | Overview workbench: user favorites + my issues + open procurements | Completed | 2026-07-02 |
 | [PLAN-104](PLAN-104.md) | Architecture remediation (2026-07-02 architecture assessment) | Completed | 2026-07-02 |
-| [PLAN-105](PLAN-105.md) | Deferred follow-ups from the 2026-07-02 architecture assessment | In Progress | 2026-07-04 |
+| [PLAN-105](PLAN-105.md) | Deferred follow-ups from the 2026-07-02 architecture assessment | Completed | 2026-07-04 |
