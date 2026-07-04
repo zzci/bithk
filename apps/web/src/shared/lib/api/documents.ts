@@ -7,75 +7,41 @@
 // envelope itself to surface the conflict row via `DocumentVersionConflictError`.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { HttpError, httpRaw } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export interface Document {
-  readonly id: string;
-  readonly title: string;
-  readonly content: string | null;
-  readonly tags: string;
-  readonly parentId: string | null;
-  readonly version: number;
-  /**
-   * When true, new comments are rejected by the API (admin/creator
-   * bypass). Existing comments stay visible.
-   */
-  readonly commentsLocked: boolean;
-  readonly creatorId: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+// Full document row from GET /documents/{id}. `commentsLocked` true means new
+// comments are rejected by the API (admin/creator bypass); existing comments
+// stay visible.
+export type Document = ApiData<"getDocumentsById">;
 
-export interface DocumentTreeNode {
-  readonly id: string;
-  readonly title: string;
-  readonly parentId: string | null;
-  readonly updatedAt: string;
-  readonly childCount: number;
-  // Per-user pin state for the current caller. Drives the pinned list on
-  // the documents home and the pin/unpin toggle in the row menu.
-  readonly pinned: boolean;
-}
+// Sidebar tree row from GET /documents/tree. `pinned` is the per-user pin
+// state for the current caller — drives the pinned list on the documents home
+// and the pin/unpin toggle in the row menu.
+export type DocumentTreeNode = ApiRow<"getDocumentsTree">;
 
-export interface SimpleUser {
-  readonly id: string;
-  readonly name: string;
-  readonly username: string;
-}
+export type SimpleUser = ApiRow<"getDocumentsUsers">;
 
-export interface SimpleGroup {
-  readonly id: string;
-  readonly name: string;
-}
+export type SimpleGroup = ApiRow<"getDocumentsGroups">;
 
-export interface DocumentShare {
-  readonly id: string;
-  readonly documentId: string;
-  readonly targetType: "user" | "group";
-  readonly targetId: string;
-  readonly permission: "viewer" | "editor";
-  readonly createdAt: string;
-  // null when the share is on this document directly; otherwise the
-  // ancestor document this grant is inherited from. Inherited shares
-  // cannot be removed from the current doc's share dialog — the user
-  // must go to the source document instead.
-  readonly inheritedFrom: { readonly id: string; readonly title: string } | null;
-}
+// Share grant from GET /documents/{id}/shares. `inheritedFrom` is null when
+// the share is on this document directly; otherwise the ancestor document the
+// grant is inherited from. Inherited shares cannot be removed from the current
+// doc's share dialog — the user must go to the source document instead.
+export type DocumentShare = ApiRow<"getDocumentsByIdShares">;
 
-export interface Attachment {
-  readonly id: string;
-  readonly documentId: string;
-  readonly filename: string;
-  readonly mimetype: string;
-  readonly size: number;
-  readonly uploadedBy: string;
-  readonly createdAt: string;
-}
+// Attachment row from GET /documents/{id}/attachments (shared attachments
+// shape: `ownerType`/`ownerId` locate the owning resource).
+export type Attachment = ApiRow<"getDocumentsByIdAttachments">;
 
 // ── Helpers ──
 

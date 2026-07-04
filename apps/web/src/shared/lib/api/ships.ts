@@ -10,110 +10,45 @@
 // client covers the ship core + project binding, equipment, and worklists.
 
 import type { UseMutationResult } from "@tanstack/react-query";
-import type { ProjectView } from "./projects";
+import type { ApiResponse, ApiRow } from "./_generated";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export type ShipStatus = "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
+export type ShipView = ApiRow<"getShips">;
+export type ShipStatus = ShipView["status"];
 export const SHIP_STATUSES: readonly ShipStatus[] = ["under_construction", "active", "underway", "in_maintenance", "laid_up", "retired"];
 
-export type EquipmentStatus = "active" | "retired";
+export type ShipEquipmentView = ApiRow<"getShipsByShortIdEquipment">;
+export type EquipmentStatus = ShipEquipmentView["status"];
 export const EQUIPMENT_STATUSES: readonly EquipmentStatus[] = ["active", "retired"];
 
-// Ship tag reference (name resolved by the API). Ship-local mirror of the
-// project tag shape; the ship tag vocabulary lives under `/tags?type=ship`.
-export interface ShipTag {
-  readonly id: string;
-  readonly name: string;
-}
+// Ship tag reference (name resolved by the API), as embedded on ShipView. The
+// ship tag vocabulary lives under `/tags?type=ship`.
+export type ShipTag = ShipView["tags"][number];
 
-export interface ShipView {
-  readonly id: string; // ship shortId
-  readonly code: string;
-  readonly name: string;
-  readonly status: ShipStatus;
-  readonly tags: readonly ShipTag[];
-  readonly baseProjectId: string | null; // base project shortId (for files/drive + caps)
-  readonly model: string | null;
-  readonly builder: string | null;
-  readonly buildYear: number | null;
-  readonly lengthOverall: number | null;
-  readonly beam: number | null;
-  readonly draft: number | null;
-  readonly airDraft: number | null;
-  readonly grossTonnage: number | null;
-  readonly imoNumber: string | null;
-  readonly mmsi: string | null;
-  readonly callSign: string | null;
-  readonly flagState: string | null;
-  readonly registryPort: string | null;
-  readonly ownerName: string | null;
-  readonly description: string | null;
-  readonly coverImageUrl: string | null;
-  readonly creatorId: string;
-  readonly version: number;
-  readonly updatedAt: string;
-}
+// Selectable tag vocabulary row from GET /tags (usage-count ordered).
+type TagRow = ApiRow<"getTags">;
 
 /** A project bound to a ship, flagged when it is the (unbindable) base project. */
-export interface ShipProjectView extends ProjectView {
-  readonly isBase: boolean;
-}
+export type ShipProjectView = ApiRow<"getShipsByShortIdProjects">;
 
-export interface ShipEquipmentView {
-  readonly id: string;
-  readonly name: string;
-  readonly categoryId: string | null;
-  readonly categoryNameZh: string | null;
-  readonly categoryNameEn: string | null;
-  readonly manufacturerId: string | null;
-  readonly manufacturerName: string | null;
-  readonly model: string | null;
-  readonly serialNumber: string | null;
-  readonly location: string | null;
-  readonly installedAt: string | null;
-  readonly status: EquipmentStatus;
-  readonly note: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+// Worklists carry tags (not a single category); the API resolves names. The
+// tag vocabulary lives under `/tags?type=worklist`. Ship and global worklists
+// share one shape (GET /worklists rows are identical).
+export type WorklistView = ApiRow<"getShipsByShortIdWorklists">;
 
-export interface WorklistView {
-  readonly id: string;
-  readonly name: string;
-  // Worklists carry tags (not a single category); the API resolves names. The
-  // tag vocabulary lives under `/tags?type=worklist`.
-  readonly tags: readonly { id: string; name: string }[];
-  readonly checklist: string | null;
-  readonly precautions: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+// A generic reference attached to an issue. For `worklist` refs the `worklist`
+// field carries the resolved payload (or null when dangling).
+export type IssueReferenceView = ApiRow<"getIssuesByIssueShortIdReferences">;
 
-interface ResolvedWorklist {
-  readonly id: string;
-  readonly name: string;
-  readonly checklist: string | null;
-  readonly precautions: string | null;
-}
-
-export interface IssueReferenceView {
-  readonly id: string;
-  readonly refType: string;
-  readonly refId: string;
-  readonly label: string | null;
-  readonly createdAt: string;
-  readonly worklist?: ResolvedWorklist | null;
-}
-
-interface ListMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly limit: number;
-}
+type ListMeta = ApiResponse<"getShips">["meta"];
 
 // ── Query keys ──
 
@@ -235,9 +170,9 @@ export function useShip(id: string | undefined) {
 // Selectable ship-tag vocabulary (type=ship), usage-count ordered. Drives the
 // ship list single-select tag filter and the create/edit tag editor.
 export function useShipTags() {
-  return useQuery<readonly ShipTag[]>({
+  return useQuery<readonly TagRow[]>({
     queryKey: shipKeys.tags(),
-    queryFn: () => http<ApiEnvelope<readonly ShipTag[]>>("/tags?type=ship").then(r => r.data),
+    queryFn: () => http<ApiEnvelope<readonly TagRow[]>>("/tags?type=ship").then(r => r.data),
     staleTime: 30_000,
   });
 }
@@ -497,9 +432,9 @@ export function useShipWorklists(shipId: string | undefined, tagIds: readonly st
 // Selectable worklist-tag vocabulary (type=worklist), usage-count ordered.
 // Drives the ship worklist tab tag filter and the worklist tag editor.
 export function useWorklistTags() {
-  return useQuery<readonly ShipTag[]>({
+  return useQuery<readonly TagRow[]>({
     queryKey: shipKeys.worklistTags(),
-    queryFn: () => http<ApiEnvelope<readonly ShipTag[]>>("/tags?type=worklist").then(r => r.data),
+    queryFn: () => http<ApiEnvelope<readonly TagRow[]>>("/tags?type=worklist").then(r => r.data),
     staleTime: 30_000,
   });
 }

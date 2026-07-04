@@ -2,10 +2,20 @@
 // (backend apps/api/src/modules/system). Consumed by the admin About tab.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData } from "./_generated";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+//
+// TODO(spec): missing in OpenAPI spec — backend describeRoute bug. The
+// /system/version route documents `lode: z.unknown()` (versionSchema in
+// system.routes.ts) so the generated type carries no structure; the
+// LodeStatus/LodeConfig/LodeHistoryEntry mirrors of the runtime LodeSummary
+// payload stay hand-written until the backend describes it.
 
 export interface LodeHistoryEntry {
   readonly version: string;
@@ -51,12 +61,10 @@ export interface LodeStatus {
   readonly config?: LodeConfig | null;
 }
 
-export interface SystemVersion {
-  readonly version: string | null;
-  readonly commit: string | null;
-  readonly buildTime: string | null;
+// Spec data plus the structured `lode` override (see TODO(spec) above).
+export type SystemVersion = Omit<ApiData<"getSystemVersion">, "lode"> & {
   readonly lode?: LodeStatus | null;
-}
+};
 
 // ── Query keys ──
 

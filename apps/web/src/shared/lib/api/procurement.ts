@@ -6,14 +6,24 @@
 // hiding the tab. All ids are shortIds.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiResponse, ApiRow } from "./_generated";
 import type { ProjectTag } from "./projects";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export type ProcurementStatus = "requested" | "ordered" | "confirmed" | "paid" | "in_transit" | "received" | "accepted" | "returned" | "refunded" | "cancelled";
+// One procurement view — the list rows and the detail/create/update/status
+// responses all share this shape. `title` is never null (the backend defaults
+// it to the item name) and `priority` defaults to "medium".
+export type ProcurementRow = ApiRow<"getProjectsByProjectIdProcurements">;
+
+export type ProcurementStatus = ProcurementRow["status"];
 
 export const PROCUREMENT_STATUSES: readonly ProcurementStatus[] = [
   "requested",
@@ -51,15 +61,8 @@ export function isAllowedProcurementTransition(from: ProcurementStatus, to: Proc
   return true;
 }
 
-// Tag reference carried on procurement rows and detail (name resolved by the
-// API). Mirrors `IssueTagRef` (type='procurement').
-interface ProcurementTagRef {
-  readonly id: string;
-  readonly name: string;
-}
-
 // Issue-parity priority levels, mirroring `issue_details.priority` exactly.
-export type ProcurementPriority = "low" | "medium" | "high" | "urgent";
+export type ProcurementPriority = ProcurementRow["priority"];
 
 export const PROCUREMENT_PRIORITIES: readonly ProcurementPriority[] = [
   "low",
@@ -68,39 +71,7 @@ export const PROCUREMENT_PRIORITIES: readonly ProcurementPriority[] = [
   "urgent",
 ];
 
-export interface ProcurementRow {
-  readonly id: string;
-  readonly projectId: string;
-  readonly title: string | null;
-  readonly itemName: string;
-  readonly status: ProcurementStatus;
-  readonly supplierId: string | null;
-  readonly categoryId: string | null;
-  readonly assigneeMemberId: string | null;
-  readonly quantity: number | null;
-  readonly amount: number | null;
-  readonly currency: string | null;
-  // Issue-parity fields mirroring `issue_details`; priority is never null
-  // (the backend defaults it to "medium").
-  readonly description: string | null;
-  readonly priority: ProcurementPriority;
-  readonly dueDate: string | null;
-  readonly creatorId: string;
-  // Assigned tags (type='procurement'), resolved by the API.
-  readonly tags: readonly ProcurementTagRef[];
-  // Pin state from the shared item base; mirrors ProjectIssueRow.
-  readonly pinned: boolean;
-  readonly pinnedAt: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly version: number;
-}
-
-interface ProcurementListMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly limit: number;
-}
+type ProcurementListMeta = ApiResponse<"getProjectsByProjectIdProcurements">["meta"];
 
 // ── Query keys ──
 

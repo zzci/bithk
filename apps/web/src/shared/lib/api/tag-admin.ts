@@ -4,16 +4,23 @@
 // admin mutations so it can own them without touching the projects module.
 
 import type { UseMutationResult } from "@tanstack/react-query";
-import type { ProjectTag } from "./projects";
+import type { ApiData, ApiResponse } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 import { tagKeys } from "./projects";
 
-export function useCreateTag(): UseMutationResult<ProjectTag, Error, { name: string }> {
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Unlike the `getTags` rows (`ProjectTag`), the write endpoints return the
+// bare tag without `usageCount`.
+type CreatedTag = ApiResponse<"postTags", 201>["data"];
+type RenamedTag = ApiData<"patchTagsById">;
+
+export function useCreateTag(): UseMutationResult<CreatedTag, Error, { name: string }> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name }) => http<ApiEnvelope<ProjectTag>>("/tags", {
+    mutationFn: ({ name }) => http<ApiEnvelope<CreatedTag>>("/tags", {
       method: "POST",
       body: JSON.stringify({ name }),
     }).then(r => r.data),
@@ -23,10 +30,10 @@ export function useCreateTag(): UseMutationResult<ProjectTag, Error, { name: str
   });
 }
 
-export function useRenameTag(): UseMutationResult<ProjectTag, Error, { id: string; name: string }> {
+export function useRenameTag(): UseMutationResult<RenamedTag, Error, { id: string; name: string }> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, name }) => http<ApiEnvelope<ProjectTag>>(`/tags/${encodeURIComponent(id)}`, {
+    mutationFn: ({ id, name }) => http<ApiEnvelope<RenamedTag>>(`/tags/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify({ name }),
     }).then(r => r.data),

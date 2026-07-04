@@ -6,14 +6,14 @@
 // separate from projects.ts, which owns the unrelated per-project covers.
 
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
+import type { ApiData } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
-export interface DefaultCover {
-  readonly referenceId: string | null;
-  readonly url: string | null;
-}
+// Server view shape is an alias of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+export type DefaultCover = ApiData<"getAdminProjectDefaultCover">;
 
 const defaultCoverKeys = {
   all: ["admin", "project-default-cover"] as const,

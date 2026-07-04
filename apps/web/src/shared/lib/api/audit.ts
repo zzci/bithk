@@ -2,35 +2,23 @@
 // apps/api/src/modules/audit). Read-only — audit events are written
 // server-side only.
 
+import type { ApiResponse, ApiRow } from "./_generated";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (query params) stay hand-written below.
 
-export interface AuditEvent {
-  readonly id: string;
-  readonly actorId: string;
-  readonly actorName: string;
-  readonly action: string;
-  readonly resourceType: string;
-  readonly resourceId: string;
-  readonly resourceName: string;
-  readonly detail: string | null;
-  readonly ip: string;
-  readonly userAgent: string;
-  readonly result: string;
-  readonly createdAt: string;
-}
+export type AuditEvent = ApiRow<"getAudit">;
 
-interface AuditListResponse {
-  success: boolean;
-  data: AuditEvent[];
-  meta: { total: number; page: number; limit: number };
-}
+type AuditListResponse = ApiResponse<"getAudit">;
 
 export interface AuditEventsResult {
-  readonly data: AuditEvent[];
-  readonly meta: { readonly total: number; readonly page: number; readonly limit: number };
+  readonly data: readonly AuditEvent[];
+  readonly meta: AuditListResponse["meta"];
 }
 
 // ── Query keys ──

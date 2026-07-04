@@ -4,19 +4,14 @@
 // contact-categories.ts. Per-ship categories live in ship-equipment-categories.ts.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
-export interface GlobalEquipmentCategory {
-  readonly id: string;
-  readonly nameZh: string;
-  readonly nameEn: string;
-  readonly code: string | null;
-  readonly description: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+// Server view shape is an alias of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+export type GlobalEquipmentCategory = ApiRow<"getGlobalEquipmentCategories">;
 
 export interface GlobalEquipmentCategoryInput {
   readonly nameZh: string;

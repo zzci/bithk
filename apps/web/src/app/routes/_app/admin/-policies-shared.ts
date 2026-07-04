@@ -2,12 +2,13 @@
 // types, query keys, and hooks live in the shared data layer
 // (`@/shared/lib/api/policy`); re-exported here for the sibling tab files.
 
-import type { EntitiesResponse } from "@/shared/lib/api/policy";
+import type { EntitiesResponse, EntityOption } from "@/shared/lib/api/policy";
 import { useMemo } from "react";
 
 export type {
   CheckResponse,
   EntitiesResponse,
+  EntityOption,
   RelationTuple,
   ResourceGroup,
   ResourceGroupMembersResponse,
@@ -16,6 +17,14 @@ export type {
 } from "@/shared/lib/api/policy";
 
 export { useEntities } from "@/shared/lib/api/policy";
+
+// The generated entity catalog has fixed keys (user / group / resource_group);
+// the tabs select namespaces as plain strings, so look up dynamically and
+// fall back to an empty list for unknown namespaces.
+export function entityOptionsFor(entities: EntitiesResponse | undefined, ns: string): readonly EntityOption[] {
+  const catalog: Partial<Record<string, readonly EntityOption[]>> = entities?.data ?? {};
+  return catalog[ns] ?? [];
+}
 
 export const NAMESPACES = ["group", "resource_group"] as const;
 export const RELATIONS: Record<string, string[]> = {

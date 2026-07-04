@@ -56,13 +56,16 @@ const ADMINS = "__admins__";
 const DEFAULT = "__default__";
 
 type Group = AccountGroup;
-type GroupMember = AccountGroupMember;
+// The member panel shows the shared subset of the two row sources: real group
+// members (AccountGroupMember) and rows synthesized from AccountUser for the
+// built-in Admins entry (which carry no `joinedAt`).
+type GroupMember = Pick<AccountGroupMember, "id" | "username" | "name" | "email" | "role" | "status">;
 type UserSearchItem = AccountUser;
 
 export function GroupsTab() {
   const { t } = useTranslation("groups");
   const currentUser = useAuthStore(s => s.user);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [groups, setGroups] = useState<readonly Group[]>([]);
   const [adminCount, setAdminCount] = useState(0);
   const [defaultModules, setDefaultModules] = useState<ModuleKey[]>([]);
   const [editDefaultOpen, setEditDefaultOpen] = useState(false);
@@ -72,11 +75,11 @@ export function GroupsTab() {
   const [editGroup, setEditGroup] = useState<Group | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Group | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [members, setMembers] = useState<GroupMember[]>([]);
+  const [members, setMembers] = useState<readonly GroupMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [userSearch, setUserSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<UserSearchItem[]>([]);
+  const [searchResults, setSearchResults] = useState<readonly UserSearchItem[]>([]);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const isAdminsSelected = selectedId === ADMINS;
@@ -113,7 +116,9 @@ export function GroupsTab() {
 
   const fetchDefaultModules = useCallback(async () => {
     try {
-      setDefaultModules(await getDefaultGroupModules());
+      // The spec types the payload as plain strings; the backend only stores
+      // keys from the frontend module registry.
+      setDefaultModules(await getDefaultGroupModules() as ModuleKey[]);
     }
     catch {
       // Non-fatal: the Default entry just shows its last-known modules.
@@ -408,7 +413,7 @@ export function GroupsTab() {
                             <DefaultModulesDialog
                               initialModules={defaultModules}
                               onSubmit={async (modules) => {
-                                setDefaultModules(await updateDefaultGroupModules(modules));
+                                setDefaultModules(await updateDefaultGroupModules(modules) as ModuleKey[]);
                                 setEditDefaultOpen(false);
                               }}
                               title={t("default.editTitle")}

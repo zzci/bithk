@@ -11,72 +11,35 @@
 // derives from the favorites query, so toggling only invalidates `favorites`.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiRow } from "./_generated";
 import type { ProcurementStatus } from "./procurement";
 import type { IssueStatus, ProjectStatus } from "./projects";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
-export type FavoriteTargetType = "project" | "issue" | "procurement";
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+//
+// TODO(spec): `status` missing enum in OpenAPI spec — backend describeRoute
+// bug: the overview module emits plain `string` while the server serves the
+// project/issue/procurement status enums. Re-narrowed locally so status badge
+// maps keyed by the unions keep compiling; drop the intersections once the
+// spec carries the enums.
 
-export interface FavoriteProjectItem {
-  readonly targetType: "project";
-  readonly id: string;
-  readonly name: string;
-  readonly code: string | null;
-  readonly status: ProjectStatus;
-  readonly favoritedAt: string;
-}
+type FavoriteRow = ApiRow<"getFavorites">;
 
-export interface FavoriteIssueItem {
-  readonly targetType: "issue";
-  readonly id: string;
-  readonly title: string;
-  readonly status: IssueStatus;
-  readonly priority: string;
-  readonly dueDate: string | null;
-  readonly projectId: string;
-  readonly projectName: string;
-  readonly favoritedAt: string;
-}
-
-export interface FavoriteProcurementItem {
-  readonly targetType: "procurement";
-  readonly id: string;
-  readonly itemName: string;
-  readonly status: ProcurementStatus;
-  readonly amount: number | null;
-  readonly currency: string | null;
-  readonly projectId: string;
-  readonly projectName: string;
-  readonly favoritedAt: string;
-}
+export type FavoriteProjectItem = Extract<FavoriteRow, { targetType: "project" }> & { readonly status: ProjectStatus };
+export type FavoriteIssueItem = Extract<FavoriteRow, { targetType: "issue" }> & { readonly status: IssueStatus };
+export type FavoriteProcurementItem = Extract<FavoriteRow, { targetType: "procurement" }> & { readonly status: ProcurementStatus };
 
 export type FavoriteItem = FavoriteProjectItem | FavoriteIssueItem | FavoriteProcurementItem;
+export type FavoriteTargetType = FavoriteItem["targetType"];
 
-export interface OverviewIssueRow {
-  readonly id: string;
-  readonly title: string;
-  readonly status: IssueStatus;
-  readonly priority: string;
-  readonly dueDate: string | null;
-  readonly projectId: string;
-  readonly projectName: string;
-  readonly updatedAt: string;
-}
+type OverviewRaw = ApiData<"getOverview">;
 
-export interface OverviewProcurementRow {
-  readonly id: string;
-  readonly itemName: string;
-  readonly status: ProcurementStatus;
-  readonly priority: string;
-  readonly amount: number | null;
-  readonly currency: string | null;
-  readonly dueDate: string | null;
-  readonly projectId: string;
-  readonly projectName: string;
-  readonly updatedAt: string;
-}
+export type OverviewIssueRow = OverviewRaw["myIssues"][number] & { readonly status: IssueStatus };
+export type OverviewProcurementRow = OverviewRaw["openProcurements"][number] & { readonly status: ProcurementStatus };
 
 export interface OverviewData {
   readonly myIssues: readonly OverviewIssueRow[];

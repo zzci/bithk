@@ -3,18 +3,14 @@
 // global-procurement-categories routes, all admin-only).
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
-export interface GlobalProcurementCategory {
-  readonly id: string;
-  readonly name: string;
-  readonly code: string | null;
-  readonly description: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+// Server view shape is an alias of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+export type GlobalProcurementCategory = ApiRow<"getGlobalProcurementCategories">;
 
 export interface GlobalCategoryInput {
   readonly name?: string;

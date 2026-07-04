@@ -1,80 +1,37 @@
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiResponse, ApiRow } from "./_generated";
 import type { ProjectTag } from "./projects";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export type ContactKind = "individual" | "organization";
-export type ContactStatus = "active" | "inactive";
-export type ContactVisibility = "private" | "public";
+// A contact row/detail as served by GET /contacts (the detail endpoint returns
+// the same shape). Sensitive fields (phone/email/website/…) are masked by the
+// backend when the actor may not see confidential fields.
+export type ContactView = ApiRow<"getContacts">;
+
+export type ContactKind = ContactView["kind"];
+export type ContactStatus = NonNullable<ContactView["status"]>;
+export type ContactVisibility = ContactView["visibility"];
 
 // Collapsed 3-state derived from (visibility, confidential) for the list filter
 // and UI badge. public = public/non-confidential; private = private/non-confidential;
 // confidential = private/confidential.
 export type ContactSensitivity = "public" | "private" | "confidential";
 
-interface ContactListMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly limit: number;
-}
-
-interface ContactTagView {
-  readonly id: string;
-  readonly name: string;
-}
+type ContactListMeta = ApiResponse<"getContacts">["meta"];
 
 // Embedded company summary for an individual's linked organization. Sensitive
 // fields are nulled by the backend when the reading actor may not see the org's
 // confidential fields; `name` is always present. Null for organization rows and
 // for individuals with no org link.
-export interface ContactOrganizationSummary {
-  readonly id: string;
-  readonly name: string;
-  readonly website: string | null;
-  readonly email: string | null;
-  readonly phone: string | null;
-  readonly address: string | null;
-  readonly taxId: string | null;
-}
-
-export interface ContactView {
-  readonly id: string;
-  readonly kind: ContactKind;
-  readonly ownerId: string;
-  readonly name: string;
-  readonly phone: string | null;
-  readonly email: string | null;
-  // Masked like phone/email when the actor may not see confidential fields.
-  readonly website: string | null;
-  readonly position: string | null;
-  // The linked employer (individuals only); `organizationName` is the resolved
-  // name of that organization, supplied by the API for display.
-  readonly organizationId: string | null;
-  readonly organizationName: string | null;
-  // Embedded company summary of the linked organization (individuals only);
-  // null for organization rows and for individuals with no org link.
-  readonly organization: ContactOrganizationSummary | null;
-  readonly taxId: string | null;
-  readonly address: string | null;
-  readonly note: string | null;
-  // Free-form flat string→string custom properties (null when none).
-  readonly attributes: Record<string, string> | null;
-  // Avatar (person) / logo (organization): the file_references id plus the
-  // resolved inline content URL the UI renders in an <img>.
-  readonly avatarReferenceId: string | null;
-  readonly avatarUrl: string | null;
-  readonly categoryId: string | null;
-  readonly status: ContactStatus | null;
-  readonly visibility: ContactVisibility;
-  readonly confidential: boolean;
-  readonly tags: readonly ContactTagView[];
-  readonly canManage: boolean;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+export type ContactOrganizationSummary = NonNullable<ContactView["organization"]>;
 
 // Company fields used to seed an organization created inline from
 // `organizationName`. Only meaningful alongside `organizationName`; ignored when
@@ -119,6 +76,10 @@ export type ContactGrantTarget
     | { readonly groupId: string; readonly userId?: never };
 
 export type ContactRevokeTarget = ContactGrantTarget;
+
+// Grant/revoke acknowledgement payloads (POST /contacts/{id}/grant|revoke).
+type ContactGrantResult = ApiData<"postContactsByIdGrant">;
+type ContactRevokeResult = ApiData<"postContactsByIdRevoke">;
 
 // ── Query keys ──
 
@@ -266,10 +227,10 @@ export function useUpdateContact(): UseMutationResult<ContactView, Error, { id: 
   });
 }
 
-export function useDeleteContact(): UseMutationResult<{ readonly id: string }, Error, string> {
+export function useDeleteContact(): UseMutationResult<ApiData<"deleteContactsById">, Error, string> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: id => http<ApiEnvelope<{ readonly id: string }>>(
+    mutationFn: id => http<ApiEnvelope<ApiData<"deleteContactsById">>>(
       `/contacts/${encodeURIComponent(id)}`,
       { method: "DELETE" },
     ).then(r => r.data),
@@ -314,16 +275,10 @@ export function useRemoveContactAvatar(): UseMutationResult<ContactView, Error, 
   });
 }
 
-export function useGrantContact(): UseMutationResult<{
-  readonly id: string;
-  readonly target: { readonly type: "user" | "group"; readonly id: string };
-}, Error, { id: string } & ContactGrantTarget> {
+export function useGrantContact(): UseMutationResult<ContactGrantResult, Error, { id: string } & ContactGrantTarget> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }) => http<ApiEnvelope<{
-      readonly id: string;
-      readonly target: { readonly type: "user" | "group"; readonly id: string };
-    }>>(
+    mutationFn: ({ id, ...body }) => http<ApiEnvelope<ContactGrantResult>>(
       `/contacts/${encodeURIComponent(id)}/grant`,
       { method: "POST", body: JSON.stringify(body) },
     ).then(r => r.data),
@@ -334,18 +289,10 @@ export function useGrantContact(): UseMutationResult<{
   });
 }
 
-export function useRevokeContact(): UseMutationResult<{
-  readonly id: string;
-  readonly target: { readonly type: "user" | "group"; readonly id: string };
-  readonly revoked: boolean;
-}, Error, { id: string } & ContactRevokeTarget> {
+export function useRevokeContact(): UseMutationResult<ContactRevokeResult, Error, { id: string } & ContactRevokeTarget> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }) => http<ApiEnvelope<{
-      readonly id: string;
-      readonly target: { readonly type: "user" | "group"; readonly id: string };
-      readonly revoked: boolean;
-    }>>(
+    mutationFn: ({ id, ...body }) => http<ApiEnvelope<ContactRevokeResult>>(
       `/contacts/${encodeURIComponent(id)}/revoke`,
       { method: "POST", body: JSON.stringify(body) },
     ).then(r => r.data),

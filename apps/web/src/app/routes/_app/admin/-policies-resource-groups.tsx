@@ -342,7 +342,7 @@ function ResourceGroupMemberList({ groupId }: { readonly groupId: string }) {
                     <div key={member.tupleId} className="flex items-center justify-between rounded-md border px-3 py-2">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{t(`ns.${member.namespace}`)}</Badge>
-                        <span className="text-sm">{member.objectName ?? member.objectId}</span>
+                        <span className="text-sm">{member.objectId}</span>
                       </div>
                       <Button
                         variant="ghost"

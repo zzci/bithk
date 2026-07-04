@@ -7,24 +7,33 @@
 // archives instead of hard-deleting.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiResponse, ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export type HrColleagueStatus = "active" | "archived";
+// One colleague row from GET /hr/colleagues — carries the joined user display
+// data so the UI never needs per-row lookups.
+export type HrColleagueRow = ApiRow<"getHrColleagues">;
+
+export type HrColleagueStatus = HrColleagueRow["status"];
 
 export const HR_COLLEAGUE_STATUSES: readonly HrColleagueStatus[] = [
   "active",
   "archived",
 ];
 
-export type HrGender = "male" | "female" | "other" | "undisclosed";
+export type HrGender = NonNullable<HrColleagueRow["gender"]>;
 
 export const HR_GENDERS: readonly HrGender[] = ["male", "female", "other", "undisclosed"];
 
-export type HrEmploymentType = "full_time" | "part_time" | "contract" | "intern";
+export type HrEmploymentType = NonNullable<HrColleagueRow["employmentType"]>;
 
 export const HR_EMPLOYMENT_TYPES: readonly HrEmploymentType[] = [
   "full_time",
@@ -35,68 +44,15 @@ export const HR_EMPLOYMENT_TYPES: readonly HrEmploymentType[] = [
 
 // One user-defined receiving-account field (label/value); rendered as a
 // repeatable row so each country's payment details can differ.
-export interface HrPaymentField {
-  readonly label: string;
-  readonly value: string;
-}
+export type HrPaymentField = HrColleagueRow["paymentInfo"][number];
 
 // One emergency contact; a colleague can list several.
-export interface HrEmergencyContact {
-  readonly name: string;
-  readonly relation: string;
-  readonly phone: string;
-  readonly email: string;
-  readonly address: string;
-}
+export type HrEmergencyContact = HrColleagueRow["emergencyContacts"][number];
 
 // Joined user display data carried on every colleague row.
-export interface HrColleagueUser {
-  readonly name: string;
-  readonly username: string;
-  readonly isVirtual: boolean;
-  readonly status: "active" | "disabled";
-}
+export type HrColleagueUser = HrColleagueRow["user"];
 
-export interface HrColleagueRow {
-  readonly id: string;
-  readonly userId: string;
-  readonly code: string | null;
-  readonly title: string | null;
-  readonly department: string | null;
-  readonly status: HrColleagueStatus;
-  readonly notes: string | null;
-  readonly birthday: string | null;
-  readonly hireDate: string | null;
-  readonly probationEndDate: string | null;
-  readonly contractEndDate: string | null;
-  readonly gender: HrGender | null;
-  readonly employmentType: HrEmploymentType | null;
-  readonly nationality: string | null;
-  readonly personalPhone: string | null;
-  readonly personalEmail: string | null;
-  readonly address: string | null;
-  readonly workLocation: string | null;
-  readonly salaryAmount: number | null;
-  readonly salaryCurrency: string | null;
-  readonly paymentInfo: readonly HrPaymentField[];
-  readonly emergencyContacts: readonly HrEmergencyContact[];
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly user: HrColleagueUser;
-}
-
-interface HrColleagueListMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly limit: number;
-  readonly totalPages: number;
-}
-
-interface HrColleagueListEnvelope {
-  readonly success: boolean;
-  readonly data: readonly HrColleagueRow[];
-  readonly meta: HrColleagueListMeta;
-}
+type HrColleagueListMeta = ApiResponse<"getHrColleagues">["meta"];
 
 // ── Query keys ──
 
@@ -135,7 +91,7 @@ export function useHrColleagues(query: HrColleaguesQuery = {}) {
   return useQuery<HrColleaguesResult>({
     queryKey: hrColleagueKeys.list(queryString),
     queryFn: async () => {
-      const res = await http<HrColleagueListEnvelope>(
+      const res = await http<ApiResponse<"getHrColleagues">>(
         `/hr/colleagues?${queryString}`,
       );
       return { data: res.data, meta: res.meta };

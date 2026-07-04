@@ -23,7 +23,9 @@ interface GroupMemberPanelProps {
   readonly selectionLabel: string | null;
   readonly isAdminsSelected: boolean;
   readonly isDefaultSelected: boolean;
-  readonly members: readonly AccountGroupMember[];
+  // Only the display subset: the groups tab also synthesizes rows from
+  // AccountUser for the built-in Admins entry (no `joinedAt`).
+  readonly members: ReadonlyArray<Pick<AccountGroupMember, "id" | "username" | "name" | "email">>;
   readonly membersLoading: boolean;
   /** The signed-in admin cannot demote itself (self-PATCH is forbidden server-side). */
   readonly currentUserId: string | undefined;

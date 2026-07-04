@@ -168,7 +168,9 @@ export function ShipOverviewTab({ ship, canManage }: ShipOverviewTabProps) {
                           {project.isBase && (
                             <Badge variant="secondary" className="bg-primary/10 font-medium text-primary">{t("projects.baseBadge")}</Badge>
                           )}
-                          <Badge variant="secondary" className={cn(RECORD_STATUS_BADGE[project.status])}>
+                          {/* The generated ship-projects row types `status` as plain string
+                              (not the enum); an unknown status simply gets no badge color. */}
+                          <Badge variant="secondary" className={cn(RECORD_STATUS_BADGE[project.status as keyof typeof RECORD_STATUS_BADGE])}>
                             {t(`projects:status.${project.status}` as const)}
                           </Badge>
                         </span>

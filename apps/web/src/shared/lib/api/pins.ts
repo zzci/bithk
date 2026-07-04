@@ -11,6 +11,7 @@
 // overview Pin area and the row state stay in sync.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiRow } from "./_generated";
 import type { ProcurementRow } from "./procurement";
 import type { ProjectIssueRow } from "./projects";
 import type { ApiEnvelope } from "./types";
@@ -18,15 +19,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 import { procurementKeys } from "./procurement";
 
-/** A pinned-item entry as rendered in the project overview Pin area. */
-export interface PinnedItem {
-  readonly id: string;
-  readonly shortId: string;
-  readonly type: "issue" | "procurement";
-  readonly title: string;
-  readonly status: string;
-  readonly pinnedAt: string;
-}
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+
+/**
+ * A pinned-item entry as rendered in the project overview Pin area.
+ * `type` is `"issue" | "procurement"` at runtime (the spec types it as plain
+ * string — backend describeRoute omits the enum).
+ */
+export type PinnedItem = ApiRow<"getProjectsByProjectIdPinnedItems">;
 
 export const pinKeys = {
   pinnedItems: (projectId: string) => ["projects", projectId, "pinned-items"] as const,

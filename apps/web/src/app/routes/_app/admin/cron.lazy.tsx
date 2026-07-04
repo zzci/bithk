@@ -53,9 +53,9 @@ export const Route = createLazyFileRoute("/_app/admin/cron")({
 function CronPage() {
   const { t } = useTranslation("cron");
 
-  const [jobs, setJobs] = useState<CronJob[]>([]);
+  const [jobs, setJobs] = useState<readonly CronJob[]>([]);
   const [actions, setActions] = useState<ActionCatalogEntry[]>([]);
-  const [supportedFormats, setSupportedFormats] = useState<string[]>([]);
+  const [supportedFormats, setSupportedFormats] = useState<readonly string[]>([]);
   const [loading, setLoading] = useState(true);
   // Compound status filter — maps to /api/cron/jobs `deleted` +
   // `lastStatus` query params per STATUS_FILTERS below.

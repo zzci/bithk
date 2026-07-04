@@ -34,7 +34,7 @@ function row(overrides: Partial<ProcurementRow> = {}): ProcurementRow {
   return {
     id: "pr1",
     projectId: "proj1",
-    title: null,
+    title: "",
     itemName: "Cement",
     status: "requested",
     supplierId: null,

@@ -5,30 +5,34 @@
 // adoption is tracked with the UI-029 god-component split), so group requests
 // are exposed as typed functions.
 
+import type { ApiData, ApiResponse, ApiRow } from "./_generated";
 import type { ModuleKey } from "@/shared/lib/modules";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
+// TODO(spec): missing in OpenAPI spec — backend describeRoute bug. The GET
+// /account/users handler attaches `groups` to every row (users.service
+// listUsers) but documents only `userColumnsSchema`.
 export interface AccountUserGroupRef {
   readonly id: string;
   readonly name: string;
 }
 
-export interface AccountUser {
-  readonly id: string;
-  readonly username: string;
-  readonly name: string;
-  readonly email: string;
-  readonly role: "admin" | "user";
-  readonly status: "active" | "disabled";
-  readonly isVirtual: boolean;
-  readonly groups?: AccountUserGroupRef[];
-  readonly lastLoginAt: string | null;
-  readonly createdAt: string;
-}
+// User row from GET /account/users, plus the runtime-only `groups`.
+// TODO(spec): `groups` missing in OpenAPI spec — backend describeRoute bug.
+export type AccountUser = ApiRow<"getAccountUsers"> & {
+  readonly groups?: readonly AccountUserGroupRef[];
+};
 
+// TODO(spec): missing in OpenAPI spec — backend describeRoute bug. The GET
+// /account/users handler returns `meta: { total, page, limit, totalPages }`
+// (pagination the users table relies on) but documents only the data array.
 export interface AccountUsersMeta {
   readonly total: number;
   readonly page: number;
@@ -37,33 +41,21 @@ export interface AccountUsersMeta {
 }
 
 export interface AccountUsersResult {
-  readonly data: AccountUser[];
+  readonly data: readonly AccountUser[];
   readonly meta: AccountUsersMeta;
 }
 
-interface AccountUsersResponse {
-  success: boolean;
-  data: AccountUser[];
-  meta: AccountUsersMeta;
-}
+type AccountUsersResponse = Omit<ApiResponse<"getAccountUsers">, "data"> & {
+  readonly data: readonly AccountUser[];
+  readonly meta: AccountUsersMeta;
+};
 
-export interface AccountGroup {
-  readonly id: string;
-  readonly name: string;
-  readonly description: string | null;
-  readonly modules: ModuleKey[];
-  readonly memberCount: number;
-  readonly createdAt: string;
-}
+export type AccountGroup = ApiRow<"getAccountGroups">;
 
-export interface AccountGroupMember {
-  readonly id: string;
-  readonly username: string;
-  readonly name: string;
-  readonly email: string;
-  readonly role: string;
-  readonly status: string;
-}
+export type AccountGroupMember = ApiRow<"getAccountGroupsByIdMembers">;
+
+// The `{ modules }` payload of the built-in Default group endpoints.
+type DefaultGroupModules = ApiData<"getAccountGroupsDefault">["modules"];
 
 // ── Query keys ──
 
@@ -145,8 +137,8 @@ export async function deleteAccountUser(id: string): Promise<void> {
 
 // ── Groups ──
 
-export async function listAccountGroups(): Promise<AccountGroup[]> {
-  const res = await http<{ success: boolean; data: AccountGroup[] }>("/account/groups");
+export async function listAccountGroups(): Promise<readonly AccountGroup[]> {
+  const res = await http<ApiResponse<"getAccountGroups">>("/account/groups");
   return res.data;
 }
 
@@ -174,8 +166,8 @@ export async function deleteAccountGroup(id: string): Promise<void> {
   await http(`/account/groups/${id}`, { method: "DELETE" });
 }
 
-export async function listAccountGroupMembers(groupId: string): Promise<AccountGroupMember[]> {
-  const res = await http<{ success: boolean; data: AccountGroupMember[] }>(
+export async function listAccountGroupMembers(groupId: string): Promise<readonly AccountGroupMember[]> {
+  const res = await http<ApiResponse<"getAccountGroupsByIdMembers">>(
     `/account/groups/${groupId}/members`,
   );
   return res.data;
@@ -194,13 +186,13 @@ export async function removeAccountGroupMember(groupId: string, userId: string):
 
 // The built-in Default entry (FEAT-043): fallback modules for users in no
 // group, backed by the `account.default_modules` setting rather than a row.
-export async function getDefaultGroupModules(): Promise<ModuleKey[]> {
-  const res = await http<{ success: boolean; data: { modules: ModuleKey[] } }>("/account/groups/default");
+export async function getDefaultGroupModules(): Promise<DefaultGroupModules> {
+  const res = await http<ApiResponse<"getAccountGroupsDefault">>("/account/groups/default");
   return res.data.modules;
 }
 
-export async function updateDefaultGroupModules(modules: readonly ModuleKey[]): Promise<ModuleKey[]> {
-  const res = await http<{ success: boolean; data: { modules: ModuleKey[] } }>("/account/groups/default", {
+export async function updateDefaultGroupModules(modules: readonly ModuleKey[]): Promise<DefaultGroupModules> {
+  const res = await http<ApiResponse<"patchAccountGroupsDefault">>("/account/groups/default", {
     method: "PATCH",
     body: JSON.stringify({ modules }),
   });
