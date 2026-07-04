@@ -35,10 +35,11 @@ afterEach(() => {
 
 const project: ProjectView = {
   id: "p1",
-  code: null,
+  code: "BRG",
   name: "Bridge",
   status: "active",
   description: null,
+  shipId: null,
   tags: [],
   coverImageUrl: null,
   creatorId: "u1",

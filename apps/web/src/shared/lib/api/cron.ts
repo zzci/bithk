@@ -8,41 +8,21 @@
 // TanStack Query hooks; the page-level react-query adoption is tracked with
 // the UI-029 god-component split.
 
+import type { ApiData, ApiResponse } from "./_generated";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes. The
+// action catalog stays hand-written below (see the TODO(spec) note).
 
-export interface CronJob {
-  readonly id: string;
-  readonly name: string;
-  readonly cron: string;
-  readonly taskType: string;
-  readonly taskConfig: Record<string, unknown>;
-  readonly enabled: boolean;
-  readonly status: string;
-  readonly nextExecution: string | null;
-  readonly lastRun: {
-    readonly status: string;
-    readonly startedAt: string;
-    readonly durationMs: number | null;
-    readonly result: string | null;
-    readonly error: string | null;
-  } | null;
-  readonly maxConsecutiveFailures: number;
-  readonly isDeleted: boolean;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+/** One cron job as serialized by the API (list, create, and single-job responses). */
+export type CronJob = ApiData<"getCronJobs">["jobs"][number];
 
-export interface JobsListResponse {
-  success: true;
-  data: { jobs: CronJob[]; hasMore: boolean; nextCursor: string | null };
-}
+export type JobsListResponse = ApiResponse<"getCronJobs">;
 
-export interface JobOneResponse {
-  success: true;
-  data: CronJob;
-}
+export type JobOneResponse = ApiResponse<"postCronJobs", 201>;
 
 type ActionInputType
   = | "string"
@@ -53,6 +33,10 @@ type ActionInputType
     | "select"
     | "json";
 
+// TODO(spec): GET /cron/actions describes `actions` as `unknown[]` in the
+// OpenAPI spec — backend describeRoute bug (no catalog-entry schema). The
+// `ActionInput`/`ActionCatalogEntry` shapes below stay hand-written mirrors
+// of apps/api/src/modules/cron/actions/types.ts until the spec is fixed.
 export interface ActionInput {
   readonly key: string;
   readonly label: string;
@@ -81,37 +65,22 @@ export interface ActionCatalogEntry {
   readonly requiredKeys: readonly string[];
 }
 
+// Generated response with the untyped `actions` re-narrowed to the local
+// catalog-entry shape (see the TODO(spec) note above). `schedulerEnabled` is
+// false when the API was started with CRON_ENABLED=false — admins can still
+// browse / write, but no scheduled ticks fire.
 export interface ActionsResponse {
   success: true;
-  data: {
-    actions: ActionCatalogEntry[];
-    cronFormats: string[];
-    // false when the API was started with CRON_ENABLED=false — admins
-    // can still browse / write, but no scheduled ticks fire.
-    schedulerEnabled: boolean;
+  data: Omit<ApiData<"getCronActions">, "actions"> & {
+    readonly actions: ActionCatalogEntry[];
   };
 }
 
-export interface CronJobLog {
-  readonly id: string;
-  readonly jobId: string;
-  readonly startedAt: string;
-  readonly finishedAt: string | null;
-  readonly durationMs: number | null;
-  readonly status: string;
-  readonly result: string | null;
-  readonly error: string | null;
-}
+export type CronJobLog = ApiData<"getCronJobsByIdLogs">["logs"][number];
 
-interface LogsResponse {
-  success: true;
-  data: { logs: CronJobLog[] };
-}
+type LogsResponse = ApiResponse<"getCronJobsByIdLogs">;
 
-export interface TriggerResult {
-  readonly triggered: boolean;
-  readonly log: { readonly status: string } | null;
-}
+export type TriggerResult = ApiData<"postCronJobsByIdTrigger">;
 
 // ── Requests ──
 
@@ -122,7 +91,7 @@ export interface CronJobsQuery {
   readonly limit?: number | undefined;
 }
 
-export async function listCronJobs(query: CronJobsQuery = {}): Promise<CronJob[]> {
+export async function listCronJobs(query: CronJobsQuery = {}): Promise<readonly CronJob[]> {
   const params = new URLSearchParams({ limit: String(query.limit ?? 100) });
   if (query.deleted !== undefined)
     params.set("deleted", query.deleted);
@@ -160,14 +129,14 @@ export async function resumeCronJob(id: string): Promise<void> {
 }
 
 export async function triggerCronJob(id: string): Promise<TriggerResult> {
-  const res = await http<{ data: TriggerResult }>(`/cron/jobs/${id}/trigger`, { method: "POST" });
+  const res = await http<ApiResponse<"postCronJobsByIdTrigger">>(`/cron/jobs/${id}/trigger`, { method: "POST" });
   return res.data;
 }
 
 export async function listCronJobLogs(
   jobId: string,
   query: { readonly status?: string | undefined; readonly limit?: number | undefined } = {},
-): Promise<CronJobLog[]> {
+): Promise<readonly CronJobLog[]> {
   const params = new URLSearchParams({ limit: String(query.limit ?? 100) });
   if (query.status !== undefined)
     params.set("status", query.status);

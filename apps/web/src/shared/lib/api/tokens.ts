@@ -1,5 +1,11 @@
+import type { ApiResponse, ApiRow } from "./_generated";
 import { http } from "@/shared/lib/http";
 
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes. The
+// admin per-user token routes share the /account/me/tokens shapes, so the
+// `me` operations are the canonical source.
+//
 // Per-module scope levels. Mirrors the backend `TOKEN_MODULES` registry
 // (`apps/api/src/modules/account/tokens/scope.ts`); the backend is the
 // source of truth and re-validates every key on create.
@@ -24,27 +30,18 @@ export const TOKEN_SCOPE_MODULES = [
 ] as const;
 
 export type TokenScopeModule = typeof TOKEN_SCOPE_MODULES[number];
-export type ScopeLevel = "read" | "write";
-export type TokenScopeMap = Partial<Record<TokenScopeModule, ScopeLevel>>;
 
 export const TOKEN_EXPIRY_OPTIONS = [7, 30, 90, 365] as const;
 
-export interface ApiTokenView {
-  readonly id: string;
-  readonly name: string;
-  readonly prefix: string;
-  readonly scopes: TokenScopeMap;
-  readonly expiresAt: string;
-  readonly lastUsedAt: string | null;
-  readonly revokedAt: string | null;
-  readonly createdAt: string;
-  readonly expired: boolean;
-}
+export type ApiTokenView = ApiRow<"getAccountMeTokens">;
 
-export interface CreatedApiToken extends ApiTokenView {
-  /** Plaintext secret — returned exactly once, at creation. */
-  readonly token: string;
-}
+export type ScopeLevel = ApiTokenView["scopes"][string];
+// Scope INPUT map keyed by the frontend module registry (narrower than the
+// spec's plain string-keyed record; assignable to the request body).
+export type TokenScopeMap = Partial<Record<TokenScopeModule, ScopeLevel>>;
+
+/** Includes the plaintext `token` secret — returned exactly once, at creation. */
+export type CreatedApiToken = ApiResponse<"postAccountMeTokens", 201>["data"];
 
 export interface CreateTokenInput {
   readonly name: string;
@@ -61,13 +58,13 @@ function basePath(target: TokenTarget): string {
     : `/account/users/${encodeURIComponent(target.userId)}/tokens`;
 }
 
-export async function listTokens(target: TokenTarget): Promise<ApiTokenView[]> {
-  const res = await http<{ success: boolean; data: ApiTokenView[] }>(basePath(target));
+export async function listTokens(target: TokenTarget): Promise<readonly ApiTokenView[]> {
+  const res = await http<ApiResponse<"getAccountMeTokens">>(basePath(target));
   return res.data;
 }
 
 export async function createToken(target: TokenTarget, input: CreateTokenInput): Promise<CreatedApiToken> {
-  const res = await http<{ success: boolean; data: CreatedApiToken }>(basePath(target), {
+  const res = await http<ApiResponse<"postAccountMeTokens", 201>>(basePath(target), {
     method: "POST",
     body: JSON.stringify(input),
   });

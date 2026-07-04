@@ -23,6 +23,7 @@ export default antfu({
     "apps/api/src/lode/sdk.ts",
     "apps/web/src/shared/components/ui/**",
     "apps/web/src/app/routeTree.gen.ts",
+    "apps/web/src/shared/lib/api/_generated/api-types.ts",
   ],
 }, {
   // Test files routinely need to construct partial fixtures that the

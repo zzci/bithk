@@ -1,11 +1,6 @@
 // Drive data layer: types, raw clients, and TanStack Query hooks.
 //
-// Mirrors the backend drive module (apps/api/src/modules/drive). Every
-// response shape matches the corresponding service view exactly:
-//   - DriveEntry        ↔ DriveEntryView      (drive.service.ts)
-//   - DriveFileVersion  ↔ DriveVersionView    (drive.version.service.ts)
-//   - TeamDirectory     ↔ TeamDirectoryView   (drive.team-directory.service.ts)
-//   - TeamDirectoryMember ↔ team_directory_members row
+// Mirrors the backend drive module (apps/api/src/modules/drive).
 //
 // Sharing lives in the unified `share` module (shared/lib/api/share.ts);
 // this module no longer carries any share types, keys, or hooks.
@@ -15,70 +10,32 @@
 // consistent. Never call `fetch` directly.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { httpRaw } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export type DriveOwnerType = "user" | "team_directory" | "project";
-type DriveEntryType = "folder" | "file";
-export type DriveEntryStatus = "normal" | "trash";
-export type TeamDirectoryRole = "admin" | "editor" | "viewer";
+// Drive entry view (folder or file) — the row shape shared by every
+// entry-returning drive route (list/search/recent/favorites/detail/mutations).
+export type DriveEntry = ApiRow<"getDriveEntries">;
+export type DriveOwnerType = DriveEntry["ownerType"];
+export type DriveEntryStatus = DriveEntry["status"];
 
-export interface DriveEntry {
-  readonly id: string;
-  readonly ownerType: DriveOwnerType;
-  readonly ownerId: string;
-  readonly parentEntryId: string | null;
-  readonly type: DriveEntryType;
-  readonly name: string;
-  readonly favorite: boolean;
-  readonly status: DriveEntryStatus;
-  readonly createdBy: string;
-  readonly createdByName: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly file: {
-    readonly referenceId: string;
-    readonly fileId: string;
-    readonly filename: string;
-    readonly mimetype: string;
-    readonly size: number;
-  } | null;
-}
+// File version row; `isCurrent` marks the entry's current display pointer.
+export type DriveFileVersion = ApiRow<"getDriveEntriesByIdVersions">;
 
-export interface DriveFileVersion {
-  readonly id: string;
-  readonly versionNo: number;
-  readonly filename: string;
-  readonly mimetype: string;
-  readonly size: number;
-  readonly uploadedBy: string;
-  readonly createdAt: string;
-  /** True when this version's reference is the entry's current pointer. */
-  readonly isCurrent: boolean;
-}
+// Team directory view; `role` is the requesting user's effective role
+// (creator is always admin).
+export type TeamDirectory = ApiRow<"getDriveTeamDirectories">;
+export type TeamDirectoryRole = TeamDirectory["role"];
 
-export interface TeamDirectory {
-  readonly id: string;
-  readonly name: string;
-  readonly description: string | null;
-  readonly createdBy: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  /** Effective role of the requesting user (creator is always admin). */
-  readonly role: TeamDirectoryRole;
-  readonly memberCount: number;
-}
-
-export interface TeamDirectoryMember {
-  readonly id: string;
-  readonly directoryId: string;
-  readonly userId: string;
-  readonly role: TeamDirectoryRole;
-  readonly createdAt: string;
-}
+export type TeamDirectoryMember = ApiRow<"getDriveTeamDirectoriesByIdMembers">;
 
 // ── Query keys ──
 
@@ -356,10 +313,10 @@ export function useUpdateDriveEntry(): UseMutationResult<DriveEntry, Error, {
   });
 }
 
-export function useTrashDriveEntry(): UseMutationResult<{ readonly id: string }, Error, string> {
+export function useTrashDriveEntry(): UseMutationResult<ApiData<"deleteDriveEntriesById">, Error, string> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: id => rawJson<ApiEnvelope<{ readonly id: string }>>(`/drive/entries/${encodeURIComponent(id)}`, {
+    mutationFn: id => rawJson<ApiEnvelope<ApiData<"deleteDriveEntriesById">>>(`/drive/entries/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }).then(r => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: driveKeys.all }),
@@ -376,10 +333,10 @@ export function useRestoreDriveEntry(): UseMutationResult<DriveEntry, Error, str
   });
 }
 
-export function useDeleteDriveEntryPermanently(): UseMutationResult<{ readonly id: string }, Error, string> {
+export function useDeleteDriveEntryPermanently(): UseMutationResult<ApiData<"deleteDriveEntriesByIdPermanent">, Error, string> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: id => rawJson<ApiEnvelope<{ readonly id: string }>>(`/drive/entries/${encodeURIComponent(id)}/permanent`, {
+    mutationFn: id => rawJson<ApiEnvelope<ApiData<"deleteDriveEntriesByIdPermanent">>>(`/drive/entries/${encodeURIComponent(id)}/permanent`, {
       method: "DELETE",
     }).then(r => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: driveKeys.all }),
@@ -387,10 +344,10 @@ export function useDeleteDriveEntryPermanently(): UseMutationResult<{ readonly i
 }
 
 /** Permanently delete every trashed entry. Returns the count removed. */
-export function useEmptyTrash(): UseMutationResult<{ readonly removed: number }, Error, void> {
+export function useEmptyTrash(): UseMutationResult<ApiData<"deleteDriveEntriesTrash">, Error, void> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => rawJson<ApiEnvelope<{ readonly removed: number }>>("/drive/entries/trash", {
+    mutationFn: () => rawJson<ApiEnvelope<ApiData<"deleteDriveEntriesTrash">>>("/drive/entries/trash", {
       method: "DELETE",
     }).then(r => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: driveKeys.all }),
@@ -551,10 +508,10 @@ export function useUpdateTeamDirectory(): UseMutationResult<TeamDirectory, Error
   });
 }
 
-export function useDeleteTeamDirectory(): UseMutationResult<{ readonly id: string }, Error, string> {
+export function useDeleteTeamDirectory(): UseMutationResult<ApiData<"deleteDriveTeamDirectoriesById">, Error, string> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: id => rawJson<ApiEnvelope<{ readonly id: string }>>(`/drive/team-directories/${encodeURIComponent(id)}`, {
+    mutationFn: id => rawJson<ApiEnvelope<ApiData<"deleteDriveTeamDirectoriesById">>>(`/drive/team-directories/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }).then(r => r.data),
     onSuccess: (_data, id) => {
@@ -608,10 +565,10 @@ export function useUpdateMember(): UseMutationResult<TeamDirectoryMember, Error,
   });
 }
 
-export function useRemoveMember(): UseMutationResult<{ readonly id: string }, Error, { directoryId: string; memberId: string }> {
+export function useRemoveMember(): UseMutationResult<ApiData<"deleteDriveTeamDirectoriesByIdMembersByMemberId">, Error, { directoryId: string; memberId: string }> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ directoryId, memberId }) => rawJson<ApiEnvelope<{ readonly id: string }>>(
+    mutationFn: ({ directoryId, memberId }) => rawJson<ApiEnvelope<ApiData<"deleteDriveTeamDirectoriesByIdMembersByMemberId">>>(
       `/drive/team-directories/${encodeURIComponent(directoryId)}/members/${encodeURIComponent(memberId)}`,
       { method: "DELETE" },
     ).then(r => r.data),

@@ -36,7 +36,8 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     name: "Atlas Refit",
     status: "active",
     description: "Flagship refit programme",
-    tags: [{ id: "t1", name: "refit", usageCount: 1 }],
+    shipId: null,
+    tags: [{ id: "t1", name: "refit" }],
     coverImageUrl: null,
     creatorId: "u1",
     version: 1,
@@ -177,10 +178,10 @@ describe("projectsListPage", () => {
     mockList([
       project({
         tags: [
-          { id: "t1", name: "refit", usageCount: 1 },
-          { id: "t2", name: "deck", usageCount: 1 },
-          { id: "t3", name: "hull", usageCount: 1 },
-          { id: "t4", name: "engine", usageCount: 1 },
+          { id: "t1", name: "refit" },
+          { id: "t2", name: "deck" },
+          { id: "t3", name: "hull" },
+          { id: "t4", name: "engine" },
         ],
       }),
     ]);

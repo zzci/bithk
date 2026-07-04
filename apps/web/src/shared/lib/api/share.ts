@@ -12,6 +12,7 @@
 // consistent. Never call `fetch` directly.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -19,57 +20,27 @@ import { httpRaw } from "../http";
 import { parseContentDispositionFilename } from "./drive";
 
 // ── Types ──
-
-export type ShareResourceType = "document" | "drive_entry";
-type ShareType = "direct" | "public_link";
-export type SharePermission = "view" | "download" | "edit";
+//
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, resource-specific content shapes) stay
+// hand-written below.
 
 /**
- * A managed share row, owner/recipient facing. Mirrors the backend
- * `ShareView` exactly — the password is never serialized, only `hasPassword`.
+ * A managed share row, owner/recipient facing — the password is never
+ * serialized, only `hasPassword`. Every managed-share list endpoint returns
+ * the same row shape.
  */
-export interface ShareView {
-  readonly id: string;
-  readonly resourceType: ShareResourceType;
-  readonly resourceId: string;
-  readonly resourceName: string;
-  readonly isFolder: boolean;
-  readonly token: string;
-  readonly shareType: ShareType;
-  readonly sharedWithUserId: string | null;
-  readonly permission: SharePermission;
-  readonly hasPassword: boolean;
-  readonly expiresAt: string | null;
-  readonly maxDownloads: number | null;
-  readonly downloadCount: number;
-  readonly isActive: boolean;
-  readonly createdBy: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly file: {
-    readonly filename: string;
-    readonly mimetype: string;
-    readonly size: number;
-  } | null;
-}
+export type ShareView = ApiRow<"getSharesLinks">;
+
+export type ShareResourceType = ShareView["resourceType"];
+export type SharePermission = ShareView["permission"];
 
 /** Capabilities a resource type advertises for the share UI. */
-export interface ShareCapabilities {
-  readonly shareTypes: readonly ShareType[];
-  readonly permissions: readonly SharePermission[];
-}
+export type ShareCapabilities = ApiData<"getSharesCapabilitiesByType">;
 
 /** Public-facing share metadata — never carries bytes or the password hash. */
-export interface PublicShareMeta {
-  readonly token: string;
-  readonly resourceType: ShareResourceType;
-  readonly name: string;
-  readonly isFolder: boolean;
-  readonly permission: SharePermission;
-  readonly requiresPassword: boolean;
-  readonly expired: boolean;
-  readonly exhausted: boolean;
-}
+export type PublicShareMeta = ApiData<"getSharedByToken">;
 
 // ── Query keys ──
 
@@ -257,6 +228,10 @@ export function usePublicShareMeta(token: string | undefined) {
 }
 
 // ── Resource-specific public content shapes ──
+//
+// POST /shared/{token} is registry-polymorphic, so the spec types its `data`
+// as `unknown`; these per-resource shapes stay hand-written and callers narrow
+// via the meta's `resourceType`.
 
 export interface PublicDriveContent {
   readonly name: string;
@@ -311,18 +286,8 @@ export async function accessPublicShare<T>(
   }).then(r => r.data);
 }
 
-export interface PublicShareEntry {
-  readonly id: string;
-  readonly name: string;
-  readonly type: "file" | "folder";
-  readonly size: number | null;
-  readonly mimetype: string | null;
-}
-
-export interface PublicShareListing {
-  readonly breadcrumb: readonly { readonly id: string; readonly name: string }[];
-  readonly entries: readonly PublicShareEntry[];
-}
+export type PublicShareListing = ApiData<"postSharedByTokenList">;
+export type PublicShareEntry = PublicShareListing["entries"][number];
 
 /** List entries inside a public drive folder share (subtree-scoped server-side). */
 export async function listPublicShareEntries(

@@ -3,25 +3,18 @@
 // secret is write-only (never returned — the config exposes `secretConfigured`
 // instead) and is only sent when the admin types a new value.
 
+import type { ApiData, ApiResponse, ApiRow } from "./_generated";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
-export type UploadDriver = "s3" | "local";
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (mutation inputs) stay hand-written below.
 
-export interface StorageS3ConfigView {
-  readonly bucket: string;
-  readonly region: string;
-  readonly endpoint: string;
-  readonly accessKeyId: string;
-  readonly prefix: string;
-  readonly secretConfigured: boolean;
-}
-
-export interface StorageConfigView {
-  readonly uploadDriver: UploadDriver;
-  readonly s3: StorageS3ConfigView;
-}
+export type StorageConfigView = ApiData<"getAdminStorageConfig">;
+export type UploadDriver = StorageConfigView["uploadDriver"];
+export type StorageS3ConfigView = StorageConfigView["s3"];
 
 export interface SaveStorageConfigInput {
   readonly uploadDriver: UploadDriver;
@@ -36,23 +29,9 @@ export interface SaveStorageConfigInput {
   };
 }
 
-export interface StorageFileView {
-  readonly id: string;
-  readonly name: string;
-  readonly entryId: string | null;
-  readonly ownerScope: string | null;
-  readonly mimetype: string;
-  readonly size: number;
-  readonly storageDriver: string;
-  readonly uploadedByName: string;
-  readonly createdAt: string | null;
-}
+export type StorageFileView = ApiRow<"getAdminStorageFiles">;
 
-export interface SyncToS3Summary {
-  readonly moved: number;
-  readonly skipped: number;
-  readonly failed: number;
-}
+export type SyncToS3Summary = ApiData<"postAdminStorageSyncToS3">;
 
 export const storageKeys = {
   config: ["storage", "config"] as const,
@@ -87,7 +66,7 @@ export function useSaveStorageConfig() {
 
 export interface StorageFilesPage {
   readonly data: readonly StorageFileView[];
-  readonly meta: { readonly total: number; readonly page: number; readonly limit: number };
+  readonly meta: ApiResponse<"getAdminStorageFiles">["meta"];
 }
 
 export function useStorageFiles(page: number) {

@@ -4,22 +4,18 @@
 // as `null` (the backend answers GET with 404 when the key has no value).
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiResponse, ApiRow } from "./_generated";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http, HttpError } from "../http";
 
-interface SettingPayload {
-  readonly key: string;
-  readonly value: string;
-}
+// Server view shapes are aliases of the generated OpenAPI types (REFACTOR-037);
+// regenerate with `bun run gen:api-types` after backend route changes.
+
+type SettingPayload = ApiData<"getSettingsByKey">;
 
 /** A settings row as returned by the prefix-list endpoint. */
-export interface SettingRow {
-  readonly key: string;
-  readonly value: string;
-  readonly updatedBy: string | null;
-  readonly updatedAt: string;
-}
+export type SettingRow = ApiRow<"getSettings">;
 
 export const settingKeys = {
   all: ["settings"] as const,
@@ -45,8 +41,8 @@ export async function deleteSetting(key: string): Promise<void> {
   await http(`/settings/${encodeURIComponent(key)}`, { method: "DELETE" });
 }
 
-export async function listSettingsByPrefix(prefix: string): Promise<SettingRow[]> {
-  const res = await http<{ success: boolean; data: SettingRow[] }>(
+export async function listSettingsByPrefix(prefix: string): Promise<readonly SettingRow[]> {
+  const res = await http<ApiResponse<"getSettings">>(
     `/settings?prefix=${encodeURIComponent(prefix)}`,
   );
   return res.data;

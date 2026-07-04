@@ -16,7 +16,9 @@ export interface AssignableUserOption {
   readonly id: string;
   readonly name: string;
   readonly username: string;
-  readonly isVirtual: boolean;
+  // Optional to match the generated /account/assignable-users row (the spec
+  // does not mark it required); consumers use plain truthiness checks.
+  readonly isVirtual?: boolean;
 }
 
 // Local form mirror: scalars are strings ("" = empty/unset) except the
