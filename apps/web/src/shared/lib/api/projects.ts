@@ -11,14 +11,25 @@
 // CSRF header on mutating methods stay consistent.
 
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { ApiData, ApiResponse, ApiRow } from "./_generated";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // ── Types ──
+//
+// Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
+// regenerate with `bun run gen:api-types` after backend route changes.
+// Frontend-only types (inputs, query params) stay hand-written below.
 
-export type ProjectStatus = "active" | "archived";
+// Full project detail from GET /projects/{id} — includes the caller's
+// effective capabilities.
+type ProjectDetail = ApiData<"getProjectsById">;
 
+export type ProjectCapability = ProjectDetail["capabilities"][number];
+
+// Runtime capability list (drives the role-editor checkboxes); `satisfies`
+// keeps every entry in lockstep with the generated union.
 export const PROJECT_CAPABILITIES = [
   "issue.view",
   "issue.comment",
@@ -32,103 +43,30 @@ export const PROJECT_CAPABILITIES = [
   "members.manage",
   "roles.manage",
   "project.manage",
-] as const;
-export type ProjectCapability = typeof PROJECT_CAPABILITIES[number];
+] as const satisfies readonly ProjectCapability[];
 
-export interface ProjectTag {
-  readonly id: string;
-  readonly name: string;
-  // Number of projects referencing this tag (computed by the API). Drives the
-  // most-used-first ordering of the list filter.
-  readonly usageCount: number;
-}
+// Selectable tag vocabulary row from GET /tags (usage-count ordered; drives
+// the most-used-first ordering of the list filter).
+export type ProjectTag = ApiRow<"getTags">;
 
-export interface ProjectView {
-  readonly id: string;
-  readonly code: string | null;
-  readonly name: string;
-  readonly status: ProjectStatus;
-  readonly description: string | null;
-  readonly tags: readonly ProjectTag[];
-  readonly coverImageUrl: string | null;
-  // The ship this project is the base project of, or null for a standalone
-  // project. Mirrors the backend ProjectView; optional here so existing fixtures
-  // that predate the field stay valid (the API always supplies it).
-  readonly shipId?: string | null;
-  // Present only on the detail endpoint: the caller's effective capabilities.
-  readonly capabilities?: readonly ProjectCapability[];
-  readonly creatorId: string;
-  readonly version: number;
-  readonly updatedAt: string;
-}
+// One view type serves the list and detail callers: the list row plus the
+// detail-only `capabilities` (composed from the two generated shapes).
+export type ProjectView = ApiRow<"getProjects"> & {
+  readonly capabilities?: ProjectDetail["capabilities"];
+};
+export type ProjectStatus = ProjectView["status"];
 
-export interface ProjectMemberView {
-  readonly id: string;
-  // A member is always a unified users row (real or virtual), referenced by id.
-  readonly userId: string;
-  // Display name + virtual flag are resolved from the users row server-side.
-  readonly name: string;
-  readonly isVirtual: boolean;
-  readonly roleId: string;
-  readonly title: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+export type ProjectMemberView = ApiRow<"getProjectsByIdMembers">;
 
-export interface ProjectRoleView {
-  readonly id: string;
-  readonly name: string;
-  readonly capabilities: readonly ProjectCapability[];
-  readonly isSystem: boolean;
-  readonly kind?: "owner" | "guest" | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+export type ProjectRoleView = ApiRow<"getProjectsByIdRoles">;
 
-export interface ProcurementCategoryView {
-  readonly id: string;
-  readonly name: string;
-  readonly code: string | null;
-  readonly description: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+export type ProcurementCategoryView = ApiRow<"getProjectsByIdProcurementCategories">;
 
-export type IssueStatus = "todo" | "working" | "review" | "done" | "cancel";
-export type IssuePriority = "low" | "medium" | "high" | "urgent";
+export type ProjectIssueRow = ApiRow<"getProjectsByProjectIdIssues">;
+export type IssueStatus = ProjectIssueRow["status"];
+export type IssuePriority = ProjectIssueRow["priority"];
 
-// Tag reference carried on issue list rows and detail (name resolved by the API).
-interface IssueTagRef {
-  readonly id: string;
-  readonly name: string;
-}
-
-export interface ProjectIssueRow {
-  readonly id: string;
-  readonly title: string;
-  readonly description: string | null;
-  readonly status: IssueStatus;
-  readonly priority: IssuePriority;
-  readonly creatorId: string;
-  readonly assigneeId: string | null;
-  readonly assigneeMemberId: string | null;
-  readonly projectId: string;
-  readonly dueDate: string | null;
-  readonly tags: readonly IssueTagRef[];
-  // Pin state from the shared item base. `pinnedAt` is the ISO stamp when pinned,
-  // NULL otherwise; both surface the project overview Pin area.
-  readonly pinned: boolean;
-  readonly pinnedAt: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly version: number;
-}
-
-interface ListMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly limit: number;
-}
+type ListMeta = ApiResponse<"getProjects">["meta"];
 
 // ── Query keys ──
 
@@ -327,12 +265,7 @@ export function useDeleteProject(): UseMutationResult<null, Error, string> {
 // A user (real or virtual) that can be added as a project member. Returned by
 // GET /account/assignable-users — the unified candidate source for the member
 // picker (distinct from /account/visible-users, which is real-users only).
-export interface AssignableUser {
-  readonly id: string;
-  readonly name: string;
-  readonly username: string;
-  readonly isVirtual: boolean;
-}
+export type AssignableUser = ApiRow<"getAccountAssignableUsers">;
 
 /** Assignable users (real + virtual) for the member-add picker. */
 export function useAssignableUsers() {
@@ -586,40 +519,18 @@ interface IssueReferenceInput {
 
 // ── Referenceable worklists & issue references ──
 
-// A worklist (ship knowledge-base entry) that a work order can reference. Mirrors
-// the backend WorklistView. `checklist` is free-form text that MAY hold a JSON
-// array of strings; callers render it defensively.
-export interface ReferenceableWorklist {
-  readonly id: string;
-  readonly name: string;
-  // Worklists carry tags (not a single category); the API resolves names.
-  readonly tags: readonly { id: string; name: string }[];
-  readonly checklist: string | null;
-  readonly precautions: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-// Resolved worklist payload carried on a worklist reference. Null when the soft
-// reference is dangling (target worklist deleted).
-export interface ReferencedWorklist {
-  readonly id: string;
-  readonly name: string;
-  readonly category: string | null;
-  readonly checklist: string | null;
-  readonly precautions: string | null;
-}
+// A worklist (ship knowledge-base entry) that a work order can reference.
+// `checklist` is free-form text that MAY hold a JSON array of strings; callers
+// render it defensively. Ship and global entries share one shape.
+export type ReferenceableWorklist = ApiData<"getProjectsByProjectIdReferenceableWorklists">["ship"][number];
 
 // A generic reference attached to an issue. For `worklist` refs the `worklist`
 // field carries the resolved payload (or null when dangling).
-export interface IssueReferenceView {
-  readonly id: string;
-  readonly refType: "worklist" | "url" | "document";
-  readonly refId: string;
-  readonly label: string | null;
-  readonly createdAt: string;
-  readonly worklist?: ReferencedWorklist | null;
-}
+export type IssueReferenceView = ApiRow<"getIssuesByIssueShortIdReferences">;
+
+// Resolved worklist payload carried on a worklist reference. Null when the soft
+// reference is dangling (target worklist deleted).
+export type ReferencedWorklist = NonNullable<IssueReferenceView["worklist"]>;
 
 // The worklists a project may reference: its ship's worklists (empty when the
 // project is not a ship base project) plus the global knowledge base.

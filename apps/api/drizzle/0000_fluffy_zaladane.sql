@@ -58,6 +58,7 @@ CREATE TABLE `sessions` (
 	`access_token` text NOT NULL,
 	`refresh_token` text,
 	`expires_at` text NOT NULL,
+	`access_token_expires_at` text,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
@@ -75,6 +76,22 @@ CREATE TABLE `groups` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `idx_groups_name` ON `groups` (`name`);--> statement-breakpoint
+CREATE TABLE `api_tokens` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`name` text NOT NULL,
+	`token_hash` text NOT NULL,
+	`prefix` text NOT NULL,
+	`scopes` text DEFAULT '{}' NOT NULL,
+	`expires_at` text NOT NULL,
+	`last_used_at` text,
+	`revoked_at` text,
+	`created_at` text NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_api_tokens_hash` ON `api_tokens` (`token_hash`);--> statement-breakpoint
+CREATE INDEX `idx_api_tokens_user` ON `api_tokens` (`user_id`);--> statement-breakpoint
 CREATE TABLE `totp_challenges` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -207,12 +224,9 @@ CREATE TABLE `drive_entries` (
 	`favorite` text DEFAULT '0' NOT NULL,
 	`status` text DEFAULT 'normal' NOT NULL,
 	`created_by` text NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
-	`current_content_body` text,
-	`edit_lock_id` text,
-	`edit_lock_by` text,
-	`edit_lock_at` integer,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	`display_version_id` text,
 	FOREIGN KEY (`file_reference_id`) REFERENCES `file_references`(`id`) ON UPDATE no action ON DELETE restrict,
 	FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -220,12 +234,12 @@ CREATE TABLE `drive_entries` (
 CREATE INDEX `drive_entries_owner_parent_status_idx` ON `drive_entries` (`owner_type`,`owner_id`,`parent_entry_id`,`status`);--> statement-breakpoint
 CREATE INDEX `drive_entries_owner_status_favorite_idx` ON `drive_entries` (`owner_type`,`owner_id`,`status`,`favorite`);--> statement-breakpoint
 CREATE INDEX `drive_entries_file_reference_idx` ON `drive_entries` (`file_reference_id`);--> statement-breakpoint
+CREATE INDEX `drive_entries_created_by_idx` ON `drive_entries` (`created_by`);--> statement-breakpoint
 CREATE UNIQUE INDEX `drive_entries_owner_parent_name_status_idx` ON `drive_entries` (`owner_type`,`owner_id`,`parent_entry_id`,`name`,`status`);--> statement-breakpoint
 CREATE TABLE `drive_file_versions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`drive_entry_id` text NOT NULL,
 	`file_reference_id` text NOT NULL,
-	`version_no` integer NOT NULL,
 	`uploaded_by` text NOT NULL,
 	`created_at` text NOT NULL,
 	FOREIGN KEY (`drive_entry_id`) REFERENCES `drive_entries`(`id`) ON UPDATE no action ON DELETE cascade,
@@ -233,7 +247,7 @@ CREATE TABLE `drive_file_versions` (
 	FOREIGN KEY (`uploaded_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `drive_file_versions_entry_version_idx` ON `drive_file_versions` (`drive_entry_id`,`version_no`);--> statement-breakpoint
+CREATE INDEX `drive_file_versions_entry_id_idx` ON `drive_file_versions` (`drive_entry_id`,`id`);--> statement-breakpoint
 CREATE INDEX `drive_file_versions_entry_created_idx` ON `drive_file_versions` (`drive_entry_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `drive_file_versions_file_reference_idx` ON `drive_file_versions` (`file_reference_id`);--> statement-breakpoint
 CREATE TABLE `team_directories` (
@@ -259,6 +273,12 @@ CREATE TABLE `team_directory_members` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `team_directory_members_unique_idx` ON `team_directory_members` (`directory_id`,`user_id`);--> statement-breakpoint
 CREATE INDEX `team_directory_members_user_idx` ON `team_directory_members` (`user_id`);--> statement-breakpoint
+CREATE TABLE `file_blob` (
+	`storage_key` text PRIMARY KEY NOT NULL,
+	`content` blob NOT NULL,
+	`created_at` text NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `file_references` (
 	`id` text PRIMARY KEY NOT NULL,
 	`file_id` text NOT NULL,
@@ -275,6 +295,7 @@ CREATE TABLE `file_references` (
 CREATE UNIQUE INDEX `idx_file_refs_unique` ON `file_references` (`owner_type`,`owner_id`,`file_id`);--> statement-breakpoint
 CREATE INDEX `idx_file_refs_owner` ON `file_references` (`owner_type`,`owner_id`);--> statement-breakpoint
 CREATE INDEX `idx_file_refs_file` ON `file_references` (`file_id`);--> statement-breakpoint
+CREATE INDEX `idx_file_refs_created_by` ON `file_references` (`created_by`);--> statement-breakpoint
 CREATE TABLE `files` (
 	`id` text PRIMARY KEY NOT NULL,
 	`sha256` text NOT NULL,
@@ -291,6 +312,7 @@ CREATE UNIQUE INDEX `idx_files_sha_driver` ON `files` (`sha256`,`storage_driver`
 CREATE INDEX `idx_files_sha` ON `files` (`sha256`);--> statement-breakpoint
 CREATE INDEX `idx_files_driver` ON `files` (`storage_driver`);--> statement-breakpoint
 CREATE INDEX `idx_files_unreferenced` ON `files` (`id`) WHERE ref_count = 0;--> statement-breakpoint
+CREATE INDEX `idx_files_uploaded_by` ON `files` (`uploaded_by`);--> statement-breakpoint
 CREATE TABLE `hr_approvals` (
 	`id` text PRIMARY KEY NOT NULL,
 	`colleague_id` text NOT NULL,
@@ -328,6 +350,8 @@ CREATE TABLE `hr_colleagues` (
 	`personal_email` text,
 	`address` text,
 	`work_location` text,
+	`salary_amount` integer,
+	`salary_currency` text,
 	`payment_info` text DEFAULT '[]' NOT NULL,
 	`emergency_contacts` text DEFAULT '[]' NOT NULL,
 	`created_at` text NOT NULL,
@@ -418,6 +442,15 @@ CREATE INDEX `idx_items_type_deleted` ON `items` (`type`,`deleted_at`);--> state
 CREATE INDEX `idx_items_creator_deleted` ON `items` (`creator_id`,`deleted_at`);--> statement-breakpoint
 CREATE INDEX `idx_items_type_status_deleted` ON `items` (`type`,`status`,`deleted_at`);--> statement-breakpoint
 CREATE INDEX `idx_items_pinned` ON `items` (`pinned`,`pinned_at`);--> statement-breakpoint
+CREATE TABLE `user_favorites` (
+	`user_id` text NOT NULL,
+	`target_type` text NOT NULL,
+	`target_id` text NOT NULL,
+	`created_at` text NOT NULL,
+	PRIMARY KEY(`user_id`, `target_type`, `target_id`),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `relation_tuples` (
 	`id` text PRIMARY KEY NOT NULL,
 	`namespace` text NOT NULL,
@@ -428,7 +461,7 @@ CREATE TABLE `relation_tuples` (
 	`subject_relation` text,
 	`created_by` text,
 	`created_at` text NOT NULL,
-	FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `idx_tuples_object` ON `relation_tuples` (`namespace`,`object_id`,`relation`);--> statement-breakpoint

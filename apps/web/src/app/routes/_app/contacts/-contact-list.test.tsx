@@ -77,7 +77,7 @@ function category(overrides: Partial<ContactCategory> = {}): ContactCategory {
 }
 
 function tag(overrides: Partial<ProjectTag> = {}): ProjectTag {
-  return { id: "tag1", name: "ship supplier", usageCount: 3, ...overrides };
+  return { id: "tag1", name: "ship supplier", type: "contact", usageCount: 3, ...overrides };
 }
 
 function ok(data: unknown) {

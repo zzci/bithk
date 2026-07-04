@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5ecbd46d-909e-409a-8ffd-16533226d60c",
+  "id": "ae037938-bdf0-4ec1-a681-5b791793fac1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "contact_categories": {
@@ -402,6 +402,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "access_token_expires_at": {
+          "name": "access_token_expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -509,6 +516,116 @@
         }
       },
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "api_tokens": {
+      "name": "api_tokens",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "prefix": {
+          "name": "prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_api_tokens_hash": {
+          "name": "idx_api_tokens_hash",
+          "columns": [
+            "token_hash"
+          ],
+          "isUnique": true
+        },
+        "idx_api_tokens_user": {
+          "name": "idx_api_tokens_user",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "api_tokens_user_id_users_id_fk": {
+          "name": "api_tokens_user_id_users_id_fk",
+          "tableFrom": "api_tokens",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -1420,41 +1537,18 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "autoincrement": false
         },
         "updated_at": {
           "name": "updated_at",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
-        },
-        "current_content_body": {
-          "name": "current_content_body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
-        "edit_lock_id": {
-          "name": "edit_lock_id",
+        "display_version_id": {
+          "name": "display_version_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "edit_lock_by": {
-          "name": "edit_lock_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "edit_lock_at": {
-          "name": "edit_lock_at",
-          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1485,6 +1579,13 @@
           "name": "drive_entries_file_reference_idx",
           "columns": [
             "file_reference_id"
+          ],
+          "isUnique": false
+        },
+        "drive_entries_created_by_idx": {
+          "name": "drive_entries_created_by_idx",
+          "columns": [
+            "created_by"
           ],
           "isUnique": false
         },
@@ -1556,13 +1657,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "version_no": {
-          "name": "version_no",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "uploaded_by": {
           "name": "uploaded_by",
           "type": "text",
@@ -1579,13 +1673,13 @@
         }
       },
       "indexes": {
-        "drive_file_versions_entry_version_idx": {
-          "name": "drive_file_versions_entry_version_idx",
+        "drive_file_versions_entry_id_idx": {
+          "name": "drive_file_versions_entry_id_idx",
           "columns": [
             "drive_entry_id",
-            "version_no"
+            "id"
           ],
-          "isUnique": true
+          "isUnique": false
         },
         "drive_file_versions_entry_created_idx": {
           "name": "drive_file_versions_entry_created_idx",
@@ -1811,6 +1905,37 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "file_blob": {
+      "name": "file_blob",
+      "columns": {
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content": {
+          "name": "content",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "file_references": {
       "name": "file_references",
       "columns": {
@@ -1894,6 +2019,13 @@
           "name": "idx_file_refs_file",
           "columns": [
             "file_id"
+          ],
+          "isUnique": false
+        },
+        "idx_file_refs_created_by": {
+          "name": "idx_file_refs_created_by",
+          "columns": [
+            "created_by"
           ],
           "isUnique": false
         }
@@ -2021,6 +2153,13 @@
           ],
           "isUnique": false,
           "where": "ref_count = 0"
+        },
+        "idx_files_uploaded_by": {
+          "name": "idx_files_uploaded_by",
+          "columns": [
+            "uploaded_by"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -2297,6 +2436,20 @@
         },
         "work_location": {
           "name": "work_location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "salary_amount": {
+          "name": "salary_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "salary_currency": {
+          "name": "salary_currency",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2958,6 +3111,67 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "user_favorites": {
+      "name": "user_favorites",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_type": {
+          "name": "target_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_favorites_user_id_users_id_fk": {
+          "name": "user_favorites_user_id_users_id_fk",
+          "tableFrom": "user_favorites",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_favorites_user_id_target_type_target_id_pk": {
+          "columns": [
+            "user_id",
+            "target_type",
+            "target_id"
+          ],
+          "name": "user_favorites_user_id_target_type_target_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "relation_tuples": {
       "name": "relation_tuples",
       "columns": {
@@ -3068,7 +3282,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
