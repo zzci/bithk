@@ -5,64 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1781605697480,
-      "tag": "0000_mighty_havok",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1781614060123,
-      "tag": "0001_demonic_richard_fisk",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1781622739549,
-      "tag": "0002_dazzling_raza",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1781874910205,
-      "tag": "0003_workable_expediter",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1782934591838,
-      "tag": "0004_marvelous_dagger",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1782949439185,
-      "tag": "0005_nebulous_killraven",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1782952119814,
-      "tag": "0006_furry_living_mummy",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1782982900980,
-      "tag": "0007_clean_loa",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1782982926403,
-      "tag": "0008_drive_timestamps_backfill",
+      "when": 1783147270852,
+      "tag": "0000_fluffy_zaladane",
       "breakpoints": true
     }
   ]
