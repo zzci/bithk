@@ -81,7 +81,7 @@ function routeFetch(
 
 // Issue-tag vocabulary, most-used first; ids are 1-based (`t1`, `t2`, ...).
 function tags(...names: string[]): ProjectTag[] {
-  return names.map((name, i) => ({ id: `t${i + 1}`, name, usageCount: names.length - i }));
+  return names.map((name, i) => ({ id: `t${i + 1}`, name, type: "issue", usageCount: names.length - i }));
 }
 
 const noMembers: never[] = [];

@@ -39,7 +39,7 @@ function member(overrides: Partial<ProjectMemberView> = {}): ProjectMemberView {
 
 const roles: ProjectRoleView[] = [
   { id: "r1", name: "Owner", capabilities: [], isSystem: true, kind: "owner", createdAt: "", updatedAt: "" },
-  { id: "r2", name: "Worker", capabilities: [], isSystem: false, createdAt: "", updatedAt: "" },
+  { id: "r2", name: "Worker", capabilities: [], isSystem: false, kind: null, createdAt: "", updatedAt: "" },
   { id: "r3", name: "Guest", capabilities: [], isSystem: true, kind: "guest", createdAt: "", updatedAt: "" },
 ];
 

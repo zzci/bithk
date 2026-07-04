@@ -24,6 +24,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     name: "Atlas",
     status: "active",
     description: null,
+    shipId: null,
     tags: [],
     coverImageUrl: null,
     creatorId: "u1",

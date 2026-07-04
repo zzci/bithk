@@ -32,6 +32,7 @@ export default mergeConfig(
           "src/**/*.test.{ts,tsx}",
           "src/**/*.d.ts",
           "src/app/routeTree.gen.ts",
+          "src/shared/lib/api/_generated/api-types.ts",
           "src/main.tsx",
           // Test-only harness (render helpers, synchronous i18n) — measuring it
           // would inflate the gate without reflecting product coverage.
