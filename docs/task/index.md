@@ -183,3 +183,4 @@
 | [DOC-001](DOC-001.md) | ADR-014: HR module keeps flat module-gate RBAC | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
 | [FEAT-049](FEAT-049.md) | OpenAPI -> TS type generation pipeline for the web api layer | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
 | [REFACTOR-037](REFACTOR-037.md) | Adopt generated API types across the web api layer | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
+| [FIX-059](FIX-059.md) | Backend describeRoute spec fixes (close the TODO(spec) gaps) | [PLAN-105](../plan/PLAN-105.md) | In Progress | 2026-07-04 |
