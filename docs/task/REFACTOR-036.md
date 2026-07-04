@@ -1,6 +1,6 @@
 # REFACTOR-036 - Final migration collapse to a fresh 0000 baseline
 
-- Status: In Progress
+- Status: Completed
 - Plan: [PLAN-105](../plan/PLAN-105.md)
 - Created: 2026-07-04
 
@@ -25,3 +25,9 @@ rows get ISO defaults from the schema.
 Collapsing resets the migration lineage: any existing DB that already applied 0000-0008 cannot
 replay the new baseline. Dev DBs are reset via seed; deployed instances must be restored via
 backup import (established by the previous collapse precedent).
+
+## Status Notes
+
+- 2026-07-04: Completed — 9 migrations collapsed to generated baseline 0000_fluffy_zaladane;
+  no-drift verified by second generate; full check EXIT 0; old set backed up to
+  backup/drizzle-pre-collapse-20260704/ (gitignored; history retains the originals).
