@@ -9,6 +9,16 @@ Upstream cuts versioned tags so forks can anchor diffs against a known
 template version. The boundary entries below summarise what shipped in
 each upstream tag; your fork's `Unreleased` block sits at the top.
 
+## Unreleased
+
+### Changed
+
+- Storage moved from a standalone admin nav item into a System Settings tab
+  (UI-030). The `/admin/storage` route and its sidebar entry are removed; the
+  storage configuration and server-files sections now live under
+  System Settings -> Storage with unchanged behavior. Storage i18n keys merged
+  into the `settings` namespace.
+
 ## v0.2.1 — 2026-07-05
 
 ### Fixed

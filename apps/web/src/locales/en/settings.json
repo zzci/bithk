@@ -27,7 +27,8 @@
     "general": "General",
     "ship": "Ship",
     "backup": "Backup",
-    "about": "About"
+    "about": "About",
+    "storage": "Storage"
   },
   "currency": {
     "title": "Currencies",
@@ -425,6 +426,45 @@
         "uniqueConflict": "Unique conflict ({{index}})",
         "missingRequiredColumn": "Missing required column"
       }
+    }
+  },
+  "storage": {
+    "config": {
+      "title": "Storage configuration",
+      "description": "Created files (text, markdown, spreadsheets) are always stored in the database. Choose where uploaded files go.",
+      "uploadDriver": "Upload storage",
+      "driverLocal": "Default (local disk)",
+      "driverS3": "S3-compatible",
+      "s3Title": "S3 settings",
+      "bucket": "Bucket",
+      "region": "Region",
+      "endpoint": "Endpoint",
+      "accessKeyId": "Access key ID",
+      "secret": "Secret access key",
+      "secretConfigured": "A secret is saved. Leave blank to keep it.",
+      "secretNotConfigured": "No secret saved yet.",
+      "secretPlaceholder": "Enter a new secret to change it",
+      "prefix": "Key prefix",
+      "save": "Save",
+      "saved": "Storage configuration saved.",
+      "s3Required": "S3 requires a bucket, access key ID, and secret."
+    },
+    "files": {
+      "title": "Server files",
+      "description": "Every stored file and where it lives.",
+      "syncToS3": "Sync to S3",
+      "syncing": "Syncing…",
+      "syncResult": "Moved {{moved}}, skipped {{skipped}}, failed {{failed}}.",
+      "colName": "Name",
+      "colScope": "Scope",
+      "colType": "Type",
+      "colSize": "Size",
+      "colLocation": "Location",
+      "colUploader": "Uploader",
+      "colDate": "Date",
+      "empty": "No files stored yet.",
+      "total": "{{count}} file",
+      "total_other": "{{count}} files"
     }
   }
 }

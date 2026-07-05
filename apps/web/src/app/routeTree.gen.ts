@@ -31,7 +31,6 @@ import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects
 import { Route as AppDocumentsNewRouteImport } from './routes/_app/documents/new'
 import { Route as AppDocumentsDocIdRouteImport } from './routes/_app/documents/$docId'
 import { Route as AppAdminUsersRouteImport } from './routes/_app/admin/users'
-import { Route as AppAdminStorageRouteImport } from './routes/_app/admin/storage'
 import { Route as AppAdminSettingsRouteImport } from './routes/_app/admin/settings'
 import { Route as AppAdminPoliciesRouteImport } from './routes/_app/admin/policies'
 import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
@@ -184,13 +183,6 @@ const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AppAdminRoute,
 } as any)
-const AppAdminStorageRoute = AppAdminStorageRouteImport.update({
-  id: '/storage',
-  path: '/storage',
-  getParentRoute: () => AppAdminRoute,
-} as any).lazy(() =>
-  import('./routes/_app/admin/storage.lazy').then((d) => d.Route),
-)
 const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -399,7 +391,6 @@ export interface FileRoutesByFullPath {
   '/admin/cron': typeof AppAdminCronRoute
   '/admin/policies': typeof AppAdminPoliciesRoute
   '/admin/settings': typeof AppAdminSettingsRoute
-  '/admin/storage': typeof AppAdminStorageRoute
   '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
@@ -445,7 +436,6 @@ export interface FileRoutesByTo {
   '/admin/cron': typeof AppAdminCronRoute
   '/admin/policies': typeof AppAdminPoliciesRoute
   '/admin/settings': typeof AppAdminSettingsRoute
-  '/admin/storage': typeof AppAdminStorageRoute
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
   '/contacts': typeof AppContactsIndexRoute
@@ -492,7 +482,6 @@ export interface FileRoutesById {
   '/_app/admin/cron': typeof AppAdminCronRoute
   '/_app/admin/policies': typeof AppAdminPoliciesRoute
   '/_app/admin/settings': typeof AppAdminSettingsRoute
-  '/_app/admin/storage': typeof AppAdminStorageRoute
   '/_app/admin/users': typeof AppAdminUsersRouteWithChildren
   '/_app/documents/$docId': typeof AppDocumentsDocIdRoute
   '/_app/documents/new': typeof AppDocumentsNewRoute
@@ -542,7 +531,6 @@ export interface FileRouteTypes {
     | '/admin/cron'
     | '/admin/policies'
     | '/admin/settings'
-    | '/admin/storage'
     | '/admin/users'
     | '/documents/$docId'
     | '/documents/new'
@@ -588,7 +576,6 @@ export interface FileRouteTypes {
     | '/admin/cron'
     | '/admin/policies'
     | '/admin/settings'
-    | '/admin/storage'
     | '/documents/$docId'
     | '/documents/new'
     | '/contacts'
@@ -634,7 +621,6 @@ export interface FileRouteTypes {
     | '/_app/admin/cron'
     | '/_app/admin/policies'
     | '/_app/admin/settings'
-    | '/_app/admin/storage'
     | '/_app/admin/users'
     | '/_app/documents/$docId'
     | '/_app/documents/new'
@@ -833,13 +819,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersRouteImport
       parentRoute: typeof AppAdminRoute
     }
-    '/_app/admin/storage': {
-      id: '/_app/admin/storage'
-      path: '/storage'
-      fullPath: '/admin/storage'
-      preLoaderRoute: typeof AppAdminStorageRouteImport
-      parentRoute: typeof AppAdminRoute
-    }
     '/_app/admin/settings': {
       id: '/_app/admin/settings'
       path: '/settings'
@@ -1030,7 +1009,6 @@ interface AppAdminRouteChildren {
   AppAdminCronRoute: typeof AppAdminCronRoute
   AppAdminPoliciesRoute: typeof AppAdminPoliciesRoute
   AppAdminSettingsRoute: typeof AppAdminSettingsRoute
-  AppAdminStorageRoute: typeof AppAdminStorageRoute
   AppAdminUsersRoute: typeof AppAdminUsersRouteWithChildren
 }
 
@@ -1039,7 +1017,6 @@ const AppAdminRouteChildren: AppAdminRouteChildren = {
   AppAdminCronRoute: AppAdminCronRoute,
   AppAdminPoliciesRoute: AppAdminPoliciesRoute,
   AppAdminSettingsRoute: AppAdminSettingsRoute,
-  AppAdminStorageRoute: AppAdminStorageRoute,
   AppAdminUsersRoute: AppAdminUsersRouteWithChildren,
 }
 

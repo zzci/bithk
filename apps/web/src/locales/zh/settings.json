@@ -27,7 +27,8 @@
     "general": "通用",
     "ship": "船舶",
     "backup": "备份",
-    "about": "关于"
+    "about": "关于",
+    "storage": "存储"
   },
   "currency": {
     "title": "货币",
@@ -425,6 +426,45 @@
         "uniqueConflict": "唯一性冲突({{index}})",
         "missingRequiredColumn": "缺少必填列"
       }
+    }
+  },
+  "storage": {
+    "config": {
+      "title": "存储配置",
+      "description": "在应用内创建的文件（文本、Markdown、表格）始终存储在数据库中。请选择上传文件的存储位置。",
+      "uploadDriver": "上传存储",
+      "driverLocal": "默认（本地磁盘）",
+      "driverS3": "S3 兼容存储",
+      "s3Title": "S3 设置",
+      "bucket": "存储桶",
+      "region": "区域",
+      "endpoint": "端点",
+      "accessKeyId": "访问密钥 ID",
+      "secret": "私有访问密钥",
+      "secretConfigured": "已保存密钥。留空以保持不变。",
+      "secretNotConfigured": "尚未保存密钥。",
+      "secretPlaceholder": "输入新密钥以更改",
+      "prefix": "键前缀",
+      "save": "保存",
+      "saved": "存储配置已保存。",
+      "s3Required": "S3 需要存储桶、访问密钥 ID 和私有密钥。"
+    },
+    "files": {
+      "title": "服务器文件",
+      "description": "所有已存储的文件及其位置。",
+      "syncToS3": "同步到 S3",
+      "syncing": "同步中…",
+      "syncResult": "已移动 {{moved}} 个，跳过 {{skipped}} 个，失败 {{failed}} 个。",
+      "colName": "名称",
+      "colScope": "范围",
+      "colType": "类型",
+      "colSize": "大小",
+      "colLocation": "位置",
+      "colUploader": "上传者",
+      "colDate": "日期",
+      "empty": "尚无已存储的文件。",
+      "total": "{{count}} 个文件",
+      "total_other": "{{count}} 个文件"
     }
   }
 }

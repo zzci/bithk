@@ -186,3 +186,4 @@
 | [FIX-059](FIX-059.md) | Backend describeRoute spec fixes (close the TODO(spec) gaps) | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
 | [FIX-060](FIX-060.md) | Backup merge import: unique-key skip + auto id-remap; no COMMIT FK abort | - | Completed | 2026-07-05 |
 | [FIX-061](FIX-061.md) | Import option: wipe existing data before merge (conflict-free restore) | - | Completed | 2026-07-05 |
+| [UI-030](UI-030.md) | Move Storage from standalone nav item into System Settings tab | - | Completed | 2026-07-05 |

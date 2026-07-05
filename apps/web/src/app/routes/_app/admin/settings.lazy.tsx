@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { DatabaseBackup, FolderCog, Info, Mail, Shield, Ship, SlidersHorizontal, Webhook } from "lucide-react";
+import { DatabaseBackup, FolderCog, HardDrive, Info, Mail, Shield, Ship, SlidersHorizontal, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { AboutSettingsTab } from "./-settings-about";
@@ -10,6 +10,7 @@ import { GeneralSettingsTab } from "./-settings-general";
 import { ProjectDefaultsTab } from "./-settings-project-defaults";
 import { ShipSettingsTab } from "./-settings-ship";
 import { SmtpSettingsTab } from "./-settings-smtp";
+import { StorageSettingsTab } from "./-settings-storage";
 import { WebhookSettingsTab } from "./-settings-webhook";
 
 export const Route = createLazyFileRoute("/_app/admin/settings")({
@@ -56,6 +57,10 @@ function SettingsPage() {
             <DatabaseBackup className="mr-1.5 size-4" />
             {t("tabs.backup")}
           </TabsTrigger>
+          <TabsTrigger value="storage">
+            <HardDrive className="mr-1.5 size-4" />
+            {t("tabs.storage")}
+          </TabsTrigger>
           <TabsTrigger value="about">
             <Info className="mr-1.5 size-4" />
             {t("tabs.about")}
@@ -82,6 +87,9 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="backup">
           <BackupSettingsTab />
+        </TabsContent>
+        <TabsContent value="storage">
+          <StorageSettingsTab />
         </TabsContent>
         <TabsContent value="about">
           <AboutSettingsTab />
