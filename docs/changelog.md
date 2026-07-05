@@ -9,7 +9,7 @@ Upstream cuts versioned tags so forks can anchor diffs against a known
 template version. The boundary entries below summarise what shipped in
 each upstream tag; your fork's `Unreleased` block sits at the top.
 
-## Unreleased
+## v0.2.0 — 2026-07-05
 
 ### Added
 
