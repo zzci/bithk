@@ -324,3 +324,35 @@ describe("POST /backup/v2/imports/:importId/apply", () => {
     expect((await res.json() as { error: { code: string } }).error.code).toBe("IMPORT_ALREADY_APPLIED");
   });
 });
+
+describe("POST /backup/v2/imports/:importId/apply — wipeExisting (FIX-061)", () => {
+  async function applyRequest(cookie: string, importId: string, body: unknown): Promise<Response> {
+    return app().request(`/backup/v2/imports/${importId}/apply`, {
+      method: "POST",
+      headers: { "Cookie": cookie, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  test("400 for wipeExisting with replace mode; 400 lock-out for a merge wipe whose archive has no admin", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const uploaded = await upload(cookie, await validArchive());
+    const { importId } = await uploaded.json() as UploadBody;
+
+    const res = await applyRequest(cookie, importId, { mode: "replace", wipeExisting: true });
+    expect(res.status).toBe(400);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("INVALID_APPLY_MODE");
+
+    // The settings-only fixture archive carries no users at all — the wipe
+    // lock-out guard refuses before anything is deleted.
+    const wipe = await applyRequest(cookie, importId, { mode: "merge", wipeExisting: true });
+    expect(wipe.status).toBe(400);
+    expect((await wipe.json() as { error: { code: string } }).error.code).toBe("WIPE_WOULD_LOCK_OUT");
+    expect(getImportJob(importId)!.state).toBe("validated");
+
+    // Still applicable without the flag.
+    expect((await applyRequest(cookie, importId, { mode: "merge" })).status).toBe(202);
+    await getImportJob(importId)!.done;
+    expect(getImportJob(importId)!.state).toBe("completed");
+  });
+});

@@ -618,3 +618,128 @@ describe("apply errors", () => {
     }
   });
 });
+
+// ─── Wipe-before-merge (FIX-061) ─────────────────────────────────────────
+
+describe("wipe-before-merge (FIX-061)", () => {
+  function usersTableDef(rowCount: number): ManifestTable {
+    return {
+      name: "users",
+      module: "users",
+      file: "data/users.ndjson",
+      rowCount,
+      primaryKey: ["id"],
+      columns: [col("id"), col("oauthSub"), col("username"), col("name"), col("email"), col("role"), col("status")],
+    };
+  }
+  const wipeManifest = (rowCount = 1) => baseManifest({
+    modules: [{ name: "users", deps: [] }, { name: "settings", deps: [] }],
+    tables: [usersTableDef(rowCount), settingsTableDef()],
+  });
+  const archiveAdmin = (id: string, email = `${id}@archive.test`) =>
+    JSON.stringify({ id, oauthSub: `sub-${id}`, username: id, name: id, email, role: "admin", status: "active" });
+
+  async function applyWipe(job: ImportJob, actorId: string): Promise<void> {
+    await startImportApply(db, job, { mode: "merge", includeUsers: false, wipeExisting: true, actor: { ...ACTOR, id: actorId } }, stubLogger);
+    await job.done;
+  }
+
+  test("wipe+merge into a populated DB: old rows gone, sessions cleared, wipe counts + audit detail", async () => {
+    const liveAdmin = await seedUser(db, "admin");
+    await createSession(db, liveAdmin, "tok-live", undefined, 3600);
+    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k_live', 'old', '2026-01-01T00:00:00Z')`);
+
+    // Web actor: the live admin, matched in the archive by EMAIL under a
+    // different id (cross-instance archive).
+    const job = await stagedJob([
+      { name: "manifest.json", data: JSON.stringify(wipeManifest()) },
+      { name: "data/users.ndjson", data: `${archiveAdmin("adminx", `${liveAdmin}@test.com`)}\n` },
+      { name: "data/settings.ndjson", data: SETTINGS_ROW },
+    ]);
+    await applyWipe(job, liveAdmin);
+
+    expect(job.state).toBe("completed");
+    const result = job.result!;
+    // Nothing to collide with after the wipe.
+    expect(result.totals).toMatchObject({ inserted: 2, skippedDuplicate: 0, failed: 0 });
+    expect(result.wipe).toEqual({ tables: { users: 1, settings: 1 }, total: 2 });
+
+    // Old rows gone, archive rows present, all pre-wipe sessions revoked.
+    expect(await db.all(sql`SELECT id FROM users`)).toEqual([{ id: "adminx" }]);
+    expect(await db.all(sql`SELECT key FROM settings`)).toEqual([{ key: "k1" }]);
+    expect(await db.all(sql`SELECT * FROM sessions`)).toHaveLength(0);
+    expect(await db.all(sql`PRAGMA foreign_key_check`)).toHaveLength(0);
+
+    const auditRow = await db.select().from(auditEvents).where(eq(auditEvents.action, "backup.import.apply")).get();
+    expect(JSON.parse(auditRow!.detail!)).toMatchObject({ mode: "merge", wipeExisting: true, wipe: { total: 2 } });
+  });
+
+  test("lockout guard: an archive without an active admin is refused BEFORE any deletion", async () => {
+    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k_live', 'keep', '2026-01-01T00:00:00Z')`);
+    // Disabled admin + active plain user — nobody can hold the instance.
+    const rows = [
+      JSON.stringify({ id: "a1", oauthSub: "s-a1", username: "a1", name: "a1", email: "a1@t", role: "admin", status: "disabled" }),
+      JSON.stringify({ id: "u1", oauthSub: "s-u1", username: "u1", name: "u1", email: "u1@t", role: "user", status: "active" }),
+    ].join("\n");
+    const job = await stagedJob([
+      { name: "manifest.json", data: JSON.stringify(wipeManifest(2)) },
+      { name: "data/users.ndjson", data: `${rows}\n` },
+      { name: "data/settings.ndjson", data: SETTINGS_ROW },
+    ]);
+
+    await expect(startImportApply(db, job, { mode: "merge", includeUsers: false, wipeExisting: true, actor: ACTOR }, stubLogger))
+      .rejects
+      .toMatchObject({ code: "WIPE_WOULD_LOCK_OUT" });
+    // Refused before the state flip — nothing was deleted, job retryable.
+    expect(job.state).toBe("validated");
+    expect(await db.all(sql`SELECT key FROM settings`)).toEqual([{ key: "k_live" }]);
+  });
+
+  test("lockout guard: a WEB actor with no matching active-admin archive row is refused; CLI actor passes", async () => {
+    const liveAdmin = await seedUser(db, "admin");
+    const entries: TestEntry[] = [
+      { name: "manifest.json", data: JSON.stringify(wipeManifest()) },
+      // Active admin, but matches the live actor neither by id nor email/oauthSub.
+      { name: "data/users.ndjson", data: `${archiveAdmin("stranger")}\n` },
+      { name: "data/settings.ndjson", data: SETTINGS_ROW },
+    ];
+
+    const webJob = await stagedJob(entries);
+    await expect(startImportApply(db, webJob, { mode: "merge", includeUsers: false, wipeExisting: true, actor: { ...ACTOR, id: liveAdmin } }, stubLogger))
+      .rejects
+      .toMatchObject({ code: "WIPE_WOULD_LOCK_OUT" });
+    expect(webJob.state).toBe("validated");
+    expect(await db.all(sql`SELECT id FROM users`)).toEqual([{ id: liveAdmin }]);
+
+    // A synthetic CLI actor (no live users row) only needs the >=1-active-admin check.
+    const cliJob = await stagedJob(entries);
+    await applyWipe(cliJob, "cli");
+    expect(cliJob.state).toBe("completed");
+    expect(await db.all(sql`SELECT id FROM users`)).toEqual([{ id: "stranger" }]);
+  });
+
+  test("wipeExisting is refused with replace mode", async () => {
+    const job = await stagedJob([
+      { name: "manifest.json", data: JSON.stringify(baseManifest()) },
+      { name: "data/settings.ndjson", data: SETTINGS_ROW },
+    ]);
+    await expect(startImportApply(db, job, { mode: "replace", includeUsers: false, wipeExisting: true, actor: ACTOR }, stubLogger))
+      .rejects
+      .toMatchObject({ code: "INVALID_APPLY_MODE" });
+    expect(job.state).toBe("validated");
+  });
+
+  test("flag off: apply carries no wipe key and audit detail is unchanged", async () => {
+    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k_live', 'keep', '2026-01-01T00:00:00Z')`);
+    const job = await stagedJob([
+      { name: "manifest.json", data: JSON.stringify(baseManifest()) },
+      { name: "data/settings.ndjson", data: SETTINGS_ROW },
+    ]);
+    await apply(job);
+    expect(job.state).toBe("completed");
+    expect(job.result!.wipe).toBeUndefined();
+    expect(await db.all(sql`SELECT key FROM settings ORDER BY key`)).toEqual([{ key: "k1" }, { key: "k_live" }]);
+    const auditRow = await db.select().from(auditEvents).where(eq(auditEvents.action, "backup.import.apply")).get();
+    expect(JSON.parse(auditRow!.detail!)).not.toContainKey("wipeExisting");
+  });
+});

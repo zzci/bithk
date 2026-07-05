@@ -30471,6 +30471,12 @@ export interface operations {
                                 readonly rowsImported: number;
                                 readonly includeUsers: boolean;
                             };
+                            readonly wipe?: {
+                                readonly tables: {
+                                    readonly [key: string]: number;
+                                };
+                                readonly total: number;
+                            };
                             readonly blobs: {
                                 readonly written: number;
                                 readonly skippedExisting: number;

@@ -136,6 +136,8 @@ export interface ApplyBackupImportInput {
   readonly importId: string;
   readonly mode: "merge" | "replace";
   readonly includeUsers?: boolean;
+  /** FIX-061: merge mode only — wipe every registry table before the merge. */
+  readonly wipeExisting?: boolean;
 }
 
 export function useApplyBackupImport(): UseMutationResult<unknown, Error, ApplyBackupImportInput> {

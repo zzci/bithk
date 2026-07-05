@@ -68482,6 +68482,27 @@
                                 "includeUsers"
                               ]
                             },
+                            "wipe": {
+                              "type": "object",
+                              "properties": {
+                                "tables": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "type": "number"
+                                  }
+                                },
+                                "total": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "tables",
+                                "total"
+                              ]
+                            },
                             "blobs": {
                               "type": "object",
                               "properties": {

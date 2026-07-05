@@ -484,3 +484,69 @@ describe("dry-run isolation", () => {
     expect(await dbDump()).toBe(before);
   });
 });
+
+describe("FIX-061: wipe-before-merge (engine)", () => {
+  test("wipe+merge into a populated DB: old rows gone, archive rows land, zero skips, FK check clean", async () => {
+    // Live state that WOULD collide with the archive on unique keys (same
+    // oauth_sub under a different id) — a plain merge would skip/remap.
+    const liveId = await seedUser(db, "admin");
+    await db.run(sql`UPDATE users SET oauth_sub = 'sub-u1aaaaaa' WHERE id = ${liveId}`);
+    await db.run(sql`INSERT INTO user_preferences (user_id, key, value, updated_at) VALUES (${liveId}, 'theme', 'dark', 't')`);
+    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k1', 'live', '2026-01-01T00:00:00Z')`);
+
+    const prefsDef = mTable("user_preferences", "users", [
+      col("userId", "text", true, { references: "users.id" }),
+      col("key"),
+      col("value"),
+      col("updatedAt"),
+    ], ["userId", "key"]);
+    const report = runImportMerge(db, mManifest([usersDef(), prefsDef, settingsDef()]), new Map(Object.entries({
+      users: [userRow("u1aaaaaa")],
+      user_preferences: [{ userId: "u1aaaaaa", key: "theme", value: "light", updatedAt: "t" }],
+      settings: [settingsRow("k1", "archive")],
+    })), { wipeExisting: true });
+
+    // Nothing to collide with after the wipe.
+    expect(report.totals.skippedDuplicate).toBe(0);
+    expect(report.totals.failed).toBe(0);
+    expect(report.totals.inserted).toBe(3);
+    expect(report.tables.users!.remapped).toBeUndefined();
+    // Per-table would-delete counts: only tables that held rows.
+    expect(report.wipe).toEqual({ tables: { users: 1, user_preferences: 1, settings: 1 }, total: 3 });
+
+    // Old rows gone, archive rows present, FK graph clean.
+    expect(await db.all(sql`SELECT id FROM users`)).toEqual([{ id: "u1aaaaaa" }]);
+    expect(await db.all(sql`SELECT user_id, value FROM user_preferences`)).toEqual([{ user_id: "u1aaaaaa", value: "light" }]);
+    expect(await db.all(sql`SELECT value FROM settings`)).toEqual([{ value: "archive" }]);
+    expect(await db.all(sql`PRAGMA foreign_key_check`)).toHaveLength(0);
+  });
+
+  test("dry-run with wipeExisting deletes nothing but reports exactly what apply does", async () => {
+    const liveId = await seedUser(db, "admin");
+    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k1', 'live', '2026-01-01T00:00:00Z')`);
+    await db.run(sql`INSERT INTO user_preferences (user_id, key, value, updated_at) VALUES (${liveId}, 'theme', 'dark', 't')`);
+    const before = await dbDump();
+
+    const tables = { users: [userRow("u1aaaaaa")], settings: [settingsRow("k1", "archive")] };
+    const manifest = mManifest([usersDef(), settingsDef()]);
+    const dryRun = runImportDryRun(db, manifest, new Map(Object.entries(tables)), { wipeExisting: true });
+
+    // Rollback path: the wipe left no trace.
+    expect(await dbDump()).toBe(before);
+    expect(dryRun.wipe).toEqual({ tables: { users: 1, user_preferences: 1, settings: 1 }, total: 3 });
+    expect(dryRun.totals.skippedDuplicate).toBe(0);
+
+    // Preview equals apply: identical wipe counts, tables and totals.
+    const apply = runImportMerge(db, manifest, new Map(Object.entries(tables)), { wipeExisting: true });
+    expect(apply.wipe).toEqual(dryRun.wipe);
+    expect(apply.tables).toEqual(dryRun.tables);
+    expect(apply.totals).toEqual(dryRun.totals);
+  });
+
+  test("flag off: the engine never wipes and the report carries no wipe key", async () => {
+    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k_live', 'keep', '2026-01-01T00:00:00Z')`);
+    const report = runImportMerge(db, mManifest([settingsDef()]), new Map(Object.entries({ settings: [settingsRow("k1")] })));
+    expect(report.wipe).toBeUndefined();
+    expect(await db.all(sql`SELECT key FROM settings ORDER BY key`)).toEqual([{ key: "k1" }, { key: "k_live" }]);
+  });
+});

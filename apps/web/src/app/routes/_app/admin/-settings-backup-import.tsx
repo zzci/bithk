@@ -65,10 +65,13 @@ export function BackupImportCard() {
     });
   };
 
-  const applyImport = (mode: ApplyMode, includeUsers: boolean) => {
+  const applyImport = (mode: ApplyMode, includeUsers: boolean, wipeExisting: boolean) => {
     if (importId === null)
       return;
-    apply.mutate(mode === "replace" ? { importId, mode, includeUsers } : { importId, mode }, {
+    const input = mode === "replace"
+      ? { importId, mode, includeUsers }
+      : { importId, mode, ...(wipeExisting ? { wipeExisting } : {}) };
+    apply.mutate(input, {
       onSuccess: () => setConfirmOpen(false),
       onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
@@ -153,28 +156,34 @@ export function BackupImportCard() {
   );
 }
 
-// ─── Apply confirm dialog (merge default; replace = destructive) ──────────
+// ─── Apply confirm dialog (merge default; replace / wipe = destructive) ───
 
 function ApplyConfirmDialog({ open, onOpenChange, pending, onConfirm }: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly pending: boolean;
-  readonly onConfirm: (mode: ApplyMode, includeUsers: boolean) => void;
+  readonly onConfirm: (mode: ApplyMode, includeUsers: boolean, wipeExisting: boolean) => void;
 }) {
   const { t } = useTranslation(["settings", "common"]);
   const [mode, setMode] = useState<ApplyMode>("merge");
   const [includeUsers, setIncludeUsers] = useState(false);
+  const [wipeExisting, setWipeExisting] = useState(false);
   const [confirmText, setConfirmText] = useState("");
 
-  const keyword = t("settings:backup.import.replaceKeyword");
-  const replaceConfirmed = confirmText.trim().toLowerCase() === keyword.toLowerCase();
-  const canConfirm = !pending && (mode === "merge" || replaceConfirmed);
+  // Merge + wipe is as destructive as replace: same type-to-confirm gate.
+  const destructive = mode === "replace" || (mode === "merge" && wipeExisting);
+  const keyword = mode === "replace"
+    ? t("settings:backup.import.replaceKeyword")
+    : t("settings:backup.import.wipeKeyword");
+  const destructiveConfirmed = confirmText.trim().toLowerCase() === keyword.toLowerCase();
+  const canConfirm = !pending && (!destructive || destructiveConfirmed);
 
   const handleOpenChange = (next: boolean) => {
     onOpenChange(next);
     if (!next) {
       setMode("merge");
       setIncludeUsers(false);
+      setWipeExisting(false);
       setConfirmText("");
     }
   };
@@ -192,23 +201,41 @@ function ApplyConfirmDialog({ open, onOpenChange, pending, onConfirm }: {
           <RadioGroupItem value="replace">{t("settings:backup.import.modeReplace")}</RadioGroupItem>
         </RadioGroup>
 
+        {mode === "merge" && (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="backup-wipe-existing">{t("settings:backup.import.wipeExisting")}</Label>
+            <Switch
+              id="backup-wipe-existing"
+              checked={wipeExisting}
+              onCheckedChange={setWipeExisting}
+            />
+          </div>
+        )}
+
         {mode === "replace" && (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="backup-include-users">{t("settings:backup.import.includeUsers")}</Label>
+            <Switch
+              id="backup-include-users"
+              checked={includeUsers}
+              onCheckedChange={setIncludeUsers}
+            />
+          </div>
+        )}
+
+        {destructive && (
           <div className="space-y-3">
-            <p className="text-sm font-medium text-destructive">{t("settings:backup.import.replaceWarning")}</p>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="backup-include-users">{t("settings:backup.import.includeUsers")}</Label>
-              <Switch
-                id="backup-include-users"
-                checked={includeUsers}
-                onCheckedChange={setIncludeUsers}
-              />
-            </div>
+            <p className="text-sm font-medium text-destructive">
+              {mode === "replace"
+                ? t("settings:backup.import.replaceWarning")
+                : t("settings:backup.import.wipeWarning")}
+            </p>
             <div className="space-y-1.5">
-              <Label htmlFor="backup-replace-confirm">
+              <Label htmlFor="backup-destructive-confirm">
                 {t("settings:backup.import.typeToConfirm", { keyword })}
               </Label>
               <Input
-                id="backup-replace-confirm"
+                id="backup-destructive-confirm"
                 value={confirmText}
                 autoComplete="off"
                 onChange={e => setConfirmText(e.currentTarget.value)}
@@ -221,9 +248,9 @@ function ApplyConfirmDialog({ open, onOpenChange, pending, onConfirm }: {
           <AlertDialogClose render={<Button type="button" variant="outline">{t("common:common.cancel")}</Button>} />
           <Button
             type="button"
-            variant={mode === "replace" ? "destructive" : "default"}
+            variant={destructive ? "destructive" : "default"}
             disabled={!canConfirm}
-            onClick={() => onConfirm(mode, includeUsers)}
+            onClick={() => onConfirm(mode, includeUsers, wipeExisting)}
           >
             {t("settings:backup.import.confirm")}
           </Button>
