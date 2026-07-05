@@ -51,12 +51,13 @@ export async function dispatchCliSubcommand(argv: readonly string[]): Promise<nu
   cli
     .command(
       "backup:import <archive>",
-      "Import a backup archive. --mode merge|replace (default merge), --include-users, --actor-id <id>. Note: --mode replace --include-users requires --actor-id to be an ACTIVE ADMIN present in the backup, otherwise the apply refuses with a lock-out / FK error.",
+      "Import a backup archive. --mode merge|replace (default merge), --include-users, --wipe, --actor-id <id>. Note: --mode replace --include-users requires --actor-id to be an ACTIVE ADMIN present in the backup, otherwise the apply refuses with a lock-out / FK error.",
     )
     .option("--mode <mode>", "merge | replace (default merge)")
     .option("--include-users", "Include users (replace mode v1 semantics)")
+    .option("--wipe", "Merge mode only: delete ALL existing rows before importing (same transaction; the archive must contain an active admin)")
     .option("--actor-id <id>", "Synthetic actor id recorded in the audit log")
-    .action(async (archive: string, opts: { mode?: string; includeUsers?: boolean; actorId?: string }) => {
+    .action(async (archive: string, opts: { mode?: string; includeUsers?: boolean; wipe?: boolean; actorId?: string }) => {
       exitCode = await runBackupImport(archive, opts);
     });
 
@@ -244,11 +245,15 @@ async function runBackupExport(
  */
 async function runBackupImport(
   archive: string,
-  opts: { mode?: string; includeUsers?: boolean; actorId?: string },
+  opts: { mode?: string; includeUsers?: boolean; wipe?: boolean; actorId?: string },
 ): Promise<number> {
   const mode = opts.mode ?? "merge";
   if (mode !== "merge" && mode !== "replace") {
     consola.error("--mode must be one of: merge, replace");
+    return 2;
+  }
+  if (opts.wipe === true && mode !== "merge") {
+    consola.error("--wipe is only valid with --mode merge (replace already deletes live tables)");
     return 2;
   }
 
@@ -264,12 +269,13 @@ async function runBackupImport(
     const job = await prepareImport(db, config, Bun.file(archive));
     const { startImportApply } = await import("./modules/backup/import-apply");
     const actor = { id: opts.actorId ?? "cli", name: "cli-import", ip: "127.0.0.1", userAgent: "cli" };
-    await startImportApply(db, job, { mode, includeUsers: opts.includeUsers === true, actor }, logger);
+    await startImportApply(db, job, { mode, includeUsers: opts.includeUsers === true, wipeExisting: opts.wipe === true, actor }, logger);
     await job.done;
     if (job.state === "completed") {
       const t = job.result!.totals;
+      const wiped = job.result!.wipe ? ` wiped=${job.result!.wipe.total}` : "";
       consola.success(
-        `import complete: inserted=${t.inserted} skippedDuplicate=${t.skippedDuplicate} failed=${t.failed} transformed=${t.transformed}`,
+        `import complete:${wiped} inserted=${t.inserted} skippedDuplicate=${t.skippedDuplicate} failed=${t.failed} transformed=${t.transformed}`,
       );
       return 0;
     }

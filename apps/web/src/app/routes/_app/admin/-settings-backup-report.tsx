@@ -272,6 +272,12 @@ export function ImportReportView({ title, report }: {
         <SummaryStat label={t("backup.report.transformed")} value={report.totals.transformed} />
       </div>
 
+      {"wipe" in report && report.wipe && (
+        <p className="text-sm text-destructive">
+          {t("backup.report.wipeSummary", { total: report.wipe.total })}
+        </p>
+      )}
+
       {"replace" in report && report.replace && (
         <p className="text-sm text-muted-foreground">
           {t("backup.report.replaceSummary", {

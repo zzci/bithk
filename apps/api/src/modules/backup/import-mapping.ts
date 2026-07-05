@@ -283,6 +283,18 @@ export interface ImportDryRunReport {
   readonly totals: { inserted: number; skippedDuplicate: number; failed: number; transformed: number };
   /** Existence-check counts — blobs are NEVER written in this phase. */
   readonly blobs: { count: number; existing: number; missing: number };
+  /** FIX-061: per-table deleted-row counts of the pre-merge wipe (only tables that held rows). */
+  wipe?: { tables: Record<string, number>; total: number };
+}
+
+export interface ImportEngineOptions {
+  /**
+   * FIX-061: delete every row from every registry table (children first)
+   * inside the SAME transaction, before the merge loop — a conflict-free
+   * restore into a populated instance. In dry-run mode the rollback
+   * restores the deleted rows; the report still carries the wipe counts.
+   */
+  readonly wipeExisting?: boolean;
 }
 
 /** Thrown to force ROLLBACK after the dry-run inserts complete. */
@@ -325,8 +337,9 @@ export function runImportDryRun(
   db: AppDatabase,
   manifest: BackupManifestV2,
   tables: ReadonlyMap<string, readonly Record<string, unknown>[]>,
+  options: ImportEngineOptions = {},
 ): ImportDryRunReport {
-  return runMergeEngine(db, manifest, tables, false);
+  return runMergeEngine(db, manifest, tables, false, options);
 }
 
 /**
@@ -339,8 +352,9 @@ export function runImportMerge(
   db: AppDatabase,
   manifest: BackupManifestV2,
   tables: ReadonlyMap<string, readonly Record<string, unknown>[]>,
+  options: ImportEngineOptions = {},
 ): ImportDryRunReport {
-  return runMergeEngine(db, manifest, tables, true);
+  return runMergeEngine(db, manifest, tables, true, options);
 }
 
 function runMergeEngine(
@@ -348,6 +362,7 @@ function runMergeEngine(
   manifest: BackupManifestV2,
   tables: ReadonlyMap<string, readonly Record<string, unknown>[]>,
   commit: boolean,
+  options: ImportEngineOptions = {},
 ): ImportDryRunReport {
   const liveView = buildLiveSchemaView();
   const knownModules = new Set(getModuleNames());
@@ -415,6 +430,28 @@ function runMergeEngine(
       // check clean — a dangling row is deleted and reported per-row
       // instead of aborting the transaction.
       tx.run(sql`PRAGMA defer_foreign_keys = 1`);
+
+      // FIX-061: wipe-before-merge. Children first (reverse of the live
+      // dependency order); defer_foreign_keys covers cycle deletes. Runs in
+      // the SAME transaction as the merge loop, so an error anywhere rolls
+      // the wipe back too — and the dry-run rollback restores every row
+      // while the report keeps the would-delete counts. All later probes
+      // (duplicate / FK / transform lookups) observe the wiped state, so a
+      // wipe+merge cannot produce unique-key collisions.
+      if (options.wipeExisting === true) {
+        const wiped: Record<string, number> = {};
+        let total = 0;
+        for (const lt of [...liveView.values()].reverse()) {
+          const countRow = tx.get(sql`SELECT COUNT(*) AS n FROM ${sql.identifier(lt.name)}`) as unknown;
+          const n = Number(Array.isArray(countRow) ? countRow[0] : (countRow as { n: number }).n);
+          if (n === 0)
+            continue;
+          tx.delete(lt.table).run();
+          wiped[lt.name] = n;
+          total += n;
+        }
+        report.wipe = { tables: wiped, total };
+      }
 
       const probe = (tableName: string, conds: { dbName: string; value: unknown }[]): boolean => {
         const where = conds.map(c => sql`${sql.identifier(c.dbName)} = ${c.value}`);

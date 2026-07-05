@@ -21,6 +21,9 @@
  *   dangerous to combine), plus the v1 guards verbatim — `includeUsers`
  *   handling, admin lock-out refusal, user-FK pre-flight. (The guard logic
  *   is replicated from `restore.routes.ts`, which stays untouched for v1.)
+ * - wipe-before-merge preflight (FIX-061): archive must contain an active
+ *   admin; a web actor must match one by id OR email/oauthSub. Runs before
+ *   the state flips — and therefore before any deletion.
  *
  * Apply modes:
  *
@@ -70,6 +73,12 @@ export interface ImportApplyOptions {
   readonly mode: ImportApplyMode;
   /** Replace mode only (v1 semantics); merge always inserts what it can. */
   readonly includeUsers: boolean;
+  /**
+   * Merge mode only (FIX-061): delete ALL registry rows (children first) in
+   * the same transaction before the merge loop, so the import cannot
+   * conflict. Guarded by {@link prepareWipe} BEFORE any deletion.
+   */
+  readonly wipeExisting?: boolean;
   readonly actor: ImportApplyActor;
 }
 
@@ -84,6 +93,8 @@ export interface ImportApplyReport {
   readonly totals: { inserted: number; skippedDuplicate: number; failed: number; transformed: number };
   /** Replace mode only — the v1 engine's coarse counters. */
   readonly replace?: { tablesImported: number; rowsImported: number; includeUsers: boolean };
+  /** Merge + wipeExisting only (FIX-061) — per-table deleted-row counts. */
+  readonly wipe?: { tables: Record<string, number>; total: number };
   readonly blobs: ArchiveBlobStageReport;
   readonly reconcile: ReconcileResult;
 }
@@ -247,6 +258,83 @@ async function prepareReplace(db: AppDatabase, job: ImportJob, opts: ImportApply
   return { effectiveData, importedUserRows, liveById };
 }
 
+// ─── Wipe-before-merge preflight (FIX-061) ───────────────────────────────
+
+interface WipeUserSnapshot {
+  readonly id: string;
+  readonly oauthSub: string;
+  readonly email: string;
+  readonly role: string;
+  readonly status: string;
+}
+
+interface WipePlan {
+  /** Pre-wipe live users — v1-parity session-revocation snapshot. */
+  readonly liveUsers: readonly WipeUserSnapshot[];
+}
+
+interface ArchiveUserRow {
+  readonly id?: unknown;
+  readonly oauthSub?: unknown;
+  readonly email?: unknown;
+  readonly role?: unknown;
+  readonly status?: unknown;
+  readonly isVirtual?: unknown;
+}
+
+/**
+ * An archive user row that can hold the instance after the wipe: an admin
+ * whose status is active (or absent, v1-guard parity) and who is not a
+ * virtual user (virtual users cannot log in).
+ */
+function isActiveAdminRow(row: ArchiveUserRow): boolean {
+  return row.role === "admin"
+    && (row.status === undefined || row.status === "active")
+    && !row.isVirtual;
+}
+
+/**
+ * Lockout guard + session-revocation snapshot for wipe-before-merge. Runs
+ * BEFORE the job flips to `applying` — and therefore before any deletion:
+ *
+ * - the archive must contain at least one active admin (otherwise the wipe
+ *   would leave an instance nobody can administer);
+ * - a WEB actor (a live users row) must additionally match an active-admin
+ *   archive row by id OR email/oauthSub — cross-instance archives carry the
+ *   same person under a different id. A synthetic CLI actor has no live row
+ *   and only needs the at-least-one-active-admin check.
+ */
+async function prepareWipe(db: AppDatabase, job: ImportJob, opts: ImportApplyOptions): Promise<WipePlan> {
+  const incoming = (job.tables.get("users") ?? []) as readonly ArchiveUserRow[];
+  if (!incoming.some(isActiveAdminRow)) {
+    throw new AppError(
+      "Wipe-before-merge would leave no active admin: the archive contains none.",
+      400,
+      "WIPE_WOULD_LOCK_OUT",
+    );
+  }
+
+  const liveUsers: WipeUserSnapshot[] = await db
+    .select({ id: users.id, oauthSub: users.oauthSub, email: users.email, role: users.role, status: users.status })
+    .from(users)
+    .all();
+
+  const liveActor = liveUsers.find(u => u.id === opts.actor.id);
+  if (liveActor) {
+    const me = incoming.find(r => r.id === liveActor.id)
+      ?? incoming.find(r => r.oauthSub === liveActor.oauthSub || r.email === liveActor.email);
+    if (!me || !isActiveAdminRow(me)) {
+      throw new AppError(
+        "Wipe-before-merge would lock out the importing admin: no active admin row in the archive matches your id, email, or OAuth subject.",
+        400,
+        "WIPE_WOULD_LOCK_OUT",
+      );
+    }
+  }
+
+  return { liveUsers };
+}
+
 // ─── Apply orchestration ─────────────────────────────────────────────────
 
 /**
@@ -272,13 +360,23 @@ export async function startImportApply(
     );
   }
 
-  // Replace preflight runs BEFORE the state flips, so a refused replace
-  // (schema mismatch, lock-out, FK pre-flight) leaves the job `validated`.
+  if (opts.wipeExisting === true && opts.mode !== "merge") {
+    throw new AppError(
+      "wipeExisting is only valid with merge mode (replace already deletes live tables).",
+      400,
+      "INVALID_APPLY_MODE",
+    );
+  }
+
+  // Replace / wipe preflights run BEFORE the state flips, so a refused apply
+  // (schema mismatch, lock-out, FK pre-flight) leaves the job `validated` —
+  // and, for wipe, before any deletion.
   const replacePlan = opts.mode === "replace" ? await prepareReplace(db, job, opts) : undefined;
+  const wipePlan = opts.wipeExisting === true ? await prepareWipe(db, job, opts) : undefined;
 
   applyingJobId = job.id;
   job.state = "applying";
-  job.done = runApply(db, job, opts, replacePlan, logger).finally(() => {
+  job.done = runApply(db, job, opts, replacePlan, wipePlan, logger).finally(() => {
     applyingJobId = undefined;
   });
 }
@@ -288,6 +386,7 @@ async function runApply(
   job: ImportJob,
   opts: ImportApplyOptions,
   replacePlan: ReplacePlan | undefined,
+  wipePlan: WipePlan | undefined,
   logger: Logger,
 ): Promise<void> {
   try {
@@ -297,9 +396,28 @@ async function runApply(
 
     if (opts.mode === "merge") {
       // One committed synchronous transaction — an unexpected mid-apply
-      // failure aborts it atomically (no partial table writes).
-      engine = runImportMerge(db, job.manifest, job.tables);
+      // failure aborts it atomically (no partial table writes). With
+      // wipeExisting the wipe runs INSIDE that transaction, so a failed
+      // merge rolls the wipe back too (no data loss on failure).
+      engine = runImportMerge(db, job.manifest, job.tables, { wipeExisting: wipePlan !== undefined });
       warnings.push(...engine.warnings);
+
+      if (wipePlan) {
+        // v1-parity session revocation against the pre-wipe snapshot: a
+        // pre-wipe user keeps their sessions only when the archive restored
+        // them under the SAME id with the same role/status. Matching falls
+        // back to email/oauthSub for cross-instance archives (a different id
+        // means the old sessions are dangling anyway). Today the sessions FK
+        // cascade already removes every session when `users` is wiped, so
+        // this pass is a belt-and-suspenders parity guarantee.
+        const archiveUsers = (job.tables.get("users") ?? []) as readonly ArchiveUserRow[];
+        for (const before of wipePlan.liveUsers) {
+          const after = archiveUsers.find(r => r.id === before.id)
+            ?? archiveUsers.find(r => r.oauthSub === before.oauthSub || r.email === before.email);
+          if (!after || after.id !== before.id || after.role !== before.role || after.status !== before.status)
+            await deleteUserSessions(db, before.id);
+        }
+      }
     }
     else {
       const plan = replacePlan!;
@@ -353,6 +471,7 @@ async function runApply(
       totals: engine?.totals
         ?? { inserted: replaceResult?.rowsImported ?? 0, skippedDuplicate: 0, failed: 0, transformed: 0 },
       ...(replaceResult ? { replace: { ...replaceResult, includeUsers: opts.includeUsers } } : {}),
+      ...(engine?.wipe ? { wipe: engine.wipe } : {}),
       blobs,
       reconcile,
     };
@@ -378,6 +497,7 @@ async function runApply(
           { inserted: t.inserted, skippedDuplicate: t.skippedDuplicate, failed: t.failed.total, transformed: t.transformed },
         ])),
         ...(report.replace ? { replace: report.replace } : {}),
+        ...(report.wipe ? { wipeExisting: true, wipe: { total: report.wipe.total } } : {}),
         blobs: { written: blobs.written, skippedExisting: blobs.skippedExisting, failed: blobs.failed },
         reconcile: { checked: reconcile.checked, quarantined: reconcile.quarantined },
       },

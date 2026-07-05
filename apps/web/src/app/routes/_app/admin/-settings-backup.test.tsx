@@ -314,6 +314,27 @@ describe("backupSettingsTab — import", () => {
     });
   });
 
+  it("wipe-before-merge (FIX-061) requires the destructive type-to-confirm and sends wipeExisting", async () => {
+    await uploadImportArchive();
+
+    await userEvent.click(screen.getByRole("button", { name: "Apply import" }));
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    expect(confirm).toBeEnabled(); // plain merge needs no keyword
+
+    await userEvent.click(screen.getByRole("switch", { name: /Wipe all existing data first/ }));
+    expect(confirm).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText("Type wipe to confirm"), "wipe");
+    expect(confirm).toBeEnabled();
+    await userEvent.click(confirm);
+
+    await waitFor(() => {
+      const apply = fetchMock.mock.calls.find(c => String(c[0]) === "/api/backup/v2/imports/imp1/apply");
+      expect(apply).toBeDefined();
+      expect(JSON.parse(apply![1]!.body as string)).toEqual({ mode: "merge", wipeExisting: true });
+    });
+  });
+
   it("restores a standalone blobs archive and renders its report", async () => {
     routeFetch();
 

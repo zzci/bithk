@@ -7,8 +7,9 @@
  *                                              final apply result / error
  *   POST   /backup/v2/imports/:importId/apply  apply the staged import
  *                                              ({ mode: merge|replace,
- *                                              includeUsers? }) → 202; result
- *                                              via the poll route
+ *                                              includeUsers?, wipeExisting? })
+ *                                              → 202; result via the poll
+ *                                              route
  *   DELETE /backup/v2/imports/:importId        discard a staged import
  */
 import type { ProtectedEnv } from "@/shared/lib/types";
@@ -34,6 +35,8 @@ export const CONTENT_LENGTH_SLACK = 64 * 1024;
 const applyBodySchema = z.object({
   mode: z.enum(["merge", "replace"]),
   includeUsers: z.boolean().optional(),
+  /** FIX-061: merge mode only — wipe every registry table before the merge. */
+  wipeExisting: z.boolean().optional(),
 });
 
 const importParamSchema = z.object({ importId: z.string() });
@@ -83,6 +86,10 @@ const importApplyReportSchema = z.object({
     tablesImported: z.number(),
     rowsImported: z.number(),
     includeUsers: z.boolean(),
+  }).optional(),
+  wipe: z.object({
+    tables: z.record(z.string(), z.number()),
+    total: z.number(),
   }).optional(),
   blobs: z.object({
     written: z.number(),
@@ -219,11 +226,12 @@ export function backupImportV2Routes() {
       const body = await c.req.json().catch(() => undefined) as unknown;
       const parsed = applyBodySchema.safeParse(body);
       if (!parsed.success)
-        throw new AppError("apply body must be { mode: \"merge\" | \"replace\", includeUsers?: boolean }", 400, "INVALID_APPLY_MODE");
+        throw new AppError("apply body must be { mode: \"merge\" | \"replace\", includeUsers?: boolean, wipeExisting?: boolean }", 400, "INVALID_APPLY_MODE");
 
       await startImportApply(db, job, {
         mode: parsed.data.mode,
         includeUsers: parsed.data.includeUsers ?? false,
+        wipeExisting: parsed.data.wipeExisting ?? false,
         actor: {
           id: user.id,
           name: user.name,
