@@ -184,3 +184,4 @@
 | [FEAT-049](FEAT-049.md) | OpenAPI -> TS type generation pipeline for the web api layer | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
 | [REFACTOR-037](REFACTOR-037.md) | Adopt generated API types across the web api layer | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
 | [FIX-059](FIX-059.md) | Backend describeRoute spec fixes (close the TODO(spec) gaps) | [PLAN-105](../plan/PLAN-105.md) | Completed | 2026-07-04 |
+| [FIX-060](FIX-060.md) | Backup merge import: unique-key skip + auto id-remap; no COMMIT FK abort | - | In Progress | 2026-07-05 |
