@@ -12,39 +12,26 @@
 
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ApiData, ApiRow } from "./_generated";
-import type { ProcurementStatus } from "./procurement";
-import type { IssueStatus, ProjectStatus } from "./projects";
 import type { ApiEnvelope } from "./types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
 // Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
 // regenerate with `bun run gen:api-types` after backend route changes.
-//
-// TODO(spec): `status` missing enum in OpenAPI spec — backend describeRoute
-// bug: the overview module emits plain `string` while the server serves the
-// project/issue/procurement status enums. Re-narrowed locally so status badge
-// maps keyed by the unions keep compiling; drop the intersections once the
-// spec carries the enums.
 
 type FavoriteRow = ApiRow<"getFavorites">;
 
-export type FavoriteProjectItem = Extract<FavoriteRow, { targetType: "project" }> & { readonly status: ProjectStatus };
-export type FavoriteIssueItem = Extract<FavoriteRow, { targetType: "issue" }> & { readonly status: IssueStatus };
-export type FavoriteProcurementItem = Extract<FavoriteRow, { targetType: "procurement" }> & { readonly status: ProcurementStatus };
+export type FavoriteProjectItem = Extract<FavoriteRow, { targetType: "project" }>;
+export type FavoriteIssueItem = Extract<FavoriteRow, { targetType: "issue" }>;
+export type FavoriteProcurementItem = Extract<FavoriteRow, { targetType: "procurement" }>;
 
 export type FavoriteItem = FavoriteProjectItem | FavoriteIssueItem | FavoriteProcurementItem;
 export type FavoriteTargetType = FavoriteItem["targetType"];
 
-type OverviewRaw = ApiData<"getOverview">;
+export type OverviewData = ApiData<"getOverview">;
 
-export type OverviewIssueRow = OverviewRaw["myIssues"][number] & { readonly status: IssueStatus };
-export type OverviewProcurementRow = OverviewRaw["openProcurements"][number] & { readonly status: ProcurementStatus };
-
-export interface OverviewData {
-  readonly myIssues: readonly OverviewIssueRow[];
-  readonly openProcurements: readonly OverviewProcurementRow[];
-}
+export type OverviewIssueRow = OverviewData["myIssues"][number];
+export type OverviewProcurementRow = OverviewData["openProcurements"][number];
 
 export const favoriteKeys = {
   list: ["favorites"] as const,

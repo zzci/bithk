@@ -37,7 +37,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     status: "active",
     description: "Flagship refit programme",
     shipId: null,
-    tags: [{ id: "t1", name: "refit" }],
+    tags: [{ id: "t1", name: "refit", usageCount: 1 }],
     coverImageUrl: null,
     creatorId: "u1",
     version: 1,
@@ -144,7 +144,7 @@ describe("projectsListPage", () => {
     fetchMock.mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("/tags"))
-        return jsonResponse({ success: true, data: [{ id: "t1", name: "refit" }, { id: "t2", name: "deck" }] });
+        return jsonResponse({ success: true, data: [{ id: "t1", name: "refit", usageCount: 1 }, { id: "t2", name: "deck", usageCount: 1 }] });
       return jsonResponse({
         success: true,
         data: [project()],
@@ -178,10 +178,10 @@ describe("projectsListPage", () => {
     mockList([
       project({
         tags: [
-          { id: "t1", name: "refit" },
-          { id: "t2", name: "deck" },
-          { id: "t3", name: "hull" },
-          { id: "t4", name: "engine" },
+          { id: "t1", name: "refit", usageCount: 1 },
+          { id: "t2", name: "deck", usageCount: 1 },
+          { id: "t3", name: "hull", usageCount: 1 },
+          { id: "t4", name: "engine", usageCount: 1 },
         ],
       }),
     ]);

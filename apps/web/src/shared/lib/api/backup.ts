@@ -11,9 +11,7 @@ import { http } from "../http";
 // ── Types ──
 //
 // Server view shapes derive from the generated OpenAPI types (REFACTOR-037);
-// regenerate with `bun run gen:api-types` after backend route changes. The
-// backup spec leaves several payloads untyped (`unknown` / bare `string`) —
-// those keep narrow local shapes below, each marked with a TODO(spec).
+// regenerate with `bun run gen:api-types` after backend route changes.
 
 // Blob handling mode, from the POST /backup/v2/exports request body.
 export type BlobsMode = NonNullable<
@@ -22,102 +20,30 @@ export type BlobsMode = NonNullable<
 
 export type BackupModuleView = ApiResponse<"getBackupModules">["modules"][number];
 
-// TODO(spec): `artifacts` is `unknown` in the OpenAPI spec — backend
-// describeRoute bug; per-artifact shape kept locally.
-export interface ExportArtifactView {
-  readonly size: number;
-  readonly downloaded: boolean;
-}
+export type ExportJobView = ApiResponse<"getBackupV2ExportsByJobId">;
 
-// TODO(spec): `state`/`blobsMode` are bare `string` and `progress`/`artifacts`
-// are `unknown` in the OpenAPI spec — backend describeRoute bug; the
-// intersection below re-narrows them without touching the generated file.
-export type ExportJobView = Omit<
-  ApiResponse<"getBackupV2ExportsByJobId">,
-  "state" | "blobsMode" | "progress" | "artifacts"
-> & {
-  readonly state: "pending" | "running" | "completed" | "downloaded" | "failed";
-  readonly blobsMode: BlobsMode;
-  readonly progress: {
-    readonly tablesDone: number;
-    readonly tablesTotal: number;
-    readonly blobBytesDone: number;
-    readonly blobBytesTotal: number;
-  };
-  readonly artifacts: {
-    readonly data: ExportArtifactView;
-    readonly blobs?: ExportArtifactView;
-  } | null;
-};
+export type ExportArtifactView = NonNullable<ExportJobView["artifacts"]>["data"];
 
-// TODO(spec): the import `report`/`result` payloads are `unknown` in the
-// OpenAPI spec — backend describeRoute bug; the `ImportReport` family below
-// stays a hand-written mirror of apps/api/src/modules/backup until fixed.
-export interface ImportFailedRow {
-  readonly rowId: string;
-  readonly reason: string;
-}
+export type ImportJobView = ApiResponse<"getBackupV2ImportsByImportId">;
 
-export interface ImportTableReport {
-  readonly inserted: number;
-  readonly skippedDuplicate: number;
-  readonly transformed: number;
-  readonly droppedColumns: Record<string, number>;
-  readonly defaultedColumns: Record<string, number>;
-  readonly failed: { readonly total: number; readonly sample: readonly ImportFailedRow[] };
-  readonly error?: string;
-  readonly noKeyAppend?: boolean;
-}
+/** The staged dry-run report — blobs are existence checks, never written. */
+export type ImportDryRunReport = ImportJobView["report"];
+
+/** The final apply report (`result` on the poll route once completed). */
+export type ImportApplyReport = NonNullable<ImportJobView["result"]>;
+
+/** Either report flavour; the renderer narrows by field (`"written" in blobs`). */
+export type ImportReport = ImportDryRunReport | ImportApplyReport;
+
+export type ImportTableReport = ImportDryRunReport["tables"][string];
+
+export type ImportFailedRow = ImportTableReport["failed"]["sample"][number];
 
 /** Dry-run blob existence checks — blobs are never written before apply. */
-export interface DryRunBlobCounts {
-  readonly count: number;
-  readonly existing: number;
-  readonly missing: number;
-}
+export type DryRunBlobCounts = ImportDryRunReport["blobs"];
 
 /** Apply-stage blob counters (R7: `expectedInSeparateArchive` vs `missing`). */
-export interface ApplyBlobCounts {
-  readonly written: number;
-  readonly skippedExisting: number;
-  readonly failed: number;
-  readonly unreferenced: number;
-  readonly missing: number;
-  readonly expectedInSeparateArchive: number;
-}
-
-export interface ImportReport {
-  readonly dryRun: boolean;
-  readonly mode?: "merge" | "replace";
-  readonly tables: Record<string, ImportTableReport>;
-  readonly skippedTables: readonly string[];
-  readonly skippedModules: readonly string[];
-  readonly warnings: readonly string[];
-  readonly totals: {
-    readonly inserted: number;
-    readonly skippedDuplicate: number;
-    readonly failed: number;
-    readonly transformed: number;
-  };
-  readonly replace?: {
-    readonly tablesImported: number;
-    readonly rowsImported: number;
-    readonly includeUsers: boolean;
-  };
-  readonly blobs: DryRunBlobCounts | ApplyBlobCounts;
-  readonly reconcile?: { readonly checked: number; readonly quarantined: number };
-}
-
-// TODO(spec): `state` is bare `string` and `report`/`result` are `unknown` in
-// the OpenAPI spec — backend describeRoute bug; re-narrowed locally.
-export type ImportJobView = Omit<
-  ApiResponse<"getBackupV2ImportsByImportId">,
-  "state" | "report" | "result"
-> & {
-  readonly state: "validated" | "applying" | "completed" | "failed";
-  readonly report: ImportReport;
-  readonly result: ImportReport | null;
-};
+export type ApplyBlobCounts = ImportApplyReport["blobs"];
 
 export type BlobRestoreReport = ApiResponse<"postBackupV2BlobRestores">["report"];
 
@@ -191,11 +117,7 @@ export function useBackupImportJob(importId: string | null) {
 }
 
 // Upload is a 201 Created with the staged import id + dry-run report.
-// TODO(spec): `report` is `unknown` in the OpenAPI spec — backend
-// describeRoute bug; re-narrowed to the local `ImportReport`.
-type UploadBackupImportResult = Omit<ApiResponse<"postBackupV2Imports", 201>, "report"> & {
-  readonly report: ImportReport;
-};
+type UploadBackupImportResult = ApiResponse<"postBackupV2Imports", 201>;
 
 export function useUploadBackupImport(): UseMutationResult<UploadBackupImportResult, Error, File> {
   return useMutation({

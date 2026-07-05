@@ -32,42 +32,10 @@ const HEADER = `/* eslint-disable */
 // Do not edit by hand — regenerate and commit. CI verifies via \`check:api-types\`.
 `;
 
-// hono-openapi emits recursive zod schemas as schema-local `$defs` whose
-// `$ref`s point at `#/components/schemas/<name>` — a target it never creates
-// (see /policy/expand). Hoist every `$defs` entry into components.schemas so
-// those refs resolve; collide loudly rather than silently overwrite.
-interface SpecDoc {
-  components?: { schemas?: Record<string, unknown> };
-  [key: string]: unknown;
-}
-function hoistLocalDefs(doc: SpecDoc): SpecDoc {
-  const schemas: Record<string, unknown> = { ...doc.components?.schemas };
-  const visit = (node: unknown): void => {
-    if (node === null || typeof node !== "object")
-      return;
-    if (Array.isArray(node)) {
-      node.forEach(visit);
-      return;
-    }
-    const obj = node as Record<string, unknown>;
-    const defs = obj.$defs;
-    if (defs && typeof defs === "object" && !Array.isArray(defs)) {
-      for (const [name, schema] of Object.entries(defs as Record<string, unknown>)) {
-        if (name in schemas && JSON.stringify(schemas[name]) !== JSON.stringify(schema))
-          throw new Error(`[gen-api-types] conflicting $defs schema "${name}" — cannot hoist`);
-        schemas[name] = schema;
-      }
-      delete obj.$defs;
-    }
-    Object.values(obj).forEach(visit);
-  };
-  visit(doc);
-  if (Object.keys(schemas).length === 0)
-    return doc;
-  return { ...doc, components: { ...doc.components, schemas } };
-}
-
-const spec = hoistLocalDefs(JSON.parse(readFileSync(SPEC_PATH, "utf-8")) as SpecDoc);
+// The spec generator (apps/api/scripts/gen-api-spec.ts) hoists recursive
+// schemas' `$defs` into components.schemas, so the committed spec is
+// self-contained and can be fed to openapi-typescript as-is.
+const spec = JSON.parse(readFileSync(SPEC_PATH, "utf-8")) as Parameters<typeof openapiTS>[0];
 const ast = await openapiTS(spec, {
   // Emit readonly properties so the generated views match the repo's
   // immutable-by-default data-layer convention.

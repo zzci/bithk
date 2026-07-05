@@ -5,7 +5,7 @@ import { getRequestUserModules } from "@/modules/account/groups/module-gate";
 import { auditFromCtx } from "@/modules/audit/audit.context";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError, UnauthorizedError } from "@/shared/lib/errors";
-import { describeRoute, errorJson, jsonRequestBody, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, jsonRequestBody, okJson, okListJson, onValidationFailure, pageMetaSchema, validator } from "@/shared/lib/openapi";
 import { pageQueryFields } from "@/shared/lib/pagination";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { rateLimit } from "@/shared/middleware/rate-limit";
@@ -89,6 +89,13 @@ const userGroupSchema = z.object({
   createdAt: z.string(),
   joinedAt: z.string(),
 });
+// GET /account/users rows: the user columns plus the `groups` refs the service
+// attaches to every row (users.service `attachUserGroups`).
+const userWithGroupsSchema = userColumnsSchema.extend({
+  groups: z.array(z.object({ id: z.string(), name: z.string() })),
+});
+// GET /account/users meta: canonical page meta plus `totalPages`.
+const usersListMetaSchema = pageMetaSchema.extend({ totalPages: z.number() });
 const meSchema = z.object({
   id: z.string(),
   username: z.string(),
@@ -106,8 +113,9 @@ const pickerUserSchema = z.object({
   id: z.string(),
   name: z.string(),
   username: z.string(),
-  isVirtual: z.boolean().optional(),
 });
+// /account/assignable-users additionally carries `isVirtual` on every row.
+const assignableUserSchema = pickerUserSchema.extend({ isVirtual: z.boolean() });
 const totpDeviceSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -418,7 +426,7 @@ export function userRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "List active real and virtual users (member-add picker)",
-      responses: { 200: okJson(z.array(pickerUserSchema)), 401: { description: "Unauthenticated", ...errorJson } },
+      responses: { 200: okJson(z.array(assignableUserSchema)), 401: { description: "Unauthenticated", ...errorJson } },
     }),
     async (c) => {
       const db = c.get("db");
@@ -460,7 +468,7 @@ export function userRoutes() {
     describeRoute({
       tags: ["account"],
       summary: "List users with pagination, search and filters (admin)",
-      responses: { 200: okJson(z.array(userColumnsSchema)), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Admin only", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
+      responses: { 200: okListJson(userWithGroupsSchema, "Success", usersListMetaSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Admin only", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
     adminRequired,
     validator("query", listQuerySchema, onValidationFailure),

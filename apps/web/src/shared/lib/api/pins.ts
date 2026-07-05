@@ -22,11 +22,7 @@ import { procurementKeys } from "./procurement";
 // Server view shapes are aliases of the generated OpenAPI types (FEAT-049);
 // regenerate with `bun run gen:api-types` after backend route changes.
 
-/**
- * A pinned-item entry as rendered in the project overview Pin area.
- * `type` is `"issue" | "procurement"` at runtime (the spec types it as plain
- * string — backend describeRoute omits the enum).
- */
+/** A pinned-item entry as rendered in the project overview Pin area. */
 export type PinnedItem = ApiRow<"getProjectsByProjectIdPinnedItems">;
 
 export const pinKeys = {

@@ -2,6 +2,8 @@ import type { Context } from "hono";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
+import { ISSUE_STATUSES } from "@/modules/issue/schema";
+import { PROCUREMENT_STATUSES } from "@/modules/procurement/schema";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
@@ -11,13 +13,14 @@ import { listPinnedByProject } from "./item.service";
 const projectIdParam = z.object({ projectId: z.string() });
 
 // Mirrors the `PinnedItem` view returned by `listPinnedByProject` (union of
-// pinned issues + procurements).
+// pinned issues + procurements). `status` is the issue vocabulary for
+// type=issue rows and the procurement vocabulary for type=procurement rows.
 const pinnedItemSchema = z.object({
   id: z.string(),
   shortId: z.string(),
-  type: z.string(),
+  type: z.enum(["issue", "procurement"]),
   title: z.string(),
-  status: z.string(),
+  status: z.enum([...ISSUE_STATUSES, ...PROCUREMENT_STATUSES]),
   pinnedAt: z.string(),
 });
 

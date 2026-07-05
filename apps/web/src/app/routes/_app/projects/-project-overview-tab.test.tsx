@@ -100,7 +100,7 @@ describe("projectOverviewTab", () => {
     routeFetch({
       pinned: [
         pin({ id: "it1", type: "issue", title: "Fix pump", status: "todo" }),
-        pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft", pinnedAt: "2026-05-23T00:00:00.000Z" }),
+        pin({ id: "it2", type: "procurement", title: "Buy steel", status: "requested", pinnedAt: "2026-05-23T00:00:00.000Z" }),
       ],
     });
     renderWithProviders(
@@ -199,7 +199,7 @@ describe("projectOverviewTab", () => {
   it("navigates from a pinned procurement row to the procurement tab", async () => {
     const user = userEvent.setup();
     const onOpenTab = vi.fn();
-    routeFetch({ pinned: [pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft" })] });
+    routeFetch({ pinned: [pin({ id: "it2", type: "procurement", title: "Buy steel", status: "requested" })] });
     renderWithProviders(
       <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={onOpenTab} />,
     );
@@ -209,7 +209,7 @@ describe("projectOverviewTab", () => {
 
   it("disables a pinned procurement row when procurement is not viewable", async () => {
     const onOpenTab = vi.fn();
-    routeFetch({ pinned: [pin({ id: "it2", type: "procurement", title: "Buy steel", status: "draft" })] });
+    routeFetch({ pinned: [pin({ id: "it2", type: "procurement", title: "Buy steel", status: "requested" })] });
     renderWithProviders(
       <ProjectOverviewTab project={project()} caps={noProcCaps} onOpenTab={onOpenTab} />,
     );

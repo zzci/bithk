@@ -3839,7 +3839,52 @@ export interface operations {
                             readonly commit: string;
                             readonly buildTime: string;
                             readonly version: string;
-                            readonly lode: unknown;
+                            readonly lode: {
+                                readonly supervised: boolean;
+                                readonly active: boolean;
+                                readonly stateAvailable: boolean;
+                                readonly status?: string;
+                                readonly current?: string;
+                                readonly lastGood?: string;
+                                readonly available?: string;
+                                readonly channel?: string;
+                                readonly activeVersion?: string;
+                                /** @enum {string} */
+                                readonly readinessMode?: "none" | "state";
+                                readonly ready: boolean | null;
+                                readonly hold: boolean;
+                                readonly configGeneration?: number;
+                                readonly configChanged: boolean;
+                                readonly lastCheckAt?: string;
+                                readonly lastError?: string;
+                                readonly history: readonly {
+                                    readonly version: string;
+                                    readonly at: string;
+                                    /** @enum {string} */
+                                    readonly result: "good" | "bad";
+                                }[];
+                                readonly updateAvailable: boolean;
+                                readonly rollbackTarget?: string;
+                                readonly config: {
+                                    /** @enum {string} */
+                                    readonly status: "not_configured" | "unreadable" | "malformed" | "available";
+                                    readonly app?: string;
+                                    /** @enum {string} */
+                                    readonly sourceType?: "github" | "manifest";
+                                    readonly source?: string;
+                                    readonly asset?: string;
+                                    readonly channel?: string;
+                                    /** @enum {string} */
+                                    readonly policy?: "off" | "check" | "auto";
+                                    readonly checkInterval?: number;
+                                    readonly keepVersions?: number;
+                                    readonly pin?: string;
+                                    /** @enum {string} */
+                                    readonly requireSignature?: "off" | "auto" | "enforce";
+                                    readonly runtime?: string;
+                                    readonly runtimeVersion?: string;
+                                };
+                            };
                         };
                     };
                 };
@@ -5796,7 +5841,6 @@ export interface operations {
                             readonly id: string;
                             readonly name: string;
                             readonly username: string;
-                            readonly isVirtual?: boolean;
                         }[];
                     };
                 };
@@ -5842,7 +5886,7 @@ export interface operations {
                             readonly id: string;
                             readonly name: string;
                             readonly username: string;
-                            readonly isVirtual?: boolean;
+                            readonly isVirtual: boolean;
                         }[];
                     };
                 };
@@ -5903,7 +5947,17 @@ export interface operations {
                             readonly lastLoginAt: string | null;
                             readonly createdAt: string;
                             readonly updatedAt: string;
+                            readonly groups: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                            }[];
                         }[];
+                        readonly meta: {
+                            readonly total: number;
+                            readonly page: number;
+                            readonly limit: number;
+                            readonly totalPages: number;
+                        };
                     };
                 };
             };
@@ -10065,7 +10119,8 @@ export interface operations {
                         readonly success: true;
                         readonly data: readonly {
                             readonly id: string;
-                            readonly refType: string;
+                            /** @enum {string} */
+                            readonly refType: "worklist" | "url" | "document";
                             readonly refId: string;
                             readonly label: string | null;
                             readonly createdAt: string;
@@ -10146,7 +10201,8 @@ export interface operations {
                         readonly success: true;
                         readonly data: {
                             readonly id: string;
-                            readonly refType: string;
+                            /** @enum {string} */
+                            readonly refType: "worklist" | "url" | "document";
                             readonly refId: string;
                             readonly label: string | null;
                             readonly createdAt: string;
@@ -10331,9 +10387,11 @@ export interface operations {
                         readonly data: readonly {
                             readonly id: string;
                             readonly shortId: string;
-                            readonly type: string;
+                            /** @enum {string} */
+                            readonly type: "issue" | "procurement";
                             readonly title: string;
-                            readonly status: string;
+                            /** @enum {string} */
+                            readonly status: "todo" | "working" | "review" | "done" | "cancel" | "requested" | "ordered" | "confirmed" | "paid" | "in_transit" | "received" | "accepted" | "returned" | "refunded" | "cancelled";
                             readonly pinnedAt: string;
                         }[];
                     };
@@ -12356,6 +12414,7 @@ export interface operations {
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
+                                readonly usageCount: number;
                             }[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
@@ -12444,6 +12503,7 @@ export interface operations {
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
+                                readonly usageCount: number;
                             }[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
@@ -12520,6 +12580,7 @@ export interface operations {
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
+                                readonly usageCount: number;
                             }[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
@@ -12668,6 +12729,7 @@ export interface operations {
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
+                                readonly usageCount: number;
                             }[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
@@ -12785,6 +12847,7 @@ export interface operations {
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
+                                readonly usageCount: number;
                             }[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
@@ -12878,6 +12941,7 @@ export interface operations {
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
+                                readonly usageCount: number;
                             }[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
@@ -15339,6 +15403,12 @@ export interface operations {
     readonly getProjectsByProjectIdProcurements: {
         readonly parameters: {
             readonly query?: {
+                /** @description Repeatable tag-id filter (OR/union semantics). */
+                readonly tagIds?: readonly string[];
+                /** @description 1-based page number (clamped to >= 1; default 1). */
+                readonly page?: number;
+                /** @description Page size (clamped to [1, 100]; default 20). */
+                readonly limit?: number;
                 readonly q?: string;
                 readonly status?: "requested" | "ordered" | "confirmed" | "paid" | "in_transit" | "received" | "accepted" | "returned" | "refunded" | "cancelled";
                 readonly priority?: "low" | "medium" | "high" | "urgent";
@@ -22331,7 +22401,8 @@ export interface operations {
                             readonly myIssues: readonly {
                                 readonly id: string;
                                 readonly title: string;
-                                readonly status: string;
+                                /** @enum {string} */
+                                readonly status: "todo" | "working" | "review" | "done" | "cancel";
                                 readonly priority: string;
                                 readonly dueDate: string | null;
                                 readonly projectId: string;
@@ -22341,7 +22412,8 @@ export interface operations {
                             readonly openProcurements: readonly {
                                 readonly id: string;
                                 readonly itemName: string;
-                                readonly status: string;
+                                /** @enum {string} */
+                                readonly status: "requested" | "ordered" | "confirmed" | "paid" | "in_transit" | "received" | "accepted" | "returned" | "refunded" | "cancelled";
                                 readonly priority: string;
                                 readonly amount: number | null;
                                 readonly currency: string | null;
@@ -22397,14 +22469,16 @@ export interface operations {
                             readonly id: string;
                             readonly name: string;
                             readonly code: string;
-                            readonly status: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
                             readonly favoritedAt: string;
                         } | {
                             /** @constant */
                             readonly targetType: "issue";
                             readonly id: string;
                             readonly title: string;
-                            readonly status: string;
+                            /** @enum {string} */
+                            readonly status: "todo" | "working" | "review" | "done" | "cancel";
                             readonly priority: string;
                             readonly dueDate: string | null;
                             readonly projectId: string;
@@ -22415,7 +22489,8 @@ export interface operations {
                             readonly targetType: "procurement";
                             readonly id: string;
                             readonly itemName: string;
-                            readonly status: string;
+                            /** @enum {string} */
+                            readonly status: "requested" | "ordered" | "confirmed" | "paid" | "in_transit" | "received" | "accepted" | "returned" | "refunded" | "cancelled";
                             readonly amount: number | null;
                             readonly currency: string | null;
                             readonly projectId: string;
@@ -24834,7 +24909,8 @@ export interface operations {
                             readonly id: string;
                             readonly code: string;
                             readonly name: string;
-                            readonly status: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
                             readonly description: string | null;
                             readonly shipId: string | null;
                             readonly tags: readonly {
@@ -24917,7 +24993,8 @@ export interface operations {
                             readonly id: string;
                             readonly code: string;
                             readonly name: string;
-                            readonly status: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
                             readonly description: string | null;
                             readonly shipId: string | null;
                             readonly tags: readonly {
@@ -29918,14 +29995,30 @@ export interface operations {
                 content: {
                     readonly "application/json": {
                         readonly jobId: string;
-                        readonly state: string;
+                        /** @enum {string} */
+                        readonly state: "pending" | "running" | "completed" | "downloaded" | "failed";
                         readonly modules: readonly string[];
-                        readonly blobsMode: string;
+                        /** @enum {string} */
+                        readonly blobsMode: "embedded" | "separate" | "none";
                         readonly createdAt: string | number;
-                        readonly progress: unknown;
+                        readonly progress: {
+                            readonly tablesDone: number;
+                            readonly tablesTotal: number;
+                            readonly blobBytesDone: number;
+                            readonly blobBytesTotal: number;
+                        };
                         readonly error: string | null;
                         readonly archiveSize: number | null;
-                        readonly artifacts: unknown | null;
+                        readonly artifacts: {
+                            readonly data: {
+                                readonly size: number;
+                                readonly downloaded: boolean;
+                            };
+                            readonly blobs?: {
+                                readonly size: number;
+                                readonly downloaded: boolean;
+                            };
+                        } | null;
                         readonly warnings: readonly string[] | null;
                     };
                 };
@@ -30175,7 +30268,47 @@ export interface operations {
                 content: {
                     readonly "application/json": {
                         readonly importId: string;
-                        readonly report: unknown;
+                        readonly report: {
+                            readonly dryRun: boolean;
+                            readonly tables: {
+                                readonly [key: string]: {
+                                    readonly inserted: number;
+                                    readonly skippedDuplicate: number;
+                                    readonly transformed: number;
+                                    readonly droppedColumns: {
+                                        readonly [key: string]: number;
+                                    };
+                                    readonly defaultedColumns: {
+                                        readonly [key: string]: number;
+                                    };
+                                    readonly fallbackColumns?: readonly string[];
+                                    readonly remapped?: number;
+                                    readonly failed: {
+                                        readonly total: number;
+                                        readonly sample: readonly {
+                                            readonly rowId: string;
+                                            readonly reason: string;
+                                        }[];
+                                    };
+                                    readonly error?: string;
+                                    readonly noKeyAppend?: boolean;
+                                };
+                            };
+                            readonly skippedTables: readonly string[];
+                            readonly skippedModules: readonly string[];
+                            readonly warnings: readonly string[];
+                            readonly totals: {
+                                readonly inserted: number;
+                                readonly skippedDuplicate: number;
+                                readonly failed: number;
+                                readonly transformed: number;
+                            };
+                            readonly blobs: {
+                                readonly count: number;
+                                readonly existing: number;
+                                readonly missing: number;
+                            };
+                        };
                     };
                 };
             };
@@ -30251,10 +30384,106 @@ export interface operations {
                 content: {
                     readonly "application/json": {
                         readonly importId: string;
-                        readonly state: string;
+                        /** @enum {string} */
+                        readonly state: "validated" | "applying" | "completed" | "failed";
                         readonly createdAt: string;
-                        readonly report: unknown;
-                        readonly result: unknown | null;
+                        readonly report: {
+                            readonly dryRun: boolean;
+                            readonly tables: {
+                                readonly [key: string]: {
+                                    readonly inserted: number;
+                                    readonly skippedDuplicate: number;
+                                    readonly transformed: number;
+                                    readonly droppedColumns: {
+                                        readonly [key: string]: number;
+                                    };
+                                    readonly defaultedColumns: {
+                                        readonly [key: string]: number;
+                                    };
+                                    readonly fallbackColumns?: readonly string[];
+                                    readonly remapped?: number;
+                                    readonly failed: {
+                                        readonly total: number;
+                                        readonly sample: readonly {
+                                            readonly rowId: string;
+                                            readonly reason: string;
+                                        }[];
+                                    };
+                                    readonly error?: string;
+                                    readonly noKeyAppend?: boolean;
+                                };
+                            };
+                            readonly skippedTables: readonly string[];
+                            readonly skippedModules: readonly string[];
+                            readonly warnings: readonly string[];
+                            readonly totals: {
+                                readonly inserted: number;
+                                readonly skippedDuplicate: number;
+                                readonly failed: number;
+                                readonly transformed: number;
+                            };
+                            readonly blobs: {
+                                readonly count: number;
+                                readonly existing: number;
+                                readonly missing: number;
+                            };
+                        };
+                        readonly result: {
+                            /** @constant */
+                            readonly dryRun: false;
+                            /** @enum {string} */
+                            readonly mode: "merge" | "replace";
+                            readonly tables: {
+                                readonly [key: string]: {
+                                    readonly inserted: number;
+                                    readonly skippedDuplicate: number;
+                                    readonly transformed: number;
+                                    readonly droppedColumns: {
+                                        readonly [key: string]: number;
+                                    };
+                                    readonly defaultedColumns: {
+                                        readonly [key: string]: number;
+                                    };
+                                    readonly fallbackColumns?: readonly string[];
+                                    readonly remapped?: number;
+                                    readonly failed: {
+                                        readonly total: number;
+                                        readonly sample: readonly {
+                                            readonly rowId: string;
+                                            readonly reason: string;
+                                        }[];
+                                    };
+                                    readonly error?: string;
+                                    readonly noKeyAppend?: boolean;
+                                };
+                            };
+                            readonly skippedTables: readonly string[];
+                            readonly skippedModules: readonly string[];
+                            readonly warnings: readonly string[];
+                            readonly totals: {
+                                readonly inserted: number;
+                                readonly skippedDuplicate: number;
+                                readonly failed: number;
+                                readonly transformed: number;
+                            };
+                            readonly replace?: {
+                                readonly tablesImported: number;
+                                readonly rowsImported: number;
+                                readonly includeUsers: boolean;
+                            };
+                            readonly blobs: {
+                                readonly written: number;
+                                readonly skippedExisting: number;
+                                readonly failed: number;
+                                readonly unreferenced: number;
+                                readonly missing: number;
+                                readonly expectedInSeparateArchive: number;
+                            };
+                            readonly reconcile: {
+                                readonly checked: number;
+                                readonly quarantined: number;
+                            };
+                        } | null;
                         readonly error: string | null;
                     };
                 };
@@ -30674,7 +30903,35 @@ export interface operations {
                         /** @constant */
                         readonly success: true;
                         readonly data: {
-                            readonly actions: readonly unknown[];
+                            readonly actions: readonly {
+                                readonly name: string;
+                                readonly displayName: string;
+                                readonly description: string;
+                                readonly category: string;
+                                readonly icon: string | null;
+                                readonly tags: readonly string[];
+                                readonly version: string | null;
+                                readonly dangerous: boolean;
+                                readonly defaultCron: string | null;
+                                readonly inputs: readonly {
+                                    readonly key: string;
+                                    readonly label: string;
+                                    /** @enum {string} */
+                                    readonly type: "string" | "textarea" | "secret" | "number" | "boolean" | "select" | "json";
+                                    readonly required?: boolean;
+                                    readonly description?: string;
+                                    readonly placeholder?: string;
+                                    readonly default?: unknown;
+                                    readonly options?: readonly {
+                                        readonly value: string;
+                                        readonly label: string;
+                                    }[];
+                                    readonly min?: number;
+                                    readonly max?: number;
+                                    readonly group?: string;
+                                }[];
+                                readonly requiredKeys: readonly string[];
+                            }[];
                             readonly cronFormats: readonly string[];
                             readonly schedulerEnabled: boolean;
                         };

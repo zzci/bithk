@@ -43,16 +43,31 @@ const exportV2BodySchema = z.object({
   // Deprecated alias (true→embedded, false→none); `blobs` wins if both sent.
   includeBlobs: z.boolean().optional(),
 });
+// Mirrors the poll handler's payload over `ExportJob` (export-job.service.ts).
+const exportArtifactSchema = z.object({
+  size: z.number(),
+  downloaded: z.boolean(),
+});
 const exportJobStatusSchema = z.object({
   jobId: z.string(),
-  state: z.string(),
+  state: z.enum(["pending", "running", "completed", "downloaded", "failed"]),
   modules: z.array(z.string()),
-  blobsMode: z.string(),
+  blobsMode: z.enum(["embedded", "separate", "none"]),
   createdAt: z.union([z.string(), z.number()]),
-  progress: z.unknown(),
+  progress: z.object({
+    tablesDone: z.number(),
+    tablesTotal: z.number(),
+    blobBytesDone: z.number(),
+    blobBytesTotal: z.number(),
+  }),
   error: z.string().nullable(),
   archiveSize: z.number().nullable(),
-  artifacts: z.unknown().nullable(),
+  // Per-artifact view; `blobs` appears only for separate-mode jobs. Null
+  // until the job completes.
+  artifacts: z.object({
+    data: exportArtifactSchema,
+    blobs: exportArtifactSchema.optional(),
+  }).nullable(),
   // Manifest warnings (e.g. blobs skipped per-driver) — null until completed.
   warnings: z.array(z.string()).nullable(),
 });

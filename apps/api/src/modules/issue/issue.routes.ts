@@ -24,10 +24,10 @@ import {
   updateIssue,
 } from "./issue.service";
 import { mountIssueReferenceRoutes, referenceInputSchema } from "./references.routes";
+import { ISSUE_STATUSES } from "./schema";
 
 // Project work order: the assignment target is a `project_members.id`. The
 // project comes from the `:projectId` path param.
-const ISSUE_STATUSES = ["todo", "working", "review", "done", "cancel"] as const;
 const ISSUE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 
 const createSchema = z.object({
