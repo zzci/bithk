@@ -31,8 +31,8 @@ const MODULES = { modules: [{ name: "users", deps: [] }, { name: "files", deps: 
 const runningJob = {
   jobId: "job1",
   state: "running",
-  blobsMode: "embedded",
-  progress: { tablesDone: 1, tablesTotal: 4, blobBytesDone: 1024, blobBytesTotal: 4096 },
+  blobsMode: "external",
+  progress: { tablesDone: 1, tablesTotal: 4, blobBytesDone: 0, blobBytesTotal: 0 },
   error: null,
   archiveSize: null,
   warnings: null,
@@ -42,7 +42,7 @@ const runningJob = {
 const completedJob = {
   ...runningJob,
   state: "completed",
-  progress: { tablesDone: 4, tablesTotal: 4, blobBytesDone: 4096, blobBytesTotal: 4096 },
+  progress: { tablesDone: 4, tablesTotal: 4, blobBytesDone: 0, blobBytesTotal: 0 },
   archiveSize: 2048,
   warnings: [],
   artifacts: { data: { size: 2048, downloaded: false } },
@@ -50,16 +50,7 @@ const completedJob = {
 
 const completedJobWithWarnings = {
   ...completedJob,
-  warnings: ["2 file(s) stored in S3 are not part of this export — back up the bucket directly"],
-};
-
-const completedSeparateJob = {
-  ...completedJob,
-  blobsMode: "separate",
-  artifacts: {
-    data: { size: 2048, downloaded: true },
-    blobs: { size: 8192, downloaded: false },
-  },
+  warnings: ["blob not exported (unreadable from local storage): sha256=abc"],
 };
 
 const dryRunReport = {
@@ -90,6 +81,7 @@ const applyResult = {
   warnings: [],
   totals: { inserted: 3, skippedDuplicate: 1, failed: 0, transformed: 0 },
   blobs: { written: 2, skippedExisting: 1, failed: 0, unreferenced: 0, missing: 1, expectedInSeparateArchive: 4 },
+  rescan: { scanned: 2, healed: 1, stillMissing: 1 },
   reconcile: { checked: 5, quarantined: 0 },
 };
 
@@ -131,6 +123,8 @@ function routeFetch(opts: {
       return jsonResponse({ success: true });
     if (method === "POST" && path === "/backup/v2/blob-restores")
       return jsonResponse({ report: blobRestoreReport });
+    if (method === "POST" && path === "/backup/v2/blob-rescans")
+      return jsonResponse({ report: { scanned: 3, healed: 2, stillMissing: 1 } });
     return new Response("not found", { status: 404 });
   });
 }
@@ -181,29 +175,21 @@ describe("backupSettingsTab — export", () => {
 
     const post = fetchMock.mock.calls.find(c => c[1]?.method === "POST" && String(c[0]) === "/api/backup/v2/exports");
     expect(post).toBeDefined();
-    // Blobs are opt-in: the default (unchecked) export carries rows only.
-    expect(JSON.parse(post![1]!.body as string)).toEqual({ modules: ["users", "files"], blobs: "none" });
+    // FIX-062: DB data only — the trigger carries no blob option.
+    expect(JSON.parse(post![1]!.body as string)).toEqual({ modules: ["users", "files"] });
 
     await waitFor(() => expect(screen.getByText("Generating backup…")).toBeInTheDocument());
     expect(screen.getByText("Tables: 1 / 4")).toBeInTheDocument();
-    expect(screen.getByText(/Blob bytes:/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
-  it("sends blobs:\"separate\" when the export-uploaded-files checkbox is ticked", async () => {
+  it("explains that file bytes are the operator's storage copy (FIX-062)", async () => {
     routeFetch({ exportJob: () => runningJob });
 
     renderWithProviders(<BackupSettingsTab />);
     await waitFor(() => expect(screen.getByText("users")).toBeInTheDocument());
-    expect(screen.getByText(/files stored in S3 are not exported/)).toBeInTheDocument();
-
-    const checkbox = screen.getByRole("checkbox", { name: "Export uploaded files (blobs)" });
-    expect(checkbox).not.toBeChecked();
-    await userEvent.click(checkbox);
-    await userEvent.click(screen.getByRole("button", { name: "Generate backup" }));
-
-    const post = fetchMock.mock.calls.find(c => c[1]?.method === "POST" && String(c[0]) === "/api/backup/v2/exports");
-    expect(JSON.parse(post![1]!.body as string)).toEqual({ modules: ["users", "files"], blobs: "separate" });
+    expect(screen.getByText(/Backups contain database data only/)).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Export uploaded files/ })).not.toBeInTheDocument();
   });
 
   it("renders manifest warnings in the completed-job panel", async () => {
@@ -228,21 +214,6 @@ describe("backupSettingsTab — export", () => {
     const link = await screen.findByRole("link", { name: /Download archive/ });
     expect(link).toHaveAttribute("href", "/api/backup/v2/exports/job1/download?artifact=data");
     expect(screen.getByText("Backup ready")).toBeInTheDocument();
-  });
-
-  it("shows two download links with per-artifact state for a separate-mode job", async () => {
-    routeFetch({ exportJob: () => completedSeparateJob });
-
-    renderWithProviders(<BackupSettingsTab />);
-    await waitFor(() => expect(screen.getByText("users")).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: "Generate backup" }));
-
-    const dataLink = await screen.findByRole("link", { name: /Download data archive/ });
-    expect(dataLink).toHaveAttribute("href", "/api/backup/v2/exports/job1/download?artifact=data");
-    const blobsLink = screen.getByRole("link", { name: /Download blobs archive/ });
-    expect(blobsLink).toHaveAttribute("href", "/api/backup/v2/exports/job1/download?artifact=blobs");
-    // The data artifact has already been downloaded; the blobs one has not.
-    expect(screen.getAllByText("Downloaded")).toHaveLength(1);
   });
 });
 
@@ -282,7 +253,7 @@ describe("backupSettingsTab — import", () => {
     await waitFor(() => {
       const apply = fetchMock.mock.calls.find(c => String(c[0]) === "/api/backup/v2/imports/imp1/apply");
       expect(apply).toBeDefined();
-      expect(JSON.parse(apply![1]!.body as string)).toEqual({ mode: "merge" });
+      expect(JSON.parse(apply![1]!.body as string)).toEqual({});
     });
 
     await waitFor(() => expect(screen.getByText("Import result")).toBeInTheDocument());
@@ -291,27 +262,25 @@ describe("backupSettingsTab — import", () => {
     expect(screen.getByText("4")).toBeInTheDocument();
   });
 
-  it("requires the destructive type-to-confirm for replace mode and sends includeUsers", async () => {
+  it("fIX-062: the apply dialog has no mode radio — merge is the only mode", async () => {
     await uploadImportArchive();
 
     await userEvent.click(screen.getByRole("button", { name: "Apply import" }));
-    await userEvent.click(screen.getByRole("radio", { name: /Replace — delete live tables/ }));
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Also replace users and groups" })).not.toBeInTheDocument();
+  });
 
-    const confirm = screen.getByRole("button", { name: "Confirm" });
-    expect(confirm).toBeDisabled();
+  it("fIX-062: the missing-files rescan button reports scanned/healed/still-missing", async () => {
+    routeFetch();
+    renderWithProviders(<BackupSettingsTab />);
+    await waitFor(() => expect(screen.getByText("users")).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("switch", { name: "Also replace users and groups" }));
-    expect(confirm).toBeDisabled();
-
-    await userEvent.type(screen.getByLabelText("Type replace to confirm"), "replace");
-    expect(confirm).toBeEnabled();
-    await userEvent.click(confirm);
+    await userEvent.click(screen.getByRole("button", { name: "Rescan missing files" }));
 
     await waitFor(() => {
-      const apply = fetchMock.mock.calls.find(c => String(c[0]) === "/api/backup/v2/imports/imp1/apply");
-      expect(apply).toBeDefined();
-      expect(JSON.parse(apply![1]!.body as string)).toEqual({ mode: "replace", includeUsers: true });
+      expect(fetchMock.mock.calls.some(c => String(c[0]) === "/api/backup/v2/blob-rescans")).toBe(true);
     });
+    expect(await screen.findByText(/Scanned 3, recovered 2, still missing 1/)).toBeInTheDocument();
   });
 
   it("wipe-before-merge (FIX-061) requires the destructive type-to-confirm and sends wipeExisting", async () => {
@@ -331,7 +300,7 @@ describe("backupSettingsTab — import", () => {
     await waitFor(() => {
       const apply = fetchMock.mock.calls.find(c => String(c[0]) === "/api/backup/v2/imports/imp1/apply");
       expect(apply).toBeDefined();
-      expect(JSON.parse(apply![1]!.body as string)).toEqual({ mode: "merge", wipeExisting: true });
+      expect(JSON.parse(apply![1]!.body as string)).toEqual({ wipeExisting: true });
     });
   });
 

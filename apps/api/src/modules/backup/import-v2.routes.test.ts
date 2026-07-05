@@ -271,17 +271,32 @@ describe("POST /backup/v2/imports/:importId/apply", () => {
     expect(res.status).toBe(404);
   });
 
-  test("400 for a missing or invalid mode", async () => {
+  test("400 for an invalid mode; explicit REPLACE_MODE_REMOVED for mode=replace (FIX-062)", async () => {
     const { cookie } = await sessionCookieFor(db, "admin");
     const uploaded = await upload(cookie, await validArchive());
     const { importId } = await uploaded.json() as UploadBody;
 
-    for (const body of [undefined, {}, { mode: "delete-everything" }]) {
-      const res = await applyRequest(cookie, importId, body);
-      expect(res.status).toBe(400);
-      expect((await res.json() as { error: { code: string } }).error.code).toBe("INVALID_APPLY_MODE");
-    }
+    const invalid = await applyRequest(cookie, importId, { mode: "delete-everything" });
+    expect(invalid.status).toBe(400);
+    expect((await invalid.json() as { error: { code: string } }).error.code).toBe("INVALID_APPLY_MODE");
+
+    // A pre-FIX-062 client still sending replace gets a pointed message.
+    const replace = await applyRequest(cookie, importId, { mode: "replace" });
+    expect(replace.status).toBe(400);
+    expect((await replace.json() as { error: { code: string } }).error.code).toBe("REPLACE_MODE_REMOVED");
+
     expect(getImportJob(importId)!.state).toBe("validated");
+  });
+
+  test("an empty body applies as a plain merge (mode is optional since FIX-062)", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const uploaded = await upload(cookie, await validArchive());
+    const { importId } = await uploaded.json() as UploadBody;
+
+    const res = await applyRequest(cookie, importId, {});
+    expect(res.status).toBe(202);
+    await getImportJob(importId)!.done;
+    expect(getImportJob(importId)!.state).toBe("completed");
   });
 
   test("202, then the poll route reports completed + final report; audit backup.import.apply written", async () => {
@@ -341,7 +356,7 @@ describe("POST /backup/v2/imports/:importId/apply — wipeExisting (FIX-061)", (
 
     const res = await applyRequest(cookie, importId, { mode: "replace", wipeExisting: true });
     expect(res.status).toBe(400);
-    expect((await res.json() as { error: { code: string } }).error.code).toBe("INVALID_APPLY_MODE");
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("REPLACE_MODE_REMOVED");
 
     // The settings-only fixture archive carries no users at all — the wipe
     // lock-out guard refuses before anything is deleted.

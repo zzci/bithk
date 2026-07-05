@@ -27,7 +27,6 @@ export type {
   ApplyBlobCounts,
   BackupModuleView,
   BlobRestoreReport,
-  BlobsMode,
   DryRunBlobCounts,
   ExportArtifactView,
   ExportJobView,
@@ -278,22 +277,23 @@ export function ImportReportView({ title, report }: {
         </p>
       )}
 
-      {"replace" in report && report.replace && (
-        <p className="text-sm text-muted-foreground">
-          {t("backup.report.replaceSummary", {
-            tables: report.replace.tablesImported,
-            rows: report.replace.rowsImported,
-            includeUsers: report.replace.includeUsers ? t("backup.report.yes") : t("backup.report.no"),
-          })}
-        </p>
-      )}
-
       <PerTableReport tables={report.tables} />
 
       <NameList title={t("backup.report.skippedTables")} items={report.skippedTables} />
       <NameList title={t("backup.report.skippedModules")} items={report.skippedModules} />
 
       <CountList title={t("backup.report.blobs")} rows={blobRows} />
+
+      {"rescan" in report && (
+        <CountList
+          title={t("backup.report.rescan")}
+          rows={[
+            { label: t("backup.report.rescanScanned"), value: report.rescan.scanned },
+            { label: t("backup.report.rescanHealed"), value: report.rescan.healed },
+            { label: t("backup.report.rescanStillMissing"), value: report.rescan.stillMissing },
+          ]}
+        />
+      )}
 
       {"reconcile" in report && (
         <CountList

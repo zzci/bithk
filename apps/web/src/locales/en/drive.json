@@ -163,6 +163,8 @@
     "loading": "Loading preview…",
     "error": "Could not load this file.",
     "download": "Download",
+    "unavailableTitle": "File content unavailable",
+    "unavailableDescription": "The file's data is missing from storage. An administrator can restore it by copying the storage files back and running a blob rescan.",
     "unsupportedTitle": "Preview not available",
     "unsupportedDescription": "This file type can't be previewed. Download it to view.",
     "spreadsheetTitle": "Spreadsheet",

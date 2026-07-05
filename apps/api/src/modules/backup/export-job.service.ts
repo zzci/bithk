@@ -15,9 +15,10 @@ import type { ArchiveProgress, BackupManifestV2, BlobsMode } from "./archive.ser
  *                   ▼            ▼
  *                failed ──────► (cleaned)
  *
- * R7: a `separate`-mode job carries TWO artifacts (`data` + `blobs`) with
- * per-artifact downloaded flags; `completed → downloaded` (and staging
- * cleanup) fires only once EVERY artifact has been downloaded.
+ * Since FIX-062 every job produces a single `data` artifact (backups are DB
+ * data only). The per-artifact `downloaded` bookkeeping and the optional
+ * `blobs` slot remain for API-shape stability; `completed → downloaded`
+ * (and staging cleanup) fires once every artifact has been downloaded.
  *
  * Staging layout: `${DATA_DIR}/backup-staging/exports/<jobId>/`. The sweep
  * walks `backup-staging/**` generically so it also reclaims the future
@@ -51,6 +52,7 @@ export interface ExportJob {
   state: ExportJobState;
   /** Modules as requested; the manifest records the resolved closure. */
   readonly modules: readonly string[];
+  /** Always `external` since FIX-062 — kept in the poll payload for API compatibility. */
   readonly blobsMode: BlobsMode;
   /**
    * Visibility owner (PLAN-075 R6): `undefined` for admin-created jobs,
@@ -97,7 +99,6 @@ export function getExportJob(id: string): ExportJob | undefined {
 
 export interface StartExportJobOptions {
   readonly modules: readonly string[];
-  readonly blobsMode: BlobsMode;
   /** Token bucket of the creating service token; omit for admin jobs. */
   readonly ownerBucket?: string;
   /** Write the archive redacted (token-route policy). */
@@ -123,7 +124,7 @@ export function startExportJob(
     id,
     state: "pending",
     modules: [...opts.modules],
-    blobsMode: opts.blobsMode,
+    blobsMode: "external",
     ...(opts.ownerBucket !== undefined ? { ownerBucket: opts.ownerBucket } : {}),
     redacted: opts.redacted === true,
     createdAt: new Date().toISOString(),
@@ -140,7 +141,6 @@ export function startExportJob(
       const result = await writeArchiveV2({
         db,
         modules: opts.modules,
-        blobsMode: opts.blobsMode,
         redacted: job.redacted,
         stagingDir,
         appName: config.APP_NAME,
@@ -151,9 +151,6 @@ export function startExportJob(
       });
       job.artifacts = {
         data: { path: result.archivePath, size: result.archiveSize, downloaded: false },
-        ...(result.blobsArchivePath !== undefined
-          ? { blobs: { path: result.blobsArchivePath, size: result.blobsArchiveSize ?? 0, downloaded: false } }
-          : {}),
       };
       job.manifest = result.manifest;
       job.state = "completed";

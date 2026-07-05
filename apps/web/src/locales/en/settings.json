@@ -335,8 +335,6 @@
       "modules": "Modules",
       "modulesHint": "Selected modules are exported together with their dependencies.",
       "deps": "Depends on: {{deps}}",
-      "includeBlobs": "Export uploaded files (blobs)",
-      "includeBlobsHint": "Locally stored uploads are exported as a separate compressed files archive; files stored in S3 are not exported — back up the S3 bucket directly.",
       "warnings": "Warnings",
       "generate": "Generate backup",
       "cancel": "Cancel",
@@ -346,12 +344,10 @@
       "stateFailed": "Export failed",
       "stateCompleted": "Backup ready",
       "progressTables": "Tables: {{done}} / {{total}}",
-      "progressBlobBytes": "Blob bytes: {{done}} / {{total}}",
       "download": "Download archive",
-      "downloadData": "Download data archive",
-      "downloadBlobs": "Download blobs archive",
       "artifactDownloaded": "Downloaded",
-      "jobGone": "The export job is no longer available on the server — either every artifact was downloaded or the server restarted."
+      "jobGone": "The export job is no longer available on the server — either every artifact was downloaded or the server restarted.",
+      "externalBlobsNote": "Backups contain database data only. Uploaded file bytes live in the storage directory (or S3 bucket) — copy it alongside the archive; paths are content-addressed so they always match."
     },
     "import": {
       "title": "Import",
@@ -365,22 +361,22 @@
       "dryRunTitle": "Dry-run report (nothing has been written)",
       "resultTitle": "Import result",
       "confirmTitle": "Apply this import?",
-      "confirmDescription": "Choose how the archive is applied to the live database.",
-      "modeMerge": "Merge — insert new rows, skip duplicates, never delete live data",
-      "modeReplace": "Replace — delete live tables, then restore the archive",
-      "includeUsers": "Also replace users and groups",
-      "replaceWarning": "Replace deletes live rows before restoring the archive. This cannot be undone.",
+      "confirmDescription": "The archive is merged into the live database: new rows are inserted, duplicates are skipped, and live data is never deleted — unless you wipe first.",
       "typeToConfirm": "Type {{keyword}} to confirm",
-      "replaceKeyword": "replace",
       "wipeExisting": "Wipe all existing data first (import cannot conflict)",
       "wipeWarning": "Wipe deletes every row in the live database before importing the archive. The archive must contain an active admin. This cannot be undone.",
       "wipeKeyword": "wipe",
       "confirm": "Confirm",
       "blobRestoreTitle": "Restore file blobs",
-      "blobRestoreDescription": "Upload the blobs.tar.gz produced by a separate-mode export. Blobs are imported straight into file storage; no data import is required.",
+      "blobRestoreDescription": "Upload a legacy blobs.tar.gz produced by an older separate-files export. Blobs import straight into file storage; no data import is required.",
       "blobRestoreUpload": "Upload blobs archive",
       "blobRestoreUploading": "Restoring blobs…",
-      "blobRestoreResultTitle": "Blob restore result"
+      "blobRestoreResultTitle": "Blob restore result",
+      "blobRescanTitle": "Rescan missing files",
+      "blobRescanDescription": "After copying the storage directory (or bucket) onto this instance, rescan to reconnect file records whose data was missing.",
+      "blobRescan": "Rescan missing files",
+      "blobRescanRunning": "Rescanning…",
+      "blobRescanResult": "Scanned {{scanned}}, recovered {{healed}}, still missing {{stillMissing}}."
     },
     "report": {
       "toInsert": "Rows to insert",
@@ -404,7 +400,6 @@
       "skippedTables": "Skipped tables",
       "skippedModules": "Skipped modules",
       "warnings": "Warnings",
-      "replaceSummary": "Replace mode: {{tables}} table(s), {{rows}} row(s) restored. Users included: {{includeUsers}}",
       "wipeSummary": "Wiped {{total}} existing row(s) before import.",
       "blobs": "File blobs",
       "blobsCount": "In archive",
@@ -419,13 +414,15 @@
       "reconcileChecked": "Checked",
       "reconcileQuarantined": "Quarantined",
       "unquarantined": "Un-quarantined",
-      "yes": "Yes",
-      "no": "No",
       "reasons": {
         "missingParent": "Missing parent row",
         "uniqueConflict": "Unique conflict ({{index}})",
         "missingRequiredColumn": "Missing required column"
-      }
+      },
+      "rescan": "Missing-file rescan",
+      "rescanScanned": "Scanned",
+      "rescanHealed": "Recovered",
+      "rescanStillMissing": "Still missing"
     }
   },
   "storage": {

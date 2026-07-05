@@ -2,7 +2,7 @@ import type { DriveEntryRow } from "./drive.service";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import { and, desc, eq } from "drizzle-orm";
-import { releaseReference, uploadAndReference } from "@/modules/file";
+import { isQuarantinedFile, releaseReference, uploadAndReference } from "@/modules/file";
 import { fileReferences, files } from "@/modules/file/schema";
 import { AppError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
@@ -44,7 +44,11 @@ async function currentEntryDriver(db: AppDatabase, entry: DriveEntryRow): Promis
     .innerJoin(files, eq(fileReferences.fileId, files.id))
     .where(eq(fileReferences.id, entry.fileReferenceId))
     .get();
-  return row?.storageDriver;
+  // A quarantined current file (FIX-062) has no resolvable driver — fall
+  // back to the default upload driver instead of inheriting the sentinel.
+  if (!row || isQuarantinedFile(row))
+    return undefined;
+  return row.storageDriver;
 }
 
 /**

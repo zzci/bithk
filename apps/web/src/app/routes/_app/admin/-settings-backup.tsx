@@ -46,9 +46,6 @@ export function BackupSettingsTab() {
 function BackupExportCard() {
   const { t } = useTranslation(["settings", "common"]);
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(() => new Set());
-  // Blobs are OPT-IN (FIX-053): unchecked exports rows only (`none`),
-  // checked adds the separate compressed files archive (`separate`).
-  const [includeBlobs, setIncludeBlobs] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
 
   const modulesQuery = useBackupModules();
@@ -67,7 +64,9 @@ function BackupExportCard() {
   const cancel = useCancelBackupExport();
 
   const startExport = () => {
-    generate.mutate({ modules: selected, blobs: includeBlobs ? "separate" : "none" }, {
+    // FIX-062: backups are DB data only — file bytes come from the
+    // operator's storage tree/bucket copy (content-addressed paths).
+    generate.mutate({ modules: selected }, {
       onSuccess: res => setJobId(res.jobId),
       onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
@@ -134,22 +133,9 @@ function BackupExportCard() {
               </fieldset>
             )}
 
-        <div className="space-y-1.5">
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5 size-4 accent-primary"
-              checked={includeBlobs}
-              disabled={jobActive}
-              aria-describedby="backup-include-blobs-help"
-              onChange={e => setIncludeBlobs(e.currentTarget.checked)}
-            />
-            <span className="font-medium">{t("settings:backup.export.includeBlobs")}</span>
-          </label>
-          <p id="backup-include-blobs-help" className="text-xs text-muted-foreground">
-            {t("settings:backup.export.includeBlobsHint")}
-          </p>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          {t("settings:backup.export.externalBlobsNote")}
+        </p>
 
         <Button
           type="button"
@@ -211,14 +197,6 @@ function ExportJobPanel({ job, cancelPending, onCancel }: {
             total: job.progress.tablesTotal,
           })}
         </p>
-        {job.blobsMode !== "none" && (
-          <p className="text-sm text-muted-foreground">
-            {t("settings:backup.export.progressBlobBytes", {
-              done: formatBytes(job.progress.blobBytesDone),
-              total: formatBytes(job.progress.blobBytesTotal),
-            })}
-          </p>
-        )}
         <Button type="button" variant="outline" size="sm" disabled={cancelPending} onClick={onCancel}>
           {t("settings:backup.export.cancel")}
         </Button>
@@ -242,22 +220,10 @@ function ExportJobPanel({ job, cancelPending, onCancel }: {
         <div className="flex flex-wrap items-center gap-2">
           <ArtifactDownload
             jobId={job.jobId}
-            artifact="data"
-            label={job.artifacts.blobs
-              ? t("settings:backup.export.downloadData")
-              : t("settings:backup.export.download")}
+            label={t("settings:backup.export.download")}
             size={job.artifacts.data.size}
             downloaded={job.artifacts.data.downloaded}
           />
-          {job.artifacts.blobs && (
-            <ArtifactDownload
-              jobId={job.jobId}
-              artifact="blobs"
-              label={t("settings:backup.export.downloadBlobs")}
-              size={job.artifacts.blobs.size}
-              downloaded={job.artifacts.blobs.downloaded}
-            />
-          )}
         </div>
       )}
       <Button type="button" variant="ghost" size="sm" disabled={cancelPending} onClick={onCancel}>
@@ -267,9 +233,8 @@ function ExportJobPanel({ job, cancelPending, onCancel }: {
   );
 }
 
-function ArtifactDownload({ jobId, artifact, label, size, downloaded }: {
+function ArtifactDownload({ jobId, label, size, downloaded }: {
   readonly jobId: string;
-  readonly artifact: "data" | "blobs";
   readonly label: string;
   readonly size: number;
   readonly downloaded: boolean;
@@ -280,7 +245,7 @@ function ArtifactDownload({ jobId, artifact, label, size, downloaded }: {
       <Button
         variant="outline"
         size="sm"
-        render={<a href={`${BASE_PATH}/api/backup/v2/exports/${jobId}/download?artifact=${artifact}`} />}
+        render={<a href={`${BASE_PATH}/api/backup/v2/exports/${jobId}/download?artifact=data`} />}
       >
         {`${label} (${formatBytes(size)})`}
       </Button>

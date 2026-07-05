@@ -38,27 +38,46 @@ export async function dispatchCliSubcommand(argv: readonly string[]): Promise<nu
   cli
     .command(
       "backup:export <out>",
-      "Export a backup archive to <out>. --modules XOR --exclude (module-level; transitive deps auto-resolved, excluded deps trigger a warning), --no-blobs, --redacted.",
+      "Export a DB-data backup archive to <out>. --modules XOR --exclude (module-level; transitive deps auto-resolved, excluded deps trigger a warning), --redacted. File bytes are NOT embedded — copy the storage tree/bucket alongside the archive.",
     )
     .option("--modules <csv>", "Only these modules (comma-separated; XOR with --exclude)")
     .option("--exclude <csv>", "All modules except these (comma-separated; XOR with --modules)")
-    .option("--no-blobs", "Do not embed blob bytes in the archive")
     .option("--redacted", "Scrub secret-typed fields from the export")
     .action(async (out: string, opts: { modules?: string; exclude?: string; blobs?: boolean; redacted?: boolean }) => {
+      // FIX-062: --blobs/--no-blobs removed — accepted, warned, ignored.
+      if (opts.blobs !== undefined)
+        consola.warn("--blobs/--no-blobs is deprecated and ignored: backups no longer embed file bytes (copy the storage tree/bucket instead)");
       exitCode = await runBackupExport(out, opts);
     });
 
   cli
     .command(
       "backup:import <archive>",
-      "Import a backup archive. --mode merge|replace (default merge), --include-users, --wipe, --actor-id <id>. Note: --mode replace --include-users requires --actor-id to be an ACTIVE ADMIN present in the backup, otherwise the apply refuses with a lock-out / FK error.",
+      "Import a backup archive (merge). --wipe deletes ALL existing rows first (same transaction; the archive must contain an active admin), --actor-id <id>.",
     )
-    .option("--mode <mode>", "merge | replace (default merge)")
-    .option("--include-users", "Include users (replace mode v1 semantics)")
-    .option("--wipe", "Merge mode only: delete ALL existing rows before importing (same transaction; the archive must contain an active admin)")
+    .option("--wipe", "Delete ALL existing rows before importing (same transaction; the archive must contain an active admin)")
     .option("--actor-id <id>", "Synthetic actor id recorded in the audit log")
     .action(async (archive: string, opts: { mode?: string; includeUsers?: boolean; wipe?: boolean; actorId?: string }) => {
+      // FIX-062: replace mode removed — point old invocations at --wipe.
+      if (opts.mode === "replace") {
+        consola.error("--mode replace has been removed: use --wipe (wipe-before-merge) for a conflict-free full restore");
+        exitCode = 2;
+        return;
+      }
+      if (opts.mode !== undefined)
+        consola.warn("--mode is deprecated and ignored: merge is the only import mode");
+      if (opts.includeUsers !== undefined)
+        consola.warn("--include-users is deprecated and ignored: merge always inserts what it can");
       exitCode = await runBackupImport(archive, opts);
+    });
+
+  cli
+    .command(
+      "backup:blob-rescan",
+      "Probe quarantined files rows against the storage backend and heal rows whose blob is back (run after copying the storage tree/bucket onto this instance).",
+    )
+    .action(async () => {
+      exitCode = await runBackupBlobRescan();
     });
 
   cli.help();
@@ -212,7 +231,6 @@ async function runBackupExport(
     const result = await writeArchiveV2({
       db,
       modules: requested,
-      blobsMode: opts.blobs === false ? "none" : "embedded",
       stagingDir,
       appName: config.APP_NAME,
       redacted: opts.redacted === true,
@@ -239,24 +257,14 @@ async function runBackupExport(
 
 /**
  * Offline `backup:import` — reuses prepareImport + startImportApply against a
- * minimal runtime. `--mode replace --include-users` requires `--actor-id` to
- * be an active admin present in the backup, otherwise the apply refuses with a
- * lock-out / FK error. All backup-service imports stay dynamic.
+ * minimal runtime (merge is the only mode; FIX-062 removed replace). With
+ * `--wipe` the archive must contain an active admin, otherwise the apply
+ * refuses with a lock-out error. All backup-service imports stay dynamic.
  */
 async function runBackupImport(
   archive: string,
-  opts: { mode?: string; includeUsers?: boolean; wipe?: boolean; actorId?: string },
+  opts: { wipe?: boolean; actorId?: string },
 ): Promise<number> {
-  const mode = opts.mode ?? "merge";
-  if (mode !== "merge" && mode !== "replace") {
-    consola.error("--mode must be one of: merge, replace");
-    return 2;
-  }
-  if (opts.wipe === true && mode !== "merge") {
-    consola.error("--wipe is only valid with --mode merge (replace already deletes live tables)");
-    return 2;
-  }
-
   const { loadConfig } = await import("./config");
   const { createLogger } = await import("./shared/lib/logger");
   const config = await loadConfig();
@@ -269,7 +277,7 @@ async function runBackupImport(
     const job = await prepareImport(db, config, Bun.file(archive));
     const { startImportApply } = await import("./modules/backup/import-apply");
     const actor = { id: opts.actorId ?? "cli", name: "cli-import", ip: "127.0.0.1", userAgent: "cli" };
-    await startImportApply(db, job, { mode, includeUsers: opts.includeUsers === true, wipeExisting: opts.wipe === true, actor }, logger);
+    await startImportApply(db, job, { wipeExisting: opts.wipe === true, actor }, logger);
     await job.done;
     if (job.state === "completed") {
       const t = job.result!.totals;
@@ -281,6 +289,35 @@ async function runBackupImport(
     }
     consola.error(job.error ?? "import failed");
     return 1;
+  }
+  catch (err) {
+    consola.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
+  finally {
+    await close();
+  }
+}
+
+/**
+ * Offline `backup:blob-rescan` (FIX-062) — probe every quarantined `files`
+ * row against the active storage driver and restore rows whose blob is back
+ * (path-correspondence heal after the operator copies the storage tree /
+ * bucket). Idempotent; prints `{ scanned, healed, stillMissing }`.
+ */
+async function runBackupBlobRescan(): Promise<number> {
+  const { loadConfig } = await import("./config");
+  const { createLogger } = await import("./shared/lib/logger");
+  const config = await loadConfig();
+  const logger = createLogger(config);
+
+  const { wireRuntime } = await import("./app");
+  const { db, close } = await wireRuntime(config, logger);
+  try {
+    const { rescanQuarantinedFiles } = await import("./modules/backup/blob-restore");
+    const report = await rescanQuarantinedFiles(db, logger);
+    consola.success(`blob rescan complete: scanned=${report.scanned} healed=${report.healed} stillMissing=${report.stillMissing}`);
+    return 0;
   }
   catch (err) {
     consola.error(err instanceof Error ? err.message : String(err));

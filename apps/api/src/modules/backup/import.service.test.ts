@@ -160,7 +160,6 @@ describe("prepareImport — happy path", () => {
     const { archivePath } = await writeArchiveV2({
       db,
       modules: ["settings"],
-      includeBlobs: false,
       stagingDir: resolve(baseDir, "export-staging"),
       appName: "app",
     });

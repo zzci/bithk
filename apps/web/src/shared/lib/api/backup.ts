@@ -4,7 +4,7 @@
 // the admin settings tab (`-settings-backup-report.tsx`).
 
 import type { UseMutationResult } from "@tanstack/react-query";
-import type { ApiResponse, operations } from "./_generated";
+import type { ApiResponse } from "./_generated";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
 
@@ -12,11 +12,6 @@ import { http } from "../http";
 //
 // Server view shapes derive from the generated OpenAPI types (REFACTOR-037);
 // regenerate with `bun run gen:api-types` after backend route changes.
-
-// Blob handling mode, from the POST /backup/v2/exports request body.
-export type BlobsMode = NonNullable<
-  operations["postBackupV2Exports"]["requestBody"]["content"]["application/json"]["blobs"]
->;
 
 export type BackupModuleView = ApiResponse<"getBackupModules">["modules"][number];
 
@@ -83,8 +78,8 @@ export function useBackupExportJob(jobId: string | null) {
 }
 
 export interface StartBackupExportInput {
+  // FIX-062: backups are DB data only — no blob placement option remains.
   readonly modules: readonly string[];
-  readonly blobs: BlobsMode;
 }
 
 // Export start is a 202 Accepted with the job handle.
@@ -134,9 +129,7 @@ export function useUploadBackupImport(): UseMutationResult<UploadBackupImportRes
 
 export interface ApplyBackupImportInput {
   readonly importId: string;
-  readonly mode: "merge" | "replace";
-  readonly includeUsers?: boolean;
-  /** FIX-061: merge mode only — wipe every registry table before the merge. */
+  /** FIX-061: wipe every registry table before the merge (same transaction). */
   readonly wipeExisting?: boolean;
 }
 
@@ -162,7 +155,7 @@ export function useDiscardBackupImport(): UseMutationResult<unknown, Error, stri
   });
 }
 
-// ── Standalone blob restore (R7) ──
+// ── Standalone blob restore (R7) + rescan (FIX-062) ──
 
 export function useRestoreBlobArchive(): UseMutationResult<{ report: BlobRestoreReport }, Error, File> {
   return useMutation({
@@ -174,5 +167,14 @@ export function useRestoreBlobArchive(): UseMutationResult<{ report: BlobRestore
         body: formData,
       });
     },
+  });
+}
+
+export type BlobRescanReport = ApiResponse<"postBackupV2BlobRescans">["report"];
+
+/** FIX-062: probe quarantined file rows and heal those whose blob is back. */
+export function useBlobRescan(): UseMutationResult<{ report: BlobRescanReport }, Error, void> {
+  return useMutation({
+    mutationFn: async () => http<{ report: BlobRescanReport }>("/backup/v2/blob-rescans", { method: "POST" }),
   });
 }

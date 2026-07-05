@@ -65862,17 +65862,6 @@
                     "items": {
                       "type": "string"
                     }
-                  },
-                  "blobs": {
-                    "type": "string",
-                    "enum": [
-                      "embedded",
-                      "separate",
-                      "none"
-                    ]
-                  },
-                  "includeBlobs": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -67154,17 +67143,6 @@
                     "items": {
                       "type": "string"
                     }
-                  },
-                  "blobs": {
-                    "type": "string",
-                    "enum": [
-                      "embedded",
-                      "separate",
-                      "none"
-                    ]
-                  },
-                  "includeBlobs": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -67212,11 +67190,7 @@
                     },
                     "blobsMode": {
                       "type": "string",
-                      "enum": [
-                        "embedded",
-                        "separate",
-                        "none"
-                      ]
+                      "const": "external"
                     },
                     "createdAt": {
                       "anyOf": [
@@ -68326,10 +68300,7 @@
                             },
                             "mode": {
                               "type": "string",
-                              "enum": [
-                                "merge",
-                                "replace"
-                              ]
+                              "const": "merge"
                             },
                             "tables": {
                               "type": "object",
@@ -68463,25 +68434,6 @@
                                 "transformed"
                               ]
                             },
-                            "replace": {
-                              "type": "object",
-                              "properties": {
-                                "tablesImported": {
-                                  "type": "number"
-                                },
-                                "rowsImported": {
-                                  "type": "number"
-                                },
-                                "includeUsers": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "required": [
-                                "tablesImported",
-                                "rowsImported",
-                                "includeUsers"
-                              ]
-                            },
                             "wipe": {
                               "type": "object",
                               "properties": {
@@ -68534,6 +68486,25 @@
                                 "expectedInSeparateArchive"
                               ]
                             },
+                            "rescan": {
+                              "type": "object",
+                              "properties": {
+                                "scanned": {
+                                  "type": "number"
+                                },
+                                "healed": {
+                                  "type": "number"
+                                },
+                                "stillMissing": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "scanned",
+                                "healed",
+                                "stillMissing"
+                              ]
+                            },
                             "reconcile": {
                               "type": "object",
                               "properties": {
@@ -68559,6 +68530,7 @@
                             "warnings",
                             "totals",
                             "blobs",
+                            "rescan",
                             "reconcile"
                           ]
                         },
@@ -69152,6 +69124,123 @@
                   "required": [
                     "success",
                     "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/backup/v2/blob-rescans": {
+      "post": {
+        "operationId": "postBackupV2BlobRescans",
+        "tags": [
+          "infra2"
+        ],
+        "summary": "Rescan quarantined files against the storage backend and heal restored blobs",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "properties": {
+                        "scanned": {
+                          "type": "number"
+                        },
+                        "healed": {
+                          "type": "number"
+                        },
+                        "stillMissing": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "scanned",
+                        "healed",
+                        "stillMissing"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "report"
                   ]
                 }
               }

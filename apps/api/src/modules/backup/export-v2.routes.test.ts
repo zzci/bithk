@@ -68,7 +68,7 @@ function syntheticRunningJob(): ExportJob {
     id: `synthetic-${testNanoid()}`,
     state: "running",
     modules: ["settings"],
-    blobsMode: "embedded",
+    blobsMode: "external",
     redacted: false,
     createdAt: new Date().toISOString(),
     stagingDir: resolve(getBackupStagingRoot(config), "exports", "synthetic"),
@@ -118,7 +118,7 @@ describe("POST /backup/v2/exports", () => {
     const res = await app().request("/backup/v2/exports", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Cookie": cookie },
-      body: JSON.stringify({ modules: ["settings"], blobs: "none" }),
+      body: JSON.stringify({ modules: ["settings"] }),
     });
     expect(res.status).toBe(202);
     const { jobId } = await res.json() as { jobId: string };
@@ -128,23 +128,22 @@ describe("POST /backup/v2/exports", () => {
     expect(auditRow!.action).toBe("backup.export");
     expect(auditRow!.actorId).toBe(userId);
     const detail = JSON.parse(auditRow!.detail!) as { modules: string[]; blobs: string; via: string };
-    expect(detail).toEqual({ modules: ["settings"], blobs: "none", via: "admin" });
+    expect(detail).toEqual({ modules: ["settings"], blobs: "external", via: "admin" });
 
     await getExportJob(jobId)!.done;
     expect(getExportJob(jobId)!.state).toBe("completed");
   });
 
-  test("blobs mode defaults to embedded; the includeBlobs alias still maps", async () => {
+  test("FIX-062: legacy blobs/includeBlobs body fields are ignored — every job is external", async () => {
     const { cookie } = await sessionCookieFor(db, "admin");
     const modeOf = async (body: Record<string, unknown>): Promise<string> => {
       const jobId = await createCompletedJob(cookie, { modules: ["settings"], ...body });
       return getExportJob(jobId)!.blobsMode;
     };
-    expect(await modeOf({})).toBe("embedded");
-    expect(await modeOf({ includeBlobs: true })).toBe("embedded");
-    expect(await modeOf({ includeBlobs: false })).toBe("none");
-    // Explicit `blobs` wins over the deprecated alias when both are sent.
-    expect(await modeOf({ blobs: "separate", includeBlobs: false })).toBe("separate");
+    expect(await modeOf({})).toBe("external");
+    expect(await modeOf({ includeBlobs: true })).toBe("external");
+    expect(await modeOf({ blobs: "embedded" })).toBe("external");
+    expect(await modeOf({ blobs: "separate", includeBlobs: false })).toBe("external");
   });
 
   test("rejects unknown module names with 400 INVALID_MODULES", async () => {
@@ -209,7 +208,7 @@ describe("GET /backup/v2/exports/:jobId", () => {
     };
     expect(body.jobId).toBe(jobId);
     expect(body.state).toBe("completed");
-    expect(body.blobsMode).toBe("embedded");
+    expect(body.blobsMode).toBe("external");
     expect(body.progress.tablesDone).toBe(body.progress.tablesTotal);
     expect(body.error).toBeNull();
     expect(body.archiveSize).toBeGreaterThan(0);
@@ -219,10 +218,10 @@ describe("GET /backup/v2/exports/:jobId", () => {
     expect(body.artifacts!.blobs).toBeUndefined();
   });
 
-  test("a running job reports warnings:null; manifest warnings surface once completed", async () => {
+  test("a running job reports warnings:null; an empty warnings list surfaces once completed", async () => {
     const { cookie } = await sessionCookieFor(db, "admin");
-    // A files row on the s3 driver → the archive writer records a summary
-    // warning the poll response must surface.
+    // FIX-062: s3/db/quarantined rows no longer produce export warnings —
+    // bytes are out of backup scope by design.
     registerBackupContribution(fileBackupContribution);
     const userId = await seedUser(db, "user");
     await db.run(sql`
@@ -235,25 +234,10 @@ describe("GET /backup/v2/exports/:jobId", () => {
     expect(((await resRunning.json()) as { warnings: string[] | null }).warnings).toBeNull();
     __resetExportJobsForTests();
 
-    const jobId = await createCompletedJob(cookie, { modules: ["files"], blobs: "separate" });
+    const jobId = await createCompletedJob(cookie, { modules: ["files"] });
     const res = await app().request(`/backup/v2/exports/${jobId}`, { headers: { Cookie: cookie } });
     const body = await res.json() as { warnings: string[] | null };
-    expect(body.warnings).toEqual(["1 file(s) stored in S3 are not part of this export — back up the bucket directly"]);
-  });
-
-  test("a separate-mode job reports both artifacts", async () => {
-    const { cookie } = await sessionCookieFor(db, "admin");
-    const jobId = await createCompletedJob(cookie, { modules: ["settings"], blobs: "separate" });
-
-    const res = await app().request(`/backup/v2/exports/${jobId}`, { headers: { Cookie: cookie } });
-    const body = await res.json() as {
-      blobsMode: string;
-      artifacts: { data: { size: number; downloaded: boolean }; blobs?: { size: number; downloaded: boolean } };
-    };
-    expect(body.blobsMode).toBe("separate");
-    expect(body.artifacts.data.size).toBeGreaterThan(0);
-    expect(body.artifacts.blobs!.size).toBeGreaterThan(0);
-    expect(body.artifacts.blobs!.downloaded).toBe(false);
+    expect(body.warnings).toEqual([]);
   });
 });
 
@@ -294,9 +278,9 @@ describe("GET /backup/v2/exports/:jobId/download", () => {
     expect(JSON.parse(downloadRow!.detail!)).toEqual({ jobId, artifact: "data" });
   });
 
-  test("artifact=blobs on a non-separate job is a 400", async () => {
+  test("artifact=blobs is a 400 — jobs no longer produce a blobs artifact", async () => {
     const { cookie } = await sessionCookieFor(db, "admin");
-    const jobId = await createCompletedJob(cookie); // default = embedded
+    const jobId = await createCompletedJob(cookie);
     const res = await app().request(`/backup/v2/exports/${jobId}/download?artifact=blobs`, { headers: { Cookie: cookie } });
     expect(res.status).toBe(400);
     const body = await res.json() as { error: { code: string } };
@@ -312,31 +296,6 @@ describe("GET /backup/v2/exports/:jobId/download", () => {
     expect(res.status).toBe(400);
     const body = await res.json() as { error: { code: string } };
     expect(body.error.code).toBe("INVALID_ARTIFACT");
-  });
-
-  test("separate mode: staging survives the first download, cleaned after both", async () => {
-    const { cookie } = await sessionCookieFor(db, "admin");
-    const jobId = await createCompletedJob(cookie, { modules: ["settings"], blobs: "separate" });
-    const stagingDir = getExportJob(jobId)!.stagingDir;
-
-    const dataRes = await app().request(`/backup/v2/exports/${jobId}/download`, { headers: { Cookie: cookie } });
-    expect(dataRes.status).toBe(200);
-    expect(dataRes.headers.get("content-disposition")).not.toContain("blobs");
-    await dataRes.arrayBuffer();
-    // One of two artifacts downloaded — job and staging must survive.
-    expect(getExportJob(jobId)).toBeDefined();
-    expect(existsSync(stagingDir)).toBe(true);
-
-    const blobsRes = await app().request(`/backup/v2/exports/${jobId}/download?artifact=blobs`, { headers: { Cookie: cookie } });
-    expect(blobsRes.status).toBe(200);
-    expect(blobsRes.headers.get("content-disposition")).toContain("-blobs-");
-    const bytes = new Uint8Array(await blobsRes.arrayBuffer());
-    expect(bytes[0]).toBe(0x1F);
-    expect(bytes[1]).toBe(0x8B);
-
-    // Both drained → staging removed, job forgotten.
-    expect(existsSync(stagingDir)).toBe(false);
-    expect(getExportJob(jobId)).toBeUndefined();
   });
 });
 

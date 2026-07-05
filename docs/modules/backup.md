@@ -3,12 +3,40 @@
 Database export / restore scoped to selected data modules with dependency
 resolution. Two formats coexist:
 
-- **v2 (PLAN-075)** — streaming `.tar.gz` archives (manifest-first layout:
-  `manifest.json`, `data/<table>.ndjson`, `blobs/<ab>/<cd>/<sha256>`) with
-  export jobs, staged imports, an exact rollback dry-run, cross-schema
-  mapping, transform hooks, and a non-destructive **merge** apply (or the
-  v1-engine **replace** mode for disaster recovery).
+- **v2 (PLAN-075 + FIX-062)** — streaming `.tar.gz` archives (manifest-first
+  layout: `manifest.json`, `data/<table>.ndjson`) with export jobs, staged
+  imports, an exact rollback dry-run, cross-schema mapping, transform hooks,
+  and a non-destructive **merge** apply — optionally **wipe-before-merge**
+  (FIX-061) for a conflict-free full restore. The v1-engine replace mode was
+  removed in FIX-062 (wipe+merge supersedes it without the exact-journal
+  schema gate).
 - **v1** — single-request JSON export / delete-then-insert import.
+
+## File story (FIX-062): DB backup + storage tree/bucket copy
+
+Backups carry **database data only** (`manifest.blobsMode: "external"`).
+Uploaded file bytes are the operator's responsibility:
+
+- **local driver** — copy the storage tree (`FILE_STORAGE_LOCAL_ROOT`,
+  sharded `ab/cd/<sha256>`) alongside the archive;
+- **s3 driver** — back up / point at the bucket.
+
+Storage keys are content-addressed (sha256), so DB rows and storage paths
+always correspond — restoring bytes to the same relative path is sufficient.
+After an import, `files` rows whose bytes are absent are **quarantined**
+(`storage_driver = quarantined:…`): downloads answer a clean
+`404 FILE_CONTENT_UNAVAILABLE`, never a 500, and the row is preserved. Rows
+heal through a **rescan** (only quarantined rows are probed):
+
+- automatically at the end of every import apply ("copy the storage tree
+  first, then import" needs zero extra steps);
+- `POST /api/backup/v2/blob-rescans` / the admin panel's "Rescan missing
+  files" button;
+- CLI `backup:blob-rescan` (offline runtime).
+
+Legacy blob-bearing archives (`embedded` / `separate`) still import their
+bytes, and the `blobs.tar.gz` restore endpoint keeps working — only the
+*production* of blob-bearing archives was removed.
 
 ## File layout
 
@@ -23,11 +51,11 @@ apps/api/src/modules/backup/
   secret-fields.ts        # shared SECRET_FIELD_NAMES + redaction walk
   import.service.ts       # v2 archive staging, validation, dry-run, job map
   import-mapping.ts       # live-schema view, mapping rules 1-15, merge engine
-  import-apply.ts         # v2 apply: merge txn + blob import + reconcile
+  import-apply.ts         # v2 apply: merge txn + blob import + rescan + reconcile
   import-v2.routes.ts     # v2 upload/status/apply/delete
-  blob-restore.ts/.routes.ts  # blobs-only archive restore (R7 separate mode)
+  blob-restore.ts/.routes.ts  # legacy blobs-only archive restore + quarantine rescan
   export.routes.ts / export.service.ts    # v1 JSON export (+ token route)
-  restore.routes.ts / restore.service.ts  # v1 JSON import (also v2 replace engine)
+  restore.routes.ts / restore.service.ts  # v1 JSON import (delete-then-insert engine)
   index.ts
 ```
 
@@ -52,18 +80,19 @@ service token (`SERVICE_TOKEN_BACKUP`) instead of a session cookie.
 | Method | Path | Access | Description |
 |---|---|---|---|
 | GET | `/api/backup/modules` | Admin | Lists data-module names available for backup. |
-| POST | `/api/backup/v2/exports` | Admin | Start an archive export job (`modules`, `blobsMode: embedded\|separate\|none`; legacy `includeBlobs` alias accepted). |
+| POST | `/api/backup/v2/exports` | Admin | Start an archive export job (`modules`). Archives are DB data only (`blobsMode: "external"`); a legacy `blobs`/`includeBlobs` field is ignored. |
 | GET | `/api/backup/v2/exports/:jobId` | Admin | Job status + progress + per-artifact sizes. |
-| GET | `/api/backup/v2/exports/:jobId/download?artifact=data\|blobs` | Admin | Stream a finished artifact; `blobs` exists only for `separate` mode. Staging is cleaned after every artifact is downloaded. |
+| GET | `/api/backup/v2/exports/:jobId/download?artifact=data` | Admin | Stream the finished data artifact (no blobs artifact is produced anymore). Staging is cleaned after download. |
 | DELETE | `/api/backup/v2/exports/:jobId` | Admin | Cancel a running job / discard a finished one. |
 | POST | `/api/backup/v2/imports` | Admin | Upload an archive; validates (allowlist grammar, size/entry caps) and runs the rollback dry-run; returns the report. |
 | GET | `/api/backup/v2/imports/:importId` | Admin | Staged import status + dry-run / final report. |
-| POST | `/api/backup/v2/imports/:importId/apply` | Admin | Apply with `{ mode: "merge" \| "replace", includeUsers? }`. Replace delegates to the v1 engine with its guards and requires a matching schema journal position. |
+| POST | `/api/backup/v2/imports/:importId/apply` | Admin | Apply with `{ wipeExisting? }` (merge is the only mode; `mode: "replace"` answers `400 REPLACE_MODE_REMOVED`). A web wipe re-binds the operator's session to the restored admin inside the same transaction, so the cookie survives. |
 | DELETE | `/api/backup/v2/imports/:importId` | Admin | Discard a staged import. |
-| POST | `/api/backup/v2/blob-restores` | Admin | Upload a blobs-only archive (R7 `separate` mode): verifies hashes, writes missing blobs to the active driver, un-quarantines healed `files` rows. |
+| POST | `/api/backup/v2/blob-restores` | Admin | Upload a legacy blobs-only archive (R7 `separate` mode): verifies hashes, writes missing blobs to the active driver, un-quarantines healed `files` rows. |
+| POST | `/api/backup/v2/blob-rescans` | Admin | Probe quarantined `files` rows against the storage backend and heal rows whose blob is back (`{ scanned, healed, stillMissing }`). |
 | POST | `/api/backup/v2/exports-via-token` | Service Token | Token parity for the export trigger: explicit module scope required (fail closed), archive always **redacted**, v1 per-token semaphore + min-interval gate apply, plus the process-wide one-running guard. |
 | GET | `/api/backup/v2/exports/:jobId/status-via-token` | Service Token | Poll a job created by the same token bucket (admin jobs are invisible — 404). |
-| GET | `/api/backup/v2/exports/:jobId/download-via-token?artifact=data\|blobs` | Service Token | Download an own-bucket job's artifact; same `?artifact` selector and downloaded/cleanup lifecycle as the admin route. |
+| GET | `/api/backup/v2/exports/:jobId/download-via-token?artifact=data` | Service Token | Download an own-bucket job's artifact; same lifecycle as the admin route. |
 | POST | `/api/backup/export` | Admin | **Deprecated** v1: streams a JSON backup of selected modules. |
 | POST | `/api/backup/export-via-token` | Service Token | **Deprecated** v1 JSON output, gated by `SERVICE_TOKEN_BACKUP`; always redacted. |
 | POST | `/api/backup/import` | Admin | **Deprecated** v1: validates and applies a JSON backup (delete-then-insert). |
@@ -80,7 +109,7 @@ replacements:
 |---|---|
 | `POST /api/backup/export` | `POST /api/backup/v2/exports` (+ status/download) |
 | `POST /api/backup/export-via-token` | `POST /api/backup/v2/exports-via-token` (+ `status-via-token` / `download-via-token`) |
-| `POST /api/backup/import` | `POST /api/backup/v2/imports` + `.../apply` with `mode: "replace"` (delete-then-insert parity) or `mode: "merge"` |
+| `POST /api/backup/import` | `POST /api/backup/v2/imports` + `.../apply` (merge; add `wipeExisting: true` for a conflict-free full restore) |
 
 Removal timing is an open operator decision (PLAN-075 open question 2):
 remove both JSON routes after one release, or keep the token JSON export
@@ -95,7 +124,7 @@ restore-complete path, v1 policy parity); token exports scrub
 `apps/api/src/modules/backup/secret-fields.ts`) per NDJSON row and set
 `manifest.redacted: true`.
 
-## Merge semantics (v2 `mode: "merge"`)
+## Merge semantics (v2 apply)
 
 One synchronous committed transaction, tables in registry dependency order;
 the upload-time dry-run runs the identical row loop in a transaction that
@@ -113,14 +142,15 @@ always rolls back, so the dry-run report exactly equals the apply report.
   (`skippedDuplicate`, flagged `remapped`) and incoming
   `file_references.fileId` values are redirected to the existing live id —
   shipped as the file module's built-in import transform.
-- Blobs stream from the archive after the merge commits: existing
-  content-addressed keys are skipped, hashes are verified while streaming,
-  and `reconcileRestoredFiles` quarantines any `files` row whose bytes are
-  still missing.
+- After the merge commits: blobs stream from legacy blob-bearing archives
+  (existing content-addressed keys skipped, hashes verified while
+  streaming), a quarantine **rescan** heals rows whose bytes are already on
+  the storage backend, and `reconcileRestoredFiles` quarantines any `files`
+  row whose bytes are still missing.
 - Report per table: `inserted`, `skippedDuplicate` (+`remapped`),
   `transformed`, `droppedColumns`, `defaultedColumns` (+`fallbackColumns`),
   `failed` (sampled reasons); archive-level `skippedTables`,
-  `skippedModules`, `warnings`, blob and reconcile counts.
+  `skippedModules`, `warnings`, blob, rescan and reconcile counts.
 
 ## Cross-schema transform hooks (v2)
 
@@ -145,9 +175,8 @@ Reference implementation: `apps/api/src/modules/file/file.backup.ts`.
 
 `backup.export` (v1 + v2 job creation), `backup.export.download`,
 `backup.import.validate` (upload + dry-run), `backup.import.apply`,
-`backup.import.blobs` (blob restore), `backup.import` (v1), plus per-user
-`user.restored` rows in replace mode. All critical — a failed audit write
-fails the action.
+`backup.import.blobs` (blob restore), `backup.blob.rescan`,
+`backup.import` (v1). All critical — a failed audit write fails the action.
 
 ## Out of scope
 

@@ -5,10 +5,11 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { pack as tarPack } from "tar-stream";
 import { createDb } from "@/db";
 import { auditEvents } from "@/modules/audit/schema";
+import { files } from "@/modules/file/schema";
 import { deriveStorageKey } from "@/modules/file/storage/key";
 import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
@@ -124,5 +125,46 @@ describe("POST /backup/v2/blob-restores", () => {
     const body = await res.json() as { error: { code: string; message: string } };
     expect(body.error.code).toBe("MALFORMED_ARCHIVE");
     expect(body.error.message).toContain("/api/backup/v2/imports");
+  });
+});
+
+describe("POST /backup/v2/blob-rescans (FIX-062)", () => {
+  test("401/403 gating", async () => {
+    expect((await app().request("/backup/v2/blob-rescans", { method: "POST" })).status).toBe(401);
+    const { cookie } = await sessionCookieFor(db, "user");
+    expect((await app().request("/backup/v2/blob-rescans", { method: "POST", headers: { Cookie: cookie } })).status).toBe(403);
+  });
+
+  test("heals a quarantined row once its blob is back; audits backup.blob.rescan", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "admin");
+    const bytes = new TextEncoder().encode("rescan blob bytes");
+    const sha = sha256Of(bytes);
+    const missingSha = "ef".repeat(32);
+    await db.run(sql`
+      INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
+      VALUES
+        ('fq1', ${sha}, ${bytes.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${deriveStorageKey(sha)}, 0, ${userId}),
+        ('fq2', ${missingSha}, 3, 'text/plain', 'quarantined:backup-restore-missing-blob', ${deriveStorageKey(missingSha)}, 0, ${userId})
+    `);
+    // Operator copies the blob to its content-addressed path...
+    await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
+
+    const res = await app().request("/backup/v2/blob-rescans", { method: "POST", headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { report: { scanned: number; healed: number; stillMissing: number } };
+    expect(body.report).toEqual({ scanned: 2, healed: 1, stillMissing: 1 });
+
+    const healed = await db.select().from(files).where(eq(files.id, "fq1")).get();
+    expect(healed!.storageDriver).toBe("local");
+    const still = await db.select().from(files).where(eq(files.id, "fq2")).get();
+    expect(still!.storageDriver).toBe("quarantined:backup-restore-missing-blob");
+
+    const auditRow = await db.select().from(auditEvents).where(eq(auditEvents.action, "backup.blob.rescan")).get();
+    expect(auditRow).toBeDefined();
+    expect(JSON.parse(auditRow!.detail!)).toEqual({ scanned: 2, healed: 1, stillMissing: 1 });
+
+    // Idempotent: a second rescan finds only the still-missing row.
+    const again = await app().request("/backup/v2/blob-rescans", { method: "POST", headers: { Cookie: cookie } });
+    expect(((await again.json()) as { report: { scanned: number; healed: number } }).report).toMatchObject({ scanned: 1, healed: 0 });
   });
 });

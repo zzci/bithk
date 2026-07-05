@@ -4,7 +4,7 @@ import { z } from "zod";
 import { NotFoundError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, onValidationFailure, resolver, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
-import { buildDownloadResponse, getFileById, getReferenceById } from "./file.service";
+import { buildDownloadResponse, fileContentUnavailableError, getFileById, getReferenceById, isQuarantinedFile } from "./file.service";
 import { getFilePermissionHook } from "./permission";
 import { parseThumbnailWidth } from "./preview-cache";
 
@@ -77,6 +77,10 @@ export function fileRoutes() {
       const file = await getFileById(db, id);
       if (!file)
         throw new NotFoundError("File", id);
+      // Quarantined row (FIX-062): backing blob missing — clean 404 with the
+      // dedicated code so clients can render an "unavailable" state.
+      if (isQuarantinedFile(file))
+        throw fileContentUnavailableError();
 
       return c.json({
         success: true,

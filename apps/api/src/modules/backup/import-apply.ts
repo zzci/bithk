@@ -1,5 +1,6 @@
 /**
- * Backup v2 APPLY orchestration (PLAN-075 R3/R4/R6, Phase 3).
+ * Backup v2 APPLY orchestration (PLAN-075 R3/R4/R6 Phase 3; FIX-061 wipe;
+ * FIX-062 replace removal + session-safe wipe).
  *
  * {@link startImportApply} drives a staged, `validated` import job through:
  *
@@ -16,50 +17,44 @@
  *   no-op by construction, but is refused for clarity per the plan;
  * - process-wide one-applying-at-a-time guard (409, mirrors the export-job
  *   semaphore's WAL-pressure rationale);
- * - replace mode preflight: archive schema journal position must EQUAL the
- *   live journal position (tolerant mapping plus wholesale deletion is too
- *   dangerous to combine), plus the v1 guards verbatim — `includeUsers`
- *   handling, admin lock-out refusal, user-FK pre-flight. (The guard logic
- *   is replicated from `restore.routes.ts`, which stays untouched for v1.)
  * - wipe-before-merge preflight (FIX-061): archive must contain an active
  *   admin; a web actor must match one by id OR email/oauthSub. Runs before
  *   the state flips — and therefore before any deletion.
  *
- * Apply modes:
+ * The only apply mode is `merge` — the Phase-2 mapping engine's row loop in
+ * a COMMITTED synchronous transaction (`runImportMerge`); per-row semantics
+ * and report keys identical to the dry-run. FIX-062 removed the v1-engine
+ * `replace` mode: wipe-before-merge supersedes it without the exact-journal
+ * schema gate. The v1 JSON restore route (`restore.routes.ts`) is untouched.
  *
- * - `merge` — the Phase-2 mapping engine's row loop in a COMMITTED
- *   synchronous transaction (`runImportMerge`); per-row semantics and
- *   report keys identical to the dry-run.
- * - `replace` — delegates to the v1 `importJsonBackup` engine
- *   (delete-then-insert) fed from the archive's parsed NDJSON tables, then
- *   replays the v1 post-import behavior: session revocation on role/status
- *   change and per-user `user.restored` audit rows.
+ * The apply runner is fully detached from the request: it captures the
+ * actor (and, for a wipe, the operator's session token) up front and never
+ * reads the requester's session mid-job — a wipe import always completes
+ * even if the operator's session is invalidated. For a web wipe the session
+ * is re-created inside the merge transaction bound to the restored admin
+ * (same token, so the cookie survives; see `import-mapping.ts`).
  *
- * After the row stage, both modes run the blob stage (stream the staged
- * archive again, import referenced blobs), un-quarantine rows whose bytes
- * arrived, and finish with `reconcileRestoredFiles`. The final report and
- * the `backup.import.apply` audit (critical: a failed audit write fails the
- * apply) land on the job for the poll route.
+ * After the row stage, the blob stage streams the staged archive again and
+ * imports referenced blobs (legacy blob-bearing archives), a quarantine
+ * rescan heals rows whose bytes are already on the storage backend
+ * ("copy storage tree first, then import" needs zero extra steps), and
+ * `reconcileRestoredFiles` quarantines rows still missing bytes. The final
+ * report and the `backup.import.apply` audit (critical: a failed audit
+ * write fails the apply) land on the job for the poll route.
  */
-import type { ArchiveBlobStageReport } from "./blob-restore";
-import type { BackupData } from "./export.service";
+import type { ArchiveBlobStageReport, BlobRescanReport } from "./blob-restore";
 import type { ImportTableReport } from "./import-mapping";
 import type { ImportJob } from "./import.service";
 import type { ReconcileResult } from "./restore.service";
 import type { AppDatabase } from "@/db";
 import type { Logger } from "@/shared/lib/logger";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { deleteUserSessions } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
 import { audit } from "@/modules/audit/audit.service";
-import { ROOT_DIR } from "@/root";
 import { AppError } from "@/shared/lib/errors";
-import { importArchiveBlobs, unquarantineRestoredFiles } from "./blob-restore";
+import { importArchiveBlobs, rescanQuarantinedFiles } from "./blob-restore";
 import { runImportMerge } from "./import-mapping";
-import { importJsonBackup, reconcileRestoredFiles } from "./restore.service";
-
-export type ImportApplyMode = "merge" | "replace";
+import { reconcileRestoredFiles } from "./restore.service";
 
 /** Actor context captured at the route — audits are written async. */
 export interface ImportApplyActor {
@@ -67,16 +62,19 @@ export interface ImportApplyActor {
   readonly name: string;
   readonly ip: string;
   readonly userAgent: string;
+  /**
+   * The web operator's session token (`sessions.id`, FIX-062) — captured at
+   * the route so a wipe apply can re-bind the SAME token to the restored
+   * admin inside the merge transaction. Absent for CLI/synthetic actors.
+   */
+  readonly sessionId?: string;
 }
 
 export interface ImportApplyOptions {
-  readonly mode: ImportApplyMode;
-  /** Replace mode only (v1 semantics); merge always inserts what it can. */
-  readonly includeUsers: boolean;
   /**
-   * Merge mode only (FIX-061): delete ALL registry rows (children first) in
-   * the same transaction before the merge loop, so the import cannot
-   * conflict. Guarded by {@link prepareWipe} BEFORE any deletion.
+   * FIX-061: delete ALL registry rows (children first) in the same
+   * transaction before the merge loop, so the import cannot conflict.
+   * Guarded by {@link prepareWipe} BEFORE any deletion.
    */
   readonly wipeExisting?: boolean;
   readonly actor: ImportApplyActor;
@@ -84,18 +82,19 @@ export interface ImportApplyOptions {
 
 export interface ImportApplyReport {
   readonly dryRun: false;
-  readonly mode: ImportApplyMode;
-  /** Merge mode: identical keys/counts to the dry-run report. Empty for replace. */
+  /** Merge is the only apply mode (FIX-062 removed replace). */
+  readonly mode: "merge";
+  /** Identical keys/counts to the dry-run report. */
   readonly tables: Record<string, ImportTableReport>;
   readonly skippedTables: string[];
   readonly skippedModules: string[];
   readonly warnings: string[];
   readonly totals: { inserted: number; skippedDuplicate: number; failed: number; transformed: number };
-  /** Replace mode only — the v1 engine's coarse counters. */
-  readonly replace?: { tablesImported: number; rowsImported: number; includeUsers: boolean };
-  /** Merge + wipeExisting only (FIX-061) — per-table deleted-row counts. */
+  /** wipeExisting only (FIX-061) — per-table deleted-row counts. */
   readonly wipe?: { tables: Record<string, number>; total: number };
   readonly blobs: ArchiveBlobStageReport;
+  /** FIX-062: the end-of-apply quarantine rescan (path-correspondence heal). */
+  readonly rescan: BlobRescanReport;
   readonly reconcile: ReconcileResult;
 }
 
@@ -106,156 +105,6 @@ let applyingJobId: string | undefined;
 /** Test-only: clear the applying guard. */
 export function __resetImportApplyForTests(): void {
   applyingJobId = undefined;
-}
-
-// ─── Live schema journal (replace-mode schema gate) ──────────────────────
-
-/**
- * Read the live drizzle migration journal position. Mirrors the archive
- * writer's `readSchemaJournal` (private in `archive.service.ts`): packaged
- * releases ship `drizzle/` at the artifact root, dev runs read
- * `apps/api/drizzle/`.
- */
-export function readLiveSchemaJournal(): { lastIdx: number; lastTag: string; entryCount: number } {
-  const packaged = resolve(ROOT_DIR, "drizzle/meta/_journal.json");
-  const journalPath = existsSync(packaged) ? packaged : resolve(ROOT_DIR, "apps/api/drizzle/meta/_journal.json");
-  const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: { idx: number; tag: string }[] };
-  const last = journal.entries[journal.entries.length - 1];
-  return {
-    lastIdx: last?.idx ?? -1,
-    lastTag: last?.tag ?? "",
-    entryCount: journal.entries.length,
-  };
-}
-
-// ─── v1 replace guards (replicated verbatim from restore.routes.ts) ──────
-
-const USER_TABLES = ["users", "groups", "user_preferences"] as const;
-
-interface UserRowLike {
-  readonly id: string;
-  readonly role?: string;
-  readonly status?: string;
-}
-
-/**
- * When the operator chooses `includeUsers=false`, the user table is left
- * intact but other tables still reference user ids via FK. Pre-flight scan:
- * collect every known user-FK value in the imported rows and confirm a
- * matching user exists in the live DB — a useful error instead of a
- * COMMIT-time "FOREIGN KEY constraint failed".
- */
-async function assertUserFkIntegrity(
-  liveUserIds: ReadonlySet<string>,
-  backupTables: Record<string, unknown[]>,
-): Promise<void> {
-  const userFkColumns = new Set([
-    "creatorId",
-    "creator_id",
-    "uploadedBy",
-    "uploaded_by",
-    "actorId",
-    "actor_id",
-    "userId",
-    "user_id",
-    "assigneeId",
-    "assignee_id",
-    "authorId",
-    "author_id",
-  ]);
-
-  const referenced = new Set<string>();
-  for (const rows of Object.values(backupTables)) {
-    if (!Array.isArray(rows))
-      continue;
-    for (const row of rows) {
-      if (!row || typeof row !== "object")
-        continue;
-      for (const [k, v] of Object.entries(row as Record<string, unknown>)) {
-        if (userFkColumns.has(k) && typeof v === "string" && v.length > 0)
-          referenced.add(v);
-      }
-    }
-  }
-  const missing = [...referenced].filter(id => !liveUserIds.has(id));
-  if (missing.length > 0) {
-    throw new AppError(
-      `Restore would orphan ${missing.length} foreign key reference(s) to users that aren't in the current DB. Re-run with includeUsers=true or restore from a backup that contains the matching users.`,
-      400,
-      "RESTORE_FK_MISSING_USERS",
-    );
-  }
-}
-
-/** Drop the user-related tables from the parsed backup (shallow copy). */
-function stripUserTables<T extends { tables: Record<string, unknown[]>; modules: string[] }>(data: T): T {
-  const tables = { ...data.tables };
-  for (const t of USER_TABLES)
-    delete tables[t];
-  const modules = data.modules.filter(m => m !== "users");
-  return { ...data, tables, modules };
-}
-
-interface ReplacePlan {
-  readonly effectiveData: BackupData;
-  readonly importedUserRows: readonly UserRowLike[];
-  readonly liveById: ReadonlyMap<string, UserRowLike>;
-}
-
-async function prepareReplace(db: AppDatabase, job: ImportJob, opts: ImportApplyOptions): Promise<ReplacePlan> {
-  // No cross-schema replace: the archive must have been produced at the
-  // exact live migration position — tolerant mapping plus wholesale
-  // deletion is too dangerous to combine.
-  const live = readLiveSchemaJournal();
-  const archive = job.manifest.schema.journal;
-  if (archive.lastIdx !== live.lastIdx || archive.lastTag !== live.lastTag || archive.entryCount !== live.entryCount) {
-    throw new AppError(
-      `Replace mode requires the archive schema to match the live schema (archive at migration ${archive.lastTag || "(none)"}, live at ${live.lastTag || "(none)"}). Use merge mode for cross-schema imports.`,
-      400,
-      "REPLACE_SCHEMA_MISMATCH",
-    );
-  }
-
-  // Feed the v1 delete-then-insert engine from the archive's parsed NDJSON.
-  const data: BackupData = {
-    version: 1,
-    exportedAt: job.manifest.exportedAt,
-    modules: job.manifest.modules.map(m => m.name),
-    tables: Object.fromEntries([...job.tables].map(([name, rows]) => [name, rows.map(r => ({ ...r }))])),
-  };
-
-  // Snapshot live users to detect role/status changes after the restore
-  // (forced session revocation, v1 parity).
-  const liveUsers: UserRowLike[] = await db
-    .select({ id: users.id, role: users.role, status: users.status })
-    .from(users)
-    .all();
-  const liveById = new Map(liveUsers.map(u => [u.id, u]));
-
-  let effectiveData = data;
-  let importedUserRows: UserRowLike[] = [];
-
-  if (!opts.includeUsers) {
-    effectiveData = stripUserTables(data);
-    const liveIds = new Set(liveUsers.map(u => u.id));
-    await assertUserFkIntegrity(liveIds, effectiveData.tables);
-  }
-  else {
-    const incoming = (data.tables.users ?? []) as unknown as UserRowLike[];
-    // Refuse if the applying admin would be locked out: their row must be
-    // present, admin, and active.
-    const me = incoming.find(r => r.id === opts.actor.id);
-    if (!me || me.role !== "admin" || (me.status !== undefined && me.status !== "active")) {
-      throw new AppError(
-        "Restore would lock out the importing admin",
-        400,
-        "RESTORE_WOULD_LOCK_OUT",
-      );
-    }
-    importedUserRows = incoming;
-  }
-
-  return { effectiveData, importedUserRows, liveById };
 }
 
 // ─── Wipe-before-merge preflight (FIX-061) ───────────────────────────────
@@ -338,11 +187,12 @@ async function prepareWipe(db: AppDatabase, job: ImportJob, opts: ImportApplyOpt
 // ─── Apply orchestration ─────────────────────────────────────────────────
 
 /**
- * Validate the apply request (state machine + applying guard + replace
+ * Validate the apply request (state machine + applying guard + wipe
  * preflight), flip the job to `applying`, and kick the background runner.
  * Returns once the runner is started; the result arrives via the poll
- * route (`completed` + `job.result` | `failed` + `job.error`). Tests can
- * `await job.done`.
+ * route (`completed` + `job.result` | `failed` + `job.error`) — readable
+ * by ANY admin, not only the creator, so a lost session cannot hide the
+ * outcome. Tests can `await job.done`.
  */
 export async function startImportApply(
   db: AppDatabase,
@@ -360,23 +210,13 @@ export async function startImportApply(
     );
   }
 
-  if (opts.wipeExisting === true && opts.mode !== "merge") {
-    throw new AppError(
-      "wipeExisting is only valid with merge mode (replace already deletes live tables).",
-      400,
-      "INVALID_APPLY_MODE",
-    );
-  }
-
-  // Replace / wipe preflights run BEFORE the state flips, so a refused apply
-  // (schema mismatch, lock-out, FK pre-flight) leaves the job `validated` —
-  // and, for wipe, before any deletion.
-  const replacePlan = opts.mode === "replace" ? await prepareReplace(db, job, opts) : undefined;
+  // Wipe preflight runs BEFORE the state flips, so a refused apply
+  // (lock-out) leaves the job `validated` — and before any deletion.
   const wipePlan = opts.wipeExisting === true ? await prepareWipe(db, job, opts) : undefined;
 
   applyingJobId = job.id;
   job.state = "applying";
-  job.done = runApply(db, job, opts, replacePlan, wipePlan, logger).finally(() => {
+  job.done = runApply(db, job, opts, wipePlan, logger).finally(() => {
     applyingJobId = undefined;
   });
 }
@@ -385,94 +225,65 @@ async function runApply(
   db: AppDatabase,
   job: ImportJob,
   opts: ImportApplyOptions,
-  replacePlan: ReplacePlan | undefined,
   wipePlan: WipePlan | undefined,
   logger: Logger,
 ): Promise<void> {
   try {
     const warnings: string[] = [];
-    let engine: ReturnType<typeof runImportMerge> | undefined;
-    let replaceResult: { tablesImported: number; rowsImported: number } | undefined;
 
-    if (opts.mode === "merge") {
-      // One committed synchronous transaction — an unexpected mid-apply
-      // failure aborts it atomically (no partial table writes). With
-      // wipeExisting the wipe runs INSIDE that transaction, so a failed
-      // merge rolls the wipe back too (no data loss on failure).
-      engine = runImportMerge(db, job.manifest, job.tables, { wipeExisting: wipePlan !== undefined });
-      warnings.push(...engine.warnings);
+    // One committed synchronous transaction — an unexpected mid-apply
+    // failure aborts it atomically (no partial table writes). With
+    // wipeExisting the wipe runs INSIDE that transaction, so a failed
+    // merge rolls the wipe back too (no data loss on failure). For a web
+    // wipe the operator's session is captured pre-wipe and re-created
+    // with the same token inside the same transaction (FIX-062).
+    const engine = runImportMerge(db, job.manifest, job.tables, {
+      wipeExisting: wipePlan !== undefined,
+      ...(wipePlan !== undefined && opts.actor.sessionId !== undefined
+        ? { preserveSessionId: opts.actor.sessionId }
+        : {}),
+    });
+    warnings.push(...engine.warnings);
 
-      if (wipePlan) {
-        // v1-parity session revocation against the pre-wipe snapshot: a
-        // pre-wipe user keeps their sessions only when the archive restored
-        // them under the SAME id with the same role/status. Matching falls
-        // back to email/oauthSub for cross-instance archives (a different id
-        // means the old sessions are dangling anyway). Today the sessions FK
-        // cascade already removes every session when `users` is wiped, so
-        // this pass is a belt-and-suspenders parity guarantee.
-        const archiveUsers = (job.tables.get("users") ?? []) as readonly ArchiveUserRow[];
-        for (const before of wipePlan.liveUsers) {
-          const after = archiveUsers.find(r => r.id === before.id)
-            ?? archiveUsers.find(r => r.oauthSub === before.oauthSub || r.email === before.email);
-          if (!after || after.id !== before.id || after.role !== before.role || after.status !== before.status)
-            await deleteUserSessions(db, before.id);
-        }
-      }
-    }
-    else {
-      const plan = replacePlan!;
-      replaceResult = await importJsonBackup(db, plan.effectiveData, logger);
-
-      if (opts.includeUsers) {
-        // v1 parity: force-revoke sessions for any user whose role or
-        // status changed (or who did not exist live before the restore).
-        const changedIds: string[] = [];
-        for (const row of plan.importedUserRows) {
-          const before = plan.liveById.get(row.id);
-          if (!before || before.role !== row.role || before.status !== row.status)
-            changedIds.push(row.id);
-        }
-        for (const uid of changedIds)
-          await deleteUserSessions(db, uid);
-
-        // Per-row audit entries so the log captures each restored user.
-        for (const row of plan.importedUserRows) {
-          await audit(db, logger, {
-            actorId: opts.actor.id,
-            actorName: opts.actor.name,
-            action: "user.restored",
-            resourceType: "user",
-            resourceId: row.id,
-            resourceName: row.id,
-            ip: opts.actor.ip,
-            userAgent: opts.actor.userAgent,
-            result: "success",
-          }, { critical: true });
-        }
+    if (wipePlan) {
+      // v1-parity session revocation against the pre-wipe snapshot: a
+      // pre-wipe user keeps their sessions only when the archive restored
+      // them under the SAME id with the same role/status. Matching falls
+      // back to email/oauthSub for cross-instance archives (a different id
+      // means the old sessions are dangling anyway). Today the sessions FK
+      // cascade already removes every session when `users` is wiped, so
+      // this pass is a belt-and-suspenders parity guarantee — sparing only
+      // the operator's re-bound session (FIX-062).
+      const archiveUsers = (job.tables.get("users") ?? []) as readonly ArchiveUserRow[];
+      for (const before of wipePlan.liveUsers) {
+        const after = archiveUsers.find(r => r.id === before.id)
+          ?? archiveUsers.find(r => r.oauthSub === before.oauthSub || r.email === before.email);
+        if (!after || after.id !== before.id || after.role !== before.role || after.status !== before.status)
+          await deleteUserSessions(db, before.id, opts.actor.sessionId);
       }
     }
 
-    // Stage 5–6: blob import from the staged archive, un-quarantine rows
-    // whose bytes arrived (replace mode reconciled before blobs existed),
-    // then the final reconcile pass.
+    // Blob stage: import blobs from legacy blob-bearing archives, then the
+    // FIX-062 rescan — rows whose bytes are ALREADY on the storage backend
+    // (operator copied the tree/bucket before importing) heal with zero
+    // extra steps — and the final reconcile pass quarantines the rest.
     const blobs = await importArchiveBlobs(db, job.archivePath, job.manifest, warnings, logger);
-    const unquarantined = await unquarantineRestoredFiles(db, logger);
-    if (unquarantined > 0)
-      warnings.push(`${unquarantined} quarantined files row(s) un-quarantined after blob import`);
+    const rescan = await rescanQuarantinedFiles(db, logger);
+    if (rescan.healed > 0)
+      warnings.push(`${rescan.healed} quarantined files row(s) un-quarantined after blob rescan`);
     const reconcile = await reconcileRestoredFiles(db, logger);
 
     const report: ImportApplyReport = {
       dryRun: false,
-      mode: opts.mode,
-      tables: engine?.tables ?? {},
-      skippedTables: engine?.skippedTables ?? [],
-      skippedModules: engine?.skippedModules ?? [],
+      mode: "merge",
+      tables: engine.tables,
+      skippedTables: engine.skippedTables,
+      skippedModules: engine.skippedModules,
       warnings,
-      totals: engine?.totals
-        ?? { inserted: replaceResult?.rowsImported ?? 0, skippedDuplicate: 0, failed: 0, transformed: 0 },
-      ...(replaceResult ? { replace: { ...replaceResult, includeUsers: opts.includeUsers } } : {}),
-      ...(engine?.wipe ? { wipe: engine.wipe } : {}),
+      totals: engine.totals,
+      ...(engine.wipe ? { wipe: engine.wipe } : {}),
       blobs,
+      rescan,
       reconcile,
     };
 
@@ -488,17 +299,16 @@ async function runApply(
       resourceName: "database-backup-import",
       detail: {
         importId: job.id,
-        mode: opts.mode,
-        includeUsers: opts.includeUsers,
+        mode: "merge",
         modules: job.manifest.modules.map(m => m.name),
         totals: report.totals,
         tables: Object.fromEntries(Object.entries(report.tables).map(([name, t]) => [
           name,
           { inserted: t.inserted, skippedDuplicate: t.skippedDuplicate, failed: t.failed.total, transformed: t.transformed },
         ])),
-        ...(report.replace ? { replace: report.replace } : {}),
         ...(report.wipe ? { wipeExisting: true, wipe: { total: report.wipe.total } } : {}),
         blobs: { written: blobs.written, skippedExisting: blobs.skippedExisting, failed: blobs.failed },
+        rescan: { scanned: rescan.scanned, healed: rescan.healed, stillMissing: rescan.stillMissing },
         reconcile: { checked: reconcile.checked, quarantined: reconcile.quarantined },
       },
       ip: opts.actor.ip,
