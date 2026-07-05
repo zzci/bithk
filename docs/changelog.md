@@ -9,6 +9,27 @@ Upstream cuts versioned tags so forks can anchor diffs against a known
 template version. The boundary entries below summarise what shipped in
 each upstream tag; your fork's `Unreleased` block sits at the top.
 
+## v0.2.1 — 2026-07-05
+
+### Fixed
+
+- **Backup merge import no longer aborts with `FOREIGN KEY constraint failed`
+  when the target already holds the same entities under different ids**
+  (FIX-060). The duplicate probe now also checks unique indexes: a unique-key
+  hit (same email/oauth_sub/name, different id) skips the row and auto-remaps
+  its id so children insert under the existing live row; parents that never
+  land turn into per-row `failed(missing-parent)` report entries instead of a
+  COMMIT-time abort of the whole import.
+
+### Added
+
+- **"Wipe existing data" import option** (FIX-061). Merge imports can delete
+  all existing rows first (same transaction — a failure rolls the wipe back),
+  giving a conflict-free full restore that works across schema baselines,
+  unlike replace mode's exact-journal gate. Available as a type-to-confirm
+  checkbox in the admin import dialog and `backup:import --wipe` on the CLI;
+  refuses to run unless the archive contains an active admin.
+
 ## v0.2.0 — 2026-07-05
 
 ### Added
