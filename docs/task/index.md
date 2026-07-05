@@ -187,3 +187,4 @@
 | [FIX-060](FIX-060.md) | Backup merge import: unique-key skip + auto id-remap; no COMMIT FK abort | - | Completed | 2026-07-05 |
 | [FIX-061](FIX-061.md) | Import option: wipe existing data before merge (conflict-free restore) | - | Completed | 2026-07-05 |
 | [UI-030](UI-030.md) | Move Storage from standalone nav item into System Settings tab | - | Completed | 2026-07-05 |
+| [FIX-062](FIX-062.md) | File restore model: path-correspondence blobs, quarantine rescan, session-safe wipe import | - | In Progress | 2026-07-05 |
