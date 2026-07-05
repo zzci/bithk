@@ -295,6 +295,15 @@ export interface ImportEngineOptions {
    * restores the deleted rows; the report still carries the wipe counts.
    */
   readonly wipeExisting?: boolean;
+  /**
+   * FIX-062 (wipe apply only): keep the wiping operator logged in. The
+   * session row (and its user's identity columns) is captured BEFORE the
+   * wipe and re-created at the end of the SAME transaction with the SAME
+   * token (`sessions.id` — the cookie value), bound to the archive admin
+   * matched by id, else email/oauthSub. No-op when the session row or a
+   * matching restored active admin is absent (a warning is reported).
+   */
+  readonly preserveSessionId?: string;
 }
 
 /** Thrown to force ROLLBACK after the dry-run inserts complete. */
@@ -430,6 +439,25 @@ function runMergeEngine(
       // check clean — a dangling row is deleted and reported per-row
       // instead of aborting the transaction.
       tx.run(sql`PRAGMA defer_foreign_keys = 1`);
+
+      // FIX-062: capture the operator's session row + identity BEFORE the
+      // wipe (the users delete cascades sessions away). Re-created with the
+      // SAME token at the end of this transaction, bound to the restored
+      // admin, so the operator's cookie stays valid across a wipe import.
+      const SESSION_COLUMNS = ["id", "user_id", "access_token", "refresh_token", "expires_at", "access_token_expires_at", "created_at", "updated_at"] as const;
+      let preservedSession: { values: unknown[]; userId: unknown; email: unknown; oauthSub: unknown } | undefined;
+      if (options.wipeExisting === true && options.preserveSessionId !== undefined) {
+        const select = sql.join(SESSION_COLUMNS.map(c => sql.identifier(c)), sql`, `);
+        const hit = tx.get(sql`SELECT ${select} FROM sessions WHERE id = ${options.preserveSessionId}`) as unknown;
+        if (hit !== null && hit !== undefined) {
+          const values = SESSION_COLUMNS.map((c, i) => Array.isArray(hit) ? hit[i] : (hit as Record<string, unknown>)[c]);
+          const userId = values[1] ?? null;
+          const u = tx.get(sql`SELECT email, oauth_sub FROM users WHERE id = ${userId}`) as unknown;
+          const email = (Array.isArray(u) ? u[0] : (u as Record<string, unknown> | null | undefined)?.email) ?? null;
+          const oauthSub = (Array.isArray(u) ? u[1] : (u as Record<string, unknown> | null | undefined)?.oauth_sub) ?? null;
+          preservedSession = { values, userId, email, oauthSub };
+        }
+      }
 
       // FIX-061: wipe-before-merge. Children first (reverse of the live
       // dependency order); defer_foreign_keys covers cycle deletes. Runs in
@@ -942,6 +970,36 @@ function runMergeEngine(
           SET ref_count = (SELECT COUNT(*) FROM file_references WHERE file_id = files.id)
           WHERE id = ${id}
         `);
+      }
+
+      // FIX-062: re-bind the operator's session inside the SAME transaction
+      // as the wipe+insert. The restored active admin is matched by id
+      // first, else by email/oauthSub (cross-instance archives carry the
+      // same person under a different id); the session keeps its token
+      // (`sessions.id`), so the operator's cookie survives. Virtual users
+      // never qualify (they cannot log in).
+      if (preservedSession) {
+        const match = tx.get(sql`
+          SELECT id FROM users
+          WHERE role = 'admin' AND status = 'active' AND is_virtual = 0
+            AND (id = ${preservedSession.userId} OR email = ${preservedSession.email} OR oauth_sub = ${preservedSession.oauthSub})
+          ORDER BY CASE WHEN id = ${preservedSession.userId} THEN 0 ELSE 1 END
+          LIMIT 1
+        `) as unknown;
+        if (match === null || match === undefined) {
+          report.warnings.push("wipe-import: operator session not preserved — no restored active admin matches the pre-wipe operator");
+        }
+        else {
+          const boundUserId = Array.isArray(match) ? match[0] : (match as { id: unknown }).id;
+          const v = preservedSession.values;
+          // The users wipe cascaded every session away; the delete is a
+          // belt-and-suspenders guard against a same-token leftover.
+          tx.run(sql`DELETE FROM sessions WHERE id = ${v[0]}`);
+          tx.run(sql`
+            INSERT INTO sessions (id, user_id, access_token, refresh_token, expires_at, access_token_expires_at, created_at, updated_at)
+            VALUES (${v[0]}, ${boundUserId}, ${v[2]}, ${v[3]}, ${v[4]}, ${v[5]}, ${v[6]}, ${v[7]})
+          `);
+        }
       }
 
       if (!commit)

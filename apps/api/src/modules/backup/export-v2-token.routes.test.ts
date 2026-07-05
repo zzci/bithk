@@ -191,6 +191,7 @@ describe("POST /backup/v2/exports-via-token", () => {
   test("202 starts a redacted, bucket-owned job and audits via:token", async () => {
     const token = "v2tok-happy-dddddddd";
     const config = configWithToken(token);
+    // FIX-062: a legacy `blobs` field from an older sidecar is ignored.
     const res = await triggerViaToken(config, token, { modules: ["settings"], blobs: "none" });
     expect(res.status).toBe(202);
     const { jobId } = await res.json() as { jobId: string };
@@ -198,12 +199,12 @@ describe("POST /backup/v2/exports-via-token", () => {
     const job = getExportJob(jobId)!;
     expect(job.ownerBucket).toBe(tokenBucketKey(token));
     expect(job.redacted).toBe(true);
-    expect(job.blobsMode).toBe("none");
+    expect(job.blobsMode).toBe("external");
 
     const auditRow = await db.select().from(auditEvents).get();
     expect(auditRow!.action).toBe("backup.export");
     expect(auditRow!.actorId).toBe("system");
-    expect(JSON.parse(auditRow!.detail!)).toEqual({ modules: ["settings"], blobs: "none", via: "token", redacted: true });
+    expect(JSON.parse(auditRow!.detail!)).toEqual({ modules: ["settings"], blobs: "external", via: "token", redacted: true });
 
     await job.done;
     expect(job.manifest!.redacted).toBe(true);
@@ -250,7 +251,7 @@ describe("POST /backup/v2/exports-via-token", () => {
       id: `synthetic-${testNanoid()}`,
       state: "running",
       modules: ["settings"],
-      blobsMode: "embedded",
+      blobsMode: "external",
       redacted: false,
       createdAt: new Date().toISOString(),
       stagingDir: resolve(getBackupStagingRoot(config), "exports", "synthetic"),
@@ -271,7 +272,7 @@ describe("job visibility isolation", () => {
   test("a token cannot see an admin job (404 on status and download)", async () => {
     const token = "v2tok-isoadmin-hhhhhhhh";
     const config = configWithToken(token);
-    const adminJob = startExportJob(db, config, { modules: ["settings"], blobsMode: "none" });
+    const adminJob = startExportJob(db, config, { modules: ["settings"] });
     await adminJob.done;
 
     const status = await app(config).request(`/backup/v2/exports/${adminJob.id}/status-via-token`, {
@@ -291,7 +292,7 @@ describe("job visibility isolation", () => {
     const config = configWithToken(token);
     // A job owned by a DIFFERENT bucket (only one token is configurable at
     // runtime, so the foreign bucket is seeded directly).
-    const foreign = startExportJob(db, config, { modules: ["settings"], blobsMode: "none", ownerBucket: "t:other_bu", redacted: true });
+    const foreign = startExportJob(db, config, { modules: ["settings"], ownerBucket: "t:other_bu", redacted: true });
     await foreign.done;
 
     const status = await app(config).request(`/backup/v2/exports/${foreign.id}/status-via-token`, {
@@ -338,7 +339,7 @@ describe("job visibility isolation", () => {
     };
     expect(body.jobId).toBe(jobId);
     expect(body.state).toBe("completed");
-    expect(body.blobsMode).toBe("embedded");
+    expect(body.blobsMode).toBe("external");
     expect(body.progress.tablesDone).toBe(body.progress.tablesTotal);
     expect(body.error).toBeNull();
     expect(body.archiveSize).toBeGreaterThan(0);
@@ -355,7 +356,7 @@ describe("GET /backup/v2/exports/:jobId/download-via-token", () => {
     const secret = "Bearer super-secret-xyz-do-not-leak";
     await insertSecretCronJob(secret);
 
-    const jobId = await createCompletedTokenJob(config, token, { modules: ["cron"], blobs: "none" });
+    const jobId = await createCompletedTokenJob(config, token, { modules: ["cron"] });
     const res = await app(config).request(`/backup/v2/exports/${jobId}/download-via-token`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -381,7 +382,7 @@ describe("GET /backup/v2/exports/:jobId/download-via-token", () => {
     expect(JSON.parse(downloadRow!.detail!)).toEqual({ jobId, artifact: "data", via: "token" });
 
     // Parity check: the ADMIN export of the same data stays unredacted.
-    const adminJob = startExportJob(db, config, { modules: ["cron"], blobsMode: "none" });
+    const adminJob = startExportJob(db, config, { modules: ["cron"] });
     await adminJob.done;
     expect(adminJob.manifest!.redacted).toBe(false);
     const adminEntries = await readArchiveStream(Bun.file(adminJob.artifacts!.data.path).stream());
@@ -389,45 +390,23 @@ describe("GET /backup/v2/exports/:jobId/download-via-token", () => {
     expect(adminRows.find(r => r.id === "job-1")!.taskConfig).toContain("super-secret-xyz");
   });
 
-  test("honors ?artifact for separate-mode jobs and cleans up only after both drain", async () => {
+  test("an unknown artifact selector is a 400", async () => {
     const token = "v2tok-artifact-mmmmmmmm";
     const config = configWithToken(token);
-    const jobId = await createCompletedTokenJob(config, token, { modules: ["settings"], blobs: "separate" });
-    const stagingDir = getExportJob(jobId)!.stagingDir;
+    const jobId = await createCompletedTokenJob(config, token);
 
     const bad = await app(config).request(`/backup/v2/exports/${jobId}/download-via-token?artifact=nope`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(bad.status).toBe(400);
     expect(((await bad.json()) as { error: { code: string } }).error.code).toBe("INVALID_ARTIFACT");
-
-    const dataRes = await app(config).request(`/backup/v2/exports/${jobId}/download-via-token`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(dataRes.status).toBe(200);
-    await dataRes.arrayBuffer();
-    // One of two artifacts downloaded — job and staging must survive.
     expect(getExportJob(jobId)).toBeDefined();
-    expect(existsSync(stagingDir)).toBe(true);
-
-    const blobsRes = await app(config).request(`/backup/v2/exports/${jobId}/download-via-token?artifact=blobs`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(blobsRes.status).toBe(200);
-    expect(blobsRes.headers.get("content-disposition")).toContain("-blobs-");
-    const bytes = new Uint8Array(await blobsRes.arrayBuffer());
-    expect(bytes[0]).toBe(0x1F);
-    expect(bytes[1]).toBe(0x8B);
-
-    // Both drained → staging removed, job forgotten.
-    expect(existsSync(stagingDir)).toBe(false);
-    expect(getExportJob(jobId)).toBeUndefined();
   });
 
-  test("artifact=blobs on a non-separate token job is a 400", async () => {
+  test("artifact=blobs is a 400 — token jobs no longer produce a blobs artifact", async () => {
     const token = "v2tok-noblobs-nnnnnnnn";
     const config = configWithToken(token);
-    const jobId = await createCompletedTokenJob(config, token); // default = embedded
+    const jobId = await createCompletedTokenJob(config, token);
     const res = await app(config).request(`/backup/v2/exports/${jobId}/download-via-token?artifact=blobs`, {
       headers: { Authorization: `Bearer ${token}` },
     });

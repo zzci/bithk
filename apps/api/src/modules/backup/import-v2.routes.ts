@@ -6,8 +6,8 @@
  *   GET    /backup/v2/imports/:importId        poll state + dry-run report +
  *                                              final apply result / error
  *   POST   /backup/v2/imports/:importId/apply  apply the staged import
- *                                              ({ mode: merge|replace,
- *                                              includeUsers?, wipeExisting? })
+ *                                              ({ wipeExisting? } — merge is
+ *                                              the only mode since FIX-062)
  *                                              → 202; result via the poll
  *                                              route
  *   DELETE /backup/v2/imports/:importId        discard a staged import
@@ -16,6 +16,7 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { rmSync } from "node:fs";
 import { Hono } from "hono";
 import { z } from "zod";
+import { readSessionId } from "@/modules/account/auth/session-cookie";
 import { auditFromCtx } from "@/modules/audit/audit.context";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
@@ -32,10 +33,12 @@ import {
 /** Multipart framing overhead allowed on top of the archive cap. */
 export const CONTENT_LENGTH_SLACK = 64 * 1024;
 
+// FIX-062: merge is the only apply mode. `mode` is accepted for backward
+// compatibility but pinned to "merge" — an old client sending
+// `mode: "replace"` gets an explicit 400 (see the apply handler).
 const applyBodySchema = z.object({
-  mode: z.enum(["merge", "replace"]),
-  includeUsers: z.boolean().optional(),
-  /** FIX-061: merge mode only — wipe every registry table before the merge. */
+  mode: z.literal("merge").optional(),
+  /** FIX-061: wipe every registry table before the merge (same transaction). */
   wipeExisting: z.boolean().optional(),
 });
 
@@ -80,13 +83,8 @@ const importDryRunReportSchema = z.object({
 // Poll `result`: the final apply report (`ImportApplyReport`).
 const importApplyReportSchema = z.object({
   dryRun: z.literal(false),
-  mode: z.enum(["merge", "replace"]),
+  mode: z.literal("merge"),
   ...importReportBaseFields,
-  replace: z.object({
-    tablesImported: z.number(),
-    rowsImported: z.number(),
-    includeUsers: z.boolean(),
-  }).optional(),
   wipe: z.object({
     tables: z.record(z.string(), z.number()),
     total: z.number(),
@@ -99,6 +97,7 @@ const importApplyReportSchema = z.object({
     missing: z.number(),
     expectedInSeparateArchive: z.number(),
   }),
+  rescan: z.object({ scanned: z.number(), healed: z.number(), stillMissing: z.number() }),
   reconcile: z.object({ checked: z.number(), quarantined: z.number() }),
 });
 
@@ -224,19 +223,32 @@ export function backupImportV2Routes() {
         throw new NotFoundError("Import", importId);
 
       const body = await c.req.json().catch(() => undefined) as unknown;
+      // Explicit 400 for a pre-FIX-062 client still sending mode=replace —
+      // wipe-before-merge supersedes it.
+      if (typeof body === "object" && body !== null && (body as { mode?: unknown }).mode === "replace") {
+        throw new AppError(
+          "Replace mode has been removed — use wipeExisting: true (wipe-before-merge) for a conflict-free full restore.",
+          400,
+          "REPLACE_MODE_REMOVED",
+        );
+      }
       const parsed = applyBodySchema.safeParse(body);
       if (!parsed.success)
-        throw new AppError("apply body must be { mode: \"merge\" | \"replace\", includeUsers?: boolean, wipeExisting?: boolean }", 400, "INVALID_APPLY_MODE");
+        throw new AppError("apply body must be { wipeExisting?: boolean }", 400, "INVALID_APPLY_MODE");
 
+      // Cast: readSessionId only reads cookies; ProtectedEnv narrows AppEnv's
+      // Variables (required `user`), which the cookie helper never touches.
+      const sessionId = readSessionId(c as unknown as Parameters<typeof readSessionId>[0]);
       await startImportApply(db, job, {
-        mode: parsed.data.mode,
-        includeUsers: parsed.data.includeUsers ?? false,
         wipeExisting: parsed.data.wipeExisting ?? false,
         actor: {
           id: user.id,
           name: user.name,
           ip: getClientIp(c),
           userAgent: c.req.header("user-agent") ?? "unknown",
+          // The operator's session token (FIX-062): a wipe apply re-binds
+          // this exact token to the restored admin so the cookie survives.
+          ...(sessionId !== undefined ? { sessionId } : {}),
         },
       }, c.get("logger"));
 

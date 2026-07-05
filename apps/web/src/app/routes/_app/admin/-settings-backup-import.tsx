@@ -1,9 +1,10 @@
-// Backup v2 import card (PLAN-075 Phase 5 + R7): archive upload → dry-run
-// report → explicit confirm (merge / destructive replace) → apply poll →
-// final result report, plus the standalone blob-restore affordance for the
-// separate-mode `blobs.tar.gz` artifact.
-import type { BlobRestoreReport } from "@/shared/lib/api/backup";
-import { Upload } from "lucide-react";
+// Backup v2 import card (PLAN-075 Phase 5 + R7 + FIX-062): archive upload →
+// dry-run report → explicit confirm (merge, optionally wipe-first) → apply
+// poll → final result report, plus the standalone blob-restore affordance
+// for legacy `blobs.tar.gz` artifacts and the quarantine rescan button
+// (path-correspondence heal after copying the storage tree/bucket).
+import type { BlobRescanReport, BlobRestoreReport } from "@/shared/lib/api/backup";
+import { RefreshCw, Upload } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -28,13 +29,13 @@ import {
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import { Separator } from "@/shared/components/ui/separator";
 import { Spinner } from "@/shared/components/ui/spinner";
 import { Switch } from "@/shared/components/ui/switch";
 import {
   useApplyBackupImport,
   useBackupImportJob,
+  useBlobRescan,
   useDiscardBackupImport,
   useRestoreBlobArchive,
   useUploadBackupImport,
@@ -43,8 +44,6 @@ import { errorMessage } from "@/shared/lib/errors";
 import { BlobRestoreReportView, ImportReportView } from "./-settings-backup-report";
 
 const ARCHIVE_ACCEPT = ".tar.gz,application/gzip";
-
-type ApplyMode = "merge" | "replace";
 
 export function BackupImportCard() {
   const { t } = useTranslation(["settings", "common"]);
@@ -65,13 +64,10 @@ export function BackupImportCard() {
     });
   };
 
-  const applyImport = (mode: ApplyMode, includeUsers: boolean, wipeExisting: boolean) => {
+  const applyImport = (wipeExisting: boolean) => {
     if (importId === null)
       return;
-    const input = mode === "replace"
-      ? { importId, mode, includeUsers }
-      : { importId, mode, ...(wipeExisting ? { wipeExisting } : {}) };
-    apply.mutate(input, {
+    apply.mutate({ importId, ...(wipeExisting ? { wipeExisting } : {}) }, {
       onSuccess: () => setConfirmOpen(false),
       onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
     });
@@ -150,39 +146,32 @@ export function BackupImportCard() {
 
         <Separator />
 
-        <BlobRestoreSection />
+        <BlobRecoverySection />
       </CardContent>
     </Card>
   );
 }
 
-// ─── Apply confirm dialog (merge default; replace / wipe = destructive) ───
+// ─── Apply confirm dialog (merge; optional destructive wipe-first) ────────
 
 function ApplyConfirmDialog({ open, onOpenChange, pending, onConfirm }: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly pending: boolean;
-  readonly onConfirm: (mode: ApplyMode, includeUsers: boolean, wipeExisting: boolean) => void;
+  readonly onConfirm: (wipeExisting: boolean) => void;
 }) {
   const { t } = useTranslation(["settings", "common"]);
-  const [mode, setMode] = useState<ApplyMode>("merge");
-  const [includeUsers, setIncludeUsers] = useState(false);
   const [wipeExisting, setWipeExisting] = useState(false);
   const [confirmText, setConfirmText] = useState("");
 
-  // Merge + wipe is as destructive as replace: same type-to-confirm gate.
-  const destructive = mode === "replace" || (mode === "merge" && wipeExisting);
-  const keyword = mode === "replace"
-    ? t("settings:backup.import.replaceKeyword")
-    : t("settings:backup.import.wipeKeyword");
+  // Wipe-first deletes every live row: same type-to-confirm gate replace had.
+  const keyword = t("settings:backup.import.wipeKeyword");
   const destructiveConfirmed = confirmText.trim().toLowerCase() === keyword.toLowerCase();
-  const canConfirm = !pending && (!destructive || destructiveConfirmed);
+  const canConfirm = !pending && (!wipeExisting || destructiveConfirmed);
 
   const handleOpenChange = (next: boolean) => {
     onOpenChange(next);
     if (!next) {
-      setMode("merge");
-      setIncludeUsers(false);
       setWipeExisting(false);
       setConfirmText("");
     }
@@ -196,39 +185,19 @@ function ApplyConfirmDialog({ open, onOpenChange, pending, onConfirm }: {
           <AlertDialogDescription>{t("settings:backup.import.confirmDescription")}</AlertDialogDescription>
         </AlertDialogHeader>
 
-        <RadioGroup value={mode} onValueChange={v => setMode(v as ApplyMode)} className="gap-2">
-          <RadioGroupItem value="merge">{t("settings:backup.import.modeMerge")}</RadioGroupItem>
-          <RadioGroupItem value="replace">{t("settings:backup.import.modeReplace")}</RadioGroupItem>
-        </RadioGroup>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="backup-wipe-existing">{t("settings:backup.import.wipeExisting")}</Label>
+          <Switch
+            id="backup-wipe-existing"
+            checked={wipeExisting}
+            onCheckedChange={setWipeExisting}
+          />
+        </div>
 
-        {mode === "merge" && (
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="backup-wipe-existing">{t("settings:backup.import.wipeExisting")}</Label>
-            <Switch
-              id="backup-wipe-existing"
-              checked={wipeExisting}
-              onCheckedChange={setWipeExisting}
-            />
-          </div>
-        )}
-
-        {mode === "replace" && (
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="backup-include-users">{t("settings:backup.import.includeUsers")}</Label>
-            <Switch
-              id="backup-include-users"
-              checked={includeUsers}
-              onCheckedChange={setIncludeUsers}
-            />
-          </div>
-        )}
-
-        {destructive && (
+        {wipeExisting && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-destructive">
-              {mode === "replace"
-                ? t("settings:backup.import.replaceWarning")
-                : t("settings:backup.import.wipeWarning")}
+              {t("settings:backup.import.wipeWarning")}
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="backup-destructive-confirm">
@@ -248,9 +217,9 @@ function ApplyConfirmDialog({ open, onOpenChange, pending, onConfirm }: {
           <AlertDialogClose render={<Button type="button" variant="outline">{t("common:common.cancel")}</Button>} />
           <Button
             type="button"
-            variant={destructive ? "destructive" : "default"}
+            variant={wipeExisting ? "destructive" : "default"}
             disabled={!canConfirm}
-            onClick={() => onConfirm(mode, includeUsers, wipeExisting)}
+            onClick={() => onConfirm(wipeExisting)}
           >
             {t("settings:backup.import.confirm")}
           </Button>
@@ -260,13 +229,15 @@ function ApplyConfirmDialog({ open, onOpenChange, pending, onConfirm }: {
   );
 }
 
-// ─── Standalone blob restore (R7) ─────────────────────────────────────────
+// ─── Blob recovery: legacy blobs.tar.gz restore + quarantine rescan ───────
 
-function BlobRestoreSection() {
+function BlobRecoverySection() {
   const { t } = useTranslation(["settings", "common"]);
   const [report, setReport] = useState<BlobRestoreReport | null>(null);
+  const [rescanReport, setRescanReport] = useState<BlobRescanReport | null>(null);
 
   const restore = useRestoreBlobArchive();
+  const rescan = useBlobRescan();
 
   const restoreArchive = (file: File) => {
     restore.mutate(file, {
@@ -275,8 +246,35 @@ function BlobRestoreSection() {
     });
   };
 
+  const runRescan = () => {
+    rescan.mutate(undefined, {
+      onSuccess: res => setRescanReport(res.report),
+      onError: err => toast.error(errorMessage(err, t("common:common.error.operationFailed"))),
+    });
+  };
+
   return (
     <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold">{t("settings:backup.import.blobRescanTitle")}</h3>
+        <p className="mt-0.5 text-sm text-muted-foreground">{t("settings:backup.import.blobRescanDescription")}</p>
+      </div>
+      <Button type="button" variant="outline" disabled={rescan.isPending} onClick={runRescan}>
+        <RefreshCw />
+        {rescan.isPending
+          ? t("settings:backup.import.blobRescanRunning")
+          : t("settings:backup.import.blobRescan")}
+      </Button>
+      {rescanReport && (
+        <p className="text-sm text-muted-foreground">
+          {t("settings:backup.import.blobRescanResult", {
+            scanned: rescanReport.scanned,
+            healed: rescanReport.healed,
+            stillMissing: rescanReport.stillMissing,
+          })}
+        </p>
+      )}
+
       <div>
         <h3 className="text-sm font-semibold">{t("settings:backup.import.blobRestoreTitle")}</h3>
         <p className="mt-0.5 text-sm text-muted-foreground">{t("settings:backup.import.blobRestoreDescription")}</p>

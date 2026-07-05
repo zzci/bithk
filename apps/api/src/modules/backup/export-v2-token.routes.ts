@@ -92,7 +92,7 @@ export function backupExportV2TokenRoutes() {
     describeRoute({
       tags: ["infra2"],
       summary: "Service-token redacted async export job",
-      requestBody: { content: { "application/json": { schema: { type: "object", properties: { modules: { type: "array", items: { type: "string" } }, blobs: { type: "string", enum: ["embedded", "separate", "none"] }, includeBlobs: { type: "boolean" } }, required: ["modules"] } } } },
+      requestBody: { content: { "application/json": { schema: { type: "object", properties: { modules: { type: "array", items: { type: "string" } } }, required: ["modules"] } } } },
       responses: {
         202: rawJson(z.object({ jobId: z.string() }), "Accepted"),
         400: { description: "Unknown modules", ...errorJson },
@@ -129,14 +129,12 @@ export function backupExportV2TokenRoutes() {
         });
         return c.json({ success: false, error: { code: "SCOPE_REQUIRED", message: "A non-empty module scope is required for token export." } }, 403);
       }
-      // Full body — same shape as the admin trigger (`blobs` wins over the
-      // deprecated `includeBlobs` alias); a malformed mode is a 422.
+      // Full body — same shape as the admin trigger. FIX-062: no blob
+      // placement option; a legacy `blobs` / `includeBlobs` field from an
+      // older sidecar is stripped by zod and ignored.
       const body = z.object({
         modules: z.array(z.string()).min(1),
-        blobs: z.enum(["embedded", "separate", "none"]).optional(),
-        includeBlobs: z.boolean().optional(),
       }).parse(raw);
-      const blobsMode = body.blobs ?? (body.includeBlobs === false ? "none" : "embedded");
 
       const known = new Set(getModuleNames());
       const invalidModules = body.modules.filter(m => !known.has(m));
@@ -184,13 +182,12 @@ export function backupExportV2TokenRoutes() {
       await auditFromCtx(c, {
         ...tokenAuditBase(c),
         action: "backup.export",
-        detail: { modules: body.modules, blobs: blobsMode, via: "token", redacted: true },
+        detail: { modules: body.modules, blobs: "external", via: "token", redacted: true },
         result: "success",
       }, { critical: true });
 
       const job = startExportJob(db, config, {
         modules: body.modules,
-        blobsMode,
         ownerBucket: bucket,
         redacted: true,
       }, c.get("logger"));

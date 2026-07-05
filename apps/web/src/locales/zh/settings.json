@@ -335,8 +335,6 @@
       "modules": "模块",
       "modulesHint": "所选模块会连同其依赖一起导出。",
       "deps": "依赖:{{deps}}",
-      "includeBlobs": "导出上传的文件(blobs)",
-      "includeBlobsHint": "本地存储的上传文件会导出为独立的压缩文件档;存储在 S3 中的文件不会导出,请自行备份 S3 存储桶。",
       "warnings": "警告",
       "generate": "生成备份",
       "cancel": "取消",
@@ -346,12 +344,10 @@
       "stateFailed": "导出失败",
       "stateCompleted": "备份已就绪",
       "progressTables": "数据表:{{done}} / {{total}}",
-      "progressBlobBytes": "文件字节:{{done}} / {{total}}",
       "download": "下载归档",
-      "downloadData": "下载数据归档",
-      "downloadBlobs": "下载文件归档",
       "artifactDownloaded": "已下载",
-      "jobGone": "服务器上已不存在该导出任务——所有产物均已下载,或服务器已重启。"
+      "jobGone": "服务器上已不存在该导出任务——所有产物均已下载,或服务器已重启。",
+      "externalBlobsNote": "备份仅包含数据库数据。上传文件的字节存放在存储目录(或 S3 存储桶)中——请连同归档一起复制;路径按内容寻址,始终一一对应。"
     },
     "import": {
       "title": "导入",
@@ -365,22 +361,22 @@
       "dryRunTitle": "试运行报告(尚未写入任何数据)",
       "resultTitle": "导入结果",
       "confirmTitle": "应用此导入?",
-      "confirmDescription": "选择将归档应用到当前数据库的方式。",
-      "modeMerge": "合并——插入新行,跳过重复项,绝不删除现有数据",
-      "modeReplace": "替换——先删除现有数据表,再恢复归档内容",
-      "includeUsers": "同时替换用户与用户组",
-      "replaceWarning": "替换会在恢复归档前删除现有数据,且无法撤销。",
+      "confirmDescription": "归档将合并到当前数据库:插入新行、跳过重复项,绝不删除现有数据——除非勾选先清空。",
       "typeToConfirm": "输入 {{keyword}} 以确认",
-      "replaceKeyword": "替换",
       "wipeExisting": "先清空现有数据(导入不会产生冲突)",
       "wipeWarning": "清空会在导入归档前删除数据库中的所有数据,归档中必须包含处于激活状态的管理员。此操作无法撤销。",
       "wipeKeyword": "清空",
       "confirm": "确认",
       "blobRestoreTitle": "恢复文件数据",
-      "blobRestoreDescription": "上传由“独立文件归档”模式导出的 blobs.tar.gz。文件会直接导入文件存储,无需再做数据导入。",
+      "blobRestoreDescription": "上传旧版“独立文件归档”模式导出的 blobs.tar.gz。文件会直接导入文件存储,无需再做数据导入。",
       "blobRestoreUpload": "上传文件归档",
       "blobRestoreUploading": "正在恢复文件…",
-      "blobRestoreResultTitle": "文件恢复结果"
+      "blobRestoreResultTitle": "文件恢复结果",
+      "blobRescanTitle": "重新扫描缺失文件",
+      "blobRescanDescription": "将存储目录(或存储桶)复制到本实例后,执行重扫即可恢复数据缺失的文件记录。",
+      "blobRescan": "重新扫描缺失文件",
+      "blobRescanRunning": "正在重扫…",
+      "blobRescanResult": "已扫描 {{scanned}} 个,恢复 {{healed}} 个,仍缺失 {{stillMissing}} 个。"
     },
     "report": {
       "toInsert": "待插入行",
@@ -404,7 +400,6 @@
       "skippedTables": "跳过的表",
       "skippedModules": "跳过的模块",
       "warnings": "警告",
-      "replaceSummary": "替换模式:已恢复 {{tables}} 个表、{{rows}} 行。包含用户:{{includeUsers}}",
       "wipeSummary": "导入前已清空 {{total}} 行现有数据。",
       "blobs": "文件数据",
       "blobsCount": "归档内",
@@ -419,13 +414,15 @@
       "reconcileChecked": "已检查",
       "reconcileQuarantined": "已隔离",
       "unquarantined": "已解除隔离",
-      "yes": "是",
-      "no": "否",
       "reasons": {
         "missingParent": "缺少父级记录",
         "uniqueConflict": "唯一性冲突({{index}})",
         "missingRequiredColumn": "缺少必填列"
-      }
+      },
+      "rescan": "缺失文件重扫",
+      "rescanScanned": "已扫描",
+      "rescanHealed": "已恢复",
+      "rescanStillMissing": "仍缺失"
     }
   },
   "storage": {

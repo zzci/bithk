@@ -107,7 +107,6 @@ describe("writeArchiveV2 — manifest", () => {
     const { manifest, archivePath } = await writeArchiveV2({
       db,
       modules: ["files", "settings"],
-      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
@@ -120,8 +119,8 @@ describe("writeArchiveV2 — manifest", () => {
     expect(fromArchive.format).toBe("bithk-backup");
     expect(fromArchive.formatVersion).toBe(2);
     expect(fromArchive.redacted).toBe(false);
-    expect(fromArchive.blobsMode).toBe("none");
-    // Deprecated alias stays consistent with the mode.
+    // FIX-062: bytes are never packed — external marker, alias false.
+    expect(fromArchive.blobsMode).toBe("external");
     expect(fromArchive.includeBlobs).toBe(false);
 
     // Journal pins the migration state — compare against the real file.
@@ -169,7 +168,6 @@ describe("writeArchiveV2 — NDJSON fidelity", () => {
     const { archivePath } = await writeArchiveV2({
       db,
       modules: ["users", "settings"],
-      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
@@ -186,8 +184,8 @@ describe("writeArchiveV2 — NDJSON fidelity", () => {
   });
 });
 
-describe("writeArchiveV2 — blobs", () => {
-  test("per-row driver selection: local packs, s3 summarises, db is silent, unknown warns per row", async () => {
+describe("writeArchiveV2 — blobs (FIX-062: DB data only)", () => {
+  test("no blob bytes are packed for any driver; expectedBlobs inventories every referenced blob", async () => {
     const userId = await seedUser(db, "admin");
     const shaShared = "ab".repeat(32);
     const shaForeign = "cd".repeat(32);
@@ -196,160 +194,42 @@ describe("writeArchiveV2 — blobs", () => {
     const bytes = new Uint8Array(256 * 1024).fill(42);
     await setUpLocalBlob(shaShared, bytes);
 
-    // Two rows share one sha → ONE tar entry. The live schema enforces
-    // UNIQUE(sha256, storage_driver), so the second row sits on another
-    // driver. Selection branches on EACH ROW's storage_driver, never on
-    // the active driver.
+    // Rows across every driver kind — including a readable local blob: the
+    // exporter must not pack ANY of them (file bytes are the operator's
+    // storage-tree/bucket copy).
     await insertFileRow("f1", shaShared, bytes.length, "local", userId);
     await insertFileRow("f2", shaShared, bytes.length, "s3", userId);
-    // s3 rows fold into ONE summary warning; bytes stay in the bucket.
     await insertFileRow("f3", shaForeign, 10, "s3", userId);
-    // db rows carry their bytes inside the table NDJSON — silent skip.
     await insertFileRow("f4", shaDb, 20, "db", userId);
-    // Quarantine sentinel / unknown driver → per-row warning.
-    await insertFileRow("f5", shaUnknown, 30, "missing-since-restore", userId);
+    await insertFileRow("f5", shaUnknown, 30, "quarantined:backup-restore-missing-blob", userId);
 
     const { manifest, archivePath } = await writeArchiveV2({
       db,
       modules: ["files"],
-      blobsMode: "embedded",
-      stagingDir,
-      appName: "app",
-    });
-
-    const entries = await readArchive(archivePath);
-    const blobEntries = entries.filter(e => e.name.startsWith("blobs/"));
-    expect(blobEntries).toHaveLength(1);
-    expect(blobEntries[0]!.name).toBe(`blobs/${deriveStorageKey(shaShared)}`);
-    expect(blobEntries[0]!.data.equals(Buffer.from(bytes))).toBe(true);
-
-    expect(manifest.blobsMode).toBe("embedded");
-    expect(manifest.includeBlobs).toBe(true);
-    expect(manifest.blobs).toEqual({ count: 1, totalBytes: bytes.length });
-    // expectedBlobs lists EVERY referenced blob, on any driver, exported or not.
-    const key = (b: { sha256: string; storageDriver: string }): string => `${b.sha256}/${b.storageDriver}`;
-    expect([...manifest.expectedBlobs!].sort((a, b) => key(a).localeCompare(key(b)))).toEqual([
-      { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "local" },
-      { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "s3" },
-      { sha256: shaForeign, size: 10, storageKey: deriveStorageKey(shaForeign), storageDriver: "s3" },
-      { sha256: shaDb, size: 20, storageKey: deriveStorageKey(shaDb), storageDriver: "db" },
-      { sha256: shaUnknown, size: 30, storageKey: deriveStorageKey(shaUnknown), storageDriver: "missing-since-restore" },
-    ].sort((a, b) => key(a).localeCompare(key(b))));
-    // Exactly TWO warnings: one s3 summary (2 rows), one per-row unknown.
-    expect(manifest.warnings).toHaveLength(2);
-    expect(manifest.warnings).toContain("2 file(s) stored in S3 are not part of this export — back up the bucket directly");
-    expect(manifest.warnings.some(w => w.includes(shaUnknown) && w.includes("missing-since-restore"))).toBe(true);
-    // No warning mentions the db-driver row.
-    expect(manifest.warnings.some(w => w.includes(shaDb))).toBe(false);
-    expect(manifest.tables.find(t => t.name === "files")!.rowCount).toBe(5);
-  });
-
-  test("a missing local blob warns and is skipped — the export still succeeds", async () => {
-    const userId = await seedUser(db, "admin");
-    const shaPresent = "ab".repeat(32);
-    const shaMissing = "cd".repeat(32);
-    const bytes = new Uint8Array(1024).fill(7);
-    await setUpLocalBlob(shaPresent, bytes);
-    await insertFileRow("f1", shaPresent, bytes.length, "local", userId);
-    // Row exists but its blob file was never written (deleted from disk).
-    await insertFileRow("f2", shaMissing, 55, "local", userId);
-
-    const { manifest, archivePath } = await writeArchiveV2({
-      db,
-      modules: ["files"],
-      blobsMode: "embedded",
-      stagingDir,
-      appName: "app",
-    });
-
-    const entries = await readArchive(archivePath);
-    const blobEntries = entries.filter(e => e.name.startsWith("blobs/"));
-    expect(blobEntries).toHaveLength(1);
-    expect(blobEntries[0]!.name).toBe(`blobs/${deriveStorageKey(shaPresent)}`);
-    expect(blobEntries[0]!.data.equals(Buffer.from(bytes))).toBe(true);
-    // Counts reflect what was actually packed; the miss is a warning.
-    expect(manifest.blobs).toEqual({ count: 1, totalBytes: bytes.length });
-    expect(manifest.warnings).toHaveLength(1);
-    expect(manifest.warnings[0]).toContain(shaMissing);
-    // Both rows stay inventoried for the import side.
-    expect(manifest.expectedBlobs).toHaveLength(2);
-  });
-
-  test("blobsMode:none skips blobs/ entirely but still lists expectedBlobs", async () => {
-    const userId = await seedUser(db, "admin");
-    const sha = "ab".repeat(32);
-    const bytes = new Uint8Array(64).fill(1);
-    await setUpLocalBlob(sha, bytes);
-    await insertFileRow("f1", sha, bytes.length, "local", userId);
-
-    const { manifest, archivePath } = await writeArchiveV2({
-      db,
-      modules: ["files"],
-      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
 
     const entries = await readArchive(archivePath);
     expect(entries.some(e => e.name.startsWith("blobs/"))).toBe(false);
-    expect(manifest.blobsMode).toBe("none");
+
+    expect(manifest.blobsMode).toBe("external");
     expect(manifest.includeBlobs).toBe(false);
     expect(manifest.blobs).toEqual({ count: 0, totalBytes: 0 });
-    expect(manifest.expectedBlobs).toEqual([
-      { sha256: sha, size: bytes.length, storageKey: deriveStorageKey(sha), storageDriver: "local" },
-    ]);
-    // No export attempt → no inactive-driver warnings either.
+    // expectedBlobs lists EVERY referenced blob, on any driver.
+    const key = (b: { sha256: string; storageDriver: string }): string => `${b.sha256}/${b.storageDriver}`;
+    expect([...manifest.expectedBlobs!].sort((a, b) => key(a).localeCompare(key(b)))).toEqual([
+      { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "local" },
+      { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "s3" },
+      { sha256: shaForeign, size: 10, storageKey: deriveStorageKey(shaForeign), storageDriver: "s3" },
+      { sha256: shaDb, size: 20, storageKey: deriveStorageKey(shaDb), storageDriver: "db" },
+      { sha256: shaUnknown, size: 30, storageKey: deriveStorageKey(shaUnknown), storageDriver: "quarantined:backup-restore-missing-blob" },
+    ].sort((a, b) => key(a).localeCompare(key(b))));
+    // No per-blob export warnings — bytes are out of scope by design.
     expect(manifest.warnings).toEqual([]);
-    // Rows still export — restore degrades to v1 row-only semantics.
-    expect(parseNdjson(entries.find(e => e.name === "data/files.ndjson")!)).toHaveLength(1);
-  });
-
-  test("blobsMode:separate produces a data archive and a blobs-only archive", async () => {
-    const userId = await seedUser(db, "admin");
-    const shaA = "ab".repeat(32);
-    const shaB = "cd".repeat(32);
-    const bytesA = new Uint8Array(128 * 1024).fill(7);
-    const bytesB = new Uint8Array(64).fill(9);
-    await setUpLocalBlob(shaA, bytesA);
-    const keyB = deriveStorageKey(shaB);
-    await localDriver.put(keyB, bytesB.buffer as ArrayBuffer);
-    await insertFileRow("f1", shaA, bytesA.length, "local", userId);
-    await insertFileRow("f2", shaB, bytesB.length, "local", userId);
-
-    const result = await writeArchiveV2({
-      db,
-      modules: ["files"],
-      blobsMode: "separate",
-      stagingDir,
-      appName: "app",
-    });
-
-    expect(result.archivePath).toBe(resolve(stagingDir, "archive.tar.gz"));
-    expect(result.blobsArchivePath).toBe(resolve(stagingDir, "blobs.tar.gz"));
-    expect(result.blobsArchiveSize).toBeGreaterThan(0);
-    expect(existsSync(resolve(stagingDir, "blobs.tar.gz.partial"))).toBe(false);
-
-    // Data archive: manifest + NDJSON only, ZERO blobs/ entries.
-    const dataEntries = await readArchive(result.archivePath);
-    expect(dataEntries[0]!.name).toBe("manifest.json");
-    expect(dataEntries.some(e => e.name.startsWith("blobs/"))).toBe(false);
-    expect(parseNdjson(dataEntries.find(e => e.name === "data/files.ndjson")!)).toHaveLength(2);
-
-    const manifest = parseManifest(dataEntries);
-    expect(manifest.blobsMode).toBe("separate");
-    expect(manifest.includeBlobs).toBe(true);
-    expect(manifest.blobs).toEqual({ count: 2, totalBytes: bytesA.length + bytesB.length });
-
-    // Blobs archive: ONLY blob entries (no manifest), matching expectedBlobs.
-    const blobEntries = await readArchive(result.blobsArchivePath!);
-    expect(blobEntries.every(e => e.name.startsWith("blobs/"))).toBe(true);
-    expect(blobEntries.map(e => e.name).sort()).toEqual(
-      manifest.expectedBlobs!.map(b => `blobs/${b.storageKey}`).sort(),
-    );
-    const entryA = blobEntries.find(e => e.name === `blobs/${deriveStorageKey(shaA)}`)!;
-    expect(entryA.data.equals(Buffer.from(bytesA))).toBe(true);
-    const entryB = blobEntries.find(e => e.name === `blobs/${keyB}`)!;
-    expect(entryB.data.equals(Buffer.from(bytesB))).toBe(true);
+    // Rows still export in full.
+    expect(manifest.tables.find(t => t.name === "files")!.rowCount).toBe(5);
+    expect(parseNdjson(entries.find(e => e.name === "data/files.ndjson")!)).toHaveLength(5);
   });
 });
 
@@ -376,7 +256,6 @@ describe("writeArchiveV2 — blob-typed columns in NDJSON", () => {
     const { archivePath } = await writeArchiveV2({
       db,
       modules: ["blobtest"],
-      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
@@ -433,7 +312,6 @@ describe("writeArchiveV2 — redaction (token-route policy)", () => {
     const { manifest, archivePath } = await writeArchiveV2({
       db,
       modules: ["cron"],
-      blobsMode: "none",
       redacted: true,
       stagingDir,
       appName: "app",
@@ -461,7 +339,6 @@ describe("writeArchiveV2 — redaction (token-route policy)", () => {
     const { manifest, archivePath } = await writeArchiveV2({
       db,
       modules: ["cron"],
-      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
@@ -478,7 +355,6 @@ describe("writeArchiveV2 — staging hygiene", () => {
     const { archivePath } = await writeArchiveV2({
       db,
       modules: ["settings"],
-      blobsMode: "none",
       stagingDir,
       appName: "app",
     });
@@ -492,7 +368,6 @@ describe("writeArchiveV2 — staging hygiene", () => {
     expect(writeArchiveV2({
       db,
       modules: ["settings"],
-      blobsMode: "none",
       stagingDir,
       appName: "app",
       isCancelled: () => true,

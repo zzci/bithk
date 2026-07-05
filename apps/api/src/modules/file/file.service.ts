@@ -16,6 +16,36 @@ import { getActiveUploadDriver, getDriver } from "./storage/registry";
 export type FileRow = typeof files.$inferSelect;
 export type FileReferenceRow = typeof fileReferences.$inferSelect;
 
+// ─── Quarantine (FIX-062) ────────────────────────────────────────────────
+//
+// A backup restore quarantines `files` rows whose backing blob is absent by
+// rewriting `storage_driver` to `quarantined:<reason>` (see
+// `backup/restore.service.ts`). The sentinel can never be a registered
+// driver name, so every path that would resolve the driver must short-
+// circuit FIRST: serve paths answer a clean 404 and GC/release paths skip
+// the blob delete — never a 500 from `getDriver()` on the sentinel.
+
+/** Prefix of the `storage_driver` sentinel a backup restore writes. */
+export const QUARANTINED_DRIVER_PREFIX = "quarantined:";
+
+/** True when the row's backing blob is quarantined (missing from storage). */
+export function isQuarantinedFile(file: Pick<FileRow, "storageDriver">): boolean {
+  return file.storageDriver.startsWith(QUARANTINED_DRIVER_PREFIX);
+}
+
+/**
+ * The clean 404 every serve path answers for a quarantined row. The message
+ * carries the recovery story: put the bytes back at the content-addressed
+ * path and run a blob rescan (`backup:blob-rescan` / the admin endpoint).
+ */
+export function fileContentUnavailableError(): AppError {
+  return new AppError(
+    "File content is unavailable: the backing blob is missing from storage. Restore the blob to its content-addressed path and run a blob rescan to recover it.",
+    404,
+    "FILE_CONTENT_UNAVAILABLE",
+  );
+}
+
 // ─── Inline content URL ──────────────────────────────────────────────────
 //
 // URLs the server hands the frontend to render directly in an `<img>` (cover
@@ -616,6 +646,10 @@ async function syncDeleteBlob(
   db: AppDatabase,
   drained: DrainedBlob,
 ): Promise<void> {
+  // Quarantined row (FIX-062): there is no blob to delete and the row must
+  // survive for a later rescan heal — skip the driver call entirely.
+  if (isQuarantinedFile(drained))
+    return;
   // Multi-driver (FEAT-047): delete via the blob's OWN driver so db / s3 /
   // local all reclaim. An unknown driver name (a stale row from a removed
   // backend) is left for an operator rather than crashing the release.
@@ -729,6 +763,11 @@ export async function buildDownloadResponse(
   ref: FileReferenceRow,
   opts: DownloadResponseOpts,
 ): Promise<Response> {
+  // Quarantined row (FIX-062): the blob is gone from storage — a clean 404
+  // instead of `getDriver()` throwing on the sentinel (500).
+  if (isQuarantinedFile(file))
+    throw fileContentUnavailableError();
+
   const mt = file.mimetype;
   // Inline rendering is opt-in only for media types that browsers
   // cannot execute even when sniffing fails or the sniff prefix (first
@@ -817,6 +856,10 @@ export async function listUnreferencedFiles(db: AppDatabase, limit: number): Pro
 }
 
 export async function deleteUnreferencedFile(db: AppDatabase, file: FileRow): Promise<boolean> {
+  // Quarantined row (FIX-062): non-destructive — the row is kept so a blob
+  // rescan can heal it once the bytes are restored; the sweep skips it.
+  if (isQuarantinedFile(file))
+    return false;
   // Multi-driver (FEAT-047): reclaim via the blob's OWN driver. An unknown
   // driver name (stale row from a removed backend) is skipped, not crashed.
   let driver;

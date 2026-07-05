@@ -13,6 +13,33 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ### Changed
 
+- Backup file story reworked (FIX-062): backups are DB data only
+  (`manifest.blobsMode: "external"`) — exports no longer embed file bytes in
+  any mode (web option, CLI `--blobs`/`--no-blobs`, and the token-route
+  `blobs` field are gone; legacy inputs are ignored/warned). File bytes are
+  the operator's storage-tree (local) or bucket (S3) copy; content-addressed
+  keys keep DB rows and storage paths corresponding. Legacy blob-bearing
+  archives still import, and the `blobs.tar.gz` restore endpoint keeps
+  working.
+- Quarantined file rows (blob missing after a restore) now answer
+  `404 FILE_CONTENT_UNAVAILABLE` on every serve path (download, metadata,
+  thumbnail, share-public) instead of a 500, GC/release paths skip them
+  non-destructively, and the web preview renders a dedicated
+  "content unavailable" state (FIX-062).
+- Quarantine rescan (FIX-062): `POST /api/backup/v2/blob-rescans`, the admin
+  panel's "Rescan missing files" button, and CLI `backup:blob-rescan` probe
+  quarantined rows and heal those whose blob is back
+  (`{ scanned, healed, stillMissing }`); the same rescan runs automatically
+  at the end of every import apply.
+- Wipe imports are session-safe (FIX-062): the apply runner is detached from
+  the requesting identity, and a web wipe re-creates the operator's session
+  (same token) bound to the restored admin inside the merge transaction — no
+  forced logout mid-import.
+- Backup import replace mode removed (FIX-062): wipe-before-merge (FIX-061)
+  supersedes it. `mode: "replace"` on the v2 apply now answers
+  `400 REPLACE_MODE_REMOVED`; CLI `backup:import` drops `--mode` and
+  `--include-users` (`--mode replace` hard-errors pointing at `--wipe`).
+  The v1 JSON restore route is untouched.
 - Storage moved from a standalone admin nav item into a System Settings tab
   (UI-030). The `/admin/storage` route and its sidebar entry are removed; the
   storage configuration and server-files sections now live under

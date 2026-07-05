@@ -8,10 +8,11 @@
  *                                           stream a finished artifact
  *   DELETE /backup/v2/exports/:jobId        cancel running / discard finished
  *
- * R7: the trigger body takes `blobs: "embedded" | "separate" | "none"`
- * (default embedded); `includeBlobs` remains as a deprecated alias
- * (true→embedded, false→none; explicit `blobs` wins). Separate-mode jobs
- * expose a second `blobs` artifact on the download route.
+ * FIX-062: backups are DB data only — the trigger no longer takes a blob
+ * placement option (a legacy `blobs` / `includeBlobs` body field is ignored)
+ * and every job produces a single `data` artifact with
+ * `manifest.blobsMode: "external"`. File bytes are the operator's
+ * responsibility (copy the storage tree / bucket).
  *
  * Token-route parity (`*-via-token`) is Phase 6; the import path is
  * Phase 2/3. v1 routes are untouched.
@@ -37,11 +38,10 @@ import { getModuleNames } from "./registry";
 const RE_TIMESTAMP_CHARS = /[:.]/g;
 
 const jobParamSchema = z.object({ jobId: z.string() });
+// FIX-062: no blob placement option — a legacy `blobs` / `includeBlobs` body
+// field from an older client is stripped by zod and ignored.
 const exportV2BodySchema = z.object({
   modules: z.array(z.string()).min(1),
-  blobs: z.enum(["embedded", "separate", "none"]).optional(),
-  // Deprecated alias (true→embedded, false→none); `blobs` wins if both sent.
-  includeBlobs: z.boolean().optional(),
 });
 // Mirrors the poll handler's payload over `ExportJob` (export-job.service.ts).
 const exportArtifactSchema = z.object({
@@ -52,7 +52,7 @@ const exportJobStatusSchema = z.object({
   jobId: z.string(),
   state: z.enum(["pending", "running", "completed", "downloaded", "failed"]),
   modules: z.array(z.string()),
-  blobsMode: z.enum(["embedded", "separate", "none"]),
+  blobsMode: z.literal("external"),
   createdAt: z.union([z.string(), z.number()]),
   progress: z.object({
     tablesDone: z.number(),
@@ -100,7 +100,6 @@ export function backupExportV2Routes() {
       const db = c.get("db");
 
       const body = c.req.valid("json");
-      const blobsMode = body.blobs ?? (body.includeBlobs === false ? "none" : "embedded");
 
       const known = new Set(getModuleNames());
       const invalidModules = body.modules.filter(m => !known.has(m));
@@ -119,11 +118,11 @@ export function backupExportV2Routes() {
         resourceType: "system",
         resourceId: "database",
         resourceName: "database-backup-export",
-        detail: { modules: body.modules, blobs: blobsMode, via: "admin" },
+        detail: { modules: body.modules, blobs: "external", via: "admin" },
         result: "success",
       }, { critical: true });
 
-      const job = startExportJob(db, c.get("config"), { modules: body.modules, blobsMode }, c.get("logger"));
+      const job = startExportJob(db, c.get("config"), { modules: body.modules }, c.get("logger"));
       return c.json({ jobId: job.id }, 202);
     },
   );

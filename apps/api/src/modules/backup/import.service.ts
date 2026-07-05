@@ -164,7 +164,7 @@ const manifestSchema = z.object({
   // `blobsMode` derives from the `includeBlobs` alias below; absent
   // `expectedBlobs` stays undefined = "unknown expected set" (the blob
   // stage then leaves missing-blob detection to reconcile).
-  blobsMode: z.enum(["embedded", "separate", "none"]).optional(),
+  blobsMode: z.enum(["embedded", "separate", "none", "external"]).optional(),
   expectedBlobs: z.array(z.object({
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     size: z.number().int().nonnegative(),

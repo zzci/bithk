@@ -3494,6 +3494,23 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/backup/v2/blob-rescans": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Rescan quarantined files against the storage backend and heal restored blobs */
+        readonly post: operations["postBackupV2BlobRescans"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/backup/import": {
         readonly parameters: {
             readonly query?: never;
@@ -29349,9 +29366,6 @@ export interface operations {
             readonly content: {
                 readonly "application/json": {
                     readonly modules: readonly string[];
-                    /** @enum {string} */
-                    readonly blobs?: "embedded" | "separate" | "none";
-                    readonly includeBlobs?: boolean;
                 };
             };
         };
@@ -29871,9 +29885,6 @@ export interface operations {
             readonly content: {
                 readonly "application/json": {
                     readonly modules: readonly string[];
-                    /** @enum {string} */
-                    readonly blobs?: "embedded" | "separate" | "none";
-                    readonly includeBlobs?: boolean;
                 };
             };
         };
@@ -29998,8 +30009,8 @@ export interface operations {
                         /** @enum {string} */
                         readonly state: "pending" | "running" | "completed" | "downloaded" | "failed";
                         readonly modules: readonly string[];
-                        /** @enum {string} */
-                        readonly blobsMode: "embedded" | "separate" | "none";
+                        /** @constant */
+                        readonly blobsMode: "external";
                         readonly createdAt: string | number;
                         readonly progress: {
                             readonly tablesDone: number;
@@ -30431,8 +30442,8 @@ export interface operations {
                         readonly result: {
                             /** @constant */
                             readonly dryRun: false;
-                            /** @enum {string} */
-                            readonly mode: "merge" | "replace";
+                            /** @constant */
+                            readonly mode: "merge";
                             readonly tables: {
                                 readonly [key: string]: {
                                     readonly inserted: number;
@@ -30466,11 +30477,6 @@ export interface operations {
                                 readonly failed: number;
                                 readonly transformed: number;
                             };
-                            readonly replace?: {
-                                readonly tablesImported: number;
-                                readonly rowsImported: number;
-                                readonly includeUsers: boolean;
-                            };
                             readonly wipe?: {
                                 readonly tables: {
                                     readonly [key: string]: number;
@@ -30484,6 +30490,11 @@ export interface operations {
                                 readonly unreferenced: number;
                                 readonly missing: number;
                                 readonly expectedInSeparateArchive: number;
+                            };
+                            readonly rescan: {
+                                readonly scanned: number;
+                                readonly healed: number;
+                                readonly stillMissing: number;
                             };
                             readonly reconcile: {
                                 readonly checked: number;
@@ -30765,6 +30776,66 @@ export interface operations {
                             readonly code: string;
                             readonly message: string;
                             readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postBackupV2BlobRescans: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly report: {
+                            readonly scanned: number;
+                            readonly healed: number;
+                            readonly stillMissing: number;
                         };
                     };
                 };

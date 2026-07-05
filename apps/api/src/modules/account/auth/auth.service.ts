@@ -6,7 +6,7 @@ import type { Logger } from "@/shared/lib/logger";
 import type { AppEnv, User } from "@/shared/lib/types";
 import { Buffer } from "node:buffer";
 import { randomBytes } from "node:crypto";
-import { and, count as countFn, eq, inArray, lte, or } from "drizzle-orm";
+import { and, count as countFn, eq, inArray, lte, ne, or } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { openPkceVerifier, sealPkceVerifier } from "@/modules/account/auth/pkce-secret";
 import { pkceChallenges, sessions } from "@/modules/account/auth/schema";
@@ -626,8 +626,15 @@ export async function deleteSession(db: AppDatabase, sessionId: string) {
   await db.delete(sessions).where(eq(sessions.id, sessionId)).run();
 }
 
-export async function deleteUserSessions(db: AppDatabase, userId: string) {
-  await db.delete(sessions).where(eq(sessions.userId, userId)).run();
+/**
+ * Revoke every session of `userId`. `exceptSessionId` (FIX-062) spares one
+ * session — the wipe-import runner uses it so the operator's re-bound
+ * session survives the v1-parity revocation pass.
+ */
+export async function deleteUserSessions(db: AppDatabase, userId: string, exceptSessionId?: string) {
+  const byUser = eq(sessions.userId, userId);
+  const where = exceptSessionId === undefined ? byUser : and(byUser, ne(sessions.id, exceptSessionId));
+  await db.delete(sessions).where(where).run();
 }
 
 function isSessionExpired(expiresAt: string): boolean {

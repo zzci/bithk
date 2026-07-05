@@ -1,6 +1,6 @@
 import type { Headers } from "tar-stream";
 import type { BackupManifestV2, ManifestColumn, ManifestTable } from "./archive.service";
-import type { ImportApplyActor, ImportApplyMode } from "./import-apply";
+import type { ImportApplyActor } from "./import-apply";
 import type { ImportJob } from "./import.service";
 import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
@@ -24,8 +24,8 @@ import { settingsBackupContribution } from "@/modules/settings/settings.backup";
 import { AppError } from "@/shared/lib/errors";
 import { seedUser, stubLogger, testConfig, testNanoid } from "@/shared/test/route-harness";
 import { writeArchiveV2 } from "./archive.service";
-import { restoreBlobArchive } from "./blob-restore";
-import { __resetImportApplyForTests, readLiveSchemaJournal, startImportApply } from "./import-apply";
+import { rescanQuarantinedFiles, restoreBlobArchive } from "./blob-restore";
+import { __resetImportApplyForTests, startImportApply } from "./import-apply";
 import { __resetImportJobsForTests, prepareImport } from "./import.service";
 import { __resetBackupRegistryForTests, registerBackupContribution } from "./registry";
 import "@/modules/account";
@@ -70,7 +70,7 @@ interface TestEntry {
   readonly type?: Headers["type"];
 }
 
-async function archiveFile(entries: TestEntry[]): Promise<File> {
+async function packTarGz(entries: TestEntry[]): Promise<Uint8Array<ArrayBuffer>> {
   const pack = tarPack();
   const drained = (async () => {
     const out: Buffer[] = [];
@@ -81,7 +81,11 @@ async function archiveFile(entries: TestEntry[]): Promise<File> {
   for (const entry of entries)
     pack.entry({ name: entry.name, type: entry.type ?? "file" }, Buffer.from(entry.data ?? ""));
   pack.finalize();
-  return new File([Bun.gzipSync(await drained)], "backup.tar.gz", { type: "application/gzip" });
+  return Bun.gzipSync(await drained) as Uint8Array<ArrayBuffer>;
+}
+
+async function archiveFile(entries: TestEntry[]): Promise<File> {
+  return new File([await packTarGz(entries)], "backup.tar.gz", { type: "application/gzip" });
 }
 
 function col(name: string, type = "text", notNull = true, extra: Partial<ManifestColumn> = {}): ManifestColumn {
@@ -99,14 +103,17 @@ function settingsTableDef(): ManifestTable {
   };
 }
 
-/** Manifest pinned to the LIVE journal so replace-mode fixtures pass the schema gate. */
+// Journal values are informational since FIX-062 removed the replace-mode
+// schema gate — the merge engine never compares them.
+const TEST_JOURNAL = { lastIdx: 0, lastTag: "0000_test", entryCount: 1 };
+
 function baseManifest(overrides: Partial<BackupManifestV2> = {}): BackupManifestV2 {
   return {
     format: "bithk-backup",
     formatVersion: 2,
     exportedAt: "2026-06-10T00:00:00.000Z",
     app: { name: "app", version: "0.0.0", commit: "0000000" },
-    schema: { dialect: "sqlite", journal: readLiveSchemaJournal() },
+    schema: { dialect: "sqlite", journal: TEST_JOURNAL },
     redacted: false,
     includeBlobs: false,
     blobsMode: "none",
@@ -124,8 +131,8 @@ async function stagedJob(entries: TestEntry[], target: AppDatabase = db): Promis
   return prepareImport(target, config, await archiveFile(entries));
 }
 
-async function apply(job: ImportJob, mode: ImportApplyMode = "merge", includeUsers = false, target: AppDatabase = db): Promise<void> {
-  await startImportApply(target, job, { mode, includeUsers, actor: ACTOR }, stubLogger);
+async function apply(job: ImportJob, target: AppDatabase = db): Promise<void> {
+  await startImportApply(target, job, { actor: ACTOR }, stubLogger);
   await job.done;
 }
 
@@ -137,10 +144,41 @@ function sha256Of(data: Uint8Array): string {
   return new Bun.CryptoHasher("sha256").update(data).digest("hex");
 }
 
-// ─── Round trips ─────────────────────────────────────────────────────────
+function filesTableDef(): ManifestTable {
+  return {
+    name: "files",
+    module: "files",
+    file: "data/files.ndjson",
+    rowCount: 1,
+    primaryKey: ["id"],
+    columns: [
+      col("id"),
+      col("sha256"),
+      col("size", "integer"),
+      col("mimetype"),
+      col("storageDriver"),
+      col("storageKey"),
+      col("refCount", "integer"),
+      col("uploadedBy", "text", true, { references: "users.id" }),
+    ],
+  };
+}
+
+function usersTableDef(rowCount = 1): ManifestTable {
+  return {
+    name: "users",
+    module: "users",
+    file: "data/users.ndjson",
+    rowCount,
+    primaryKey: ["id"],
+    columns: [col("id"), col("oauthSub"), col("username"), col("name"), col("email"), col("role"), col("status")],
+  };
+}
+
+// ─── Round trips (FIX-062: DB-data-only export + external blobs) ─────────
 
 describe("merge apply — round trip", () => {
-  test("embedded export → merge into an empty DB → table equality + blobs on driver + zero quarantine", async () => {
+  test("export → import WITHOUT storage copy quarantines; copy bytes + rescan heals; download driver restored", async () => {
     const u1 = await seedUser(db, "admin");
     await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k1', 'v1', '2026-01-01T00:00:00Z')`);
     const bytes = new TextEncoder().encode("round-trip blob bytes");
@@ -151,89 +189,143 @@ describe("merge apply — round trip", () => {
       VALUES ('f1', ${sha}, ${bytes.length}, 'text/plain', 'local', ${deriveStorageKey(sha)}, 0, ${u1})
     `);
 
-    const { archivePath } = await writeArchiveV2({
+    const { archivePath, manifest } = await writeArchiveV2({
       db,
       modules: ["users", "settings", "files"],
-      blobsMode: "embedded",
       stagingDir: resolve(baseDir, "export-staging"),
       appName: "app",
     });
+    // FIX-062 export policy: no bytes, external marker, expected list intact.
+    expect(manifest.blobsMode).toBe("external");
+    expect(manifest.includeBlobs).toBe(false);
+    expect(manifest.blobs).toEqual({ count: 0, totalBytes: 0 });
+    expect(manifest.expectedBlobs).toEqual([
+      { sha256: sha, size: bytes.length, storageKey: deriveStorageKey(sha), storageDriver: "local" },
+    ]);
 
-    // Fresh empty deployment: second DB, second (empty) blob root.
+    // Fresh empty deployment WITHOUT copying the storage tree.
     const db2 = await createDb(resolve(baseDir, "db2.db"));
     __setLocalDriverRootForTests(resolve(baseDir, "blob-root-2"));
     try {
       const job = await prepareImport(db2, config, Bun.file(archivePath));
-      await apply(job, "merge", false, db2);
+      await apply(job, db2);
 
       expect(job.state).toBe("completed");
       const result = job.result!;
-      expect(result.dryRun).toBe(false);
       expect(result.mode).toBe("merge");
-      for (const table of ["users", "settings", "files"])
+      for (const table of ["users", "settings"])
         expect(await rows(db2, table)).toEqual(await rows(db, table));
-      expect(await localDriver.exists(deriveStorageKey(sha))).toBe(true);
-      expect(result.blobs).toMatchObject({ written: 1, skippedExisting: 0, failed: 0, missing: 0, expectedInSeparateArchive: 0 });
-      expect(result.reconcile).toEqual({ checked: 1, quarantined: 0 });
+      // The expected blob is reported missing and the row quarantined.
+      expect(result.blobs).toMatchObject({ written: 0, missing: 1 });
+      expect(result.rescan).toEqual({ scanned: 0, healed: 0, stillMissing: 0 });
+      expect(result.reconcile).toEqual({ checked: 1, quarantined: 1 });
+      const quarantined = await db2.all<{ storage_driver: string }>(sql`SELECT storage_driver FROM files WHERE id = 'f1'`);
+      expect(quarantined[0]!.storage_driver).toStartWith("quarantined:");
 
-      // Idempotence: a second identical import is pure duplicates + exists-skips.
-      const again = await prepareImport(db2, config, Bun.file(archivePath));
-      await apply(again, "merge", false, db2);
-      expect(again.state).toBe("completed");
-      expect(again.result!.totals.inserted).toBe(0);
-      expect(again.result!.totals.skippedDuplicate).toBe(3); // user + setting + file row
-      expect(again.result!.blobs).toMatchObject({ written: 0, skippedExisting: 1, failed: 0 });
-      expect(again.result!.reconcile).toEqual({ checked: 1, quarantined: 0 });
+      // Copy the blob to its content-addressed path, then rescan → healed.
+      await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
+      const rescan = await rescanQuarantinedFiles(db2, stubLogger);
+      expect(rescan).toEqual({ scanned: 1, healed: 1, stillMissing: 0 });
+      const healed = await db2.all<{ storage_driver: string }>(sql`SELECT storage_driver FROM files WHERE id = 'f1'`);
+      expect(healed[0]!.storage_driver).toBe("local");
+      // Re-running the rescan is a no-op.
+      expect(await rescanQuarantinedFiles(db2, stubLogger)).toEqual({ scanned: 0, healed: 0, stillMissing: 0 });
     }
     finally {
       db2.close();
     }
   });
 
-  test("R7: separate export → data import reports expected-in-separate → standalone blob restore heals to zero quarantine", async () => {
+  test("storage tree copied BEFORE import: end-of-apply rescan + reconcile leave zero quarantine", async () => {
     const u1 = await seedUser(db, "admin");
-    const bytes = new TextEncoder().encode("separate-mode blob");
+    const bytes = new TextEncoder().encode("pre-copied blob");
     const sha = sha256Of(bytes);
     await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
     await db.run(sql`
       INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
       VALUES ('f1', ${sha}, ${bytes.length}, 'text/plain', 'local', ${deriveStorageKey(sha)}, 0, ${u1})
     `);
-
-    const result = await writeArchiveV2({
+    const { archivePath } = await writeArchiveV2({
       db,
       modules: ["users", "files"],
-      blobsMode: "separate",
       stagingDir: resolve(baseDir, "export-staging"),
       appName: "app",
     });
-    expect(result.blobsArchivePath).toBeTruthy();
 
     const db2 = await createDb(resolve(baseDir, "db2.db"));
     __setLocalDriverRootForTests(resolve(baseDir, "blob-root-2"));
     try {
-      // Step 1 — data archive: rows import; the blob is EXPECTED in the
-      // separate archive (distinguished from genuinely-missing); reconcile
-      // quarantines the row until the bytes arrive.
-      const job = await prepareImport(db2, config, Bun.file(result.archivePath));
-      await apply(job, "merge", false, db2);
-      expect(job.state).toBe("completed");
-      expect(job.result!.blobs).toMatchObject({ written: 0, missing: 0, expectedInSeparateArchive: 1 });
-      expect(job.result!.reconcile).toEqual({ checked: 1, quarantined: 1 });
+      // Operator copies the storage tree FIRST (same content-addressed path).
+      await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
+      const job = await prepareImport(db2, config, Bun.file(archivePath));
+      await apply(job, db2);
 
-      // Step 2 — standalone blob restore of blobs.tar.gz.
-      const report = await restoreBlobArchive(db2, config, Bun.file(result.blobsArchivePath!), {}, stubLogger);
-      expect(report.written).toBe(1);
-      expect(report.failed).toBe(0);
-      expect(report.unquarantined).toBe(1);
-      expect(report.reconcile).toEqual({ checked: 1, quarantined: 0 });
-      expect(await localDriver.exists(deriveStorageKey(sha))).toBe(true);
+      expect(job.state).toBe("completed");
+      expect(job.result!.blobs).toMatchObject({ written: 0, missing: 0 });
+      expect(job.result!.reconcile).toEqual({ checked: 1, quarantined: 0 });
       const fileRow = await db2.all<{ storage_driver: string }>(sql`SELECT storage_driver FROM files WHERE id = 'f1'`);
       expect(fileRow[0]!.storage_driver).toBe("local");
     }
     finally {
       db2.close();
     }
+  });
+
+  test("back-compat: a legacy blob-embedded archive still imports its blob bytes", async () => {
+    const u1 = await seedUser(db, "admin");
+    const bytes = new TextEncoder().encode("legacy embedded blob");
+    const sha = sha256Of(bytes);
+    const manifest = baseManifest({
+      includeBlobs: true,
+      blobsMode: "embedded",
+      expectedBlobs: [{ sha256: sha, size: bytes.length, storageKey: deriveStorageKey(sha), storageDriver: "local" }],
+      modules: [{ name: "files", deps: ["users"] }],
+      tables: [filesTableDef()],
+      blobs: { count: 1, totalBytes: bytes.length },
+    });
+    const job = await stagedJob([
+      { name: "manifest.json", data: JSON.stringify(manifest) },
+      { name: "data/files.ndjson", data: `${JSON.stringify({ id: "f1", sha256: sha, size: bytes.length, mimetype: "text/plain", storageDriver: "local", storageKey: deriveStorageKey(sha), refCount: 0, uploadedBy: u1 })}\n` },
+      { name: `blobs/${deriveStorageKey(sha)}`, data: bytes },
+    ]);
+    await apply(job);
+
+    expect(job.state).toBe("completed");
+    expect(job.result!.blobs).toMatchObject({ written: 1, failed: 0, missing: 0 });
+    expect(job.result!.reconcile).toEqual({ checked: 1, quarantined: 0 });
+    expect(await localDriver.exists(deriveStorageKey(sha))).toBe(true);
+  });
+
+  test("back-compat: a legacy separate blobs.tar.gz still restores via the blob-restore endpoint machinery", async () => {
+    const u1 = await seedUser(db, "admin");
+    const bytes = new TextEncoder().encode("legacy separate blob");
+    const sha = sha256Of(bytes);
+    // Data archive marked `separate` (legacy) with no blob entries.
+    const manifest = baseManifest({
+      includeBlobs: true,
+      blobsMode: "separate",
+      expectedBlobs: [{ sha256: sha, size: bytes.length, storageKey: deriveStorageKey(sha), storageDriver: "local" }],
+      modules: [{ name: "files", deps: ["users"] }],
+      tables: [filesTableDef()],
+      blobs: { count: 1, totalBytes: bytes.length },
+    });
+    const job = await stagedJob([
+      { name: "manifest.json", data: JSON.stringify(manifest) },
+      { name: "data/files.ndjson", data: `${JSON.stringify({ id: "f1", sha256: sha, size: bytes.length, mimetype: "text/plain", storageDriver: "local", storageKey: deriveStorageKey(sha), refCount: 0, uploadedBy: u1 })}\n` },
+    ]);
+    await apply(job);
+    expect(job.state).toBe("completed");
+    expect(job.result!.blobs).toMatchObject({ written: 0, missing: 0, expectedInSeparateArchive: 1 });
+    expect(job.result!.reconcile).toEqual({ checked: 1, quarantined: 1 });
+
+    // The legacy blobs.tar.gz upload heals the quarantined row.
+    const blobsArchive = new File([await packTarGz([{ name: `blobs/${deriveStorageKey(sha)}`, data: bytes }])], "blobs.tar.gz");
+    const report = await restoreBlobArchive(db, config, blobsArchive, {}, stubLogger);
+    expect(report.written).toBe(1);
+    expect(report.unquarantined).toBe(1);
+    expect(report.reconcile).toEqual({ checked: 1, quarantined: 0 });
+    const fileRow = await db.all<{ storage_driver: string }>(sql`SELECT storage_driver FROM files WHERE id = 'f1'`);
+    expect(fileRow[0]!.storage_driver).toBe("local");
   });
 });
 
@@ -387,7 +479,6 @@ describe("merge apply — semantics & dry-run parity", () => {
     const { archivePath } = await writeArchiveV2({
       db,
       modules: ["users"],
-      blobsMode: "none",
       stagingDir: resolve(baseDir, "export-staging"),
       appName: "app",
     });
@@ -401,7 +492,7 @@ describe("merge apply — semantics & dry-run parity", () => {
       `);
 
       const job = await prepareImport(db2, config, Bun.file(archivePath));
-      await apply(job, "merge", false, db2);
+      await apply(job, db2);
 
       expect(job.state).toBe("completed");
       const result = job.result!;
@@ -429,7 +520,7 @@ describe("apply state machine", () => {
     ]);
     await apply(job);
     expect(job.state).toBe("completed");
-    await expect(startImportApply(db, job, { mode: "merge", includeUsers: false, actor: ACTOR }, stubLogger))
+    await expect(startImportApply(db, job, { actor: ACTOR }, stubLogger))
       .rejects
       .toMatchObject({ code: "IMPORT_ALREADY_APPLIED" });
   });
@@ -442,9 +533,9 @@ describe("apply state machine", () => {
     const jobA = await stagedJob(entries);
     const jobB = await stagedJob(entries);
 
-    await startImportApply(db, jobA, { mode: "merge", includeUsers: false, actor: ACTOR }, stubLogger);
+    await startImportApply(db, jobA, { actor: ACTOR }, stubLogger);
     // jobA is applying in the background; jobB must be refused NOW.
-    await expect(startImportApply(db, jobB, { mode: "merge", includeUsers: false, actor: ACTOR }, stubLogger))
+    await expect(startImportApply(db, jobB, { actor: ACTOR }, stubLogger))
       .rejects
       .toMatchObject({ code: "IMPORT_APPLY_IN_PROGRESS" });
     await jobA.done;
@@ -455,7 +546,7 @@ describe("apply state machine", () => {
     expect(jobB.result!.totals.skippedDuplicate).toBe(1);
   });
 
-  test("the backup.import.apply audit row is written with mode + per-table counts", async () => {
+  test("the backup.import.apply audit row is written with mode + per-table counts + rescan", async () => {
     const job = await stagedJob([
       { name: "manifest.json", data: JSON.stringify(baseManifest()) },
       { name: "data/settings.ndjson", data: SETTINGS_ROW },
@@ -464,138 +555,10 @@ describe("apply state machine", () => {
     const auditRow = await db.select().from(auditEvents).where(eq(auditEvents.action, "backup.import.apply")).get();
     expect(auditRow).toBeDefined();
     expect(auditRow!.actorId).toBe(ACTOR.id);
-    const detail = JSON.parse(auditRow!.detail!) as { mode: string; tables: Record<string, { inserted: number }> };
+    const detail = JSON.parse(auditRow!.detail!) as { mode: string; tables: Record<string, { inserted: number }>; rescan: unknown };
     expect(detail.mode).toBe("merge");
     expect(detail.tables.settings!.inserted).toBe(1);
-  });
-});
-
-// ─── Replace mode ────────────────────────────────────────────────────────
-
-describe("replace mode", () => {
-  test("delete-then-insert: live rows the archive replaces are gone", async () => {
-    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k_live', 'old', '2026-01-01T00:00:00Z')`);
-    const job = await stagedJob([
-      { name: "manifest.json", data: JSON.stringify(baseManifest()) },
-      { name: "data/settings.ndjson", data: SETTINGS_ROW },
-    ]);
-
-    await apply(job, "replace");
-    expect(job.state).toBe("completed");
-    expect(job.result!.mode).toBe("replace");
-    expect(job.result!.replace).toEqual({ tablesImported: 1, rowsImported: 1, includeUsers: false });
-    const keys = await db.all<{ key: string }>(sql`SELECT key FROM settings`);
-    expect(keys).toEqual([{ key: "k1" }]); // k_live deleted by replace
-  });
-
-  test("rejects a cross-schema archive (journal position mismatch) with a distinct error", async () => {
-    const live = readLiveSchemaJournal();
-    const manifest = baseManifest({
-      schema: { dialect: "sqlite", journal: { ...live, lastTag: "9999_other_schema" } },
-    });
-    const job = await stagedJob([
-      { name: "manifest.json", data: JSON.stringify(manifest) },
-      { name: "data/settings.ndjson", data: SETTINGS_ROW },
-    ]);
-    await expect(startImportApply(db, job, { mode: "replace", includeUsers: false, actor: ACTOR }, stubLogger))
-      .rejects
-      .toMatchObject({ code: "REPLACE_SCHEMA_MISMATCH" });
-    // A refused apply leaves the job retryable (e.g. in merge mode).
-    expect(job.state).toBe("validated");
-    await apply(job, "merge");
-    expect(job.state).toBe("completed");
-  });
-
-  test("includeUsers=true refuses locking out the applying admin", async () => {
-    const adminId = await seedUser(db, "admin");
-    const manifest = baseManifest({
-      modules: [{ name: "users", deps: [] }],
-      tables: [{
-        name: "users",
-        module: "users",
-        file: "data/users.ndjson",
-        rowCount: 1,
-        primaryKey: ["id"],
-        columns: [col("id"), col("oauthSub"), col("username"), col("name"), col("email"), col("role"), col("status")],
-      }],
-    });
-    const job = await stagedJob([
-      { name: "manifest.json", data: JSON.stringify(manifest) },
-      { name: "data/users.ndjson", data: `${JSON.stringify({ id: "someone-else", oauthSub: "s", username: "s", name: "s", email: "s@t", role: "admin", status: "active" })}\n` },
-    ]);
-    await expect(startImportApply(db, job, {
-      mode: "replace",
-      includeUsers: true,
-      actor: { ...ACTOR, id: adminId },
-    }, stubLogger)).rejects.toMatchObject({ code: "RESTORE_WOULD_LOCK_OUT" });
-    expect(job.state).toBe("validated");
-  });
-
-  test("includeUsers=false user-FK pre-flight rejects rows pointing at absent users", async () => {
-    const manifest = baseManifest({
-      modules: [{ name: "files", deps: ["users"] }],
-      tables: [{
-        name: "files",
-        module: "files",
-        file: "data/files.ndjson",
-        rowCount: 1,
-        primaryKey: ["id"],
-        columns: [
-          col("id"),
-          col("sha256"),
-          col("size", "integer"),
-          col("mimetype"),
-          col("storageDriver"),
-          col("storageKey"),
-          col("refCount", "integer"),
-          col("uploadedBy", "text", true, { references: "users.id" }),
-        ],
-      }],
-    });
-    const sha = "ab".repeat(32);
-    const job = await stagedJob([
-      { name: "manifest.json", data: JSON.stringify(manifest) },
-      { name: "data/files.ndjson", data: `${JSON.stringify({ id: "f1", sha256: sha, size: 1, mimetype: "t", storageDriver: "local", storageKey: deriveStorageKey(sha), refCount: 0, uploadedBy: "ghost" })}\n` },
-    ]);
-    await expect(startImportApply(db, job, { mode: "replace", includeUsers: false, actor: ACTOR }, stubLogger))
-      .rejects
-      .toMatchObject({ code: "RESTORE_FK_MISSING_USERS" });
-    expect(job.state).toBe("validated");
-  });
-
-  test("includeUsers=true restores users, clears sessions (forced re-auth), audits user.restored per user", async () => {
-    const adminId = await seedUser(db, "admin");
-    const victimId = await seedUser(db, "user");
-    await createSession(db, adminId, "tok-a", undefined, 3600);
-    await createSession(db, victimId, "tok-v", undefined, 3600);
-    await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('app.theme', 'dark', '2026-01-01T00:00:00Z')`);
-
-    // A real, schema-valid archive that includes the applying admin.
-    const { archivePath } = await writeArchiveV2({
-      db,
-      modules: ["users", "settings"],
-      blobsMode: "none",
-      stagingDir: resolve(baseDir, "export-staging"),
-      appName: "app",
-    });
-    const job = await prepareImport(db, config, Bun.file(archivePath));
-    await startImportApply(db, job, { mode: "replace", includeUsers: true, actor: { ...ACTOR, id: adminId } }, stubLogger);
-    await job.done;
-
-    expect(job.state).toBe("completed");
-    expect(job.result!.replace).toMatchObject({ includeUsers: true });
-
-    // One user.restored row per user in the archive.
-    const restored = await db.select().from(auditEvents).where(eq(auditEvents.action, "user.restored")).all();
-    expect(restored).toHaveLength(2);
-
-    // Replacing the users table cascades through the sessions FK — every
-    // pre-restore session is gone (v1 parity: forced re-auth).
-    expect(await db.all(sql`SELECT * FROM sessions`)).toHaveLength(0);
-
-    const applyAudit = await db.select().from(auditEvents).where(eq(auditEvents.action, "backup.import.apply")).get();
-    expect(applyAudit).toBeDefined();
-    expect(JSON.parse(applyAudit!.detail!)).toMatchObject({ mode: "replace", includeUsers: true });
+    expect(detail.rescan).toEqual({ scanned: 0, healed: 0, stillMissing: 0 });
   });
 });
 
@@ -609,7 +572,7 @@ describe("apply errors", () => {
     ]);
     job.state = "completed";
     try {
-      await startImportApply(db, job, { mode: "merge", includeUsers: false, actor: ACTOR }, stubLogger);
+      await startImportApply(db, job, { actor: ACTOR }, stubLogger);
       throw new Error("expected startImportApply to reject");
     }
     catch (err) {
@@ -619,19 +582,9 @@ describe("apply errors", () => {
   });
 });
 
-// ─── Wipe-before-merge (FIX-061) ─────────────────────────────────────────
+// ─── Wipe-before-merge (FIX-061) + session-safe wipe (FIX-062) ──────────
 
-describe("wipe-before-merge (FIX-061)", () => {
-  function usersTableDef(rowCount: number): ManifestTable {
-    return {
-      name: "users",
-      module: "users",
-      file: "data/users.ndjson",
-      rowCount,
-      primaryKey: ["id"],
-      columns: [col("id"), col("oauthSub"), col("username"), col("name"), col("email"), col("role"), col("status")],
-    };
-  }
+describe("wipe-before-merge (FIX-061/FIX-062)", () => {
   const wipeManifest = (rowCount = 1) => baseManifest({
     modules: [{ name: "users", deps: [] }, { name: "settings", deps: [] }],
     tables: [usersTableDef(rowCount), settingsTableDef()],
@@ -639,8 +592,8 @@ describe("wipe-before-merge (FIX-061)", () => {
   const archiveAdmin = (id: string, email = `${id}@archive.test`) =>
     JSON.stringify({ id, oauthSub: `sub-${id}`, username: id, name: id, email, role: "admin", status: "active" });
 
-  async function applyWipe(job: ImportJob, actorId: string): Promise<void> {
-    await startImportApply(db, job, { mode: "merge", includeUsers: false, wipeExisting: true, actor: { ...ACTOR, id: actorId } }, stubLogger);
+  async function applyWipe(job: ImportJob, actor: ImportApplyActor): Promise<void> {
+    await startImportApply(db, job, { wipeExisting: true, actor }, stubLogger);
     await job.done;
   }
 
@@ -650,13 +603,13 @@ describe("wipe-before-merge (FIX-061)", () => {
     await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k_live', 'old', '2026-01-01T00:00:00Z')`);
 
     // Web actor: the live admin, matched in the archive by EMAIL under a
-    // different id (cross-instance archive).
+    // different id (cross-instance archive). No sessionId → no preservation.
     const job = await stagedJob([
       { name: "manifest.json", data: JSON.stringify(wipeManifest()) },
       { name: "data/users.ndjson", data: `${archiveAdmin("adminx", `${liveAdmin}@test.com`)}\n` },
       { name: "data/settings.ndjson", data: SETTINGS_ROW },
     ]);
-    await applyWipe(job, liveAdmin);
+    await applyWipe(job, { ...ACTOR, id: liveAdmin });
 
     expect(job.state).toBe("completed");
     const result = job.result!;
@@ -674,6 +627,42 @@ describe("wipe-before-merge (FIX-061)", () => {
     expect(JSON.parse(auditRow!.detail!)).toMatchObject({ mode: "merge", wipeExisting: true, wipe: { total: 2 } });
   });
 
+  test("FIX-062: a web actor's session survives a wipe — same token re-bound to the archive admin matched by id", async () => {
+    const liveAdmin = await seedUser(db, "admin");
+    const sessionId = await createSession(db, liveAdmin, "tok-live", undefined, 3600);
+    const liveUser = await db.all<{ email: string; oauth_sub: string }>(sql`SELECT email, oauth_sub FROM users WHERE id = ${liveAdmin}`);
+
+    // The archive carries the SAME admin id (same-instance archive).
+    const job = await stagedJob([
+      { name: "manifest.json", data: JSON.stringify(wipeManifest()) },
+      { name: "data/users.ndjson", data: `${JSON.stringify({ id: liveAdmin, oauthSub: liveUser[0]!.oauth_sub, username: "admin", name: "Admin", email: liveUser[0]!.email, role: "admin", status: "active" })}\n` },
+      { name: "data/settings.ndjson", data: SETTINGS_ROW },
+    ]);
+    await applyWipe(job, { ...ACTOR, id: liveAdmin, sessionId });
+
+    expect(job.state).toBe("completed");
+    const sessions = await db.all<{ id: string; user_id: string }>(sql`SELECT id, user_id FROM sessions`);
+    expect(sessions).toEqual([{ id: sessionId, user_id: liveAdmin }]);
+  });
+
+  test("FIX-062: cross-instance wipe re-binds the session to the archive admin matched by email under a new id", async () => {
+    const liveAdmin = await seedUser(db, "admin");
+    const sessionId = await createSession(db, liveAdmin, "tok-live", undefined, 3600);
+
+    const job = await stagedJob([
+      { name: "manifest.json", data: JSON.stringify(wipeManifest()) },
+      { name: "data/users.ndjson", data: `${archiveAdmin("adminx", `${liveAdmin}@test.com`)}\n` },
+      { name: "data/settings.ndjson", data: SETTINGS_ROW },
+    ]);
+    await applyWipe(job, { ...ACTOR, id: liveAdmin, sessionId });
+
+    expect(job.state).toBe("completed");
+    // Same token, now bound to the restored admin's id.
+    const sessions = await db.all<{ id: string; user_id: string; access_token: string }>(sql`SELECT id, user_id, access_token FROM sessions`);
+    expect(sessions).toEqual([{ id: sessionId, user_id: "adminx", access_token: "tok-live" }]);
+    expect(await db.all(sql`PRAGMA foreign_key_check`)).toHaveLength(0);
+  });
+
   test("lockout guard: an archive without an active admin is refused BEFORE any deletion", async () => {
     await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k_live', 'keep', '2026-01-01T00:00:00Z')`);
     // Disabled admin + active plain user — nobody can hold the instance.
@@ -687,7 +676,7 @@ describe("wipe-before-merge (FIX-061)", () => {
       { name: "data/settings.ndjson", data: SETTINGS_ROW },
     ]);
 
-    await expect(startImportApply(db, job, { mode: "merge", includeUsers: false, wipeExisting: true, actor: ACTOR }, stubLogger))
+    await expect(startImportApply(db, job, { wipeExisting: true, actor: ACTOR }, stubLogger))
       .rejects
       .toMatchObject({ code: "WIPE_WOULD_LOCK_OUT" });
     // Refused before the state flip — nothing was deleted, job retryable.
@@ -705,7 +694,7 @@ describe("wipe-before-merge (FIX-061)", () => {
     ];
 
     const webJob = await stagedJob(entries);
-    await expect(startImportApply(db, webJob, { mode: "merge", includeUsers: false, wipeExisting: true, actor: { ...ACTOR, id: liveAdmin } }, stubLogger))
+    await expect(startImportApply(db, webJob, { wipeExisting: true, actor: { ...ACTOR, id: liveAdmin } }, stubLogger))
       .rejects
       .toMatchObject({ code: "WIPE_WOULD_LOCK_OUT" });
     expect(webJob.state).toBe("validated");
@@ -713,20 +702,9 @@ describe("wipe-before-merge (FIX-061)", () => {
 
     // A synthetic CLI actor (no live users row) only needs the >=1-active-admin check.
     const cliJob = await stagedJob(entries);
-    await applyWipe(cliJob, "cli");
+    await applyWipe(cliJob, { ...ACTOR, id: "cli" });
     expect(cliJob.state).toBe("completed");
     expect(await db.all(sql`SELECT id FROM users`)).toEqual([{ id: "stranger" }]);
-  });
-
-  test("wipeExisting is refused with replace mode", async () => {
-    const job = await stagedJob([
-      { name: "manifest.json", data: JSON.stringify(baseManifest()) },
-      { name: "data/settings.ndjson", data: SETTINGS_ROW },
-    ]);
-    await expect(startImportApply(db, job, { mode: "replace", includeUsers: false, wipeExisting: true, actor: ACTOR }, stubLogger))
-      .rejects
-      .toMatchObject({ code: "INVALID_APPLY_MODE" });
-    expect(job.state).toBe("validated");
   });
 
   test("flag off: apply carries no wipe key and audit detail is unchanged", async () => {

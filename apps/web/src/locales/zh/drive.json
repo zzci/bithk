@@ -163,6 +163,8 @@
     "loading": "正在加载预览…",
     "error": "无法加载此文件。",
     "download": "下载",
+    "unavailableTitle": "文件内容不可用",
+    "unavailableDescription": "该文件的数据在存储中缺失。管理员可将存储文件复制回来并执行缺失文件重扫以恢复。",
     "unsupportedTitle": "无法预览",
     "unsupportedDescription": "此文件类型无法预览，请下载后查看。",
     "spreadsheetTitle": "表格",

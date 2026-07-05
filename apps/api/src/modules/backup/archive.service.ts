@@ -1,30 +1,30 @@
 /**
- * Backup v2 ARCHIVE WRITER (PLAN-075 R1, R7).
+ * Backup v2 ARCHIVE WRITER (PLAN-075 R1, R7; FIX-062 blob retirement).
  *
  * Produces a staged `.tar.gz` whose layout is:
  *
  *     manifest.json                  # ALWAYS the first tar entry
  *     data/<table>.ndjson            # one file per table, dependency order
- *     blobs/<ab>/<cd>/<sha256>       # raw bytes of local-driver blobs
  *
- * Blob placement is governed by `blobsMode` (R7): `embedded` packs blobs
- * into the data archive (pre-R7 behavior), `none` skips blob bytes, and
- * `separate` writes a SECOND artifact `blobs.tar.gz` in the same staging
- * dir holding ONLY `blobs/` entries (no manifest inside) while the data
- * archive carries manifest + NDJSON only.
+ * Blob bytes are NEVER packed (FIX-062): backups are DB data only, marked
+ * `blobsMode: "external"` in the manifest. File bytes are the operator's
+ * responsibility — copy the storage tree (local) or the bucket (S3); restore
+ * correctness comes from DB-row ↔ storage-path correspondence (keys are
+ * content-addressed `ab/cd/<sha256>`). The manifest still lists EVERY
+ * referenced blob in `expectedBlobs` so the import side can report exactly
+ * which blobs are present/missing. The import path keeps reading legacy
+ * blob-bearing archives (`embedded` / `separate`) unchanged.
  *
  * Table NDJSON is staged to `<stagingDir>/tmp/` first because the tar header
- * needs each entry's size up front; blob sizes are known from `files.size`,
- * so blobs stream from the driver straight into the tar without temp copies.
- * Gzip uses Bun's built-in `CompressionStream("gzip")`; tar packing uses
- * `tar-stream`. Each artifact is written to `<name>.partial` and renamed
- * on success, so a `.partial` file is never downloadable.
+ * needs each entry's size up front. Gzip uses Bun's built-in
+ * `CompressionStream("gzip")`; tar packing uses `tar-stream`. The artifact
+ * is written to `<name>.partial` and renamed on success, so a `.partial`
+ * file is never downloadable.
  */
 import type { AnyColumn, Table } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { Pack } from "tar-stream";
 import type { AppDatabase } from "@/db";
-import type { FileStorageDriver } from "@/modules/file/storage/types";
 import { Buffer } from "node:buffer";
 import { once } from "node:events";
 import { existsSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
@@ -34,8 +34,6 @@ import { asc, getTableColumns, getTableName, gt, sql } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { pack as tarPack } from "tar-stream";
 import { BUILD_INFO } from "@/build-info";
-import { deriveStorageKey } from "@/modules/file/storage/key";
-import { getDriver } from "@/modules/file/storage/registry";
 import { ROOT_DIR } from "@/root";
 import { getDataModules, getTablesForModules, resolveModulesWithDeps } from "./registry";
 import { redactSecretFields } from "./secret-fields";
@@ -47,17 +45,6 @@ const STREAM_BATCH_SIZE = 1000;
 /** Tables carrying a blob-typed column batch smaller to bound row-buffer memory. */
 const BLOB_STREAM_BATCH_SIZE = 50;
 
-/**
- * Per-row blob export policy, keyed on `files.storage_driver` (FIX-053):
- * `local` rows stream bytes from the registered local driver; `s3` rows are
- * summarised in one warning (back up the bucket directly); `db` rows carry
- * their bytes inside the table NDJSON, so the blob stage skips them
- * silently; anything else (quarantine sentinel, unknown) warns per row.
- */
-const LOCAL_STORAGE_DRIVER = "local";
-const S3_STORAGE_DRIVER = "s3";
-const DB_STORAGE_DRIVER = "db";
-
 /** Thrown when the caller's abort flag flips mid-export. */
 export class ExportCancelledError extends Error {
   constructor() {
@@ -66,8 +53,14 @@ export class ExportCancelledError extends Error {
   }
 }
 
-/** R7 blob placement: embedded in the data archive, a separate artifact, or skipped. */
-export type BlobsMode = "embedded" | "separate" | "none";
+/**
+ * Blob placement marker. This exporter ALWAYS writes `external` (FIX-062:
+ * backups are DB data only; file bytes live in the operator-copied storage
+ * tree / bucket). The legacy R7 values (`embedded` / `separate` / `none`)
+ * remain in the type because the import side still reads archives that
+ * carry them.
+ */
+export type BlobsMode = "embedded" | "separate" | "none" | "external";
 
 /** A blob a `files` row references — listed in the manifest in EVERY mode. */
 export interface ExpectedBlob {
@@ -104,25 +97,26 @@ export interface BackupManifestV2 {
     readonly journal: { readonly lastIdx: number; readonly lastTag: string; readonly entryCount: number };
   };
   readonly redacted: boolean;
-  /** Deprecated alias of `blobsMode !== "none"` — kept for older readers. */
+  /** Deprecated alias of `blobsMode !== "none"` — always `false` since FIX-062 (no bytes packed). */
   readonly includeBlobs: boolean;
   /**
-   * R7 field — ALWAYS written by this exporter and first-class on the
-   * import side (Phase 3): legacy pre-R7 archives lack it, so the import
-   * parser derives it from the `includeBlobs` alias (`true → embedded`,
+   * ALWAYS `external` since FIX-062 — blob bytes live in the operator's
+   * storage tree/bucket copy, never in the archive. Legacy archives carry
+   * the R7 values; pre-R7 archives lack the field, so the import parser
+   * derives it from the `includeBlobs` alias (`true → embedded`,
    * `false → none`).
    */
   readonly blobsMode: BlobsMode;
   /**
-   * EVERY blob referenced by exported `files` rows, on any driver, in any
-   * mode (R7). Optional only because legacy pre-R7 archives lack the list —
+   * EVERY blob referenced by exported `files` rows, on any driver (R7).
+   * Optional only because legacy pre-R7 archives lack the list —
    * `undefined` means "unknown expected set" on import (the blob stage
    * falls back to reconcile for missing-blob detection).
    */
   readonly expectedBlobs?: readonly ExpectedBlob[];
   readonly modules: readonly { readonly name: string; readonly deps: readonly string[] }[];
   readonly tables: readonly ManifestTable[];
-  /** Blobs whose bytes this export actually packed (local-driver rows only). */
+  /** Blobs whose bytes the archive packs — always zero since FIX-062. */
   readonly blobs: { readonly count: number; readonly totalBytes: number };
   readonly warnings: readonly string[];
 }
@@ -138,11 +132,7 @@ export interface WriteArchiveV2Options {
   readonly db: AppDatabase;
   /** Module selection; transitive deps are resolved here. */
   readonly modules: readonly string[];
-  /** R7 blob placement; defaults to `embedded` (or via the alias below). */
-  readonly blobsMode?: BlobsMode;
-  /** Deprecated alias: `true→embedded`, `false→none`; `blobsMode` wins. */
-  readonly includeBlobs?: boolean;
-  /** Job staging directory; `tmp/` and the artifact(s) land inside it. */
+  /** Job staging directory; `tmp/` and the artifact land inside it. */
   readonly stagingDir: string;
   /** `APP_NAME` — recorded in `manifest.app.name`. */
   readonly appName: string;
@@ -161,9 +151,6 @@ export interface WriteArchiveV2Result {
   readonly manifest: BackupManifestV2;
   readonly archivePath: string;
   readonly archiveSize: number;
-  /** Set only in `separate` mode — the second artifact. */
-  readonly blobsArchivePath?: string;
-  readonly blobsArchiveSize?: number;
 }
 
 /**
@@ -379,12 +366,6 @@ function packEntryFromStream(
   });
 }
 
-interface BlobRef {
-  readonly sha256: string;
-  readonly storageKey: string;
-  readonly size: number;
-}
-
 /**
  * Pack one tar.gz artifact: `fill` writes the entries, the stream commits
  * via `<fileName>.partial` → rename so a partial file is never served.
@@ -430,7 +411,6 @@ async function packGzippedTar(
 
 export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<WriteArchiveV2Result> {
   const { db, stagingDir } = opts;
-  const blobsMode: BlobsMode = opts.blobsMode ?? (opts.includeBlobs === false ? "none" : "embedded");
   const redacted = opts.redacted === true;
   const isCancelled = opts.isCancelled ?? (() => false);
 
@@ -442,10 +422,10 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
   await mkdir(tmpDir, { recursive: true });
 
   let tablesDone = 0;
-  let blobBytesDone = 0;
-  let blobBytesTotal = 0;
+  // Blob byte counters stay in the progress shape for API compatibility but
+  // are always zero — no blob bytes are packed since FIX-062.
   const report = (): void => {
-    opts.onProgress?.({ tablesDone, tablesTotal: tables.length, blobBytesDone, blobBytesTotal });
+    opts.onProgress?.({ tablesDone, tablesTotal: tables.length, blobBytesDone: 0, blobBytesTotal: 0 });
   };
   report();
 
@@ -489,66 +469,19 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
     report();
   }
 
-  // 2. Blob selection: DISTINCT sha256 of exported `files` rows. The full
-  //    list lands in `manifest.expectedBlobs` in EVERY mode (so import can
-  //    report exactly which blobs are expected/missing). Bytes are only
-  //    exported in embedded/separate mode, per row's OWN `storage_driver`
-  //    (never "the active driver"): local rows stream from the local driver,
-  //    s3 rows get one summary warning, db rows travel inside their table
-  //    NDJSON, anything else warns per row. Local blobs are verified
-  //    readable HERE because the manifest — including `blobs.count` /
-  //    `totalBytes` — is the first tar entry and must be final before any
-  //    blob streams; an unreadable blob becomes a warning, never a failure.
+  // 2. Blob listing: DISTINCT sha256 of exported `files` rows. The full
+  //    list lands in `manifest.expectedBlobs` so the import side can report
+  //    exactly which blobs are present/missing on its storage backend. No
+  //    bytes are read or packed (FIX-062) — the operator copies the storage
+  //    tree/bucket; content-addressed keys keep the paths corresponding.
   const warnings: string[] = [];
-  const blobs: BlobRef[] = [];
   const expectedBlobs: ExpectedBlob[] = [];
-  let localDriver: FileStorageDriver | undefined;
   if (manifestTables.some(t => t.name === "files")) {
     const rows = await db.all<{ sha256: string; storage_key: string; size: number; storage_driver: string }>(
       sql`SELECT DISTINCT sha256, storage_key, size, storage_driver FROM files`,
     );
     for (const row of rows)
       expectedBlobs.push({ sha256: row.sha256, size: row.size, storageKey: row.storage_key, storageDriver: row.storage_driver });
-    if (blobsMode !== "none") {
-      try {
-        localDriver = getDriver(LOCAL_STORAGE_DRIVER);
-      }
-      catch {
-        localDriver = undefined;
-      }
-      let s3Skipped = 0;
-      for (const row of rows) {
-        switch (row.storage_driver) {
-          case LOCAL_STORAGE_DRIVER: {
-            let readable = false;
-            if (localDriver) {
-              try {
-                readable = await localDriver.exists(row.storage_key);
-              }
-              catch {
-                readable = false; // driver not initialised — same as missing
-              }
-            }
-            if (readable)
-              blobs.push({ sha256: row.sha256, storageKey: row.storage_key, size: row.size });
-            else
-              warnings.push(`blob not exported (unreadable from local storage): sha256=${row.sha256}`);
-            break;
-          }
-          case S3_STORAGE_DRIVER:
-            s3Skipped++;
-            break;
-          case DB_STORAGE_DRIVER:
-            break; // bytes ride inside the table NDJSON — nothing to warn about
-          default:
-            warnings.push(`blob not exported (storage driver '${row.storage_driver}'): sha256=${row.sha256}`);
-        }
-      }
-      if (s3Skipped > 0)
-        warnings.push(`${s3Skipped} file(s) stored in S3 are not part of this export — back up the bucket directly`);
-      blobBytesTotal = blobs.reduce((sum, b) => sum + b.size, 0);
-      report();
-    }
   }
 
   // 3. Manifest — always the first tar entry, so the importer can validate
@@ -560,47 +493,17 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
     app: { name: opts.appName, version: BUILD_INFO.version, commit: BUILD_INFO.commit },
     schema: { dialect: "sqlite", journal: readSchemaJournal() },
     redacted,
-    includeBlobs: blobsMode !== "none",
-    blobsMode,
+    includeBlobs: false,
+    blobsMode: "external",
     expectedBlobs,
     modules: modules.map(name => ({ name, deps: [...(registry[name]?.deps ?? [])] })),
     tables: manifestTables,
-    blobs: { count: blobs.length, totalBytes: blobBytesTotal },
+    blobs: { count: 0, totalBytes: 0 },
     warnings,
   };
 
-  // 4. Pack the artifact(s): the data archive always carries manifest +
-  //    tables (+ blobs when embedded); separate mode adds a second
-  //    blobs-only artifact. Each commits via `.partial` → rename.
-  const packBlobEntries = async (pack: Pack): Promise<void> => {
-    if (!localDriver)
-      return;
-    for (const blob of blobs) {
-      throwIfCancelled(isCancelled);
-      // Open the stream BEFORE the tar entry: the entry header commits the
-      // size up front, so a blob that vanished since the readability check
-      // must be skipped (with a warning) rather than corrupt the archive —
-      // one unreadable blob never fails the export job.
-      let source: ReadableStream<Uint8Array>;
-      try {
-        source = await localDriver.getStream(blob.storageKey);
-      }
-      catch (err) {
-        warnings.push(`blob not exported (read failed): sha256=${blob.sha256} — ${err instanceof Error ? err.message : String(err)}`);
-        continue;
-      }
-      await packEntryFromStream(
-        pack,
-        { name: `blobs/${deriveStorageKey(blob.sha256)}`, size: blob.size },
-        source,
-        (n) => {
-          blobBytesDone += n;
-          report();
-        },
-      );
-    }
-  };
-
+  // 4. Pack the artifact: manifest + tables, committed via `.partial` →
+  //    rename.
   const data = await packGzippedTar(stagingDir, "archive.tar.gz", async (pack) => {
     pack.entry({ name: "manifest.json" }, JSON.stringify(manifest, null, 2));
     for (const t of manifestTables) {
@@ -608,19 +511,12 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
       const staged = resolve(tmpDir, `${t.name}.ndjson`);
       await packEntryFromStream(pack, { name: t.file, size: statSync(staged).size }, Bun.file(staged).stream());
     }
-    if (blobsMode === "embedded")
-      await packBlobEntries(pack);
   });
-
-  let blobsArtifact: { path: string; size: number } | undefined;
-  if (blobsMode === "separate")
-    blobsArtifact = await packGzippedTar(stagingDir, "blobs.tar.gz", packBlobEntries);
 
   rmSync(tmpDir, { recursive: true, force: true });
   return {
     manifest,
     archivePath: data.path,
     archiveSize: data.size,
-    ...(blobsArtifact ? { blobsArchivePath: blobsArtifact.path, blobsArchiveSize: blobsArtifact.size } : {}),
   };
 }

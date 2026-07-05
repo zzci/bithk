@@ -40,8 +40,13 @@ import { getBackupStagingRoot } from "./export-job.service";
 import { importLimitsFor, malformedArchiveError, RE_BLOB_ENTRY, stageUpload, walkTarGzEntries } from "./import.service";
 import { reconcileRestoredFiles } from "./restore.service";
 
-/** Quarantine sentinel — kept in sync with `restore.service.ts` (private there). */
-const QUARANTINE_DRIVER = "quarantined:backup-restore-missing-blob";
+/**
+ * Quarantine sentinel prefix — kept in sync with `restore.service.ts`
+ * (which writes `quarantined:backup-restore-missing-blob`) and the file
+ * module's `QUARANTINED_DRIVER_PREFIX`. Matched as a prefix so any future
+ * quarantine reason heals through the same rescan.
+ */
+const QUARANTINE_PREFIX = "quarantined:";
 
 // ─── Shared per-entry primitive ──────────────────────────────────────────
 
@@ -75,26 +80,40 @@ async function verifyAndPutBlob(
   return "written";
 }
 
-// ─── Un-quarantine ───────────────────────────────────────────────────────
+// ─── Un-quarantine / rescan ──────────────────────────────────────────────
+
+/** Rescan outcome (FIX-062): cheap — only quarantined rows are probed. */
+export interface BlobRescanReport {
+  /** Quarantined `files` rows probed against the active driver. */
+  readonly scanned: number;
+  /** Rows whose blob is back — restored to the active driver. */
+  readonly healed: number;
+  /** Rows still without a backing blob — left quarantined. */
+  readonly stillMissing: number;
+}
 
 /**
  * Reverse of `reconcileRestoredFiles`'s quarantine: every `files` row on
  * the quarantine sentinel whose blob NOW exists on the active driver is
  * restored to the active driver, with `ref_count` recounted from
- * `file_references`. Runs after every blob import so a replace-mode apply
+ * `file_references`. Runs after every blob import so an apply
  * (which reconciles before blobs arrive) and the standalone blob restore
- * both heal rows whose bytes just arrived.
+ * both heal rows whose bytes just arrived — and is exposed directly (FIX-062)
+ * as the CLI `backup:blob-rescan` and the admin blob-rescan endpoint, the
+ * path-correspondence heal for operators who copy the storage tree AFTER a
+ * DB-only import. Scans ONLY quarantined rows, so it is cheap enough to run
+ * at the end of every import apply.
  */
-export async function unquarantineRestoredFiles(db: AppDatabase, logger?: Logger): Promise<number> {
+export async function rescanQuarantinedFiles(db: AppDatabase, logger?: Logger): Promise<BlobRescanReport> {
   let driver: FileStorageDriver;
   try {
     driver = getActiveDriver();
   }
   catch {
-    return 0;
+    return { scanned: 0, healed: 0, stillMissing: 0 };
   }
   const rows = await db.all<{ id: string; sha256: string }>(sql`
-    SELECT id, sha256 FROM files WHERE storage_driver = ${QUARANTINE_DRIVER}
+    SELECT id, sha256 FROM files WHERE storage_driver LIKE ${`${QUARANTINE_PREFIX}%`}
   `);
   let restored = 0;
   for (const row of rows) {
@@ -129,7 +148,12 @@ export async function unquarantineRestoredFiles(db: AppDatabase, logger?: Logger
     restored++;
     logger?.info({ fileId: row.id }, "blob restore: backing blob arrived; row un-quarantined");
   }
-  return restored;
+  return { scanned: rows.length, healed: restored, stillMissing: rows.length - restored };
+}
+
+/** Healed-count view of {@link rescanQuarantinedFiles} — the blob-import stages only report this number. */
+export async function unquarantineRestoredFiles(db: AppDatabase, logger?: Logger): Promise<number> {
+  return (await rescanQuarantinedFiles(db, logger)).healed;
 }
 
 // ─── Stage 5: blob import from the staged DATA archive ──────────────────
@@ -232,6 +256,12 @@ export async function importArchiveBlobs(
       continue;
     if (manifest.blobsMode === "separate") {
       report.expectedInSeparateArchive++;
+    }
+    else if (manifest.blobsMode === "external") {
+      // FIX-062 archives never carry bytes — the operator copies the storage
+      // tree/bucket; a rescan heals the quarantined rows once the bytes land.
+      report.missing++;
+      warnings.push(`expected blob ${sha} is not present on the storage backend — copy the storage tree/bucket, then run a blob rescan`);
     }
     else {
       report.missing++;

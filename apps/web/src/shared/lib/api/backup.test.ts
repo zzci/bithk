@@ -55,15 +55,15 @@ describe("export job", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("starts an export via POST with modules and blobs mode", async () => {
+  it("starts an export via POST with modules only (FIX-062: no blobs option)", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ jobId: "j1" }));
     const { result } = renderHook(() => useStartBackupExport(), { wrapper: makeWrapper() });
-    const res = await result.current.mutateAsync({ modules: ["file"], blobs: "separate" });
+    const res = await result.current.mutateAsync({ modules: ["file"] });
     expect(res.jobId).toBe("j1");
     const [url, init] = call();
     expect(url).toBe("/api/backup/v2/exports");
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({ modules: ["file"], blobs: "separate" });
+    expect(JSON.parse(String(init?.body))).toEqual({ modules: ["file"] });
   });
 
   it("cancels an export via DELETE", async () => {
@@ -97,11 +97,11 @@ describe("import job", () => {
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useApplyBackupImport(), { wrapper: makeWrapper(queryClient) });
 
-    await result.current.mutateAsync({ importId: "imp1", mode: "replace", includeUsers: true });
+    await result.current.mutateAsync({ importId: "imp1", wipeExisting: true });
 
     const [url, init] = call();
     expect(url).toBe("/api/backup/v2/imports/imp1/apply");
-    expect(JSON.parse(String(init?.body))).toEqual({ mode: "replace", includeUsers: true });
+    expect(JSON.parse(String(init?.body))).toEqual({ wipeExisting: true });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: backupKeys.importJob("imp1") });
   });
 

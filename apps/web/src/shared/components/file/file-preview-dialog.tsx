@@ -29,6 +29,7 @@ import type { DriveEntry } from "@/shared/lib/api/drive";
 import {
   Download,
   FileText,
+  FileWarning,
   Focus,
   History,
   Maximize2,
@@ -52,7 +53,7 @@ import { Button } from "@/shared/components/ui/button";
 import { FullscreenDialog } from "@/shared/components/ui/fullscreen-dialog";
 import { Spinner } from "@/shared/components/ui/spinner";
 import { downloadDriveEntry, useUploadVersion } from "@/shared/lib/api/drive";
-import { httpRaw } from "@/shared/lib/http";
+import { HttpError, httpRaw } from "@/shared/lib/http";
 import { retypeBlobToMime } from "@/shared/lib/preview-blob";
 import { cn } from "@/shared/lib/utils";
 
@@ -105,6 +106,10 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
   const [initialContent, setInitialContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // FIX-062: the API answers 404 FILE_CONTENT_UNAVAILABLE for quarantined
+  // rows (blob missing from storage) — rendered as a dedicated state, not a
+  // generic error banner over a broken preview.
+  const [unavailable, setUnavailable] = useState(false);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [windowWidth, setWindowWidth] = useState(() =>
     typeof window === "undefined" ? 1280 : window.innerWidth);
@@ -166,6 +171,7 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
     const token = ++loadTokenRef.current;
     setLoading(true);
     setError(null);
+    setUnavailable(false);
     setContent("");
     setInitialContent("");
     setMarkdownEditing(false);
@@ -211,7 +217,10 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
     catch (err) {
       if (signal.aborted || token !== loadTokenRef.current)
         return;
-      setError(errorMessage(err));
+      if (err instanceof HttpError && err.code === "FILE_CONTENT_UNAVAILABLE")
+        setUnavailable(true);
+      else
+        setError(errorMessage(err));
     }
     finally {
       if (!signal.aborted && token === loadTokenRef.current)
@@ -581,6 +590,16 @@ export function FilePreviewDialog({ entry, open, onOpenChange, fetchContent, onD
                 ? <CodeEditor value={content} filename={file.filename} isDark={isDark} onChange={setContent} />
                 : <CodePreview code={content} filename={file.filename} isDark={isDark} />}
             </Suspense>
+          )}
+
+          {unavailable && !loading && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <FileWarning className="size-10 text-muted-foreground/50" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{t("preview.unavailableTitle")}</p>
+                <p className="text-xs text-muted-foreground">{t("preview.unavailableDescription")}</p>
+              </div>
+            </div>
           )}
 
           {kind === "unsupported" && !loading && (

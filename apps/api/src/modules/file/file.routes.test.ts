@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createDb } from "@/db";
 import { driveEntryFilePermissionHook } from "@/modules/drive/drive.file-permission";
 import { uploadDriveFile } from "@/modules/drive/drive.service";
@@ -146,5 +146,42 @@ describe("GET /files/:id/content", () => {
     const { cookie } = await sessionCookieFor(db, "user");
     const res = await buildApp().request(`/files/some-id/content`, { headers: { Cookie: cookie } });
     expect(res.status).toBe(404);
+  });
+});
+
+// ─── Quarantined rows (FIX-062) ───────────────────────────────────────────
+
+describe("quarantined files serve 404 FILE_CONTENT_UNAVAILABLE, never 500", () => {
+  async function quarantine(fileId: string): Promise<void> {
+    await db.run(sql`
+      UPDATE files SET storage_driver = 'quarantined:backup-restore-missing-blob' WHERE id = ${fileId}
+    `);
+  }
+
+  test("content download", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    const { fileId, refId } = await uploadOwnedFile(userId, new File(["hello"], "doc.txt", { type: "text/plain" }));
+    await quarantine(fileId);
+    const res = await buildApp().request(`/files/${fileId}/content?ref=${refId}`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(404);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("FILE_CONTENT_UNAVAILABLE");
+  });
+
+  test("metadata", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    const { fileId, refId } = await uploadOwnedFile(userId, new File(["hello"], "doc.txt", { type: "text/plain" }));
+    await quarantine(fileId);
+    const res = await buildApp().request(`/files/${fileId}/metadata?ref=${refId}`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(404);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("FILE_CONTENT_UNAVAILABLE");
+  });
+
+  test("inline thumbnail request", async () => {
+    const { userId, cookie } = await sessionCookieFor(db, "user");
+    const { fileId, refId } = await uploadOwnedFile(userId, new File([new Uint8Array([0x89, 0x50, 0x4E, 0x47])], "pic.png", { type: "image/png" }));
+    await quarantine(fileId);
+    const res = await buildApp().request(`/files/${fileId}/content?ref=${refId}&inline=true&thumb=320`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(404);
+    expect((await res.json() as { error: { code: string } }).error.code).toBe("FILE_CONTENT_UNAVAILABLE");
   });
 });
