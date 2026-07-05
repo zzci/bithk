@@ -14,7 +14,7 @@
 //      table at boot, so the source DB now has >=1 user and >=1 setting.
 //   3. STOP the source API so the offline CLI owns the DB exclusively.
 //   4. `bun src/index.ts backup:export <out>` against the SOURCE DB.
-//   5. `bun src/index.ts backup:import <out> --include-users` against a
+//   5. `bun src/index.ts backup:import <out>` against a
 //      FRESH (empty) DB — merge mode (default) inserts every row, and
 //      the CLI prints `inserted=<n>`.
 //   6. open the FRESH DB directly and assert the admin user + settings
@@ -280,7 +280,7 @@ describe("backup CLI export → import round-trip", () => {
     //    (migrates) for us — the target DB must not pre-exist. Default
     //    mode is merge, so every row inserts into the empty DB.
     const importRes = await runCli(
-      ["backup:import", archivePath(), "--include-users"],
+      ["backup:import", archivePath()],
       cliEnv(targetDbPath(), targetDir),
     );
     expect(importRes.exitCode, `import failed:\n${importRes.stdout}\n${importRes.stderr}`).toBe(0);
@@ -321,7 +321,7 @@ describe("backup CLI export → import round-trip", () => {
       // 2. EXPORT, then 3. IMPORT into a fresh empty DB.
       const exp = await runCli(["backup:export", seedArchive], cliEnv(srcDb, seedSrcDir));
       expect(exp.exitCode, `export failed:\n${exp.stdout}\n${exp.stderr}`).toBe(0);
-      const imp = await runCli(["backup:import", seedArchive, "--include-users"], cliEnv(dstDb, seedDstDir));
+      const imp = await runCli(["backup:import", seedArchive], cliEnv(dstDb, seedDstDir));
       expect(imp.exitCode, `import failed:\n${imp.stdout}\n${imp.stderr}`).toBe(0);
 
       // 4. Every backed-up table must round-trip with identical row counts.
@@ -405,7 +405,7 @@ describe("backup CLI export → import round-trip", () => {
       await tarFilesOnly(editDir, staleArchive);
 
       // 3. Import the stale archive into a fresh CURRENT-schema DB.
-      const imp = await runCli(["backup:import", staleArchive, "--include-users"], cliEnv(dstDb, dstDir));
+      const imp = await runCli(["backup:import", staleArchive], cliEnv(dstDb, dstDir));
       expect(imp.exitCode, `import failed:\n${imp.stdout}\n${imp.stderr}`).toBe(0);
 
       // 4. Every drive entry imported, and the column the archive lacked was
