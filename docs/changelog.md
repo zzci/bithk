@@ -46,6 +46,38 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   System Settings -> Storage with unchanged behavior. Storage i18n keys merged
   into the `settings` namespace.
 
+## v0.2.2 — 2026-07-05
+
+### Fixed
+
+- **Quarantined file rows now serve a clean 404 (`FILE_CONTENT_UNAVAILABLE`)
+  instead of a 500** on every download surface (files/thumbnails, item and
+  comment attachments, drive, public shares); GC skips them non-destructively
+  (FIX-062 A).
+- **Wipe imports no longer log the operator out**: the session is re-created
+  with the same token inside the import transaction, bound to the restored
+  admin (matched by id, else email/oauth_sub); import jobs run detached from
+  the requester and their reports are readable by any admin (FIX-062 D).
+
+### Added
+
+- **Missing-blob rescan**: `backup:blob-rescan` CLI, an admin endpoint +
+  panel button, and an automatic rescan at the end of every import — copy the
+  storage tree into place and quarantined rows heal themselves (FIX-062 B).
+
+### Changed
+
+- **Backups are DB-only**: archives no longer embed file bytes. Keep file
+  storage as files — copy the storage tree (local) or the bucket (S3); rows
+  and bytes correspond via content-addressed keys. Old blob-bearing archives
+  still import (FIX-062 C).
+
+### Removed
+
+- **Replace import mode** — superseded by merge + "wipe existing data first";
+  `mode=replace` now answers 400 `REPLACE_MODE_REMOVED`; CLI `--mode` and
+  `--include-users` dropped (FIX-062 E).
+
 ## v0.2.1 — 2026-07-05
 
 ### Fixed
