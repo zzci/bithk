@@ -289,20 +289,104 @@ describe("mapping rules (dry-run only)", () => {
     expect(report.totals.failed).toBe(0);
   });
 
-  test("rule 13: non-PK unique violation fails the row with the index name", async () => {
+  test("rule 11 upgrade: non-PK unique hit under a different PK skips and remaps (FIX-060)", async () => {
     const liveId = await seedUser(db, "user");
     const clash = { ...userRow("u9aaaaaa"), username: `user-${liveId}` };
     const report = run(mManifest([usersDef()]), { users: [clash] });
     const table = report.tables.users!;
     expect(table.inserted).toBe(0);
-    expect(table.failed.total).toBe(1);
-    expect(table.failed.sample).toEqual([{ rowId: "u9aaaaaa", reason: "unique-conflict(idx_users_username)" }]);
+    expect(table.failed.total).toBe(0);
+    expect(table.skippedDuplicate).toBe(1);
+    expect(table.remapped).toBe(1);
   });
 
   test("rule 15: the [REDACTED] sentinel inserts verbatim and warns", () => {
     const report = run(mManifest([settingsDef()]), { settings: [settingsRow("k1", "[REDACTED]")] });
     expect(report.tables.settings!.inserted).toBe(1);
     expect(report.warnings).toContain("redacted-secrets: settings contains 1 redacted value(s)");
+  });
+});
+
+// ─── FIX-060: unique-key remap + COMMIT safety net ────────────────────────
+
+function fileRow(id: string, uploadedBy: string): Record<string, unknown> {
+  return {
+    id,
+    sha256: id.slice(0, 2).repeat(32),
+    size: 1,
+    mimetype: "application/octet-stream",
+    storageDriver: "local",
+    storageKey: `xx/xx/${id}`,
+    refCount: 0,
+    uploadedBy,
+  };
+}
+
+function fileRefsDef(): ManifestTable {
+  return mTable("file_references", "files", [
+    col("id"),
+    col("fileId", "text", true, { references: "files.id" }),
+    col("ownerType"),
+    col("ownerId"),
+    col("filename"),
+    col("createdBy", "text", true, { references: "users.id" }),
+  ]);
+}
+
+describe("FIX-060: unique-key remap + COMMIT safety net", () => {
+  test("children of a unique-key-remapped parent land under the LIVE id", async () => {
+    const liveId = await seedUser(db, "user");
+    // Fresh-deploy collision shape: same oauth_sub, different id.
+    const incoming = { ...userRow("uAaaaaaa"), oauthSub: `sub-${liveId}` };
+    const report = runImportMerge(db, mManifest([usersDef(), filesDef()]), new Map([
+      ["users", [incoming]],
+      ["files", [fileRow("f1aaaaaa", "uAaaaaaa")]],
+    ]));
+
+    expect(report.tables.users!.skippedDuplicate).toBe(1);
+    expect(report.tables.users!.remapped).toBe(1);
+    expect(report.tables.files!.inserted).toBe(1);
+    expect(report.totals.failed).toBe(0);
+    const rows = await db.all<{ uploaded_by: string }>(sql`SELECT uploaded_by FROM files`);
+    expect(rows).toEqual([{ uploaded_by: liveId }]);
+  });
+
+  test("dry-run reports the same remap/skip outcomes as the apply that follows", async () => {
+    const liveId = await seedUser(db, "user");
+    const incoming = { ...userRow("uAaaaaaa"), oauthSub: `sub-${liveId}` };
+    const tables = (): Map<string, Record<string, unknown>[]> => new Map([
+      ["users", [incoming]],
+      ["files", [fileRow("f1aaaaaa", "uAaaaaaa")]],
+    ]);
+    const manifest = mManifest([usersDef(), filesDef()]);
+
+    const dryRun = runImportDryRun(db, manifest, tables());
+    const applied = runImportMerge(db, manifest, tables());
+    expect(applied.tables).toEqual(dryRun.tables);
+    expect(applied.totals).toEqual(dryRun.totals);
+  });
+
+  test("a parent that never lands: dependents deleted as failed(missing-parent) with cascade, no COMMIT abort", async () => {
+    const liveId = await seedUser(db, "user");
+    // Broken parent — NOT NULL `name` violates at insert, so the promised
+    // users row never lands; the file admitted on that promise must be
+    // deleted, and the file_reference pointing at the file cascades.
+    const broken = { ...userRow("uBbbbbbb"), name: null };
+    const report = runImportMerge(db, mManifest([usersDef(), filesDef(), fileRefsDef()]), new Map([
+      ["users", [broken]],
+      ["files", [fileRow("f1aaaaaa", "uBbbbbbb")]],
+      ["file_references", [{ id: "r1aaaaaa", fileId: "f1aaaaaa", ownerType: "item_attachment", ownerId: "x1", filename: "a.bin", createdBy: liveId }]],
+    ]));
+
+    expect(report.tables.users!.failed.total).toBe(1);
+    expect(report.tables.files!.inserted).toBe(0);
+    expect(report.tables.files!.failed.total).toBe(1);
+    expect(report.tables.files!.failed.sample).toEqual([{ rowId: "f1aaaaaa", reason: "missing-parent" }]);
+    expect(report.tables.file_references!.inserted).toBe(0);
+    expect(report.tables.file_references!.failed.total).toBe(1);
+    expect(report.tables.file_references!.failed.sample).toEqual([{ rowId: "r1aaaaaa", reason: "missing-parent" }]);
+    expect(await db.all(sql`SELECT * FROM files`)).toHaveLength(0);
+    expect(await db.all(sql`SELECT * FROM file_references`)).toHaveLength(0);
   });
 });
 
@@ -386,8 +470,8 @@ describe("dry-run isolation", () => {
     });
 
     expect(report.totals.inserted).toBe(2); // u1 + k2
-    expect(report.totals.skippedDuplicate).toBe(1); // k1
-    expect(report.totals.failed).toBe(1); // u2 username clash
+    expect(report.totals.skippedDuplicate).toBe(2); // k1 + u2 username clash (remapped)
+    expect(report.totals.failed).toBe(0);
     expect(await dbDump()).toBe(before);
   });
 

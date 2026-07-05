@@ -327,7 +327,7 @@ describe("merge apply — semantics & dry-run parity", () => {
     expect(await db.all(sql`SELECT * FROM keyless_notes`)).toHaveLength(2);
   });
 
-  test("a deferred-FK failure at COMMIT fails the apply atomically (no partial writes)", async () => {
+  test("FIX-060: a unique-key parent collision remaps children instead of aborting COMMIT", async () => {
     const u1 = await seedUser(db, "user");
     const manifest = baseManifest({
       modules: [{ name: "users", deps: [] }, { name: "settings", deps: [] }],
@@ -351,10 +351,10 @@ describe("merge apply — semantics & dry-run parity", () => {
         settingsTableDef(),
       ],
     });
-    // u2's insert fails (unique oauth_sub conflict with the live user), but
-    // the FK pre-check accepted the prefs row because u2 was in the
-    // incoming set → the deferred FK violation surfaces at COMMIT and the
-    // WHOLE transaction must roll back.
+    // u2x collides with the live user on the unique oauth_sub under a
+    // DIFFERENT id. Pre-FIX-060 this admitted the prefs row on the incoming
+    // promise and aborted the whole apply at COMMIT with a raw FK error;
+    // now the parent skips as remapped and the child lands under u1.
     const job = await stagedJob([
       { name: "manifest.json", data: JSON.stringify(manifest) },
       { name: "data/users.ndjson", data: `${JSON.stringify({ id: "u2x", oauthSub: `sub-${u1}`, username: "other", name: "o", email: "o@t" })}\n` },
@@ -363,11 +363,59 @@ describe("merge apply — semantics & dry-run parity", () => {
     ]);
 
     await apply(job);
-    expect(job.state).toBe("failed");
-    expect(job.error).toContain("FOREIGN KEY");
-    // Atomic rollback: nothing from the archive landed.
-    expect(await db.all(sql`SELECT * FROM settings`)).toHaveLength(0);
-    expect(await db.all(sql`SELECT * FROM user_preferences`)).toHaveLength(0);
+    expect(job.state).toBe("completed");
+    const result = job.result!;
+    expect(result.tables.users!.skippedDuplicate).toBe(1);
+    expect(result.tables.users!.remapped).toBe(1);
+    expect(result.tables.user_preferences!.inserted).toBe(1);
+    expect(result.totals.failed).toBe(0);
+    // Dry-run preview matches the apply outcome (FIX-060 point 4).
+    expect(result.tables).toEqual(job.report.tables);
+    // The child references the LIVE parent id.
+    const prefs = await db.all<{ user_id: string; key: string }>(sql`SELECT user_id, key FROM user_preferences`);
+    expect(prefs).toEqual([{ user_id: u1, key: "theme" }]);
+    expect(await db.all(sql`SELECT key FROM settings`)).toEqual([{ key: "k1" }]);
+  });
+
+  test("FIX-060 repro: two independently seeded deployments merge-import cleanly with remapped ids", async () => {
+    // Deployment A (source): admin created by the shared IdP.
+    await db.run(sql`
+      INSERT INTO users (id, oauth_sub, username, name, email, role, status, created_at, updated_at)
+      VALUES ('idA', 'dex-admin', 'admin-a', 'Admin', 'admin@bit.hk', 'admin', 'active', 't', 't')
+    `);
+    await db.run(sql`INSERT INTO user_preferences (user_id, key, value, updated_at) VALUES ('idA', 'theme', 'dark', 't')`);
+    const { archivePath } = await writeArchiveV2({
+      db,
+      modules: ["users"],
+      blobsMode: "none",
+      stagingDir: resolve(baseDir, "export-staging"),
+      appName: "app",
+    });
+
+    // Deployment B (target): SAME logical admin under a different id.
+    const db2 = await createDb(resolve(baseDir, "db2.db"));
+    try {
+      await db2.run(sql`
+        INSERT INTO users (id, oauth_sub, username, name, email, role, status, created_at, updated_at)
+        VALUES ('idB', 'dex-admin', 'admin-b', 'Admin', 'admin@bit.hk', 'admin', 'active', 't', 't')
+      `);
+
+      const job = await prepareImport(db2, config, Bun.file(archivePath));
+      await apply(job, "merge", false, db2);
+
+      expect(job.state).toBe("completed");
+      const result = job.result!;
+      expect(result.tables.users!.skippedDuplicate).toBe(1);
+      expect(result.tables.users!.remapped).toBe(1);
+      expect(result.tables.user_preferences!.inserted).toBe(1);
+      expect(result.totals.failed).toBe(0);
+      // The imported child row references B's live user id, not A's.
+      const prefs = await db2.all<{ user_id: string; key: string }>(sql`SELECT user_id, key FROM user_preferences`);
+      expect(prefs).toEqual([{ user_id: "idB", key: "theme" }]);
+    }
+    finally {
+      db2.close();
+    }
   });
 });
 
