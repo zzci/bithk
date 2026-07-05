@@ -331,8 +331,9 @@ export function runImportDryRun(
 
 /**
  * The committed merge apply (Phase 3): the exact dry-run row loop, but the
- * transaction COMMITS. An unexpected engine error (e.g. a deferred-FK
- * failure at COMMIT) aborts the whole transaction — no partial table writes.
+ * transaction COMMITS. An unexpected engine error aborts the whole
+ * transaction — no partial table writes. Dangling-FK rows never reach
+ * COMMIT: the safety net deletes them and reports failed(missing-parent).
  */
 export function runImportMerge(
   db: AppDatabase,
@@ -410,14 +411,27 @@ function runMergeEngine(
     db.transaction((tx) => {
       // Same cycle-tolerance as v1: FK checks defer to COMMIT. In dry-run
       // mode COMMIT never comes (rollback below); in apply mode the FK
-      // pre-check makes a COMMIT-time failure near-impossible, but if one
-      // occurs the whole transaction aborts (no partial commit).
+      // pre-check plus the pre-COMMIT safety net below keep the deferred
+      // check clean — a dangling row is deleted and reported per-row
+      // instead of aborting the transaction.
       tx.run(sql`PRAGMA defer_foreign_keys = 1`);
 
       const probe = (tableName: string, conds: { dbName: string; value: unknown }[]): boolean => {
         const where = conds.map(c => sql`${sql.identifier(c.dbName)} = ${c.value}`);
         const row = tx.get(sql`SELECT 1 FROM ${sql.identifier(tableName)} WHERE ${sql.join(where, sql` AND `)} LIMIT 1`) as unknown;
         return row !== null && row !== undefined;
+      };
+
+      // Duplicate probe that also returns the live row's single-column PK,
+      // so a unique-key hit can record an id remap (rule 11 upgrade).
+      const probePk = (lt: LiveTableView, conds: { dbName: string; value: unknown }[]): { hit: boolean; pk?: unknown } => {
+        const pkCol = lt.primaryKey.length === 1 ? lt.columns.get(lt.primaryKey[0]!) : undefined;
+        const select = pkCol ? sql.identifier(pkCol.dbName) : sql`1`;
+        const where = conds.map(c => sql`${sql.identifier(c.dbName)} = ${c.value}`);
+        const row = tx.get(sql`SELECT ${select} FROM ${sql.identifier(lt.name)} WHERE ${sql.join(where, sql` AND `)} LIMIT 1`) as unknown;
+        if (row === null || row === undefined)
+          return { hit: false };
+        return { hit: true, ...(pkCol ? { pk: Array.isArray(row) ? row[0] : (row as Record<string, unknown>)[pkCol.dbName] } : {}) };
       };
 
       // ── Transform pre-pass (rules 8/14): runs before column mapping ──
@@ -549,6 +563,29 @@ function runMergeEngine(
       // inserted references never bump the live row they point at.
       const recountFileIds = new Set<unknown>();
 
+      // COMMIT safety net bookkeeping (FIX-060): every inserted row carrying
+      // FK values is tracked with its rowid, so rows whose parent was only
+      // PROMISED by the incoming set (and never landed) can be deleted before
+      // COMMIT instead of tripping the deferred FK check.
+      interface TrackedFkEdge {
+        readonly refTable: string;
+        readonly refProp: string;
+        readonly refDbName: string;
+        readonly value: unknown;
+        readonly promised: boolean;
+      }
+      interface InsertedFkRow {
+        readonly table: string;
+        readonly rowid: unknown;
+        readonly rowId: string;
+        readonly edges: readonly TrackedFkEdge[];
+        /** Keys other rows may reference (for the in-memory cascade). */
+        readonly refKeys: readonly string[];
+        readonly report: ImportTableReport;
+      }
+      const edgeKey = (table: string, prop: string, value: unknown): string => `${table}.${prop} ${String(value)}`;
+      const insertedFkRows: InsertedFkRow[] = [];
+
       // Shared per-row pipeline: rule 11 duplicate probe, rule 12 FK
       // pre-check, insert with rule 13 error classification. Identical for
       // archive-mapped and transform-output rows.
@@ -576,6 +613,22 @@ function runMergeEngine(
             mapped[prop] = decodeBlobColumnValue(value);
         }
 
+        // Rule 14 (engine side, FIX-060): rewrite FK values through the
+        // id-map BEFORE the duplicate probe and the FK pre-check, so a
+        // parent remapped earlier in the run (by a transform or by the
+        // rule-11 unique-key skip below) redirects its children to the
+        // live row.
+        for (const [prop, value] of Object.entries(mapped)) {
+          if (value === null || value === undefined)
+            continue;
+          const ref = lt.columns.get(prop)?.references;
+          if (!ref)
+            continue;
+          const remappedId = idMap.get(`${ref.table} ${String(value)}`);
+          if (remappedId !== undefined)
+            mapped[prop] = remappedId;
+        }
+
         // Rule 11: PK (or first-unique-index) probe — existing row wins.
         if (keyProps.length > 0) {
           const keyConds: { dbName: string; value: unknown }[] = [];
@@ -595,7 +648,44 @@ function runMergeEngine(
           }
         }
 
+        // Rule 11 upgrade (FIX-060): on a key miss, probe every remaining
+        // UNIQUE index — a hit means the same logical row already lives
+        // under a different PK. Skip the row and, for single-column-PK
+        // tables, record the id remap (rule 14 vocabulary) so child FKs
+        // redirect to the live row.
+        for (const uniq of lt.uniqueIndexes) {
+          if (uniq.props.length === keyProps.length && uniq.props.every((p, i) => p === keyProps[i]))
+            continue; // already probed as the duplicate key above
+          const conds: { dbName: string; value: unknown }[] = [];
+          let probeable = true;
+          for (const prop of uniq.props) {
+            const value = mapped[prop];
+            const column = lt.columns.get(prop);
+            // NULL never conflicts in a SQLite unique index; absent → append.
+            if (value === undefined || value === null || !column) {
+              probeable = false;
+              break;
+            }
+            conds.push({ dbName: column.dbName, value });
+          }
+          if (!probeable)
+            continue;
+          const { hit, pk: livePk } = probePk(lt, conds);
+          if (!hit)
+            continue;
+          tableReport.skippedDuplicate++;
+          report.totals.skippedDuplicate++;
+          const pkProp = lt.primaryKey.length === 1 ? lt.primaryKey[0]! : undefined;
+          const incomingPk = pkProp ? mapped[pkProp] : undefined;
+          if (pkProp && incomingPk !== undefined && incomingPk !== null && livePk !== undefined && livePk !== null && livePk !== incomingPk) {
+            idMap.set(`${lt.name} ${String(incomingPk)}`, livePk);
+            tableReport.remapped = (tableReport.remapped ?? 0) + 1; // rule 14
+          }
+          return "skipped";
+        }
+
         // Rule 12: application-level FK pre-check (live ∪ incoming).
+        const fkEdges: TrackedFkEdge[] = [];
         for (const [prop, value] of Object.entries(mapped)) {
           const ref = lt.columns.get(prop)?.references;
           if (!ref || value === null || value === undefined)
@@ -604,10 +694,15 @@ function runMergeEngine(
           if (!refLive)
             continue; // FK target outside the registry — leave it to SQL
           const refCol = refLive.columns.get(ref.prop);
-          if (refCol && probe(ref.table, [{ dbName: refCol.dbName, value }]))
+          if (refCol && probe(ref.table, [{ dbName: refCol.dbName, value }])) {
+            fkEdges.push({ refTable: ref.table, refProp: ref.prop, refDbName: refCol.dbName, value, promised: false });
             continue; // live, or inserted earlier in this run
-          if (incoming.get(`${ref.table}.${ref.prop}`)?.has(value))
+          }
+          if (incoming.get(`${ref.table}.${ref.prop}`)?.has(value)) {
+            if (refCol)
+              fkEdges.push({ refTable: ref.table, refProp: ref.prop, refDbName: refCol.dbName, value, promised: true });
             continue; // forward reference within the to-be-inserted set
+          }
           return fail("missing-parent");
         }
 
@@ -616,6 +711,23 @@ function runMergeEngine(
         }
         catch (err) {
           return fail(classifyInsertError(lt, err));
+        }
+
+        if (fkEdges.length > 0) {
+          const ridRow = tx.get(sql`SELECT last_insert_rowid() AS rid`) as unknown;
+          const refKeys: string[] = [];
+          for (const [prop, value] of Object.entries(mapped)) {
+            if (value !== null && value !== undefined && referencedProps.has(`${lt.name}.${prop}`))
+              refKeys.push(edgeKey(lt.name, prop, value));
+          }
+          insertedFkRows.push({
+            table: lt.name,
+            rowid: Array.isArray(ridRow) ? ridRow[0] : (ridRow as { rid: unknown }).rid,
+            rowId: rowIdOf(rawRow, keyProps, index),
+            edges: fkEdges,
+            refKeys,
+            report: tableReport,
+          });
         }
 
         tableReport.inserted++;
@@ -739,6 +851,49 @@ function runMergeEngine(
           tableReport.fallbackColumns = [...fallbackUsed].sort();
         if (redacted > 0)
           report.warnings.push(`redacted-secrets: ${lt.name} contains ${redacted} redacted value(s)`);
+      }
+
+      // COMMIT safety net (FIX-060): rule 12 admits rows on the PROMISE that
+      // their parent sits in the to-be-inserted set, but that parent may
+      // have skipped (unique-key remap) or failed. Re-verify the promised
+      // edges against the live tree, delete dangling rows — cascading
+      // through this run's inserts in memory (pre-import rows never vanish,
+      // so only keys of rows deleted HERE can orphan another insert) — and
+      // count them failed(missing-parent). A merge import must never abort
+      // at COMMIT with a raw FK error.
+      const deletedKeys = new Set<string>();
+      const dropDanglingRow = (row: InsertedFkRow): void => {
+        tx.run(sql`DELETE FROM ${sql.identifier(row.table)} WHERE rowid = ${row.rowid}`);
+        row.report.inserted--;
+        report.totals.inserted--;
+        row.report.failed.total++;
+        report.totals.failed++;
+        if (row.report.failed.sample.length < MAX_FAILED_SAMPLES)
+          row.report.failed.sample.push({ rowId: row.rowId, reason: "missing-parent" });
+        for (const key of row.refKeys)
+          deletedKeys.add(key);
+      };
+      let survivors: InsertedFkRow[] = [];
+      for (const row of insertedFkRows) {
+        if (row.edges.some(e => e.promised && !probe(e.refTable, [{ dbName: e.refDbName, value: e.value }])))
+          dropDanglingRow(row);
+        else
+          survivors.push(row);
+      }
+      let cascading = deletedKeys.size > 0;
+      while (cascading) {
+        cascading = false;
+        const kept: InsertedFkRow[] = [];
+        for (const row of survivors) {
+          if (row.edges.some(e => deletedKeys.has(edgeKey(e.refTable, e.refProp, e.value)))) {
+            dropDanglingRow(row);
+            cascading = true;
+          }
+          else {
+            kept.push(row);
+          }
+        }
+        survivors = kept;
       }
 
       // Recount before COMMIT, from live file_references — the same SQL the
