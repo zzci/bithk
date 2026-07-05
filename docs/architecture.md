@@ -64,7 +64,6 @@ apps/
       app/
       shared/
 packages/
-  shared/      # shared utilities used by api and web
   tsconfig/    # shared tsconfig
 scripts/
 tests/
