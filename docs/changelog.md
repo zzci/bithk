@@ -11,6 +11,20 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.2 — 2026-07-06
+
+### Changed
+
+- **CLI restructured into a command registry** (FEAT-051 rework): the whole
+  CLI now lives in `apps/api/src/cli/` — every subcommand is one file wired
+  into a single registry, so commands are added / modified / retired per
+  release by editing one file + one registry line. Existing commands
+  (`healthcheck`, `migrate`, `backup:*`) are unchanged. The v0.3.1
+  `script:list` / `script:run <name>` pair is replaced by direct
+  `script:`-prefixed commands: run the blob migration as
+  `app script:rekey-legacy-blobs [--dry-run]`.
+
+
 ## v0.3.1 — 2026-07-06
 
 ### Added
