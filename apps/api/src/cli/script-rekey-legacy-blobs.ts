@@ -1,12 +1,17 @@
-import type { CliScript, CliScriptContext } from "./types";
+import type { CliCommand } from "./types";
+import type { Config } from "@/config";
+import type { AppDatabase } from "@/db";
+import type { Logger } from "@/shared/lib/logger";
+import { consola } from "consola";
 import { eq } from "drizzle-orm";
 import { QUARANTINED_DRIVER_PREFIX } from "@/modules/file/file.service";
 import { files } from "@/modules/file/schema";
 import { legacyContentAddressedKey, newStorageKey } from "@/modules/file/storage/key";
 import { getDriver } from "@/modules/file/storage/registry";
 import { ulidTimeMs } from "@/shared/lib/id";
+import { withRuntime } from "./runtime";
 
-// CHORE-004: one-shot migration of pre-REFACTOR-038 blobs from the retired
+// CHORE-004: one-shot migration of pre-v0.3.0 blobs from the retired
 // content-addressed layout (`ab/cd/<sha256>`) to the hour-bucketed layout
 // (`YYYYMMDDHH/<ulid>`). The target hour comes from the row id's ULID mint
 // time, so the directory reflects when the blob was actually uploaded.
@@ -18,16 +23,17 @@ import { ulidTimeMs } from "@/shared/lib/id";
 
 const LEGACY_SHA = /^[0-9a-f]{64}$/;
 
-interface RekeyReport {
-  scanned: number;
-  moved: number;
-  skipped: number;
-  failed: number;
+export interface RekeyContext {
+  readonly db: AppDatabase;
+  readonly config: Config;
+  readonly logger: Logger;
+  readonly dryRun: boolean;
 }
 
-async function run(ctx: CliScriptContext): Promise<number> {
+/** Exported for tests; the CLI command wraps this in the offline runtime. */
+export async function runRekeyLegacyBlobs(ctx: RekeyContext): Promise<number> {
   const { db, logger, dryRun } = ctx;
-  const report: RekeyReport = { scanned: 0, moved: 0, skipped: 0, failed: 0 };
+  const report = { scanned: 0, moved: 0, skipped: 0, failed: 0 };
 
   const rows = await db
     .select({
@@ -85,11 +91,15 @@ async function run(ctx: CliScriptContext): Promise<number> {
   }
 
   logger.info(report, dryRun ? "rekey dry-run complete" : "rekey complete");
+  consola.info(`rekey ${dryRun ? "dry-run " : ""}complete: scanned=${report.scanned} moved=${report.moved} skipped=${report.skipped} failed=${report.failed}`);
   return report.failed > 0 ? 1 : 0;
 }
 
-export const rekeyLegacyBlobs: CliScript = {
-  name: "rekey-legacy-blobs",
-  description: "Move pre-v0.3.0 blobs from ab/cd/<sha256> keys to the hour-bucketed YYYYMMDDHH/<ulid> layout (CHORE-004). Idempotent; supports --dry-run.",
-  run,
+export const rekeyLegacyBlobsCommand: CliCommand = {
+  command: "script:rekey-legacy-blobs",
+  description: "One-shot script (CHORE-004): move pre-v0.3.0 blobs from ab/cd/<sha256> keys to the hour-bucketed YYYYMMDDHH/<ulid> layout. Idempotent; supports --dry-run.",
+  options: [{ flag: "--dry-run", description: "Report what would move without writing anything" }],
+  async run(_args, opts) {
+    return withRuntime(ctx => runRekeyLegacyBlobs({ ...ctx, dryRun: opts.dryRun === true }));
+  },
 };

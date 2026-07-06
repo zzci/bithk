@@ -10,7 +10,7 @@ import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storag
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
 import { ulid, ulidTimeMs } from "@/shared/lib/id";
 import { seedUser, stubLogger, testConfig } from "@/shared/test/route-harness";
-import { rekeyLegacyBlobs } from "./rekey-legacy-blobs";
+import { runRekeyLegacyBlobs } from "./script-rekey-legacy-blobs";
 
 let db: AppDatabase;
 let baseDir: string;
@@ -66,7 +66,7 @@ describe("rekey-legacy-blobs (CHORE-004)", () => {
     const u1 = await seedUser(db, "user");
     const { id, legacyKey } = await seedLegacyBlob(u1, "legacy bytes");
 
-    expect(await rekeyLegacyBlobs.run(ctx())).toBe(0);
+    expect(await runRekeyLegacyBlobs(ctx())).toBe(0);
 
     const newKey = await keyOf(id);
     expect(newKey).toMatch(/^\d{10}\/[0-9a-hjkmnp-tv-z]{26}$/);
@@ -84,16 +84,16 @@ describe("rekey-legacy-blobs (CHORE-004)", () => {
   test("is idempotent: a second run skips already-migrated rows", async () => {
     const u1 = await seedUser(db, "user");
     await seedLegacyBlob(u1, "one");
-    await rekeyLegacyBlobs.run(ctx());
+    await runRekeyLegacyBlobs(ctx());
     // Re-run: nothing legacy-shaped remains; nothing fails.
-    expect(await rekeyLegacyBlobs.run(ctx())).toBe(0);
+    expect(await runRekeyLegacyBlobs(ctx())).toBe(0);
   });
 
   test("dry-run reports without touching rows or objects", async () => {
     const u1 = await seedUser(db, "user");
     const { id, legacyKey } = await seedLegacyBlob(u1, "untouched");
 
-    expect(await rekeyLegacyBlobs.run(ctx(true))).toBe(0);
+    expect(await runRekeyLegacyBlobs(ctx(true))).toBe(0);
 
     expect(await keyOf(id)).toBe(legacyKey);
     expect(await localDriver.exists(legacyKey)).toBe(true);
@@ -113,7 +113,7 @@ describe("rekey-legacy-blobs (CHORE-004)", () => {
       VALUES (${modernId}, ${"a".repeat(64)}, 1, 'text/plain', 'local', ${`2026070609/${modernId}`}, 1, ${u1})
     `);
 
-    expect(await rekeyLegacyBlobs.run(ctx())).toBe(0);
+    expect(await runRekeyLegacyBlobs(ctx())).toBe(0);
     expect(await keyOf("fq")).toBe(legacyContentAddressedKey(qSha));
     expect(await keyOf(modernId)).toBe(`2026070609/${modernId}`);
   });
@@ -122,7 +122,7 @@ describe("rekey-legacy-blobs (CHORE-004)", () => {
     const u1 = await seedUser(db, "user");
     const { id, legacyKey } = await seedLegacyBlob(u1, "gone", { withBytes: false });
 
-    expect(await rekeyLegacyBlobs.run(ctx())).toBe(1);
+    expect(await runRekeyLegacyBlobs(ctx())).toBe(1);
     expect(await keyOf(id)).toBe(legacyKey);
     expect(existsSync(resolve(baseDir, "blobs", legacyKey))).toBe(false);
   });

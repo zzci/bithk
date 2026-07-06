@@ -6,8 +6,8 @@
 
 ## Outcome
 
-Shipped as the first entry of the FEAT-051 CLI script library:
-`app script:run rekey-legacy-blobs [--dry-run]`.
+Shipped as the first `script:`-prefixed command of the FEAT-051 registry CLI:
+`app script:rekey-legacy-blobs [--dry-run]`.
 
 ## Scope (deferred by owner decision 2026-07-06)
 

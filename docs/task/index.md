@@ -193,4 +193,4 @@
 | [REFACTOR-038](REFACTOR-038.md) | Hour-based storage key layout (YYYYMMDDHH/ulid, UTC) | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FEAT-050](FEAT-050.md) | Unified presigned direct upload for all attachment surfaces | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [CHORE-004](CHORE-004.md) | Legacy blob re-key migration script (ab/cd/sha -> hour layout) | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
-| [FEAT-051](FEAT-051.md) | Bundled CLI script library (script:list / script:run) | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
+| [FEAT-051](FEAT-051.md) | Registry-based CLI: every command a versioned script file | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
