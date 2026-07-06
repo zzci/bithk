@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mimeMatchesContent, sniffKind } from "./mime-sniff";
+import { mimeFromFilename, mimeMatchesContent, sniffKind, sniffMime } from "./mime-sniff";
 
 function bytes(...vals: number[]): Uint8Array {
   return Uint8Array.from(vals);
@@ -108,5 +108,39 @@ describe("mimeMatchesContent — alias coverage", () => {
 
   test("7z bytes claiming application/zip are rejected", () => {
     expect(mimeMatchesContent("application/zip", bytes(0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C))).toBe(false);
+  });
+});
+
+describe("sniffMime (FIX-063)", () => {
+  test("returns the canonical mime for definite magic signatures", () => {
+    expect(sniffMime(bytes(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A))).toBe("image/png");
+    expect(sniffMime(bytes(0x25, 0x50, 0x44, 0x46, 0x2D, 0x31))).toBe("application/pdf");
+    expect(sniffMime(bytes(0x50, 0x4B, 0x03, 0x04))).toBe("application/zip");
+  });
+
+  test("never claims a type for plain text — JSON snapshots must fall to the extension map", () => {
+    expect(sniffMime(new TextEncoder().encode("{\"sheets\":{}}"))).toBeNull();
+    expect(sniffMime(new TextEncoder().encode("just words"))).toBeNull();
+  });
+
+  test("returns null for unrecognised binary noise", () => {
+    expect(sniffMime(bytes(0x00, 0x01, 0x02, 0x03, 0x04))).toBeNull();
+  });
+});
+
+describe("mimeFromFilename (FIX-063)", () => {
+  test("maps common extensions, case-insensitively", () => {
+    expect(mimeFromFilename("budget.sheet")).toBe("application/x-univer-sheet");
+    expect(mimeFromFilename("report.PDF")).toBe("application/pdf");
+    expect(mimeFromFilename("notes.md")).toBe("text/markdown");
+    expect(mimeFromFilename("data.csv")).toBe("text/csv");
+    expect(mimeFromFilename("payload.json")).toBe("application/json");
+  });
+
+  test("returns null for unknown or absent extensions", () => {
+    expect(mimeFromFilename("archive.xyz")).toBeNull();
+    expect(mimeFromFilename("noextension")).toBeNull();
+    expect(mimeFromFilename(".env")).toBeNull();
+    expect(mimeFromFilename("trailing.")).toBeNull();
   });
 });

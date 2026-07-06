@@ -106,8 +106,10 @@ export function resolvePreviewKind(mimetype: string, filename: string): PreviewK
   // Univer spreadsheets render in their dedicated editor route; authenticated
   // opens are redirected before this dialog mounts. Classify as unsupported so
   // any stray open (e.g. a public share) shows the download card, never a
-  // broken in-dialog render.
-  if (mime === UNIVER_SHEET_MIME)
+  // broken in-dialog render. Same `.sheet` suffix fallback as
+  // `isUniverSheetEntry` for rows whose mimetype was lost in transport and
+  // not yet repaired (FIX-063).
+  if (mime === UNIVER_SHEET_MIME || (!mime && ext === "sheet"))
     return "unsupported";
   // SVG is XSS-fragile; show its source instead of rendering it inline.
   if (mime === "image/svg+xml")

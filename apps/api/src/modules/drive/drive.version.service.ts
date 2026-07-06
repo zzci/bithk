@@ -29,26 +29,33 @@ function assertFileEntry(entry: DriveEntryRow): void {
 }
 
 /**
- * The storage driver the entry's CURRENT file lives on. A new version inherits
- * it (FEAT-047), so versions of a db-backed file stay in the DB and versions of
- * an uploaded file stay on its driver. Returns `undefined` when the reference /
- * file cannot be resolved, letting the caller fall back to the default upload
- * driver.
+ * The entry's CURRENT file's storage driver and mimetype. A new version
+ * inherits both: the driver (FEAT-047) so versions of a db-backed file stay in
+ * the DB, and the mimetype (FIX-063) as `declaredMime` — a version of a sheet
+ * is a sheet, and multipart transport loses the part's `Content-Type` (Bun
+ * drops it server-side), so the entry's stored type is the authority.
+ * `driverName` is `undefined` when the reference / file cannot be resolved or
+ * the file is quarantined (FIX-062), letting the upload fall back to the
+ * default driver; the mimetype is still inherited from a quarantined row.
  */
-async function currentEntryDriver(db: AppDatabase, entry: DriveEntryRow): Promise<string | undefined> {
+async function currentEntryFile(
+  db: AppDatabase,
+  entry: DriveEntryRow,
+): Promise<{ driverName: string | undefined; mimetype: string | undefined }> {
   if (!entry.fileReferenceId)
-    return undefined;
+    return { driverName: undefined, mimetype: undefined };
   const row = await db
-    .select({ storageDriver: files.storageDriver })
+    .select({ storageDriver: files.storageDriver, mimetype: files.mimetype })
     .from(fileReferences)
     .innerJoin(files, eq(fileReferences.fileId, files.id))
     .where(eq(fileReferences.id, entry.fileReferenceId))
     .get();
-  // A quarantined current file (FIX-062) has no resolvable driver — fall
-  // back to the default upload driver instead of inheriting the sentinel.
-  if (!row || isQuarantinedFile(row))
-    return undefined;
-  return row.storageDriver;
+  if (!row)
+    return { driverName: undefined, mimetype: undefined };
+  return {
+    driverName: isQuarantinedFile(row) ? undefined : row.storageDriver,
+    mimetype: row.mimetype || undefined,
+  };
 }
 
 /**
@@ -108,13 +115,20 @@ export async function uploadEntryVersion(
   input: UploadEntryVersionInput,
 ): Promise<readonly DriveVersionView[]> {
   assertFileEntry(input.entry);
-  const driverName = await currentEntryDriver(db, input.entry);
+  const current = await currentEntryFile(db, input.entry);
   const uploaded = await uploadAndReference(db, config, {
     file: input.file,
     ownerType: "drive_entry",
     ownerId: input.entry.id,
     uploadedBy: input.uploadedBy,
-    driverName,
+    driverName: current.driverName,
+    // Versions inherit the entry's mimetype (FIX-063): multipart transport
+    // drops `File.type`, and a version of a sheet is a sheet.
+    declaredMime: current.mimetype,
+    // Content identical to an existing version blob of this entry (e.g.
+    // "save as version" of unchanged content) reuses that version's
+    // reference instead of failing DUPLICATE_REFERENCE (FIX-063).
+    reuseExistingReference: true,
   });
 
   const pinned = input.entry.displayVersionId != null;
@@ -137,7 +151,10 @@ export async function uploadEntryVersion(
     });
   }
   catch (err) {
-    await releaseReference(db, config, { referenceId: uploaded.reference.id });
+    // A REUSED reference belongs to another version row — releasing it here
+    // would strand that row on a dangling id.
+    if (!uploaded.reusedReference)
+      await releaseReference(db, config, { referenceId: uploaded.reference.id });
     throw err;
   }
 
@@ -176,14 +193,28 @@ export async function overwriteEntryVersion(
     throw new AppError("Version not found", 404, "NOT_FOUND");
 
   const previousRefId = version.fileReferenceId;
-  const driverName = await currentEntryDriver(db, input.entry);
+  const current = await currentEntryFile(db, input.entry);
   const uploaded = await uploadAndReference(db, config, {
     file: input.file,
     ownerType: "drive_entry",
     ownerId: input.entry.id,
     uploadedBy: input.uploadedBy,
-    driverName,
+    driverName: current.driverName,
+    // Versions inherit the entry's mimetype (FIX-063): multipart transport
+    // drops `File.type`, and a version of a sheet is a sheet.
+    declaredMime: current.mimetype,
+    // Autosave content that dedups to one of this entry's own version blobs
+    // (user undid back to a previously saved state) must succeed, not fail
+    // DUPLICATE_REFERENCE (FIX-063): reuse the existing reference row.
+    reuseExistingReference: true,
   });
+
+  // Saved content identical to what this version already stores — a pure
+  // no-op: nothing to repoint, nothing to release.
+  if (uploaded.reference.id === previousRefId) {
+    const refreshed = await requireEntryRow(db, input.entry.id);
+    return listEntryVersions(db, refreshed);
+  }
 
   // Advance the entry's display pointer only when it was showing exactly this
   // version's blob (unpinned-and-latest, or pinned to it) — never yank the
@@ -205,13 +236,28 @@ export async function overwriteEntryVersion(
     });
   }
   catch (err) {
-    await releaseReference(db, config, { referenceId: uploaded.reference.id });
+    // A REUSED reference belongs to another version row — releasing it here
+    // would strand that row on a dangling id.
+    if (!uploaded.reusedReference)
+      await releaseReference(db, config, { referenceId: uploaded.reference.id });
     throw err;
   }
 
-  // Nothing references the old blob now — release it so the coalesced draft's
-  // prior bytes do not accrue as orphans.
-  await releaseReference(db, config, { referenceId: previousRefId });
+  // Release the overwritten blob so the coalesced draft's prior bytes do not
+  // accrue as orphans — but ONLY when no other version row of this entry still
+  // references it. References can be shared between version rows once a
+  // same-content save reused one (FIX-063); releasing a shared reference would
+  // dangle the sibling version.
+  const stillUsed = await db
+    .select({ id: driveFileVersions.id })
+    .from(driveFileVersions)
+    .where(and(
+      eq(driveFileVersions.driveEntryId, input.entry.id),
+      eq(driveFileVersions.fileReferenceId, previousRefId),
+    ))
+    .get();
+  if (!stillUsed)
+    await releaseReference(db, config, { referenceId: previousRefId });
 
   const refreshed = await requireEntryRow(db, input.entry.id);
   return listEntryVersions(db, refreshed);

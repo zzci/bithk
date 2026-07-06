@@ -115,6 +115,86 @@ export function sniffKind(buf: Uint8Array): SniffedKind | null {
   return null;
 }
 
+// Canonical MIME per definite magic-byte kind. `text` is deliberately
+// absent: the text heuristic is too weak to *claim* a type (JSON snapshots,
+// CSVs and source code all sniff as text), so `sniffMime` stays magic-only
+// and the extension map decides for text-like content.
+const KIND_MIME: Record<Exclude<SniffedKind, "text">, string> = {
+  "jpeg": "image/jpeg",
+  "png": "image/png",
+  "gif": "image/gif",
+  "bmp": "image/bmp",
+  "webp": "image/webp",
+  "tiff": "image/tiff",
+  "pdf": "application/pdf",
+  "zip": "application/zip",
+  "7z": "application/x-7z-compressed",
+};
+
+/**
+ * Best-effort MIME resolution from magic bytes alone (FIX-063). Returns the
+ * canonical MIME for a definite signature match, or `null` when the content
+ * carries no known signature (including plain text — see {@link KIND_MIME}).
+ * Used to recover the type of multipart uploads whose part `Content-Type`
+ * was dropped in transport (Bun's server-side `req.formData()`).
+ */
+export function sniffMime(buf: Uint8Array): string | null {
+  const kind = sniffKind(buf);
+  if (kind === null || kind === "text")
+    return null;
+  return KIND_MIME[kind];
+}
+
+// Small shared extension → MIME map (FIX-063), the fallback after magic-byte
+// sniffing for empty-mimetype uploads. `.sheet` is the Univer spreadsheet
+// snapshot (`UNIVER_SHEET_MIME` in the drive module — duplicated here because
+// shared/lib must not import module code).
+const EXTENSION_MIME: Record<string, string> = {
+  "sheet": "application/x-univer-sheet",
+  "pdf": "application/pdf",
+  "png": "image/png",
+  "jpg": "image/jpeg",
+  "jpeg": "image/jpeg",
+  "gif": "image/gif",
+  "webp": "image/webp",
+  "bmp": "image/bmp",
+  "tif": "image/tiff",
+  "tiff": "image/tiff",
+  "svg": "image/svg+xml",
+  "txt": "text/plain",
+  "log": "text/plain",
+  "md": "text/markdown",
+  "markdown": "text/markdown",
+  "csv": "text/csv",
+  "tsv": "text/tab-separated-values",
+  "json": "application/json",
+  "xml": "application/xml",
+  "html": "text/html",
+  "htm": "text/html",
+  "zip": "application/zip",
+  "7z": "application/x-7z-compressed",
+  "doc": "application/msword",
+  "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "xls": "application/vnd.ms-excel",
+  "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "ppt": "application/vnd.ms-powerpoint",
+  "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "mp3": "audio/mpeg",
+  "mp4": "video/mp4",
+};
+
+/**
+ * Resolve a MIME type from the filename extension, or `null` when the
+ * extension is unknown or absent. Case-insensitive; dotfiles (`.env`) and
+ * trailing-dot names have no extension.
+ */
+export function mimeFromFilename(filename: string): string | null {
+  const dot = filename.lastIndexOf(".");
+  if (dot <= 0 || dot === filename.length - 1)
+    return null;
+  return EXTENSION_MIME[filename.slice(dot + 1).toLowerCase()] ?? null;
+}
+
 /**
  * Verify the claimed MIME type matches what the magic bytes say.
  *

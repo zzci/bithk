@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
@@ -14,7 +14,7 @@ import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/s
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { buildDriveEntryDownloadResponse, createDriveFolder, deleteDriveEntryPermanently, uploadDriveFile } from "./drive.service";
 import { clearDisplayVersion, listEntryVersions, overwriteEntryVersion, setDisplayVersion, uploadEntryVersion } from "./drive.version.service";
-import { driveEntries } from "./schema";
+import { driveEntries, driveFileVersions, UNIVER_SHEET_MIME } from "./schema";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -242,5 +242,186 @@ describe("permanent delete releases every version reference exactly once", () =>
     const fileCount = await db.select({ value: count() }).from(files).get();
     expect(refCount?.value).toBe(0);
     expect(fileCount?.value).toBe(0);
+  });
+});
+
+// ─── FIX-063 ─────────────────────────────────────────────────────────────
+
+/** Every version reference resolves and each blob's refcount matches reality. */
+async function assertVersionIntegrity(entryId: string) {
+  expect(await db.all(sql`PRAGMA foreign_key_check`)).toHaveLength(0);
+  const versions = await db.select().from(driveFileVersions).where(eq(driveFileVersions.driveEntryId, entryId)).all();
+  for (const v of versions) {
+    const ref = await db.select().from(fileReferences).where(eq(fileReferences.id, v.fileReferenceId)).get();
+    expect(ref).toBeDefined();
+  }
+  const blobs = await db.select().from(files).all();
+  for (const blob of blobs) {
+    const refs = await db.select({ value: count() }).from(fileReferences).where(eq(fileReferences.fileId, blob.id)).get();
+    expect(blob.refCount).toBe(refs?.value ?? -1);
+  }
+}
+
+describe("version mimetype inheritance (FIX-063)", () => {
+  test("an empty-type upload of a new version inherits the entry mimetype", async () => {
+    const userId = await seedUser();
+    // Server-created sheets carry UNIVER_SHEET_MIME on their File.
+    const entry = await uploadDriveFile(db, config, {
+      ...personal(userId),
+      createdBy: userId,
+      file: new File(["{\"rev\":0}"], "plan.sheet", { type: UNIVER_SHEET_MIME }),
+    });
+    // Multipart transport drops File.type — the version arrives with "".
+    const versions = await uploadEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      file: new File(["{\"rev\":1}"], "plan.sheet"),
+      uploadedBy: userId,
+    });
+    expect(versions[0]!.mimetype).toBe(UNIVER_SHEET_MIME);
+
+    // Overwrite (the session-coalesced autosave) inherits it too.
+    const afterOverwrite = await overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: versions[0]!.id,
+      file: new File(["{\"rev\":2}"], "plan.sheet"),
+      uploadedBy: userId,
+    });
+    expect(afterOverwrite[0]!.mimetype).toBe(UNIVER_SHEET_MIME);
+    await assertVersionIntegrity(entry.id);
+  });
+});
+
+describe("same-content saves (FIX-063 Bug 2)", () => {
+  test("undo-to-saved-state autosave succeeds: rev0 -> rev1 -> rev2 -> rev0 again", async () => {
+    const userId = await seedUser();
+    const rev0 = "{\"rev\":0}";
+    const entry = await uploadDriveFile(db, config, {
+      ...personal(userId),
+      createdBy: userId,
+      file: new File([rev0], "plan.sheet", { type: UNIVER_SHEET_MIME }),
+    });
+    const created = await uploadEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      file: new File(["{\"rev\":1}"], "plan.sheet"),
+      uploadedBy: userId,
+    });
+    const sessionId = created[0]!.id;
+    await overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: sessionId,
+      file: new File(["{\"rev\":2}"], "plan.sheet"),
+      uploadedBy: userId,
+    });
+
+    // The user undoes back to rev0's exact content — this used to throw
+    // DUPLICATE_REFERENCE and permanently wedge the autosave loop.
+    const afterUndo = await overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: sessionId,
+      file: new File([rev0], "plan.sheet"),
+      uploadedBy: userId,
+    });
+    expect(afterUndo).toHaveLength(2);
+    const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await res.text()).toBe(rev0);
+    await assertVersionIntegrity(entry.id);
+  });
+
+  test("a shared reference survives the next overwrite — the sibling version never dangles", async () => {
+    const userId = await seedUser();
+    const rev0 = "{\"rev\":0}";
+    const entry = await uploadDriveFile(db, config, {
+      ...personal(userId),
+      createdBy: userId,
+      file: new File([rev0], "plan.sheet", { type: UNIVER_SHEET_MIME }),
+    });
+    const created = await uploadEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      file: new File(["{\"rev\":1}"], "plan.sheet"),
+      uploadedBy: userId,
+    });
+    const sessionId = created[0]!.id;
+    const v1Id = created[1]!.id;
+
+    // Undo to rev0: the session version now SHARES rev0's reference row.
+    await overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: sessionId,
+      file: new File([rev0], "plan.sheet"),
+      uploadedBy: userId,
+    });
+
+    // Fresh content again: the shared reference must NOT be released — the
+    // original version still points at it.
+    await overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: sessionId,
+      file: new File(["{\"rev\":3}"], "plan.sheet"),
+      uploadedBy: userId,
+    });
+    await assertVersionIntegrity(entry.id);
+
+    // Pinning back to the original version still serves rev0's bytes.
+    await setDisplayVersion(db, await rowOf(entry.id), v1Id);
+    const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await res.text()).toBe(rev0);
+  });
+
+  test("overwriting a version with its own current content is a no-op success", async () => {
+    const userId = await seedUser();
+    const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt", "first") });
+    const created = await uploadEntryVersion(db, config, { entry: await rowOf(entry.id), file: textFile("doc.txt", "draft"), uploadedBy: userId });
+    const sessionId = created[0]!.id;
+
+    const after = await overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: sessionId,
+      file: textFile("doc.txt", "draft"),
+      uploadedBy: userId,
+    });
+    expect(after).toHaveLength(2);
+    const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await res.text()).toBe("draft");
+    await assertVersionIntegrity(entry.id);
+  });
+
+  test("uploading a NEW version with content identical to an old version succeeds and shares the reference", async () => {
+    const userId = await seedUser();
+    const entry = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: textFile("doc.txt", "first") });
+    const versions = await uploadEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      file: textFile("doc.txt", "first"),
+      uploadedBy: userId,
+    });
+    expect(versions).toHaveLength(2);
+    const res = await buildDriveEntryDownloadResponse(db, config, personal(userId), entry.id, false);
+    expect(await res.text()).toBe("first");
+    await assertVersionIntegrity(entry.id);
+  });
+
+  test("permanent delete after reference sharing releases everything exactly once", async () => {
+    const userId = await seedUser();
+    const rev0 = "{\"rev\":0}";
+    const entry = await uploadDriveFile(db, config, {
+      ...personal(userId),
+      createdBy: userId,
+      file: new File([rev0], "plan.sheet", { type: UNIVER_SHEET_MIME }),
+    });
+    const created = await uploadEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      file: new File(["{\"rev\":1}"], "plan.sheet"),
+      uploadedBy: userId,
+    });
+    // Share rev0's reference with the session version via undo-to-rev0.
+    await overwriteEntryVersion(db, config, {
+      entry: await rowOf(entry.id),
+      versionId: created[0]!.id,
+      file: new File([rev0], "plan.sheet"),
+      uploadedBy: userId,
+    });
+
+    await deleteDriveEntryPermanently(db, config, personal(userId), entry.id);
+    expect((await db.select({ value: count() }).from(fileReferences).get())?.value).toBe(0);
+    expect((await db.select({ value: count() }).from(files).get())?.value).toBe(0);
   });
 });
