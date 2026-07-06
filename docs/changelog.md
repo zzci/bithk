@@ -11,6 +11,24 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.1 — 2026-07-06
+
+### Added
+
+- **Bundled CLI script library** (FEAT-051): operational one-shot scripts now
+  ship inside the release binary and version with it — `app script:list`
+  shows what this build carries, `app script:run <name> [--dry-run]` runs one
+  against the offline runtime (DB + storage drivers, no server). Scripts are
+  added / modified / retired per release via the registry.
+- **`rekey-legacy-blobs` script** (CHORE-004): migrates pre-v0.3.0 blobs from
+  the retired `ab/cd/<sha256>` keys to the hour-bucketed `YYYYMMDDHH/<ulid>`
+  layout, per row: copy → verify → repoint `files.storage_key` → delete the
+  old object. The target hour is the row ULID's mint time, so directories
+  reflect real upload times. Idempotent and resumable; failed rows stay on
+  their legacy key and keep serving. Run it once after updating:
+  `app script:run rekey-legacy-blobs --dry-run`, then without the flag.
+
+
 ## v0.3.0 — 2026-07-06
 
 ### Fixed
