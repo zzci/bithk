@@ -11,6 +11,30 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.3 — 2026-07-06
+
+### Fixed
+
+- **Saved spreadsheets can be opened again** (FIX-063). Bun's server-side
+  multipart parsing drops each file part's `Content-Type`, so every multipart
+  upload stored an empty mimetype — sheet saves lost
+  `application/x-univer-sheet` and stopped routing to the editor. Uploads now
+  resolve the mimetype server-side (declared value → magic-byte sniff →
+  extension map), versions inherit their entry's mimetype, and an idempotent
+  boot repair fixes existing empty-mimetype rows automatically. Preview
+  routing also falls back to the `.sheet` suffix.
+- **Autosave no longer wedges after undoing back to a saved state**
+  (FIX-063). Saving content byte-identical to an existing version of the same
+  entry reuses the existing blob reference instead of failing with
+  `DUPLICATE_REFERENCE`; reference counts and release paths stay
+  exactly-once. Attachment double-attach protection is unchanged.
+
+### Operational note
+
+- If you use `script:rekey-legacy-blobs`, boot the upgraded server once first
+  (the mimetype repair runs at startup) so legacy rows are healed before their
+  S3 objects are re-put with the stored Content-Type.
+
 ## v0.3.2 — 2026-07-06
 
 ### Changed
