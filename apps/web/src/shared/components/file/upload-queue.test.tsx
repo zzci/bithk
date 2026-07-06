@@ -16,6 +16,12 @@ vi.mock("@/shared/hooks/use-upload-limits", () => ({
   }),
 }));
 
+// CI's jsdom lacks `crypto.subtle`; a throwing hash would silently exercise
+// the multipart fallback instead of the direct path under test.
+vi.mock("@/shared/lib/direct-upload", () => ({
+  sha256Hex: async () => "ab".repeat(32),
+}));
+
 /** Minimal XHR stand-in: records the PUT target and succeeds immediately. */
 class FakeXhr {
   static puts: Array<{ method: string; url: string }> = [];
