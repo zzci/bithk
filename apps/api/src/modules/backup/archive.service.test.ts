@@ -13,7 +13,7 @@ import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { cronBackupContribution } from "@/modules/cron/cron.backup";
 import { fileBackupContribution } from "@/modules/file/file.backup";
-import { deriveStorageKey } from "@/modules/file/storage/key";
+import { legacyContentAddressedKey } from "@/modules/file/storage/key";
 import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
@@ -87,7 +87,7 @@ async function setUpLocalBlob(sha256: string, bytes: Uint8Array): Promise<string
   registerDriver(localDriver);
   __setLocalDriverRootForTests(resolve(baseDir, "blob-root"));
   setActiveDriver("local");
-  const key = deriveStorageKey(sha256);
+  const key = legacyContentAddressedKey(sha256);
   await localDriver.put(key, bytes.buffer as ArrayBuffer);
   return key;
 }
@@ -95,7 +95,7 @@ async function setUpLocalBlob(sha256: string, bytes: Uint8Array): Promise<string
 async function insertFileRow(id: string, sha256: string, size: number, driver: string, uploadedBy: string): Promise<void> {
   await db.run(sql`
     INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
-    VALUES (${id}, ${sha256}, ${size}, 'application/octet-stream', ${driver}, ${deriveStorageKey(sha256)}, 1, ${uploadedBy})
+    VALUES (${id}, ${sha256}, ${size}, 'application/octet-stream', ${driver}, ${legacyContentAddressedKey(sha256)}, 1, ${uploadedBy})
   `);
 }
 
@@ -217,13 +217,13 @@ describe("writeArchiveV2 — blobs (FIX-062: DB data only)", () => {
     expect(manifest.includeBlobs).toBe(false);
     expect(manifest.blobs).toEqual({ count: 0, totalBytes: 0 });
     // expectedBlobs lists EVERY referenced blob, on any driver.
-    const key = (b: { sha256: string; storageDriver: string }): string => `${b.sha256}/${b.storageDriver}`;
+    const key = (b: { sha256: string; storageDriver?: string }): string => `${b.sha256}/${b.storageDriver}`;
     expect([...manifest.expectedBlobs!].sort((a, b) => key(a).localeCompare(key(b)))).toEqual([
-      { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "local" },
-      { sha256: shaShared, size: bytes.length, storageKey: deriveStorageKey(shaShared), storageDriver: "s3" },
-      { sha256: shaForeign, size: 10, storageKey: deriveStorageKey(shaForeign), storageDriver: "s3" },
-      { sha256: shaDb, size: 20, storageKey: deriveStorageKey(shaDb), storageDriver: "db" },
-      { sha256: shaUnknown, size: 30, storageKey: deriveStorageKey(shaUnknown), storageDriver: "quarantined:backup-restore-missing-blob" },
+      { sha256: shaShared, size: bytes.length, storageKey: legacyContentAddressedKey(shaShared), storageDriver: "local" },
+      { sha256: shaShared, size: bytes.length, storageKey: legacyContentAddressedKey(shaShared), storageDriver: "s3" },
+      { sha256: shaForeign, size: 10, storageKey: legacyContentAddressedKey(shaForeign), storageDriver: "s3" },
+      { sha256: shaDb, size: 20, storageKey: legacyContentAddressedKey(shaDb), storageDriver: "db" },
+      { sha256: shaUnknown, size: 30, storageKey: legacyContentAddressedKey(shaUnknown), storageDriver: "quarantined:backup-restore-missing-blob" },
     ].sort((a, b) => key(a).localeCompare(key(b))));
     // No per-blob export warnings — bytes are out of scope by design.
     expect(manifest.warnings).toEqual([]);

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { deriveStorageKey } from "./key";
+import { legacyContentAddressedKey, newStorageKey } from "./key";
 import { __setLocalDriverRootForTests, localDriver } from "./local";
 
 let root: string;
@@ -20,16 +20,29 @@ function bytes(value: string): ArrayBuffer {
   return new TextEncoder().encode(value).buffer;
 }
 
-describe("deriveStorageKey", () => {
+describe("newStorageKey", () => {
+  test("buckets by UTC upload hour: <YYYYMMDDHH>/<id>", () => {
+    // 2026-07-06T09:30:00Z
+    const nowMs = Date.UTC(2026, 6, 6, 9, 30, 0);
+    expect(newStorageKey("01JZC9ZJ8WTESTULID0000000A", nowMs)).toBe("2026070609/01JZC9ZJ8WTESTULID0000000A");
+  });
+
+  test("zero-pads month, day, and hour", () => {
+    const nowMs = Date.UTC(2026, 0, 3, 5, 0, 0); // 2026-01-03T05:00Z
+    expect(newStorageKey("X", nowMs)).toBe("2026010305/X");
+  });
+});
+
+describe("legacyContentAddressedKey", () => {
   test("fans a sha256 into <ab>/<cd>/<sha>", () => {
     const sha = "a".repeat(64);
-    expect(deriveStorageKey(sha)).toBe(`aa/aa/${sha}`);
+    expect(legacyContentAddressedKey(sha)).toBe(`aa/aa/${sha}`);
   });
 
   test("rejects a non-hex / wrong-length digest", () => {
-    expect(() => deriveStorageKey("short")).toThrow(/Invalid sha256/);
-    expect(() => deriveStorageKey("Z".repeat(64))).toThrow(/Invalid sha256/);
-    expect(() => deriveStorageKey(`${"a".repeat(63)}/`)).toThrow(/Invalid sha256/);
+    expect(() => legacyContentAddressedKey("short")).toThrow(/Invalid sha256/);
+    expect(() => legacyContentAddressedKey("Z".repeat(64))).toThrow(/Invalid sha256/);
+    expect(() => legacyContentAddressedKey(`${"a".repeat(63)}/`)).toThrow(/Invalid sha256/);
   });
 });
 
@@ -69,10 +82,10 @@ describe("local driver path-traversal defence", () => {
 
 describe("local driver round-trip", () => {
   test("put then getStream returns the same bytes under the keyed path", async () => {
-    const key = deriveStorageKey("b".repeat(64));
+    const key = newStorageKey("01B".padEnd(26, "0"), Date.UTC(2026, 6, 6, 9));
     await localDriver.put(key, bytes("hello blob"));
 
-    // Landed at <root>/bb/bb/<sha> and nowhere else.
+    // Landed at <root>/<hour>/<id> and nowhere else.
     expect(existsSync(resolve(root, key))).toBe(true);
 
     const stream = await localDriver.getStream(key);
@@ -82,20 +95,20 @@ describe("local driver round-trip", () => {
   });
 
   test("put is two-phase: no leftover .tmp file remains", async () => {
-    const key = deriveStorageKey("c".repeat(64));
+    const key = newStorageKey("01C".padEnd(26, "0"), Date.UTC(2026, 6, 6, 9));
     await localDriver.put(key, bytes("data"));
-    const dir = resolve(root, "cc", "cc");
+    const dir = resolve(root, "2026070609");
     const leftovers = readdirSync(dir).filter(name => name.endsWith(".tmp"));
     expect(leftovers).toEqual([]);
   });
 
   test("getStream throws for a missing blob", async () => {
-    const key = deriveStorageKey("d".repeat(64));
+    const key = newStorageKey("01D".padEnd(26, "0"), Date.UTC(2026, 6, 6, 9));
     await expect(localDriver.getStream(key)).rejects.toThrow(/Missing blob/);
   });
 
   test("delete is tolerant of a missing key (idempotent)", async () => {
-    const key = deriveStorageKey("e".repeat(64));
+    const key = newStorageKey("01E".padEnd(26, "0"), Date.UTC(2026, 6, 6, 9));
     await expect(localDriver.delete(key)).resolves.toBeUndefined();
     // And after a real write, delete removes it and a second delete is a no-op.
     await localDriver.put(key, bytes("bye"));

@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 327 routes total.
+> 341 routes total.
 
 | Method | Path |
 |---|---|
@@ -106,7 +106,9 @@
 | POST | `/api/documents/:id/attachments` |
 | DELETE | `/api/documents/:id/attachments/:aid` |
 | GET | `/api/documents/:id/attachments/:aid` |
+| POST | `/api/documents/:id/attachments/confirm-upload` |
 | POST | `/api/documents/:id/attachments/from-drive` |
+| POST | `/api/documents/:id/attachments/presign-upload` |
 | GET | `/api/documents/:id/comments` |
 | POST | `/api/documents/:id/comments` |
 | DELETE | `/api/documents/:id/comments/:cid` |
@@ -114,6 +116,8 @@
 | POST | `/api/documents/:id/comments/:cid/attachments` |
 | DELETE | `/api/documents/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/documents/:id/comments/:cid/attachments/:aid` |
+| POST | `/api/documents/:id/comments/:cid/attachments/confirm-upload` |
+| POST | `/api/documents/:id/comments/:cid/attachments/presign-upload` |
 | PATCH | `/api/documents/:id/move` |
 | DELETE | `/api/documents/:id/pin` |
 | PUT | `/api/documents/:id/pin` |
@@ -189,7 +193,9 @@
 | POST | `/api/hr/colleagues/:id/attachments` |
 | DELETE | `/api/hr/colleagues/:id/attachments/:aid` |
 | GET | `/api/hr/colleagues/:id/attachments/:aid` |
+| POST | `/api/hr/colleagues/:id/attachments/confirm-upload` |
 | POST | `/api/hr/colleagues/:id/attachments/from-drive` |
+| POST | `/api/hr/colleagues/:id/attachments/presign-upload` |
 | GET | `/api/hr/payroll` |
 | POST | `/api/hr/payroll` |
 | DELETE | `/api/hr/payroll/:id` |
@@ -246,7 +252,9 @@
 | POST | `/api/projects/:projectId/issues/:id/attachments` |
 | DELETE | `/api/projects/:projectId/issues/:id/attachments/:aid` |
 | GET | `/api/projects/:projectId/issues/:id/attachments/:aid` |
+| POST | `/api/projects/:projectId/issues/:id/attachments/confirm-upload` |
 | POST | `/api/projects/:projectId/issues/:id/attachments/from-drive` |
+| POST | `/api/projects/:projectId/issues/:id/attachments/presign-upload` |
 | GET | `/api/projects/:projectId/issues/:id/comments` |
 | POST | `/api/projects/:projectId/issues/:id/comments` |
 | DELETE | `/api/projects/:projectId/issues/:id/comments/:cid` |
@@ -254,6 +262,8 @@
 | POST | `/api/projects/:projectId/issues/:id/comments/:cid/attachments` |
 | DELETE | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` |
+| POST | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/confirm-upload` |
+| POST | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/presign-upload` |
 | POST | `/api/projects/:projectId/issues/:id/pin` |
 | POST | `/api/projects/:projectId/issues/:id/unpin` |
 | GET | `/api/projects/:projectId/pinned-items` |
@@ -265,7 +275,9 @@
 | POST | `/api/projects/:projectId/procurements/:id/attachments` |
 | DELETE | `/api/projects/:projectId/procurements/:id/attachments/:aid` |
 | GET | `/api/projects/:projectId/procurements/:id/attachments/:aid` |
+| POST | `/api/projects/:projectId/procurements/:id/attachments/confirm-upload` |
 | POST | `/api/projects/:projectId/procurements/:id/attachments/from-drive` |
+| POST | `/api/projects/:projectId/procurements/:id/attachments/presign-upload` |
 | GET | `/api/projects/:projectId/procurements/:id/comments` |
 | POST | `/api/projects/:projectId/procurements/:id/comments` |
 | DELETE | `/api/projects/:projectId/procurements/:id/comments/:cid` |
@@ -273,6 +285,8 @@
 | POST | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments` |
 | DELETE | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments/:aid` |
 | GET | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments/:aid` |
+| POST | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments/confirm-upload` |
+| POST | `/api/projects/:projectId/procurements/:id/comments/:cid/attachments/presign-upload` |
 | POST | `/api/projects/:projectId/procurements/:id/pin` |
 | POST | `/api/projects/:projectId/procurements/:id/status` |
 | POST | `/api/projects/:projectId/procurements/:id/unpin` |

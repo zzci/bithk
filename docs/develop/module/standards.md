@@ -294,7 +294,7 @@ Rules that follow from the engine:
 - **`ctx` is read-only + an id-mapping store.** `ctx.lookup(table, conds)` probes the **pre-import** live DB (rows inserted by the running import are not visible); `ctx.setMappedId` / `ctx.getMappedId` share old→new id mappings across tables, so a parent-table transform can record a remap that a child-table transform consumes; `ctx.skipAsDuplicate("remapped")` counts the current input row as a flagged duplicate skip instead of an insert.
 - **Dry-run parity is guaranteed by construction** — transforms run inside the same shared row loop in both the rollback dry-run and the committed apply. Keep `apply` pure (no side effects beyond `ctx`); it may run twice.
 
-**Reference implementation** — mapping rule 14, owned by the file module (`apps/api/src/modules/file/file.backup.ts`): `files` is content-addressed per driver, so a `files` row whose PK is new but whose `(sha256, storageDriver)` already exists live is consumed (`skipAsDuplicate("remapped")` + `setMappedId`), and a second transform on `file_references` rewrites `fileId` through `getMappedId`. Colocated tests: `file.backup.test.ts`; engine-level hook tests: `modules/backup/import-transform.test.ts`.
+**Reference implementation** — mapping rule 14, owned by the file module (`apps/api/src/modules/file/file.backup.ts`): `files` dedups per `(sha256, storage_driver)`, so a `files` row whose PK is new but whose `(sha256, storageDriver)` already exists live is consumed (`skipAsDuplicate("remapped")` + `setMappedId`), and a second transform on `file_references` rewrites `fileId` through `getMappedId`. Colocated tests: `file.backup.test.ts`; engine-level hook tests: `modules/backup/import-transform.test.ts`.
 
 **Tests** (e2e, in `tests/e2e/modules/backup/`):
 

@@ -27,7 +27,7 @@ function toBuffer(data: ArrayBufferLike): Buffer {
  * `file_blob` table rather than on disk / an object store, so in-app created
  * files (text / markdown / spreadsheet) and their versions never leave the DB.
  * Always server-served: it implements no presign — downloads stream through the
- * API. Content-addressed keys (`ab/cd/<sha256>`) are shared with the other
+ * API. Hour-bucketed keys (`YYYYMMDDHH/<ulid>`) are shared with the other
  * drivers, so a file's `storage_driver='db'` selects this backend.
  */
 export const dbDriver: FileStorageDriver = {

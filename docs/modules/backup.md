@@ -18,10 +18,12 @@ Backups carry **database data only** (`manifest.blobsMode: "external"`).
 Uploaded file bytes are the operator's responsibility:
 
 - **local driver** — copy the storage tree (`FILE_STORAGE_LOCAL_ROOT`,
-  sharded `ab/cd/<sha256>`) alongside the archive;
+  hour-bucketed `YYYYMMDDHH/<ulid>`; blobs from before REFACTOR-038 sit at
+  the legacy `ab/cd/<sha256>` paths) alongside the archive;
 - **s3 driver** — back up / point at the bucket.
 
-Storage keys are content-addressed (sha256), so DB rows and storage paths
+Each `files` row records its blob's key in `storage_key` (and the manifest
+mirrors it in `expectedBlobs[].storageKey`), so DB rows and storage paths
 always correspond — restoring bytes to the same relative path is sufficient.
 After an import, `files` rows whose bytes are absent are **quarantined**
 (`storage_driver = quarantined:…`): downloads answer a clean
@@ -143,8 +145,9 @@ always rolls back, so the dry-run report exactly equals the apply report.
   `file_references.fileId` values are redirected to the existing live id —
   shipped as the file module's built-in import transform.
 - After the merge commits: blobs stream from legacy blob-bearing archives
-  (existing content-addressed keys skipped, hashes verified while
-  streaming), a quarantine **rescan** heals rows whose bytes are already on
+  into each row's stored `storage_key` (already-present keys skipped, hashes
+  verified while streaming; entries no row references are skipped), a
+  quarantine **rescan** heals rows whose bytes are already on
   the storage backend, and `reconcileRestoredFiles` quarantines any `files`
   row whose bytes are still missing.
 - Report per table: `inserted`, `skippedDuplicate` (+`remapped`),

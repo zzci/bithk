@@ -10,7 +10,7 @@ import { pack as tarPack } from "tar-stream";
 import { createDb } from "@/db";
 import { auditEvents } from "@/modules/audit/schema";
 import { files } from "@/modules/file/schema";
-import { deriveStorageKey } from "@/modules/file/storage/key";
+import { legacyContentAddressedKey } from "@/modules/file/storage/key";
 import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
 import { mountRoutes, sessionCookieFor, testConfig, testNanoid } from "@/shared/test/route-harness";
@@ -83,11 +83,18 @@ describe("POST /backup/v2/blob-restores", () => {
   test("200 with the result report and a backup.import.blobs audit row", async () => {
     const { userId, cookie } = await sessionCookieFor(db, "admin");
     const bytes = new TextEncoder().encode("route blob bytes");
-    const res = await upload(cookie, await tarGz([{ name: `blobs/${deriveStorageKey(sha256Of(bytes))}`, data: bytes }]));
+    const sha = sha256Of(bytes);
+    // REFACTOR-038: blobs land at their row's stored key — a quarantined row
+    // names the target; rowless entries are skipped as unreferenced.
+    await db.run(sql`
+      INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
+      VALUES ('frt1', ${sha}, ${bytes.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${legacyContentAddressedKey(sha)}, 0, ${userId})
+    `);
+    const res = await upload(cookie, await tarGz([{ name: `blobs/${legacyContentAddressedKey(sha)}`, data: bytes }]));
     expect(res.status).toBe(200);
     const body = await res.json() as { report: { written: number; skippedExisting: number; failed: number; reconcile: { checked: number; quarantined: number } } };
     expect(body.report).toMatchObject({ written: 1, skippedExisting: 0, failed: 0 });
-    expect(await localDriver.exists(deriveStorageKey(sha256Of(bytes)))).toBe(true);
+    expect(await localDriver.exists(legacyContentAddressedKey(sha))).toBe(true);
 
     const auditRow = await db.select().from(auditEvents).where(eq(auditEvents.action, "backup.import.blobs")).get();
     expect(auditRow).toBeDefined();
@@ -143,11 +150,11 @@ describe("POST /backup/v2/blob-rescans (FIX-062)", () => {
     await db.run(sql`
       INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
       VALUES
-        ('fq1', ${sha}, ${bytes.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${deriveStorageKey(sha)}, 0, ${userId}),
-        ('fq2', ${missingSha}, 3, 'text/plain', 'quarantined:backup-restore-missing-blob', ${deriveStorageKey(missingSha)}, 0, ${userId})
+        ('fq1', ${sha}, ${bytes.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${legacyContentAddressedKey(sha)}, 0, ${userId}),
+        ('fq2', ${missingSha}, 3, 'text/plain', 'quarantined:backup-restore-missing-blob', ${legacyContentAddressedKey(missingSha)}, 0, ${userId})
     `);
     // Operator copies the blob to its content-addressed path...
-    await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
+    await localDriver.put(legacyContentAddressedKey(sha), bytes.buffer as ArrayBuffer);
 
     const res = await app().request("/backup/v2/blob-rescans", { method: "POST", headers: { Cookie: cookie } });
     expect(res.status).toBe(200);

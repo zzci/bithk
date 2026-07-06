@@ -95,7 +95,7 @@ rather than on disk / S3.
 
 | Column        | Type    | Notes                                                       |
 | ------------- | ------- | ----------------------------------------------------------- |
-| `storage_key` | text PK | Content-addressed key (`ab/cd/<sha256>`), shared with other drivers. |
+| `storage_key` | text PK | Hour-bucketed key (`YYYYMMDDHH/<ulid>`), shared with other drivers. |
 | `content`     | blob    | Raw bytes (a `Buffer`/`Uint8Array` at the driver boundary). |
 | `created_at`  | text    | ISO.                                                        |
 
@@ -302,8 +302,10 @@ Admin-only routes (`adminRequired`):
 When the active driver supports it, the drive uploads bytes straight to S3
 (`POST /drive/files/presign-upload` → browser `PUT` to the presigned URL →
 `POST /drive/files/confirm-upload`). The client computes the sha256 (the
-content-addressed key); a hash already present in storage finishes instantly
-(no upload). `confirm` HEADs the object for its authoritative size. Size is
+dedup key); a hash the same user already stored finishes instantly (no
+upload). `presign` mints the object's hour-bucketed key and parks it in an
+in-process pending registry; `confirm` reads it back and HEADs the object
+for its authoritative size. Size is
 enforced by the S3 backend plus an orphan sweep (`runS3OrphanSweepOnce`) that
 deletes unconfirmed/unregistered objects older than `FILE_S3_ORPHAN_TTL_HOURS`.
 `GET /system/upload-limits` reports `directUpload` so the web uploader

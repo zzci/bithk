@@ -189,3 +189,7 @@
 | [UI-030](UI-030.md) | Move Storage from standalone nav item into System Settings tab | - | Completed | 2026-07-05 |
 | [FIX-062](FIX-062.md) | File restore model: path-correspondence blobs, quarantine rescan, session-safe wipe import | - | Completed | 2026-07-05 |
 | [FIX-063](FIX-063.md) | Sheet unopenable after save: multipart mimetype loss + duplicate-content autosave failure | - | In Progress | 2026-07-06 |
+| [FIX-064](FIX-064.md) | Direct upload presign/confirm requests hit /api/api/... (404) | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
+| [REFACTOR-038](REFACTOR-038.md) | Hour-based storage key layout (YYYYMMDDHH/ulid, UTC) | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
+| [FEAT-050](FEAT-050.md) | Unified presigned direct upload for all attachment surfaces | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
+| [CHORE-004](CHORE-004.md) | Legacy blob re-key migration script (ab/cd/sha -> hour layout) | [PLAN-106](../plan/PLAN-106.md) | Planned | 2026-07-06 |

@@ -40,7 +40,7 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { extract as tarExtract } from "tar-stream";
 import { z } from "zod";
-import { deriveStorageKey } from "@/modules/file/storage/key";
+import { legacyContentAddressedKey } from "@/modules/file/storage/key";
 import { getActiveDriver } from "@/modules/file/storage/registry";
 import { AppError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
@@ -488,7 +488,9 @@ async function checkArchiveBlobs(
   }
   let existing = 0;
   for (const sha of blobs.keys()) {
-    if (await driver.exists(deriveStorageKey(sha)))
+    // Blob entries only occur in legacy embedded archives, whose rows all
+    // carry content-addressed keys — probing that shape is exact for them.
+    if (await driver.exists(legacyContentAddressedKey(sha)))
       existing++;
   }
   return { count: blobs.size, existing, missing: blobs.size - existing };

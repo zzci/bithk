@@ -11,7 +11,7 @@ import { createDb } from "@/db";
 import { users } from "@/modules/account/users/schema";
 import { runS3OrphanSweepOnce } from "@/modules/file/s3-sweep";
 import { files } from "@/modules/file/schema";
-import { deriveStorageKey } from "@/modules/file/storage/key";
+import { __clearPendingUploadsForTests } from "@/modules/file/storage/pending-uploads";
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver, setActiveUploadDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { confirmDriveUpload, presignDriveUpload } from "./drive.service";
@@ -38,6 +38,10 @@ function putObject(key: string, size: number, lastModified: number): void {
   store.set(key, { size, lastModified });
 }
 
+const PRESIGN_BASE = "https://s3.test/";
+// Hour-bucketed key shape (REFACTOR-038): <YYYYMMDDHH>/<26-char ULID>.
+const KEY_SHAPE = /^\d{10}\/[0-9a-hjkmnp-tv-z]{26}$/;
+
 const fakeS3: FileStorageDriver = {
   name: "s3",
   async put(key, data) {
@@ -53,7 +57,7 @@ const fakeS3: FileStorageDriver = {
     return store.has(key);
   },
   async presignUpload(key, opts) {
-    return { url: `https://s3.test/${key}`, method: "PUT", headers: { "Content-Type": opts.contentType } };
+    return { url: `${PRESIGN_BASE}${key}`, method: "PUT", headers: { "Content-Type": opts.contentType } };
   },
   async stat(key) {
     const o = store.get(key);
@@ -83,12 +87,35 @@ async function seedUser(): Promise<string> {
 
 const sha = (c: string): string => c.repeat(64).slice(0, 64);
 
+/**
+ * Run the client's upload leg: presign, extract the minted key from the
+ * presigned URL, and drop an object of `size` bytes at it — the state a real
+ * PUT leaves behind before confirm.
+ */
+async function presignAndPut(userId: string, contentSha: string, size: number, mtime = Date.now()): Promise<string> {
+  const res = await presignDriveUpload(db, config, {
+    ownerType: "user",
+    ownerId: userId,
+    createdBy: userId,
+    name: "staged.bin",
+    sha256: contentSha,
+    size,
+    mimetype: "application/octet-stream",
+  });
+  if (res.mode !== "upload")
+    throw new Error("expected presign to return an upload");
+  const key = res.upload.url.slice(PRESIGN_BASE.length);
+  putObject(key, size, mtime);
+  return key;
+}
+
 beforeEach(async () => {
   const dir = resolve(tmpdir(), `test-direct-upload-${Date.now()}-${nanoid()}`);
   mkdirSync(dir, { recursive: true });
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
   store.clear();
+  __clearPendingUploadsForTests();
   __resetDriverRegistryForTests();
   registerDriver(fakeS3);
   setActiveDriver("s3");
@@ -105,7 +132,7 @@ afterEach(() => {
 });
 
 describe("presignDriveUpload", () => {
-  test("a new blob returns a presigned PUT and creates nothing yet", async () => {
+  test("a new blob returns a presigned PUT for an hour-bucketed key and creates nothing yet", async () => {
     const userId = await seedUser();
     const res = await presignDriveUpload(db, config, {
       ownerType: "user",
@@ -119,11 +146,21 @@ describe("presignDriveUpload", () => {
     expect(res.mode).toBe("upload");
     if (res.mode === "upload") {
       expect(res.upload.method).toBe("PUT");
-      expect(res.upload.url).toContain(deriveStorageKey(sha("a")));
+      expect(res.upload.url.slice(PRESIGN_BASE.length)).toMatch(KEY_SHAPE);
       expect(res.upload.headers["Content-Type"]).toBe("image/png");
     }
     expect((await db.select().from(files).all()).length).toBe(0);
     expect((await db.select().from(driveEntries).all()).length).toBe(0);
+  });
+
+  test("re-presigning the same content reuses the pending key (concurrent duplicates share one object)", async () => {
+    const userId = await seedUser();
+    const input = { ownerType: "user" as const, ownerId: userId, createdBy: userId, name: "a.png", sha256: sha("k"), size: 512, mimetype: "image/png" };
+    const first = await presignDriveUpload(db, config, input);
+    const second = await presignDriveUpload(db, config, { ...input, name: "b.png" });
+    if (first.mode !== "upload" || second.mode !== "upload")
+      throw new Error("expected uploads");
+    expect(second.upload.url).toBe(first.upload.url);
   });
 
   test("rejects an over-cap declared size with 413", async () => {
@@ -141,8 +178,8 @@ describe("presignDriveUpload", () => {
 
   test("an already-stored blob finishes instantly (dedup) and creates the entry", async () => {
     const userId = await seedUser();
-    // Confirm one upload so the blob is registered.
-    putObject(deriveStorageKey(sha("c")), 2048, Date.now());
+    // Complete one direct upload so the blob is registered.
+    await presignAndPut(userId, sha("c"), 2048);
     await confirmDriveUpload(db, config, { ownerType: "user", ownerId: userId, createdBy: userId, name: "first.png", sha256: sha("c"), mimetype: "image/png" });
 
     const res = await presignDriveUpload(db, config, {
@@ -164,7 +201,7 @@ describe("presignDriveUpload", () => {
 
   test("a different user does NOT instant-dedup another user's blob (no cross-user poisoning)", async () => {
     const owner = await seedUser();
-    putObject(deriveStorageKey(sha("f")), 2048, Date.now());
+    await presignAndPut(owner, sha("f"), 2048);
     await confirmDriveUpload(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, name: "owned.png", sha256: sha("f"), mimetype: "image/png" });
 
     // A second user presigning the same hash must be told to upload (re-PUT),
@@ -184,28 +221,49 @@ describe("presignDriveUpload", () => {
 });
 
 describe("confirmDriveUpload", () => {
-  test("creates the entry from the uploaded object's authoritative size", async () => {
+  test("creates the entry from the uploaded object's authoritative size and the presigned key", async () => {
     const userId = await seedUser();
-    putObject(deriveStorageKey(sha("d")), 4096, Date.now());
+    // Declared 1 KiB at presign, but 4 KiB actually landed — confirm must
+    // trust the stat, and the row must point at the presigned key.
+    const key = await presignAndPut(userId, sha("d"), 4096);
     const entry = await confirmDriveUpload(db, config, { ownerType: "user", ownerId: userId, createdBy: userId, name: "doc.png", sha256: sha("d"), mimetype: "image/png" });
     expect(entry.name).toBe("doc.png");
     const row = await db.select().from(files).where(eq(files.sha256, sha("d"))).get();
     expect(row?.size).toBe(4096);
     expect(row?.storageDriver).toBe("s3");
+    expect(row?.storageKey).toBe(key);
+    expect(row?.id).toBe(key.split("/")[1]!);
   });
 
-  test("rejects when the object never landed in storage", async () => {
+  test("rejects when no presign session exists for the content (expired / restarted)", async () => {
     const userId = await seedUser();
     await expect(confirmDriveUpload(db, config, { ownerType: "user", ownerId: userId, createdBy: userId, name: "missing.png", sha256: sha("e"), mimetype: "image/png" }))
       .rejects
       .toThrow(/not found/i);
   });
 
+  test("rejects when the object never landed in storage", async () => {
+    const userId = await seedUser();
+    // Presign only — the client never PUT the bytes.
+    await presignDriveUpload(db, config, {
+      ownerType: "user",
+      ownerId: userId,
+      createdBy: userId,
+      name: "ghost.png",
+      sha256: sha("g"),
+      size: 1024,
+      mimetype: "image/png",
+    });
+    await expect(confirmDriveUpload(db, config, { ownerType: "user", ownerId: userId, createdBy: userId, name: "ghost.png", sha256: sha("g"), mimetype: "image/png" }))
+      .rejects
+      .toThrow(/not found/i);
+  });
+
   test("enforces the total quota against the authoritative stat size, not the declared one", async () => {
     const userId = await seedUser();
-    // A 5 KiB object under a 4 KiB total quota — the client could have declared
-    // 1 byte at presign, but confirm checks the real on-disk size.
-    putObject(deriveStorageKey(sha("9")), 5 * 1024, Date.now());
+    // A 5 KiB object under a 4 KiB total quota — the client declared 1 KiB at
+    // presign, but confirm checks the real on-disk size.
+    await presignAndPut(userId, sha("9"), 5 * 1024);
     const quotaConfig = { ...config, UPLOADS_TOTAL_BYTES: 4 * 1024 };
     await expect(confirmDriveUpload(db, quotaConfig, { ownerType: "user", ownerId: userId, createdBy: userId, name: "over.png", sha256: sha("9"), mimetype: "image/png" }))
       .rejects
@@ -215,7 +273,7 @@ describe("confirmDriveUpload", () => {
   test("a different user CANNOT attach another user's blob via confirm by sha256 (FIX-048 IDOR)", async () => {
     // User A uploads + confirms a blob for real.
     const owner = await seedUser();
-    putObject(deriveStorageKey(sha("7")), 3072, Date.now());
+    await presignAndPut(owner, sha("7"), 3072);
     await confirmDriveUpload(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, name: "secret.png", sha256: sha("7"), mimetype: "image/png" });
 
     // User B knows the sha256 (e.g. leaked via a thumbnail ETag) and confirms
@@ -238,11 +296,11 @@ describe("confirmDriveUpload", () => {
 
   test("the original uploader can re-confirm their own blob (no dedup regression)", async () => {
     const owner = await seedUser();
-    putObject(deriveStorageKey(sha("8")), 3072, Date.now());
+    await presignAndPut(owner, sha("8"), 3072);
     await confirmDriveUpload(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, name: "first.png", sha256: sha("8"), mimetype: "image/png" });
 
     // A second confirm of the same hash by the same user dedups onto the single
-    // content-addressed blob (refcount bumped) and creates a second entry.
+    // stored blob (refcount bumped) and creates a second entry.
     const entry = await confirmDriveUpload(db, config, { ownerType: "user", ownerId: owner, createdBy: owner, name: "second.png", sha256: sha("8"), mimetype: "image/png" });
     expect(entry.name).toBe("second.png");
     expect((await db.select().from(files).where(eq(files.sha256, sha("8"))).all()).length).toBe(1);
@@ -258,18 +316,19 @@ describe("runS3OrphanSweepOnce", () => {
     const now = Date.UTC(2026, 5, 22, 12, 0, 0);
     const hour = 60 * 60 * 1000;
 
-    // Registered (confirmed) object — must be kept.
-    putObject(deriveStorageKey(sha("1")), 100, now - 48 * hour);
+    // Registered (confirmed) object — must be kept even though it is old.
+    const keptKey = await presignAndPut(userId, sha("1"), 100, now - 48 * hour);
+    store.set(keptKey, { size: 100, lastModified: now - 48 * hour });
     await confirmDriveUpload(db, config, { ownerType: "user", ownerId: userId, createdBy: userId, name: "kept.png", sha256: sha("1"), mimetype: "image/png" });
     // Unregistered + old — must be swept.
-    putObject(deriveStorageKey(sha("2")), 200, now - 48 * hour);
+    putObject("2026062010/01ORPHANOLD00000000000000A", 200, now - 48 * hour);
     // Unregistered + fresh — must be kept (a confirm may be in flight).
-    putObject(deriveStorageKey(sha("3")), 300, now - 1 * hour);
+    putObject("2026062211/01ORPHANFRESH000000000000A", 300, now - 1 * hour);
 
     const deleted = await runS3OrphanSweepOnce(db, { ttlHours: 24, nowMs: now });
     expect(deleted).toBe(1);
-    expect(store.has(deriveStorageKey(sha("1")))).toBe(true);
-    expect(store.has(deriveStorageKey(sha("2")))).toBe(false);
-    expect(store.has(deriveStorageKey(sha("3")))).toBe(true);
+    expect(store.has(keptKey)).toBe(true);
+    expect(store.has("2026062010/01ORPHANOLD00000000000000A")).toBe(false);
+    expect(store.has("2026062211/01ORPHANFRESH000000000000A")).toBe(true);
   });
 });

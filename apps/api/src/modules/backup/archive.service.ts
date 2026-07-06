@@ -10,7 +10,7 @@
  * `blobsMode: "external"` in the manifest. File bytes are the operator's
  * responsibility — copy the storage tree (local) or the bucket (S3); restore
  * correctness comes from DB-row ↔ storage-path correspondence (keys are
- * content-addressed `ab/cd/<sha256>`). The manifest still lists EVERY
+ * the per-row `storage_key`). The manifest still lists EVERY
  * referenced blob in `expectedBlobs` so the import side can report exactly
  * which blobs are present/missing. The import path keeps reading legacy
  * blob-bearing archives (`embedded` / `separate`) unchanged.
@@ -66,8 +66,9 @@ export type BlobsMode = "embedded" | "separate" | "none" | "external";
 export interface ExpectedBlob {
   readonly sha256: string;
   readonly size: number;
-  readonly storageKey: string;
-  readonly storageDriver: string;
+  /** The row's stored storage key. Optional at runtime: pre-FIX-062 archives list blobs without it. */
+  readonly storageKey?: string;
+  readonly storageDriver?: string;
 }
 
 export interface ManifestColumn {
@@ -473,7 +474,7 @@ export async function writeArchiveV2(opts: WriteArchiveV2Options): Promise<Write
   //    list lands in `manifest.expectedBlobs` so the import side can report
   //    exactly which blobs are present/missing on its storage backend. No
   //    bytes are read or packed (FIX-062) — the operator copies the storage
-  //    tree/bucket; content-addressed keys keep the paths corresponding.
+  //    tree/bucket; the per-blob storageKey keeps the paths corresponding.
   const warnings: string[] = [];
   const expectedBlobs: ExpectedBlob[] = [];
   if (manifestTables.some(t => t.name === "files")) {

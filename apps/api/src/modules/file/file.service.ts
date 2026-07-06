@@ -10,7 +10,8 @@ import { nanoid, ulid } from "@/shared/lib/id";
 import { mimeMatchesContent } from "@/shared/lib/mime-sniff";
 import { assertWithinTotalQuota, decrementUploadsUsed, incrementUploadsUsed, isWithinFileSize, maxAttachmentsPerResource } from "@/shared/lib/upload-limits";
 import { getThumbnail, previewCacheEnabled } from "./preview-cache";
-import { deriveStorageKey } from "./storage/key";
+import { newStorageKey } from "./storage/key";
+import { getPendingUpload, trackPendingUpload } from "./storage/pending-uploads";
 import { getActiveUploadDriver, getDriver } from "./storage/registry";
 
 export type FileRow = typeof files.$inferSelect;
@@ -35,12 +36,12 @@ export function isQuarantinedFile(file: Pick<FileRow, "storageDriver">): boolean
 
 /**
  * The clean 404 every serve path answers for a quarantined row. The message
- * carries the recovery story: put the bytes back at the content-addressed
+ * carries the recovery story: put the bytes back at the row's stored
  * path and run a blob rescan (`backup:blob-rescan` / the admin endpoint).
  */
 export function fileContentUnavailableError(): AppError {
   return new AppError(
-    "File content is unavailable: the backing blob is missing from storage. Restore the blob to its content-addressed path and run a blob rescan to recover it.",
+    "File content is unavailable: the backing blob is missing from storage. Restore the blob to its recorded storage path and run a blob rescan to recover it.",
     404,
     "FILE_CONTENT_UNAVAILABLE",
   );
@@ -161,6 +162,35 @@ export interface UploadResult {
 }
 
 /**
+ * Enforce the per-resource attachment count cap: references with this
+ * `(ownerType, ownerId)` pair. Shared by the multipart path
+ * ({@link uploadAndReference}) and the direct-upload presign/confirm path so
+ * every surface applies the same rule.
+ */
+export async function assertAttachmentCapacity(
+  db: AppDatabase,
+  config: Pick<Config, "MAX_ATTACHMENTS_PER_RESOURCE">,
+  ownerType: string,
+  ownerId: string,
+): Promise<void> {
+  const existing = await db.select({ value: count() })
+    .from(fileReferences)
+    .where(and(
+      eq(fileReferences.ownerType, ownerType),
+      eq(fileReferences.ownerId, ownerId),
+    ))
+    .get();
+  const maxAttachments = maxAttachmentsPerResource(config);
+  if ((existing?.value ?? 0) >= maxAttachments) {
+    throw new AppError(
+      `Maximum attachments per resource reached (${maxAttachments})`,
+      400,
+      "LIMIT_EXCEEDED",
+    );
+  }
+}
+
+/**
  * Upload bytes and register a reference. The same content uploaded twice
  * yields **one** `files` row and **two** `file_references` rows. The
  * per-reference uniqueness rule prevents the same owner from holding two
@@ -209,21 +239,7 @@ export async function uploadAndReference(
   // count is whatever the consumer modelled as "attachments on this
   // owner" — which by convention is "references with this owner_type +
   // owner_id" so the same rule applies to every consumer.
-  const existing = await db.select({ value: count() })
-    .from(fileReferences)
-    .where(and(
-      eq(fileReferences.ownerType, ownerType),
-      eq(fileReferences.ownerId, ownerId),
-    ))
-    .get();
-  const maxAttachments = maxAttachmentsPerResource(config);
-  if ((existing?.value ?? 0) >= maxAttachments) {
-    throw new AppError(
-      `Maximum attachments per resource reached (${maxAttachments})`,
-      400,
-      "LIMIT_EXCEEDED",
-    );
-  }
+  await assertAttachmentCapacity(db, config, ownerType, ownerId);
 
   // Reject before consuming bytes — keeps the request from spending IO on a
   // file that the per-tenant quota will refuse.
@@ -272,7 +288,7 @@ export async function uploadAndReference(
   // Phase 2 — write the blob outside the tx. A failure in the subsequent
   // insert leaves an orphan blob, which the periodic file GC reclaims.
   const newId = ulid();
-  const storageKey = deriveStorageKey(sha256);
+  const storageKey = newStorageKey(newId, Date.now());
   // Pass the MIME type so object-store drivers (S3) persist it and a later
   // presigned GET serves the right Content-Type for inline preview.
   await driver.put(storageKey, buffer, { contentType: file.type });
@@ -390,10 +406,12 @@ export async function addReference(db: AppDatabase, input: AddReferenceInput): P
 // ─── Presigned direct upload (FEAT-044, Part B) ───────────────────────────
 //
 // The bytes go straight to the storage backend (S3) via a presigned PUT, so
-// the API never sees them. Integrity uses the CLIENT-supplied sha256 as the
-// content-addressed key (a deliberate trust decision for an internal tool);
-// size is enforced by the S3 backend + an external sweep, with only a cheap
-// advisory check here. `confirm` reads the authoritative size via `stat`.
+// the API never sees them. Integrity trusts the CLIENT-supplied sha256 (a
+// deliberate decision for an internal tool); size is enforced by the S3
+// backend + an external sweep, with only a cheap advisory check here.
+// `confirm` reads the authoritative size via `stat`. The presigned object's
+// hour-based key is parked in the in-process pending registry between the
+// two phases (REFACTOR-038) — keys are minted, never derived from content.
 
 /** True when the active upload driver can issue presigned PUTs and HEAD objects. */
 export function directUploadAvailable(): boolean {
@@ -410,12 +428,13 @@ export function directUploadAvailable(): boolean {
 
 /**
  * Look up an existing blob row for `(sha256, active driver)` that the SAME user
- * already uploaded. Scoped to `uploadedBy` on purpose (FEAT-044 security): the
- * direct-upload key is the *client-declared* sha256, which is not server-verified,
- * so a user could store mismatched bytes under a hash they don't own. Restricting
+ * already uploaded. Scoped to `uploadedBy` on purpose (FEAT-044 security): a
+ * direct upload is registered under the *client-declared* sha256, which is not
+ * server-verified, so a user could store mismatched bytes under a hash they
+ * don't own. Restricting
  * the instant-dedup (skip-the-upload) path to the original uploader means a
  * poisoned blob can never be served to a different user who later uploads the real
- * file — that user re-uploads instead (overwriting the content-addressed object),
+ * file — that user re-uploads instead (via a fresh presigned key),
  * and storage-level dedup is still preserved by `UNIQUE(sha256, storage_driver)`.
  */
 export async function findStoredBlob(db: AppDatabase, sha256: string, uploadedBy: string): Promise<FileRow | undefined> {
@@ -444,7 +463,7 @@ export async function findStoredBlobByHash(db: AppDatabase, sha256: string): Pro
     .get();
 }
 
-/** Issue a presigned PUT for the content-addressed key of `sha256`. Returns null when the driver can't. */
+/** Issue a presigned PUT for a freshly minted (or still-pending) hour-based key. Returns null when the driver can't. */
 export async function presignBlobUpload(
   config: Pick<Config, "FILE_PRESIGN_TTL_SECONDS">,
   sha256: string,
@@ -453,18 +472,27 @@ export async function presignBlobUpload(
   const driver = getActiveUploadDriver();
   if (!driver.presignUpload)
     return null;
-  return driver.presignUpload(deriveStorageKey(sha256), {
+  const pending = trackPendingUpload(sha256, Date.now());
+  return driver.presignUpload(pending.key, {
     expiresSeconds: config.FILE_PRESIGN_TTL_SECONDS,
     contentType: mimetype,
   });
 }
 
-/** HEAD the directly-uploaded object to confirm it landed and read its size. */
+/**
+ * HEAD the directly-uploaded object to confirm it landed and read its size.
+ * Null when the driver can't stat OR no presign session is pending for this
+ * content (expired / API restarted) — callers turn that into a 400 and the
+ * client re-uploads.
+ */
 export async function statStoredBlob(sha256: string): Promise<{ readonly size: number } | null> {
   const driver = getActiveUploadDriver();
   if (!driver.stat)
     return null;
-  return driver.stat(deriveStorageKey(sha256));
+  const pending = getPendingUpload(sha256, Date.now());
+  if (!pending)
+    return null;
+  return driver.stat(pending.key);
 }
 
 export interface RegisterUploadedBlobInput {
@@ -487,8 +515,9 @@ export interface RegisterUploadedBlobInput {
  */
 export async function registerUploadedBlob(db: AppDatabase, input: RegisterUploadedBlobInput): Promise<UploadResult> {
   const driver = getActiveUploadDriver();
-  const storageKey = deriveStorageKey(input.sha256);
-  const newId = ulid();
+  // The presign phase minted the object's key; without a live session (and
+  // no existing row to dedup onto) the object's location is unknowable.
+  const pending = getPendingUpload(input.sha256, Date.now());
 
   const result = db.transaction((tx) => {
     let row = tx.select().from(files).where(
@@ -501,17 +530,19 @@ export async function registerUploadedBlob(db: AppDatabase, input: RegisterUploa
       row = { ...row, refCount: row.refCount + 1 };
     }
     else {
+      if (!pending)
+        throw new AppError("Direct upload session not found or expired", 400, "UPLOAD_NOT_FOUND");
       tx.insert(files).values({
-        id: newId,
+        id: pending.id,
         sha256: input.sha256,
         size: input.size,
         mimetype: input.mimetype,
         storageDriver: driver.name,
-        storageKey,
+        storageKey: pending.key,
         refCount: 1,
         uploadedBy: input.uploadedBy,
       }).run();
-      row = tx.select().from(files).where(eq(files.id, newId)).get()!;
+      row = tx.select().from(files).where(eq(files.id, pending.id)).get()!;
       insertedNewBlob = true;
     }
 

@@ -15,7 +15,8 @@ import { auditEvents } from "@/modules/audit/schema";
 import { uploadDriveFile } from "@/modules/drive/drive.service";
 import { fileReferences } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
-import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
+import { __clearPendingUploadsForTests } from "@/modules/file/storage/pending-uploads";
+import { __resetDriverRegistryForTests, registerDriver, setActiveDriver, setActiveUploadDriver } from "@/modules/file/storage/registry";
 import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { createItem } from "@/modules/item/item.service";
 import { errorHandler } from "@/shared/middleware/error-handler";
@@ -283,6 +284,110 @@ describe("shared attachment routes — permission callback", () => {
     const ref = (await db.select().from(fileReferences).where(eq(fileReferences.id, aid)).get())!;
     expect(ref.ownerType).toBe("custom_record_doc");
     expect(ref.ownerId).toBe(recordOwnerId);
+  });
+});
+
+describe("shared attachment routes — presigned direct upload (FEAT-050)", () => {
+  const thingBase = () => `/things/${thingExternalId}`;
+  const sha = (c: string): string => c.repeat(64).slice(0, 64);
+  const presignBody = (c: string) => ({ filename: "direct.bin", sha256: sha(c), size: 512, mimetype: "application/octet-stream" });
+  const confirmBody = (c: string) => ({ filename: "direct.bin", sha256: sha(c), mimetype: "application/octet-stream" });
+
+  // Minimal in-memory object store standing in for S3 (presignUpload + stat).
+  const store = new Map<string, number>();
+  function fakeS3() {
+    return {
+      name: "s3",
+      async put(key: string, data: ArrayBufferLike) {
+        store.set(key, data.byteLength);
+      },
+      async getStream() {
+        return new ReadableStream({ start: c => c.close() });
+      },
+      async delete(key: string) {
+        store.delete(key);
+      },
+      async exists(key: string) {
+        return store.has(key);
+      },
+      async presignUpload(key: string, opts: { contentType: string }) {
+        return { url: `https://s3.test/${key}`, method: "PUT" as const, headers: { "Content-Type": opts.contentType } };
+      },
+      async stat(key: string) {
+        const size = store.get(key);
+        return size === undefined ? null : { size };
+      },
+    };
+  }
+
+  function useFakeS3(): void {
+    store.clear();
+    __clearPendingUploadsForTests();
+    registerDriver(fakeS3());
+    setActiveUploadDriver("s3");
+  }
+
+  test("409 DIRECT_UPLOAD_UNAVAILABLE when the active upload driver cannot presign (local)", async () => {
+    const res = await req(buildApp(), "POST", `${thingBase()}/attachments/presign-upload`, "writer", presignBody("a"));
+    expect(res.status).toBe(409);
+  });
+
+  test("authorization mirrors the multipart route: reader 403, outsider fail-closed 404", async () => {
+    useFakeS3();
+    const app = buildApp();
+    expect((await req(app, "POST", `${thingBase()}/attachments/presign-upload`, "reader", presignBody("a"))).status).toBe(403);
+    expect((await req(app, "POST", `${thingBase()}/attachments/presign-upload`, "outsider", presignBody("a"))).status).toBe(404);
+    expect((await req(app, "POST", `${thingBase()}/attachments/confirm-upload`, "reader", confirmBody("a"))).status).toBe(403);
+    // writeDenial "not-found" hosts mask the 403 as a 404.
+    expect((await req(app, "POST", `/records/${recordExternalId}/attachments/presign-upload`, "reader", presignBody("a"))).status).toBe(404);
+  });
+
+  test("full flow: presign → PUT → confirm registers the reference and audits once", async () => {
+    useFakeS3();
+    const app = buildApp();
+
+    const presign = await req(app, "POST", `${thingBase()}/attachments/presign-upload`, "writer", presignBody("b"));
+    expect(presign.status).toBe(200);
+    const { data } = await presign.json() as { data: { mode: "upload"; upload: { url: string; method: string } } };
+    expect(data.mode).toBe("upload");
+    const key = data.upload.url.slice("https://s3.test/".length);
+    expect(key).toMatch(/^\d{10}\/[0-9a-hjkmnp-tv-z]{26}$/);
+    store.set(key, 512); // the browser PUT
+
+    const confirm = await req(app, "POST", `${thingBase()}/attachments/confirm-upload`, "writer", confirmBody("b"));
+    expect(confirm.status).toBe(201);
+    const view = (await confirm.json() as { data: { id: string; ownerType: string; size: number } }).data;
+    expect(view.ownerType).toBe("item_attachment");
+    expect(view.size).toBe(512);
+
+    const ref = (await db.select().from(fileReferences).where(eq(fileReferences.id, view.id)).get())!;
+    expect(ref.ownerId).toBe(thingOwnerId);
+    const events = await db.select().from(auditEvents).where(eq(auditEvents.action, "thing.attachment_uploaded")).all();
+    expect(events).toHaveLength(1);
+  });
+
+  test("presign dedups instantly for the same uploader (mode done, no second upload)", async () => {
+    useFakeS3();
+    const app = buildApp();
+    const presign = await req(app, "POST", `${thingBase()}/attachments/presign-upload`, "writer", presignBody("c"));
+    const { data } = await presign.json() as { data: { mode: string; upload: { url: string } } };
+    store.set(data.upload.url.slice("https://s3.test/".length), 512);
+    await req(app, "POST", `${thingBase()}/attachments/confirm-upload`, "writer", confirmBody("c"));
+
+    // Same content, same user, other subject: finishes without an upload.
+    const again = await req(app, "POST", `/things/${otherThingExternalId}/attachments/presign-upload`, "writer", presignBody("c"));
+    expect(again.status).toBe(201);
+    const done = (await again.json() as { data: { mode: string; attachment: { ownerId: string } } }).data;
+    expect(done.mode).toBe("done");
+    expect(done.attachment.ownerId).toBe(otherThingOwnerId);
+  });
+
+  test("confirm without a landed object is a 400 UPLOAD_NOT_FOUND", async () => {
+    useFakeS3();
+    const app = buildApp();
+    await req(app, "POST", `${thingBase()}/attachments/presign-upload`, "writer", presignBody("d"));
+    const res = await req(app, "POST", `${thingBase()}/attachments/confirm-upload`, "writer", confirmBody("d"));
+    expect(res.status).toBe(400);
   });
 });
 

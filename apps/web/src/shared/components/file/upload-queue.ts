@@ -10,6 +10,7 @@ import { useCallback } from "react";
 import { create } from "zustand";
 import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
 import { driveKeys } from "@/shared/lib/api/drive";
+import { sha256Hex } from "@/shared/lib/direct-upload";
 import { BASE_PATH } from "@/shared/lib/http";
 
 type UploadStatus = "uploading" | "done" | "error";
@@ -66,11 +67,10 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
   const { directUpload } = useUploadLimits();
 
   return useCallback((files, owner) => {
-    // Stream bytes straight to the API (local driver) — multipart POST.
-    const uploadViaApi = (file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
-      const id = crypto.randomUUID();
-      add({ id, name: file.name, size: file.size, status: "uploading", progress: 0, relativePath: relativePathOf(file) });
-
+    // Stream bytes straight to the API (local driver) — multipart POST onto
+    // an already-registered queue task. Also the fallback leg when a direct
+    // upload fails partway.
+    const uploadViaApiTask = (id: string, file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
       const form = new FormData();
       form.set("file", file);
       if (parentEntryId)
@@ -104,22 +104,32 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
       xhr.send(form);
     });
 
+    const uploadViaApi = (file: File, parentEntryId: string | null) => {
+      const id = crypto.randomUUID();
+      add({ id, name: file.name, size: file.size, status: "uploading", progress: 0, relativePath: relativePathOf(file) });
+      return uploadViaApiTask(id, file, parentEntryId);
+    };
+
     // Presigned direct upload (FEAT-044): hash → presign (dedup-skip) → PUT
-    // straight to S3 (progress) → confirm. Falls back to the API path on any
-    // step error so an upload is never silently lost.
+    // straight to S3 (progress) → confirm. Any step failure falls back to
+    // the multipart API path on the SAME queue task, so an upload is never
+    // lost to S3/CORS trouble (FIX-064).
     const uploadDirect = (file: File, parentEntryId: string | null) => new Promise<void>((resolve) => {
       const id = crypto.randomUUID();
       add({ id, name: file.name, size: file.size, status: "uploading", progress: 0, relativePath: relativePathOf(file) });
       const mimetype = file.type || "application/octet-stream";
       const ownerFields = { name: file.name, parentEntryId, ownerType: owner.ownerType, ownerId: owner.ownerId };
+      const fallback = () => {
+        patch(id, { progress: 0 });
+        void uploadViaApiTask(id, file, parentEntryId).then(resolve);
+      };
 
       void (async () => {
         try {
           const sha256 = await sha256Hex(file);
           const presign = await postJson("/api/drive/files/presign-upload", { sha256, size: file.size, mimetype, ...ownerFields });
           if (!presign.ok) {
-            patch(id, { status: "error", error: `HTTP ${presign.status}` });
-            resolve();
+            fallback();
             return;
           }
           const data = (presign.body as { data: PresignResponse }).data;
@@ -132,17 +142,15 @@ export function useFileUploader(): (files: readonly File[], owner: UploadOwner) 
           await putToStorage(data.upload, file, p => patch(id, { progress: p }));
           const confirm = await postJson("/api/drive/files/confirm-upload", { sha256, mimetype, ...ownerFields });
           if (!confirm.ok) {
-            patch(id, { status: "error", error: `HTTP ${confirm.status}` });
-            resolve();
+            fallback();
             return;
           }
           patch(id, { status: "done", progress: 100 });
           void queryClient.invalidateQueries({ queryKey: driveKeys.all });
           resolve();
         }
-        catch (err) {
-          patch(id, { status: "error", error: err instanceof Error ? err.message : "upload" });
-          resolve();
+        catch {
+          fallback();
         }
       })();
     });
@@ -199,15 +207,9 @@ type PresignResponse
   = | { readonly mode: "done"; readonly entry: DriveEntry }
     | { readonly mode: "upload"; readonly upload: PresignedUpload };
 
-/** SHA-256 of the file's bytes as lowercase hex (the content-addressed key). */
-async function sha256Hex(file: File): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
 /** Same-origin JSON POST to the drive API with cookie + CSRF header. */
 async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; body: unknown }> {
-  const res = await fetch(`${BASE_PATH}/api${path}`, {
+  const res = await fetch(`${BASE_PATH}${path}`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },

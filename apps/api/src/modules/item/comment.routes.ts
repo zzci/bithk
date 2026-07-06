@@ -6,10 +6,12 @@ import { z } from "zod";
 import { auditFromCtx } from "@/modules/audit/audit.context";
 import {
   buildDownloadResponse,
+  confirmReferenceUpload,
   getFileById,
   getReferenceById,
   listAttachmentsByOwner,
   makeAttachmentView,
+  presignReferenceUpload,
   releaseReference,
   uploadAndReference,
 } from "@/modules/file";
@@ -56,6 +58,24 @@ const attachmentViewSchema = z.object({
   createdBy: z.string(),
   createdAt: z.string(),
 });
+
+// Presigned direct upload (FEAT-050) — mirrors the attachment factory pair.
+const presignUploadSchema = z.object({
+  filename: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  size: z.number().int().positive(),
+  mimetype: z.string().min(1),
+});
+const confirmUploadSchema = z.object({
+  filename: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  mimetype: z.string().min(1),
+});
+const presignResponseSchema = z.object({
+  mode: z.literal("upload"),
+  upload: z.object({ url: z.string(), method: z.literal("PUT"), headers: z.record(z.string(), z.string()) }),
+});
+const presignDoneResponseSchema = z.object({ mode: z.literal("done"), attachment: attachmentViewSchema });
 
 /**
  * Per-request permission read for one sub-type subject. Sub-types compute
@@ -317,6 +337,113 @@ export function mountItemCommentRoutes<TResource>(
         resourceId: subject.externalId,
         resourceName: subject.resourceName,
         detail: { commentId: cid, attachmentId: reference.id, filename: file.name, size: file.size },
+        result: "success",
+      });
+      return c.json({ success: true, data: view }, 201);
+    },
+  );
+
+  // Resolve the comment and enforce the author-only attach rule — shared by
+  // the presign/confirm pair below, mirroring the multipart route above.
+  async function loadOwnComment(db: AppDatabase, c: Context<ProtectedEnv>, itemId: string, userId: string) {
+    const cid = requireParam(c, "cid");
+    const comment = await getCommentById(db, itemId, cid);
+    if (!comment)
+      throw new NotFoundError("Comment", cid);
+    if (comment.authorId !== userId)
+      throw new ForbiddenError();
+    return cid;
+  }
+
+  // Presigned direct upload (FEAT-050) — phase 1: authorize exactly like the
+  // multipart route, then dedup-or-presign. Phase 2 registers the object.
+  router.post(
+    `${prefix}/:id/comments/:cid/attachments/presign-upload`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `Upload a ${resourceType} comment attachment (presign direct upload)`,
+      responses: {
+        200: okJson(presignResponseSchema),
+        201: okJson(presignDoneResponseSchema, "Created (dedup)"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        409: { description: "Direct upload unavailable", ...errorJson },
+        413: { description: "Upload too large", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id", "cid"), onValidationFailure),
+    validator("json", presignUploadSchema, onValidationFailure),
+    async (c) => {
+      const { db, user, subject } = await load(c);
+      const cid = await loadOwnComment(db, c, subject.item.id, user.id);
+      const body = c.req.valid("json");
+
+      const result = await presignReferenceUpload(db, c.get("config"), {
+        ownerType: "item_comment_attachment",
+        ownerId: cid,
+        filename: body.filename,
+        sha256: body.sha256,
+        size: body.size,
+        mimetype: body.mimetype,
+        uploadedBy: user.id,
+      });
+      if (result.mode === "done") {
+        const view = makeAttachmentView(result.reference, result.file);
+        await auditFromCtx(c, {
+          action: `${resourceType}.comment_attachment_uploaded`,
+          resourceType,
+          resourceId: subject.externalId,
+          resourceName: subject.resourceName,
+          detail: { commentId: cid, attachmentId: result.reference.id, filename: body.filename, size: result.file.size },
+          result: "success",
+        });
+        return c.json({ success: true, data: { mode: "done", attachment: view } }, 201);
+      }
+      return c.json({ success: true, data: { mode: "upload", upload: result.upload } });
+    },
+  );
+
+  // Presigned direct upload (FEAT-050) — phase 2: register the uploaded object.
+  router.post(
+    `${prefix}/:id/comments/:cid/attachments/confirm-upload`,
+    describeRoute({
+      tags: ["comments"],
+      summary: `Upload a ${resourceType} comment attachment (confirm direct upload)`,
+      responses: {
+        201: okJson(attachmentViewSchema, "Created"),
+        400: { description: "Upload not found", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+        413: { description: "Upload too large", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id", "cid"), onValidationFailure),
+    validator("json", confirmUploadSchema, onValidationFailure),
+    async (c) => {
+      const { db, user, subject } = await load(c);
+      const cid = await loadOwnComment(db, c, subject.item.id, user.id);
+      const body = c.req.valid("json");
+
+      const { reference, file: uploaded } = await confirmReferenceUpload(db, c.get("config"), {
+        ownerType: "item_comment_attachment",
+        ownerId: cid,
+        filename: body.filename,
+        sha256: body.sha256,
+        mimetype: body.mimetype,
+        uploadedBy: user.id,
+      });
+      const view = makeAttachmentView(reference, uploaded);
+
+      await auditFromCtx(c, {
+        action: `${resourceType}.comment_attachment_uploaded`,
+        resourceType,
+        resourceId: subject.externalId,
+        resourceName: subject.resourceName,
+        detail: { commentId: cid, attachmentId: reference.id, filename: body.filename, size: uploaded.size },
         result: "success",
       });
       return c.json({ success: true, data: view }, 201);

@@ -8,10 +8,12 @@ import { getDriveEntryById } from "@/modules/drive/drive.service";
 import {
   addReference,
   buildDownloadResponse,
+  confirmReferenceUpload,
   getFileById,
   getReferenceById,
   listAttachmentsByOwner,
   makeAttachmentView,
+  presignReferenceUpload,
   releaseReference,
   uploadAndReference,
 } from "@/modules/file";
@@ -36,6 +38,23 @@ const attachmentViewSchema = z.object({
 });
 // Attach an already-stored drive file by entry id (no re-upload).
 const fromDriveSchema = z.object({ entryId: z.string().min(1) });
+// Presigned direct upload (FEAT-050) — mirrors the drive pair (FEAT-044).
+const presignUploadSchema = z.object({
+  filename: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  size: z.number().int().positive(),
+  mimetype: z.string().min(1),
+});
+const confirmUploadSchema = z.object({
+  filename: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  mimetype: z.string().min(1),
+});
+const presignResponseSchema = z.object({
+  mode: z.literal("upload"),
+  upload: z.object({ url: z.string(), method: z.literal("PUT"), headers: z.record(z.string(), z.string()) }),
+});
+const presignDoneResponseSchema = z.object({ mode: z.literal("done"), attachment: attachmentViewSchema });
 
 /**
  * Per-request permission read for one sub-type subject. Sub-types compute
@@ -220,6 +239,105 @@ export function mountItemAttachmentRoutes<TResource>(
         });
       }
 
+      return c.json({ success: true, data: view }, 201);
+    },
+  );
+
+  // Presigned direct upload (FEAT-050) — phase 1: authorize exactly like the
+  // multipart route, then dedup-or-presign. Phase 2 registers the object.
+  router.post(
+    `${prefix}/:id/attachments/presign-upload`,
+    describeRoute({
+      tags: [tag],
+      summary: `${summaries.upload} (presign direct upload)`,
+      responses: {
+        200: okJson(presignResponseSchema),
+        201: okJson(presignDoneResponseSchema, "Created (dedup)"),
+        401: { description: "Unauthenticated", ...errorJson },
+        ...(writeDenial === "forbidden" ? { 403: { description: "Forbidden", ...errorJson } } : {}),
+        404: { description: "Not found", ...errorJson },
+        409: { description: "Direct upload unavailable", ...errorJson },
+        413: { description: "Upload too large", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id"), onValidationFailure),
+    validator("json", presignUploadSchema, onValidationFailure),
+    async (c) => {
+      const { db, user, subject, perms } = await load(c);
+      assertCanWrite(perms, subject);
+      const body = c.req.valid("json");
+
+      const result = await presignReferenceUpload(db, c.get("config"), {
+        ownerType,
+        ownerId: subject.ownerId,
+        filename: body.filename,
+        sha256: body.sha256,
+        size: body.size,
+        mimetype: body.mimetype,
+        uploadedBy: user.id,
+      });
+      if (result.mode === "done") {
+        const view = makeAttachmentView(result.reference, result.file);
+        if (auditEnabled) {
+          await auditFromCtx(c, {
+            action: `${resourceType}.attachment_uploaded`,
+            resourceType,
+            resourceId: subject.externalId,
+            resourceName: subject.resourceName,
+            detail: { attachmentId: result.reference.id, filename: body.filename, size: result.file.size },
+            result: "success",
+          });
+        }
+        return c.json({ success: true, data: { mode: "done", attachment: view } }, 201);
+      }
+      return c.json({ success: true, data: { mode: "upload", upload: result.upload } });
+    },
+  );
+
+  // Presigned direct upload (FEAT-050) — phase 2: register the uploaded object.
+  router.post(
+    `${prefix}/:id/attachments/confirm-upload`,
+    describeRoute({
+      tags: [tag],
+      summary: `${summaries.upload} (confirm direct upload)`,
+      responses: {
+        201: okJson(attachmentViewSchema, "Created"),
+        400: { description: "Upload not found", ...errorJson },
+        401: { description: "Unauthenticated", ...errorJson },
+        ...(writeDenial === "forbidden" ? { 403: { description: "Forbidden", ...errorJson } } : {}),
+        404: { description: "Not found", ...errorJson },
+        413: { description: "Upload too large", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
+      },
+    }),
+    validator("param", paramSchema("id"), onValidationFailure),
+    validator("json", confirmUploadSchema, onValidationFailure),
+    async (c) => {
+      const { db, user, subject, perms } = await load(c);
+      assertCanWrite(perms, subject);
+      const body = c.req.valid("json");
+
+      const { reference, file: uploaded } = await confirmReferenceUpload(db, c.get("config"), {
+        ownerType,
+        ownerId: subject.ownerId,
+        filename: body.filename,
+        sha256: body.sha256,
+        mimetype: body.mimetype,
+        uploadedBy: user.id,
+      });
+      const view = makeAttachmentView(reference, uploaded);
+
+      if (auditEnabled) {
+        await auditFromCtx(c, {
+          action: `${resourceType}.attachment_uploaded`,
+          resourceType,
+          resourceId: subject.externalId,
+          resourceName: subject.resourceName,
+          detail: { attachmentId: reference.id, filename: body.filename, size: uploaded.size },
+          result: "success",
+        });
+      }
       return c.json({ success: true, data: view }, 201);
     },
   );

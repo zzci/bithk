@@ -13,7 +13,7 @@ import { pack as tarPack } from "tar-stream";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { fileBackupContribution } from "@/modules/file/file.backup";
-import { deriveStorageKey } from "@/modules/file/storage/key";
+import { legacyContentAddressedKey } from "@/modules/file/storage/key";
 import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
@@ -176,17 +176,17 @@ describe("prepareImport — happy path", () => {
     setActiveDriver("local");
     const present = "ab".repeat(32);
     const missing = "cd".repeat(32);
-    await localDriver.put(deriveStorageKey(present), new Uint8Array(16).fill(1).buffer as ArrayBuffer);
+    await localDriver.put(legacyContentAddressedKey(present), new Uint8Array(16).fill(1).buffer as ArrayBuffer);
 
     const manifest = baseManifest({ includeBlobs: true, blobs: { count: 2, totalBytes: 32 } });
     const job = await prepareImport(db, config, await archiveFile([
       ...validEntries(manifest),
-      { name: `blobs/${deriveStorageKey(present)}`, data: new Uint8Array(16).fill(1) },
-      { name: `blobs/${deriveStorageKey(missing)}`, data: new Uint8Array(16).fill(2) },
+      { name: `blobs/${legacyContentAddressedKey(present)}`, data: new Uint8Array(16).fill(1) },
+      { name: `blobs/${legacyContentAddressedKey(missing)}`, data: new Uint8Array(16).fill(2) },
     ]));
     expect(job.report.blobs).toEqual({ count: 2, existing: 1, missing: 1 });
     // NEVER written: the missing blob is still absent on the driver.
-    expect(await localDriver.exists(deriveStorageKey(missing))).toBe(false);
+    expect(await localDriver.exists(legacyContentAddressedKey(missing))).toBe(false);
   });
 });
 
@@ -316,7 +316,7 @@ describe("decompression-bomb caps", () => {
     const manifest = baseManifest({ includeBlobs: true, blobs: { count: 1, totalBytes: 4096 } });
     const file = await archiveFile([
       ...validEntries(manifest),
-      { name: `blobs/${deriveStorageKey(sha)}`, data: new Uint8Array(4096) },
+      { name: `blobs/${legacyContentAddressedKey(sha)}`, data: new Uint8Array(4096) },
     ]);
     await expect(prepareImport(db, config, file, { maxBlobBytes: 1024 })).rejects.toMatchObject({ code: "ARCHIVE_TOO_LARGE" });
   });

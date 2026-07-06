@@ -11,7 +11,7 @@ import { pack as tarPack } from "tar-stream";
 import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { fileBackupContribution } from "@/modules/file/file.backup";
-import { deriveStorageKey } from "@/modules/file/storage/key";
+import { legacyContentAddressedKey } from "@/modules/file/storage/key";
 import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
 import { AppError } from "@/shared/lib/errors";
@@ -79,7 +79,7 @@ function sha256Of(data: Uint8Array): string {
 }
 
 function blobEntry(data: Uint8Array, shaOverride?: string): TestEntry {
-  return { name: `blobs/${deriveStorageKey(shaOverride ?? sha256Of(data))}`, data };
+  return { name: `blobs/${legacyContentAddressedKey(shaOverride ?? sha256Of(data))}`, data };
 }
 
 async function expectReject(file: File, code: string, messageHint?: string): Promise<void> {
@@ -99,16 +99,25 @@ async function expectReject(file: File, code: string, messageHint?: string): Pro
 
 describe("restoreBlobArchive — happy path", () => {
   test("writes verified blobs; re-upload is all skippedExisting (idempotent)", async () => {
+    const u1 = await seedUser(db, "user");
     const b1 = new TextEncoder().encode("blob one");
     const b2 = new TextEncoder().encode("blob two");
+    // REFACTOR-038: blobs land at their files row's stored key — rowless
+    // entries are skipped, so name the targets via quarantined rows.
+    await db.run(sql`
+      INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
+      VALUES
+        ('fb1', ${sha256Of(b1)}, ${b1.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${legacyContentAddressedKey(sha256Of(b1))}, 0, ${u1}),
+        ('fb2', ${sha256Of(b2)}, ${b2.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${legacyContentAddressedKey(sha256Of(b2))}, 0, ${u1})
+    `);
     const file = await blobArchive([blobEntry(b1), blobEntry(b2)]);
 
     const report = await restoreBlobArchive(db, config, file, {}, stubLogger);
     expect(report.written).toBe(2);
     expect(report.skippedExisting).toBe(0);
     expect(report.failed).toBe(0);
-    expect(await localDriver.exists(deriveStorageKey(sha256Of(b1)))).toBe(true);
-    expect(await localDriver.exists(deriveStorageKey(sha256Of(b2)))).toBe(true);
+    expect(await localDriver.exists(legacyContentAddressedKey(sha256Of(b1)))).toBe(true);
+    expect(await localDriver.exists(legacyContentAddressedKey(sha256Of(b2)))).toBe(true);
 
     const again = await restoreBlobArchive(db, config, file, {}, stubLogger);
     expect(again.written).toBe(0);
@@ -116,15 +125,28 @@ describe("restoreBlobArchive — happy path", () => {
     expect(again.failed).toBe(0);
   });
 
+  test("an entry no files row references is skipped as unreferenced", async () => {
+    const orphan = new TextEncoder().encode("nobody references me");
+    const report = await restoreBlobArchive(db, config, await blobArchive([blobEntry(orphan)]), {}, stubLogger);
+    expect(report.written).toBe(0);
+    expect(report.unreferenced).toBe(1);
+    expect(await localDriver.exists(legacyContentAddressedKey(sha256Of(orphan)))).toBe(false);
+  });
+
   test("a hash-mismatching entry counts failed and is never written", async () => {
+    const u1 = await seedUser(db, "user");
     const good = new TextEncoder().encode("good bytes");
     const liarSha = sha256Of(new TextEncoder().encode("other bytes"));
+    await db.run(sql`
+      INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
+      VALUES ('fl1', ${liarSha}, ${good.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${legacyContentAddressedKey(liarSha)}, 0, ${u1})
+    `);
     const file = await blobArchive([blobEntry(good, liarSha)]);
 
     const report = await restoreBlobArchive(db, config, file, {}, stubLogger);
     expect(report.written).toBe(0);
     expect(report.failed).toBe(1);
-    expect(await localDriver.exists(deriveStorageKey(liarSha))).toBe(false);
+    expect(await localDriver.exists(legacyContentAddressedKey(liarSha))).toBe(false);
   });
 
   test("un-quarantines files rows whose bytes arrived, then reconciles clean", async () => {
@@ -134,7 +156,7 @@ describe("restoreBlobArchive — happy path", () => {
     // A row quarantined by a prior reconcile (sentinel driver, ref_count 0).
     await db.run(sql`
       INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
-      VALUES ('f1', ${sha}, ${bytes.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${deriveStorageKey(sha)}, 0, ${u1})
+      VALUES ('f1', ${sha}, ${bytes.length}, 'text/plain', 'quarantined:backup-restore-missing-blob', ${legacyContentAddressedKey(sha)}, 0, ${u1})
     `);
 
     const report = await restoreBlobArchive(db, config, await blobArchive([blobEntry(bytes)]), {}, stubLogger);
@@ -150,7 +172,7 @@ describe("restoreBlobArchive — happy path", () => {
     const sha = "ab".repeat(32);
     await db.run(sql`
       INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
-      VALUES ('f1', ${sha}, 4, 'text/plain', 'quarantined:backup-restore-missing-blob', ${deriveStorageKey(sha)}, 0, ${u1})
+      VALUES ('f1', ${sha}, 4, 'text/plain', 'quarantined:backup-restore-missing-blob', ${legacyContentAddressedKey(sha)}, 0, ${u1})
     `);
     expect(await unquarantineRestoredFiles(db, stubLogger)).toBe(0);
     const row = await db.all<{ storage_driver: string }>(sql`SELECT storage_driver FROM files WHERE id = 'f1'`);
@@ -235,7 +257,7 @@ describe("restoreBlobArchive — blobs-only allowlist", () => {
     ]);
     await expectReject(file, "MALFORMED_ARCHIVE");
     // The valid leading entry was NOT imported — validation precedes writes.
-    expect(await localDriver.exists(deriveStorageKey(sha256Of(good)))).toBe(false);
+    expect(await localDriver.exists(legacyContentAddressedKey(sha256Of(good)))).toBe(false);
   });
 });
 
