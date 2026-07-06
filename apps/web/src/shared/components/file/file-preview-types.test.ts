@@ -42,4 +42,10 @@ describe("resolvePreviewKind", () => {
   it("classifies the univer sheet mime as unsupported", () => {
     expect(resolvePreviewKind(UNIVER_SHEET_MIME, "sheet")).toBe("unsupported");
   });
+
+  it("falls back to the .sheet suffix when the mimetype is empty (FIX-063)", () => {
+    expect(resolvePreviewKind("", "budget.sheet")).toBe("unsupported");
+    // A present mimetype stays authoritative over the suffix.
+    expect(resolvePreviewKind("text/plain", "notes.sheet")).toBe("text");
+  });
 });

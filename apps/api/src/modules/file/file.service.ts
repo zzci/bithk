@@ -7,7 +7,7 @@ import { fileReferences, files } from "@/modules/file/schema";
 import { buildContentDisposition } from "@/shared/lib/content-disposition";
 import { AppError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
-import { mimeMatchesContent } from "@/shared/lib/mime-sniff";
+import { mimeFromFilename, mimeMatchesContent, sniffMime } from "@/shared/lib/mime-sniff";
 import { assertWithinTotalQuota, decrementUploadsUsed, incrementUploadsUsed, isWithinFileSize, maxAttachmentsPerResource } from "@/shared/lib/upload-limits";
 import { getThumbnail, previewCacheEnabled } from "./preview-cache";
 import { deriveStorageKey } from "./storage/key";
@@ -151,6 +151,26 @@ export interface UploadInput {
    * ({@link getActiveUploadDriver}). Dedup is per `(sha256, storageDriver)`.
    */
   readonly driverName?: string | undefined;
+  /**
+   * Caller-declared MIME type, consulted only when `file.type` is empty
+   * (FIX-063). Bun 1.3.14's server-side `req.formData()` drops the multipart
+   * part's `Content-Type`, so every multipart upload arrives with an empty
+   * `File.type`; callers that know the type out-of-band (drive versions
+   * inherit the entry's current mimetype) pass it here. When both are empty
+   * the type is resolved by magic-byte sniff → extension map →
+   * `application/octet-stream` — an empty `files.mimetype` is never stored.
+   */
+  readonly declaredMime?: string | undefined;
+  /**
+   * Tolerate re-uploading content the SAME owner already references
+   * (FIX-063): instead of failing with DUPLICATE_REFERENCE, return the
+   * existing reference row (`reusedReference: true`) without bumping the
+   * refcount. Only the drive version paths opt in — a save whose content
+   * dedups to one of the entry's own version blobs (autosave after undo)
+   * must succeed. Attachment surfaces keep the guard: double-attach is a
+   * real error there.
+   */
+  readonly reuseExistingReference?: boolean | undefined;
 }
 
 export interface UploadResult {
@@ -158,6 +178,13 @@ export interface UploadResult {
   readonly reference: FileReferenceRow;
   /** True iff the upload hit an existing `files` row (dedupe). */
   readonly deduped: boolean;
+  /**
+   * True iff the returned reference row already existed (same owner, same
+   * blob) and was reused under `reuseExistingReference` — no new row was
+   * created and the refcount was NOT bumped, so the caller must not release
+   * it on its own failure paths.
+   */
+  readonly reusedReference: boolean;
 }
 
 /**
@@ -180,9 +207,6 @@ export async function uploadAndReference(
   if (!isWithinFileSize(file.size, config) && !(input.allowEmpty && file.size === 0)) {
     throw new AppError("File size exceeds per-file limit", 400, "FILE_TOO_LARGE");
   }
-  if (policy !== "any" && !policyAllows(policy, file.type)) {
-    throw new AppError("File type not allowed", 400, "INVALID_MIMETYPE");
-  }
 
   // Read the buffer once. Bun gives us an ArrayBuffer; we sniff the first
   // 1 KiB for magic-byte verification, hash the full bytes for the content
@@ -190,13 +214,29 @@ export async function uploadAndReference(
   // upload+hash is a follow-up; the current 10 MiB per-file cap keeps the
   // memory profile fine.
   const buffer = await file.arrayBuffer();
+  const sniffWindow = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 1024));
+
+  // Authoritative server-side MIME resolution (FIX-063). Bun 1.3.14's
+  // server-side `req.formData()` drops the multipart part's `Content-Type`,
+  // so `file.type` is empty for EVERY multipart upload. Resolve it here — the
+  // single choke point every consumer flows through — as declared →
+  // magic-byte sniff → extension map → octet-stream, so an empty
+  // `files.mimetype` is never persisted again.
+  const mimetype = file.type
+    || input.declaredMime
+    || sniffMime(sniffWindow)
+    || mimeFromFilename(file.name)
+    || "application/octet-stream";
+
+  if (policy !== "any" && !policyAllows(policy, mimetype)) {
+    throw new AppError("File type not allowed", 400, "INVALID_MIMETYPE");
+  }
 
   // Magic-byte integrity check applies ONLY under a restrictive policy: a
   // generic OA surface (`"any"`) must accept arbitrary bytes, whereas an
   // image-only surface must reject a file that *declares* an image type but
   // whose content is not one.
-  const sniffWindow = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 1024));
-  if (policy !== "any" && !mimeMatchesContent(file.type, sniffWindow)) {
+  if (policy !== "any" && !mimeMatchesContent(mimetype, sniffWindow)) {
     throw new AppError("File contents do not match declared type", 400, "MIME_MISMATCH");
   }
 
@@ -233,11 +273,33 @@ export async function uploadAndReference(
   // just bump the refcount and attach a reference. No driver I/O needed.
   // bun:sqlite transactions are synchronous; driver.put cannot run inside.
   const dedupe = db.transaction((tx) => {
-    const existing = tx.select().from(files).where(
+    let existing = tx.select().from(files).where(
       and(eq(files.sha256, sha256), eq(files.storageDriver, driver.name)),
     ).get();
     if (!existing)
       return null;
+
+    // Opportunistic repair (FIX-063): a pre-fix blob row may carry an empty
+    // mimetype. When the same content is uploaded again with a resolvable
+    // type, backfill it so the dedup hit heals the row instead of keeping it
+    // broken until the next boot repair.
+    if (existing.mimetype === "") {
+      tx.update(files).set({ mimetype }).where(eq(files.id, existing.id)).run();
+      existing = { ...existing, mimetype };
+    }
+
+    // Same-owner duplicate tolerance (FIX-063): reuse the existing reference
+    // row instead of violating UNIQUE(owner_type, owner_id, file_id). No
+    // refcount bump — no new reference exists.
+    if (input.reuseExistingReference) {
+      const owned = tx.select().from(fileReferences).where(and(
+        eq(fileReferences.fileId, existing.id),
+        eq(fileReferences.ownerType, ownerType),
+        eq(fileReferences.ownerId, ownerId),
+      )).get();
+      if (owned)
+        return { file: existing, reference: owned, deduped: true, reusedReference: true };
+    }
 
     tx.update(files)
       .set({ refCount: sql`${files.refCount} + 1` })
@@ -263,7 +325,7 @@ export async function uploadAndReference(
       throw err;
     }
     const ref = tx.select().from(fileReferences).where(eq(fileReferences.id, refId)).get()!;
-    return { file: { ...existing, refCount: existing.refCount + 1 }, reference: ref, deduped: true };
+    return { file: { ...existing, refCount: existing.refCount + 1 }, reference: ref, deduped: true, reusedReference: false };
   });
 
   if (dedupe)
@@ -275,7 +337,7 @@ export async function uploadAndReference(
   const storageKey = deriveStorageKey(sha256);
   // Pass the MIME type so object-store drivers (S3) persist it and a later
   // presigned GET serves the right Content-Type for inline preview.
-  await driver.put(storageKey, buffer, { contentType: file.type });
+  await driver.put(storageKey, buffer, { contentType: mimetype });
 
   // Phase 3 — insert the files row + reference in a sync tx. A concurrent
   // uploader may have raced ahead via the dedupe path; re-check and bump
@@ -287,7 +349,17 @@ export async function uploadAndReference(
     let insertedNewBlob = false;
 
     if (row) {
-      // Lost the race — bump refcount and let the orphan blob be reclaimed.
+      // Lost the race — the concurrent uploader owns the blob row. Apply the
+      // same reuse tolerance as the dedupe path before bumping the refcount.
+      if (input.reuseExistingReference) {
+        const owned = tx.select().from(fileReferences).where(and(
+          eq(fileReferences.fileId, row.id),
+          eq(fileReferences.ownerType, ownerType),
+          eq(fileReferences.ownerId, ownerId),
+        )).get();
+        if (owned)
+          return { file: row, reference: owned, deduped: true, reusedReference: true, insertedNewBlob: false };
+      }
       tx.update(files)
         .set({ refCount: sql`${files.refCount} + 1` })
         .where(eq(files.id, row.id))
@@ -299,7 +371,7 @@ export async function uploadAndReference(
         id: newId,
         sha256,
         size: file.size,
-        mimetype: file.type,
+        mimetype,
         storageDriver: driver.name,
         storageKey,
         refCount: 1,
@@ -328,7 +400,7 @@ export async function uploadAndReference(
       throw err;
     }
     const ref = tx.select().from(fileReferences).where(eq(fileReferences.id, refId)).get()!;
-    return { file: row, reference: ref, deduped: false, insertedNewBlob };
+    return { file: row, reference: ref, deduped: false, reusedReference: false, insertedNewBlob };
   });
 
   // A genuinely new blob adds `file.size` to the tracked total. Keep the
@@ -336,7 +408,7 @@ export async function uploadAndReference(
   // between the periodic SQL recomputes (dedupe / lost-race add no bytes).
   if (result.insertedNewBlob)
     incrementUploadsUsed(file.size);
-  return { file: result.file, reference: result.reference, deduped: result.deduped };
+  return { file: result.file, reference: result.reference, deduped: result.deduped, reusedReference: result.reusedReference };
 }
 
 export interface AddReferenceInput {
@@ -539,7 +611,7 @@ export async function registerUploadedBlob(db: AppDatabase, input: RegisterUploa
   if (result.insertedNewBlob)
     incrementUploadsUsed(input.size);
 
-  return { file: result.file, reference: result.reference, deduped: !result.insertedNewBlob };
+  return { file: result.file, reference: result.reference, deduped: !result.insertedNewBlob, reusedReference: false };
 }
 
 export interface ReleaseReferenceInput {

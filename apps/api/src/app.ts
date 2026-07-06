@@ -12,7 +12,7 @@ import { logDefaultAdmins } from "./modules/account/auth/auth.service";
 import { startAuditRetentionSweep } from "./modules/audit";
 import { startBackupStagingSweep } from "./modules/backup";
 import { initCronActions, startCron } from "./modules/cron";
-import { initFileModule, startFileGcSweep } from "./modules/file";
+import { initFileModule, repairEmptyFileMimetypes, startFileGcSweep } from "./modules/file";
 import { getAllRouteBindings, policyMiddleware } from "./modules/policy";
 import { backfillProjectRoles } from "./modules/project/project.roles";
 import { protectedRoutes, publicRoutes } from "./routes";
@@ -140,6 +140,10 @@ export async function buildFullApp({ config, db, logger }: AppDeps) {
   startAuditRetentionSweep(db, config, logger);
   startBackupStagingSweep(config, logger);
   await initFileModule(config, db);
+  // Heal pre-FIX-063 rows whose multipart upload lost its Content-Type —
+  // idempotent, and a no-op single query once history is repaired.
+  const mimeRepair = await repairEmptyFileMimetypes(db);
+  logger.info(`repairEmptyFileMimetypes: scanned=${mimeRepair.scanned} repaired=${mimeRepair.repaired}`);
   startFileGcSweep(db, config, logger);
   // Actions catalog is always populated so admins can plan jobs even
   // with the scheduler off. `startCron` allocates Baker and starts

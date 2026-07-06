@@ -42,6 +42,8 @@ export {
   uploadAndReference,
 } from "./file.service";
 export { startFileGcSweep, stopFileGcSweep } from "./gc";
+export type { MimeRepairResult } from "./mime-repair";
+export { repairEmptyFileMimetypes } from "./mime-repair";
 export type { FilePermissionHook } from "./permission";
 export { registerFilePermissionHook } from "./permission";
 export { parseThumbnailWidth, THUMBNAIL_WIDTHS } from "./preview-cache";

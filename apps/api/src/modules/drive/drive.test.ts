@@ -598,3 +598,83 @@ describe("drive routes owner scope", () => {
     expect(await clearContent.text()).toBe("second");
   });
 });
+
+describe("FIX-063 — sheet survives a multipart version save (route level)", () => {
+  // Same harness as "drive routes owner scope" above: pre-set `user` from an
+  // `x-uid` header so authRequired and policyMiddleware short-circuit.
+  function buildApp() {
+    const noopLogger = { error() {}, warn() {}, info() {}, debug() {} } as unknown as AppEnv["Variables"]["logger"];
+    const app = new Hono<AppEnv>();
+    app.use("*", async (c, next) => {
+      c.set("db", db);
+      c.set("config", config as unknown as AppEnv["Variables"]["config"]);
+      c.set("logger", noopLogger);
+      c.set("requestId", "t");
+      const uid = c.req.header("x-uid");
+      if (uid) {
+        const u = await db.select().from(users).where(eq(users.id, uid)).get();
+        if (u)
+          c.set("user", u);
+      }
+      await next();
+    });
+    app.use("*", policyMiddleware({ basePath: "" }));
+    app.route("/", driveRoutes());
+    app.onError((err, c) => {
+      const status = (err as { statusCode?: number }).statusCode ?? 500;
+      return c.json({ success: false }, status as 400);
+    });
+    return app;
+  }
+
+  test("a version upload whose File.type was lost in transport keeps the sheet mimetype and reopens", async () => {
+    const userId = await seedUser();
+    const entry = await uploadDriveFile(db, config, {
+      ...personal(userId),
+      createdBy: userId,
+      file: new File(["{\"rev\":0}"], "plan.sheet", { type: UNIVER_SHEET_MIME }),
+    });
+
+    const app = buildApp();
+    // Bun's server-side multipart parsing drops the part's Content-Type, so
+    // the route sees File.type === "" regardless of what the client sent —
+    // construct the File with no type to pin that behaviour.
+    const form = new FormData();
+    form.set("file", new File(["{\"rev\":1,\"sheets\":{}}"], "plan.sheet"));
+    const res = await app.request(`/drive/entries/${entry.id}/versions`, {
+      method: "POST",
+      body: form,
+      headers: { "x-uid": userId },
+    });
+    expect(res.status).toBe(201);
+    const { data } = await res.json() as { data: { mimetype: string; isCurrent: boolean }[] };
+    expect(data[0]!.mimetype).toBe(UNIVER_SHEET_MIME);
+
+    // The stored blob row carries the sheet mime — no empty mimetype anywhere.
+    const blobs = await db.select().from(files).all();
+    for (const blob of blobs)
+      expect(blob.mimetype).toBe(UNIVER_SHEET_MIME);
+
+    // The sheet reopens: content fetch returns the saved snapshot JSON.
+    const content = await app.request(`/drive/entries/${entry.id}/content?inline=true`, {
+      headers: { "x-uid": userId },
+    });
+    expect(content.status).toBe(200);
+    expect(JSON.parse(await content.text())).toEqual({ rev: 1, sheets: {} });
+  });
+
+  test("an attachment-style multipart upload of a .pdf with empty File.type stores application/pdf", async () => {
+    const userId = await seedUser();
+    const app = buildApp();
+    const form = new FormData();
+    form.set("file", new File(["pretend pdf body"], "report.pdf"));
+    const res = await app.request("/drive/files/upload", {
+      method: "POST",
+      body: form,
+      headers: { "x-uid": userId },
+    });
+    expect(res.status).toBe(201);
+    const stored = await db.select().from(files).all();
+    expect(stored.map(f => f.mimetype)).toContain("application/pdf");
+  });
+});

@@ -188,4 +188,4 @@
 | [FIX-061](FIX-061.md) | Import option: wipe existing data before merge (conflict-free restore) | - | Completed | 2026-07-05 |
 | [UI-030](UI-030.md) | Move Storage from standalone nav item into System Settings tab | - | Completed | 2026-07-05 |
 | [FIX-062](FIX-062.md) | File restore model: path-correspondence blobs, quarantine rescan, session-safe wipe import | - | Completed | 2026-07-05 |
-| [FIX-063](FIX-063.md) | Sheet unopenable after save: multipart mimetype loss + duplicate-content autosave failure | - | In Progress | 2026-07-06 |
+| [FIX-063](FIX-063.md) | Sheet unopenable after save: multipart mimetype loss + duplicate-content autosave failure | - | Completed | 2026-07-06 |
