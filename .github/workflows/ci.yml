@@ -42,7 +42,7 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Cache bun install cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -203,7 +203,7 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Cache bun install cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
