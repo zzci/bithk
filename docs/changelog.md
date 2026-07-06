@@ -11,40 +11,43 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.0 — 2026-07-06
+
+### Fixed
+
+- **Presigned direct upload never worked in production**: the web uploader
+  posted presign/confirm to `/api/api/drive/files/...` (double base prefix)
+  and 404'd. Fixed, with URL regression tests; any direct-upload step failure
+  now falls back to the multipart API path on the same queue task instead of
+  failing the upload (FIX-064).
+
 ### Changed
 
-- Backup file story reworked (FIX-062): backups are DB data only
-  (`manifest.blobsMode: "external"`) — exports no longer embed file bytes in
-  any mode (web option, CLI `--blobs`/`--no-blobs`, and the token-route
-  `blobs` field are gone; legacy inputs are ignored/warned). File bytes are
-  the operator's storage-tree (local) or bucket (S3) copy; content-addressed
-  keys keep DB rows and storage paths corresponding. Legacy blob-bearing
-  archives still import, and the `blobs.tar.gz` restore endpoint keeps
-  working.
-- Quarantined file rows (blob missing after a restore) now answer
-  `404 FILE_CONTENT_UNAVAILABLE` on every serve path (download, metadata,
-  thumbnail, share-public) instead of a 500, GC/release paths skip them
-  non-destructively, and the web preview renders a dedicated
-  "content unavailable" state (FIX-062).
-- Quarantine rescan (FIX-062): `POST /api/backup/v2/blob-rescans`, the admin
-  panel's "Rescan missing files" button, and CLI `backup:blob-rescan` probe
-  quarantined rows and heal those whose blob is back
-  (`{ scanned, healed, stillMissing }`); the same rescan runs automatically
-  at the end of every import apply.
-- Wipe imports are session-safe (FIX-062): the apply runner is detached from
-  the requesting identity, and a web wipe re-creates the operator's session
-  (same token) bound to the restored admin inside the merge transaction — no
-  forced logout mid-import.
-- Backup import replace mode removed (FIX-062): wipe-before-merge (FIX-061)
-  supersedes it. `mode: "replace"` on the v2 apply now answers
-  `400 REPLACE_MODE_REMOVED`; CLI `backup:import` drops `--mode` and
-  `--include-users` (`--mode replace` hard-errors pointing at `--wipe`).
-  The v1 JSON restore route is untouched.
-- Storage moved from a standalone admin nav item into a System Settings tab
-  (UI-030). The `/admin/storage` route and its sidebar entry are removed; the
-  storage configuration and server-files sections now live under
-  System Settings -> Storage with unchanged behavior. Storage i18n keys merged
-  into the `settings` namespace.
+- **Storage keys are hour-bucketed**: new blobs are stored under
+  `YYYYMMDDHH/<ulid>` (UTC upload hour + the `files.id` ULID) instead of the
+  content-addressed `ab/cd/<sha256>` fan-out — human-manageable in a bucket
+  browser. Keys are minted once and persisted in `files.storage_key`; dedup
+  (`UNIQUE(sha256, storage_driver)`) is unchanged. Direct uploads bridge
+  presign→confirm through an in-process pending-key registry (an API restart
+  in between 400s the confirm; the client re-uploads). Backup import,
+  standalone blob restore, and quarantine rescans resolve blobs by the
+  row-stored key (manifests already carry `expectedBlobs[].storageKey`);
+  legacy blob-bearing archives keep working. Existing objects are NOT
+  migrated — they keep serving from their stored legacy keys (a one-shot
+  re-key script is tracked as CHORE-004) (REFACTOR-038).
+
+### Added
+
+- **Direct-to-S3 upload for all attachment surfaces** (FEAT-050): issue /
+  procurement / document attachments, comment attachments, and HR colleague
+  documents now upload straight to S3 when the S3 driver is active, via a
+  generic `.../attachments/presign-upload` + `confirm-upload` route pair that
+  reuses each surface's existing authorization, caps, dedup, cross-user
+  guard, and audit events. The web clients hash, presign, PUT, confirm — and
+  transparently fall back to multipart on local-driver deployments or any
+  direct-upload error. Cover/avatar images intentionally stay multipart:
+  they are small and their server-side magic-byte type check only works when
+  the API sees the bytes (they still land on the active driver, S3 included).
 
 ## v0.2.2 — 2026-07-05
 
