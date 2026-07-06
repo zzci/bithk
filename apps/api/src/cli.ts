@@ -80,6 +80,19 @@ export async function dispatchCliSubcommand(argv: readonly string[]): Promise<nu
       exitCode = await runBackupBlobRescan();
     });
 
+  cli
+    .command("script:list", "List the bundled operational scripts (they version with this binary)")
+    .action(async () => {
+      exitCode = await runScriptList();
+    });
+
+  cli
+    .command("script:run <name>", "Run a bundled operational script by name (see script:list)")
+    .option("--dry-run", "Report what would change without writing anything")
+    .action(async (name: string, opts: { dryRun?: boolean }) => {
+      exitCode = await runScriptRun(name, opts);
+    });
+
   cli.help();
   cli.version(`${BUILD_INFO.version} (${BUILD_INFO.commit}) built ${BUILD_INFO.buildTime}`);
 
@@ -318,6 +331,57 @@ async function runBackupBlobRescan(): Promise<number> {
     const report = await rescanQuarantinedFiles(db, logger);
     consola.success(`blob rescan complete: scanned=${report.scanned} healed=${report.healed} stillMissing=${report.stillMissing}`);
     return 0;
+  }
+  catch (err) {
+    consola.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
+  finally {
+    await close();
+  }
+}
+
+/** `script:list` — print the bundled script library (no runtime needed). */
+async function runScriptList(): Promise<number> {
+  const { cliScripts } = await import("./cli-scripts/registry");
+  if (cliScripts.length === 0) {
+    consola.info("no bundled scripts in this build.");
+    return 0;
+  }
+  for (const script of cliScripts)
+    consola.log(`  ${script.name}  —  ${script.description}`);
+  return 0;
+}
+
+/**
+ * `script:run <name>` (FEAT-051) — run one bundled operational script
+ * against the same offline runtime the backup CLI uses. The script's exit
+ * code is the process exit code (0 ok, 1 completed with failures).
+ */
+async function runScriptRun(name: string, opts: { dryRun?: boolean }): Promise<number> {
+  const { findCliScript, cliScripts } = await import("./cli-scripts/registry");
+  const script = findCliScript(name);
+  if (!script) {
+    consola.error(`unknown script: ${name}. available: ${cliScripts.map(s => s.name).join(", ") || "(none)"}`);
+    return 2;
+  }
+
+  const { loadConfig } = await import("./config");
+  const { createLogger } = await import("./shared/lib/logger");
+  const config = await loadConfig();
+  const logger = createLogger(config);
+
+  const { wireRuntime } = await import("./app");
+  const { db, close } = await wireRuntime(config, logger);
+  try {
+    const dryRun = opts.dryRun === true;
+    consola.info(`running ${script.name}${dryRun ? " (dry-run)" : ""}…`);
+    const code = await script.run({ db, config, logger, dryRun });
+    if (code === 0)
+      consola.success(`${script.name} finished.`);
+    else
+      consola.warn(`${script.name} finished with exit code ${code} — check the log output above.`);
+    return code;
   }
   catch (err) {
     consola.error(err instanceof Error ? err.message : String(err));

@@ -2,7 +2,7 @@
 
 - Status: Completed
 - Tasks: [FIX-064](../task/FIX-064.md), [REFACTOR-038](../task/REFACTOR-038.md),
-  [FEAT-050](../task/FEAT-050.md), [CHORE-004](../task/CHORE-004.md) (deferred)
+  [FEAT-050](../task/FEAT-050.md), [FEAT-051](../task/FEAT-051.md), [CHORE-004](../task/CHORE-004.md)
 - Campaign: interactive session, direct on main
 - Created: 2026-07-06
 - Source: user report (production): S3 configured but uploads still proxied; storage keys

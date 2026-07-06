@@ -1,8 +1,13 @@
 # CHORE-004 - Legacy blob re-key migration script (ab/cd/sha -> hour layout)
 
-- Status: Planned
+- Status: Completed
 - Plan: [PLAN-106](../plan/PLAN-106.md)
 - Created: 2026-07-06
+
+## Outcome
+
+Shipped as the first entry of the FEAT-051 CLI script library:
+`app script:run rekey-legacy-blobs [--dry-run]`.
 
 ## Scope (deferred by owner decision 2026-07-06)
 

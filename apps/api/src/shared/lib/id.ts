@@ -73,3 +73,26 @@ export function ulid(): string {
   lastRandom = tail;
   return encodeTime(ts) + tail;
 }
+
+/**
+ * Decode a ULID's embedded mint timestamp (ms since epoch): the first 10
+ * chars are the Crockford-Base32 48-bit time. Returns null when `id` is not
+ * a 26-char lowercase ULID — e.g. a legacy nanoid-shaped row id.
+ */
+export function ulidTimeMs(id: string): number | null {
+  if (id.length !== 26)
+    return null;
+  let time = 0;
+  for (let i = 0; i < 10; i++) {
+    const idx = ENCODING.indexOf(id[i]!);
+    if (idx === -1)
+      return null;
+    time = time * ENCODING_LEN + idx;
+  }
+  // The random tail must also be alphabet-valid for this to be a ULID.
+  for (let i = 10; i < 26; i++) {
+    if (!ENCODING.includes(id[i]!))
+      return null;
+  }
+  return time;
+}
