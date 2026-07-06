@@ -20,6 +20,7 @@ import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
+import { uploadAttachmentFile } from "@/shared/lib/direct-upload";
 import { errorMessage } from "@/shared/lib/errors";
 import { http } from "@/shared/lib/http";
 import { displayName } from "@/shared/lib/users";
@@ -149,11 +150,8 @@ export function ResourceCommentSection({
         method: "POST",
         body: JSON.stringify(payload),
       });
-      for (const file of input.files) {
-        const fd = new FormData();
-        fd.append("file", file);
-        await http(`/${resource}/${resourceId}/comments/${res.data.id}/attachments`, { method: "POST", body: fd });
-      }
+      for (const file of input.files)
+        await uploadAttachmentFile(`/${resource}/${resourceId}/comments/${res.data.id}/attachments`, file, limits.directUpload);
     },
     onSuccess: () => {
       setNewComment("");

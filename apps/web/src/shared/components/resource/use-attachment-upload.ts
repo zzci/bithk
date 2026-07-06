@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 
 import { useUploadLimits } from "@/shared/hooks/use-upload-limits";
+import { uploadAttachmentFile } from "@/shared/lib/direct-upload";
 import { http } from "@/shared/lib/http";
 
 import { attachmentsQueryKey } from "./attachment-utils";
@@ -36,11 +37,8 @@ export function useResourceAttachmentUpload({
 
   const upload = useMutation({
     mutationFn: async (files: File[]) => {
-      for (const file of files) {
-        const fd = new FormData();
-        fd.append("file", file);
-        await http(`/${resource}/${resourceId}/attachments`, { method: "POST", body: fd });
-      }
+      for (const file of files)
+        await uploadAttachmentFile(`/${resource}/${resourceId}/attachments`, file, limits.directUpload);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: attachmentsQueryKey(resource, resourceId) });

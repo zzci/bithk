@@ -63,7 +63,7 @@ function requireClient(): S3ClientType {
  * S3-compatible storage driver (default target: Cloudflare R2). Backed by
  * Bun's native S3 client — no AWS SDK. Its client is built by
  * {@link configureS3Driver} from the DB storage settings (FEAT-047), not env.
- * Content-addressed keys (`ab/cd/<sha256>`) are shared with the local driver,
+ * Hour-bucketed keys (`YYYYMMDDHH/<ulid>`) are shared with the local driver,
  * optionally under the configured prefix.
  *
  * Downloads use `presignDownload` (a signed GET); the object is stored with its
@@ -137,7 +137,7 @@ export const s3Driver: FileStorageDriver = {
       maxKeys: 1000,
       ...continuationToken ? { continuationToken } : {},
     });
-    // Strip FILE_S3_PREFIX so callers get the driver-internal key (`ab/cd/<sha>`),
+    // Strip FILE_S3_PREFIX so callers get the driver-internal key,
     // the same form stored in `files.storage_key`.
     const strip = keyPrefix ? `${keyPrefix}/` : "";
     const objects = (res.contents ?? []).map(o => ({

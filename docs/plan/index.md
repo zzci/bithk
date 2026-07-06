@@ -104,3 +104,4 @@
 | [PLAN-103](PLAN-103.md) | Overview workbench: user favorites + my issues + open procurements | Completed | 2026-07-02 |
 | [PLAN-104](PLAN-104.md) | Architecture remediation (2026-07-02 architecture assessment) | Completed | 2026-07-02 |
 | [PLAN-105](PLAN-105.md) | Deferred follow-ups from the 2026-07-02 architecture assessment | Completed | 2026-07-04 |
+| [PLAN-106](PLAN-106.md) | Unified S3 direct upload + hour-based storage key layout | Completed | 2026-07-06 |

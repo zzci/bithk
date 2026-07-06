@@ -6,9 +6,10 @@
  * - {@link importArchiveBlobs} — stage 5 of the import pipeline: after the
  *   merge/replace transaction commits, the staged DATA archive is streamed a
  *   second time and every `blobs/<ab>/<cd>/<sha>` entry referenced by a
- *   now-live `files` row is written to the active storage driver
- *   (`exists` → content-addressed skip; sha recomputed while streaming and
- *   the entry is written ONLY on a match). The R7 `expectedBlobs` manifest
+ *   now-live `files` row is written to the active storage driver at the
+ *   row's stored `storage_key` (`exists` → skip; sha recomputed while
+ *   streaming and the entry is written ONLY on a match). The R7
+ *   `expectedBlobs` manifest
  *   list distinguishes "expected in the separate blob archive" from
  *   genuinely-missing blobs.
  * - {@link restoreBlobArchive} — the standalone blob restore (R7): a
@@ -32,7 +33,6 @@ import { rmSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { sql } from "drizzle-orm";
-import { deriveStorageKey } from "@/modules/file/storage/key";
 import { getActiveDriver } from "@/modules/file/storage/registry";
 import { AppError } from "@/shared/lib/errors";
 import { ulid } from "@/shared/lib/id";
@@ -57,12 +57,16 @@ async function drainStream(stream: AsyncIterable<Buffer>): Promise<void> {
 
 /**
  * Buffer one blob entry (bounded by the per-blob cap upstream), recompute
- * its sha256 and `put` it ONLY when the hash matches the entry path — the
- * tar path is never trusted as content identity.
+ * its sha256 and `put` it at `storageKey` ONLY when the hash matches the
+ * entry path — the tar path is never trusted as content identity. The key
+ * comes from the blob's `files` row (REFACTOR-038: keys are stored, not
+ * derived), preserving the row ↔ storage-path correspondence that restores
+ * rely on.
  */
 async function verifyAndPutBlob(
   driver: FileStorageDriver,
   sha256: string,
+  storageKey: string,
   stream: AsyncIterable<Buffer>,
 ): Promise<"written" | "failed"> {
   const hasher = new Bun.CryptoHasher("sha256");
@@ -76,8 +80,30 @@ async function verifyAndPutBlob(
   const bytes = Buffer.concat(chunks);
   // Copy out of the (possibly pooled) Buffer so the driver sees exactly
   // the blob's bytes, not the surrounding pool slab.
-  await driver.put(deriveStorageKey(sha256), bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  await driver.put(storageKey, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
   return "written";
+}
+
+/**
+ * Map every sha256 that could be healed on the ACTIVE driver to its row's
+ * stored key: rows already on the active driver plus quarantined rows
+ * (which keep the storage_key they had when their bytes went missing).
+ * Rows pinned to another driver are not import targets here — per-blob
+ * serving stays driver-scoped.
+ */
+async function shaToStorageKey(db: AppDatabase, activeDriverName: string): Promise<Map<string, string>> {
+  const rows = await db.all<{ sha256: string; storage_key: string; storage_driver: string }>(sql`
+    SELECT sha256, storage_key, storage_driver FROM files
+    WHERE storage_driver = ${activeDriverName} OR storage_driver LIKE ${`${QUARANTINE_PREFIX}%`}
+  `);
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    // Prefer the active-driver row's key when the same content has both a
+    // live and a quarantined row.
+    if (!map.has(row.sha256) || row.storage_driver === activeDriverName)
+      map.set(row.sha256, row.storage_key);
+  }
+  return map;
 }
 
 // ─── Un-quarantine / rescan ──────────────────────────────────────────────
@@ -112,15 +138,17 @@ export async function rescanQuarantinedFiles(db: AppDatabase, logger?: Logger): 
   catch {
     return { scanned: 0, healed: 0, stillMissing: 0 };
   }
-  const rows = await db.all<{ id: string; sha256: string }>(sql`
-    SELECT id, sha256 FROM files WHERE storage_driver LIKE ${`${QUARANTINE_PREFIX}%`}
+  const rows = await db.all<{ id: string; storage_key: string }>(sql`
+    SELECT id, storage_key FROM files WHERE storage_driver LIKE ${`${QUARANTINE_PREFIX}%`}
   `);
   let restored = 0;
   for (const row of rows) {
-    const key = deriveStorageKey(row.sha256);
+    // Quarantined rows keep the storage_key they had when their bytes went
+    // missing (REFACTOR-038: keys are stored, never derived) — path
+    // correspondence means a copied tree/bucket puts the blob right there.
     let present = false;
     try {
-      present = await driver.exists(key);
+      present = await driver.exists(row.storage_key);
     }
     catch {
       present = false;
@@ -131,7 +159,6 @@ export async function rescanQuarantinedFiles(db: AppDatabase, logger?: Logger): 
       await db.run(sql`
         UPDATE files
         SET storage_driver = ${driver.name},
-            storage_key = ${key},
             ref_count = (SELECT COUNT(*) FROM file_references WHERE file_id = files.id)
         WHERE id = ${row.id}
       `);
@@ -202,8 +229,7 @@ export async function importArchiveBlobs(
     return report;
   }
 
-  const liveShaRows = await db.all<{ sha256: string }>(sql`SELECT DISTINCT sha256 FROM files`);
-  const liveShas = new Set(liveShaRows.map(r => r.sha256));
+  const keyBySha = await shaToStorageKey(db, driver.name);
 
   const seen = new Set<string>();
   await walkTarGzEntries(archivePath, async (header, stream) => {
@@ -215,18 +241,19 @@ export async function importArchiveBlobs(
     }
     const sha = match[3]!;
     seen.add(sha);
-    if (!liveShas.has(sha)) {
+    const targetKey = keyBySha.get(sha);
+    if (!targetKey) {
       report.unreferenced++;
       warnings.push(`blob ${sha} is referenced by no live files row — skipped`);
       await drainStream(stream);
       return;
     }
-    if (await driver.exists(deriveStorageKey(sha))) {
+    if (await driver.exists(targetKey)) {
       report.skippedExisting++;
       await drainStream(stream);
       return;
     }
-    const outcome = await verifyAndPutBlob(driver, sha, stream);
+    const outcome = await verifyAndPutBlob(driver, sha, targetKey, stream);
     if (outcome === "written") {
       report.written++;
     }
@@ -248,11 +275,17 @@ export async function importArchiveBlobs(
       warnings.push("legacy archive without expectedBlobs — missing blobs are detected by reconcile only");
     return report;
   }
-  const expectedShas = new Set(manifest.expectedBlobs.map(b => b.sha256));
-  for (const sha of expectedShas) {
-    if (seen.has(sha))
+  const seenExpected = new Set<string>();
+  for (const blob of manifest.expectedBlobs) {
+    const sha = blob.sha256;
+    if (seenExpected.has(sha) || seen.has(sha))
       continue;
-    if (await driver.exists(deriveStorageKey(sha)))
+    seenExpected.add(sha);
+    // The manifest records each blob's stored key (FIX-062 exporters on);
+    // rows imported by this archive carry the same key, so either source
+    // resolves the probe target.
+    const probeKey = keyBySha.get(sha) ?? blob.storageKey;
+    if (probeKey !== undefined && await driver.exists(probeKey))
       continue;
     if (manifest.blobsMode === "separate") {
       report.expectedInSeparateArchive++;
@@ -279,6 +312,8 @@ export interface BlobRestoreReport {
   readonly written: number;
   readonly skippedExisting: number;
   readonly failed: number;
+  /** Entries no `files` row points at — nothing can serve them, so they are not written (REFACTOR-038). */
+  readonly unreferenced: number;
   readonly unquarantined: number;
   readonly reconcile: ReconcileResult;
 }
@@ -356,19 +391,30 @@ export async function restoreBlobArchive(
     if (entryCount === 0)
       throw malformedArchiveError("archive contains no blob entries");
 
-    // Pass 2 — import: exists → skip; else verify sha while streaming and
-    // put on match.
+    // Pass 2 — import: resolve each blob's target key from its `files` row
+    // (stored keys, REFACTOR-038); no row → nothing can ever serve the blob,
+    // skip it. Then exists → skip; else verify sha while streaming and put
+    // on match.
+    const keyBySha = await shaToStorageKey(db, driver.name);
     let written = 0;
     let skippedExisting = 0;
     let failed = 0;
+    let unreferenced = 0;
     await walkTarGzEntries(archivePath, async (header, stream) => {
       const sha = RE_BLOB_ENTRY.exec(header.name)![3]!;
-      if (await driver.exists(deriveStorageKey(sha))) {
+      const targetKey = keyBySha.get(sha);
+      if (!targetKey) {
+        unreferenced++;
+        logger?.warn({ sha256: sha }, "blob restore: no files row references this blob; entry skipped");
+        await drainStream(stream);
+        return;
+      }
+      if (await driver.exists(targetKey)) {
         skippedExisting++;
         await drainStream(stream);
         return;
       }
-      const outcome = await verifyAndPutBlob(driver, sha, stream);
+      const outcome = await verifyAndPutBlob(driver, sha, targetKey, stream);
       if (outcome === "written") {
         written++;
       }
@@ -380,7 +426,7 @@ export async function restoreBlobArchive(
 
     const unquarantined = await unquarantineRestoredFiles(db, logger);
     const reconcile = await reconcileRestoredFiles(db, logger);
-    return { written, skippedExisting, failed, unquarantined, reconcile };
+    return { written, skippedExisting, failed, unreferenced, unquarantined, reconcile };
   }
   finally {
     rmSync(stagingDir, { recursive: true, force: true });

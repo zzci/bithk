@@ -13,6 +13,8 @@ import { localDriver } from "./storage/local";
 import "./storage/s3";
 import "./storage/db";
 
+export type { PresignReferenceUploadResult, ReferenceUploadInput } from "./direct-upload.service";
+export { confirmReferenceUpload, presignReferenceUpload } from "./direct-upload.service";
 export { fileRoutes } from "./file.routes";
 export type { DrainedBlob, FileServiceConfig, FileTypePolicy } from "./file.service";
 export {

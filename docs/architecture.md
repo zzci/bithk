@@ -285,7 +285,7 @@ persistent `/srv/lode` mount can hold both lode state and app data:
 |---|---|
 | `DB_PATH` | SQLite database. |
 | `DB_PATH` sibling `.pid` file | PID lock file. |
-| `FILE_STORAGE_LOCAL_ROOT` | Uploaded files and content-addressed blobs. |
+| `FILE_STORAGE_LOCAL_ROOT` | Uploaded files and blobs (hour-bucketed `YYYYMMDDHH/<ulid>` keys). |
 | `LOG_FILE` | Structured JSON logs when not writing to stdout. |
 
 ## Update System (lode)

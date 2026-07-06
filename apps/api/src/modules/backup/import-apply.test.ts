@@ -17,7 +17,7 @@ import { accountBackupContribution } from "@/modules/account/account.backup";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { auditEvents } from "@/modules/audit/schema";
 import { fileBackupContribution } from "@/modules/file/file.backup";
-import { deriveStorageKey } from "@/modules/file/storage/key";
+import { legacyContentAddressedKey } from "@/modules/file/storage/key";
 import { __setLocalDriverRootForTests, localDriver } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "@/modules/file/storage/registry";
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
@@ -183,10 +183,10 @@ describe("merge apply — round trip", () => {
     await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES ('k1', 'v1', '2026-01-01T00:00:00Z')`);
     const bytes = new TextEncoder().encode("round-trip blob bytes");
     const sha = sha256Of(bytes);
-    await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
+    await localDriver.put(legacyContentAddressedKey(sha), bytes.buffer as ArrayBuffer);
     await db.run(sql`
       INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
-      VALUES ('f1', ${sha}, ${bytes.length}, 'text/plain', 'local', ${deriveStorageKey(sha)}, 0, ${u1})
+      VALUES ('f1', ${sha}, ${bytes.length}, 'text/plain', 'local', ${legacyContentAddressedKey(sha)}, 0, ${u1})
     `);
 
     const { archivePath, manifest } = await writeArchiveV2({
@@ -200,7 +200,7 @@ describe("merge apply — round trip", () => {
     expect(manifest.includeBlobs).toBe(false);
     expect(manifest.blobs).toEqual({ count: 0, totalBytes: 0 });
     expect(manifest.expectedBlobs).toEqual([
-      { sha256: sha, size: bytes.length, storageKey: deriveStorageKey(sha), storageDriver: "local" },
+      { sha256: sha, size: bytes.length, storageKey: legacyContentAddressedKey(sha), storageDriver: "local" },
     ]);
 
     // Fresh empty deployment WITHOUT copying the storage tree.
@@ -223,7 +223,7 @@ describe("merge apply — round trip", () => {
       expect(quarantined[0]!.storage_driver).toStartWith("quarantined:");
 
       // Copy the blob to its content-addressed path, then rescan → healed.
-      await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
+      await localDriver.put(legacyContentAddressedKey(sha), bytes.buffer as ArrayBuffer);
       const rescan = await rescanQuarantinedFiles(db2, stubLogger);
       expect(rescan).toEqual({ scanned: 1, healed: 1, stillMissing: 0 });
       const healed = await db2.all<{ storage_driver: string }>(sql`SELECT storage_driver FROM files WHERE id = 'f1'`);
@@ -240,10 +240,10 @@ describe("merge apply — round trip", () => {
     const u1 = await seedUser(db, "admin");
     const bytes = new TextEncoder().encode("pre-copied blob");
     const sha = sha256Of(bytes);
-    await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
+    await localDriver.put(legacyContentAddressedKey(sha), bytes.buffer as ArrayBuffer);
     await db.run(sql`
       INSERT INTO files (id, sha256, size, mimetype, storage_driver, storage_key, ref_count, uploaded_by)
-      VALUES ('f1', ${sha}, ${bytes.length}, 'text/plain', 'local', ${deriveStorageKey(sha)}, 0, ${u1})
+      VALUES ('f1', ${sha}, ${bytes.length}, 'text/plain', 'local', ${legacyContentAddressedKey(sha)}, 0, ${u1})
     `);
     const { archivePath } = await writeArchiveV2({
       db,
@@ -256,7 +256,7 @@ describe("merge apply — round trip", () => {
     __setLocalDriverRootForTests(resolve(baseDir, "blob-root-2"));
     try {
       // Operator copies the storage tree FIRST (same content-addressed path).
-      await localDriver.put(deriveStorageKey(sha), bytes.buffer as ArrayBuffer);
+      await localDriver.put(legacyContentAddressedKey(sha), bytes.buffer as ArrayBuffer);
       const job = await prepareImport(db2, config, Bun.file(archivePath));
       await apply(job, db2);
 
@@ -278,22 +278,22 @@ describe("merge apply — round trip", () => {
     const manifest = baseManifest({
       includeBlobs: true,
       blobsMode: "embedded",
-      expectedBlobs: [{ sha256: sha, size: bytes.length, storageKey: deriveStorageKey(sha), storageDriver: "local" }],
+      expectedBlobs: [{ sha256: sha, size: bytes.length, storageKey: legacyContentAddressedKey(sha), storageDriver: "local" }],
       modules: [{ name: "files", deps: ["users"] }],
       tables: [filesTableDef()],
       blobs: { count: 1, totalBytes: bytes.length },
     });
     const job = await stagedJob([
       { name: "manifest.json", data: JSON.stringify(manifest) },
-      { name: "data/files.ndjson", data: `${JSON.stringify({ id: "f1", sha256: sha, size: bytes.length, mimetype: "text/plain", storageDriver: "local", storageKey: deriveStorageKey(sha), refCount: 0, uploadedBy: u1 })}\n` },
-      { name: `blobs/${deriveStorageKey(sha)}`, data: bytes },
+      { name: "data/files.ndjson", data: `${JSON.stringify({ id: "f1", sha256: sha, size: bytes.length, mimetype: "text/plain", storageDriver: "local", storageKey: legacyContentAddressedKey(sha), refCount: 0, uploadedBy: u1 })}\n` },
+      { name: `blobs/${legacyContentAddressedKey(sha)}`, data: bytes },
     ]);
     await apply(job);
 
     expect(job.state).toBe("completed");
     expect(job.result!.blobs).toMatchObject({ written: 1, failed: 0, missing: 0 });
     expect(job.result!.reconcile).toEqual({ checked: 1, quarantined: 0 });
-    expect(await localDriver.exists(deriveStorageKey(sha))).toBe(true);
+    expect(await localDriver.exists(legacyContentAddressedKey(sha))).toBe(true);
   });
 
   test("back-compat: a legacy separate blobs.tar.gz still restores via the blob-restore endpoint machinery", async () => {
@@ -304,14 +304,14 @@ describe("merge apply — round trip", () => {
     const manifest = baseManifest({
       includeBlobs: true,
       blobsMode: "separate",
-      expectedBlobs: [{ sha256: sha, size: bytes.length, storageKey: deriveStorageKey(sha), storageDriver: "local" }],
+      expectedBlobs: [{ sha256: sha, size: bytes.length, storageKey: legacyContentAddressedKey(sha), storageDriver: "local" }],
       modules: [{ name: "files", deps: ["users"] }],
       tables: [filesTableDef()],
       blobs: { count: 1, totalBytes: bytes.length },
     });
     const job = await stagedJob([
       { name: "manifest.json", data: JSON.stringify(manifest) },
-      { name: "data/files.ndjson", data: `${JSON.stringify({ id: "f1", sha256: sha, size: bytes.length, mimetype: "text/plain", storageDriver: "local", storageKey: deriveStorageKey(sha), refCount: 0, uploadedBy: u1 })}\n` },
+      { name: "data/files.ndjson", data: `${JSON.stringify({ id: "f1", sha256: sha, size: bytes.length, mimetype: "text/plain", storageDriver: "local", storageKey: legacyContentAddressedKey(sha), refCount: 0, uploadedBy: u1 })}\n` },
     ]);
     await apply(job);
     expect(job.state).toBe("completed");
@@ -319,7 +319,7 @@ describe("merge apply — round trip", () => {
     expect(job.result!.reconcile).toEqual({ checked: 1, quarantined: 1 });
 
     // The legacy blobs.tar.gz upload heals the quarantined row.
-    const blobsArchive = new File([await packTarGz([{ name: `blobs/${deriveStorageKey(sha)}`, data: bytes }])], "blobs.tar.gz");
+    const blobsArchive = new File([await packTarGz([{ name: `blobs/${legacyContentAddressedKey(sha)}`, data: bytes }])], "blobs.tar.gz");
     const report = await restoreBlobArchive(db, config, blobsArchive, {}, stubLogger);
     expect(report.written).toBe(1);
     expect(report.unquarantined).toBe(1);

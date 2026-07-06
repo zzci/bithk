@@ -428,7 +428,7 @@ export type PresignDriveUploadResult
  * advisory-check the declared size, and either (a) finish instantly when the
  * content already exists in storage — register a reference + create the entry —
  * or (b) return a presigned PUT for the browser to upload straight to S3. The
- * client trusts/owns the sha256; integrity is the content-addressed key.
+ * client trusts/owns the sha256; dedup keys off the declared hash.
  */
 export async function presignDriveUpload(
   db: AppDatabase,
@@ -493,7 +493,7 @@ export async function confirmDriveUpload(
   if (!stat)
     throw new AppError("Uploaded object was not found in storage", 400, "UPLOAD_NOT_FOUND");
   // Uploader-scoped attach (FIX-048 / FEAT-044 security): carry presign's
-  // `findStoredBlob(..., createdBy)` scoping into confirm. The content-addressed
+  // `findStoredBlob(..., createdBy)` scoping into confirm. The hash-declared
   // object may already exist because a DIFFERENT user uploaded it, and the
   // sha256 is client-declared, never server-verified. Reusing that blob would
   // let any caller who merely knows the hash attach + download another user's
