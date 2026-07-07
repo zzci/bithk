@@ -11,6 +11,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.6 — 2026-07-06
+
+### Fixed
+
+- **"Sync to S3" now buckets by the blob's original upload hour** (REFACTOR-038
+  follow-up): the admin "move local files to S3" sweep minted the new
+  `YYYYMMDDHH/<ulid>` key from the sync time instead of the file's real upload
+  time, so migrated files landed in the wrong hour directory (inconsistent with
+  the `script:rekey-legacy-blobs` migration). It now derives the hour from the
+  row-id ULID's mint time, matching the rekey script.
+
+
 ## v0.3.5 — 2026-07-06
 
 ### Changed
