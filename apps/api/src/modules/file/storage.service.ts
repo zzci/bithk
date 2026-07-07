@@ -82,17 +82,35 @@ export interface SyncToS3Summary {
   readonly failed: number;
 }
 
+export interface SyncToS3Options {
+  /** Report what would move without reading, writing, or repointing. */
+  readonly dryRun?: boolean;
+  /** Per-row progress callback (for the CLI). */
+  readonly onProgress?: (event: { readonly kind: "moved" | "skipped" | "failed"; readonly id: string; readonly from?: string; readonly to?: string; readonly err?: string }) => void;
+}
+
+/** The canonical hour-based key for a row: its ORIGINAL upload hour + id. */
+function targetKeyFor(id: string): string {
+  // Bucket by the blob's ORIGINAL upload hour (its row-id ULID mint time), not
+  // now — so the storage layout reflects real upload times and matches the
+  // rekey migration script. Falls back to now for a non-ULID id.
+  return newStorageKey(id, ulidTimeMs(id) ?? Date.now());
+}
+
 /**
- * Move every non-spreadsheet `files` row not already on S3 to the S3 backend:
- * read the bytes via the row's current driver, `put` them to S3 under an
- * hour-based key bucketed by the blob's ORIGINAL upload hour (its row-id ULID
- * mint time), repoint `storage_driver='s3'` + `storage_key`, then
- * delete the old blob via the old driver. Spreadsheets (`UNIVER_SHEET_MIME`)
- * are skipped so their live-editable snapshot stays in the DB. Requires S3 to
- * be configured (the caller checks). Returns a `{ moved, skipped, failed }`
- * summary. A single row failure is counted and the sweep continues.
+ * Move every non-spreadsheet `files` row that is NOT already an S3 object at
+ * its canonical hour-based key onto S3: read the bytes via the row's current
+ * driver, `put` them to S3 under `YYYYMMDDHH/<ulid>` (original upload hour),
+ * repoint `storage_driver='s3'` + `storage_key`, then delete the old blob via
+ * the old driver. This is idempotent and covers BOTH migrations in one pass —
+ * a local/db blob is moved to S3, and an S3 blob still on the legacy
+ * `ab/cd/<sha256>` key is re-keyed in place (the `s3://old → s3://new` copy is
+ * a normal put+delete). Spreadsheets (`UNIVER_SHEET_MIME`) stay in the DB so
+ * their live-editable snapshot survives; quarantined rows have no bytes to
+ * move. Requires S3 configured (caller checks). A single row failure is
+ * counted and the sweep continues. `dryRun` reports without touching anything.
  */
-export async function syncNonSpreadsheetsToS3(db: AppDatabase): Promise<SyncToS3Summary> {
+export async function syncNonSpreadsheetsToS3(db: AppDatabase, opts: SyncToS3Options = {}): Promise<SyncToS3Summary> {
   const rows = await db
     .select({
       id: files.id,
@@ -110,31 +128,44 @@ export async function syncNonSpreadsheetsToS3(db: AppDatabase): Promise<SyncToS3
   let failed = 0;
 
   for (const row of rows) {
-    if (row.storageDriver === "s3" || row.mimetype === UNIVER_SHEET_MIME) {
+    const canonicalKey = targetKeyFor(row.id);
+    // Already an S3 object at its canonical key, a live-editable spreadsheet,
+    // or a quarantined row (no backing bytes) — nothing to do.
+    if (
+      (row.storageDriver === "s3" && row.storageKey === canonicalKey)
+      || row.mimetype === UNIVER_SHEET_MIME
+      || row.storageDriver.startsWith("quarantined:")
+    ) {
       skipped++;
+      continue;
+    }
+    if (opts.dryRun) {
+      moved++;
+      opts.onProgress?.({ kind: "moved", id: row.id, from: `${row.storageDriver}:${row.storageKey}`, to: `s3:${canonicalKey}` });
       continue;
     }
     try {
       const source = getDriver(row.storageDriver);
       const stream = await source.getStream(row.storageKey);
       const bytes = await new Response(stream).arrayBuffer();
-      // Bucket by the blob's ORIGINAL upload hour (its row-id ULID mint time),
-      // not now — so the storage layout reflects real upload times and matches
-      // the rekey migration script. Falls back to now for a non-ULID id.
-      const newKey = newStorageKey(row.id, ulidTimeMs(row.id) ?? Date.now());
-      await target.put(newKey, bytes, { contentType: row.mimetype });
+      await target.put(canonicalKey, bytes, { contentType: row.mimetype });
 
       await db.update(files)
-        .set({ storageDriver: "s3", storageKey: newKey })
+        .set({ storageDriver: "s3", storageKey: canonicalKey })
         .where(eq(files.id, row.id))
         .run();
 
       // Delete the old blob via its old driver (tolerant of a missing object).
-      await source.delete(row.storageKey);
+      // Skip when the source IS the same s3 key (can't happen — canonicalKey
+      // differs whenever we reach here — but stay defensive).
+      if (!(row.storageDriver === "s3" && row.storageKey === canonicalKey))
+        await source.delete(row.storageKey);
       moved++;
+      opts.onProgress?.({ kind: "moved", id: row.id, from: `${row.storageDriver}:${row.storageKey}`, to: `s3:${canonicalKey}` });
     }
-    catch {
+    catch (err) {
       failed++;
+      opts.onProgress?.({ kind: "failed", id: row.id, from: `${row.storageDriver}:${row.storageKey}`, err: err instanceof Error ? err.message : String(err) });
     }
   }
 

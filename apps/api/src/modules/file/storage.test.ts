@@ -245,6 +245,48 @@ describe("sync-to-s3", () => {
     const sheetFile = (await db.select().from(files).where(eq(files.id, sheet.file!.fileId)).get())!;
     expect(sheetFile.storageDriver).toBe("db");
   });
+
+  test("dry-run reports movers without touching rows or S3 (FEAT-053)", async () => {
+    const userId = await seedUser();
+    registerDriver(makeFakeS3());
+    const text = await createDriveTextFile(db, config, { ...personal(userId), createdBy: userId, name: "t.txt", content: "movable" });
+    const before = (await db.select().from(files).where(eq(files.id, text.file!.fileId)).get())!;
+
+    const summary = await syncNonSpreadsheetsToS3(db, { dryRun: true });
+    expect(summary.moved).toBe(1);
+    expect(summary.failed).toBe(0);
+
+    const after = (await db.select().from(files).where(eq(files.id, text.file!.fileId)).get())!;
+    expect(after.storageDriver).toBe("db");
+    expect(after.storageKey).toBe(before.storageKey);
+    expect(s3Store.size).toBe(0);
+  });
+
+  test("re-keys a legacy ab/cd S3 object in place to the hour layout (FEAT-053)", async () => {
+    const userId = await seedUser();
+    registerDriver(makeFakeS3());
+    // Upload to s3 (canonical key), then rewrite the row + object to a legacy
+    // ab/cd/<sha> key to simulate a pre-REFACTOR-038 S3 blob.
+    await db.insert(settings).values({ key: STORAGE_SETTING_KEYS.uploadDriver, value: "s3", updatedAt: new Date().toISOString() }).run();
+    setActiveUploadDriver("s3");
+    const uploaded = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: new File(["legacybytes"], "l.txt", { type: "text/plain" }) });
+    const row = (await db.select().from(files).where(eq(files.id, uploaded.file!.fileId)).get())!;
+    const legacyKey = `${row.sha256.slice(0, 2)}/${row.sha256.slice(2, 4)}/${row.sha256}`;
+    // Move the fake object to the legacy key and repoint the row.
+    s3Store.set(legacyKey, s3Store.get(row.storageKey)!);
+    s3Store.delete(row.storageKey);
+    await db.update(files).set({ storageKey: legacyKey }).where(eq(files.id, row.id)).run();
+
+    const summary = await syncNonSpreadsheetsToS3(db);
+    expect(summary.moved).toBe(1);
+    expect(summary.failed).toBe(0);
+
+    const after = (await db.select().from(files).where(eq(files.id, row.id)).get())!;
+    expect(after.storageDriver).toBe("s3");
+    expect(after.storageKey).toMatch(/^\d{10}\/[0-9a-hjkmnp-tv-z]{26}$/);
+    expect(s3Store.has(after.storageKey)).toBe(true);
+    expect(s3Store.has(legacyKey)).toBe(false);
+  });
 });
 
 describe("storage file list", () => {
