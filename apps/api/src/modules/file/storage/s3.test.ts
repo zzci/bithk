@@ -88,15 +88,47 @@ describe("s3ObjectKey prefixing", () => {
 describe("s3 presignDownload", () => {
   test("returns a signed GET URL carrying the prefixed key", async () => {
     configureS3Driver(s3Params({ prefix: "blobs" }));
-    const url = await s3Driver.presignDownload!("ab/cd/deadbeef", {
+    const url = await s3Driver.presignDownload!("2026070609/01abc", {
       expiresSeconds: 300,
       filename: "photo.png",
       inline: true,
       contentType: "image/png",
     });
     expect(url).toContain("https://acc.r2.cloudflarestorage.com");
-    expect(url).toContain("test-bucket/blobs/ab/cd/deadbeef");
+    expect(url).toContain("test-bucket/blobs/2026070609/01abc");
     expect(url).toContain("X-Amz-Signature=");
     expect(url).toContain("X-Amz-Expires=300");
+  });
+
+  test("inline preview signs inline disposition + the real content-type (FEAT-052)", async () => {
+    configureS3Driver(s3Params());
+    const url = await s3Driver.presignDownload!("2026070609/01img", {
+      expiresSeconds: 300,
+      filename: "photo.png",
+      inline: true,
+      contentType: "image/png",
+    });
+    const p = new URL(url).searchParams;
+    expect(p.get("response-content-disposition")).toContain("inline");
+    expect(p.get("response-content-type")).toBe("image/png");
+  });
+
+  test("attachment download signs `attachment; filename` (RFC5987 for unicode) + octet-stream (FEAT-052)", async () => {
+    configureS3Driver(s3Params());
+    const url = await s3Driver.presignDownload!("2026070609/01doc", {
+      expiresSeconds: 300,
+      filename: "季度报告.pdf",
+      inline: false,
+      contentType: "application/octet-stream",
+    });
+    const p = new URL(url).searchParams;
+    const disposition = p.get("response-content-disposition") ?? "";
+    expect(disposition).toContain("attachment");
+    // Non-ASCII name survives via the RFC 5987 filename* form.
+    expect(disposition).toContain("filename*=UTF-8''");
+    expect(disposition).toContain(encodeURIComponent("季度报告.pdf"));
+    expect(p.get("response-content-type")).toBe("application/octet-stream");
+    // The disposition is part of the signature (S3 rejects tampering).
+    expect(new URL(url).searchParams.get("X-Amz-SignedHeaders")).not.toBeNull();
   });
 });

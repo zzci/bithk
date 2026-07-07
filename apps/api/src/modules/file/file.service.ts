@@ -924,12 +924,15 @@ export async function buildDownloadResponse(
     }
   }
 
-  // Only presign for INLINE-safe previews when the blob's driver supports it
-  // (the db driver never does → always streams). A presigned GET serves the
-  // object with its stored Content-Type but cannot force `Content-Disposition`
-  // (Bun's presign signs only method/expiry/type), so attachment downloads
-  // must stream through the API to carry `attachment; filename=…`.
-  if (inlineSafe && config.FILE_PRESIGN_ENABLED && driver.presignDownload) {
+  // Presign a 302 straight to the blob's backend for EVERY download when the
+  // driver supports it (FEAT-052) — attachment downloads too, not just inline
+  // previews. The signed URL carries `response-content-disposition` and
+  // `response-content-type`, so an attachment download forces
+  // `attachment; filename=…` + octet-stream exactly as the streamed path
+  // below did — a hostile SVG/HTML never renders inline, and the bytes come
+  // from the storage origin, not the app origin. The db driver has no
+  // presign → it always streams (next block).
+  if (config.FILE_PRESIGN_ENABLED && driver.presignDownload) {
     const url = await driver.presignDownload(file.storageKey, {
       expiresSeconds: config.FILE_PRESIGN_TTL_SECONDS,
       filename: ref.filename,

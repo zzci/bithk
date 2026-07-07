@@ -279,12 +279,16 @@ in `.secret`, so the settings masking hides it on read — it is write-only.
 | `storage.s3.prefix`        | Optional key prefix (a folder within the bucket).                 |
 
 The `s3` driver targets **Cloudflare R2** by default, backed by Bun's native
-`S3Client` (no AWS SDK). Inline image/PDF previews 302 to a presigned GET;
-attachment downloads stream through the API (Bun's presign cannot sign a
-`Content-Disposition`). The R2 bucket must allow the app origin in its **CORS**
-policy (`GET`/`PUT`/`HEAD`, expose `ETag`) for fetch-based previews and direct
-upload. `FILE_S3_ORPHAN_TTL_HOURS` (env, default 24h) is the grace before the
-orphan sweep deletes an unconfirmed direct-upload object.
+`S3Client` (no AWS SDK). Every download 302s to a presigned GET (FEAT-052):
+inline image/PDF previews sign `inline` + the real content-type; attachment
+downloads sign `attachment; filename="…"` + `application/octet-stream`
+(`response-content-disposition` / `response-content-type` are signed into the
+URL, so a hostile SVG/HTML never renders inline). Only `db`-driver blobs
+(spreadsheets, in-app text) still stream through the API. The R2 bucket must
+allow the app origin in its **CORS** policy (`GET`/`PUT`/`HEAD`, expose `ETag`)
+for fetch-based previews and direct upload. `FILE_S3_ORPHAN_TTL_HOURS` (env,
+default 24h) is the grace before the orphan sweep deletes an unconfirmed
+direct-upload object.
 
 ### Admin Storage module
 

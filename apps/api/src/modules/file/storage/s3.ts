@@ -1,6 +1,7 @@
 import type { S3Client as S3ClientType } from "bun";
 import type { FileStorageDriver } from "./types";
 import { S3Client } from "bun";
+import { buildContentDisposition } from "@/shared/lib/content-disposition";
 import { registerDriver } from "./registry";
 
 let client: S3ClientType | undefined;
@@ -116,12 +117,17 @@ export const s3Driver: FileStorageDriver = {
   },
 
   async presignDownload(key, opts) {
-    // Signed GET. The object's stored Content-Type drives the response; Bun's
-    // presign cannot add Content-Disposition, so this is used for inline
-    // preview only (see buildDownloadResponse).
+    // Signed GET (FEAT-052). Bun 1.3.14 signs `response-content-disposition`
+    // and `response-content-type` into the URL, so attachment downloads — not
+    // just inline previews — can stream straight from S3 with the right
+    // filename and a download-forcing disposition. `attachment` +
+    // octet-stream (set by the caller for non-inline-safe types) keeps a
+    // hostile SVG/HTML from ever rendering inline.
     return requireClient().presign(s3ObjectKey(key), {
       method: "GET",
       expiresIn: opts.expiresSeconds,
+      type: opts.contentType,
+      contentDisposition: buildContentDisposition(opts.inline ? "inline" : "attachment", opts.filename),
     });
   },
 
