@@ -11,6 +11,22 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.5 — 2026-07-06
+
+### Changed
+
+- **Attachment downloads stream straight from S3** (FEAT-052): every download
+  on an S3-backed blob now 302s to a presigned GET, not just inline
+  image/PDF previews. The signed URL carries `response-content-disposition`
+  (`attachment; filename="…"`, RFC 5987 for non-ASCII names) and
+  `response-content-type` (`application/octet-stream`), so the browser forces
+  a download and a hostile SVG/HTML never renders inline — identical safety to
+  the old proxy headers, but the bytes come from the storage origin instead of
+  the API (no server bandwidth). Only `db`-driver blobs (spreadsheets, in-app
+  text) still stream through the API. The prior limitation ("Bun's presign
+  can't sign Content-Disposition") no longer holds on Bun 1.3.14.
+
+
 ## v0.3.4 — 2026-07-06
 
 ### Fixed
