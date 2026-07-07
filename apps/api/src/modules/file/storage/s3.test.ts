@@ -1,7 +1,7 @@
 import type { S3DriverParams } from "./s3";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { getDriver, registerDriver } from "./registry";
-import { __resetS3DriverForTests, configureS3Driver, isS3Configured, s3Driver, s3ObjectKey } from "./s3";
+import { __resetS3DriverForTests, configureS3Driver, isS3Configured, s3Driver, s3ObjectKey, s3PublicOrigin } from "./s3";
 
 // Importing the driver self-registers it; presign is pure SigV4 (no network),
 // so we can exercise configure + presignDownload offline with dummy credentials.
@@ -52,6 +52,24 @@ describe("configureS3Driver", () => {
   test("accepts a complete config and marks S3 configured", () => {
     expect(() => configureS3Driver(s3Params())).not.toThrow();
     expect(isS3Configured()).toBe(true);
+  });
+});
+
+describe("s3PublicOrigin (CSP source, FIX-065)", () => {
+  test("is null before any config is applied", () => {
+    expect(s3PublicOrigin()).toBeNull();
+  });
+
+  test("resolves to the presign endpoint's origin (no path/query) after configure", () => {
+    configureS3Driver(s3Params({ endpoint: "https://acc.r2.cloudflarestorage.com", prefix: "blobs" }));
+    expect(s3PublicOrigin()).toBe("https://acc.r2.cloudflarestorage.com");
+  });
+
+  test("resets to null on driver reset", () => {
+    configureS3Driver(s3Params());
+    expect(s3PublicOrigin()).not.toBeNull();
+    __resetS3DriverForTests();
+    expect(s3PublicOrigin()).toBeNull();
   });
 });
 

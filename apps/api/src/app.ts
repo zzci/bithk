@@ -13,6 +13,7 @@ import { startAuditRetentionSweep } from "./modules/audit";
 import { startBackupStagingSweep } from "./modules/backup";
 import { initCronActions, startCron } from "./modules/cron";
 import { initFileModule, repairEmptyFileMimetypes, startFileGcSweep } from "./modules/file";
+import { s3PublicOrigin } from "./modules/file/storage/s3";
 import { getAllRouteBindings, policyMiddleware } from "./modules/policy";
 import { backfillProjectRoles } from "./modules/project/project.roles";
 import { protectedRoutes, publicRoutes } from "./routes";
@@ -179,7 +180,7 @@ export async function buildFullApp({ config, db, logger }: AppDeps) {
 
 // ─── Outer shell ───
 
-function buildOuterApp(api: Hono<AppEnv>, config: Config) {
+export function buildOuterApp(api: Hono<AppEnv>, config: Config) {
   const app = new Hono<AppEnv>();
   const base = config.BASE_PATH;
 
@@ -190,6 +191,12 @@ function buildOuterApp(api: Hono<AppEnv>, config: Config) {
   // PDFs via same-origin <iframe>. HSTS auto-enables when APP_URL is
   // https — a direct deployment without a reverse proxy still gets it.
   const hstsEnabled = config.APP_URL?.startsWith("https://") ?? false;
+  // Presigned direct uploads (browser PUT) and presigned-GET previews point
+  // the browser at the S3 endpoint, so its origin must be a valid CSP source
+  // (FIX-065). Storage config is DB-held and hot-reloadable, so the origin is
+  // resolved PER REQUEST from the live driver state; while S3 is unconfigured
+  // it degrades to a harmless duplicate 'self'.
+  const s3Origin = (): string => s3PublicOrigin() ?? "'self'";
   app.use("*", secureHeaders({
     referrerPolicy: "strict-origin-when-cross-origin",
     crossOriginOpenerPolicy: "same-origin",
@@ -210,15 +217,16 @@ function buildOuterApp(api: Hono<AppEnv>, config: Config) {
       // the sidebar feedback button.
       scriptSrc: ["'self'", "https://tally.so"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
+      imgSrc: ["'self'", "data:", "blob:", s3Origin],
       fontSrc: ["'self'", "data:"],
       // blob: lets pdf.js fetch the PDF preview's object URL (react-pdf hands
       // it a blob: URL, which pdf.js loads via fetch()). CSP3 does not match
       // blob: against 'self', so it must be listed explicitly — same reason
       // img-src already enumerates blob:.
-      connectSrc: ["'self'", "blob:"],
+      connectSrc: ["'self'", "blob:", s3Origin],
+      mediaSrc: ["'self'", "blob:", s3Origin],
       frameAncestors: ["'self'"],
-      frameSrc: ["'self'", "blob:", "https://tally.so"],
+      frameSrc: ["'self'", "blob:", "https://tally.so", s3Origin],
       baseUri: ["'self'"],
       formAction: ["'self'"],
       objectSrc: ["'none'"],

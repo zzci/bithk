@@ -5,10 +5,23 @@ import { registerDriver } from "./registry";
 
 let client: S3ClientType | undefined;
 let keyPrefix = "";
+let publicOrigin: string | null = null;
 
 /** Apply the configured prefix (a folder within the bucket) to a storage key. */
 export function s3ObjectKey(key: string): string {
   return keyPrefix ? `${keyPrefix}/${key}` : key;
+}
+
+/**
+ * Origin presigned URLs point the BROWSER at (e.g. `https://<account>.r2.cloudflarestorage.com`),
+ * or null while S3 is unconfigured. The CSP middleware adds it to
+ * connect/img/media/frame sources so direct-upload PUTs and presigned-GET
+ * previews are not blocked (FIX-065). Derived by probing a presign at
+ * configure time — exact for every addressing style (path/virtual-host/R2)
+ * and refreshed on every admin storage-config change.
+ */
+export function s3PublicOrigin(): string | null {
+  return publicOrigin;
 }
 
 export interface S3DriverParams {
@@ -45,6 +58,12 @@ export function configureS3Driver(params: S3DriverParams): void {
     ...params.endpoint ? { endpoint: params.endpoint } : {},
   });
   keyPrefix = (params.prefix ?? "").replace(/^\/+|\/+$/g, "");
+  try {
+    publicOrigin = new URL(client.presign("csp-origin-probe", { method: "GET", expiresIn: 60 })).origin;
+  }
+  catch {
+    publicOrigin = null;
+  }
 }
 
 /** True once {@link configureS3Driver} has built the client. */
@@ -161,4 +180,5 @@ registerDriver(s3Driver);
 export function __resetS3DriverForTests(): void {
   client = undefined;
   keyPrefix = "";
+  publicOrigin = null;
 }
