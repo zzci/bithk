@@ -11,6 +11,20 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.4 — 2026-07-06
+
+### Fixed
+
+- **CSP blocked presigned S3 direct uploads and previews** (FIX-065): with the
+  S3 driver active, the browser's presigned `PUT` (and presigned-GET inline
+  previews) target the S3 endpoint origin, which the Content-Security-Policy
+  did not allow — so the signed request was blocked and the upload silently
+  failed even with the bucket CORS set. The CSP now adds the live S3 endpoint
+  origin to `connect-src` / `img-src` / `media-src` / `frame-src`, resolved
+  per request from the DB-held storage config (so it updates the moment an
+  admin changes the storage settings, and is absent while S3 is unconfigured).
+
+
 ## v0.3.3 — 2026-07-06
 
 ### Fixed
