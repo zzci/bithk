@@ -3,6 +3,7 @@ import { and, count, desc, eq } from "drizzle-orm";
 import { users } from "@/modules/account/users/schema";
 import { driveEntries, UNIVER_SHEET_MIME } from "@/modules/drive/schema";
 import { fileReferences, files } from "@/modules/file/schema";
+import { ulidTimeMs } from "@/shared/lib/id";
 import { newStorageKey } from "./storage/key";
 import { getDriver } from "./storage/registry";
 
@@ -83,8 +84,9 @@ export interface SyncToS3Summary {
 
 /**
  * Move every non-spreadsheet `files` row not already on S3 to the S3 backend:
- * read the bytes via the row's current driver, `put` them to S3 under a
- * freshly minted hour-based key, repoint `storage_driver='s3'` + `storage_key`, then
+ * read the bytes via the row's current driver, `put` them to S3 under an
+ * hour-based key bucketed by the blob's ORIGINAL upload hour (its row-id ULID
+ * mint time), repoint `storage_driver='s3'` + `storage_key`, then
  * delete the old blob via the old driver. Spreadsheets (`UNIVER_SHEET_MIME`)
  * are skipped so their live-editable snapshot stays in the DB. Requires S3 to
  * be configured (the caller checks). Returns a `{ moved, skipped, failed }`
@@ -116,7 +118,10 @@ export async function syncNonSpreadsheetsToS3(db: AppDatabase): Promise<SyncToS3
       const source = getDriver(row.storageDriver);
       const stream = await source.getStream(row.storageKey);
       const bytes = await new Response(stream).arrayBuffer();
-      const newKey = newStorageKey(row.id, Date.now());
+      // Bucket by the blob's ORIGINAL upload hour (its row-id ULID mint time),
+      // not now — so the storage layout reflects real upload times and matches
+      // the rekey migration script. Falls back to now for a non-ULID id.
+      const newKey = newStorageKey(row.id, ulidTimeMs(row.id) ?? Date.now());
       await target.put(newKey, bytes, { contentType: row.mimetype });
 
       await db.update(files)

@@ -16,6 +16,7 @@ import {
 import { UNIVER_SHEET_MIME } from "@/modules/drive/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { settings } from "@/modules/settings/schema";
+import { ulidTimeMs } from "@/shared/lib/id";
 import { buildDownloadResponse, uploadAndReference } from "./file.service";
 import { fileBlobs, fileReferences, files } from "./schema";
 import { readStorageConfig, STORAGE_SETTING_KEYS } from "./storage-config";
@@ -233,6 +234,12 @@ describe("sync-to-s3", () => {
     expect(textFileAfter.storageDriver).toBe("s3");
     expect(s3Store.has(textFileAfter.storageKey)).toBe(true);
     expect(await getDriver("db").exists(textFileBefore.storageKey)).toBe(false);
+    // The new key buckets by the blob's ORIGINAL upload hour (row-id ULID mint
+    // time), not the sync time — so the layout reflects real upload times.
+    const d = new Date(ulidTimeMs(textFileAfter.id)!);
+    const pad = (n: number): string => String(n).padStart(2, "0");
+    const hour = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}${pad(d.getUTCHours())}`;
+    expect(textFileAfter.storageKey).toBe(`${hour}/${textFileAfter.id}`);
 
     // Spreadsheet still on db.
     const sheetFile = (await db.select().from(files).where(eq(files.id, sheet.file!.fileId)).get())!;
