@@ -11,6 +11,20 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.7 — 2026-07-06
+
+### Added
+
+- **`script:migrate-all-to-s3` CLI** (FEAT-053): one command that consolidates
+  every blob onto S3 in the new layout in a single pass — moves local/db blobs
+  to S3 AND re-keys any S3 object still on the legacy `ab/cd/<sha256>` key to
+  `YYYYMMDDHH/<ulid>` (bucketed by the blob's original upload hour). Idempotent
+  and resumable; spreadsheets and quarantined rows are skipped; refuses when S3
+  is unconfigured. Run `app script:migrate-all-to-s3 --dry-run` to preview,
+  then without the flag. (`script:rekey-legacy-blobs` remains the key-only,
+  same-driver variant.)
+
+
 ## v0.3.6 — 2026-07-06
 
 ### Fixed
