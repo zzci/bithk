@@ -11,6 +11,21 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.11 — 2026-07-06
+
+### Added
+
+- **`script:migrate-sheets-to-db` CLI** (FEAT-054): moves Univer spreadsheets
+  (`application/x-univer-sheet`) that ended up on `local`/`s3` back onto the
+  `db` driver, where the live-editable snapshot belongs (historical rows from
+  before the db-driver, or restored from a backup). Reads each blob via its
+  current driver, writes it to `db` under a fresh hour-based key, repoints the
+  row, and deletes the old blob. Idempotent, resumable, `--dry-run`; no storage
+  config required (the `db` driver is always available). The
+  `migrate-all-to-s3` sweep deliberately skips spreadsheets, so this is their
+  dedicated migration.
+
+
 ### Fixed
 
 - **Attachment inline preview blocked by CORS on presigned R2 redirect**
