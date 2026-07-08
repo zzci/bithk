@@ -11,6 +11,18 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.9 — 2026-07-06
+
+### Fixed
+
+- **CLI commands printed `sonic boom is not ready yet` on exit** (FIX-067):
+  runtime-backed subcommands (`script:*`, `backup:*`) build a pino logger with
+  an async file destination; a CLI process exits immediately after finishing,
+  and pino's exit-time auto-flush raced the not-yet-open file handle. The CLI
+  logger now uses a synchronous destination (fd open up front), so commands
+  exit cleanly. The long-lived server keeps the async destination.
+
+
 ## v0.3.8 — 2026-07-06
 
 ### Fixed
