@@ -137,6 +137,11 @@ await Bun.write(resolve(STAGE, "package.json"), `${JSON.stringify({
     "migrate:check": "bun index.js migrate --check",
     "backup:export": "bun index.js backup:export",
     "backup:import": "bun index.js backup:import",
+    "backup:blob-rescan": "bun index.js backup:blob-rescan",
+    // One-shot operational scripts (FEAT-051): exposed so operators can run
+    // them in a release via `lode <name>` just like the backup commands.
+    "script:rekey-legacy-blobs": "bun index.js script:rekey-legacy-blobs",
+    "script:migrate-all-to-s3": "bun index.js script:migrate-all-to-s3",
   },
 }, null, 2)}\n`);
 

@@ -51,6 +51,17 @@ export async function dispatchCliSubcommand(argv: readonly string[]): Promise<nu
   }
 
   if (!cli.matchedCommand) {
+    // A positional was given but matched no command — the operator meant to
+    // run a subcommand (typo, or one missing from this build). Fail loudly
+    // with exit 2 instead of falling through to boot the server, which would
+    // surface as a confusing "Failed to start server. Is port 3000 in use?"
+    // when the real server is already running. No positional → the legitimate
+    // "just start the server" path, so fall through (return null).
+    const [first] = parsed.args as string[];
+    if (typeof first === "string" && first.length > 0) {
+      consola.error(`unknown command: ${first}. Run \`--help\` to list available commands.`);
+      return 2;
+    }
     return null;
   }
 

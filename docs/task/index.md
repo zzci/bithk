@@ -197,3 +197,4 @@
 | [FIX-065](FIX-065.md) | CSP blocks presigned S3 direct-upload PUTs and previews | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FEAT-052](FEAT-052.md) | Presign attachment downloads direct to S3 (drop the proxy) | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FEAT-053](FEAT-053.md) | One CLI to migrate all blobs onto S3 in the new layout | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
+| [FIX-066](FIX-066.md) | CLI script commands unreachable in release; unknown command boots the server | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
