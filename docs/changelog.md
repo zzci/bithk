@@ -11,6 +11,23 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.8 — 2026-07-06
+
+### Fixed
+
+- **CLI operational scripts were unreachable in a release, and an unknown
+  command booted the server** (FIX-066): running e.g.
+  `script:migrate-all-to-s3` in a packaged deployment printed the misleading
+  `Failed to start server. Is port 3000 in use?`. The packaged artifact only
+  exposed `healthcheck`/`migrate`/`backup:export`/`backup:import`, so the
+  `script:*` and `backup:blob-rescan` commands had no runnable entry — and an
+  unrecognised subcommand silently fell through to booting the server (port
+  conflict against the live instance). The release now exposes
+  `backup:blob-rescan`, `script:rekey-legacy-blobs`, and
+  `script:migrate-all-to-s3`, and an unknown command now exits with a clear
+  `unknown command: …` error instead of trying to start the server.
+
+
 ## v0.3.7 — 2026-07-06
 
 ### Added
