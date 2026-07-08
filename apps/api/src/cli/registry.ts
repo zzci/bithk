@@ -5,6 +5,7 @@ import { backupImportCommand } from "./backup-import";
 import { healthcheckCommand } from "./healthcheck";
 import { migrateCommand } from "./migrate";
 import { migrateAllToS3Command } from "./script-migrate-all-to-s3";
+import { migrateSheetsToDbCommand } from "./script-migrate-sheets-to-db";
 import { rekeyLegacyBlobsCommand } from "./script-rekey-legacy-blobs";
 
 /**
@@ -22,4 +23,5 @@ export const cliCommands: readonly CliCommand[] = [
   backupBlobRescanCommand,
   rekeyLegacyBlobsCommand,
   migrateAllToS3Command,
+  migrateSheetsToDbCommand,
 ];

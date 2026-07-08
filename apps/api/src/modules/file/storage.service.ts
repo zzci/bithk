@@ -171,3 +171,65 @@ export async function syncNonSpreadsheetsToS3(db: AppDatabase, opts: SyncToS3Opt
 
   return { moved, skipped, failed };
 }
+
+/**
+ * Move every Univer spreadsheet (`UNIVER_SHEET_MIME`) that is NOT already on
+ * the `db` driver onto it. Spreadsheets are the live-editable snapshot and
+ * must live in the database, but historical rows (pre-`db`-driver, or restored
+ * from a backup) can sit on `local`/`s3`. Per row: read the bytes via the
+ * row's current driver, `put` them to the `db` driver under a fresh hour-based
+ * key, repoint `storage_driver='db'` + `storage_key`, then delete the old
+ * blob. The inverse of {@link syncNonSpreadsheetsToS3} (which skips sheets).
+ * Idempotent; quarantined rows are skipped; a single failure is counted and
+ * the sweep continues. `dryRun` reports without touching anything.
+ */
+export async function syncSpreadsheetsToDb(db: AppDatabase, opts: SyncToS3Options = {}): Promise<SyncToS3Summary> {
+  const rows = await db
+    .select({
+      id: files.id,
+      mimetype: files.mimetype,
+      storageDriver: files.storageDriver,
+      storageKey: files.storageKey,
+    })
+    .from(files)
+    .all();
+
+  const target = getDriver("db");
+  let moved = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const row of rows) {
+    if (row.mimetype !== UNIVER_SHEET_MIME || row.storageDriver === "db" || row.storageDriver.startsWith("quarantined:")) {
+      skipped++;
+      continue;
+    }
+    const newKey = targetKeyFor(row.id);
+    if (opts.dryRun) {
+      moved++;
+      opts.onProgress?.({ kind: "moved", id: row.id, from: `${row.storageDriver}:${row.storageKey}`, to: `db:${newKey}` });
+      continue;
+    }
+    try {
+      const source = getDriver(row.storageDriver);
+      const stream = await source.getStream(row.storageKey);
+      const bytes = await new Response(stream).arrayBuffer();
+      await target.put(newKey, bytes, { contentType: row.mimetype });
+
+      await db.update(files)
+        .set({ storageDriver: "db", storageKey: newKey })
+        .where(eq(files.id, row.id))
+        .run();
+
+      await source.delete(row.storageKey);
+      moved++;
+      opts.onProgress?.({ kind: "moved", id: row.id, from: `${row.storageDriver}:${row.storageKey}`, to: `db:${newKey}` });
+    }
+    catch (err) {
+      failed++;
+      opts.onProgress?.({ kind: "failed", id: row.id, from: `${row.storageDriver}:${row.storageKey}`, err: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { moved, skipped, failed };
+}

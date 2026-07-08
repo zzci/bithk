@@ -20,7 +20,7 @@ import { ulidTimeMs } from "@/shared/lib/id";
 import { buildDownloadResponse, uploadAndReference } from "./file.service";
 import { fileBlobs, fileReferences, files } from "./schema";
 import { readStorageConfig, STORAGE_SETTING_KEYS } from "./storage-config";
-import { listStorageFiles, syncNonSpreadsheetsToS3 } from "./storage.service";
+import { listStorageFiles, syncNonSpreadsheetsToS3, syncSpreadsheetsToDb } from "./storage.service";
 import { dbDriver, setDbDriverDatabase } from "./storage/db";
 import { __setLocalDriverRootForTests } from "./storage/local";
 import { __resetDriverRegistryForTests, getDriver, registerDriver, setActiveDriver, setActiveUploadDriver } from "./storage/registry";
@@ -286,6 +286,60 @@ describe("sync-to-s3", () => {
     expect(after.storageKey).toMatch(/^\d{10}\/[0-9a-hjkmnp-tv-z]{26}$/);
     expect(s3Store.has(after.storageKey)).toBe(true);
     expect(s3Store.has(legacyKey)).toBe(false);
+  });
+});
+
+describe("sync-sheets-to-db (FEAT-054)", () => {
+  // Relocate a db-driver spreadsheet's bytes onto `local` and repoint the row,
+  // simulating a historical spreadsheet that ended up off the db driver.
+  async function moveSheetToLocal(fileId: string): Promise<string> {
+    const row = (await db.select().from(files).where(eq(files.id, fileId)).get())!;
+    const bytes = await new Response(await getDriver("db").getStream(row.storageKey)).arrayBuffer();
+    const localKey = `2026070609/${row.id}`;
+    await getDriver("local").put(localKey, bytes);
+    await getDriver("db").delete(row.storageKey);
+    await db.update(files).set({ storageDriver: "local", storageKey: localKey }).where(eq(files.id, fileId)).run();
+    return localKey;
+  }
+
+  test("moves a local spreadsheet back to the db driver; leaves a non-sheet local file alone", async () => {
+    const userId = await seedUser();
+    const sheet = await createDriveSpreadsheet(db, config, { ...personal(userId), createdBy: userId, name: "S", content: "{\"a\":1}" });
+    const localKey = await moveSheetToLocal(sheet.file!.fileId);
+    // A plain local text upload that must NOT be touched by the sheet migration.
+    const text = await uploadDriveFile(db, config, { ...personal(userId), createdBy: userId, file: new File(["plain"], "t.txt", { type: "text/plain" }) });
+
+    const summary = await syncSpreadsheetsToDb(db);
+    expect(summary.moved).toBe(1); // the sheet
+    expect(summary.failed).toBe(0);
+
+    const after = (await db.select().from(files).where(eq(files.id, sheet.file!.fileId)).get())!;
+    expect(after.storageDriver).toBe("db");
+    expect(after.storageKey).toMatch(/^\d{10}\/[0-9a-hjkmnp-tv-z]{26}$/);
+    expect(await getDriver("db").exists(after.storageKey)).toBe(true);
+    expect(await getDriver("local").exists(localKey)).toBe(false);
+    // Its bytes survived the move intact.
+    expect(await new Response(await getDriver("db").getStream(after.storageKey)).text()).toBe("{\"a\":1}");
+
+    // The non-sheet local file is untouched.
+    const textAfter = (await db.select().from(files).where(eq(files.id, text.file!.fileId)).get())!;
+    expect(textAfter.storageDriver).toBe("local");
+  });
+
+  test("is idempotent and dry-run touches nothing", async () => {
+    const userId = await seedUser();
+    const sheet = await createDriveSpreadsheet(db, config, { ...personal(userId), createdBy: userId, name: "S", content: "{}" });
+    const localKey = await moveSheetToLocal(sheet.file!.fileId);
+
+    const dry = await syncSpreadsheetsToDb(db, { dryRun: true });
+    expect(dry.moved).toBe(1);
+    // Nothing moved on dry-run.
+    expect((await db.select().from(files).where(eq(files.id, sheet.file!.fileId)).get())!.storageDriver).toBe("local");
+    expect(await getDriver("local").exists(localKey)).toBe(true);
+
+    expect((await syncSpreadsheetsToDb(db)).moved).toBe(1);
+    // A second real run finds nothing left to move.
+    expect((await syncSpreadsheetsToDb(db)).moved).toBe(0);
   });
 });
 

@@ -142,6 +142,7 @@ await Bun.write(resolve(STAGE, "package.json"), `${JSON.stringify({
     // them in a release via `lode <name>` just like the backup commands.
     "script:rekey-legacy-blobs": "bun index.js script:rekey-legacy-blobs",
     "script:migrate-all-to-s3": "bun index.js script:migrate-all-to-s3",
+    "script:migrate-sheets-to-db": "bun index.js script:migrate-sheets-to-db",
   },
 }, null, 2)}\n`);
 
