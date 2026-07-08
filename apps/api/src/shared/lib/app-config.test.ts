@@ -90,6 +90,36 @@ describe("seedSettingsFromEnv", () => {
     expect(await getSetting(db, "oidc.logout_url")).toBeNull();
     expect(await getSetting(db, "auth.default_admin")).toBeNull();
   });
+
+  test("app.display_name is env-authoritative: an explicit APP_DISPLAY_NAME overwrites on every boot (FIX-068)", async () => {
+    const prev = Bun.env.APP_DISPLAY_NAME;
+    try {
+      await setSetting(db, "app.display_name", "Old Name");
+      Bun.env.APP_DISPLAY_NAME = "New Name";
+      await seedSettingsFromEnv(db, makeConfig({ APP_DISPLAY_NAME: "New Name" }));
+      expect(await getSetting(db, "app.display_name")).toBe("New Name");
+    }
+    finally {
+      if (prev === undefined)
+        delete Bun.env.APP_DISPLAY_NAME;
+      else Bun.env.APP_DISPLAY_NAME = prev;
+    }
+  });
+
+  test("app.display_name is NOT clobbered by the default when APP_DISPLAY_NAME env is unset (FIX-068)", async () => {
+    const prev = Bun.env.APP_DISPLAY_NAME;
+    try {
+      delete Bun.env.APP_DISPLAY_NAME;
+      await setSetting(db, "app.display_name", "Kept");
+      await seedSettingsFromEnv(db, makeConfig({ APP_DISPLAY_NAME: "bit" }));
+      expect(await getSetting(db, "app.display_name")).toBe("Kept");
+    }
+    finally {
+      if (prev === undefined)
+        delete Bun.env.APP_DISPLAY_NAME;
+      else Bun.env.APP_DISPLAY_NAME = prev;
+    }
+  });
 });
 
 describe("deriveOrigin", () => {

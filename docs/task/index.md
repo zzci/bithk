@@ -199,3 +199,4 @@
 | [FEAT-053](FEAT-053.md) | One CLI to migrate all blobs onto S3 in the new layout | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FIX-066](FIX-066.md) | CLI script commands unreachable in release; unknown command boots the server | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FIX-067](FIX-067.md) | CLI commands print "sonic boom is not ready yet" on exit | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
+| [FIX-068](FIX-068.md) | APP_DISPLAY_NAME env change never updates the running app | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |

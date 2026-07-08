@@ -139,6 +139,16 @@ export function deriveOrigin(req: Request, config: Config): string {
 export async function seedSettingsFromEnv(db: AppDatabase, config: Config): Promise<void> {
   if ((await getSetting(db, "session.max_age")) === null)
     await setSetting(db, "session.max_age", String(config.SESSION_MAX_AGE));
-  if ((await getSetting(db, "app.display_name")) === null)
+
+  // `APP_DISPLAY_NAME` is env-authoritative (FIX-068): when it is EXPLICITLY
+  // set, the `app.display_name` setting is (re)written from it on every boot,
+  // so changing the env and restarting updates the branding (sidebar + tab
+  // title, both served via `/system/branding`). There is no admin UI to edit
+  // it, so the env is the single source of truth. When the env var is absent,
+  // fall back to the seed-once behaviour so the schema default ("bit") does
+  // not clobber an existing value on later boots.
+  if (Bun.env.APP_DISPLAY_NAME?.trim())
+    await setSetting(db, "app.display_name", config.APP_DISPLAY_NAME);
+  else if ((await getSetting(db, "app.display_name")) === null)
     await setSetting(db, "app.display_name", config.APP_DISPLAY_NAME);
 }
