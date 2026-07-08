@@ -198,3 +198,4 @@
 | [FEAT-052](FEAT-052.md) | Presign attachment downloads direct to S3 (drop the proxy) | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FEAT-053](FEAT-053.md) | One CLI to migrate all blobs onto S3 in the new layout | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FIX-066](FIX-066.md) | CLI script commands unreachable in release; unknown command boots the server | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
+| [FIX-067](FIX-067.md) | CLI commands print "sonic boom is not ready yet" on exit | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |

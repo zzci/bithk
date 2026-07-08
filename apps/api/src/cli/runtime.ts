@@ -20,7 +20,10 @@ export async function withRuntime(fn: (ctx: CliRuntimeContext) => Promise<number
   const { loadConfig } = await import("../config");
   const { createLogger } = await import("../shared/lib/logger");
   const config = await loadConfig();
-  const logger = createLogger(config);
+  // Sync destination: a CLI subcommand process.exit()s right after finishing,
+  // and pino's on-exit auto-flush would otherwise throw "sonic boom is not
+  // ready yet" against a not-yet-open async fd.
+  const logger = createLogger(config, { sync: true });
 
   const { wireRuntime } = await import("../app");
   const { db, close } = await wireRuntime(config, logger);

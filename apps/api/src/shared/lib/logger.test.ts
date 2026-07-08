@@ -46,6 +46,16 @@ describe("createLogger", () => {
     expect(content).toContain("hello");
   });
 
+  test("sync destination writes through immediately without a flush race (CLI path, FIX-067)", () => {
+    // A sync logger opens its fd up front and writes synchronously, so the
+    // line is on disk without polling — and pino's exit-time flushSync cannot
+    // throw "sonic boom is not ready yet" against a not-yet-open async fd.
+    const log = createLogger({ LOG_LEVEL: "info", LOG_FILE: logFile, LOG_TO_STDOUT: false, NODE_ENV: "test" }, { sync: true });
+    log.info("sync-line");
+    expect(readFileSync(logFile, "utf-8")).toContain("sync-line");
+    expect(() => log.flush()).not.toThrow();
+  });
+
   test("supports both string and object payloads", async () => {
     const log = createLogger({ LOG_LEVEL: "info", LOG_FILE: logFile, LOG_TO_STDOUT: false, NODE_ENV: "test" });
     log.info("string-form");
