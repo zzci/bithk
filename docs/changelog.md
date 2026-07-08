@@ -11,6 +11,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.10 — 2026-07-06
+
+### Fixed
+
+- **`APP_DISPLAY_NAME` env change never updated the running app** (FIX-068):
+  the display name (sidebar + browser tab title) was seeded from the env into a
+  DB setting only on first boot, so a later env change was ignored — and there
+  is no admin UI to edit it. `APP_DISPLAY_NAME` is now env-authoritative: when
+  explicitly set it is re-applied on every boot, so changing it and restarting
+  updates the branding. When unset, an existing value is preserved (the default
+  never clobbers it).
+
+
 ## v0.3.9 — 2026-07-06
 
 ### Fixed
