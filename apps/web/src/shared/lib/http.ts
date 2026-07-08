@@ -56,7 +56,12 @@ export async function httpRaw(path: string, init?: RequestInit): Promise<Respons
   const isMutating = method !== "GET" && method !== "HEAD";
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
-    credentials: "include",
+    // `same-origin`, NOT `include`: the API is same-origin so cookies flow
+    // either way, but file endpoints 302 to cross-origin presigned S3/R2 URLs
+    // and fetch keeps its credentials mode across the redirect — `include`
+    // would demand an `Access-Control-Allow-Credentials: true` header that R2
+    // never emits (FIX-069).
+    credentials: "same-origin",
     headers: {
       ...(hasBody && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...(isMutating ? { "X-Requested-With": "XMLHttpRequest" } : {}),

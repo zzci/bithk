@@ -57,6 +57,19 @@ describe("http()", () => {
     });
   });
 
+  describe("credentials mode", () => {
+    // Must stay `same-origin`, NOT `include`: the file endpoints 302 to
+    // cross-origin presigned S3/R2 URLs, fetch carries its credentials mode
+    // across the redirect, and `include` demands an
+    // `Access-Control-Allow-Credentials: true` header R2 never emits (FIX-069).
+    it("uses same-origin credentials so presigned redirects pass CORS", async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
+      await http("/foo");
+      const init = fetchMock.mock.calls[0]![1]!;
+      expect(init.credentials).toBe("same-origin");
+    });
+  });
+
   describe("error handling", () => {
     it("returns parsed JSON on 2xx", async () => {
       fetchMock.mockResolvedValue(jsonResponse({ data: { id: "abc" } }));

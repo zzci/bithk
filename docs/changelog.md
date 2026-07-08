@@ -11,6 +11,17 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Fixed
+
+- **Attachment inline preview blocked by CORS on presigned R2 redirect**
+  (FIX-069): the preview fetch used `credentials: "include"`, which fetch
+  carries across the 302 to a cross-origin presigned URL — the browser then
+  requires `Access-Control-Allow-Credentials: true`, a header R2's CORS policy
+  can never emit. The web client now uses the default `same-origin` mode
+  (`httpRaw` + the attachment preview fetch): cookies still reach the
+  same-origin API, and the redirected storage request is non-credentialed so
+  the bucket's `Access-Control-Allow-Origin` grant is sufficient.
+
 ## v0.3.10 — 2026-07-06
 
 ### Fixed

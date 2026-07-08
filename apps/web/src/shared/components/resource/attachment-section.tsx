@@ -167,9 +167,11 @@ export function ResourceAttachmentSection({
           fetchContent={(signal) => {
             // Direct fetch (not `httpRaw`): the attachment endpoint may 302 to
             // a cross-origin presigned URL, and this is a read-only GET with no
-            // CSRF surface.
+            // CSRF surface. Default (`same-origin`) credentials: the cookie
+            // still reaches the same-origin API, and the redirected request is
+            // non-credentialed so R2's CORS policy passes (FIX-069).
             const url = `${BASE_PATH}/api/${resource}/${resourceId}/attachments/${previewTarget.id}?inline=true`;
-            return fetch(url, { credentials: "include", signal }).then((res) => {
+            return fetch(url, { signal }).then((res) => {
               if (!res.ok)
                 throw new Error(`HTTP ${res.status}`);
               return res.blob();
