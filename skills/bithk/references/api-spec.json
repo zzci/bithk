@@ -44236,6 +44236,197 @@
         ]
       }
     },
+    "/drive/entries/trash/all": {
+      "get": {
+        "operationId": "getDriveEntriesTrashAll",
+        "tags": [
+          "drive"
+        ],
+        "summary": "List trash roots across every space the caller can view",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "ownerType": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "team_directory",
+                              "project"
+                            ]
+                          },
+                          "ownerId": {
+                            "type": "string"
+                          },
+                          "parentEntryId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "folder",
+                              "file"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "favorite": {
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "normal",
+                              "trash"
+                            ]
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "createdByName": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "file": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "referenceId": {
+                                    "type": "string"
+                                  },
+                                  "fileId": {
+                                    "type": "string"
+                                  },
+                                  "filename": {
+                                    "type": "string"
+                                  },
+                                  "mimetype": {
+                                    "type": "string"
+                                  },
+                                  "size": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "referenceId",
+                                  "fileId",
+                                  "filename",
+                                  "mimetype",
+                                  "size"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ownerName": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "ownerType",
+                          "ownerId",
+                          "parentEntryId",
+                          "type",
+                          "name",
+                          "favorite",
+                          "status",
+                          "createdBy",
+                          "createdByName",
+                          "createdAt",
+                          "updatedAt",
+                          "file",
+                          "ownerName"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/drive/entries/trash": {
       "get": {
         "operationId": "getDriveEntriesTrash",

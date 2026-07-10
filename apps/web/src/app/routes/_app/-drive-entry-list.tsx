@@ -26,12 +26,12 @@ import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialo
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
 import {
   downloadDriveEntry,
+  useAllTrashedEntries,
   useDeleteDriveEntryPermanently,
   useDriveEntries,
   useFavoriteEntries,
   useRecentEntries,
   useRestoreDriveEntry,
-  useTrashedEntries,
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
 import { entryToDisplayItem } from "@/shared/lib/file";
@@ -66,9 +66,10 @@ function FavoritesCollection({ userId, onPreviewEntry }: CollectionWrapperProps)
 }
 
 function TrashCollection({ userId, onPreviewEntry }: CollectionWrapperProps) {
-  // Owner-wide trash roots (not the root folder's trashed children only) so
-  // files trashed from inside subfolders show up too (FIX-070).
-  const query = useTrashedEntries({ ownerType: "user", ownerId: userId });
+  // One recovery surface for everything the caller can view: personal trash
+  // roots plus every accessible project / team directory's (FEAT-055). Rows
+  // carry `ownerName` so the list can show the owning space.
+  const query = useAllTrashedEntries();
   return <Collection mode="trash" userId={userId} query={query} onPreviewEntry={onPreviewEntry} />;
 }
 
@@ -170,7 +171,16 @@ function Collection({ mode, userId, query, onPreviewEntry }: CollectionProps) {
   const activeQuery = inFolder ? folderQuery : query;
 
   const entries = useMemo(() => activeQuery.data ?? [], [activeQuery.data]);
-  const items = useMemo(() => entries.map(entryToDisplayItem), [entries]);
+  // In the aggregated trash, the "owner" cell shows the owning SPACE (my
+  // files / project / directory name from `ownerName`) instead of the
+  // creator — that is what disambiguates rows collected across drives.
+  const items = useMemo(() => entries.map((entry) => {
+    const item = entryToDisplayItem(entry);
+    if (mode !== "trash")
+      return item;
+    const ownerName = (entry as { readonly ownerName?: string | null }).ownerName;
+    return { ...item, owner: ownerName ?? t("sidebar.myFiles") };
+  }), [entries, mode, t]);
   const entryById = useMemo(
     () => new Map(entries.map(entry => [entry.id, entry])),
     [entries],

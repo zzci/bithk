@@ -482,6 +482,57 @@ describe("drive routes owner scope", () => {
     expect((await app.request(path, { headers: { "x-uid": strangerId } })).status).toBe(403);
   });
 
+  test("GET /drive/entries/trash/all aggregates every visible space's trash with owner names", async () => {
+    const callerId = await seedUser("Caller");
+    const otherId = await seedUser("Other");
+
+    // Personal trash for the caller and a foreign user (must not leak).
+    const mine = await createDriveFolder(db, { ...personal(callerId), createdBy: callerId, name: "Mine" });
+    await trashDriveEntry(db, personal(callerId), mine.id);
+    const theirs = await createDriveFolder(db, { ...personal(otherId), createdBy: otherId, name: "Theirs" });
+    await trashDriveEntry(db, personal(otherId), theirs.id);
+
+    // Project the caller created (Owner role ⇒ files.view).
+    const project = await createProject(db, { name: "Bridge", creatorId: callerId });
+    const projectOwner = { ownerType: "project" as const, ownerId: project.id };
+    const projFolder = await createDriveFolder(db, { ...projectOwner, createdBy: callerId, name: "ProjTrash" });
+    await trashDriveEntry(db, projectOwner, projFolder.id);
+
+    // Team directory the caller belongs to.
+    const dir = await createTeamDirectory(db, { name: "Team", createdBy: callerId });
+    const dirOwner = { ownerType: "team_directory" as const, ownerId: dir.id };
+    const dirFolder = await createDriveFolder(db, { ...dirOwner, createdBy: callerId, name: "DirTrash" });
+    await trashDriveEntry(db, dirOwner, dirFolder.id);
+
+    const app = buildApp();
+    const res = await app.request("/drive/entries/trash/all", { headers: { "x-uid": callerId } });
+    expect(res.status).toBe(200);
+    const data = (await res.json()).data as readonly { name: string; ownerName: string | null }[];
+    const byName = new Map(data.map(e => [e.name, e.ownerName]));
+    expect(JSON.stringify([...byName.keys()].sort())).toBe(JSON.stringify(["DirTrash", "Mine", "ProjTrash"]));
+    expect(byName.get("Mine")).toBeNull();
+    expect(byName.get("ProjTrash")).toBe("Bridge");
+    expect(byName.get("DirTrash")).toBe("Team");
+  });
+
+  test("GET /drive/entries/trash/all excludes projects where the member lacks files.view", async () => {
+    const ownerId = await seedUser("Owner");
+    const guestId = await seedUser("Guest");
+    const project = await createProject(db, { name: "GuestProject", creatorId: ownerId });
+    const roles = await listRoles(db, project.id);
+    const guestRoleId = roles.find(r => r.name === "Guest")!.id;
+    await addMember(db, project.id, { roleId: guestRoleId, userId: guestId });
+
+    const projectOwner = { ownerType: "project" as const, ownerId: project.id };
+    const folder = await createDriveFolder(db, { ...projectOwner, createdBy: ownerId, name: "Hidden" });
+    await trashDriveEntry(db, projectOwner, folder.id);
+
+    const app = buildApp();
+    const res = await app.request("/drive/entries/trash/all", { headers: { "x-uid": guestId } });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual([]);
+  });
+
   test("GET /drive/entries/trash defaults to the caller's personal trash", async () => {
     const callerId = await seedUser("Caller");
     const folder = await createDriveFolder(db, { ...personal(callerId), createdBy: callerId, name: "Old" });

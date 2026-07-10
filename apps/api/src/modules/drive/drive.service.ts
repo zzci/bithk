@@ -168,6 +168,20 @@ const RECENT_LIMIT = 50;
  * folded into it; restore and permanent delete both walk the full tree.
  */
 export async function listTrashedDriveEntries(db: AppDatabase, owner: DriveOwner): Promise<readonly DriveEntryView[]> {
+  return listTrashedDriveEntriesForOwners(db, [owner]);
+}
+
+/**
+ * Multi-owner variant used by the aggregated trash view: one query across
+ * every owner the caller resolved (the route carries the permission logic,
+ * mirroring `searchDriveEntriesByOwners`).
+ */
+export async function listTrashedDriveEntriesForOwners(db: AppDatabase, owners: readonly DriveOwner[]): Promise<readonly DriveEntryView[]> {
+  if (owners.length === 0)
+    return [];
+  const ownerClause = or(
+    ...owners.map(o => and(eq(driveEntries.ownerType, o.ownerType), eq(driveEntries.ownerId, o.ownerId))),
+  );
   const parents = alias(driveEntries, "trash_parents");
   const rows = await db
     .select({
@@ -185,8 +199,7 @@ export async function listTrashedDriveEntries(db: AppDatabase, owner: DriveOwner
     .leftJoin(files, eq(fileReferences.fileId, files.id))
     .leftJoin(users, eq(driveEntries.createdBy, users.id))
     .where(and(
-      eq(driveEntries.ownerType, owner.ownerType),
-      eq(driveEntries.ownerId, owner.ownerId),
+      ownerClause,
       eq(driveEntries.status, "trash"),
       or(isNull(parents.id), ne(parents.status, "trash")),
     ))

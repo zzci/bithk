@@ -7,6 +7,7 @@ import {
   driveKeys,
   parseContentDispositionFilename,
   useAddMember,
+  useAllTrashedEntries,
   useClearDisplayVersion,
   useCreateDriveFolder,
   useCreateTeamDirectory,
@@ -192,6 +193,15 @@ describe("entry mutations", () => {
     await result.current.mutateAsync({ ownerType: "project", ownerId: "pr1" });
     expect(urlOf()).toBe("/api/drive/entries/trash?ownerType=project&ownerId=pr1");
     expect(methodOf()).toBe("DELETE");
+  });
+});
+
+describe("useAllTrashedEntries", () => {
+  it("hits the aggregated trash endpoint", async () => {
+    fetchMock.mockImplementation(ok([]));
+    const { result } = renderHook(() => useAllTrashedEntries(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(urlOf()).toBe("/api/drive/entries/trash/all");
   });
 });
 

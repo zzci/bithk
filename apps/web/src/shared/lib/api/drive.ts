@@ -27,6 +27,10 @@ export type DriveEntry = ApiRow<"getDriveEntries">;
 export type DriveOwnerType = DriveEntry["ownerType"];
 export type DriveEntryStatus = DriveEntry["status"];
 
+// Aggregated trash row: a drive entry plus the owning space's display name
+// (null = the caller's personal drive).
+export type TrashedEntryEverywhere = ApiRow<"getDriveEntriesTrashAll">;
+
 // File version row; `isCurrent` marks the entry's current display pointer.
 export type DriveFileVersion = ApiRow<"getDriveEntriesByIdVersions">;
 
@@ -72,6 +76,7 @@ export const driveKeys = {
     owner?.ownerType ?? "user",
     owner?.ownerId ?? "self",
   ] as const,
+  trashAll: () => ["drive", "entries", "trash-view", "all"] as const,
   recent: () => ["drive", "entries", "recent"] as const,
   favorites: () => ["drive", "entries", "favorites"] as const,
   versions: (entryId: string) => ["drive", "entries", entryId, "versions"] as const,
@@ -214,6 +219,18 @@ export function useTrashedEntries(
     queryFn: () => rawJson<ApiEnvelope<readonly DriveEntry[]>>(trashPath(owner)).then(r => r.data),
     staleTime: 5_000,
     enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * Trash roots across every space the caller can view (personal + member team
+ * directories + projects with files.view), with `ownerName` for display.
+ */
+export function useAllTrashedEntries() {
+  return useQuery({
+    queryKey: driveKeys.trashAll(),
+    queryFn: () => rawJson<ApiEnvelope<readonly TrashedEntryEverywhere[]>>("/drive/entries/trash/all").then(r => r.data),
+    staleTime: 5_000,
   });
 }
 

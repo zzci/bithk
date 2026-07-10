@@ -11,6 +11,16 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Added
+
+- The drive sidebar trash is now one recovery surface for every space the
+  caller can view (FEAT-055): `GET /drive/entries/trash/all` aggregates
+  trash roots from the personal drive, member team directories, and member
+  projects holding `files.view`, each row labelled with its owning space.
+  Mistaken deletions anywhere are restorable from one place; emptying from
+  the sidebar remains personal-only, and permanent deletion of project
+  files stays in the project's own trash view.
+
 ### Fixed
 
 - Trashed drive entries no longer vanish from the trash view (FIX-070). The

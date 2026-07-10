@@ -2393,6 +2393,23 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/drive/entries/trash/all": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List trash roots across every space the caller can view */
+        readonly get: operations["getDriveEntriesTrashAll"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/drive/entries/trash": {
         readonly parameters: {
             readonly query?: never;
@@ -21887,6 +21904,71 @@ export interface operations {
             };
             /** @description Validation error */
             readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getDriveEntriesTrashAll: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly {
+                            readonly id: string;
+                            /** @enum {string} */
+                            readonly ownerType: "user" | "team_directory" | "project";
+                            readonly ownerId: string;
+                            readonly parentEntryId: string | null;
+                            /** @enum {string} */
+                            readonly type: "folder" | "file";
+                            readonly name: string;
+                            readonly favorite: boolean;
+                            /** @enum {string} */
+                            readonly status: "normal" | "trash";
+                            readonly createdBy: string;
+                            readonly createdByName: string;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                            readonly file: {
+                                readonly referenceId: string;
+                                readonly fileId: string;
+                                readonly filename: string;
+                                readonly mimetype: string;
+                                readonly size: number;
+                            } | null;
+                            readonly ownerName: string | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

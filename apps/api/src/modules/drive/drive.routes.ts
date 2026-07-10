@@ -7,7 +7,7 @@ import { z } from "zod";
 import { auditFromCtx } from "@/modules/audit/audit.context";
 import { parseThumbnailWidth } from "@/modules/file";
 import { policyContext } from "@/modules/policy";
-import { hasCapability, isMember, resolveProjectId } from "@/modules/project/project.service";
+import { hasCapability, isMember, listProjects, resolveProjectId } from "@/modules/project/project.service";
 import { AppError, ForbiddenError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
@@ -26,6 +26,7 @@ import {
   listFavoriteDriveEntries,
   listRecentDriveEntries,
   listTrashedDriveEntries,
+  listTrashedDriveEntriesForOwners,
   presignDriveUpload,
   restoreDriveEntry,
   searchDriveEntries,
@@ -174,6 +175,12 @@ const driveEntrySchema = z.object({
   }).nullable(),
 });
 
+// Aggregated trash rows carry the owning space's display name (null = the
+// caller's personal drive).
+const trashedEntryEverywhereSchema = driveEntrySchema.extend({
+  ownerName: z.string().nullable(),
+});
+
 const driveVersionSchema = z.object({
   id: z.string(),
   versionNo: z.number(),
@@ -294,6 +301,53 @@ export function driveRoutes() {
       const query = c.req.valid("query");
       const owner = await resolveListOwner(c, query.ownerType, query.ownerId);
       const data = await searchDriveEntries(c.get("db"), owner, query.q, query.limit ?? 50);
+      return c.json({ success: true, data });
+    },
+  );
+
+  router.get(
+    "/drive/entries/trash/all",
+    describeRoute({
+      tags: ["drive"],
+      summary: "List trash roots across every space the caller can view",
+      responses: { 200: okJson(z.array(trashedEntryEverywhereSchema)), 401: { description: "Unauthenticated", ...errorJson } },
+    }),
+    async (c) => {
+      const user = c.get("user");
+      const db = c.get("db");
+
+      // Same visibility resolution as drive search (personal + member team
+      // directories + member projects), tightened to `files.view` on projects
+      // so capability-less roles (Guest) cannot enumerate a project's trash.
+      const [dirs, projectsResult] = await Promise.all([
+        listTeamDirectories(db, user.id),
+        listProjects(db, { memberUserId: user.id, limit: 100 }),
+      ]);
+      const projects: { id: string; name: string }[] = [];
+      for (const project of projectsResult.data) {
+        // ProjectView.id is the external shortId; drive owners store the ULID.
+        const projectId = await resolveProjectId(db, project.id);
+        if (!projectId)
+          continue;
+        if (user.role === "admin" || await hasCapability(db, projectId, user.id, "files.view"))
+          projects.push({ id: projectId, name: project.name });
+      }
+
+      const owners: DriveOwner[] = [
+        personalOwner(user.id),
+        ...dirs.map(d => ({ ownerType: "team_directory" as const, ownerId: d.id })),
+        ...projects.map(p => ({ ownerType: "project" as const, ownerId: p.id })),
+      ];
+      const entries = await listTrashedDriveEntriesForOwners(db, owners);
+
+      const nameByOwner = new Map<string, string>([
+        ...dirs.map(d => [`team_directory:${d.id}`, d.name] as const),
+        ...projects.map(p => [`project:${p.id}`, p.name] as const),
+      ]);
+      const data = entries.map(entry => ({
+        ...entry,
+        ownerName: entry.ownerType === "user" ? null : nameByOwner.get(`${entry.ownerType}:${entry.ownerId}`) ?? null,
+      }));
       return c.json({ success: true, data });
     },
   );
