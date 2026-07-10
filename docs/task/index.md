@@ -202,3 +202,4 @@
 | [FIX-068](FIX-068.md) | APP_DISPLAY_NAME env change never updates the running app | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FIX-069](FIX-069.md) | Attachment inline preview blocked by CORS on presigned R2 redirect | - | Completed | 2026-07-08 |
 | [FEAT-054](FEAT-054.md) | CLI to move Univer spreadsheets back onto the db driver | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
+| [FIX-070](FIX-070.md) | Trashed entries invisible in trash view (owner + subfolder scope gap) | - | Completed | 2026-07-10 |

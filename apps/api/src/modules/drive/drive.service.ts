@@ -3,7 +3,8 @@ import type { Config } from "@/config";
 import type { AppDatabase } from "@/db";
 import type { DrainedBlob } from "@/modules/file";
 import type { PresignedUpload } from "@/modules/file/storage/types";
-import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 import {
   buildDownloadResponse,
@@ -158,6 +159,41 @@ export async function getEntryOwner(db: AppDatabase, id: string): Promise<DriveO
 }
 
 const RECENT_LIMIT = 50;
+
+/**
+ * Trash-root entries for an owner, newest first. Trashing keeps the original
+ * `parentEntryId` and marks whole subtrees, so the trash view lists every
+ * trashed entry whose parent is the root, missing, or itself not trashed —
+ * a trashed folder appears once and its (also trashed) descendants stay
+ * folded into it; restore and permanent delete both walk the full tree.
+ */
+export async function listTrashedDriveEntries(db: AppDatabase, owner: DriveOwner): Promise<readonly DriveEntryView[]> {
+  const parents = alias(driveEntries, "trash_parents");
+  const rows = await db
+    .select({
+      entry: driveEntries,
+      fileId: fileReferences.fileId,
+      filename: fileReferences.filename,
+      mimetype: files.mimetype,
+      size: files.size,
+      creatorName: users.name,
+      creatorUsername: users.username,
+    })
+    .from(driveEntries)
+    .leftJoin(parents, eq(driveEntries.parentEntryId, parents.id))
+    .leftJoin(fileReferences, eq(driveEntries.fileReferenceId, fileReferences.id))
+    .leftJoin(files, eq(fileReferences.fileId, files.id))
+    .leftJoin(users, eq(driveEntries.createdBy, users.id))
+    .where(and(
+      eq(driveEntries.ownerType, owner.ownerType),
+      eq(driveEntries.ownerId, owner.ownerId),
+      eq(driveEntries.status, "trash"),
+      or(isNull(parents.id), ne(parents.status, "trash")),
+    ))
+    .orderBy(desc(driveEntries.updatedAt), desc(driveEntries.id))
+    .all();
+  return rows.map(composeDriveEntryView);
+}
 
 /** The caller's own recently-updated files (normal status), newest first. */
 export async function listRecentDriveEntries(db: AppDatabase, userId: string): Promise<readonly DriveEntryView[]> {

@@ -147,6 +147,7 @@ export function FileToolbar({
   onCreateSpreadsheet,
   onImportCsv,
   onImportFromDrive,
+  extraActions,
 }: FileToolbarProps) {
   const { t } = useTranslation("drive");
   const hasSelection = selectionMode && selectedCount > 0;
@@ -237,6 +238,7 @@ export function FileToolbar({
                 )
               : (
                   <>
+                    {extraActions}
                     {variant === "full" && (
                       <ViewModeToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
                     )}

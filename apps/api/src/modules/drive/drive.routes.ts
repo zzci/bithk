@@ -25,6 +25,7 @@ import {
   listDriveEntries,
   listFavoriteDriveEntries,
   listRecentDriveEntries,
+  listTrashedDriveEntries,
   presignDriveUpload,
   restoreDriveEntry,
   searchDriveEntries,
@@ -52,6 +53,11 @@ const entryIdSchema = z.string().min(1);
 const listSchema = z.object({
   parentEntryId: z.string().nullable().optional(),
   status: z.enum(["normal", "trash"]).optional(),
+  ownerType: z.enum(["user", "team_directory", "project"]).optional(),
+  ownerId: z.string().optional(),
+});
+
+const trashScopeSchema = z.object({
   ownerType: z.enum(["user", "team_directory", "project"]).optional(),
   ownerId: z.string().optional(),
 });
@@ -292,20 +298,40 @@ export function driveRoutes() {
     },
   );
 
+  router.get(
+    "/drive/entries/trash",
+    describeRoute({
+      tags: ["drive"],
+      summary: "List a drive owner's trash-root entries",
+      responses: { 200: okJson(z.array(driveEntrySchema)), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
+    }),
+    validator("query", trashScopeSchema, onValidationFailure),
+    async (c) => {
+      const query = c.req.valid("query");
+      const owner = await resolveListOwner(c, query.ownerType, query.ownerId);
+      const data = await listTrashedDriveEntries(c.get("db"), owner);
+      return c.json({ success: true, data });
+    },
+  );
+
   router.delete(
     "/drive/entries/trash",
     describeRoute({
       tags: ["drive"],
-      summary: "Empty the caller's trash",
-      responses: { 200: okJson(trashEmptiedSchema), 401: { description: "Unauthenticated", ...errorJson } },
+      summary: "Empty a drive owner's trash (personal by default)",
+      responses: { 200: okJson(trashEmptiedSchema), 401: { description: "Unauthenticated", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
+    validator("query", trashScopeSchema, onValidationFailure),
     async (c) => {
-      const user = c.get("user");
-      const removed = await emptyDriveTrash(c.get("db"), c.get("config"), personalOwner(user.id));
+      const query = c.req.valid("query");
+      // Write-level owner resolution: emptying a project/team trash purges
+      // entries permanently, so it requires the same rights as creating there.
+      const owner = await resolveCreateOwner(c, query.ownerType, query.ownerId);
+      const removed = await emptyDriveTrash(c.get("db"), c.get("config"), owner);
       await auditFromCtx(c, {
         action: "drive.trash.emptied",
         resourceType: "drive_entry",
-        resourceId: user.id,
+        resourceId: owner.ownerId,
         resourceName: "trash",
         detail: { removed },
         result: "success",

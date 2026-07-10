@@ -22,6 +22,7 @@ import {
   useSetDisplayVersion,
   useTeamDirectories,
   useTrashDriveEntry,
+  useTrashedEntries,
   useUpdateDriveEntry,
   useUpdateMember,
   useUpdateTeamDirectory,
@@ -183,6 +184,40 @@ describe("entry mutations", () => {
     expect(res.removed).toBe(4);
     expect(urlOf()).toBe("/api/drive/entries/trash");
     expect(methodOf()).toBe("DELETE");
+  });
+
+  it("empties an owner-scoped trash", async () => {
+    fetchMock.mockImplementation(ok({ removed: 2 }));
+    const { result } = renderHook(() => useEmptyTrash(), { wrapper: makeWrapper() });
+    await result.current.mutateAsync({ ownerType: "project", ownerId: "pr1" });
+    expect(urlOf()).toBe("/api/drive/entries/trash?ownerType=project&ownerId=pr1");
+    expect(methodOf()).toBe("DELETE");
+  });
+});
+
+describe("useTrashedEntries", () => {
+  it("defaults to the personal trash endpoint", async () => {
+    fetchMock.mockImplementation(ok([]));
+    const { result } = renderHook(() => useTrashedEntries(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(urlOf()).toBe("/api/drive/entries/trash");
+  });
+
+  it("forwards the owner scope and honors enabled=false", async () => {
+    fetchMock.mockImplementation(ok([]));
+    const disabled = renderHook(
+      () => useTrashedEntries({ ownerType: "project", ownerId: "pr1" }, { enabled: false }),
+      { wrapper: makeWrapper() },
+    );
+    expect(disabled.result.current.fetchStatus).toBe("idle");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const { result } = renderHook(
+      () => useTrashedEntries({ ownerType: "project", ownerId: "pr1" }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(urlOf()).toBe("/api/drive/entries/trash?ownerType=project&ownerId=pr1");
   });
 });
 

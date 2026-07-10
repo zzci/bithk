@@ -48,6 +48,8 @@ export interface FolderToolbarConfig {
   readonly showCreateActions?: boolean;
   readonly onNavigateToBreadcrumb: (index: number) => void;
   readonly onImportFromDrive?: () => void;
+  /** Caller-owned controls rendered before the view-mode toggle (e.g. the trash entry point). */
+  readonly extraActions?: ReactNode;
 }
 
 export interface CollectionToolbarConfig {
@@ -189,6 +191,7 @@ export interface FileToolbarProps {
   readonly onCreateSpreadsheet?: (() => void) | undefined;
   readonly onImportCsv?: (() => void) | undefined;
   readonly onImportFromDrive?: (() => void) | undefined;
+  readonly extraActions?: ReactNode | undefined;
 }
 
 // ── Inner list / grid ──

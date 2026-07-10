@@ -11,6 +11,19 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Fixed
+
+- Trashed drive entries no longer vanish from the trash view (FIX-070). The
+  trash view previously listed only the personal root's trashed children, so
+  files trashed from inside subfolders — and everything in project / team
+  drives — looked hard-deleted while the rows sat intact in the database. A
+  new `GET /drive/entries/trash` lists an owner's trash roots (trashed
+  folders appear once, without their folded subtree), the drive sidebar's
+  trash uses it, and the project/team file browser gains a trash view with
+  restore, delete-forever, and empty-trash actions. `DELETE
+  /drive/entries/trash` now accepts an `ownerType`/`ownerId` scope
+  (write-gated; personal by default), so project trash can be emptied too.
+
 ## v0.3.11 — 2026-07-06
 
 ### Added

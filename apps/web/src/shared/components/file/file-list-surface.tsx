@@ -286,6 +286,7 @@ export function DriveFileListSurface({
               onCreateSpreadsheet={resolvedCapabilities.createTextFile ? actions.onCreateSpreadsheet : undefined}
               onImportCsv={resolvedCapabilities.createTextFile ? actions.onImportCsv : undefined}
               onImportFromDrive={toolbar.onImportFromDrive}
+              extraActions={toolbar.extraActions}
             />
           )
         : renderCollectionToolbar(toolbar)}

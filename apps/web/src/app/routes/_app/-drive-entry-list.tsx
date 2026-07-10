@@ -31,6 +31,7 @@ import {
   useFavoriteEntries,
   useRecentEntries,
   useRestoreDriveEntry,
+  useTrashedEntries,
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
 import { entryToDisplayItem } from "@/shared/lib/file";
@@ -65,7 +66,9 @@ function FavoritesCollection({ userId, onPreviewEntry }: CollectionWrapperProps)
 }
 
 function TrashCollection({ userId, onPreviewEntry }: CollectionWrapperProps) {
-  const query = useDriveEntries(null, "trash", { ownerType: "user", ownerId: userId });
+  // Owner-wide trash roots (not the root folder's trashed children only) so
+  // files trashed from inside subfolders show up too (FIX-070).
+  const query = useTrashedEntries({ ownerType: "user", ownerId: userId });
   return <Collection mode="trash" userId={userId} query={query} onPreviewEntry={onPreviewEntry} />;
 }
 

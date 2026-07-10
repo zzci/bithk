@@ -23,6 +23,7 @@ import {
   createDriveFolder,
   deleteDriveEntryPermanently,
   listDriveEntries,
+  listTrashedDriveEntries,
   restoreDriveEntry,
   trashDriveEntry,
   updateDriveEntry,
@@ -221,6 +222,45 @@ describe("drive files", () => {
     expect(normal).toHaveLength(0);
     expect(trash).toHaveLength(1);
     expect(trash[0]?.name).toBe("Folder");
+  });
+
+  test("listTrashedDriveEntries surfaces trash roots from subfolders without expanding trashed trees", async () => {
+    const userId = await seedUser();
+    const keep = await createDriveFolder(db, { ...personal(userId), createdBy: userId, name: "Keep" });
+    const nested = await uploadDriveFile(db, config, {
+      ...personal(userId),
+      createdBy: userId,
+      parentEntryId: keep.id,
+      file: textFile("deep.txt"),
+    });
+    const folder = await createDriveFolder(db, { ...personal(userId), createdBy: userId, name: "Folder" });
+    await uploadDriveFile(db, config, {
+      ...personal(userId),
+      createdBy: userId,
+      parentEntryId: folder.id,
+      file: textFile("child.txt"),
+    });
+
+    // A file trashed alone inside a normal folder keeps its parentEntryId, and
+    // a trashed folder marks its whole subtree — the trash view must show the
+    // file and the folder root, but not the folder's (folded) child.
+    await trashDriveEntry(db, personal(userId), nested.id);
+    await trashDriveEntry(db, personal(userId), folder.id);
+
+    const roots = await listTrashedDriveEntries(db, personal(userId));
+    expect(roots.map(entry => entry.name).sort()).toEqual(["Folder", "deep.txt"]);
+  });
+
+  test("listTrashedDriveEntries scopes to the given owner", async () => {
+    const userId = await seedUser();
+    const otherId = await seedUser("Other");
+    const mine = await createDriveFolder(db, { ...personal(userId), createdBy: userId, name: "Mine" });
+    const theirs = await createDriveFolder(db, { ...personal(otherId), createdBy: otherId, name: "Theirs" });
+    await trashDriveEntry(db, personal(userId), mine.id);
+    await trashDriveEntry(db, personal(otherId), theirs.id);
+
+    const roots = await listTrashedDriveEntries(db, personal(userId));
+    expect(roots.map(entry => entry.name)).toEqual(["Mine"]);
   });
 
   test("restore rolls back when moving out of a trashed parent would duplicate a root name", async () => {
@@ -422,6 +462,60 @@ describe("drive routes owner scope", () => {
     const listPath = `/drive/entries?ownerType=project&ownerId=${project.shortId}`;
     expect((await app.request(listPath, { headers: { "x-uid": pmId } })).status).toBe(200);
     expect((await app.request(listPath, { headers: { "x-uid": strangerId } })).status).toBe(403);
+  });
+
+  test("GET /drive/entries/trash lists a project's trash roots for members; non-members are denied", async () => {
+    const pmId = await seedUser("PM");
+    const strangerId = await seedUser("Stranger");
+    const project = await createProject(db, { name: "Bridge", creatorId: pmId });
+    const projectOwner = { ownerType: "project" as const, ownerId: project.id };
+    const folder = await createDriveFolder(db, { ...projectOwner, createdBy: pmId, name: "Sub" });
+    await trashDriveEntry(db, projectOwner, folder.id);
+
+    const app = buildApp();
+    const path = `/drive/entries/trash?ownerType=project&ownerId=${project.shortId}`;
+
+    const byMember = await app.request(path, { headers: { "x-uid": pmId } });
+    expect(byMember.status).toBe(200);
+    expect((await byMember.json()).data.map((e: { name: string }) => e.name)).toEqual(["Sub"]);
+
+    expect((await app.request(path, { headers: { "x-uid": strangerId } })).status).toBe(403);
+  });
+
+  test("GET /drive/entries/trash defaults to the caller's personal trash", async () => {
+    const callerId = await seedUser("Caller");
+    const folder = await createDriveFolder(db, { ...personal(callerId), createdBy: callerId, name: "Old" });
+    await trashDriveEntry(db, personal(callerId), folder.id);
+
+    const app = buildApp();
+    const res = await app.request("/drive/entries/trash", { headers: { "x-uid": callerId } });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.map((e: { name: string }) => e.name)).toEqual(["Old"]);
+  });
+
+  test("DELETE /drive/entries/trash honors an owner scope and stays personal by default", async () => {
+    const pmId = await seedUser("PM");
+    const strangerId = await seedUser("Stranger");
+    const project = await createProject(db, { name: "Bridge", creatorId: pmId });
+    const projectOwner = { ownerType: "project" as const, ownerId: project.id };
+    const projFolder = await createDriveFolder(db, { ...projectOwner, createdBy: pmId, name: "ProjTrash" });
+    await trashDriveEntry(db, projectOwner, projFolder.id);
+    const mine = await createDriveFolder(db, { ...personal(pmId), createdBy: pmId, name: "Mine" });
+    await trashDriveEntry(db, personal(pmId), mine.id);
+
+    const app = buildApp();
+    const projPath = `/drive/entries/trash?ownerType=project&ownerId=${project.shortId}`;
+
+    expect((await app.request(projPath, { method: "DELETE", headers: { "x-uid": strangerId } })).status).toBe(403);
+
+    // Personal empty leaves the project's trash intact.
+    const personalRes = await app.request("/drive/entries/trash", { method: "DELETE", headers: { "x-uid": pmId } });
+    expect(personalRes.status).toBe(200);
+    expect((await personalRes.json()).data.removed).toBe(1);
+
+    const projRes = await app.request(projPath, { method: "DELETE", headers: { "x-uid": pmId } });
+    expect(projRes.status).toBe(200);
+    expect((await projRes.json()).data.removed).toBe(1);
   });
 
   test("Reader (files.view) can list project files but cannot create", async () => {

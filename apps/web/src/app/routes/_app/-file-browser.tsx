@@ -15,7 +15,7 @@ import type {
 } from "@/shared/components/file";
 import type { DriveEntry, DriveOwnerType } from "@/shared/lib/api/drive";
 import type { DisplayItem } from "@/shared/lib/file";
-import { FolderInput, History, Upload } from "lucide-react";
+import { FolderInput, History, Trash2, Upload } from "lucide-react";
 
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { DriveFileListSurface, FilePreviewDialog, FileUploadButton, useFileUploader } from "@/shared/components/file";
 import { DriveVersionHistoryDialog } from "@/shared/components/file/version-history-dialog";
 import { useShare } from "@/shared/components/share";
+import { Button } from "@/shared/components/ui/button";
 import { ConfirmDeleteDialog } from "@/shared/components/ui/confirm-delete-dialog";
 
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
@@ -32,9 +33,13 @@ import {
   useCreateDriveFolder,
   useCreateSpreadsheet,
   useCreateTextFile,
+  useDeleteDriveEntryPermanently,
   useDriveEntries,
   useDriveSearchEntries,
+  useEmptyTrash,
+  useRestoreDriveEntry,
   useTrashDriveEntry,
+  useTrashedEntries,
   useUpdateDriveEntry,
 } from "@/shared/lib/api/drive";
 import { entryToDisplayItem } from "@/shared/lib/file";
@@ -107,6 +112,8 @@ type DialogState
     | { readonly type: "move"; readonly entry: DriveEntry }
     | { readonly type: "versions"; readonly entry: DriveEntry }
     | { readonly type: "trash"; readonly ids: readonly string[]; readonly name?: string | undefined }
+    | { readonly type: "deleteForever"; readonly ids: readonly string[]; readonly name?: string | undefined }
+    | { readonly type: "emptyTrash" }
     | null;
 
 export function FileBrowser({
@@ -134,6 +141,10 @@ export function FileBrowser({
   };
 
   const [folderStack, setFolderStack] = useState<readonly FolderCrumb[]>([]);
+  // Trash mode replaces the folder listing with the owner's trash roots
+  // (restore / delete-forever / empty). Personal drives keep their trash in
+  // the drive sidebar, so the in-browser entry point is owner surfaces only.
+  const [inTrash, setInTrash] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [dragDepth, setDragDepth] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -153,8 +164,9 @@ export function FileBrowser({
 
   const entriesQuery = useDriveEntries(parentEntryId, "normal", owner);
   const searchEntriesQuery = useDriveSearchEntries(searchQuery, owner);
-  const useDriveSearch = searchQuery.trim().length > 0;
-  const activeQuery = useDriveSearch ? searchEntriesQuery : entriesQuery;
+  const trashQuery = useTrashedEntries(owner, { enabled: inTrash });
+  const useDriveSearch = !inTrash && searchQuery.trim().length > 0;
+  const activeQuery = inTrash ? trashQuery : useDriveSearch ? searchEntriesQuery : entriesQuery;
   const entries = useMemo(() => activeQuery.data ?? [], [activeQuery.data]);
 
   const createFolder = useCreateDriveFolder();
@@ -163,13 +175,19 @@ export function FileBrowser({
   const enqueueUploads = useFileUploader();
   const updateEntry = useUpdateDriveEntry();
   const trashEntry = useTrashDriveEntry();
+  const restoreEntry = useRestoreDriveEntry();
+  const permanentDelete = useDeleteDriveEntryPermanently();
+  const emptyTrash = useEmptyTrash();
 
   const error = activeQuery.error
     ?? createFolder.error
     ?? createTextFile.error
     ?? createSpreadsheet.error
     ?? updateEntry.error
-    ?? trashEntry.error;
+    ?? trashEntry.error
+    ?? restoreEntry.error
+    ?? permanentDelete.error
+    ?? emptyTrash.error;
 
   // Default preview handler, mirroring `drive.lazy.tsx`'s openPreview: Univer
   // spreadsheets open the state-driven editor dialog (rendered below);
@@ -252,28 +270,28 @@ export function FileBrowser({
   };
 
   const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
-    if (!canManage || !event.dataTransfer.types.includes("Files"))
+    if (!canManage || inTrash || !event.dataTransfer.types.includes("Files"))
       return;
     event.preventDefault();
     setDragDepth(depth => depth + 1);
   };
 
   const onDragOver = (event: DragEvent<HTMLDivElement>) => {
-    if (!canManage || !event.dataTransfer.types.includes("Files"))
+    if (!canManage || inTrash || !event.dataTransfer.types.includes("Files"))
       return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   };
 
   const onDragLeave = (event: DragEvent<HTMLDivElement>) => {
-    if (!canManage)
+    if (!canManage || inTrash)
       return;
     event.preventDefault();
     setDragDepth(depth => Math.max(0, depth - 1));
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
-    if (!canManage)
+    if (!canManage || inTrash)
       return;
     event.preventDefault();
     setDragDepth(0);
@@ -282,37 +300,99 @@ export function FileBrowser({
       uploadFiles(list);
   };
 
-  const capabilities: DriveFileListCapabilities = {
-    navigateFolders: true,
-    download: true,
-    share: f.share,
-    favorite: canManage && f.manage,
-    rename: canManage && f.manage,
-    delete: canManage && f.manage,
-    batchDownload: true,
-    batchDelete: canManage && f.manage,
-    createFolder: canManage && f.create,
-    upload: canManage && f.upload,
-    createTextFile: canManage && f.create,
-  };
-
-  const toolbar: FolderToolbarConfig = {
-    kind: "folder",
-    ownerType: ownerType === "team_directory" ? "team" : ownerType,
-    folderPath: [
-      { id: null, name: rootLabel ?? t("browser.breadcrumbRoot") },
-      ...folderStack.map(crumb => ({ id: crumb.id, name: crumb.name })),
-    ],
-    showCreateActions: canManage && f.create,
-    // folderPath[0] is the synthetic root; index i>0 maps to folderStack[i-1].
-    onNavigateToBreadcrumb: index =>
-      setFolderStack(prev => (index <= 0 ? [] : prev.slice(0, index))),
-  };
-
   // Stable primitives so the memoized action builder is not invalidated by the
   // freshly-spread `f` object each render.
   const canManageEntries = canManage && f.manage;
   const canViewVersions = canManage && f.versionHistory;
+
+  const capabilities: DriveFileListCapabilities = inTrash
+    ? {
+        navigateFolders: false,
+        download: false,
+        share: false,
+        favorite: false,
+        rename: false,
+        delete: false,
+        restore: canManageEntries,
+        batchDownload: false,
+        batchDelete: canManageEntries,
+        batchRestore: canManageEntries,
+        createFolder: false,
+        upload: false,
+        createTextFile: false,
+      }
+    : {
+        navigateFolders: true,
+        download: true,
+        share: f.share,
+        favorite: canManage && f.manage,
+        rename: canManage && f.manage,
+        delete: canManage && f.manage,
+        batchDownload: true,
+        batchDelete: canManage && f.manage,
+        createFolder: canManage && f.create,
+        upload: canManage && f.upload,
+        createTextFile: canManage && f.create,
+      };
+
+  // Personal drives already expose trash in the drive sidebar; owner surfaces
+  // (project / team directory) get their entry point here.
+  const showTrashToggle = ownerType !== "user";
+  const rootName = rootLabel ?? t("browser.breadcrumbRoot");
+
+  const toolbar: FolderToolbarConfig = inTrash
+    ? {
+        // Trash renders as a pseudo-folder: the root crumb exits back to files.
+        kind: "folder",
+        ownerType: ownerType === "team_directory" ? "team" : ownerType,
+        folderPath: [
+          { id: null, name: rootName },
+          { id: "trash", name: t("sidebar.trash") },
+        ],
+        showCreateActions: false,
+        onNavigateToBreadcrumb: index => index <= 0 && setInTrash(false),
+        extraActions: canManageEntries
+          ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setDialog({ type: "emptyTrash" })}
+              >
+                <Trash2 className="mr-1 size-4" />
+                {t("browser.action.emptyTrash")}
+              </Button>
+            )
+          : undefined,
+      }
+    : {
+        kind: "folder",
+        ownerType: ownerType === "team_directory" ? "team" : ownerType,
+        folderPath: [
+          { id: null, name: rootName },
+          ...folderStack.map(crumb => ({ id: crumb.id, name: crumb.name })),
+        ],
+        showCreateActions: canManage && f.create,
+        // folderPath[0] is the synthetic root; index i>0 maps to folderStack[i-1].
+        onNavigateToBreadcrumb: index =>
+          setFolderStack(prev => (index <= 0 ? [] : prev.slice(0, index))),
+        extraActions: showTrashToggle
+          ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setFolderStack([]);
+                  setInTrash(true);
+                }}
+              >
+                <Trash2 className="mr-1 size-4" />
+                {t("sidebar.trash")}
+              </Button>
+            )
+          : undefined,
+      };
 
   const getCustomActions = useCallback((item: DisplayItem): FileListAction[] => {
     const entry = entryById.get(item.id);
@@ -338,8 +418,21 @@ export function FileBrowser({
     return actions;
   }, [canManageEntries, canViewVersions, entryById, t]);
 
+  // Trash rows swap the folder actions for a single destructive delete-forever.
+  const getTrashCustomActions = useCallback((): FileListAction[] => (
+    canManageEntries
+      ? [{
+          key: "permanent-delete",
+          label: t("browser.action.deleteForever"),
+          icon: <Trash2 className="mr-2 size-4" />,
+          variant: "destructive",
+          onSelect: target => setDialog({ type: "deleteForever", ids: [target.id], name: target.name }),
+        }]
+      : []
+  ), [canManageEntries, t]);
+
   const actions: DriveFileListSurfaceActions = {
-    onRefresh: () => void entriesQuery.refetch(),
+    onRefresh: () => void activeQuery.refetch(),
     onNavigateToFolder: (entryId, folderName) =>
       setFolderStack(prev => [...prev, { id: entryId, name: folderName }]),
     onDownload: (fileId) => {
@@ -352,11 +445,28 @@ export function FileBrowser({
       if (entry)
         (f.share ? handleShare : undefined)?.(entry);
     },
-    onDelete: entryId => setDialog({ type: "trash", ids: [entryId], name: entryById.get(entryId)?.name }),
+    onDelete: entryId => setDialog({
+      type: inTrash ? "deleteForever" : "trash",
+      ids: [entryId],
+      name: entryById.get(entryId)?.name,
+    }),
     onBatchDelete: (entryIds) => {
       const ids = [...entryIds];
-      setDialog({ type: "trash", ids, name: ids.length === 1 ? entryById.get(ids[0]!)?.name : undefined });
+      setDialog({
+        type: inTrash ? "deleteForever" : "trash",
+        ids,
+        name: ids.length === 1 ? entryById.get(ids[0]!)?.name : undefined,
+      });
     },
+    ...(inTrash
+      ? {
+          onRestore: (entryId: string) => restoreEntry.mutate(entryId),
+          onBatchRestore: (entryIds: Set<string>) => {
+            for (const id of entryIds)
+              restoreEntry.mutate(id);
+          },
+        }
+      : {}),
     onMoveEntries: (entryIds, targetParentEntryId) => {
       const nextParentEntryId = targetParentEntryId ?? parentEntryId;
       for (const id of entryIds) {
@@ -369,7 +479,8 @@ export function FileBrowser({
     onPreview: (item) => {
       const entry = entryById.get(item.id);
       if (entry)
-        handlePreview?.(entry, false, canManage);
+        // Trashed entries open read-only until they are restored.
+        handlePreview?.(entry, false, canManage && !inTrash);
     },
     onRename: (item) => {
       const entry = entryById.get(item.id);
@@ -383,7 +494,7 @@ export function FileBrowser({
     onCreateTextFile: kind => setDialog({ type: "text", markdown: kind === "markdown" }),
     onCreateSpreadsheet: () => setDialog({ type: "spreadsheet" }),
     onImportCsv: () => csvInputRef.current?.click(),
-    getCustomActions,
+    getCustomActions: inTrash ? getTrashCustomActions : getCustomActions,
   };
 
   return (
@@ -511,6 +622,34 @@ export function FileBrowser({
             trashEntry.mutate(id);
           closeDialog();
         }}
+      />
+      <ConfirmDeleteDialog
+        open={dialog?.type === "deleteForever"}
+        onOpenChange={open => !open && closeDialog()}
+        title={t("browser.dialog.deleteForeverTitle")}
+        description={dialog?.type === "deleteForever"
+          ? dialog.ids.length === 1 && dialog.name
+            ? t("browser.dialog.deleteForeverOne", { name: dialog.name })
+            : t("browser.dialog.deleteForeverMany", { count: dialog.ids.length })
+          : ""}
+        confirmLabel={t("browser.action.deleteForever")}
+        pending={permanentDelete.isPending}
+        onConfirm={() => {
+          if (dialog?.type !== "deleteForever")
+            return;
+          for (const id of dialog.ids)
+            permanentDelete.mutate(id);
+          closeDialog();
+        }}
+      />
+      <ConfirmDeleteDialog
+        open={dialog?.type === "emptyTrash"}
+        onOpenChange={open => !open && closeDialog()}
+        title={t("browser.dialog.emptyTrashTitle")}
+        description={t("browser.dialog.emptyTrashDesc")}
+        confirmLabel={t("browser.action.emptyTrash")}
+        pending={emptyTrash.isPending}
+        onConfirm={() => emptyTrash.mutate({ ownerType, ownerId }, { onSuccess: closeDialog })}
       />
 
       {/* Built-in preview — only when this browser owns preview (feature on)

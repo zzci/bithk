@@ -2400,10 +2400,11 @@ export interface paths {
             readonly path?: never;
             readonly cookie?: never;
         };
-        readonly get?: never;
+        /** List a drive owner's trash-root entries */
+        readonly get: operations["getDriveEntriesTrash"];
         readonly put?: never;
         readonly post?: never;
-        /** Empty the caller's trash */
+        /** Empty a drive owner's trash (personal by default) */
         readonly delete: operations["deleteDriveEntriesTrash"];
         readonly options?: never;
         readonly head?: never;
@@ -21903,9 +21904,113 @@ export interface operations {
             };
         };
     };
+    readonly getDriveEntriesTrash: {
+        readonly parameters: {
+            readonly query?: {
+                readonly ownerType?: "user" | "team_directory" | "project";
+                readonly ownerId?: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly {
+                            readonly id: string;
+                            /** @enum {string} */
+                            readonly ownerType: "user" | "team_directory" | "project";
+                            readonly ownerId: string;
+                            readonly parentEntryId: string | null;
+                            /** @enum {string} */
+                            readonly type: "folder" | "file";
+                            readonly name: string;
+                            readonly favorite: boolean;
+                            /** @enum {string} */
+                            readonly status: "normal" | "trash";
+                            readonly createdBy: string;
+                            readonly createdByName: string;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                            readonly file: {
+                                readonly referenceId: string;
+                                readonly fileId: string;
+                                readonly filename: string;
+                                readonly mimetype: string;
+                                readonly size: number;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
     readonly deleteDriveEntriesTrash: {
         readonly parameters: {
-            readonly query?: never;
+            readonly query?: {
+                readonly ownerType?: "user" | "team_directory" | "project";
+                readonly ownerId?: string;
+            };
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
@@ -21929,6 +22034,40 @@ export interface operations {
             };
             /** @description Unauthenticated */
             readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

@@ -85,7 +85,8 @@
       "unfavorite": "取消收藏",
       "trash": "移到回收站",
       "restore": "恢复",
-      "deleteForever": "永久删除"
+      "deleteForever": "永久删除",
+      "emptyTrash": "清空回收站"
     },
     "dialog": {
       "folderTitle": "新建文件夹",
@@ -113,7 +114,9 @@
       "trashMany": "将选中的 {{count}} 个项目移到回收站？",
       "deleteForeverTitle": "永久删除",
       "deleteForeverOne": "永久删除 \"{{name}}\"？此操作无法撤销。",
-      "deleteForeverMany": "永久删除选中的 {{count}} 个项目？此操作无法撤销。"
+      "deleteForeverMany": "永久删除选中的 {{count}} 个项目？此操作无法撤销。",
+      "emptyTrashTitle": "清空回收站",
+      "emptyTrashDesc": "永久删除此回收站中的全部内容？此操作无法撤销。"
     }
   },
   "team": {

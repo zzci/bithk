@@ -85,7 +85,8 @@
       "unfavorite": "Remove favorite",
       "trash": "Move to trash",
       "restore": "Restore",
-      "deleteForever": "Delete forever"
+      "deleteForever": "Delete forever",
+      "emptyTrash": "Empty trash"
     },
     "dialog": {
       "folderTitle": "New folder",
@@ -113,7 +114,9 @@
       "trashMany": "Move {{count}} selected items to the trash?",
       "deleteForeverTitle": "Delete forever",
       "deleteForeverOne": "Permanently delete \"{{name}}\"? This cannot be undone.",
-      "deleteForeverMany": "Permanently delete {{count}} selected items? This cannot be undone."
+      "deleteForeverMany": "Permanently delete {{count}} selected items? This cannot be undone.",
+      "emptyTrashTitle": "Empty trash",
+      "emptyTrashDesc": "Permanently delete everything in this trash? This cannot be undone."
     }
   },
   "team": {

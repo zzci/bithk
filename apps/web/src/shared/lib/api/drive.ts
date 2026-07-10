@@ -65,6 +65,13 @@ export const driveKeys = {
     query.ownerId ?? "self",
     query.q,
   ] as const,
+  trash: (owner?: { readonly ownerType?: DriveOwnerType | undefined; readonly ownerId?: string | undefined }) => [
+    "drive",
+    "entries",
+    "trash-view",
+    owner?.ownerType ?? "user",
+    owner?.ownerId ?? "self",
+  ] as const,
   recent: () => ["drive", "entries", "recent"] as const,
   favorites: () => ["drive", "entries", "favorites"] as const,
   versions: (entryId: string) => ["drive", "entries", entryId, "versions"] as const,
@@ -181,6 +188,32 @@ export function useDriveSearchEntries(
     },
     enabled: query.q.length > 0,
     staleTime: 5_000,
+  });
+}
+
+function trashPath(owner?: { readonly ownerType: DriveOwnerType; readonly ownerId: string }): string {
+  if (!owner)
+    return "/drive/entries/trash";
+  const params = new URLSearchParams();
+  params.set("ownerType", owner.ownerType);
+  params.set("ownerId", owner.ownerId);
+  return `/drive/entries/trash?${params.toString()}`;
+}
+
+/**
+ * All trash-root entries for a drive owner (personal by default). Unlike
+ * `useDriveEntries(..., "trash")` this is not parent-scoped: entries trashed
+ * from inside subfolders are included, trashed folders appear once.
+ */
+export function useTrashedEntries(
+  owner?: { readonly ownerType: DriveOwnerType; readonly ownerId: string },
+  options?: { readonly enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: driveKeys.trash(owner),
+    queryFn: () => rawJson<ApiEnvelope<readonly DriveEntry[]>>(trashPath(owner)).then(r => r.data),
+    staleTime: 5_000,
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -343,11 +376,14 @@ export function useDeleteDriveEntryPermanently(): UseMutationResult<ApiData<"del
   });
 }
 
-/** Permanently delete every trashed entry. Returns the count removed. */
-export function useEmptyTrash(): UseMutationResult<ApiData<"deleteDriveEntriesTrash">, Error, void> {
+/**
+ * Permanently delete every trashed entry of a drive owner (personal by
+ * default). Returns the count removed.
+ */
+export function useEmptyTrash(): UseMutationResult<ApiData<"deleteDriveEntriesTrash">, Error, { readonly ownerType: DriveOwnerType; readonly ownerId: string } | void> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => rawJson<ApiEnvelope<ApiData<"deleteDriveEntriesTrash">>>("/drive/entries/trash", {
+    mutationFn: owner => rawJson<ApiEnvelope<ApiData<"deleteDriveEntriesTrash">>>(trashPath(owner ?? undefined), {
       method: "DELETE",
     }).then(r => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: driveKeys.all }),
