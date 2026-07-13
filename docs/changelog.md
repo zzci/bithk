@@ -11,6 +11,8 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.12 — 2026-07-13
+
 ### Added
 
 - The drive sidebar trash is now one recovery surface for every space the
