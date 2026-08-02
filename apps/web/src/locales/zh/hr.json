@@ -150,8 +150,10 @@
       "employment": "雇佣",
       "payment": "收款信息",
       "salary": "薪资",
+      "payrollHistory": "薪资历史",
       "documents": "个人档案"
     },
+    "payrollHistoryCount": "显示 {{shown}} 条,共 {{total}} 条",
     "field": {
       "user": "用户",
       "code": "编号",
