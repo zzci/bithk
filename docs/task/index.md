@@ -204,5 +204,5 @@
 | [FEAT-054](FEAT-054.md) | CLI to move Univer spreadsheets back onto the db driver | [PLAN-106](../plan/PLAN-106.md) | Completed | 2026-07-06 |
 | [FIX-070](FIX-070.md) | Trashed entries invisible in trash view (owner + subfolder scope gap) | - | Completed | 2026-07-10 |
 | [FEAT-055](FEAT-055.md) | Aggregated trash: sidebar lists all accessible spaces' trash | - | Completed | 2026-07-10 |
-| [FEAT-056](FEAT-056.md) | HR colleague list: employment type, department, work location and hire-date filters | [PLAN-107](../plan/PLAN-107.md) | Planned | 2026-08-02 |
-| [FEAT-057](FEAT-057.md) | Payroll history section on the HR colleague detail panel | [PLAN-107](../plan/PLAN-107.md) | Planned | 2026-08-02 |
+| [FEAT-056](FEAT-056.md) | HR colleague list: employment type, department, work location and hire-date filters | [PLAN-107](../plan/PLAN-107.md) | Completed | 2026-08-02 |
+| [FEAT-057](FEAT-057.md) | Payroll history section on the HR colleague detail panel | [PLAN-107](../plan/PLAN-107.md) | Completed | 2026-08-02 |
