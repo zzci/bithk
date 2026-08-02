@@ -1,6 +1,6 @@
 # PLAN-107 - HR completeness: colleague list filters + payroll history on the colleague detail
 
-- Status: Planned
+- Status: Completed
 - Task: [FEAT-056](../task/FEAT-056.md), [FEAT-057](../task/FEAT-057.md)
 - Campaign: local
 - Created: 2026-08-02

@@ -1,6 +1,6 @@
 # FEAT-056 - HR colleague list: employment type, department, work location and hire-date filters
 
-- Status: Planned
+- Status: Completed (2026-08-02)
 - Plan: [PLAN-107](../plan/PLAN-107.md)
 - Created: 2026-08-02
 
