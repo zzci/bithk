@@ -54,11 +54,16 @@ export type HrColleagueUser = HrColleagueRow["user"];
 
 type HrColleagueListMeta = ApiResponse<"getHrColleagues">["meta"];
 
+// Distinct department / work-location values over the whole colleague table,
+// from GET /hr/colleagues/facets — feeds the list filter dropdowns.
+export type HrColleagueFacets = ApiResponse<"getHrColleaguesFacets">["data"];
+
 // ── Query keys ──
 
 export const hrColleagueKeys = {
   all: ["hr", "colleagues"] as const,
   list: (query: string) => ["hr", "colleagues", "list", query] as const,
+  facets: () => ["hr", "colleagues", "facets"] as const,
 };
 
 // ── Queries ──
@@ -66,6 +71,11 @@ export const hrColleagueKeys = {
 export interface HrColleaguesQuery {
   readonly q?: string | undefined;
   readonly status?: HrColleagueStatus | undefined;
+  readonly employmentType?: HrEmploymentType | undefined;
+  readonly department?: string | undefined;
+  readonly workLocation?: string | undefined;
+  readonly hireDateFrom?: string | undefined;
+  readonly hireDateTo?: string | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -81,6 +91,16 @@ function colleaguesQueryString(query: HrColleaguesQuery): string {
     params.set("q", query.q);
   if (query.status)
     params.set("status", query.status);
+  if (query.employmentType)
+    params.set("employmentType", query.employmentType);
+  if (query.department)
+    params.set("department", query.department);
+  if (query.workLocation)
+    params.set("workLocation", query.workLocation);
+  if (query.hireDateFrom)
+    params.set("hireDateFrom", query.hireDateFrom);
+  if (query.hireDateTo)
+    params.set("hireDateTo", query.hireDateTo);
   params.set("page", String(query.page ?? 1));
   params.set("limit", String(query.limit ?? 20));
   return params.toString();
@@ -99,6 +119,18 @@ export function useHrColleagues(query: HrColleaguesQuery = {}) {
     // Keep the prior page/filter rows on screen while the next query loads so
     // the list does not flash empty on page or filter changes.
     placeholderData: keepPreviousData,
+    retry: false,
+    staleTime: 5_000,
+  });
+}
+
+export function useHrColleagueFacets() {
+  return useQuery<HrColleagueFacets>({
+    queryKey: hrColleagueKeys.facets(),
+    queryFn: async () => {
+      const res = await http<ApiResponse<"getHrColleaguesFacets">>("/hr/colleagues/facets");
+      return res.data;
+    },
     retry: false,
     staleTime: 5_000,
   });
