@@ -11,6 +11,7 @@ import {
   archiveColleague,
   createColleague,
   getColleagueById,
+  listColleagueFacets,
   listColleagues,
   updateColleague,
 } from "./hr.service";
@@ -20,9 +21,18 @@ import { HR_COLLEAGUE_STATUSES, HR_EMPLOYMENT_TYPES, HR_GENDERS } from "./schema
 // module's generic registry under this discriminator — no per-module table.
 const COLLEAGUE_DOC_OWNER_TYPE = "hr_colleague_document";
 
+// Filter dates are strict `YYYY-MM-DD` — unlike the profile `dateField` there
+// is no empty-string form to accept, so a malformed value is a clean 422.
+const filterDateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+
 const listQuerySchema = z.object({
   q: z.string().max(200).optional(),
   status: z.enum(HR_COLLEAGUE_STATUSES).optional(),
+  employmentType: z.enum(HR_EMPLOYMENT_TYPES).optional(),
+  department: z.string().max(200).optional(),
+  workLocation: z.string().max(200).optional(),
+  hireDateFrom: filterDateField.optional(),
+  hireDateTo: filterDateField.optional(),
   ...pageQueryFields({ defaultLimit: 20, maxLimit: 100 }),
 });
 
@@ -117,6 +127,10 @@ const colleagueViewSchema = z.object({
   user: userBriefSchema,
 });
 const hrPageMetaSchema = pageMetaSchema.extend({ totalPages: z.number() });
+const colleagueFacetsSchema = z.object({
+  departments: z.array(z.string()),
+  workLocations: z.array(z.string()),
+});
 
 export function hrRoutes() {
   const router = new Hono<ProtectedEnv>();
@@ -137,6 +151,7 @@ export function hrRoutes() {
         200: okListJson(colleagueViewSchema, "Success", hrPageMetaSchema),
         401: { description: "Unauthenticated", ...errorJson },
         404: { description: "Not found", ...errorJson },
+        422: { description: "Validation error", ...errorJson },
       },
     }),
     validator("query", listQuerySchema, onValidationFailure),
@@ -146,6 +161,11 @@ export function hrRoutes() {
       const result = await listColleagues(db, {
         ...query.q ? { q: query.q } : {},
         ...query.status ? { status: query.status } : {},
+        ...query.employmentType ? { employmentType: query.employmentType } : {},
+        ...query.department ? { department: query.department } : {},
+        ...query.workLocation ? { workLocation: query.workLocation } : {},
+        ...query.hireDateFrom ? { hireDateFrom: query.hireDateFrom } : {},
+        ...query.hireDateTo ? { hireDateTo: query.hireDateTo } : {},
         page: query.page,
         limit: query.limit,
       });
@@ -159,6 +179,26 @@ export function hrRoutes() {
           totalPages: result.totalPages,
         },
       });
+    },
+  );
+
+  // Distinct filter options over the whole colleague table — registered before
+  // the `/hr/colleagues/:id` sub-routes so `facets` never matches as an id.
+  router.get(
+    "/hr/colleagues/facets",
+    describeRoute({
+      tags: ["hr"],
+      summary: "List colleague filter facets",
+      responses: {
+        200: okJson(colleagueFacetsSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Not found", ...errorJson },
+      },
+    }),
+    async (c) => {
+      const db = c.get("db");
+      const facets = await listColleagueFacets(db);
+      return c.json({ success: true, data: facets });
     },
   );
 

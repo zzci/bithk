@@ -3229,6 +3229,23 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/hr/colleagues/facets": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List colleague filter facets */
+        readonly get: operations["getHrColleaguesFacets"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/hr/colleagues/{id}": {
         readonly parameters: {
             readonly query?: never;
@@ -29096,6 +29113,11 @@ export interface operations {
             readonly query?: {
                 readonly q?: string;
                 readonly status?: "active" | "archived";
+                readonly employmentType?: "full_time" | "part_time" | "contract" | "intern";
+                readonly department?: string;
+                readonly workLocation?: string;
+                readonly hireDateFrom?: string;
+                readonly hireDateTo?: string;
                 readonly page?: number;
                 readonly limit?: number;
             };
@@ -29185,6 +29207,23 @@ export interface operations {
             };
             /** @description Not found */
             readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
@@ -29336,6 +29375,67 @@ export interface operations {
             };
             /** @description Validation error */
             readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getHrColleaguesFacets: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly departments: readonly string[];
+                            readonly workLocations: readonly string[];
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

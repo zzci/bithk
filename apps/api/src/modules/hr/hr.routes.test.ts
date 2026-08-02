@@ -275,6 +275,113 @@ describe("GET /hr/colleagues", () => {
   });
 });
 
+describe("GET /hr/colleagues profile filters", () => {
+  // Creates a colleague for a fresh user with the given profile fields and
+  // returns the linked userId so assertions can identify the row.
+  async function createProfiled(app: Hono<AppEnv>, cookie: string, profile: Record<string, unknown>): Promise<string> {
+    const userId = await insertUser();
+    const res = await app.request("/hr/colleagues", jsonReq("POST", cookie, { userId, ...profile }));
+    expect(res.status).toBe(201);
+    return userId;
+  }
+
+  async function listUserIds(app: Hono<AppEnv>, cookie: string, query: string): Promise<string[]> {
+    const res = await app.request(`/hr/colleagues?${query}`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: Array<{ userId: string }> };
+    return body.data.map(c => c.userId);
+  }
+
+  test("employmentType, department and workLocation each narrow the list", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const intern = await createProfiled(app, admin.cookie, { employmentType: "intern", department: "Finance", workLocation: "Oslo" });
+    const fullTimer = await createProfiled(app, admin.cookie, { employmentType: "full_time", department: "Engineering", workLocation: "Bergen" });
+
+    expect(await listUserIds(app, admin.cookie, "employmentType=intern")).toEqual([intern]);
+    expect(await listUserIds(app, admin.cookie, "department=Engineering")).toEqual([fullTimer]);
+    expect(await listUserIds(app, admin.cookie, "workLocation=Oslo")).toEqual([intern]);
+  });
+
+  test("hireDateFrom/hireDateTo bound the range and drop rows without a hire date", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const early = await createProfiled(app, admin.cookie, { hireDate: "2023-03-01" });
+    const late = await createProfiled(app, admin.cookie, { hireDate: "2025-06-15" });
+    await createProfiled(app, admin.cookie, {}); // no hire date
+    await createProfiled(app, admin.cookie, { hireDate: "" }); // cleared by the edit form
+
+    expect(await listUserIds(app, admin.cookie, "hireDateFrom=2024-01-01")).toEqual([late]);
+    expect(await listUserIds(app, admin.cookie, "hireDateTo=2024-01-01")).toEqual([early]);
+    expect(await listUserIds(app, admin.cookie, "hireDateFrom=2023-01-01&hireDateTo=2023-12-31")).toEqual([early]);
+  });
+
+  test("filters AND together with each other and with q", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const match = await createProfiled(app, admin.cookie, { employmentType: "full_time", department: "Finance", hireDate: "2024-05-01" });
+    await createProfiled(app, admin.cookie, { employmentType: "full_time", department: "Engineering", hireDate: "2024-05-01" });
+    await createProfiled(app, admin.cookie, { employmentType: "intern", department: "Finance", hireDate: "2022-01-01" });
+
+    expect(await listUserIds(app, admin.cookie, "employmentType=full_time&department=Finance")).toEqual([match]);
+    expect(await listUserIds(app, admin.cookie, "department=Finance&hireDateFrom=2024-01-01")).toEqual([match]);
+    expect(await listUserIds(app, admin.cookie, `q=user-${match}&employmentType=intern`)).toEqual([]);
+  });
+
+  test("an invalid employmentType or malformed date is rejected (422)", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+
+    const badEnum = await app.request("/hr/colleagues?employmentType=freelance", { headers: { Cookie: admin.cookie } });
+    expect(badEnum.status).toBe(422);
+
+    const badFrom = await app.request("/hr/colleagues?hireDateFrom=2024/01/01", { headers: { Cookie: admin.cookie } });
+    expect(badFrom.status).toBe(422);
+
+    const badTo = await app.request("/hr/colleagues?hireDateTo=notadate", { headers: { Cookie: admin.cookie } });
+    expect(badTo.status).toBe(422);
+
+    const emptyFrom = await app.request("/hr/colleagues?hireDateFrom=", { headers: { Cookie: admin.cookie } });
+    expect(emptyFrom.status).toBe(422);
+  });
+});
+
+describe("GET /hr/colleagues/facets", () => {
+  test("dedupes values, drops empty strings and sorts ascending", async () => {
+    const app = buildApp(db);
+    const admin = await sessionForRole("admin");
+    const profiles = [
+      { department: "Finance", workLocation: "Oslo" },
+      { department: "Finance", workLocation: "" },
+      { department: "Engineering", workLocation: "Bergen" },
+      { department: "", workLocation: "Bergen" },
+      {}, // NULL department and workLocation
+    ];
+    for (const profile of profiles) {
+      const userId = await insertUser();
+      const res = await app.request("/hr/colleagues", jsonReq("POST", admin.cookie, { userId, ...profile }));
+      expect(res.status).toBe(201);
+    }
+
+    const res = await app.request("/hr/colleagues/facets", { headers: { Cookie: admin.cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { data: { departments: string[]; workLocations: string[] } };
+    expect(body.data.departments).toEqual(["Engineering", "Finance"]);
+    expect(body.data.workLocations).toEqual(["Bergen", "Oslo"]);
+  });
+
+  test("is gated like the rest of the module (404 without hr, 401 unauthenticated)", async () => {
+    const app = buildApp(db);
+    const plain = await sessionForRole("user");
+
+    const gated = await app.request("/hr/colleagues/facets", { headers: { Cookie: plain.cookie } });
+    expect(gated.status).toBe(404);
+
+    const anon = await app.request("/hr/colleagues/facets");
+    expect(anon.status).toBe(401);
+  });
+});
+
 describe("PATCH /hr/colleagues/:id", () => {
   test("updates display metadata and status (200)", async () => {
     const app = buildApp(db);
