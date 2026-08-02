@@ -1,6 +1,6 @@
 import type { HrColleagueStatus, HrEmergencyContact, HrEmploymentType, HrGender, HrPaymentField } from "./schema";
 import type { AppDatabase } from "@/db";
-import { and, asc, count, eq, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, isNotNull, lte, ne, or, sql } from "drizzle-orm";
 import { users } from "@/modules/account/users/schema";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { nanoid } from "@/shared/lib/id";
@@ -113,12 +113,17 @@ export async function getColleagueById(db: AppDatabase, id: string) {
 interface ListColleaguesParams {
   readonly q?: string | undefined;
   readonly status?: HrColleagueStatus | undefined;
+  readonly employmentType?: HrEmploymentType | undefined;
+  readonly department?: string | undefined;
+  readonly workLocation?: string | undefined;
+  readonly hireDateFrom?: string | undefined;
+  readonly hireDateTo?: string | undefined;
   readonly page: number;
   readonly limit: number;
 }
 
 export async function listColleagues(db: AppDatabase, params: ListColleaguesParams) {
-  const { q, status, page, limit } = params;
+  const { q, status, employmentType, department, workLocation, hireDateFrom, hireDateTo, page, limit } = params;
   const offset = (page - 1) * limit;
   const conditions = [];
 
@@ -135,6 +140,20 @@ export async function listColleagues(db: AppDatabase, params: ListColleaguesPara
   }
   if (status)
     conditions.push(eq(hrColleagues.status, status));
+  if (employmentType)
+    conditions.push(eq(hrColleagues.employmentType, employmentType));
+  if (department)
+    conditions.push(eq(hrColleagues.department, department));
+  if (workLocation)
+    conditions.push(eq(hrColleagues.workLocation, workLocation));
+  // Zero-padded ISO dates compare correctly as strings; NULL/empty hire dates
+  // drop out of a range filter by design ("hired between X and Y").
+  if (hireDateFrom)
+    conditions.push(gte(hrColleagues.hireDate, hireDateFrom));
+  // The edit form clears a date by writing "" — which sorts before any real
+  // date, so an upper bound alone would wrongly match it without the ne().
+  if (hireDateTo)
+    conditions.push(and(ne(hrColleagues.hireDate, ""), lte(hrColleagues.hireDate, hireDateTo)));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -162,6 +181,30 @@ export async function listColleagues(db: AppDatabase, params: ListColleaguesPara
     page,
     limit,
     totalPages: Math.ceil(total / limit),
+  };
+}
+
+/**
+ * Distinct department / work-location values over the whole colleague table,
+ * feeding the list-filter dropdowns so options are not limited to the current
+ * page. NULL and "" (the edit form's cleared-field value) are dropped.
+ */
+export async function listColleagueFacets(db: AppDatabase) {
+  const departments = await db
+    .selectDistinct({ value: hrColleagues.department })
+    .from(hrColleagues)
+    .where(and(isNotNull(hrColleagues.department), ne(hrColleagues.department, "")))
+    .orderBy(asc(hrColleagues.department))
+    .all();
+  const workLocations = await db
+    .selectDistinct({ value: hrColleagues.workLocation })
+    .from(hrColleagues)
+    .where(and(isNotNull(hrColleagues.workLocation), ne(hrColleagues.workLocation, "")))
+    .orderBy(asc(hrColleagues.workLocation))
+    .all();
+  return {
+    departments: departments.map(r => r.value).filter((v): v is string => v !== null),
+    workLocations: workLocations.map(r => r.value).filter((v): v is string => v !== null),
   };
 }
 

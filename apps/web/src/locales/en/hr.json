@@ -125,6 +125,13 @@
   },
   "colleagues": {
     "searchPlaceholder": "Search by name, username, or code...",
+    "filter": {
+      "employmentType": "Employment type",
+      "department": "Department",
+      "workLocation": "Work location",
+      "hireDateFrom": "Hire date from",
+      "hireDateTo": "Hire date to"
+    },
     "totalCount": "{{count}} colleagues",
     "noResults": "No colleagues found.",
     "create": "New",
@@ -143,8 +150,10 @@
       "employment": "Employment",
       "payment": "Payment",
       "salary": "Salary",
+      "payrollHistory": "Payroll history",
       "documents": "Documents"
     },
+    "payrollHistoryCount": "Showing {{shown}} of {{total}} records",
     "field": {
       "user": "User",
       "code": "Code",

@@ -31,6 +31,7 @@ import { useAuthStore } from "@/shared/stores/auth";
 import { HR_EMPLOYMENT_LABEL_KEY, HR_GENDER_LABEL_KEY } from "./-colleague-labels";
 import { ColleaguePanelForm } from "./-colleague-panel-form";
 import { PanelSection, ViewField, ViewGrid } from "./-colleague-panel-shared";
+import { ColleaguePayrollSection } from "./-colleague-payroll-section";
 
 export type { ColleaguePanelMode, ColleaguePanelProps } from "./-colleague-panel-shared";
 
@@ -159,6 +160,8 @@ function ColleaguePanelView({ colleague, onClose, onEdit, onArchive }: Colleague
             </dl>
           </PanelSection>
         )}
+
+        <ColleaguePayrollSection colleagueId={colleague.id} />
 
         {colleague.notes && (
           <PanelSection title={t("colleagues.field.notes")}>
