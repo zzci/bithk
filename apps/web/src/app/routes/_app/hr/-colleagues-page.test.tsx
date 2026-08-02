@@ -1,5 +1,5 @@
 import type { HrColleagueRow } from "@/shared/lib/api/hr";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/utils";
@@ -59,8 +59,10 @@ const assignableUsers = [
   { id: "u2", name: "Crew B", username: "crew-b", isVirtual: true },
 ];
 
-/** Route the colleagues list GET, attachments/limits GETs, assignable users, and mutations. */
-function routeFetch(rows: readonly HrColleagueRow[]) {
+const facets = { departments: ["Finance", "Ops"], workLocations: ["Hong Kong", "Singapore"] };
+
+/** Route the colleagues list GET, facets, attachments/limits GETs, assignable users, and mutations. */
+function routeFetch(rows: readonly HrColleagueRow[], meta?: { total: number; totalPages: number }) {
   fetchMock.mockImplementation(async (url, init) => {
     const path = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
@@ -74,8 +76,16 @@ function routeFetch(rows: readonly HrColleagueRow[]) {
       return jsonResponse({ success: true, data: [] });
     if (method === "GET" && path.includes("/system/upload-limits"))
       return jsonResponse({ success: true, data: { maxFileSize: 10_485_760, maxAttachmentsPerResource: 20, totalQuota: null } });
-    if (method === "GET" && path.includes("/hr/colleagues"))
-      return jsonResponse({ success: true, data: rows, meta: { total: rows.length, page: 1, limit: 20, totalPages: 1 } });
+    // Facets must be routed before the generic /hr/colleagues list match.
+    if (method === "GET" && path.includes("/hr/colleagues/facets"))
+      return jsonResponse({ success: true, data: facets });
+    if (method === "GET" && path.includes("/hr/colleagues")) {
+      return jsonResponse({
+        success: true,
+        data: rows,
+        meta: { total: meta?.total ?? rows.length, page: 1, limit: 20, totalPages: meta?.totalPages ?? 1 },
+      });
+    }
     if (method === "POST")
       return jsonResponse({ success: true, data: colleague({ id: "fc2" }) }, { status: 201 });
     if (method === "PATCH")
@@ -84,6 +94,16 @@ function routeFetch(rows: readonly HrColleagueRow[]) {
       return jsonResponse({ success: true, data: colleague({ status: "archived" }) });
     return jsonResponse({ success: true, data: null });
   });
+}
+
+/** URL of the most recent colleagues-list GET (facets and sub-routes excluded). */
+function lastListUrl(): string {
+  const calls = fetchMock.mock.calls.filter((c) => {
+    const path = String(c[0]);
+    return (c[1]?.method ?? "GET").toUpperCase() === "GET"
+      && path.includes("/hr/colleagues?");
+  });
+  return String(calls.at(-1)![0]);
 }
 
 /** Open the detail drawer for a colleague by clicking its name. */
@@ -282,5 +302,105 @@ describe("hrColleaguesPage", () => {
 
     const drawer = await openDrawer(user, /Alice/);
     expect(within(drawer).queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+  });
+});
+
+describe("hrColleaguesPage filters", () => {
+  it("sends the selected employment type in the list query", async () => {
+    const user = userEvent.setup();
+    routeFetch([colleague()]);
+    renderWithProviders(<HrColleaguesPage />);
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Employment type" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Full-time" }));
+
+    await waitFor(() => {
+      const url = lastListUrl();
+      expect(url).toContain("employmentType=full_time");
+      expect(url).toContain("page=1");
+    });
+  });
+
+  it("offers the facet departments and sends the selected one in the list query", async () => {
+    const user = userEvent.setup();
+    routeFetch([colleague()]);
+    renderWithProviders(<HrColleaguesPage />);
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Department" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Ops" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Finance" }));
+
+    await waitFor(() => {
+      expect(lastListUrl()).toContain("department=Finance");
+    });
+  });
+
+  it("offers the facet work locations and sends the selected one in the list query", async () => {
+    const user = userEvent.setup();
+    routeFetch([colleague()]);
+    renderWithProviders(<HrColleaguesPage />);
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Work location" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Singapore" }));
+
+    await waitFor(() => {
+      expect(lastListUrl()).toContain(`workLocation=${encodeURIComponent("Singapore")}`);
+    });
+  });
+
+  it("sends the hire-date range in the list query", async () => {
+    routeFetch([colleague()]);
+    renderWithProviders(<HrColleaguesPage />);
+    await screen.findByText("Alice");
+
+    fireEvent.change(screen.getByLabelText("Hire date from"), { target: { value: "2026-01-01" } });
+    fireEvent.change(screen.getByLabelText("Hire date to"), { target: { value: "2026-06-30" } });
+
+    await waitFor(() => {
+      const url = lastListUrl();
+      expect(url).toContain("hireDateFrom=2026-01-01");
+      expect(url).toContain("hireDateTo=2026-06-30");
+    });
+  });
+
+  it("resets to page 1 when a filter changes while on a later page", async () => {
+    const user = userEvent.setup();
+    routeFetch([colleague()], { total: 40, totalPages: 2 });
+    renderWithProviders(<HrColleaguesPage />);
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(lastListUrl()).toContain("page=2"));
+
+    await user.click(screen.getByRole("button", { name: "Status" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Archived" }));
+
+    await waitFor(() => {
+      const url = lastListUrl();
+      expect(url).toContain("status=archived");
+      expect(url).toContain("page=1");
+    });
+  });
+
+  it("resets to page 1 when a hire-date bound changes while on a later page", async () => {
+    const user = userEvent.setup();
+    routeFetch([colleague()], { total: 40, totalPages: 2 });
+    renderWithProviders(<HrColleaguesPage />);
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(lastListUrl()).toContain("page=2"));
+
+    fireEvent.change(screen.getByLabelText("Hire date from"), { target: { value: "2026-01-01" } });
+
+    await waitFor(() => {
+      const url = lastListUrl();
+      expect(url).toContain("hireDateFrom=2026-01-01");
+      expect(url).toContain("page=1");
+    });
   });
 });

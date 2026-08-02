@@ -125,6 +125,13 @@
   },
   "colleagues": {
     "searchPlaceholder": "按姓名、用户名或编号搜索...",
+    "filter": {
+      "employmentType": "雇佣类型",
+      "department": "部门",
+      "workLocation": "工作地点",
+      "hireDateFrom": "入职日期起",
+      "hireDateTo": "入职日期止"
+    },
     "totalCount": "{{count}} 位同事",
     "noResults": "未找到同事。",
     "create": "新增",

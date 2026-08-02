@@ -6,7 +6,7 @@
 // /account/assignable-users so both real and virtual users are selectable.
 
 import type { ColleagueForm } from "./-colleague-form-logic";
-import type { HrColleagueRow, HrColleagueStatus } from "@/shared/lib/api/hr";
+import type { HrColleagueRow, HrColleagueStatus, HrEmploymentType } from "@/shared/lib/api/hr";
 import { Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,14 +29,17 @@ import {
 import { useDebounce } from "@/shared/hooks/use-debounce";
 import {
   HR_COLLEAGUE_STATUSES,
+  HR_EMPLOYMENT_TYPES,
   useArchiveHrColleague,
   useCreateHrColleague,
+  useHrColleagueFacets,
   useHrColleagues,
   useUpdateHrColleague,
 } from "@/shared/lib/api/hr";
 import { useAssignableUsers } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { colleagueFormToProfileInput } from "./-colleague-form-logic";
+import { HR_EMPLOYMENT_LABEL_KEY } from "./-colleague-labels";
 import { ColleaguePanel } from "./-colleague-panel";
 
 const ALL = "__all__";
@@ -51,6 +54,11 @@ export function HrColleaguesPage() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState(ALL);
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState(ALL);
+  const [departmentFilter, setDepartmentFilter] = useState(ALL);
+  const [workLocationFilter, setWorkLocationFilter] = useState(ALL);
+  const [hireDateFrom, setHireDateFrom] = useState("");
+  const [hireDateTo, setHireDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<HrColleagueRow | null>(null);
@@ -58,8 +66,15 @@ export function HrColleaguesPage() {
   const colleaguesQuery = useHrColleagues({
     ...(debouncedSearch ? { q: debouncedSearch } : {}),
     ...(statusFilter !== ALL ? { status: statusFilter as HrColleagueStatus } : {}),
+    ...(employmentTypeFilter !== ALL ? { employmentType: employmentTypeFilter as HrEmploymentType } : {}),
+    ...(departmentFilter !== ALL ? { department: departmentFilter } : {}),
+    ...(workLocationFilter !== ALL ? { workLocation: workLocationFilter } : {}),
+    ...(hireDateFrom ? { hireDateFrom } : {}),
+    ...(hireDateTo ? { hireDateTo } : {}),
     page,
   });
+  const facetsQuery = useHrColleagueFacets();
+  const facets = facetsQuery.data;
   const createColleague = useCreateHrColleague();
   const updateColleague = useUpdateHrColleague();
   const archiveColleague = useArchiveHrColleague();
@@ -124,6 +139,29 @@ export function HrColleaguesPage() {
           />
         </div>
 
+        <div className="w-36">
+          <Input
+            type="date"
+            aria-label={t("colleagues.filter.hireDateFrom")}
+            value={hireDateFrom}
+            onChange={(e) => {
+              setHireDateFrom(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <div className="w-36">
+          <Input
+            type="date"
+            aria-label={t("colleagues.filter.hireDateTo")}
+            value={hireDateTo}
+            onChange={(e) => {
+              setHireDateTo(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+
         <ListFilter
           dimensions={[
             {
@@ -139,6 +177,51 @@ export function HrColleaguesPage() {
               options: HR_COLLEAGUE_STATUSES.map(status => ({
                 value: status,
                 label: statusLabel(status),
+              })),
+            },
+            {
+              key: "employmentType",
+              label: t("colleagues.filter.employmentType"),
+              mode: "single",
+              defaultValue: ALL,
+              value: employmentTypeFilter,
+              onChange: (value) => {
+                setEmploymentTypeFilter(value ?? ALL);
+                setPage(1);
+              },
+              options: HR_EMPLOYMENT_TYPES.map(type => ({
+                value: type,
+                label: t(HR_EMPLOYMENT_LABEL_KEY[type]),
+              })),
+            },
+            {
+              key: "department",
+              label: t("colleagues.filter.department"),
+              mode: "single",
+              defaultValue: ALL,
+              value: departmentFilter,
+              onChange: (value) => {
+                setDepartmentFilter(value ?? ALL);
+                setPage(1);
+              },
+              options: (facets?.departments ?? []).map(department => ({
+                value: department,
+                label: department,
+              })),
+            },
+            {
+              key: "workLocation",
+              label: t("colleagues.filter.workLocation"),
+              mode: "single",
+              defaultValue: ALL,
+              value: workLocationFilter,
+              onChange: (value) => {
+                setWorkLocationFilter(value ?? ALL);
+                setPage(1);
+              },
+              options: (facets?.workLocations ?? []).map(workLocation => ({
+                value: workLocation,
+                label: workLocation,
               })),
             },
           ]}

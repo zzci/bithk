@@ -7,6 +7,7 @@ import {
   hrColleagueKeys,
   useArchiveHrColleague,
   useCreateHrColleague,
+  useHrColleagueFacets,
   useHrColleagues,
   useUpdateHrColleague,
 } from "./hr";
@@ -131,6 +132,48 @@ describe("useHrColleagues", () => {
     expect(url).toContain("limit=50");
   });
 
+  it("encodes the profile filters and hire-date range into the query string", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      success: true,
+      data: [],
+      meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+    }));
+    const { result } = renderHook(
+      () => useHrColleagues({
+        employmentType: "full_time",
+        department: "Finance",
+        workLocation: "Hong Kong",
+        hireDateFrom: "2026-01-01",
+        hireDateTo: "2026-06-30",
+      }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url).toContain("employmentType=full_time");
+    expect(url).toContain("department=Finance");
+    // URLSearchParams form-encodes spaces as `+`.
+    expect(url).toContain("workLocation=Hong+Kong");
+    expect(url).toContain("hireDateFrom=2026-01-01");
+    expect(url).toContain("hireDateTo=2026-06-30");
+  });
+
+  it("omits the profile filters and hire-date range when unset", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      success: true,
+      data: [],
+      meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+    }));
+    const { result } = renderHook(() => useHrColleagues(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url).not.toContain("employmentType=");
+    expect(url).not.toContain("department=");
+    expect(url).not.toContain("workLocation=");
+    expect(url).not.toContain("hireDateFrom=");
+    expect(url).not.toContain("hireDateTo=");
+  });
+
   it("surfaces a 403 as an error without retrying", async () => {
     fetchMock.mockResolvedValue(jsonResponse(
       { success: false, error: { code: "FORBIDDEN", message: "no access" } },
@@ -139,6 +182,19 @@ describe("useHrColleagues", () => {
     const { result } = renderHook(() => useHrColleagues(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useHrColleagueFacets", () => {
+  it("fetches the distinct department and work-location facets", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      success: true,
+      data: { departments: ["Finance", "Ops"], workLocations: ["Hong Kong"] },
+    }));
+    const { result } = renderHook(() => useHrColleagueFacets(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/hr/colleagues/facets");
+    expect(result.current.data).toEqual({ departments: ["Finance", "Ops"], workLocations: ["Hong Kong"] });
   });
 });
 
