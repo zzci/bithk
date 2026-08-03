@@ -11,6 +11,22 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+## v0.3.13 — 2026-08-02
+
+### Added
+
+- The HR colleague list can be narrowed by employment type, department, work
+  location, and a hire-date range (FEAT-056). `GET /hr/colleagues` gained the
+  matching optional query params, and a new `GET /hr/colleagues/facets`
+  returns the distinct department / work-location values across the whole
+  table so the dropdowns are not limited to the rows on the current page.
+  Colleagues with no hire date stay out of a date-range result by design.
+- The colleague detail drawer now shows that person's payroll history
+  (FEAT-057): the most recent records with period, base / bonus / deduction,
+  net amount, status, and paid-at, plus per-currency net totals computed over
+  their entire history. The section is read-only — creating, editing, and
+  marking records paid stay on the payroll tab.
+
 ## v0.3.12 — 2026-07-13
 
 ### Added
