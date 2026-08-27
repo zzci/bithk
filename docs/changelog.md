@@ -11,6 +11,15 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Changed
+
+- The project and ship cover thumbnails open an enlarged preview whose popup now
+  shrink-wraps the picture (UI-031). The close control floats on the image's own
+  top-right corner instead of the corner of a viewport-wide box, the preview is
+  capped at `80vh` height and `min(90vw, 64rem)` width with the aspect ratio
+  kept, and clicking the blank area around the picture dismisses it (Escape
+  already did).
+
 ## v0.3.13 — 2026-08-02
 
 ### Added

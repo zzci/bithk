@@ -206,3 +206,4 @@
 | [FEAT-055](FEAT-055.md) | Aggregated trash: sidebar lists all accessible spaces' trash | - | Completed | 2026-07-10 |
 | [FEAT-056](FEAT-056.md) | HR colleague list: employment type, department, work location and hire-date filters | [PLAN-107](../plan/PLAN-107.md) | Completed | 2026-08-02 |
 | [FEAT-057](FEAT-057.md) | Payroll history section on the HR colleague detail panel | [PLAN-107](../plan/PLAN-107.md) | Completed | 2026-08-02 |
+| [UI-031](UI-031.md) | Cover lightbox: floating close button, standard preview size, blank-area dismiss | - | Completed | 2026-08-27 |

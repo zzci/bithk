@@ -5,9 +5,11 @@
 // first-child full-bleed styling. With `enableLightbox` the cover becomes a
 // click-to-enlarge trigger that opens a centered modal preview (opt-in).
 
+import { XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Dialog, DialogContent, DialogTitle } from "@/shared/components/ui/dialog";
+import { Button } from "@/shared/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
 
 type CoverKind = "project" | "ship";
@@ -81,9 +83,27 @@ export function CoverImage({ src, kind, className, seed, enableLightbox = false 
         <img src={src} alt="" onError={() => setErrored(true)} className="h-full w-full object-cover" />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent showCloseButton className="max-w-[90vw] border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-[90vw]">
+        {/* `w-auto max-w-none` lets the popup shrink-wrap the image: the close
+            button then sits on the picture's own corner, and every pixel beside
+            the picture is backdrop, so clicking it dismisses (as does Escape). */}
+        <DialogContent showCloseButton={false} className="w-auto max-w-none border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-none">
           <DialogTitle className="sr-only">{t("common.coverImage.preview")}</DialogTitle>
-          <img src={src} alt={t("common.coverImage.preview")} className="mx-auto max-h-[90vh] max-w-[90vw] object-contain" />
+          <div className="relative">
+            <img src={src} alt={t("common.coverImage.preview")} className="block max-h-[80vh] max-w-[min(90vw,64rem)] rounded-xl object-contain" />
+            <DialogClose
+              render={(
+                <Button
+                  variant="secondary"
+                  size="icon-sm"
+                  // Opaque-ish pill so the control stays readable over any photo.
+                  className="absolute top-2 right-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background"
+                />
+              )}
+            >
+              <XIcon />
+              <span className="sr-only">{t("common.close")}</span>
+            </DialogClose>
+          </div>
         </DialogContent>
       </Dialog>
     </>
