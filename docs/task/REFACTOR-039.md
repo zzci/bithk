@@ -1,38 +1,53 @@
-# REFACTOR-039 - Fold ships into projects: project type, sub-projects, ship-type auto-provisioned modules
+# REFACTOR-039 - Projects as a composition of mounted sections; ships become a preset
 
 - Status: Proposed
 - Plan: [PLAN-108](../plan/PLAN-108.md)
 - Created: 2026-08-27
+- Revised: 2026-08-27 (v2 — section registry replaces the project `type` enum)
 
 ## Goal
 
 A ship is today a separate module that is, in practice, "a project plus a
 maritime profile, equipment, and worklists": its permissions, members, files,
 work orders, and procurement already live on an auto-created base project.
-Collapse the two concepts so that:
+Rather than folding ships in as a special-cased project `type`, make the
+project a composition:
 
-- a project carries a `type` (`general` | `ship`);
-- a project may have sub-projects (`parentId`, one level);
-- creating a ship-type project auto-provisions the ship-specific modules
-  (profile, equipment + category template copy, worklists) as extra tabs;
+- the core `projects` record keeps only its own metadata, hierarchy
+  (`parent_id`, one level of sub-projects) and its permission anchor
+  (members / roles);
+- everything else is a **section** — an independent sub-module owning its
+  tables, routes (`/projects/:id/<section>`), capabilities, backup
+  contribution and UI tab — mounted on a project through `project_sections`;
+- `issues`, `procurement`, `files` become sections of the default preset;
+  `ship-profile`, `equipment`, `worklist` become sections of a `ship` preset,
+  provisioned at create time (profile row + equipment-category template copy);
 - the standalone `ships` module, `/ships/*` routes, and the `ship` nav /
   module-gate / PAT scope key disappear.
 
+Adding a future domain to projects becomes "write a module and register a
+section", with no edit inside the project module.
+
 ## Scope
 
-See PLAN-108 for the approach, migration hazards, and lane split. Out of
-scope: permission inheritance from parent to sub-project (keep today's
-"each project owns its members/roles" rule), recursive hierarchies deeper
-than one level, project templates beyond the existing copy-on-create
-vocabularies.
+See PLAN-108 for the approach, the registry contract, migration hazards and
+the lane split. Out of scope (PLAN-108 "Non-goals"): runtime/dynamic section
+loading, per-section config columns, per-section membership or roles,
+permission inheritance from parent to sub-project, hierarchies deeper than one
+level, custom-field builders.
 
 ## Verification
 
-- API: ship-type project create provisions profile + equipment categories;
-  sub-project create/list/unlink; module gate and PAT scope tests updated.
-- Web: `/projects` list with type filter; ship tabs visible only on
-  `type === "ship"`; `/ships/*` routes removed; registries (sidebar, search,
-  favorites, overview) work for ship-type projects.
-- Backup: format version bump; seed rebuild green.
+- API: create with `preset: "ship"` mounts six sections, inserts the profile
+  and copies the equipment categories; `requireSection` 404s an unmounted
+  section; mount / unmount routes; unmount refused while the section has data;
+  sub-project create / list / unlink; module gate and PAT scope tests updated.
+- Every existing project carries the general preset after migration/seed
+  (integrity test), and the project list batch-loads section sets (no N+1).
+- Backup: format version bump, round-trip test proving the
+  `procurement_categories` contribution move is transparent.
+- Web: `/projects` list filters by section; ship tabs appear only for projects
+  with the ship sections; `/ships/*` removed; registries (sidebar, search,
+  favorites, overview, page titles) work for ship projects.
 - `bun run check` EXIT 0; generated api-docs / api-spec / api-types
-  regenerated.
+  regenerated; seed rebuild green.
