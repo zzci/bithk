@@ -161,8 +161,11 @@ jobs:
           push: false
           load: true
           build-args: BUILD_COMMIT=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # No layer cache on purpose: the image is a base pull plus one
+          # `apt-get upgrade` layer, and restoring that layer from the GHA
+          # cache is exactly what left trivy scanning stale Debian packages.
+          pull: true
+          no-cache: true
           tags: app:ci-${{ github.sha }}
 
       - name: trivy (built image CVEs)
