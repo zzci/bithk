@@ -106,3 +106,5 @@
 | [PLAN-105](PLAN-105.md) | Deferred follow-ups from the 2026-07-02 architecture assessment | Completed | 2026-07-04 |
 | [PLAN-106](PLAN-106.md) | Unified S3 direct upload + hour-based storage key layout | Completed | 2026-07-06 |
 | [PLAN-107](PLAN-107.md) | HR completeness: colleague list filters + payroll history on the colleague detail | Completed | 2026-08-02 |
+| [PLAN-108](PLAN-108.md) | Fold ships into projects: project type, sub-projects, ship-type auto-provisioned modules | Proposed | 2026-08-27 |
+| [PLAN-109](PLAN-109.md) | Dependabot catch-up and CI security-scan baseline fix | Completed | 2026-08-27 |

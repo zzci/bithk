@@ -11,6 +11,17 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Security
+
+- Dependency catch-up (CHORE-005): applied the open dependabot runtime and
+  tooling groups (hono 4.13, vite 8.2, react 19.2.8, eslint 10.8, tailwind
+  4.3.3, ...) and the GitHub Actions bumps (checkout v7, cache v6, trufflehog
+  3.95.8, codeql upload-sarif, setup-buildx). Root `overrides` are raised to
+  the fixed versions (they previously kept `hono` / `vite` pinned below the
+  workspace bumps) and a nested override pins `nanoid` under `@univerjs/core`;
+  osv-scanner reports 0 findings on `bun.lock` (was 37). The CI docker job now
+  builds without the Actions layer cache so trivy scans fresh Debian packages.
+
 ### Changed
 
 - The project and ship cover thumbnails open an enlarged preview whose popup now
