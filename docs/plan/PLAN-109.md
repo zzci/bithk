@@ -50,6 +50,16 @@
    `bun run check`, local image build + trivy. Commit as
    `chore(ci)` + `chore(deps)`; fast-forward local `main`. No push.
 
+### Follow-up (2026-08-27, after push)
+
+CI `Install dependencies` failed on `main`: the lockfile was written by the
+local Bun 1.4.0 (`lockfileVersion: 3`) and CI pins 1.3.14, which rejects it.
+Regenerating with 1.3.14 also drops the nested `@univerjs/core -> nanoid`
+override (unsupported before 1.4), so `nanoid@5.1.11` returns. Decision:
+bump Bun to 1.4.0 in `ci.yml` / `release.yml` `BUN_VERSION`, `engines.bun`,
+`Dockerfile` `BUN_IMAGE`, `deploy/lode.toml` runtime, and the runtime note in
+`AGENTS.md` / `docs/develop/deployment.md`.
+
 ## Risks
 
 - `bun update` moves transitive packages beyond what dependabot proposed;

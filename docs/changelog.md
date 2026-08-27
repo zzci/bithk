@@ -21,6 +21,10 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
   workspace bumps) and a nested override pins `nanoid` under `@univerjs/core`;
   osv-scanner reports 0 findings on `bun.lock` (was 37). The CI docker job now
   builds without the Actions layer cache so trivy scans fresh Debian packages.
+- Bun runtime pinned to 1.4.0 everywhere (CI `BUN_VERSION`, `engines.bun`,
+  Dockerfile base image, `deploy/lode.toml` runtime download). The refreshed
+  `bun.lock` is lockfile v3 and uses a nested override, both of which Bun
+  1.3.14 cannot read.
 
 ### Changed
 

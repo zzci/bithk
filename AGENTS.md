@@ -26,7 +26,7 @@ skip phases. Do not implement before explicit approval such as `proceed`.
 
 ### Project-Specific Facts
 
-- Primary language / runtime: TypeScript on Bun 1.3.14, Node 24.14 for compatible tooling.
+- Primary language / runtime: TypeScript on Bun 1.4.0, Node 24.14 for compatible tooling.
 - Database / storage: SQLite via Bun's native SQLite driver and Drizzle; local file storage through the `file` module.
 - Dev URL routing: nsl routes `bit.localhost` and `bit.a.fr.ds.cc`; `bun run dev` starts web and API.
 - Deployment target: lode-managed release artifact via `bun run package`.

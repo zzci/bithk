@@ -24,7 +24,9 @@ fix the two reasons `main` CI is red independent of those PRs:
   via `bun update`; `@codemirror/language` dedupe.
 - `.github/workflows/ci.yml`: action bumps from the dependabot branches;
   drop the GHA layer cache on the docker job.
-- No source code changes. No push (local `main` only).
+- Bun pinned to 1.4.0 (CI, `engines`, Dockerfile, `deploy/lode.toml`): the
+  1.4.0-generated lockfile (v3, nested override) is unreadable by 1.3.14.
+- No source code changes.
 
 ## Verification
 

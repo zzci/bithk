@@ -3,7 +3,7 @@
 # The application itself is no longer baked into this image. lode downloads a
 # versioned artifact, verifies its checksum/signature according to lode.toml,
 # runs the artifact entrypoint, and handles update/rollback supervision.
-ARG BUN_IMAGE=docker.io/oven/bun:1.3.14-debian
+ARG BUN_IMAGE=docker.io/oven/bun:1.4.0-debian
 ARG LODE_IMAGE=docker.io/dotns/lode:latest
 
 FROM ${LODE_IMAGE} AS lode

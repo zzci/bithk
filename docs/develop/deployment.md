@@ -27,7 +27,7 @@ docker build -t bit:lode .
 
 The manifest entry is `index.js`; `deploy/lode.toml` launches it with `run = "bun"` and uses `exec = "bun run"` for CLI passthrough. `ROOT_DIR` resolves from the installed version directory. Mutable app paths resolve under `DATA_DIR` when set. If `DATA_DIR` is omitted but `LODE_DIR` exists, the app uses `${LODE_DIR}/data` so operators do not have to configure each path separately.
 
-The Dockerfile is a generic `dotns/lode` + Bun 1.3.14 runtime image. It does not bake the application into the image; lode downloads the asset declared by `/srv/lode/lode.toml`, then supervises and updates it.
+The Dockerfile is a generic `dotns/lode` + Bun 1.4.0 runtime image. It does not bake the application into the image; lode downloads the asset declared by `/srv/lode/lode.toml`, then supervises and updates it.
 
 Verified lode layout after first boot:
 
