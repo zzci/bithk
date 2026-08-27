@@ -280,23 +280,80 @@ sub-project, hierarchies deeper than one level, generic "custom field"
 builders, or a section marketplace. A section is plain code that registers
 itself; the only data is the mount row.
 
-## Migration strategy (decide before implementation)
+## Migration strategy (two separate decisions)
+
+v1 of this plan conflated them. They are orthogonal: how the *live* database
+reaches the new schema, and whether *existing archives* can still be imported
+afterwards. The archive answer is the same under Option A and Option B.
+
+### D1 — the live database
 
 - **Option A (dev-phase, recommended)**: re-squash the Drizzle baseline from
   the new schema and rebuild via `bun run seed`. The seed already creates ships
   through the service layer, so `payload/ships.json` becomes ship-preset
-  project payload. Backup import rejects v2 dumps with a clear error. Matches
-  the standing "dev phase: reset DB freely" rule.
+  project payload. Matches the standing "dev phase: reset DB freely" rule.
 - **Option B**: one-shot data fold (each ship -> its base project: mount the
   three sections, insert the profile from the ship columns, rewrite `ship_id`
   -> base-project ULID in equipment / categories / worklists / `tags_refs`,
-  bound projects -> `parent_id`) plus a v2 -> v3 `BackupImportTransform`
-  keyed on `fromTable: "ships"` using `setMappedId("ships", shipId,
-  baseProjectId)` so later child-table transforms resolve their FK. Roughly
-  +1 lane; the only path if a non-disposable database exists.
+  bound projects -> `parent_id`). Only needed if a non-disposable database
+  exists.
 
-Both options must backfill `project_sections` for every existing project
-(`issues`, `procurement`, `files`), otherwise core tabs silently 404.
+Either way, every pre-existing project must be backfilled with the general
+preset (`issues`, `procurement`, `files`) in `project_sections`.
+
+### D2 — pre-fold archives
+
+The v2 import engine is schema-driven (`import-mapping.ts`, rules 1-15 of
+PLAN-075) and does not know about this refactor. Choosing Option A does **not**
+make old archives importable: the engine will happily "recognize" a pre-fold
+archive and degrade it, mostly silently. Verified rule by rule against the
+proposed v3 schema:
+
+| Archive | Live (v3) | Rule | Result if we do nothing |
+| --- | --- | --- | --- |
+| `ships` table | gone | 7 | whole table skipped (`skippedTables`) — profiles, hull numbers, ship status silently lost |
+| `projects.ship_id` | gone | 2 | value dropped, row kept |
+| `ship_equipment.ship_id` | `project_id` NOT NULL, no default | 2 + 5 | table-level `missing-required-column`, every equipment row fails (at least it is loud) |
+| `ship_equipment_categories.ship_id` | same | 2 + 5 | same |
+| `worklists.ship_id` | `project_id` nullable | 2 + 3 | **silent semantic corruption**: every per-ship worklist becomes a global KB entry |
+| (absent) | `project_sections` | 9 | nothing inserted — **every imported project loses its Issues / Procurement / Files tabs** (`requireSection` 404s), independent of ships |
+
+Replace mode is not an escape hatch: it already refuses cross-schema archives
+(the archive must match the live journal position), so after the fold a
+pre-fold archive can only travel the merge-import path.
+
+Two acceptable answers, both compatible with Option A:
+
+- **D2-a (minimum)**: bump `BACKUP_FORMAT_VERSION` 2 -> 3 and reject any
+  archive whose manifest contains a `ships` table or whose `projects` rows
+  predate `project_sections`, with an explicit error naming the fold. Cheap,
+  honest, no silent loss — the right call if no archive worth keeping exists.
+- **D2-b (recommended if any real archive exists)**: ship the fold's data
+  mapping as `importTransforms`, which is exactly what the mechanism was built
+  for (PLAN-075 rules 8/14):
+  - `fromTable: "ships"` -> emits one `ship_profiles` row (keyed by
+    `base_project_id`) plus three `project_sections` rows, and records
+    `setMappedId("ships", ship.id, ship.baseProjectId)`;
+  - `fromTable: "projects"` -> emits the general-preset `project_sections`
+    rows for every project (this one is needed under D2-a as well, or old
+    archives import into tab-less projects);
+  - `fromTable` on `ship_equipment`, `ship_equipment_categories`, `worklists`
+    -> rewrite `shipId` to `projectId` via `getMappedId`.
+  All gated by `appliesTo(manifest)` on the archive's journal position, so
+  post-fold archives skip them.
+
+**Verified ordering hazard for D2-b**: the transform pre-pass processes claimed
+archive tables as `[live tables in dependency order, ...vanished tables in
+manifest order]` (`import-mapping.ts:558-561`). `ships` is a *vanished* table,
+so it runs **last** — after the child transforms have already read an empty id
+map. The engine comment at `import-mapping.ts:505-507` ("parent transforms
+populate the id-mapping store before child transforms read it") only holds
+while the parent table still exists live. D2-b therefore requires a small
+engine change — process claimed vanished tables first, or add an explicit
+`priority` to `BackupImportTransform` — plus a regression test that imports a
+pre-fold fixture archive and asserts equipment/worklist rows land on the right
+project. Without it the transforms fail silently in precisely the way the table
+above describes.
 
 ## Risks
 
@@ -312,7 +369,14 @@ Both options must backfill `project_sections` for every existing project
 - **Backup contribution regrouping**: `procurement_categories` moves from the
   `projects` contribution to `procurement`. The importer maps rows by table
   name, so this should be transparent — must be proven by a round-trip test
-  before merge, not assumed.
+  before merge, not assumed. Note the same move changes `buildLiveSchemaView`
+  ordering (module dep order, then per-contribution table order), which is also
+  what controls transform ordering — see D2.
+- **Old-archive compatibility is not free with Option A**: a pre-fold archive
+  imports "successfully" while dropping ship profiles and turning per-ship
+  worklists into global ones, and any archive predating `project_sections`
+  produces tab-less projects. Whichever of D2-a / D2-b is chosen must land in
+  the same campaign as the schema change, not after it.
 - **`code` collision**: base projects use `p-<shortId>`; the ship hull number
   (mutable, not lowercased) moves to `ship_profiles.hull_number`, so
   `projects.code` stays immutable/lowercase. UI that showed the ship code as
@@ -338,12 +402,15 @@ Both options must backfill `project_sections` for every existing project
 - **L2-A api-core** (blocking): `parent_id`, `project_sections`, section
   registry + `requireSection`, presets, `POST /projects` provisioning,
   `/projects/:id/children`, `/projects/:id/sections/:key`,
-  `CAPABILITY_SECTION`, core backup contribution, migration/baseline. Trims
-  `project.service.ts` to core + members/roles/hierarchy/sections.
+  `CAPABILITY_SECTION`, core backup contribution, migration/baseline, and the
+  D2 decision's archive path (`projects` -> `project_sections` transform or the
+  explicit v2 rejection). Trims `project.service.ts` to core +
+  members/roles/hierarchy/sections.
 - **L2-B api-ship**: `ship_profiles`, re-key equipment / categories /
   worklists to `project_id`, register the three ship sections, delete
   `/ships/*` + the `ships` table, module manifest, ship backup contribution,
-  cover fold, tests.
+  cover fold, the ship-side `importTransforms` + transform-ordering fix if D2-b
+  is chosen, tests.
 - **L2-C api-move**: procurement categories move into the procurement module,
   register `issues` / `procurement` / `files` sections, re-home
   `referenceable-worklists`, search source removal, tests.
