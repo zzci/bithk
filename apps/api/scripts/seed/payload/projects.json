@@ -6,14 +6,13 @@
     "creator": "pm-mercer",
     "tags": ["refit", "dry-dock", "2026"],
     "cover": "project-1.jpg",
-    "bindShip": "aurora",
+    "parent": "aurora",
     "members": [
       { "user": "eng-lin", "role": "member" },
       { "user": "eng-voss", "role": "member" },
       { "user": "surveyor-petrov", "role": "member" },
       { "username": "yard-rossi", "name": "Marco Rossi", "title": "Shipyard Liaison", "role": "member" }
-    ],
-    "categories": ["Deck Equipment", "Electronics", "Engine Parts"]
+    ]
   },
   {
     "key": "newbuild-vantage",
@@ -22,13 +21,12 @@
     "creator": "pm-diaz",
     "tags": ["newbuild", "delivery"],
     "cover": "project-2.jpg",
-    "bindShip": "vantage",
+    "parent": "vantage",
     "members": [
       { "user": "eng-okafor", "role": "member" },
       { "user": "ops-murphy", "role": "member" },
       { "username": "yard-devries", "name": "Anneke de Vries", "title": "Yard Project Coordinator", "role": "member" }
-    ],
-    "categories": ["Interior", "Electronics", "Safety Gear"]
+    ]
   },
   {
     "key": "survey-leviathan",
@@ -37,13 +35,12 @@
     "creator": "pm-mercer",
     "tags": ["survey", "class-renewal"],
     "cover": "project-3.jpg",
-    "bindShip": "leviathan",
+    "parent": "leviathan",
     "members": [
       { "user": "surveyor-singh", "role": "member" },
       { "user": "eng-lin", "role": "member" },
       { "username": "class-tanaka", "name": "Hiro Tanaka", "title": "Attending Surveyor", "role": "member" }
-    ],
-    "categories": ["Safety Gear", "Engine Parts"]
+    ]
   },
   {
     "key": "engine-overhaul-calypso",
@@ -52,13 +49,12 @@
     "creator": "pm-diaz",
     "tags": ["engine", "overhaul"],
     "cover": "project-4.jpg",
-    "bindShip": "calypso",
+    "parent": "calypso",
     "members": [
       { "user": "eng-voss", "role": "member" },
       { "user": "eng-okafor", "role": "member" },
       { "username": "vendor-bianchi", "name": "Luca Bianchi", "title": "Engine Vendor Rep", "role": "member" }
-    ],
-    "categories": ["Engine Parts", "Provisions"]
+    ]
   },
   {
     "key": "electronics-bluewater",
@@ -67,13 +63,12 @@
     "creator": "pm-mercer",
     "tags": ["electronics", "upgrade"],
     "cover": null,
-    "bindShip": "bluewater",
+    "parent": "bluewater",
     "members": [
       { "user": "eng-lin", "role": "member" },
       { "user": "ops-murphy", "role": "member" },
       { "username": "vendor-kowalski", "name": "Piotr Kowalski", "role": "member" }
-    ],
-    "categories": ["Electronics"]
+    ]
   },
   {
     "key": "interior-serenity",
@@ -82,13 +77,12 @@
     "creator": "pm-diaz",
     "tags": ["refit", "interior"],
     "cover": null,
-    "bindShip": "serenity",
+    "parent": "serenity",
     "members": [
       { "user": "crew-haddad", "role": "member" },
       { "user": "crew-schmidt", "role": "member" },
       { "username": "designer-laurent", "name": "Camille Laurent", "title": "Interior Designer", "role": "member" }
-    ],
-    "categories": ["Interior", "Provisions"]
+    ]
   },
   {
     "key": "hull-nordwind",
@@ -97,12 +91,11 @@
     "creator": "pm-mercer",
     "tags": ["hull", "dry-dock"],
     "cover": null,
-    "bindShip": "nordwind",
+    "parent": "nordwind",
     "members": [
       { "user": "eng-okafor", "role": "member" },
       { "username": "coating-andersen", "name": "Erik Andersen", "role": "member" }
-    ],
-    "categories": ["Deck Equipment", "Paint & Coatings"]
+    ]
   },
   {
     "key": "fleet-safety-program",
@@ -111,13 +104,12 @@
     "creator": "ops-murphy",
     "tags": ["safety", "audit"],
     "cover": null,
-    "bindShip": null,
+    "parent": null,
     "members": [
       { "user": "surveyor-petrov", "role": "member" },
       { "user": "surveyor-singh", "role": "member" },
       { "user": "crew-larsson", "role": "member" },
       { "username": "auditor-okonkwo", "name": "Chidi Okonkwo", "title": "External Safety Auditor", "role": "member" }
-    ],
-    "categories": ["Safety Gear"]
+    ]
   }
 ]
