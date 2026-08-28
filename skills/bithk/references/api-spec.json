@@ -20730,6 +20730,21 @@
           },
           {
             "in": "query",
+            "name": "section",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "issues",
+                "procurement",
+                "files",
+                "ship-profile",
+                "equipment",
+                "worklist"
+              ]
+            }
+          },
+          {
+            "in": "query",
             "name": "page",
             "schema": {
               "type": "integer",
