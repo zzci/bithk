@@ -47,6 +47,31 @@ export const EMPTY_SHIP_PROFILE_FORM: ShipProfileFormState = {
   ownerName: "",
 };
 
+/**
+ * The particulars rendered as plain text inputs, in form order. Shared by the
+ * edit dialog and the create dialog's ship preset so both stay in lockstep.
+ */
+export const SHIP_TEXT_FIELDS = [
+  "builder",
+  "model",
+  "imoNumber",
+  "mmsi",
+  "callSign",
+  "flagState",
+  "registryPort",
+  "ownerName",
+] as const;
+
+/** The particulars rendered as number inputs, in form order. */
+export const SHIP_NUMBER_FIELDS = [
+  "buildYear",
+  "lengthOverall",
+  "beam",
+  "draft",
+  "airDraft",
+  "grossTonnage",
+] as const;
+
 /** Stringify a nullable number for an input value ("" when unset). */
 function numToInput(v: number | null): string {
   return v === null ? "" : String(v);

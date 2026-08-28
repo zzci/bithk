@@ -35,6 +35,8 @@
     "filter": "筛选",
     "filterRemove": "移除 {{label}}",
     "clearFilters": "清除过滤条件",
+    "sectionAll": "全部",
+    "sectionFilter": "板块",
     "searchPlaceholder": "搜索项目",
     "openSettings": "项目设置",
     "moreTags": "+{{count}}",
@@ -72,7 +74,11 @@
     "title": "新增项目",
     "submit": "创建",
     "namePlaceholder": "项目名称",
-    "descriptionPlaceholder": "添加描述…"
+    "descriptionPlaceholder": "添加描述…",
+    "shipParticulars": "船舶参数",
+    "presetShip": "船舶",
+    "presetGeneral": "普通项目",
+    "presetLabel": "类型"
   },
   "delete": {
     "title": "删除项目",
@@ -94,6 +100,7 @@
       "general": "常规",
       "members": "成员",
       "roles": "角色",
+      "sections": "板块",
       "categories": "采购分类",
       "danger": "危险操作"
     },
@@ -120,7 +127,8 @@
     "unpinAction": "取消置顶",
     "latestIssues": "最新工单",
     "latestProcurements": "最新采购",
-    "viewAll": "查看全部"
+    "viewAll": "查看全部",
+    "openSection": "打开{{name}}"
   },
   "issues": {
     "create": "新增",
@@ -314,7 +322,8 @@
       "comment": "评论",
       "manage": "管理"
     },
-    "administration": "项目管理"
+    "administration": "项目管理",
+    "accessLevel": "访问级别"
   },
   "capability": {
     "issue.view": "查看工单",
@@ -368,5 +377,14 @@
     "restoreConfirmDescription": "该项目将重新回到活动列表。",
     "deleteConfirmTitle": "删除该项目？",
     "deleteConfirmDescription": "此操作将永久删除该项目及其数据，且无法撤销。"
+  },
+  "sections": {
+    "title": "项目板块",
+    "description": "项目由核心记录与其挂载的板块组成。挂载板块会初始化数据并新增对应标签页，卸载则移除该标签页。",
+    "mountFailed": "无法挂载该板块。",
+    "unmountRefused": "“{{name}}”仍有数据，无法移除。请先删除其记录。",
+    "unmountFailed": "无法移除该板块。",
+    "toastMounted": "板块已添加",
+    "toastUnmounted": "板块已移除"
   }
 }

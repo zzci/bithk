@@ -1,10 +1,11 @@
-// Overview tab: a restrained work-focused dashboard. A unified project
-// information card (creator, last updated, tags, and description), a mixed
-// pinned-items card, and the latest work orders + procurements grouped into
-// separate cards. Read-only — pinning happens on the rows in the Issues /
-// Procurement tabs.
+// Overview tab: a restrained work-focused dashboard. A row of SECTION TILES
+// (one per mounted section, contributed by `-project-sections.ts`), a unified
+// project information card, a mixed pinned-items card, and the latest work
+// orders + procurements grouped into separate cards. Read-only — pinning
+// happens on the rows in the Issues / Procurement tabs.
 
 import type { ReactNode } from "react";
+import type { ProjectDetailTab } from "./-project-sections";
 import type { ProjectCapabilityInfo } from "@/shared/hooks/use-project-capabilities";
 import type { PinnedItem } from "@/shared/lib/api/pins";
 import type { ProjectView } from "@/shared/lib/api/projects";
@@ -25,13 +26,15 @@ import { useProcurements } from "@/shared/lib/api/procurement";
 import { useProjectIssues } from "@/shared/lib/api/projects";
 import { ISSUE_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
+import { ProjectSectionTiles } from "./-project-section-tiles";
 
+// The rows below open only these two tabs; the section tiles can open any.
 type ProjectTab = "issues" | "procurement";
 
 interface ProjectOverviewTabProps {
   readonly project: ProjectView;
   readonly caps: ProjectCapabilityInfo;
-  readonly onOpenTab: (tab: ProjectTab) => void;
+  readonly onOpenTab: (tab: ProjectDetailTab) => void;
 }
 
 export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverviewTabProps) {
@@ -44,6 +47,8 @@ export function ProjectOverviewTab({ project, caps, onOpenTab }: ProjectOverview
 
   return (
     <div className="space-y-6">
+      <ProjectSectionTiles project={project} caps={caps} onOpenTab={onOpenTab} />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <ProjectInfoCard description={project.description} className="lg:col-span-2" />
         <ProjectPinnedCard projectId={project.id} caps={caps} onOpenTab={onOpenTab} className="lg:col-span-1" />

@@ -3,6 +3,13 @@
 // existing role loads into the inline editor below. Permissions are set through
 // an inline table of per-module tier radios + admin capability toggles.
 // System roles (`isSystem`) are read-only and cannot be deleted.
+//
+// The table is GROUPED BY SECTION (PLAN-108 §4): each mounted section heads its
+// own group, and a section the project has not mounted contributes no rows at
+// all — a role cannot usefully grant access to a surface the project lacks. The
+// grouping comes from `CAPABILITY_SECTION` in `-project-sections.ts`, the web
+// mirror of the API's map; core capabilities (members / roles / project) belong
+// to no section and are always offered.
 
 import type { ProjectCapability, ProjectRoleView } from "@/shared/lib/api/projects";
 import { Plus } from "lucide-react";
@@ -33,6 +40,7 @@ import {
 } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 import { systemRoleLabel } from "./-member-helpers";
+import { isCapabilityOffered } from "./-project-sections";
 
 // ---------------------------------------------------------------------------
 // Module tier definitions
@@ -135,10 +143,12 @@ const NEW_ROLE = "__new__";
 
 interface ProjectSettingsRolesProps {
   readonly projectId: string;
+  /** The project's mounted sections; decides which capability groups show. */
+  readonly sections: readonly string[];
   readonly canManage: boolean;
 }
 
-export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRolesProps) {
+export function ProjectSettingsRoles({ projectId, sections, canManage }: ProjectSettingsRolesProps) {
   const { t } = useTranslation(["projects", "common"]);
   const rolesQuery = useProjectRoles(projectId);
   const deleteRole = useDeleteProjectRole();
@@ -203,6 +213,7 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
               <RoleEditor
                 key={`${effectiveId}:${resetNonce}`}
                 projectId={projectId}
+                sections={sections}
                 role={effectiveRole}
                 canManage={canManage}
                 onCreated={() => {
@@ -242,6 +253,7 @@ export function ProjectSettingsRoles({ projectId, canManage }: ProjectSettingsRo
 
 interface RoleEditorProps {
   readonly projectId: string;
+  readonly sections: readonly string[];
   // The role loaded into the editor, or null for create mode.
   readonly role: ProjectRoleView | null;
   readonly canManage: boolean;
@@ -249,7 +261,7 @@ interface RoleEditorProps {
   readonly onRequestDelete: (role: ProjectRoleView) => void;
 }
 
-function RoleEditor({ projectId, role, canManage, onCreated, onRequestDelete }: RoleEditorProps) {
+function RoleEditor({ projectId, sections, role, canManage, onCreated, onRequestDelete }: RoleEditorProps) {
   const { t } = useTranslation(["projects", "common"]);
   const createRole = useCreateProjectRole();
   const updateRole = useUpdateProjectRole();
@@ -290,6 +302,9 @@ function RoleEditor({ projectId, role, canManage, onCreated, onRequestDelete }: 
     event.preventDefault();
     if (!editable || !name.trim() || pending)
       return;
+    // Built from the FULL state, including groups this project does not mount:
+    // hiding a section's rows must not silently strip capabilities a role
+    // already holds (the project may mount that section again later).
     const capabilities = buildCapabilities(issueTier, procurementTier, filesTier, adminCaps);
     if (isCreate) {
       createRole.mutate({ projectId, name: name.trim(), capabilities }, {
@@ -316,17 +331,28 @@ function RoleEditor({ projectId, role, canManage, onCreated, onRequestDelete }: 
   else
     heading = t("roles.editTitle");
 
-  // A single module's tier row: module name + the cumulative tier radios. Plain
-  // helper (not a component) so re-renders reconcile in place without remounting.
-  const tierRow = (label: string, tiers: readonly string[], value: string, onChange: (v: string) => void) => (
-    <TableRow>
-      <TableCell className="align-middle font-medium">{label}</TableCell>
+  // Plain helpers (not components) so re-renders reconcile in place without
+  // remounting the radios/switches mid-edit.
+
+  // Group heading row: one per section (plus the core "Administration" group).
+  const groupRow = (label: string) => (
+    <TableRow key={`group-${label}`} className="hover:bg-transparent">
+      <TableCell colSpan={2} className="bg-muted/50 text-xs font-medium text-muted-foreground">
+        {label}
+      </TableCell>
+    </TableRow>
+  );
+
+  // A section's cumulative access-level radios.
+  const tierRow = (group: string, tiers: readonly string[], value: string, onChange: (v: string) => void) => (
+    <TableRow key={`tier-${group}`}>
+      <TableCell className="align-middle font-medium">{t("roles.accessLevel")}</TableCell>
       <TableCell>
         <RadioGroup
           value={value}
           onValueChange={v => v !== null && onChange(v)}
           disabled={!editable}
-          aria-label={label}
+          aria-label={group}
           className="flex flex-wrap gap-x-4 gap-y-1"
         >
           {tiers.map(tier => (
@@ -338,6 +364,34 @@ function RoleEditor({ projectId, role, canManage, onCreated, onRequestDelete }: 
       </TableCell>
     </TableRow>
   );
+
+  // A single independent capability toggle.
+  const toggleRow = (cap: ProjectCapability) => (
+    <TableRow key={cap}>
+      <TableCell className="align-middle">
+        <Label htmlFor={`cap-${cap}`} className="font-normal">{t(`capability.${cap}` as const)}</Label>
+      </TableCell>
+      <TableCell>
+        <Switch
+          id={`cap-${cap}`}
+          checked={adminCaps.includes(cap)}
+          onCheckedChange={() => toggleAdmin(cap)}
+          disabled={!editable}
+        />
+      </TableCell>
+    </TableRow>
+  );
+
+  // Section groups, in registry order. A group is rendered only while the
+  // project mounts its section — the mirror decides, not this component.
+  const sectionGroups = [
+    { key: "issues", label: t("capabilityGroup.issue"), rows: [tierRow(t("capabilityGroup.issue"), ["none", "view", "comment", "manage"], issueTier, v => setIssueTier(v as IssueTier))] },
+    { key: "procurement", label: t("capabilityGroup.procurement"), rows: [tierRow(t("capabilityGroup.procurement"), ["none", "view", "comment", "manage"], procurementTier, v => setProcurementTier(v as ProcurementTier)), toggleRow("categories.manage")] },
+    { key: "files", label: t("capabilityGroup.files"), rows: [tierRow(t("capabilityGroup.files"), ["none", "view", "manage"], filesTier, v => setFilesTier(v as FilesTier))] },
+  ].filter(group => sections.includes(group.key));
+
+  // Core capabilities belong to no section, so they are always offered.
+  const coreCaps = ADMIN_CAPS.filter(cap => isCapabilityOffered(cap, []));
 
   return (
     <form onSubmit={submit} className="space-y-4">
@@ -390,31 +444,11 @@ function RoleEditor({ projectId, role, canManage, onCreated, onRequestDelete }: 
         <div className="rounded-md border">
           <Table>
             <TableBody>
-              {tierRow(t("capabilityGroup.issue"), ["none", "view", "comment", "manage"], issueTier, v => setIssueTier(v as IssueTier))}
-              {tierRow(t("capabilityGroup.procurement"), ["none", "view", "comment", "manage"], procurementTier, v => setProcurementTier(v as ProcurementTier))}
-              {tierRow(t("capabilityGroup.files"), ["none", "view", "manage"], filesTier, v => setFilesTier(v as FilesTier))}
+              {sectionGroups.flatMap(group => [groupRow(group.label), ...group.rows])}
 
-              {/* Administration caps: independent toggles (not tiered). */}
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={2} className="bg-muted/50 text-xs font-medium text-muted-foreground">
-                  {t("roles.administration")}
-                </TableCell>
-              </TableRow>
-              {ADMIN_CAPS.map(cap => (
-                <TableRow key={cap}>
-                  <TableCell className="align-middle">
-                    <Label htmlFor={`cap-${cap}`} className="font-normal">{t(`capability.${cap}` as const)}</Label>
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      id={`cap-${cap}`}
-                      checked={adminCaps.includes(cap)}
-                      onCheckedChange={() => toggleAdmin(cap)}
-                      disabled={!editable}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
+              {/* Core group: independent toggles (not tiered), never hidden. */}
+              {groupRow(t("roles.administration"))}
+              {coreCaps.map(toggleRow)}
             </TableBody>
           </Table>
         </div>

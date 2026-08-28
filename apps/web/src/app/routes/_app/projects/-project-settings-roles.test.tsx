@@ -17,6 +17,10 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
 // CPU contention. Give the whole file generous headroom.
 vi.setConfig({ testTimeout: 20_000 });
 
+// Every default-preset project mounts these three, so the editor offers the
+// full capability set unless a test opts into a narrower mount list.
+const GENERAL_SECTIONS = ["issues", "procurement", "files"] as const;
+
 const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
@@ -52,6 +56,15 @@ function routeFetch(roles: ProjectRoleView[]) {
 
 type User = ReturnType<typeof userEvent.setup>;
 
+/**
+ * The access-level radios of one capability group. The table is grouped by
+ * section now (a heading row, then the group's rows), so the radios are found
+ * by the group's own accessible name rather than by walking table rows.
+ */
+function tierGroup(group: string): HTMLElement {
+  return screen.getByRole("radiogroup", { name: group });
+}
+
 /** Open the role selector dropdown and load the named role into the editor. */
 async function pickRole(user: User, name: string | RegExp) {
   await user.click(screen.getByRole("combobox"));
@@ -61,13 +74,13 @@ async function pickRole(user: User, name: string | RegExp) {
 describe("projectSettingsRoles", () => {
   it("shows the empty state when no roles exist and the viewer cannot manage", async () => {
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage={false} />);
     expect(await screen.findByText("No roles defined.")).toBeInTheDocument();
   });
 
   it("defaults to the inline create editor when the viewer can manage", async () => {
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     // The editor is rendered in-page (no modal): the Name field and the module
     // permission rows are present immediately.
     expect(await screen.findByLabelText("Name")).toBeInTheDocument();
@@ -82,7 +95,7 @@ describe("projectSettingsRoles", () => {
 
   it("hides write controls when the viewer cannot manage", async () => {
     routeFetch([role()]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage={false} />);
     // The first role loads read-only by default.
     await waitFor(() => expect(screen.getByLabelText("Name")).toBeDisabled());
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
@@ -93,7 +106,7 @@ describe("projectSettingsRoles", () => {
   it("shows a selected system role read-only with no save/delete", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([role({ id: "sys", name: "Project Manager", isSystem: true, kind: "owner", capabilities: ["project.manage"] })]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await screen.findByLabelText("Name");
 
     // System roles surface under their canonical label, never their stored name.
@@ -112,7 +125,7 @@ describe("projectSettingsRoles", () => {
   it("creates a role through the inline editor", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
 
     await user.type(await screen.findByLabelText("Name"), "Reviewer");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -128,11 +141,11 @@ describe("projectSettingsRoles", () => {
   it("selecting issue=View tier produces [issue.view] caps on submit", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await user.type(await screen.findByLabelText("Name"), "Reviewer");
 
     // All modules default to "None". Click "View" in the Work orders row.
-    const issueRow = screen.getByText("Work orders").closest("tr")!;
+    const issueRow = tierGroup("Work orders");
     await user.click(within(issueRow).getByText("View"));
 
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -148,10 +161,10 @@ describe("projectSettingsRoles", () => {
   it("selecting issue=Manage tier produces cumulative [issue.view, issue.comment, issue.manage]", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await user.type(await screen.findByLabelText("Name"), "Admin");
 
-    const issueRow = screen.getByText("Work orders").closest("tr")!;
+    const issueRow = tierGroup("Work orders");
     await user.click(within(issueRow).getByText("Manage"));
 
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -164,12 +177,55 @@ describe("projectSettingsRoles", () => {
     });
   });
 
-  it("files module has no Comment tier option", async () => {
+  it("hides the capability group of a section the project has not mounted", async () => {
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    // A ship-only project: procurement and files are absent.
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={["issues"]} canManage />);
     await screen.findByLabelText("Name");
 
-    const filesRow = screen.getByText("Files").closest("tr")!;
+    expect(screen.getByRole("radiogroup", { name: "Work orders" })).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Procurement" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Files" })).not.toBeInTheDocument();
+    // categories.manage belongs to procurement, so it goes with it.
+    expect(screen.queryByRole("switch", { name: "Manage categories" })).not.toBeInTheDocument();
+  });
+
+  it("always offers the core capabilities, whatever the project mounts", async () => {
+    routeFetch([]);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={[]} canManage />);
+    await screen.findByLabelText("Name");
+
+    expect(screen.getByRole("switch", { name: "Manage members" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Manage roles" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Manage project" })).toBeInTheDocument();
+    // Nothing mounted, so no section group at all.
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+  });
+
+  it("keeps a hidden section's stored capabilities on save", async () => {
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
+    routeFetch([role({ id: "r1", name: "Buyer", capabilities: ["issue.view", "procurement.view"] })]);
+    // Procurement is not mounted, so its group is hidden — but a role that
+    // already grants procurement.view must not be silently stripped.
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={["issues"]} canManage />);
+    await screen.findByLabelText("Name");
+    await pickRole(user, "Buyer");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(c => (c[1]?.method ?? "GET").toUpperCase() === "PATCH");
+      expect(patch).toBeTruthy();
+      const body = JSON.parse(String(patch![1]?.body));
+      expect(body.capabilities).toEqual(["issue.view", "procurement.view"]);
+    });
+  });
+
+  it("files module has no Comment tier option", async () => {
+    routeFetch([]);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
+    await screen.findByLabelText("Name");
+
+    const filesRow = tierGroup("Files");
     // Files row should have None, View, Manage but NOT Comment.
     expect(within(filesRow).getByText("None")).toBeInTheDocument();
     expect(within(filesRow).getByText("View")).toBeInTheDocument();
@@ -181,20 +237,20 @@ describe("projectSettingsRoles", () => {
     // A single role with canManage=false loads as the default selection, so the
     // derived tier is observable without opening the dropdown.
     routeFetch([role({ id: "r1", name: "Buyer", capabilities: ["procurement.view", "procurement.comment", "procurement.manage"] })]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage={false} />);
     await screen.findByLabelText("Name");
 
-    const procRow = screen.getByText("Procurement").closest("tr")!;
+    const procRow = tierGroup("Procurement");
     const manageRadio = within(procRow).getByText("Manage").closest("[data-slot='radio-group-item']");
     expect(manageRadio).toHaveAttribute("data-checked");
   });
 
   it("loading a role with only issue.view preselects Issue=View tier", async () => {
     routeFetch([role({ id: "r1", name: "Viewer", capabilities: ["issue.view"] })]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage={false} />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage={false} />);
     await screen.findByLabelText("Name");
 
-    const issueRow = screen.getByText("Work orders").closest("tr")!;
+    const issueRow = tierGroup("Work orders");
     const viewRadio = within(issueRow).getByText("View").closest("[data-slot='radio-group-item']");
     expect(viewRadio).toHaveAttribute("data-checked");
   });
@@ -202,7 +258,7 @@ describe("projectSettingsRoles", () => {
   it("admin toggles are independent from module tiers", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await user.type(await screen.findByLabelText("Name"), "Admin");
 
     // Toggle project.manage and members.manage on.
@@ -223,7 +279,7 @@ describe("projectSettingsRoles", () => {
   it("reader preset sets all modules to View and no admin caps", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await user.type(await screen.findByLabelText("Name"), "ReadOnly");
 
     await user.click(screen.getByRole("button", { name: "Reader" }));
@@ -240,7 +296,7 @@ describe("projectSettingsRoles", () => {
   it("commenter preset sets issue=Comment, procurement=Comment, files=View", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await user.type(await screen.findByLabelText("Name"), "Commenter");
 
     await user.click(screen.getByRole("button", { name: "Commenter" }));
@@ -263,7 +319,7 @@ describe("projectSettingsRoles", () => {
   it("writer preset sets all modules to Manage + categories.manage", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await user.type(await screen.findByLabelText("Name"), "Writer");
 
     await user.click(screen.getByRole("button", { name: "Writer" }));
@@ -290,13 +346,13 @@ describe("projectSettingsRoles", () => {
   it("mixing module tiers independently (Issue=Manage, Procurement=View, Files=None)", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await user.type(await screen.findByLabelText("Name"), "Mixed");
 
-    const issueRow = screen.getByText("Work orders").closest("tr")!;
+    const issueRow = tierGroup("Work orders");
     await user.click(within(issueRow).getByText("Manage"));
 
-    const procRow = screen.getByText("Procurement").closest("tr")!;
+    const procRow = tierGroup("Procurement");
     await user.click(within(procRow).getByText("View"));
 
     // Files stays None (default).
@@ -319,7 +375,7 @@ describe("projectSettingsRoles", () => {
   it("updates a custom role loaded through the dropdown", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([role({ id: "r1", name: "Engineer", capabilities: ["issue.view"] })]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await screen.findByLabelText("Name");
 
     await pickRole(user, "Engineer");
@@ -336,7 +392,7 @@ describe("projectSettingsRoles", () => {
   it("deletes a custom role after confirmation", async () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     routeFetch([role({ id: "r1", name: "Engineer" })]);
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     await screen.findByLabelText("Name");
 
     await pickRole(user, "Engineer");
@@ -358,7 +414,7 @@ describe("projectSettingsRoles", () => {
       { success: false, error: { code: "FORBIDDEN", message: "internal: row 42 denied" } },
       { status: 403 },
     ));
-    renderWithProviders(<ProjectSettingsRoles projectId="p1" canManage />);
+    renderWithProviders(<ProjectSettingsRoles projectId="p1" sections={GENERAL_SECTIONS} canManage />);
     // Coded API errors must surface the localized fallback, never the raw
     // server message, so internals never leak into the UI.
     expect(await screen.findByText("Failed to load data")).toBeInTheDocument();
