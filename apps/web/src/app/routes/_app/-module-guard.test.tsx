@@ -36,13 +36,14 @@ describe("routeModule", () => {
     expect(routeModule("/documents")).toBe("documents");
     expect(routeModule("/drive/some/folder")).toBe("drive");
     expect(routeModule("/projects/p1/issues/i1")).toBe("projects");
-    expect(routeModule("/ships/s1")).toBe("ships");
     expect(routeModule("/contacts")).toBe("contacts");
     expect(routeModule("/hr/payroll")).toBe("hr");
   });
 
   it("returns null for ungated routes", () => {
     expect(routeModule("/overview")).toBeNull();
+    // /ships no longer exists — a ship is a project.
+    expect(routeModule("/ships/s1")).toBeNull();
     expect(routeModule("/admin/users")).toBeNull();
     // Prefix matching is segment-aware: a sibling route that merely shares
     // the leading characters is not captured.

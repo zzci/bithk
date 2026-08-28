@@ -2,8 +2,8 @@
 // `ship-profile` section tab route.
 
 import { createLazyFileRoute, useParams } from "@tanstack/react-router";
-import { ProjectShipProfileTab } from "./-project-ship-profile-tab";
 import { useProjectSectionRoute } from "./-project-section-route";
+import { ProjectShipProfileTab } from "./-project-ship-profile-tab";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/profile")({
   component: ProjectShipProfileRoute,

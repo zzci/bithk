@@ -24,7 +24,7 @@ const user = {
   lastLoginAt: null,
   createdAt: "2026-05-23T00:00:00.000Z",
   groups: [{ id: "g1", name: "Eng", description: null }],
-  modules: ["documents", "drive", "projects", "ships", "contacts", "hr"],
+  modules: ["documents", "drive", "projects", "contacts", "hr"],
 };
 
 beforeEach(() => {
