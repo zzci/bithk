@@ -384,6 +384,57 @@ describe("GET /projects/:projectId/referenceable-worklists", () => {
   });
 });
 
+// The five verbs of `/projects/:projectId/worklists` as one round-trip. The
+// tests above exercise the copy-from-global and tag paths; this one pins the
+// plain create → list → get → patch → delete contract on the re-keyed surface.
+describe("project worklists: CRUD round-trip", () => {
+  test("a project manager creates, lists, gets, updates and deletes a worklist", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+
+    const createRes = await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, {
+      name: "Hull check",
+      checklist: "step 1; step 2",
+      precautions: "dry dock",
+      tags: ["hull"],
+    }));
+    expect(createRes.status).toBe(201);
+    const created = await dataOf<TemplateBody>(createRes);
+    expect(created.name).toBe("Hull check");
+    expect(created.checklist).toBe("step 1; step 2");
+    expect(created.precautions).toBe("dry dock");
+    expect(created.tags.map(t => t.name)).toEqual(["hull"]);
+
+    const list = await dataOf<TemplateBody[]>(await app.request(`/projects/${shipShortId}/worklists`, { headers: { Cookie: adminCookie } }));
+    expect(list.map(w => w.id)).toEqual([created.id]);
+
+    const getRes = await app.request(`/projects/${shipShortId}/worklists/${created.id}`, { headers: { Cookie: adminCookie } });
+    expect(getRes.status).toBe(200);
+    expect((await dataOf<TemplateBody>(getRes)).name).toBe("Hull check");
+
+    const patchRes = await app.request(`/projects/${shipShortId}/worklists/${created.id}`, jsonReq("PATCH", adminCookie, { name: "Hull survey", precautions: null }));
+    expect(patchRes.status).toBe(200);
+    const patched = await dataOf<TemplateBody>(patchRes);
+    expect(patched.name).toBe("Hull survey");
+    expect(patched.precautions).toBeNull();
+    // Untouched fields survive the patch.
+    expect(patched.checklist).toBe("step 1; step 2");
+
+    const delRes = await app.request(`/projects/${shipShortId}/worklists/${created.id}`, jsonReq("DELETE", adminCookie));
+    expect(delRes.status).toBe(200);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${created.id}`, { headers: { Cookie: adminCookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${created.id}`, jsonReq("DELETE", adminCookie))).status).toBe(404);
+  });
+
+  test("an unknown worklist id 404s on every by-id verb", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+    expect((await app.request(`/projects/${shipShortId}/worklists/missing1`, { headers: { Cookie: adminCookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/missing1`, jsonReq("PATCH", adminCookie, { name: "X" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/missing1`, jsonReq("DELETE", adminCookie))).status).toBe(404);
+  });
+});
+
 describe("project-level worklists: authz", () => {
   test("member reads, project.manage writes, non-member gets 404", async () => {
     const app = buildApp(db);
@@ -405,10 +456,54 @@ describe("project-level worklists: authz", () => {
     const outsider = await sessionFor("user");
     expect((await app.request(`/projects/${shipShortId}/worklists`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
     expect((await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", outsider.cookie, { name: "Nope" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("PATCH", outsider.cookie, { name: "Nope" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("DELETE", outsider.cookie))).status).toBe(404);
 
     // PM (admin) writes successfully.
     expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("PATCH", adminCookie, { name: "Renamed" }))).status).toBe(200);
     expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("DELETE", adminCookie))).status).toBe(200);
+  });
+});
+
+// PLAN-108 re-keyed worklists from `ship_id` to `project_id`. A scoping filter
+// dropped in that rename would be invisible to the authz tests (the actor is
+// allowed on both projects) but would leak or mutate across projects, so every
+// verb is driven with ONE actor who owns BOTH projects.
+describe("project worklists: cross-project isolation", () => {
+  test("a worklist of project A is unreachable and unmodifiable through project B", async () => {
+    const app = buildApp(db);
+    const shipA = await createShipAsAdmin(app, "A");
+    const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
+
+    const tpl = await dataOf<TemplateBody>(await app.request(`/projects/${shipA.shipShortId}/worklists`, jsonReq("POST", shipA.adminCookie, { name: "Hull check" })));
+
+    expect((await app.request(`/projects/${shipBShortId}/worklists/${tpl.id}`, { headers: { Cookie: shipA.adminCookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipBShortId}/worklists/${tpl.id}`, jsonReq("PATCH", shipA.adminCookie, { name: "Hijacked" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipBShortId}/worklists/${tpl.id}`, jsonReq("DELETE", shipA.adminCookie))).status).toBe(404);
+
+    // The refused writes really were no-ops, not silent successes.
+    const reread = await dataOf<TemplateBody>(await app.request(`/projects/${shipA.shipShortId}/worklists/${tpl.id}`, { headers: { Cookie: shipA.adminCookie } }));
+    expect(reread.name).toBe("Hull check");
+  });
+
+  test("project B's list and referenceable set never contain project A's worklists", async () => {
+    const app = buildApp(db);
+    const shipA = await createShipAsAdmin(app, "A");
+    const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
+
+    await app.request(`/projects/${shipA.shipShortId}/worklists`, jsonReq("POST", shipA.adminCookie, { name: "Only on A" }));
+    await app.request(`/projects/${shipBShortId}/worklists`, jsonReq("POST", shipA.adminCookie, { name: "Only on B" }));
+
+    const listB = await dataOf<TemplateBody[]>(await app.request(`/projects/${shipBShortId}/worklists`, { headers: { Cookie: shipA.adminCookie } }));
+    expect(listB.map(w => w.name)).toEqual(["Only on B"]);
+
+    // `referenceable-worklists` splits into own + global; A's rows belong to neither.
+    const refB = await dataOf<{ ship: TemplateBody[]; global: TemplateBody[] }>(
+      await app.request(`/projects/${shipBShortId}/referenceable-worklists`, { headers: { Cookie: shipA.adminCookie } }),
+    );
+    expect(refB.ship.map(w => w.name)).toEqual(["Only on B"]);
+    expect(refB.global).toHaveLength(0);
   });
 });
 
