@@ -27,7 +27,12 @@ export function useProjectSectionRoute(projectId: string, key: ProjectDetailTab)
 
   // Only decide once the project has resolved: an in-flight query has no
   // `sections` yet, and 404-ing on that would flash for every deep link.
-  if (project && !isProjectSectionVisible(key, { project, has: caps.has }))
+  //
+  // The mount is the only thing checked here: the entry is evaluated as if the
+  // caller held every capability, so a section that IS mounted but whose view
+  // capability the caller lacks stays a redirect to the overview (the route
+  // body owns that) rather than becoming a 404.
+  if (project && !isProjectSectionVisible(key, { project, has: () => true }))
     throw notFound();
 
   return { project, caps };
