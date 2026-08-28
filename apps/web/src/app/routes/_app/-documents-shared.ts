@@ -17,7 +17,7 @@ export function formatShortDate(iso: string): string {
   if (Number.isNaN(d.getTime()))
     return "";
   // Compact month/day to fit the narrow sidebar column, formatted off the
-  // active i18n locale (zh → "6月2日", en → "Jun 2") instead of a
+  // active i18n locale (zh → a localized month/day form, en → "Jun 2") instead of a
   // hardcoded CJK string.
   const locale = toIntlLocale(i18n?.language, i18n?.resolvedLanguage || "en");
   return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(d);
