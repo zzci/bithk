@@ -11,6 +11,62 @@ each upstream tag; your fork's `Unreleased` block sits at the top.
 
 ## Unreleased
 
+### Changed — BREAKING
+
+- **Projects are now compositions of mounted sections; ships are a preset**
+  (PLAN-108 / REFACTOR-039, [ADR-015](decisions/015-projects-as-sections.md)).
+  A project is a core record (`projects`: identity, metadata, `parent_id`,
+  roles, members) plus a set of rows in the new `project_sections` table. There
+  is no project `type` column and **no `ships` table**: a project that mounts
+  `ship-profile` *is* a ship. `issues`, `procurement` and `files` are the
+  `general` preset; `ship` adds `ship-profile`, `equipment` and `worklist`.
+  Sections register themselves from their owning module's barrel, so adding a
+  future domain to projects is "write a module and register a section" with no
+  edit inside the project module.
+
+  **Operator impact — read this before upgrading.**
+
+  - **Every pre-fold database is unusable.** The schema was reset outright: the
+    Drizzle baseline was re-squashed from the new schema, with no ALTER chain,
+    no fold script and no backfill. There is no upgrade path from a pre-fold
+    `app.db`.
+  - **Every pre-fold archive is unusable.** `BACKUP_FORMAT_VERSION` is 3 — a
+    one-time epoch marker, not a format change (the tar/manifest/NDJSON framing
+    is byte-for-byte what 2 was). The manifest gate is an exact match, so any
+    archive below 3 is refused at upload with `400 INVALID_FORMAT` and a message
+    naming the reset. Merge is the only apply mode, so that one check covers
+    every import path.
+  - **Recovering data from either means running a pre-reset build of the server
+    against a *copy* of that deployment and reading it there.** The reset is
+    irreversible; there is no converter, and no partial salvage.
+  - **Take a fresh archive immediately after cutting over.** Until you do, you
+    have no restorable backup of this deployment at all.
+  - **Module-gate widening.** The `ships` module key, nav module and PAT scope
+    are gone; the maritime surfaces live under `projects`. A group granted
+    `projects` but **not** `ships` now **gains** ship access; a group granted
+    `ships` but not `projects` **loses everything**. Re-check every group's
+    module grants after the cutover. Worklists and the global equipment
+    vocabularies moved to the `projects` token scope.
+
+  Removed: the `ships` table, the `/api/ships/*` route tree, the `ships` nav
+  module / module-gate key / PAT scope, the `ships` search source, the
+  `ship_cover` file-reference owner type (a ship cover is now a plain
+  `project_cover`) and the admin-only ship delete (a ship-type project deletes
+  through the normal `softDeleteProject` cascade). `projects.ship_id` is gone
+  with them, which also kills the `projects <-> ships` backup dependency cycle
+  ([ADR-004](decisions/004-ship-project-cycle-and-restore.md) is superseded).
+
+  Added: `project_sections` (PK `(project_id, key)`, key-first index for the
+  list filter), `ship_profiles` keyed by `project_id` (hull number replaces
+  `ships.code` — mutable, case-preserving, NOT NULL + UNIQUE),
+  `PUT`/`DELETE /api/projects/:id/sections/:key` (mount provisions in the same
+  transaction; unmount refuses `409 SECTION_NOT_EMPTY` while the section holds
+  data), and an enumerated `?section=` filter on `GET /api/projects` applied in
+  SQL before pagination. Equipment, equipment categories and worklists re-keyed
+  to `project_id`. The procurement category tables moved from the `project`
+  module to `procurement`, and from the `projects` backup contribution to
+  `procurement`. No new project capabilities were added.
+
 ### Security
 
 - Dependency catch-up (CHORE-005): applied the open dependabot runtime and

@@ -37,12 +37,14 @@ the full API as that user, scoped per module.
    **admin's token is still bounded** — that is the whole point of a scoped
    token (limit blast radius below the owner's full power).
 
-3. **A complete scope taxonomy, not the 6-module registry.** The nav-module
-   `MODULES` registry covers only documents/drive/projects/ships/contacts/hr;
-   everything else is "ungated". A token must be able to address *every* route,
-   so PAT scope uses its own ~17-key taxonomy in
-   `tokens/scope.ts` (`tokenModuleForPath`) that maps every protected prefix to
-   exactly one key. A coverage test (`scope.test.ts`) enumerates the real
+3. **A complete scope taxonomy, not the nav-module registry.** The nav-module
+   `MODULES` registry covers only documents/drive/projects/contacts/hr
+   (`ships` was folded into `projects` by
+   [ADR-015](./015-projects-as-sections.md)); everything else is "ungated". A
+   token must be able to address *every* route, so PAT scope uses its own
+   ~17-key taxonomy, derived alongside `MODULES` from the single
+   `shared/module-manifest.ts`, that maps every protected prefix to exactly one
+   key. A coverage test (`scope.test.ts`) enumerates the real
    mounted routes and fails if any prefix is unmapped — so a new route cannot
    ship unscoped. Unmapped paths fail closed (403) for PAT requests.
 

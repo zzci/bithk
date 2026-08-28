@@ -39,5 +39,6 @@ project diverges from the template defaults.
 | `document` (nested + share-inherited markdown documents) | [document.md](document.md) |
 | `drive` (personal folders/files on the shared file module) | [drive.md](drive.md) |
 | `issue` (issue tracker with comments + attachments; personal + project work orders) | [issue.md](issue.md) |
-| `project` (engineering-project aggregate: members, files, work orders, procurement) | [project.md](project.md) |
-| `procurement` (project procurement records, grant-gated) | [procurement.md](procurement.md) |
+| `project` (core record + mounted sections; members, roles, sub-projects) | [project.md](project.md) |
+| `procurement` (the `procurement` section: records + category vocabulary) | [procurement.md](procurement.md) |
+| `ship` (the `ship-profile` / `equipment` / `worklist` project sections) | [ship.md](ship.md) |

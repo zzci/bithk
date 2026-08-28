@@ -10,6 +10,29 @@ Every issue belongs to a project — there is **no personal / global issue**.
 The assignment target is a `project_members.id`, and access is derived from
 project membership.
 
+## The `issues` project section
+
+This module **owns the `issues` section** of the [`project`](./project.md)
+module ([ADR-015](../decisions/015-projects-as-sections.md)). It registers
+itself from its own barrel (`modules/issue/index.ts`) as an import-time side
+effect ([ADR-009](../decisions/009-module-barrels.md)), so the project module
+never imports it:
+
+| Registry field | Value |
+| -------------- | ----- |
+| `key` | `issues` |
+| `capabilities` | `issue.view`, `issue.comment`, `issue.manage` |
+| `provision` | none — a new project simply starts with no issues |
+| `hasData` | `hasProjectIssues` — blocks unmount while the project has any |
+
+The fold cost one registry entry plus a `requireSection("issues")` gate on
+`/projects/:projectId/issues` and `/projects/:projectId/issues/*`: this module
+already owned its tables, its routes and its capabilities. `issues` is in both
+presets, so a project has it unless it was explicitly unmounted. A project
+without the section mounted answers a fail-closed 404
+([ADR-003](../decisions/003-fail-closed-404-existence-policy.md)) — the same
+404 a non-member gets, so nothing leaks.
+
 ## Relationship to the access reference
 
 This module tracks the `/app/zzci/access` issue implementation as its baseline
@@ -26,11 +49,12 @@ not parity gaps and must not be removed during alignment work:
   `POST .../issues/:id/{pin,unpin}` power the project overview pinned area.
   Same edit gate as PATCH (admin, PM, or creator; a status-only assignee may
   not pin).
-- **Issue references + ship maintenance orders.** The `issue_references` table
-  and its routes attach generic references to an issue; the read-only
-  `/api/ships/:shipShortId/maintenance-orders` view lists the issues in a ship's
-  bound projects that carry a maintenance-template reference. Access has no
-  equivalent.
+- **Issue references.** The `issue_references` table and its routes attach
+  generic references to an issue (the maritime worklist reference is one
+  producer). Access has no equivalent. The former read-only
+  `/api/ships/:shipShortId/maintenance-orders` aggregate is **gone** with the
+  ships module — maintenance work orders are ordinary issues in the project's
+  `issues` section.
 - **Global search.** `searchIssues` backs the command-palette search; its scope
   mirrors the route membership gate (admins see all, members see their projects'
   issues). It is not part of the issue list UI.
@@ -47,10 +71,10 @@ apps/api/src/modules/issue/
   issue.service.ts     # thin facade over items / issue_details / policy (+ searchIssues)
   issue.routes.ts      # /api/projects/:projectId/issues/... (+ pin/unpin)
   references.schema.ts # issue_references table
-  references.service.ts# generic references + ship maintenance-order queries
-  references.routes.ts # /api/issues/:id/references, /api/ships/:id/maintenance-orders
-  issue.backup.ts      # backup contribution (issue_details only)
-  index.ts             # backup registration
+  references.service.ts# generic reference queries
+  references.routes.ts # /api/issues/:id/references
+  issue.backup.ts      # backup contribution (issue_details + issue_references)
+  index.ts             # backup + search registration + registerProjectSection
   issue.test.ts
 ```
 
@@ -99,12 +123,13 @@ issue routes are nested under their owning project; there is no top-level
 | DELETE | `/api/projects/:projectId/issues/:id/attachments/:aid`     | Release the reference — async GC reclaims the blob.                                                         |
 | —      | `/api/projects/:projectId/issues/:id/comments[/...]`       | Comment + comment-attachment CRUD mounted by [`mountItemCommentRoutes`](./item.md#shared-comment--attachment-routes) with prefix `/projects/:projectId/issues`. Internal comments are returned only to readers; comment delete is author-or-admin. |
 | GET / POST / DELETE | `/api/issues/:issueShortId/references[/:referenceId]` | List / add / remove generic references on an issue (read = any reader; write = editor). **Kept delta — not in access.** |
-| GET    | `/api/ships/:shipShortId/maintenance-orders`               | Read-only list of maintenance-template issues across a ship's bound projects; gated by the ship read check (fail-closed 404). **Kept delta — not in access.** |
 
 ## Permissions
 
-Access is resolved from the issue's real project membership (the path
-`:projectId` is structural — the issue must actually belong to it, else 404).
+`requireSection("issues")` runs first: a project that has not mounted the
+section answers 404 before any membership lookup. Beyond that, access is
+resolved from the issue's real project membership (the path `:projectId` is
+structural — the issue must actually belong to it, else 404).
 `resolveProjectIssueAccess` derives:
 
 1. **canEdit** — PM capability on the project, or the issue creator. Full edit + delete.
@@ -128,9 +153,10 @@ The base never emits audit; the sub-type does — `resourceType: 'issue'`,
 
 ## Backup
 
-`issue_details` only. The base's `items` / `item_comments` rows and the
-`relation_tuples` carrying assignee / owner are restored via the
-`items` / `policies` contributions, which `issue_details` depends on.
+`issue_details` and `issue_references`. The base's `items` / `item_comments`
+rows and the `relation_tuples` carrying assignee / owner are restored via the
+`items` / `policies` contributions; `projects` restores the project and member
+rows the details FK. Deps: `["items", "policies", "projects"]`.
 
 ## Out of scope
 
