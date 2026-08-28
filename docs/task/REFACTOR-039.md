@@ -44,8 +44,15 @@ level, custom-field builders.
   sub-project create / list / unlink; module gate and PAT scope tests updated.
 - Every existing project carries the general preset after migration/seed
   (integrity test), and the project list batch-loads section sets (no N+1).
-- Backup: format version bump, round-trip test proving the
-  `procurement_categories` contribution move is transparent.
+- Migration: the one-shot fold script turns a pre-fold database into a new
+  one — ships onto their base projects, sections mounted, equipment /
+  worklists / ship tags / ship covers re-keyed, `ships` module grants and PAT
+  scopes rewritten — verified rule by rule against a committed pre-fold
+  fixture, with a reconciliation report and a non-zero exit on unexplained row
+  loss.
+- Backup: pre-fold archives are refused with an error naming the migration
+  script; round-trip test proving the `procurement_categories` contribution
+  move is transparent for post-fold archives.
 - Web: `/projects` list filters by section; ship tabs appear only for projects
   with the ship sections; `/ships/*` removed; registries (sidebar, search,
   favorites, overview, page titles) work for ship projects.
