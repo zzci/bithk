@@ -85,6 +85,7 @@ const SCHEMA_DDL: readonly string[] = [
     status TEXT NOT NULL DEFAULT 'active',
     description TEXT,
     ship_id TEXT,
+    parent_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
     cover_reference_id TEXT,
     creator_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     version INTEGER NOT NULL DEFAULT 1,
@@ -151,6 +152,14 @@ const SCHEMA_DDL: readonly string[] = [
     description TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+  )`,
+  // `createProject` also mounts the preset's sections (PLAN-108).
+  `CREATE TABLE IF NOT EXISTS project_sections (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    sort_order INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, key)
   )`,
 ];
 

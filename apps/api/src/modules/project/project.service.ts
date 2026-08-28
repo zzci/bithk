@@ -1,4 +1,5 @@
 import type { ProjectCapability, ProjectStatus } from "./schema";
+import type { ProjectPreset } from "./section.registry";
 import type { Config } from "@/config";
 import type { AppDatabase, AppTransaction } from "@/db";
 import type { FileServiceConfig } from "@/modules/file";
@@ -25,6 +26,8 @@ import { nanoid, ulid } from "@/shared/lib/id";
 import { seedProjectCategoriesTx } from "./project.global-categories";
 import { parseCapabilities, resolveRole, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects } from "./schema";
+import { DEFAULT_PROJECT_PRESET } from "./section.registry";
+import { listSections, loadSectionsForProjects, provisionSections } from "./section.service";
 
 /** Settings key backing the admin "Project Defaults" cover picker. */
 export const PROJECT_DEFAULT_COVER_KEY = "project.defaults.coverReferenceId";
@@ -109,6 +112,9 @@ export interface ProjectView {
   // project apart so it can offer the ship's worklists as work-order references.
   readonly shipId: string | null;
   readonly tags: readonly ProjectTagView[];
+  // Mounted section keys in tab order (PLAN-108 §2). The single source of truth
+  // for what this project is — the web assembles its tabs from this list.
+  readonly sections: readonly string[];
   readonly coverImageUrl: string | null;
   readonly creatorId: string;
   readonly version: number;
@@ -130,6 +136,7 @@ export function composeProject(
   row: ProjectRow,
   projectTagList: readonly ProjectTagView[] = [],
   coverImageUrl: string | null = null,
+  sections: readonly string[] = [],
 ): ProjectView {
   return {
     id: row.shortId,
@@ -139,6 +146,7 @@ export function composeProject(
     description: row.description,
     shipId: row.shipId,
     tags: projectTagList,
+    sections,
     coverImageUrl,
     creatorId: row.creatorId,
     version: row.version,
@@ -259,6 +267,15 @@ export interface CreateProjectInput {
   // cover-image upload endpoint; `createProject` fills this from the
   // `project.defaults.coverReferenceId` setting when the caller omits it.
   readonly coverReferenceId?: string | null | undefined;
+  // Optional parent project, given as its SHORT id. One level only — see
+  // `setProjectParent` for the full rule set.
+  readonly parentId?: string | undefined;
+  // Which sections the new project mounts. Defaults to `general`.
+  readonly preset?: ProjectPreset | undefined;
+  // Raw per-section create payload, keyed by section key; handed to each
+  // section's `provision` hook (e.g. `ship-profile` reads its profile fields
+  // from it). The project module never interprets the values.
+  readonly sectionData?: Readonly<Record<string, unknown>> | undefined;
 }
 
 /**
@@ -274,6 +291,9 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
   // lowercase: both the auto-generated value and any supplied code are lowercased.
   const code = (input.code ?? `p-${shortId}`).toLowerCase();
   const now = new Date().toISOString();
+  // A brand-new project can be neither its own parent nor a parent already, so
+  // only the "parent must exist and be top-level" half of the rule set applies.
+  const parentId = input.parentId === undefined ? null : resolveParentTx(tx, input.parentId);
 
   tx.insert(projects).values({
     id,
@@ -284,6 +304,7 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     status: "active",
     description: input.description ?? null,
     shipId: input.shipId ?? null,
+    parentId,
     coverReferenceId: input.coverReferenceId ?? null,
     creatorId: input.creatorId,
     version: 1,
@@ -302,6 +323,16 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     createdAt: now,
     updatedAt: now,
   }).run();
+
+  // Mount the preset's sections and run their copy-on-create hooks, in the same
+  // transaction as the core row (PLAN-108 §3).
+  const preset = input.preset ?? DEFAULT_PROJECT_PRESET;
+  provisionSections(tx, id, preset, {
+    preset,
+    now,
+    creatorId: input.creatorId,
+    sectionData: input.sectionData,
+  });
 
   // Copy-on-create: seed this project's procurement categories from the
   // current global template set (no-op when none are defined).
@@ -350,9 +381,14 @@ export async function getProjectByShortId(db: AppDatabase, shortId: string): Pro
   ).get();
 }
 
-/** Compose a single project view with its tags and cover image loaded. */
+/** Compose a single project view with its tags, cover image and sections loaded. */
 export async function composeProjectWithTags(db: AppDatabase, row: ProjectRow): Promise<ProjectView> {
-  return composeProject(row, await loadTagsForProject(db, row.id), await loadCoverUrlForProject(db, row));
+  return composeProject(
+    row,
+    await loadTagsForProject(db, row.id),
+    await loadCoverUrlForProject(db, row),
+    await listSections(db, row.id),
+  );
 }
 
 /** Resolve the internal project id (ULID) from a short id, excluding soft-deleted rows. */
@@ -424,10 +460,13 @@ export async function listProjects(db: AppDatabase, params: ListProjectParams = 
   const rows = await db.select().from(projects).where(where).orderBy(desc(projects.id)).limit(limit).offset((page - 1) * limit).all();
   const tagMap = await loadTagsByProject(db, rows.map(r => r.id));
   const coverMap = await loadCoverUrlsByProject(db, rows);
+  // One batched query for the whole page — never one per row.
+  const sectionMap = await loadSectionsForProjects(db, rows.map(r => r.id));
   const data = rows.map(r => composeProject(
     r,
     tagMap.get(r.id) ?? [],
     coverMap.get(r.id) ?? null,
+    sectionMap.get(r.id) ?? [],
   ));
 
   return { data, total };
@@ -524,6 +563,13 @@ export async function softDeleteProject(db: AppDatabase, shortId: string): Promi
     if (updated.changes === 0)
       return;
 
+    // Sub-projects are UNLINKED, never cascade-deleted (PLAN-108 §6): they are
+    // independent projects that merely hung off this one.
+    tx.update(projects)
+      .set({ parentId: null, updatedAt: now, version: sql`${projects.version} + 1` })
+      .where(eq(projects.parentId, project.id))
+      .run();
+
     const childItemIds = [
       ...tx.select({ itemId: issueDetails.itemId }).from(issueDetails).where(eq(issueDetails.projectId, project.id)).all(),
       ...tx.select({ itemId: procurementDetails.itemId }).from(procurementDetails).where(eq(procurementDetails.projectId, project.id)).all(),
@@ -540,6 +586,77 @@ export async function softDeleteProject(db: AppDatabase, shortId: string): Promi
       .where(and(eq(relationTuples.namespace, "item"), inArray(relationTuples.objectId, childItemIds)))
       .run();
   });
+}
+
+// ─── Sub-project hierarchy ────────────────────────────────────────────────
+//
+// ONE level only, and enforced here rather than in the DB (PLAN-108 §1): a
+// project that already has a parent cannot become one, and a project that
+// already has children cannot be given a parent. The self-FK carries only
+// `ON DELETE SET NULL`, so a hard-deleted parent unlinks its children instead
+// of taking them with it. There is no permission inheritance across the link.
+
+/**
+ * Resolve a parent SHORT id to its internal id, rejecting a parent that is
+ * missing, soft-deleted, or itself a child. Synchronous so it can run inside a
+ * bun:sqlite transaction.
+ */
+function resolveParentTx(tx: AppTransaction, parentShortId: string): string {
+  const parent = tx.select({ id: projects.id, parentId: projects.parentId })
+    .from(projects)
+    .where(and(eq(projects.shortId, parentShortId), isNull(projects.deletedAt)))
+    .get();
+  if (!parent)
+    throw new NotFoundError("Project", parentShortId);
+  if (parent.parentId !== null)
+    throw new ValidationError("Project hierarchy is one level deep; a sub-project cannot be a parent", { parentId: parentShortId });
+  return parent.id;
+}
+
+/**
+ * Link a project under a parent, or detach it when `parentShortId` is null.
+ * Returns the updated row, or undefined when the project itself is gone.
+ */
+export async function setProjectParent(
+  db: AppDatabase,
+  shortId: string,
+  parentShortId: string | null,
+): Promise<ProjectRow | undefined> {
+  const project = await getProjectByShortId(db, shortId);
+  if (!project)
+    return undefined;
+
+  const now = new Date().toISOString();
+  db.transaction((tx) => {
+    let parentId: string | null = null;
+    if (parentShortId !== null) {
+      if (parentShortId === shortId)
+        throw new ValidationError("A project cannot be its own parent", { parentId: parentShortId });
+      parentId = resolveParentTx(tx, parentShortId);
+      // Would make this project both a child and a parent.
+      const child = tx.select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.parentId, project.id), isNull(projects.deletedAt)))
+        .get();
+      if (child)
+        throw new ValidationError("Project hierarchy is one level deep; a project with sub-projects cannot be given a parent", { parentId: parentShortId });
+    }
+
+    runWrite(() => tx.update(projects)
+      .set({ parentId, updatedAt: now, version: sql`${projects.version} + 1` })
+      .where(eq(projects.id, project.id))
+      .run());
+  });
+
+  return await db.select().from(projects).where(eq(projects.id, project.id)).get();
+}
+
+/** The live sub-projects of a parent, newest first. Empty when the parent is gone. */
+export async function listProjectChildren(db: AppDatabase, parentShortId: string): Promise<readonly ProjectRow[]> {
+  const parentId = await resolveProjectId(db, parentShortId);
+  if (!parentId)
+    return [];
+  return await db.select().from(projects).where(and(eq(projects.parentId, parentId), isNull(projects.deletedAt))).orderBy(desc(projects.id)).all();
 }
 
 // ─── Cover image ──────────────────────────────────────────────────────────

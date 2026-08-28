@@ -8,6 +8,13 @@
       "when": 1783147270852,
       "tag": "0000_fluffy_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787893337729,
+      "tag": "0001_outstanding_pixie",
+      "breakpoints": true
     }
   ]
 }
