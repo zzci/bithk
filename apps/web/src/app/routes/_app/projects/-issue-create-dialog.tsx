@@ -54,8 +54,8 @@ interface CreateIssueDialogProps {
   readonly initialStatus: IssueStatus;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  /** When set, a worklist pill lets the work order reference one of the ship's worklists. */
-  readonly shipId?: string | null;
+  /** When true, a worklist pill lets the work order reference one of the project's worklists. */
+  readonly canReferenceWorklists?: boolean;
 }
 
 // Render a worklist's free-form `checklist` defensively: a JSON array of strings
@@ -74,7 +74,7 @@ function renderChecklist(checklist: string | null): string {
   return checklist;
 }
 
-export function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, open, onOpenChange, shipId = null }: CreateIssueDialogProps) {
+export function CreateIssueDialog({ projectId, members, memberLabels, initialStatus, open, onOpenChange, canReferenceWorklists = false }: CreateIssueDialogProps) {
   const { t } = useTranslation(["projects", "common", "issues"]);
   const createIssue = useCreateProjectIssue();
   const limits = useUploadLimits();
@@ -368,10 +368,10 @@ export function CreateIssueDialog({ projectId, members, memberLabels, initialSta
               onSelect={onPickFiles}
             />
 
-            {/* Worklist pill: only on a ship base project. Opens the picker; a
+            {/* Worklist pill: only while the `worklist` section is mounted. Opens the picker; a
                 selected worklist switches it to the solid/foreground state and
                 shows its name. Mirrors the attachment pill's styling/states. */}
-            {shipId && (
+            {canReferenceWorklists && (
               <Button
                 type="button"
                 variant="outline"
@@ -446,9 +446,9 @@ export function CreateIssueDialog({ projectId, members, memberLabels, initialSta
           </div>
         </form>
 
-        {/* Worklist picker — only mounted on a ship base project. Portals out of
+        {/* Worklist picker — only mounted with the `worklist` section. Portals out of
             this dialog, so it overlays cleanly on top of the composer. */}
-        {shipId && (
+        {canReferenceWorklists && (
           <WorklistPicker
             projectId={projectId}
             open={worklistPickerOpen}

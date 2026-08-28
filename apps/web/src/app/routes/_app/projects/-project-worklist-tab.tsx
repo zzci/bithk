@@ -1,5 +1,9 @@
+// `worklist` section tab: the project's own worklists, optionally seeded from
+// the admin-owned global knowledge base.
+
 import type { FilterDimension } from "@/shared/components/list-filter";
-import type { ShipView, WorklistInput, WorklistView } from "@/shared/lib/api/ships";
+import type { WorklistInput, WorklistView } from "@/shared/lib/api/project-sections";
+import type { ProjectView } from "@/shared/lib/api/projects";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,17 +33,17 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
-  useCreateShipWorklist,
-  useDeleteShipWorklist,
+  useCreateProjectWorklist,
+  useDeleteProjectWorklist,
   useGlobalWorklists,
-  useShipWorklists,
-  useUpdateShipWorklist,
+  useProjectWorklists,
+  useUpdateProjectWorklist,
   useWorklistTags,
-} from "@/shared/lib/api/ships";
+} from "@/shared/lib/api/project-sections";
 import { errorMessage } from "@/shared/lib/errors";
 
-interface ShipWorklistTabProps {
-  readonly ship: ShipView;
+interface ProjectWorklistTabProps {
+  readonly project: ProjectView;
   readonly canManage: boolean;
 }
 
@@ -96,7 +100,7 @@ function preview(value: string | null): string {
   return value.replace(/\s+/g, " ").slice(0, 140);
 }
 
-export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
+export function ProjectWorklistTab({ project, canManage }: ProjectWorklistTabProps) {
   const { t } = useTranslation(["ships", "common"]);
 
   // Selected tag ids; empty means no tag filter. A worklist matches the union
@@ -105,11 +109,11 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
   const worklistTags = useWorklistTags().data ?? [];
   const tagIds = selectedTagIds.length > 0 ? selectedTagIds : undefined;
 
-  const worklistsQuery = useShipWorklists(ship.id, tagIds);
+  const worklistsQuery = useProjectWorklists(project.id, tagIds);
   const globalWorklistsQuery = useGlobalWorklists(canManage);
-  const createWorklist = useCreateShipWorklist();
-  const updateWorklist = useUpdateShipWorklist();
-  const deleteWorklist = useDeleteShipWorklist();
+  const createWorklist = useCreateProjectWorklist();
+  const updateWorklist = useUpdateProjectWorklist();
+  const deleteWorklist = useDeleteProjectWorklist();
 
   const [worklistDialog, setWorklistDialog] = useState<"create" | "edit" | null>(null);
   const [editWorklist, setEditWorklist] = useState<WorklistView | null>(null);
@@ -142,7 +146,7 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
     if (!deleteWorklistTarget)
       return;
     deleteWorklist.mutate(
-      { shipId: ship.id, worklistId: deleteWorklistTarget.id },
+      { projectId: project.id, worklistId: deleteWorklistTarget.id },
       { onSuccess: () => setDeleteWorklistTarget(null) },
     );
   };
@@ -231,13 +235,13 @@ export function ShipWorklistTab({ ship, canManage }: ShipWorklistTabProps) {
           onSubmit={(form) => {
             if (worklistDialog === "edit" && editWorklist) {
               updateWorklist.mutate(
-                { shipId: ship.id, worklistId: editWorklist.id, ...worklistPayload(form) },
+                { projectId: project.id, worklistId: editWorklist.id, ...worklistPayload(form) },
                 { onSuccess: closeWorklistDialog },
               );
               return;
             }
             createWorklist.mutate(
-              { shipId: ship.id, ...worklistPayload(form) },
+              { projectId: project.id, ...worklistPayload(form) },
               { onSuccess: closeWorklistDialog },
             );
           }}

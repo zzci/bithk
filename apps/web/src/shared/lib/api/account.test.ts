@@ -119,16 +119,16 @@ describe("group request functions", () => {
 
   it("reads and writes the built-in Default group modules", async () => {
     fetchMock.mockImplementation(async () =>
-      jsonResponse({ success: true, data: { modules: ["ships"] } }));
+      jsonResponse({ success: true, data: { modules: ["projects"] } }));
 
     const read = await getDefaultGroupModules();
-    expect(read).toEqual(["ships"]);
+    expect(read).toEqual(["projects"]);
     expect(call(0)[0]).toBe("/api/account/groups/default");
     expect(call(0)[1]?.method).toBeUndefined();
 
-    const written = await updateDefaultGroupModules(["ships"]);
-    expect(written).toEqual(["ships"]);
+    const written = await updateDefaultGroupModules(["projects"]);
+    expect(written).toEqual(["projects"]);
     expect(call(1)[1]?.method).toBe("PATCH");
-    expect(JSON.parse(String(call(1)[1]?.body))).toEqual({ modules: ["ships"] });
+    expect(JSON.parse(String(call(1)[1]?.body))).toEqual({ modules: ["projects"] });
   });
 });

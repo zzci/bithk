@@ -1,14 +1,17 @@
-// Pure helpers for the ship create/edit form, extracted so the field
-// normalization (trimming, number parsing, empty → null) is unit-testable
-// without a render harness.
+// Pure helpers for the ship-profile edit form, extracted so the field
+// normalization (trimming, number parsing, empty → null) and the sane-range
+// validation are unit-testable without a render harness.
+//
+// Scope is exactly the `ship-profile` section's payload: the hull number, the
+// vessel lifecycle status and the maritime particulars. Name, description,
+// record status, cover and tags belong to the PROJECT and are edited through
+// the project settings dialog, not here.
 
-import type { CreateShipInput, ShipStatus, ShipView, UpdateShipInput } from "@/shared/lib/api/ships";
+import type { ShipProfileInput, ShipProfileView, ShipStatus } from "@/shared/lib/api/project-sections";
 
-export interface ShipFormState {
-  readonly name: string;
-  readonly code: string;
-  readonly status: ShipStatus;
-  readonly tags: readonly string[];
+export interface ShipProfileFormState {
+  readonly hullNumber: string;
+  readonly shipStatus: ShipStatus;
   readonly model: string;
   readonly builder: string;
   readonly buildYear: string;
@@ -23,14 +26,11 @@ export interface ShipFormState {
   readonly flagState: string;
   readonly registryPort: string;
   readonly ownerName: string;
-  readonly description: string;
 }
 
-export const EMPTY_SHIP_FORM: ShipFormState = {
-  name: "",
-  code: "",
-  status: "laid_up",
-  tags: [],
+export const EMPTY_SHIP_PROFILE_FORM: ShipProfileFormState = {
+  hullNumber: "",
+  shipStatus: "laid_up",
   model: "",
   builder: "",
   buildYear: "",
@@ -45,7 +45,6 @@ export const EMPTY_SHIP_FORM: ShipFormState = {
   flagState: "",
   registryPort: "",
   ownerName: "",
-  description: "",
 };
 
 /** Stringify a nullable number for an input value ("" when unset). */
@@ -53,32 +52,29 @@ function numToInput(v: number | null): string {
   return v === null ? "" : String(v);
 }
 
-/** Seed the form from an existing ship (edit mode). */
-export function shipFormFromView(ship: ShipView): ShipFormState {
+/** Seed the form from the project's current ship-profile payload. */
+export function shipProfileFormFromView(profile: ShipProfileView): ShipProfileFormState {
   return {
-    name: ship.name,
-    code: ship.code,
-    status: ship.status,
-    tags: ship.tags.map(tag => tag.name),
-    model: ship.model ?? "",
-    builder: ship.builder ?? "",
-    buildYear: numToInput(ship.buildYear),
-    lengthOverall: numToInput(ship.lengthOverall),
-    beam: numToInput(ship.beam),
-    draft: numToInput(ship.draft),
-    airDraft: numToInput(ship.airDraft),
-    grossTonnage: numToInput(ship.grossTonnage),
-    imoNumber: ship.imoNumber ?? "",
-    mmsi: ship.mmsi ?? "",
-    callSign: ship.callSign ?? "",
-    flagState: ship.flagState ?? "",
-    registryPort: ship.registryPort ?? "",
-    ownerName: ship.ownerName ?? "",
-    description: ship.description ?? "",
+    hullNumber: profile.hullNumber,
+    shipStatus: profile.shipStatus,
+    model: profile.model ?? "",
+    builder: profile.builder ?? "",
+    buildYear: numToInput(profile.buildYear),
+    lengthOverall: numToInput(profile.lengthOverall),
+    beam: numToInput(profile.beam),
+    draft: numToInput(profile.draft),
+    airDraft: numToInput(profile.airDraft),
+    grossTonnage: numToInput(profile.grossTonnage),
+    imoNumber: profile.imoNumber ?? "",
+    mmsi: profile.mmsi ?? "",
+    callSign: profile.callSign ?? "",
+    flagState: profile.flagState ?? "",
+    registryPort: profile.registryPort ?? "",
+    ownerName: profile.ownerName ?? "",
   };
 }
 
-/** Trimmed string, or null when blank (PATCH clears the column). */
+/** Trimmed string, or null when blank (the PUT clears the column). */
 function textOrNull(v: string): string | null {
   const t = v.trim();
   return t.length > 0 ? t : null;
@@ -138,14 +134,19 @@ export function isNumberFieldValid(field: ShipNumberField, raw: string): boolean
 }
 
 /** The numeric fields whose current value is out of range (empty result == valid). */
-export function shipFormNumberErrors(state: ShipFormState): ShipNumberField[] {
+export function shipProfileFormNumberErrors(state: ShipProfileFormState): ShipNumberField[] {
   return (Object.keys(SHIP_NUMBER_FIELD_RANGES) as ShipNumberField[])
     .filter(field => !isNumberFieldValid(field, state[field]));
 }
 
-/** The descriptive (non-core) ship columns, normalized for a PATCH body. */
-function descriptiveFields(state: ShipFormState): Omit<UpdateShipInput, "name" | "code" | "status"> {
+/**
+ * Build the PUT body. A blank hull number is omitted rather than sent empty —
+ * the API keeps the existing one; every other field clears to null when blank.
+ */
+export function shipProfileFormToUpdate(state: ShipProfileFormState): ShipProfileInput {
   return {
+    shipStatus: state.shipStatus,
+    ...(state.hullNumber.trim() ? { hullNumber: state.hullNumber.trim() } : {}),
     model: textOrNull(state.model),
     builder: textOrNull(state.builder),
     buildYear: parseNumberOrNull(state.buildYear),
@@ -160,31 +161,5 @@ function descriptiveFields(state: ShipFormState): Omit<UpdateShipInput, "name" |
     flagState: textOrNull(state.flagState),
     registryPort: textOrNull(state.registryPort),
     ownerName: textOrNull(state.ownerName),
-    description: textOrNull(state.description),
-  };
-}
-
-/**
- * Build the create payload. Code is omitted when blank so the API generates a
- * hull number. Descriptive fields are not part of the create form (kept
- * minimal); they are set later via edit.
- */
-export function shipFormToCreate(state: ShipFormState): CreateShipInput {
-  return {
-    name: state.name.trim(),
-    status: state.status,
-    ...(state.code.trim() ? { code: state.code.trim() } : {}),
-    ...(state.tags.length > 0 ? { tags: state.tags } : {}),
-  };
-}
-
-/** Build the update payload (full field set; blank code is omitted, never cleared). */
-export function shipFormToUpdate(state: ShipFormState): UpdateShipInput {
-  return {
-    name: state.name.trim(),
-    status: state.status,
-    tags: state.tags,
-    ...(state.code.trim() ? { code: state.code.trim() } : {}),
-    ...descriptiveFields(state),
   };
 }

@@ -1,8 +1,13 @@
-// Ship "bind a project" picker: two modes inside a tabbed dialog.
-//   (a) "existing" — search the fleet's unbound projects and bind one.
-//   (b) "create"   — create a new project and auto-bind it to the ship.
-// Both modes rely on useBindShipProject's onSuccess invalidation to refresh the
-// ship's project list. Gated on `canManage` at the call site.
+// "Add a sub-project" picker: two modes inside a tabbed dialog.
+//   (a) "existing" — search projects and link one as a child.
+//   (b) "create"   — create a new project already parented to this one.
+// Both rely on the mutations' onSuccess invalidation to refresh the children
+// list. Gated on `canManage` at the call site.
+//
+// The hierarchy is one level deep, so the API rejects a candidate that is
+// already a child or already has children (422). `ProjectView` carries no
+// parent link, so that can only be surfaced from the response, not filtered
+// out client-side.
 
 import type { ProjectView } from "@/shared/lib/api/projects";
 import { useEffect, useState } from "react";
@@ -20,24 +25,23 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { useDebounce } from "@/shared/hooks/use-debounce";
-import { useCreateProject, useProjects } from "@/shared/lib/api/projects";
-import { useBindShipProject } from "@/shared/lib/api/ships";
+import { useCreateProjectChild, useLinkProjectChild, useProjects } from "@/shared/lib/api/projects";
 import { errorMessage } from "@/shared/lib/errors";
 
-interface ShipProjectBindDialogProps {
-  readonly shipId: string;
-  /** Ids already bound to this ship — excluded from the candidate list. */
-  readonly boundProjectIds: readonly string[];
+interface ProjectChildAddDialogProps {
+  readonly parentId: string;
+  /** Ids already linked to this parent — excluded from the candidate list. */
+  readonly linkedIds: readonly string[];
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
 
-export function ShipProjectBindDialog({
-  shipId,
-  boundProjectIds,
+export function ProjectChildAddDialog({
+  parentId,
+  linkedIds,
   open,
   onOpenChange,
-}: ShipProjectBindDialogProps) {
+}: ProjectChildAddDialogProps) {
   const { t } = useTranslation(["ships", "projects", "common"]);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
@@ -45,8 +49,8 @@ export function ShipProjectBindDialog({
   const [code, setCode] = useState("");
 
   const projectsQuery = useProjects({ q: debouncedSearch.trim() || undefined, limit: 50 });
-  const bind = useBindShipProject();
-  const createProject = useCreateProject();
+  const link = useLinkProjectChild();
+  const createChild = useCreateProjectChild();
 
   /* eslint-disable react/set-state-in-effect -- reset the picker fields whenever
      the dialog opens so a previous draft never leaks into a fresh session. */
@@ -59,35 +63,31 @@ export function ShipProjectBindDialog({
   }, [open]);
   /* eslint-enable react/set-state-in-effect */
 
-  // Only projects without a ship and not already bound are bindable candidates.
+  // The parent itself and its existing children are never candidates.
   const candidates = (projectsQuery.data?.data ?? []).filter(
-    p => !p.shipId && !boundProjectIds.includes(p.id),
+    p => p.id !== parentId && !linkedIds.includes(p.id),
   );
 
-  const onBound = () => {
+  const onLinked = () => {
     toast.success(t("projects.bound"));
     onOpenChange(false);
   };
-  const onBindError = (e: unknown) =>
+  const onLinkError = (e: unknown) =>
     toast.error(errorMessage(e, t("common:common.error.operationFailed")));
 
-  const bindExisting = (project: ProjectView) => {
-    if (bind.isPending)
+  const linkExisting = (project: ProjectView) => {
+    if (link.isPending)
       return;
-    bind.mutate({ shipId, projectShortId: project.id }, { onSuccess: onBound, onError: onBindError });
+    link.mutate({ parentId, childId: project.id }, { onSuccess: onLinked, onError: onLinkError });
   };
 
-  const createAndBind = (event: React.FormEvent) => {
+  const createAndLink = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!name.trim() || createProject.isPending || bind.isPending)
+    if (!name.trim() || createChild.isPending || link.isPending)
       return;
-    createProject.mutate(
-      { name: name.trim(), code: code.trim() || null },
-      {
-        onSuccess: newProject =>
-          bind.mutate({ shipId, projectShortId: newProject.id }, { onSuccess: onBound, onError: onBindError }),
-        onError: onBindError,
-      },
+    createChild.mutate(
+      { parentId, name: name.trim(), code: code.trim() || null },
+      { onSuccess: onLinked, onError: onLinkError },
     );
   };
 
@@ -123,7 +123,7 @@ export function ShipProjectBindDialog({
                           <p className="truncate text-sm font-medium">{project.name}</p>
                           {project.code && <p className="truncate font-mono text-xs text-muted-foreground">{project.code}</p>}
                         </div>
-                        <Button size="sm" onClick={() => bindExisting(project)} disabled={bind.isPending}>
+                        <Button size="sm" onClick={() => linkExisting(project)} disabled={link.isPending}>
                           {t("projects.bind")}
                         </Button>
                       </li>
@@ -133,11 +133,11 @@ export function ShipProjectBindDialog({
           </TabsContent>
 
           <TabsContent value="create">
-            <form onSubmit={createAndBind} className="space-y-3">
+            <form onSubmit={createAndLink} className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="ship-bind-new-name">{t("projects.newName")}</Label>
+                <Label htmlFor="project-child-new-name">{t("projects.newName")}</Label>
                 <Input
-                  id="ship-bind-new-name"
+                  id="project-child-new-name"
                   value={name}
                   onChange={e => setName(e.target.value)}
                   autoFocus
@@ -145,15 +145,15 @@ export function ShipProjectBindDialog({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ship-bind-new-code">{t("projects.newCode")}</Label>
+                <Label htmlFor="project-child-new-code">{t("projects.newCode")}</Label>
                 <Input
-                  id="ship-bind-new-code"
+                  id="project-child-new-code"
                   value={code}
                   onChange={e => setCode(e.target.value)}
                 />
               </div>
               <div className="flex justify-end">
-                <Button type="submit" disabled={!name.trim() || createProject.isPending || bind.isPending}>
+                <Button type="submit" disabled={!name.trim() || createChild.isPending || link.isPending}>
                   {t("projects.bind")}
                 </Button>
               </div>

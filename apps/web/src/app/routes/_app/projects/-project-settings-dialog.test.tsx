@@ -39,7 +39,7 @@ const project: ProjectView = {
   name: "Bridge",
   status: "active",
   description: null,
-  shipId: null,
+  sections: ["issues", "procurement", "files"],
   tags: [],
   coverImageUrl: null,
   creatorId: "u1",

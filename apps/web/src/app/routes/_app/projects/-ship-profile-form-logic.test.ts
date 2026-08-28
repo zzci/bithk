@@ -1,25 +1,20 @@
-import type { ShipView } from "@/shared/lib/api/ships";
+import type { ShipProfileView } from "@/shared/lib/api/project-sections";
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_SHIP_FORM,
+  EMPTY_SHIP_PROFILE_FORM,
   isNumberFieldValid,
   parseNumberOrNull,
-  shipFormFromView,
-  shipFormNumberErrors,
-  shipFormToCreate,
-  shipFormToUpdate,
-} from "./-ship-form-logic";
+  shipProfileFormFromView,
+  shipProfileFormNumberErrors,
+  shipProfileFormToUpdate,
+} from "./-ship-profile-form-logic";
 
 const CURRENT_YEAR = new Date().getUTCFullYear();
 
-function ship(overrides: Partial<ShipView> = {}): ShipView {
+function profile(overrides: Partial<ShipProfileView> = {}): ShipProfileView {
   return {
-    id: "s1",
-    code: "HULL-1",
-    name: "Serenity",
-    status: "active",
-    tags: [],
-    baseProjectId: "p1",
+    hullNumber: "HULL-1",
+    shipStatus: "active",
     model: "Custom 40",
     builder: "Acme Yards",
     buildYear: 2024,
@@ -34,10 +29,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     flagState: "Malta",
     registryPort: "Valletta",
     ownerName: "Jane Doe",
-    description: "Flagship build",
-    coverImageUrl: null,
-    creatorId: "u1",
-    version: 1,
+    createdAt: "2026-05-24T00:00:00.000Z",
     updatedAt: "2026-05-24T00:00:00.000Z",
     ...overrides,
   };
@@ -87,15 +79,15 @@ describe("isNumberFieldValid", () => {
   });
 });
 
-describe("shipFormNumberErrors", () => {
+describe("shipProfileFormNumberErrors", () => {
   it("is empty for a valid form", () => {
-    expect(shipFormNumberErrors(EMPTY_SHIP_FORM)).toEqual([]);
-    expect(shipFormNumberErrors({ ...EMPTY_SHIP_FORM, buildYear: "2024", lengthOverall: "40.5" })).toEqual([]);
+    expect(shipProfileFormNumberErrors(EMPTY_SHIP_PROFILE_FORM)).toEqual([]);
+    expect(shipProfileFormNumberErrors({ ...EMPTY_SHIP_PROFILE_FORM, buildYear: "2024", lengthOverall: "40.5" })).toEqual([]);
   });
 
   it("lists each out-of-range numeric field", () => {
-    const errors = shipFormNumberErrors({
-      ...EMPTY_SHIP_FORM,
+    const errors = shipProfileFormNumberErrors({
+      ...EMPTY_SHIP_PROFILE_FORM,
       buildYear: "1800",
       lengthOverall: "-5",
       grossTonnage: "0",
@@ -107,60 +99,37 @@ describe("shipFormNumberErrors", () => {
   });
 });
 
-describe("shipFormFromView", () => {
+describe("shipProfileFormFromView", () => {
   it("seeds every field, stringifying numbers and defaulting nulls to empty", () => {
-    const form = shipFormFromView(ship({ model: null, buildYear: null }));
-    expect(form.name).toBe("Serenity");
-    expect(form.code).toBe("HULL-1");
+    const form = shipProfileFormFromView(profile({ model: null, buildYear: null }));
+    expect(form.hullNumber).toBe("HULL-1");
+    expect(form.shipStatus).toBe("active");
     expect(form.buildYear).toBe("");
     expect(form.model).toBe("");
     expect(form.lengthOverall).toBe("40.5");
   });
-
-  it("carries the tag names through to the form", () => {
-    const form = shipFormFromView(ship({ tags: [{ id: "t1", name: "Refit" }, { id: "t2", name: "Survey" }] }));
-    expect(form.tags).toEqual(["Refit", "Survey"]);
-  });
 });
 
-describe("shipFormToCreate", () => {
-  it("trims the name and omits a blank code (API auto-generates it)", () => {
-    const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "  Aurora  " });
-    expect(out).toEqual({ name: "Aurora", status: "laid_up" });
-    expect("code" in out).toBe(false);
-  });
-
-  it("carries selected tags and omits them when empty", () => {
-    expect("tags" in shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "Aurora" })).toBe(false);
-    const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "Aurora", tags: ["Refit"] });
-    expect(out.tags).toEqual(["Refit"]);
-  });
-
-  it("includes a non-blank trimmed code", () => {
-    const out = shipFormToCreate({ ...EMPTY_SHIP_FORM, name: "Aurora", code: " H-9 " });
-    expect(out.code).toBe("H-9");
-  });
-});
-
-describe("shipFormToUpdate", () => {
-  it("normalizes descriptive text to null when blank and parses numbers", () => {
-    const out = shipFormToUpdate({
-      ...EMPTY_SHIP_FORM,
-      name: "Serenity",
+describe("shipProfileFormToUpdate", () => {
+  it("normalizes particulars to null when blank and parses numbers", () => {
+    const out = shipProfileFormToUpdate({
+      ...EMPTY_SHIP_PROFILE_FORM,
+      hullNumber: "H-9",
       builder: "  Acme  ",
       model: "",
       buildYear: "2024",
       beam: "",
     });
-    expect(out.name).toBe("Serenity");
+    expect(out.hullNumber).toBe("H-9");
     expect(out.builder).toBe("Acme");
     expect(out.model).toBeNull();
     expect(out.buildYear).toBe(2024);
     expect(out.beam).toBeNull();
   });
 
-  it("omits a blank code so it is never cleared on edit", () => {
-    const out = shipFormToUpdate({ ...EMPTY_SHIP_FORM, name: "Serenity", code: "" });
-    expect("code" in out).toBe(false);
+  it("omits a blank hull number so it is never cleared on edit", () => {
+    const out = shipProfileFormToUpdate({ ...EMPTY_SHIP_PROFILE_FORM, hullNumber: "  " });
+    expect("hullNumber" in out).toBe(false);
+    expect(out.shipStatus).toBe("laid_up");
   });
 });

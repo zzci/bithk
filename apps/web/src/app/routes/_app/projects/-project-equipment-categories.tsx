@@ -1,13 +1,13 @@
-// Per-ship equipment-category management, surfaced from the Settings tab.
+// Per-project equipment-category management, surfaced from the Equipment tab.
 //
 // Mirrors the admin global-template section (-settings-ship.tsx) and the
-// per-project procurement-categories surface (-project-settings-categories.tsx),
-// but scoped to a single ship via the per-ship hooks. Rendered inline as a
-// section holding the ship's own category set (seeded from the global template
-// on creation); create/edit/delete all hit `/ships/:shortId/equipment-categories`.
-// All write affordances are gated by the ship `canManage` flag.
+// per-project procurement-categories surface (-project-settings-categories.tsx).
+// The project owns its own category set, copied from the global template when
+// the `equipment` section is provisioned; create/edit/delete all hit
+// `/projects/:projectId/equipment-categories`. All write affordances are gated
+// by the project `canManage` flag.
 
-import type { ShipEquipmentCategory } from "@/shared/lib/api/ship-equipment-categories";
+import type { ProjectEquipmentCategory } from "@/shared/lib/api/project-sections";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -36,27 +36,27 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { resolveCategoryName } from "@/shared/lib/api/global-equipment-categories";
 import {
-  useCreateShipEquipmentCategory,
-  useDeleteShipEquipmentCategory,
-  useShipEquipmentCategories,
-  useUpdateShipEquipmentCategory,
-} from "@/shared/lib/api/ship-equipment-categories";
+  useCreateProjectEquipmentCategory,
+  useDeleteProjectEquipmentCategory,
+  useProjectEquipmentCategories,
+  useUpdateProjectEquipmentCategory,
+} from "@/shared/lib/api/project-sections";
 import { errorMessage } from "@/shared/lib/errors";
 
-interface ShipEquipmentCategoriesSectionProps {
-  readonly shipShortId: string;
+interface ProjectEquipmentCategoriesSectionProps {
+  readonly projectId: string;
   readonly canManage: boolean;
 }
 
-export function ShipEquipmentCategoriesSection({ shipShortId, canManage }: ShipEquipmentCategoriesSectionProps) {
+export function ProjectEquipmentCategoriesSection({ projectId, canManage }: ProjectEquipmentCategoriesSectionProps) {
   const { t, i18n } = useTranslation(["ships", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
-  const categoriesQuery = useShipEquipmentCategories(shipShortId);
-  const deleteCategory = useDeleteShipEquipmentCategory(shipShortId);
+  const categoriesQuery = useProjectEquipmentCategories(projectId);
+  const deleteCategory = useDeleteProjectEquipmentCategory(projectId);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<ShipEquipmentCategory | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ShipEquipmentCategory | null>(null);
+  const [editTarget, setEditTarget] = useState<ProjectEquipmentCategory | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectEquipmentCategory | null>(null);
 
   const categories = categoriesQuery.data ?? [];
   // The Actions column only exists for managers, so the empty-state row spans
@@ -139,10 +139,10 @@ export function ShipEquipmentCategoriesSection({ shipShortId, canManage }: ShipE
         }}
       />
 
-      <ShipEquipmentCategoryDialog shipShortId={shipShortId} mode="create" open={createOpen} onOpenChange={setCreateOpen} />
+      <ProjectEquipmentCategoryDialog projectId={projectId} mode="create" open={createOpen} onOpenChange={setCreateOpen} />
       {editTarget && (
-        <ShipEquipmentCategoryDialog
-          shipShortId={shipShortId}
+        <ProjectEquipmentCategoryDialog
+          projectId={projectId}
           mode="edit"
           category={editTarget}
           open
@@ -153,18 +153,18 @@ export function ShipEquipmentCategoriesSection({ shipShortId, canManage }: ShipE
   );
 }
 
-interface ShipEquipmentCategoryDialogProps {
-  readonly shipShortId: string;
+interface ProjectEquipmentCategoryDialogProps {
+  readonly projectId: string;
   readonly mode: "create" | "edit";
-  readonly category?: ShipEquipmentCategory;
+  readonly category?: ProjectEquipmentCategory;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
 
-function ShipEquipmentCategoryDialog({ shipShortId, mode, category, open, onOpenChange }: ShipEquipmentCategoryDialogProps) {
+function ProjectEquipmentCategoryDialog({ projectId, mode, category, open, onOpenChange }: ProjectEquipmentCategoryDialogProps) {
   const { t } = useTranslation(["ships", "common"]);
-  const createCategory = useCreateShipEquipmentCategory(shipShortId);
-  const updateCategory = useUpdateShipEquipmentCategory(shipShortId);
+  const createCategory = useCreateProjectEquipmentCategory(projectId);
+  const updateCategory = useUpdateProjectEquipmentCategory(projectId);
 
   const [nameZh, setNameZh] = useState(category?.nameZh ?? "");
   const [nameEn, setNameEn] = useState(category?.nameEn ?? "");
@@ -221,9 +221,9 @@ function ShipEquipmentCategoryDialog({ shipShortId, mode, category, open, onOpen
           {error && <ErrorBanner message={errorMessage(error, t("common:common.error.operationFailed"))} />}
 
           <div className="space-y-1.5">
-            <Label htmlFor="ship-equipment-category-zh">{t("equipmentCategories.colNameZh")}</Label>
+            <Label htmlFor="project-equipment-category-zh">{t("equipmentCategories.colNameZh")}</Label>
             <Input
-              id="ship-equipment-category-zh"
+              id="project-equipment-category-zh"
               autoFocus
               maxLength={255}
               placeholder={t("equipmentCategories.placeholders.nameZh")}
@@ -234,9 +234,9 @@ function ShipEquipmentCategoryDialog({ shipShortId, mode, category, open, onOpen
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ship-equipment-category-en">{t("equipmentCategories.colNameEn")}</Label>
+            <Label htmlFor="project-equipment-category-en">{t("equipmentCategories.colNameEn")}</Label>
             <Input
-              id="ship-equipment-category-en"
+              id="project-equipment-category-en"
               maxLength={255}
               placeholder={t("equipmentCategories.placeholders.nameEn")}
               value={nameEn}
@@ -246,13 +246,13 @@ function ShipEquipmentCategoryDialog({ shipShortId, mode, category, open, onOpen
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ship-equipment-category-code">{t("equipmentCategories.colCode")}</Label>
-            <Input id="ship-equipment-category-code" maxLength={100} value={code} onChange={e => setCode(e.target.value)} />
+            <Label htmlFor="project-equipment-category-code">{t("equipmentCategories.colCode")}</Label>
+            <Input id="project-equipment-category-code" maxLength={100} value={code} onChange={e => setCode(e.target.value)} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ship-equipment-category-description">{t("equipmentCategories.fieldDescription")}</Label>
-            <Textarea id="ship-equipment-category-description" rows={2} maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} />
+            <Label htmlFor="project-equipment-category-description">{t("equipmentCategories.fieldDescription")}</Label>
+            <Textarea id="project-equipment-category-description" rows={2} maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} />
           </div>
 
           <DialogFooter>

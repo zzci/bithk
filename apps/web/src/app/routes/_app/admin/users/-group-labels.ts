@@ -9,7 +9,6 @@ export const MODULE_LABEL_KEY: Record<ModuleKey, string> = {
   documents: "groups:modules.documents",
   drive: "groups:modules.drive",
   projects: "groups:modules.projects",
-  ships: "groups:modules.ships",
   contacts: "groups:modules.contacts",
   hr: "groups:modules.hr",
 };

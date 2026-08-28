@@ -1,5 +1,9 @@
-import type { EquipmentInput, EquipmentStatus, ShipEquipmentView, ShipView } from "@/shared/lib/api/ships";
-import { Package, Pencil, Plus, Search, Trash2 } from "lucide-react";
+// `equipment` section tab: the project's equipment register, plus the
+// per-project category vocabulary that classifies it (managers only).
+
+import type { EquipmentInput, EquipmentStatus, ProjectEquipmentView } from "@/shared/lib/api/project-sections";
+import type { ProjectView } from "@/shared/lib/api/projects";
+import { FolderTree, Package, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/components/ui/badge";
@@ -34,20 +38,21 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { resolveCategoryName } from "@/shared/lib/api/global-equipment-categories";
 import { useGlobalEquipmentManufacturers } from "@/shared/lib/api/global-equipment-manufacturers";
-import { useShipEquipmentCategories } from "@/shared/lib/api/ship-equipment-categories";
 import {
   EQUIPMENT_STATUSES,
-  useCreateShipEquipment,
-  useDeleteShipEquipment,
-  useShipEquipment,
-  useUpdateShipEquipment,
-} from "@/shared/lib/api/ships";
+  useCreateProjectEquipment,
+  useDeleteProjectEquipment,
+  useProjectEquipment,
+  useProjectEquipmentCategories,
+  useUpdateProjectEquipment,
+} from "@/shared/lib/api/project-sections";
 import { errorMessage } from "@/shared/lib/errors";
+import { EQUIPMENT_STATUS_BADGE } from "@/shared/lib/status-colors";
 import { cn } from "@/shared/lib/utils";
-import { EQUIPMENT_STATUS_BADGE } from "./-ship-colors";
+import { ProjectEquipmentCategoriesSection } from "./-project-equipment-categories";
 
-interface ShipEquipmentTabProps {
-  readonly ship: ShipView;
+interface ProjectEquipmentTabProps {
+  readonly project: ProjectView;
   readonly canManage: boolean;
 }
 
@@ -75,7 +80,7 @@ const EMPTY_FORM: EquipmentFormState = {
 
 const TEXT_FIELDS = ["model", "serialNumber", "location"] as const;
 
-function formFromEquipment(row: ShipEquipmentView | null): EquipmentFormState {
+function formFromEquipment(row: ProjectEquipmentView | null): EquipmentFormState {
   if (!row)
     return EMPTY_FORM;
   return {
@@ -108,17 +113,18 @@ const CATEGORY_ALL = "__all__";
 const CATEGORY_NONE = "__none__";
 const MANUFACTURER_NONE = "__none__";
 
-export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
+export function ProjectEquipmentTab({ project, canManage }: ProjectEquipmentTabProps) {
   const { t, i18n } = useTranslation(["ships", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
-  const equipmentQuery = useShipEquipment(ship.id);
-  const createEquipment = useCreateShipEquipment();
-  const updateEquipment = useUpdateShipEquipment();
-  const deleteEquipment = useDeleteShipEquipment();
+  const equipmentQuery = useProjectEquipment(project.id);
+  const createEquipment = useCreateProjectEquipment();
+  const updateEquipment = useUpdateProjectEquipment();
+  const deleteEquipment = useDeleteProjectEquipment();
 
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
-  const [editTarget, setEditTarget] = useState<ShipEquipmentView | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ShipEquipmentView | null>(null);
+  const [editTarget, setEditTarget] = useState<ProjectEquipmentView | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectEquipmentView | null>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [category, setCategory] = useState<string>(CATEGORY_ALL);
   const [search, setSearch] = useState("");
   const equipment = useMemo(() => equipmentQuery.data ?? [], [equipmentQuery.data]);
@@ -160,7 +166,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
     setDialogMode("create");
   };
 
-  const openEdit = (row: ShipEquipmentView) => {
+  const openEdit = (row: ProjectEquipmentView) => {
     setEditTarget(row);
     setDialogMode("edit");
   };
@@ -171,7 +177,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
     if (!deleteTarget)
       return;
     deleteEquipment.mutate(
-      { shipId: ship.id, equipmentId: deleteTarget.id },
+      { projectId: project.id, equipmentId: deleteTarget.id },
       { onSuccess: () => setDeleteTarget(null) },
     );
   };
@@ -182,6 +188,12 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
         <h2 className="text-sm font-medium text-muted-foreground">{t("equipment.title")}</h2>
         {canManage && (
           <div className="flex items-center gap-2">
+            {/* The category vocabulary belongs to this section, so it is
+                managed from here rather than from the project settings. */}
+            <Button variant="outline" onClick={() => setCategoriesOpen(true)}>
+              <FolderTree aria-hidden="true" />
+              {t("equipmentCategories.title")}
+            </Button>
             <Button onClick={openCreate}>
               <Plus aria-hidden="true" />
               {t("equipment.create")}
@@ -302,7 +314,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
 
       {canManage && (
         <EquipmentDialog
-          shipShortId={ship.id}
+          projectId={project.id}
           open={dialogMode !== null}
           mode={dialogMode ?? "create"}
           initial={editTarget}
@@ -311,17 +323,29 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
           onSubmit={(form) => {
             if (dialogMode === "edit" && editTarget) {
               updateEquipment.mutate(
-                { shipId: ship.id, equipmentId: editTarget.id, ...toPayload(form) },
+                { projectId: project.id, equipmentId: editTarget.id, ...toPayload(form) },
                 { onSuccess: closeDialog },
               );
               return;
             }
             createEquipment.mutate(
-              { shipId: ship.id, ...toPayload(form) },
+              { projectId: project.id, ...toPayload(form) },
               { onSuccess: closeDialog },
             );
           }}
         />
+      )}
+
+      {canManage && (
+        <Dialog open={categoriesOpen} onOpenChange={setCategoriesOpen}>
+          <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{t("equipmentCategories.title")}</DialogTitle>
+              <DialogDescription>{t("equipmentCategories.description")}</DialogDescription>
+            </DialogHeader>
+            <ProjectEquipmentCategoriesSection projectId={project.id} canManage={canManage} />
+          </DialogContent>
+        </Dialog>
       )}
 
       <ConfirmDeleteDialog
@@ -338,7 +362,7 @@ export function ShipEquipmentTab({ ship, canManage }: ShipEquipmentTabProps) {
 }
 
 function EquipmentDialog({
-  shipShortId,
+  projectId,
   open,
   onOpenChange,
   mode,
@@ -346,17 +370,17 @@ function EquipmentDialog({
   pending,
   onSubmit,
 }: {
-  readonly shipShortId: string;
+  readonly projectId: string;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly mode: "create" | "edit";
-  readonly initial: ShipEquipmentView | null;
+  readonly initial: ProjectEquipmentView | null;
   readonly pending: boolean;
   readonly onSubmit: (form: EquipmentFormState) => void;
 }) {
   const { t, i18n } = useTranslation(["ships", "common"]);
   const isZh = i18n.language?.startsWith("zh") ?? false;
-  const categories = useShipEquipmentCategories(shipShortId).data ?? [];
+  const categories = useProjectEquipmentCategories(projectId).data ?? [];
   const manufacturers = useGlobalEquipmentManufacturers().data ?? [];
   const [form, setForm] = useState(EMPTY_FORM);
 

@@ -36,7 +36,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     name: "Atlas Refit",
     status: "active",
     description: "Flagship refit programme",
-    shipId: null,
+    sections: ["issues", "procurement", "files"],
     tags: [{ id: "t1", name: "refit", usageCount: 1 }],
     coverImageUrl: null,
     creatorId: "u1",
