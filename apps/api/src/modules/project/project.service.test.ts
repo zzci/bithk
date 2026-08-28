@@ -24,6 +24,7 @@ import {
 import { createRole, deleteRole, listRoles, parseCapabilities, resolveGuestRole } from "./project.roles";
 import {
   addMember,
+  composeProjectWithTags,
   createProject,
   getMemberCapabilities,
   getProjectByShortId,
@@ -31,10 +32,12 @@ import {
   isMember,
   isProjectVersionConflict,
   listMembers,
+  listProjectChildren,
   listProjects,
   removeMember,
   resolveAssignableMember,
   resolveProjectId,
+  setProjectParent,
   softDeleteProject,
   updateMember,
   updateProject,
@@ -697,5 +700,170 @@ describe("project defaults on create", () => {
 
     const created = await createProject(db, { name: "NoCover", creatorId: creator });
     expect(created.coverReferenceId).toBeNull();
+  });
+});
+
+describe("project sections on create", () => {
+  test("the default preset mounts issues / procurement / files, in tab order", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Plain", creatorId: creator });
+
+    const view = await composeProjectWithTags(db, project);
+    expect(view.sections).toEqual(["issues", "procurement", "files"]);
+  });
+
+  test("the ship preset mounts the six maritime-project sections, in preset order", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Vessel", creatorId: creator, preset: "ship" });
+
+    const view = await composeProjectWithTags(db, project);
+    expect(view.sections).toEqual([
+      "issues",
+      "procurement",
+      "files",
+      "ship-profile",
+      "equipment",
+      "worklist",
+    ]);
+  });
+
+  test("listProjects carries each row's own sections", async () => {
+    const creator = await seedUser("Alice");
+    const plain = await createProject(db, { name: "Plain", creatorId: creator });
+    const vessel = await createProject(db, { name: "Vessel", creatorId: creator, preset: "ship" });
+
+    const listed = await listProjects(db, {});
+
+    expect(listed.data.find(p => p.id === plain.shortId)!.sections)
+      .toEqual(["issues", "procurement", "files"]);
+    expect(listed.data.find(p => p.id === vessel.shortId)!.sections)
+      .toEqual(["issues", "procurement", "files", "ship-profile", "equipment", "worklist"]);
+  });
+});
+
+describe("project hierarchy", () => {
+  test("createProject links the new project under an existing parent", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+
+    const child = await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+
+    expect(child.parentId).toBe(parent.id);
+    expect((await listProjectChildren(db, parent.shortId)).map(p => p.id)).toEqual([child.id]);
+  });
+
+  test("createProject rejects a missing or soft-deleted parent, writing nothing", async () => {
+    const creator = await seedUser("Alice");
+    const gone = await createProject(db, { name: "Gone", creatorId: creator });
+    await softDeleteProject(db, gone.shortId);
+
+    await expect(createProject(db, { name: "Orphan", creatorId: creator, parentId: "nosuchid" }))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+    await expect(createProject(db, { name: "Orphan", creatorId: creator, parentId: gone.shortId }))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+
+    expect((await listProjects(db, {})).data.some(p => p.name === "Orphan")).toBe(false);
+  });
+
+  test("createProject refuses a parent that is itself a sub-project (one level only)", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const child = await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+
+    await expect(createProject(db, { name: "Deep", creatorId: creator, parentId: child.shortId }))
+      .rejects
+      .toMatchObject({ statusCode: 422 });
+  });
+
+  test("setProjectParent links and unlinks, bumping the version each time", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const child = await createProject(db, { name: "Leg", creatorId: creator });
+
+    const linked = await setProjectParent(db, child.shortId, parent.shortId);
+    expect(linked?.parentId).toBe(parent.id);
+    expect(linked?.version).toBe(child.version + 1);
+
+    const unlinked = await setProjectParent(db, child.shortId, null);
+    expect(unlinked?.parentId).toBeNull();
+    expect(await listProjectChildren(db, parent.shortId)).toHaveLength(0);
+  });
+
+  test("setProjectParent returns undefined for an unknown project", async () => {
+    expect(await setProjectParent(db, "nosuchid", null)).toBeUndefined();
+  });
+
+  test("setProjectParent rejects a project parenting itself", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Self", creatorId: creator });
+
+    await expect(setProjectParent(db, project.shortId, project.shortId))
+      .rejects
+      .toMatchObject({ statusCode: 422 });
+    expect((await getProjectByShortId(db, project.shortId))?.parentId).toBeNull();
+  });
+
+  test("setProjectParent rejects a missing or soft-deleted parent", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Leg", creatorId: creator });
+    const gone = await createProject(db, { name: "Gone", creatorId: creator });
+    await softDeleteProject(db, gone.shortId);
+
+    await expect(setProjectParent(db, project.shortId, "nosuchid"))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+    await expect(setProjectParent(db, project.shortId, gone.shortId))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+  });
+
+  test("setProjectParent refuses a parent that already has a parent", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const child = await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+    const loose = await createProject(db, { name: "Loose", creatorId: creator });
+
+    await expect(setProjectParent(db, loose.shortId, child.shortId))
+      .rejects
+      .toMatchObject({ statusCode: 422 });
+    expect((await getProjectByShortId(db, loose.shortId))?.parentId).toBeNull();
+  });
+
+  test("setProjectParent refuses to give a parent to a project that already has children", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+    const other = await createProject(db, { name: "Other", creatorId: creator });
+
+    await expect(setProjectParent(db, parent.shortId, other.shortId))
+      .rejects
+      .toMatchObject({ statusCode: 422 });
+    expect((await getProjectByShortId(db, parent.shortId))?.parentId).toBeNull();
+  });
+
+  test("listProjectChildren skips soft-deleted children and unknown parents", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const live = await createProject(db, { name: "Live", creatorId: creator, parentId: parent.shortId });
+    const dead = await createProject(db, { name: "Dead", creatorId: creator, parentId: parent.shortId });
+    await softDeleteProject(db, dead.shortId);
+
+    expect((await listProjectChildren(db, parent.shortId)).map(p => p.id)).toEqual([live.id]);
+    expect(await listProjectChildren(db, "nosuchid")).toEqual([]);
+  });
+
+  test("soft-deleting a parent UNLINKS its children instead of deleting them", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const child = await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+
+    await softDeleteProject(db, parent.shortId);
+
+    const after = await getProjectByShortId(db, child.shortId);
+    expect(after).toBeDefined();
+    expect(after!.deletedAt).toBeNull();
+    expect(after!.parentId).toBeNull();
   });
 });
