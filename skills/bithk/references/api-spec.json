@@ -20570,6 +20570,19 @@
                               "type": "string"
                             }
                           },
+                          "sectionSummary": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            }
+                          },
                           "coverImageUrl": {
                             "anyOf": [
                               {
@@ -20836,6 +20849,19 @@
                           "type": "array",
                           "items": {
                             "type": "string"
+                          }
+                        },
+                        "sectionSummary": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
                           }
                         },
                         "coverImageUrl": {
@@ -21132,6 +21158,19 @@
                             "type": "string"
                           }
                         },
+                        "sectionSummary": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
                         "coverImageUrl": {
                           "anyOf": [
                             {
@@ -21353,6 +21392,19 @@
                           "type": "array",
                           "items": {
                             "type": "string"
+                          }
+                        },
+                        "sectionSummary": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
                           }
                         },
                         "coverImageUrl": {
@@ -21809,6 +21861,19 @@
                             "type": "string"
                           }
                         },
+                        "sectionSummary": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
                         "coverImageUrl": {
                           "anyOf": [
                             {
@@ -22045,6 +22110,19 @@
                           "type": "array",
                           "items": {
                             "type": "string"
+                          }
+                        },
+                        "sectionSummary": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
                           }
                         },
                         "coverImageUrl": {
@@ -22669,6 +22747,19 @@
                               "type": "string"
                             }
                           },
+                          "sectionSummary": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            }
+                          },
                           "coverImageUrl": {
                             "anyOf": [
                               {
@@ -22870,6 +22961,19 @@
                           "type": "array",
                           "items": {
                             "type": "string"
+                          }
+                        },
+                        "sectionSummary": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
                           }
                         },
                         "coverImageUrl": {
@@ -23206,6 +23310,19 @@
                           "type": "array",
                           "items": {
                             "type": "string"
+                          }
+                        },
+                        "sectionSummary": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
                           }
                         },
                         "coverImageUrl": {

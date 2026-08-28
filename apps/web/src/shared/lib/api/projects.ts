@@ -17,6 +17,7 @@
 
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { ApiData, ApiResponse, ApiRow } from "./_generated";
+import type { ShipStatus } from "./project-sections";
 import type { ApiEnvelope, ApiListEnvelope } from "./types";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { http } from "../http";
@@ -89,6 +90,33 @@ export type ProjectSectionData = Readonly<Record<string, unknown>>;
 /** True when `key` is currently mounted on the project. */
 export function hasSection(project: Pick<ProjectView, "sections"> | undefined, key: ProjectSectionKey): boolean {
   return project?.sections.includes(key) ?? false;
+}
+
+/**
+ * The `ship-profile` slice of a list row's `sectionSummary` (FIX-071) — what a
+ * ship CARD renders, so the list needs no per-card profile request. The full
+ * particulars still come from `useShipProfile` on the detail page.
+ */
+export interface ShipProfileSummary {
+  readonly hullNumber: string;
+  readonly shipStatus: ShipStatus;
+  readonly imoNumber: string | null;
+  readonly mmsi: string | null;
+}
+
+/**
+ * A ship project's list-row profile summary, or undefined when the project
+ * does not mount `ship-profile`.
+ *
+ * The API types `sectionSummary` as an OPAQUE object per section on purpose:
+ * the project module hosts sections without knowing their payloads, so the
+ * shape is only knowable here. That makes this the single place the cast
+ * belongs — do not scatter it across the callers.
+ */
+export function shipProfileSummary(
+  project: Pick<ProjectView, "sectionSummary">,
+): ShipProfileSummary | undefined {
+  return project.sectionSummary?.["ship-profile"] as ShipProfileSummary | undefined;
 }
 
 // Selectable tag vocabulary row from GET /tags (usage-count ordered; drives

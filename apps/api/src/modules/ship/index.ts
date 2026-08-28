@@ -2,7 +2,7 @@ import { registerBackupContribution } from "@/modules/backup/registry";
 import { registerProjectSection } from "@/modules/project/section.registry";
 import { shipBackupContribution } from "./ship.backup";
 import { hasProjectEquipment } from "./ship.equipment.service";
-import { hasShipProfile, provisionShipProfileTx } from "./ship.profile.service";
+import { hasShipProfile, loadShipProfileSummaries, provisionShipProfileTx } from "./ship.profile.service";
 import { hasProjectEquipmentCategories, seedEquipmentCategoriesTx } from "./ship.ship-equipment-category.service";
 import { hasProjectWorklists } from "./ship.worklist.service";
 
@@ -30,6 +30,10 @@ registerProjectSection({
     provisionShipProfileTx(tx, projectId, ctx.sectionData?.["ship-profile"], ctx.now);
   },
   hasData: hasShipProfile,
+  // The projects list renders a ship card's identity, so the row carries a
+  // profile summary loaded in ONE query per page (FIX-071) instead of the card
+  // fetching its own profile.
+  listSummary: loadShipProfileSummaries,
 });
 
 registerProjectSection({

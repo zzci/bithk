@@ -54,13 +54,15 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
 
 // Routes the list payload to /projects (needs meta) and an empty tag list to
 // /tags (a plain envelope) so the tag filter does not pick up project rows.
-function mockList(projects: readonly ProjectView[], shipProfile?: Record<string, unknown>) {
+// `/ship-profile` fails on purpose: a ship card reads its particulars off the
+// list row (FIX-071), so nothing here may fetch them per card.
+function mockList(projects: readonly ProjectView[]) {
   fetchMock.mockImplementation(async (input) => {
     const url = String(input);
     if (url.includes("/tags"))
       return jsonResponse({ success: true, data: [] });
     if (url.includes("/ship-profile"))
-      return jsonResponse({ success: true, data: shipProfile ?? {} });
+      return new Response("gone", { status: 500 });
     return jsonResponse({
       success: true,
       data: projects,
@@ -204,7 +206,7 @@ describe("projectsListPage", () => {
 
   it("drops the section param entirely when the filter is cleared", async () => {
     searchMock.mockReturnValue({ section: "ship-profile" });
-    mockList([project({ sections: ["issues", "ship-profile"] })], { hullNumber: "H-1", shipStatus: "active", imoNumber: null, mmsi: null });
+    mockList([project({ sections: ["issues", "ship-profile"] })]);
     renderWithProviders(<ProjectsListPage />);
     await waitFor(() => expect(screen.getByText("Atlas Refit")).toBeInTheDocument());
 
@@ -228,10 +230,12 @@ describe("projectsListPage", () => {
   });
 
   it("shows maritime identity rows on a card whose project mounts ship-profile", async () => {
-    mockList(
-      [project({ sections: ["issues", "ship-profile"] })],
-      { hullNumber: "HULL-9", shipStatus: "active", imoNumber: "IMO-1234567", mmsi: "412345678" },
-    );
+    mockList([project({
+      sections: ["issues", "ship-profile"],
+      sectionSummary: {
+        "ship-profile": { hullNumber: "HULL-9", shipStatus: "active", imoNumber: "IMO-1234567", mmsi: "412345678" },
+      },
+    })]);
     renderWithProviders(<ProjectsListPage />);
 
     expect(await screen.findByText("HULL-9")).toBeInTheDocument();
@@ -239,6 +243,8 @@ describe("projectsListPage", () => {
     expect(screen.getByText("412345678")).toBeInTheDocument();
     // The identity block replaces the plain description body.
     expect(screen.queryByText("Flagship refit programme")).not.toBeInTheDocument();
+    // The particulars came off the list row, not from a per-card request.
+    expect(fetchMock.mock.calls.some(call => String(call[0]).includes("/ship-profile"))).toBe(false);
   });
 
   it("keeps existing tag chip rendering for tagged projects", async () => {

@@ -59,6 +59,16 @@ export interface ProjectSectionDefinition {
    * section without the hook is always unmountable.
    */
   readonly hasData?: (db: AppDatabase, projectId: string) => Promise<boolean>;
+  /**
+   * Batched contribution to a project LIST row: ONE query for the whole page,
+   * keyed by internal project id. Never called per row.
+   *
+   * The project module folds the result into `ProjectView.sectionSummary[key]`
+   * without interpreting it — the shape stays this section's own business, the
+   * same way `sectionData` does on the way in. Omit it for a section the list
+   * card renders nothing of.
+   */
+  readonly listSummary?: (db: AppDatabase, projectIds: readonly string[]) => Promise<Map<string, unknown>>;
 }
 
 const registry = new Map<string, ProjectSectionDefinition>();
