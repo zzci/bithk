@@ -2,9 +2,10 @@ import type { DriveOwner } from "./drive.service";
 import type { AppDatabase } from "@/db";
 import { registerBackupContribution } from "@/modules/backup/registry";
 import { listProjects } from "@/modules/project/project.service";
+import { registerProjectSection } from "@/modules/project/section.registry";
 import { registerSearchSource } from "@/modules/search/search.registry";
 import { driveBackupContribution } from "./drive.backup";
-import { searchDriveEntriesByOwners } from "./drive.service";
+import { hasProjectDriveEntries, searchDriveEntriesByOwners } from "./drive.service";
 import { listTeamDirectories } from "./drive.team-directory.service";
 import "./drive.file-permission";
 // Side-effect import: registers the drive share adapter with the share module.
@@ -14,6 +15,19 @@ export { driveAccess } from "./drive.permission";
 export { driveRoutes } from "./drive.routes";
 
 registerBackupContribution(driveBackupContribution);
+
+// The `files` section (PLAN-108 §3), registered from its owning module's barrel
+// as an import-time side effect (ADR-009). It governs the PROJECT surface only
+// — drive entries with `ownerType = "project"` — and never the top-level
+// `/drive` module, which is personal / team-directory storage and exists
+// independently of any project. Registry entry only: the drive module already
+// owns the tables, and `files.view` / `files.manage` are already project
+// capabilities. Nothing to provision — a project starts with an empty root.
+registerProjectSection({
+  key: "files",
+  capabilities: ["files.view", "files.manage"],
+  hasData: hasProjectDriveEntries,
+});
 
 /**
  * Resolve the drive owners a user may search within: their personal drive,

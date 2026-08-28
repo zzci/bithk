@@ -620,3 +620,13 @@ export async function resolveIssueProjectId(db: AppDatabase, shortId: string): P
   const d = await db.select({ projectId: issueDetails.projectId }).from(issueDetails).where(eq(issueDetails.itemId, item.id)).get();
   return d?.projectId ?? null;
 }
+
+/**
+ * Does this project hold any issue at all? Backs the `issues` section's
+ * unmount guard — soft-deleted issues count, because their rows survive and
+ * would be orphaned by dropping the mount.
+ */
+export async function hasProjectIssues(db: AppDatabase, projectId: string): Promise<boolean> {
+  const row = await db.select({ itemId: issueDetails.itemId }).from(issueDetails).where(eq(issueDetails.projectId, projectId)).get();
+  return row !== undefined;
+}

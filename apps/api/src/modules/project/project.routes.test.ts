@@ -715,61 +715,6 @@ describe("role/authz hardening (02-F1..F4)", () => {
   });
 });
 
-describe("procurement categories (categories.manage gate)", () => {
-  test("pm CRUDs a category; a plain member cannot create", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const bob = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    await addMember(db, project.id, { roleId: await memberRoleId(project.id), userId: bob });
-    const cookie = await cookieForUser(owner);
-
-    const denied = await app.request(`/projects/${project.shortId}/procurement-categories`, jsonReq("POST", await cookieForUser(bob), { name: "Materials" }));
-    expect(denied.status).toBe(403);
-
-    const created = await app.request(`/projects/${project.shortId}/procurement-categories`, jsonReq("POST", cookie, { name: "Materials", code: "MAT" }));
-    expect(created.status).toBe(201);
-    const cat = (await created.json() as { data: { id: string } }).data;
-
-    const patched = await app.request(`/projects/${project.shortId}/procurement-categories/${cat.id}`, jsonReq("PATCH", cookie, { name: "Raw materials" }));
-    expect((await patched.json() as { data: { name: string } }).data.name).toBe("Raw materials");
-
-    const removed = await app.request(`/projects/${project.shortId}/procurement-categories/${cat.id}`, jsonReq("DELETE", cookie));
-    expect(removed.status).toBe(200);
-
-    const missing = await app.request(`/projects/${project.shortId}/procurement-categories/${cat.id}`, jsonReq("DELETE", cookie));
-    expect(missing.status).toBe(404);
-  });
-});
-
-describe("global procurement categories (admin only)", () => {
-  test("a non-admin is blocked; an admin CRUDs the global set", async () => {
-    const app = buildApp(db);
-    const user = await sessionFor("user");
-    const admin = await sessionFor("admin");
-
-    const denied = await app.request("/global-procurement-categories", jsonReq("POST", user.cookie, { name: "X" }));
-    expect(denied.status).toBe(403);
-    const deniedList = await app.request("/global-procurement-categories", { headers: { Cookie: user.cookie } });
-    expect(deniedList.status).toBe(403);
-
-    const created = await app.request("/global-procurement-categories", jsonReq("POST", admin.cookie, { name: "Engine", code: "ENG" }));
-    expect(created.status).toBe(201);
-    const cat = (await created.json() as { data: { id: string } }).data;
-
-    const list = await app.request("/global-procurement-categories", { headers: { Cookie: admin.cookie } });
-    expect((await list.json() as { data: unknown[] }).data).toHaveLength(1);
-
-    const patched = await app.request(`/global-procurement-categories/${cat.id}`, jsonReq("PATCH", admin.cookie, { name: "Engine room" }));
-    expect((await patched.json() as { data: { name: string } }).data.name).toBe("Engine room");
-
-    const removed = await app.request(`/global-procurement-categories/${cat.id}`, jsonReq("DELETE", admin.cookie));
-    expect(removed.status).toBe(200);
-    const missing = await app.request(`/global-procurement-categories/${cat.id}`, jsonReq("DELETE", admin.cookie));
-    expect(missing.status).toBe(404);
-  });
-});
-
 describe("POST /projects (preset, section payload, parent)", () => {
   test("mounts the general three when no preset is given", async () => {
     const app = buildApp(db);

@@ -6,12 +6,14 @@ import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
 import { hasCapability, isMember as isProjectMember, resolveProjectId } from "@/modules/project/project.service";
+import { requireSection } from "@/modules/project/section.middleware";
 import { getClientIp } from "@/shared/lib/client-ip";
 import { AppError, NotFoundError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { parsePageQuery } from "@/shared/lib/pagination";
 import { parseTagIds } from "@/shared/lib/route-params";
 import { authRequired } from "@/shared/middleware/auth";
+import { mountProcurementCategoryRoutes } from "./procurement.category.routes";
 import {
   changeStatus,
   createProcurement,
@@ -161,6 +163,16 @@ async function requireProcurement(c: Context<ProtectedEnv>, projectShortId: stri
 export function procurementRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
+
+  // Section gate (PLAN-108 §3): the whole `/projects/:projectId/procurements`
+  // surface — including the attachment / comment routes mounted below from
+  // mod-item — 404s on a project that has not mounted the `procurement`
+  // section. Registered as prefix middleware rather than per-route so a route
+  // added under the prefix later cannot silently escape the gate. It is an
+  // ADDITIONAL existence check: every capability gate below is unchanged.
+  // The category routes keep their own gating and are mounted at the end.
+  router.use("/projects/:projectId/procurements", requireSection("procurement"));
+  router.use("/projects/:projectId/procurements/*", requireSection("procurement"));
 
   // ─── List ──────────────────────────────────────────────────────────
   router.get(
@@ -450,6 +462,11 @@ export function procurementRoutes() {
       };
     },
   });
+
+  // ─── Procurement categories ────────────────────────────────────────
+  // Re-homed from the project module (PLAN-108 §3): same paths, same
+  // `categories.manage` gate, now owned by the module that owns the tables.
+  mountProcurementCategoryRoutes(router);
 
   return router;
 }

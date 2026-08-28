@@ -14,13 +14,6 @@ import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { procurementDetails } from "@/modules/procurement/schema";
 import { setSetting } from "@/modules/settings/settings.service";
-import { listCategories } from "./project.categories";
-import {
-  createGlobalCategory,
-  deleteGlobalCategory,
-  listGlobalCategories,
-  updateGlobalCategory,
-} from "./project.global-categories";
 import { createRole, deleteRole, listRoles, parseCapabilities, resolveGuestRole } from "./project.roles";
 import {
   addMember,
@@ -626,53 +619,6 @@ async function seedCoverReference(uploadedBy: string): Promise<string> {
   }).run();
   return refId;
 }
-
-describe("global procurement categories", () => {
-  test("CRUD over the global template set", async () => {
-    const created = await createGlobalCategory(db, { name: "Hull", code: "HUL" });
-    expect(created.name).toBe("Hull");
-    expect((await listGlobalCategories(db)).map(c => c.name)).toEqual(["Hull"]);
-
-    const updated = await updateGlobalCategory(db, created.id, { name: "Hull & deck" });
-    expect(updated?.name).toBe("Hull & deck");
-    expect(await updateGlobalCategory(db, "missing", { name: "X" })).toBeUndefined();
-
-    expect(await deleteGlobalCategory(db, created.id)).toBe(true);
-    expect(await deleteGlobalCategory(db, created.id)).toBe(false);
-    expect(await listGlobalCategories(db)).toHaveLength(0);
-  });
-
-  test("a new project is seeded from the current global set (copy-on-create)", async () => {
-    const creator = await seedUser("Alice");
-    await createGlobalCategory(db, { name: "Engine", code: "ENG" });
-    await createGlobalCategory(db, { name: "Safety" });
-
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const seeded = await listCategories(db, project.id);
-    expect(seeded.map(c => c.name).sort()).toEqual(["Engine", "Safety"]);
-  });
-
-  test("a project created with no globals defined gets none", async () => {
-    const creator = await seedUser("Alice");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    expect(await listCategories(db, project.id)).toHaveLength(0);
-  });
-
-  test("later global edits do not touch existing projects", async () => {
-    const creator = await seedUser("Alice");
-    const cat = await createGlobalCategory(db, { name: "Original" });
-    const project = await createProject(db, { name: "P", creatorId: creator });
-
-    // Mutate the global set after the project exists.
-    await updateGlobalCategory(db, cat.id, { name: "Renamed" });
-    await createGlobalCategory(db, { name: "Added later" });
-    await deleteGlobalCategory(db, cat.id);
-
-    const seeded = await listCategories(db, project.id);
-    // The project keeps its original copy, unaffected by global churn.
-    expect(seeded.map(c => c.name)).toEqual(["Original"]);
-  });
-});
 
 describe("project defaults on create", () => {
   test("always creates the project active, ignoring any stale default-status setting", async () => {
