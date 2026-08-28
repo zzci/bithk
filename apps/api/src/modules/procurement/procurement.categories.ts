@@ -90,3 +90,9 @@ export async function deleteCategory(db: AppDatabase, projectId: string, categor
     .run());
   return result.changes > 0;
 }
+
+/** Does this project hold any procurement category? Half of the section's unmount guard. */
+export async function hasProjectCategories(db: AppDatabase, projectId: string): Promise<boolean> {
+  const row = await db.select({ id: procurementCategories.id }).from(procurementCategories).where(eq(procurementCategories.projectId, projectId)).get();
+  return row !== undefined;
+}

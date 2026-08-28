@@ -1,7 +1,7 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { contacts } from "@/modules/contact/schema";
 import { items } from "@/modules/item/schema";
-import { procurementCategories, projectMembers, projects } from "@/modules/project/schema";
+import { projectMembers, projects } from "@/modules/project/schema";
 
 export const PROCUREMENT_STATUSES = ["requested", "ordered", "confirmed", "paid", "in_transit", "received", "accepted", "returned", "refunded", "cancelled"] as const;
 export type ProcurementStatus = typeof PROCUREMENT_STATUSES[number];
@@ -44,6 +44,36 @@ export function isAllowedProcurementTransition(from: ProcurementStatus, to: Proc
     return false;
   return true;
 }
+
+// ─── Procurement categories ────────────────────────────────────────────
+// The classification vocabulary a procurement line item is filed under.
+// Procurement-domain data, so it lives in the procurement module and not on
+// the project core (PLAN-108 §3); both tables are declared ahead of
+// `procurement_details`, which references `procurement_categories.id`.
+
+// Global procurement categories: an admin-maintained template set. Mirrors the
+// per-project shape minus `projectId`. Copied into each new project's
+// `procurement_categories` at creation time (copy-on-create); later edits here
+// do NOT propagate to existing projects, and per-project edits stay independent.
+export const globalProcurementCategories = sqliteTable("global_procurement_categories", {
+  id: text("id").primaryKey(), // nanoid
+  name: text("name").notNull(),
+  code: text("code"),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+// Procurement categories, per project (flat).
+export const procurementCategories = sqliteTable("procurement_categories", {
+  id: text("id").primaryKey(), // nanoid
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  code: text("code"),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, t => [index("procurement_categories_project_idx").on(t.projectId)]);
 
 // Issue-parity priority levels, mirroring `issue_details.priority` exactly.
 export const PROCUREMENT_PRIORITIES = ["low", "medium", "high", "urgent"] as const;

@@ -7,12 +7,12 @@ import { audit } from "@/modules/audit/audit.service";
 import { contacts } from "@/modules/contact/schema";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
-import { resolveCategory } from "@/modules/project/project.categories";
 import { resolveAssignableMember } from "@/modules/project/project.service";
 import { projects } from "@/modules/project/schema";
 import { listResourceIdsByAnyTag, listResourceTagViews, loadResourceTagsByResource, syncResourceTagsTx } from "@/modules/tag/tag.service";
 import { AppError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
+import { resolveCategory } from "./procurement.categories";
 import { isAllowedProcurementTransition, PROCUREMENT_STATUSES, procurementDetails } from "./schema";
 
 // The procurement domain's tag binding (tag type='procurement'). Resources are
@@ -488,4 +488,15 @@ export async function listByProject(
   const tagMap = await loadResourceTagsByResource(db, procurementTagBinding, rows.map(r => r.item.id));
   const data = rows.map(r => composeProcurement(r.item, r.details, project.shortId, tagMap.get(r.item.id) ?? []));
   return { data, total };
+}
+
+/**
+ * Does this project hold any procurement at all? Backs half of the
+ * `procurement` section's unmount guard (the categories are the other half).
+ * Soft-deleted procurements count, because their rows survive and would be
+ * orphaned by dropping the mount.
+ */
+export async function hasProjectProcurements(db: AppDatabase, projectId: string): Promise<boolean> {
+  const row = await db.select({ itemId: procurementDetails.itemId }).from(procurementDetails).where(eq(procurementDetails.projectId, projectId)).get();
+  return row !== undefined;
 }

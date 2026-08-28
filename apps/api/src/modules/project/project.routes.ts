@@ -10,20 +10,6 @@ import { optionalPageQueryFields } from "@/shared/lib/pagination";
 import { parseTagIds } from "@/shared/lib/route-params";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import {
-  composeCategory,
-  createCategory,
-  deleteCategory,
-  listCategories,
-  updateCategory,
-} from "./project.categories";
-import {
-  composeGlobalCategory,
-  createGlobalCategory,
-  deleteGlobalCategory,
-  listGlobalCategories,
-  updateGlobalCategory,
-} from "./project.global-categories";
-import {
   composeRole,
   createRole,
   deleteRole,
@@ -130,30 +116,6 @@ const updateRoleSchema = z.object({
   capabilities: capabilitiesSchema.optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
-const createGlobalCategorySchema = z.object({
-  name: z.string().min(1).max(255),
-  code: z.string().max(100).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-});
-
-const updateGlobalCategorySchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  code: z.string().max(100).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
-
-const createCategorySchema = z.object({
-  name: z.string().min(1).max(255),
-  code: z.string().max(100).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-});
-
-const updateCategorySchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  code: z.string().max(100).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
-
 // Multipart upload (`file` field) request-body doc for cover-image uploads.
 const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
 
@@ -162,7 +124,6 @@ const sectionParam = z.object({ id: z.string(), key: z.string() });
 const childParam = z.object({ id: z.string(), childId: z.string() });
 const memberParam = z.object({ id: z.string(), memberId: z.string() });
 const roleParam = z.object({ id: z.string(), roleId: z.string() });
-const categoryParam = z.object({ id: z.string(), categoryId: z.string() });
 
 // Response `data` schemas mirroring the project service view composers.
 // Tags carry the type-wide `usageCount` (`ProjectTagView` / the shared
@@ -201,15 +162,6 @@ const roleSchema = z.object({
   capabilities: z.array(z.enum(PROJECT_CAPABILITIES)),
   isSystem: z.boolean(),
   kind: z.enum(["owner", "guest"]).nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-// Shared shape for project + global procurement categories.
-const categorySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  code: z.string().nullable(),
-  description: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -293,95 +245,6 @@ async function requireProject(
 export function projectRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
-
-  // ─── Global procurement categories (admin only) ────────────────────
-  // The template set copied into each new project at creation (copy-on-create).
-  router.get(
-    "/global-procurement-categories",
-    describeRoute({
-      tags: ["projects"],
-      summary: "List global procurement categories",
-      responses: {
-        200: okJson(z.array(categorySchema)),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Admin only", ...errorJson },
-      },
-    }),
-    adminRequired,
-    async (c) => {
-      const db = c.get("db");
-      return c.json({ success: true, data: (await listGlobalCategories(db)).map(composeGlobalCategory) });
-    },
-  );
-
-  router.post(
-    "/global-procurement-categories",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Create a global procurement category",
-      responses: {
-        201: okJson(categorySchema, "Created"),
-        403: { description: "Admin only", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
-    }),
-    adminRequired,
-    validator("json", createGlobalCategorySchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const category = await createGlobalCategory(db, body);
-      return c.json({ success: true, data: composeGlobalCategory(category) }, 201);
-    },
-  );
-
-  router.patch(
-    "/global-procurement-categories/:id",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Update a global procurement category",
-      responses: {
-        200: okJson(categorySchema),
-        403: { description: "Admin only", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
-    }),
-    adminRequired,
-    validator("param", idParam, onValidationFailure),
-    validator("json", updateGlobalCategorySchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const { id } = c.req.valid("param");
-      const body = c.req.valid("json");
-      const category = await updateGlobalCategory(db, id, body);
-      if (!category)
-        throw new NotFoundError("Global procurement category", id);
-      return c.json({ success: true, data: composeGlobalCategory(category) });
-    },
-  );
-
-  router.delete(
-    "/global-procurement-categories/:id",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Delete a global procurement category",
-      responses: {
-        200: okJson(z.null()),
-        403: { description: "Admin only", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    adminRequired,
-    validator("param", idParam, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const { id } = c.req.valid("param");
-      if (!await deleteGlobalCategory(db, id))
-        throw new NotFoundError("Global procurement category", id);
-      return c.json({ success: true, data: null });
-    },
-  );
 
   // ─── Global default project cover (admin only) ────────────────────
   // Backs the admin "Project Defaults" cover picker. The reference id is
@@ -998,101 +861,6 @@ export function projectRoutes() {
         throw new NotFoundError("Project role", roleId);
       if (result === "system")
         throw new ForbiddenError("System roles cannot be deleted");
-      return c.json({ success: true, data: null });
-    },
-  );
-
-  // ─── Procurement categories ────────────────────────────────────────
-  router.get(
-    "/projects/:id/procurement-categories",
-    describeRoute({
-      tags: ["projects"],
-      summary: "List project procurement categories",
-      responses: {
-        200: okJson(z.array(categorySchema)),
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Project not found or not a member", ...errorJson },
-      },
-    }),
-    validator("param", idParam, onValidationFailure),
-    async (c) => {
-      const { projectId } = await requireProject(c, c.req.valid("param").id);
-      const db = c.get("db");
-      return c.json({ success: true, data: (await listCategories(db, projectId)).map(composeCategory) });
-    },
-  );
-
-  router.post(
-    "/projects/:id/procurement-categories",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Create a project procurement category",
-      responses: {
-        201: okJson(categorySchema, "Created"),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Project not found or not a member", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
-    }),
-    validator("param", idParam, onValidationFailure),
-    validator("json", createCategorySchema, onValidationFailure),
-    async (c) => {
-      const { projectId } = await requireProject(c, c.req.valid("param").id, "categories.manage");
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const category = await createCategory(db, projectId, body);
-      return c.json({ success: true, data: composeCategory(category) }, 201);
-    },
-  );
-
-  router.patch(
-    "/projects/:id/procurement-categories/:categoryId",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Update a project procurement category",
-      responses: {
-        200: okJson(categorySchema),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Procurement category not found", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
-    }),
-    validator("param", categoryParam, onValidationFailure),
-    validator("json", updateCategorySchema, onValidationFailure),
-    async (c) => {
-      const { id, categoryId } = c.req.valid("param");
-      const { projectId } = await requireProject(c, id, "categories.manage");
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const category = await updateCategory(db, projectId, categoryId, body);
-      if (!category)
-        throw new NotFoundError("Procurement category", categoryId);
-      return c.json({ success: true, data: composeCategory(category) });
-    },
-  );
-
-  router.delete(
-    "/projects/:id/procurement-categories/:categoryId",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Delete a project procurement category",
-      responses: {
-        200: okJson(z.null()),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Procurement category not found", ...errorJson },
-      },
-    }),
-    validator("param", categoryParam, onValidationFailure),
-    async (c) => {
-      const { id, categoryId } = c.req.valid("param");
-      const { projectId } = await requireProject(c, id, "categories.manage");
-      const db = c.get("db");
-      const removed = await deleteCategory(db, projectId, categoryId);
-      if (!removed)
-        throw new NotFoundError("Procurement category", categoryId);
       return c.json({ success: true, data: null });
     },
   );

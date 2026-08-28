@@ -7,6 +7,7 @@ import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
 import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
+import { requireSection } from "@/modules/project/section.middleware";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { parsePageQuery } from "@/shared/lib/pagination";
@@ -142,6 +143,15 @@ async function loadProjectIssue(c: Context<ProtectedEnv>) {
 export function issueRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
+
+  // Section gate (PLAN-108 §3): the whole `/projects/:projectId/issues` surface
+  // — including the attachment / comment routes mounted below from mod-item —
+  // 404s on a project that has not mounted the `issues` section. Registered as
+  // prefix middleware rather than per-route so a route added under the prefix
+  // later cannot silently escape the gate. It is an ADDITIONAL existence check:
+  // every capability gate below is unchanged.
+  router.use("/projects/:projectId/issues", requireSection("issues"));
+  router.use("/projects/:projectId/issues/*", requireSection("issues"));
 
   // ─── List ──────────────────────────────────────────────────────────
   // Member-gated; non-members get a fail-closed 404.

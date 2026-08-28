@@ -8,16 +8,15 @@ import { createDb } from "@/db";
 import { accountBackupContribution } from "@/modules/account/account.backup";
 import { users } from "@/modules/account/users/schema";
 import { streamJsonBackup } from "@/modules/backup/export.service";
-import { __resetBackupRegistryForTests, getDataModules, registerBackupContribution } from "@/modules/backup/registry";
+import { __resetBackupRegistryForTests, getDataModules, getTablesForModules, registerBackupContribution } from "@/modules/backup/registry";
 import { importJsonBackup, validateBackupData } from "@/modules/backup/restore.service";
 import { __resetSearchRegistryForTests, getSearchSources, registerSearchSource } from "@/modules/search/search.registry";
 import { shipBackupContribution } from "@/modules/ship/ship.backup";
 import { tagBackupContribution } from "@/modules/tag/tag.backup";
 import { projectBackupContribution } from "./project.backup";
-import { createCategory } from "./project.categories";
 import { listRoles } from "./project.roles";
 import { createProject } from "./project.service";
-import { procurementCategories, projectMembers, projectRoles, projects, projectSections } from "./schema";
+import { projectMembers, projectRoles, projects, projectSections } from "./schema";
 import { mountSection } from "./section.service";
 
 let sourceDb: AppDatabase;
@@ -50,16 +49,13 @@ describe("project backup contribution", () => {
   test("registers the projects module with FK-safe tables and deps", () => {
     const mod = getDataModules().projects;
     expect(mod?.name).toBe("projects");
-    // Global procurement vocab leads (no project FK), then the project parent
-    // and children that FK back to it: roles before members
-    // (members.role_id → roles), then the section mounts, categories last.
+    // The project parent first, then the children that FK back to it: roles
+    // before members (members.role_id → roles), then the section mounts.
     expect(mod?.tables.map(table => getTableName(table))).toEqual([
-      "global_procurement_categories",
       "projects",
       "project_roles",
       "project_members",
       "project_sections",
-      "procurement_categories",
     ]);
     expect(mod?.deps).toEqual(["users", "tags"]);
   });
@@ -77,12 +73,10 @@ describe("project backup contribution", () => {
 
       const mod = getDataModules().projects;
       expect(mod?.tables.map(table => getTableName(table))).toEqual([
-        "global_procurement_categories",
         "projects",
         "project_roles",
         "project_members",
         "project_sections",
-        "procurement_categories",
       ]);
     }
     finally {
@@ -92,7 +86,7 @@ describe("project backup contribution", () => {
     }
   });
 
-  test("exports and restores projects with roles, members and categories", async () => {
+  test("exports and restores projects with their roles and members", async () => {
     const now = "2026-05-24T00:00:00.000Z";
     await sourceDb.insert(users).values({
       id: "user_owner",
@@ -107,7 +101,6 @@ describe("project backup contribution", () => {
     }).run();
 
     const project = await createProject(sourceDb, { name: "Refit", creatorId: "user_owner" });
-    await createCategory(sourceDb, project.id, { name: "Materials", code: "MAT" });
 
     // The creator is seeded as the Project Owner member, and the default role
     // set (owner/guest + presets) is created alongside the project.
@@ -124,7 +117,12 @@ describe("project backup contribution", () => {
     // other way round, so a projects-only export never drags ships in.
     expect(modules).not.toContain("ships");
     expect(parsed.tables.projects).toHaveLength(1);
-    expect(parsed.tables.procurement_categories).toHaveLength(1);
+    // The exported table set is exactly what the resolved contributions
+    // declare — the assertion above pins this module's list, so a table that
+    // moved to another module (PLAN-108 §3) cannot reappear here unnoticed.
+    expect(Object.keys(parsed.tables).sort()).toEqual(
+      getTablesForModules(modules).map(table => getTableName(table)).sort(),
+    );
 
     const result = await importJsonBackup(restoredDb, parsed);
     expect(result.rowsImported).toBeGreaterThanOrEqual(1);
@@ -140,12 +138,6 @@ describe("project backup contribution", () => {
 
     const restoredMembers = await restoredDb.select().from(projectMembers).where(eq(projectMembers.projectId, project.id)).all();
     expect(restoredMembers.map(m => m.id).sort()).toEqual(seededMembers.map(m => m.id).sort());
-
-    const restoredCategories = await restoredDb
-      .select({ name: procurementCategories.name, code: procurementCategories.code })
-      .from(procurementCategories)
-      .all();
-    expect(restoredCategories).toEqual([{ name: "Materials", code: "MAT" }]);
   });
 
   // PLAN-108: the section mounts ARE the project's tabs. If they do not survive

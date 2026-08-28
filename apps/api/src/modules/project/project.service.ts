@@ -22,7 +22,6 @@ import {
 } from "@/modules/tag/tag.service";
 import { AppError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import { nanoid, ulid } from "@/shared/lib/id";
-import { seedProjectCategoriesTx } from "./project.global-categories";
 import { parseCapabilities, resolveRole, seedDefaultRoles } from "./project.roles";
 import { projectMembers, projectRoles, projects } from "./schema";
 import { DEFAULT_PROJECT_PRESET } from "./section.registry";
@@ -303,10 +302,6 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     creatorId: input.creatorId,
     sectionData: input.sectionData,
   });
-
-  // Copy-on-create: seed this project's procurement categories from the
-  // current global template set (no-op when none are defined).
-  seedProjectCategoriesTx(tx, id, now);
 
   if (input.tags && input.tags.length > 0)
     syncTagsTx(tx, id, input.tags, now);
