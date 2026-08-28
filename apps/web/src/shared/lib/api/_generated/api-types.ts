@@ -1446,6 +1446,60 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/projects/{id}/sections/{key}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        /** Mount a section on a project */
+        readonly put: operations["putProjectsByIdSectionsByKey"];
+        readonly post?: never;
+        /** Unmount a section from a project */
+        readonly delete: operations["deleteProjectsByIdSectionsByKey"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/projects/{id}/children": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List a project's sub-projects */
+        readonly get: operations["getProjectsByIdChildren"];
+        readonly put?: never;
+        /** Create a sub-project under a project */
+        readonly post: operations["postProjectsByIdChildren"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/projects/{id}/children/{childId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        /** Link an existing project as a sub-project */
+        readonly put: operations["putProjectsByIdChildrenByChildId"];
+        readonly post?: never;
+        /** Unlink a sub-project from its parent */
+        readonly delete: operations["deleteProjectsByIdChildrenByChildId"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/projects/{id}/members": {
         readonly parameters: {
             readonly query?: never;
@@ -13416,6 +13470,15 @@ export interface operations {
                     readonly code?: string;
                     readonly name: string;
                     readonly description?: string | null;
+                    readonly parentId?: string;
+                    /**
+                     * @default general
+                     * @enum {string}
+                     */
+                    readonly preset?: "general" | "ship";
+                    readonly sectionData?: {
+                        readonly [key: string]: unknown;
+                    };
                     readonly tags?: readonly string[];
                 };
             };
@@ -13468,7 +13531,24 @@ export interface operations {
                     };
                 };
             };
-            /** @description Validation error */
+            /** @description Parent project not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error, or a hierarchy more than one level deep */
             readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -13891,6 +13971,591 @@ export interface operations {
             };
             /** @description Unauthenticated */
             readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly putProjectsByIdSectionsByKey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly key: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly string[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Unknown section key */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly deleteProjectsByIdSectionsByKey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly key: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly string[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Section still holds data */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getProjectsByIdChildren: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly {
+                            readonly id: string;
+                            readonly code: string;
+                            readonly name: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
+                            readonly description: string | null;
+                            readonly shipId: string | null;
+                            readonly tags: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                                readonly usageCount: number;
+                            }[];
+                            readonly coverImageUrl: string | null;
+                            readonly creatorId: string;
+                            readonly version: number;
+                            readonly updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postProjectsByIdChildren: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly code?: string;
+                    readonly name: string;
+                    readonly description?: string | null;
+                    /**
+                     * @default general
+                     * @enum {string}
+                     */
+                    readonly preset?: "general" | "ship";
+                    readonly sectionData?: {
+                        readonly [key: string]: unknown;
+                    };
+                    readonly tags?: readonly string[];
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Created */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly code: string;
+                            readonly name: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
+                            readonly description: string | null;
+                            readonly shipId: string | null;
+                            readonly tags: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                                readonly usageCount: number;
+                            }[];
+                            readonly coverImageUrl: string | null;
+                            readonly creatorId: string;
+                            readonly version: number;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error, or the parent is itself a sub-project */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly putProjectsByIdChildrenByChildId: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly childId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly code: string;
+                            readonly name: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
+                            readonly description: string | null;
+                            readonly shipId: string | null;
+                            readonly tags: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                                readonly usageCount: number;
+                            }[];
+                            readonly coverImageUrl: string | null;
+                            readonly creatorId: string;
+                            readonly version: number;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description The link would make the hierarchy more than one level deep */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly deleteProjectsByIdChildrenByChildId: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly childId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: null;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

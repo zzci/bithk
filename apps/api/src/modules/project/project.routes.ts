@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import type { ProjectCapability } from "./schema";
+import type { ProjectPreset } from "./section.registry";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -40,6 +41,7 @@ import {
   getProjectByShortId,
   isProjectVersionConflict,
   listMembers,
+  listProjectChildren,
   listProjects,
   removeDefaultProjectCover,
   removeMember,
@@ -47,20 +49,40 @@ import {
   resolveProjectId,
   setDefaultProjectCover,
   setProjectCover,
+  setProjectParent,
   softDeleteProject,
   updateMember,
   updateProject,
 } from "./project.service";
 import { PROJECT_CAPABILITIES, PROJECT_STATUSES } from "./schema";
+import { DEFAULT_PROJECT_PRESET, PROJECT_PRESETS } from "./section.registry";
+import { listSections, mountSection, unmountSection } from "./section.service";
 
 const tagsShape = { tags: z.array(z.string().min(1).max(50)).max(50).optional() };
+
+// Which sections a new project starts with, plus the raw per-section create
+// payload their `provision` hooks read (PLAN-108 §3). `sectionData` is only
+// shape-checked here — each section validates its own slice, so adding a
+// section never edits this file.
+const sectionCreateShape = {
+  preset: z.enum(Object.keys(PROJECT_PRESETS) as ProjectPreset[]).default(DEFAULT_PROJECT_PRESET),
+  sectionData: z.record(z.string(), z.unknown()).optional(),
+};
 
 const createProjectSchema = z.object({
   code: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(255),
   description: z.string().max(2000).nullable().optional(),
+  // Parent project SHORT id. The hierarchy is one level deep, so the service
+  // rejects a parent that is missing (404) or itself a sub-project (422).
+  parentId: z.string().min(1).optional(),
+  ...sectionCreateShape,
   ...tagsShape,
 });
+
+// Sub-project create takes the same body minus `parentId` — the parent is the
+// route, not the payload.
+const createChildProjectSchema = createProjectSchema.omit({ parentId: true });
 
 const updateProjectSchema = z.object({
   // `code` is immutable after creation — update requests cannot carry it.
@@ -136,6 +158,8 @@ const updateCategorySchema = z.object({
 const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
 
 const idParam = z.object({ id: z.string() });
+const sectionParam = z.object({ id: z.string(), key: z.string() });
+const childParam = z.object({ id: z.string(), childId: z.string() });
 const memberParam = z.object({ id: z.string(), memberId: z.string() });
 const roleParam = z.object({ id: z.string(), roleId: z.string() });
 const categoryParam = z.object({ id: z.string(), categoryId: z.string() });
@@ -468,7 +492,8 @@ export function projectRoutes() {
       responses: {
         201: okJson(projectViewSchema, "Created"),
         403: { description: "Admin only", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
+        404: { description: "Parent project not found", ...errorJson },
+        422: { description: "Validation error, or a hierarchy more than one level deep", ...errorJson },
       },
     }),
     adminRequired,
@@ -615,6 +640,158 @@ export function projectRoutes() {
       if (!updated)
         throw new NotFoundError("Project", shortId);
       return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
+    },
+  );
+
+  // ─── Sections ──────────────────────────────────────────────────────
+  // The mount rows are the single source of truth for what a project is
+  // (PLAN-108 §3), so both routes answer with the whole section list in tab
+  // order — a caller never has to re-read the project to refresh its tabs.
+  router.put(
+    "/projects/:id/sections/:key",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Mount a section on a project",
+      responses: {
+        200: okJson(z.array(z.string())),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "Unknown section key", ...errorJson },
+      },
+    }),
+    validator("param", sectionParam, onValidationFailure),
+    async (c) => {
+      const { id, key } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "project.manage");
+      const db = c.get("db");
+      await mountSection(db, projectId, key);
+      return c.json({ success: true, data: await listSections(db, projectId) });
+    },
+  );
+
+  router.delete(
+    "/projects/:id/sections/:key",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Unmount a section from a project",
+      responses: {
+        200: okJson(z.array(z.string())),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        409: { description: "Section still holds data", ...errorJson },
+      },
+    }),
+    validator("param", sectionParam, onValidationFailure),
+    async (c) => {
+      const { id, key } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "project.manage");
+      const db = c.get("db");
+      await unmountSection(db, projectId, key);
+      return c.json({ success: true, data: await listSections(db, projectId) });
+    },
+  );
+
+  // ─── Sub-projects ──────────────────────────────────────────────────
+  // Core, not a section: the hierarchy exists for every project (PLAN-108 §3).
+  // One level deep, no permission inheritance, and unlinking a child never
+  // deletes it — the child keeps its own members, roles and sections.
+  router.get(
+    "/projects/:id/children",
+    describeRoute({
+      tags: ["projects"],
+      summary: "List a project's sub-projects",
+      responses: {
+        200: okJson(z.array(projectViewSchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const shortId = c.req.valid("param").id;
+      await requireProject(c, shortId);
+      const db = c.get("db");
+      const children = await listProjectChildren(db, shortId);
+      return c.json({ success: true, data: await Promise.all(children.map(row => composeProjectWithTags(db, row))) });
+    },
+  );
+
+  router.post(
+    "/projects/:id/children",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Create a sub-project under a project",
+      responses: {
+        201: okJson(projectViewSchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "Validation error, or the parent is itself a sub-project", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    validator("json", createChildProjectSchema, onValidationFailure),
+    async (c) => {
+      const parentShortId = c.req.valid("param").id;
+      await requireProject(c, parentShortId, "project.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const project = await createProject(db, { ...body, parentId: parentShortId, creatorId: actorId(c) });
+      return c.json({ success: true, data: await composeProjectWithTags(db, project) }, 201);
+    },
+  );
+
+  router.put(
+    "/projects/:id/children/:childId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Link an existing project as a sub-project",
+      responses: {
+        200: okJson(projectViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "The link would make the hierarchy more than one level deep", ...errorJson },
+      },
+    }),
+    validator("param", childParam, onValidationFailure),
+    async (c) => {
+      const { id, childId } = c.req.valid("param");
+      await requireProject(c, id, "project.manage");
+      const db = c.get("db");
+      const child = await setProjectParent(db, childId, id);
+      if (!child)
+        throw new NotFoundError("Project", childId);
+      return c.json({ success: true, data: await composeProjectWithTags(db, child) });
+    },
+  );
+
+  router.delete(
+    "/projects/:id/children/:childId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Unlink a sub-project from its parent",
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", childParam, onValidationFailure),
+    async (c) => {
+      const { id, childId } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "project.manage");
+      const db = c.get("db");
+      // Only this parent's own children are unlinkable here, so `project.manage`
+      // on one project can never reach into another project's hierarchy.
+      const child = await getProjectByShortId(db, childId);
+      if (!child || child.parentId !== projectId)
+        throw new NotFoundError("Project", childId);
+      await setProjectParent(db, childId, null);
+      return c.json({ success: true, data: null });
     },
   );
 
