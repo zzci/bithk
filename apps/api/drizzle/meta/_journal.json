@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1783147270852,
-      "tag": "0000_fluffy_zaladane",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1787893337729,
-      "tag": "0001_outstanding_pixie",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1787896611189,
-      "tag": "0002_naive_randall",
+      "when": 1787908552103,
+      "tag": "0000_ancient_roulette",
       "breakpoints": true
     }
   ]
