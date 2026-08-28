@@ -16,10 +16,6 @@ describe("hitTarget", () => {
       to: "/projects/$projectId",
       params: { projectId: "p1" },
     });
-    expect(hitTarget({ type: "ship", id: "s1", title: "x" })).toEqual({
-      to: "/ships/$shipId",
-      params: { shipId: "s1" },
-    });
   });
 
   it("sends drive hits to the drive root (no deep link yet)", () => {

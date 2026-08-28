@@ -7,7 +7,7 @@ import { CoverImage } from "./cover-image";
 describe("coverImage", () => {
   it("opens a lightbox on click and closes on Escape when enabled", async () => {
     renderWithProviders(
-      <CoverImage src="/x.jpg" kind="ship" enableLightbox className="h-28 w-full" />,
+      <CoverImage src="/x.jpg" kind="project" enableLightbox className="h-28 w-full" />,
     );
 
     const trigger = screen.getByRole("button", { name: "View larger image" });
@@ -51,7 +51,7 @@ describe("coverImage", () => {
 
   it("closes when the blank area around the image is clicked", async () => {
     renderWithProviders(
-      <CoverImage src="/x.jpg" kind="ship" enableLightbox className="h-28 w-full" />,
+      <CoverImage src="/x.jpg" kind="project" enableLightbox className="h-28 w-full" />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: "View larger image" }));
@@ -70,7 +70,7 @@ describe("coverImage", () => {
   });
 
   it("renders a plain img with no trigger when enableLightbox is omitted", () => {
-    const { container } = renderWithProviders(<CoverImage src="/x.jpg" kind="ship" />);
+    const { container } = renderWithProviders(<CoverImage src="/x.jpg" kind="project" />);
     expect(screen.queryByRole("button", { name: "View larger image" })).not.toBeInTheDocument();
     expect(container.querySelector("img[data-slot=\"card-media\"]")).not.toBeNull();
   });

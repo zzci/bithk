@@ -25,7 +25,7 @@ const sampleUser = {
   lastLoginAt: null,
   createdAt: "2026-01-01T00:00:00Z",
   groups: [],
-  modules: ["documents", "drive", "projects", "ships", "contacts", "hr"],
+  modules: ["documents", "drive", "projects", "contacts", "hr"],
 };
 
 beforeEach(() => {

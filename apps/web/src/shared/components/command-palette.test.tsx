@@ -18,7 +18,7 @@ function jsonResponse(body: unknown) {
 
 const fetchMock = vi.fn<typeof fetch>();
 
-const ALL_MODULES = ["documents", "drive", "projects", "ships", "contacts", "hr"];
+const ALL_MODULES = ["documents", "drive", "projects", "contacts", "hr"];
 
 beforeEach(() => {
   fetchMock.mockReset();
@@ -46,7 +46,7 @@ describe("commandPalette", () => {
     const onOpenChange = vi.fn();
     renderWithProviders(<CommandPalette open onOpenChange={onOpenChange} />);
     await user.click(await screen.findByText("Overview"));
-    expect(navigateMock).toHaveBeenCalledWith({ to: expect.any(String) });
+    expect(navigateMock).toHaveBeenCalledWith({ to: expect.any(String), search: {} });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -55,7 +55,7 @@ describe("commandPalette", () => {
     const onOpenChange = vi.fn();
     renderWithProviders(<CommandPalette open onOpenChange={onOpenChange} />);
     await user.click(await screen.findByRole("button", { name: "Contacts" }));
-    expect(navigateMock).toHaveBeenCalledWith({ to: "/contacts" });
+    expect(navigateMock).toHaveBeenCalledWith({ to: "/contacts", search: {} });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -63,7 +63,7 @@ describe("commandPalette", () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
-      data: { documents: [], issues: [], projects: [], ships: [], drive: [] },
+      data: { documents: [], issues: [], projects: [], drive: [] },
     }));
     renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
     await user.type(screen.getByRole("textbox"), "Documents");
@@ -79,7 +79,6 @@ describe("commandPalette", () => {
         documents: [{ type: "document", id: "d1", title: "Leak report" }],
         issues: [],
         projects: [],
-        ships: [],
         drive: [],
       },
     }));
@@ -94,7 +93,7 @@ describe("commandPalette", () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue(jsonResponse({
       success: true,
-      data: { documents: [], issues: [], projects: [], ships: [], drive: [] },
+      data: { documents: [], issues: [], projects: [], drive: [] },
     }));
     renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
     await user.type(screen.getByRole("textbox"), "zzz-no-match");
@@ -113,11 +112,13 @@ describe("commandPalette", () => {
 describe("commandPalette module filtering", () => {
   it("omits quick entries for modules outside me.modules", async () => {
     useAuthStore.setState({
-      user: { role: "user", modules: ["documents", "ships"] } as never,
+      user: { role: "user", modules: ["documents", "projects"] } as never,
       loading: false,
     });
     renderWithProviders(<CommandPalette open onOpenChange={() => {}} />);
     expect(await screen.findByText("Documents")).toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeInTheDocument();
+    // "Ships" is a preset entry into the projects list, so it rides `projects`.
     expect(screen.getByText("Ships")).toBeInTheDocument();
     // Ungated destinations stay offered; gated ones outside the set vanish.
     expect(screen.getByText("Overview")).toBeInTheDocument();
@@ -137,7 +138,6 @@ describe("commandPalette module filtering", () => {
         documents: [{ type: "document", id: "d1", title: "Leak report" }],
         issues: [{ type: "issue", id: "i1", title: "Leaky valve", projectId: "p1" }],
         projects: [],
-        ships: [],
         drive: [],
       },
     }));

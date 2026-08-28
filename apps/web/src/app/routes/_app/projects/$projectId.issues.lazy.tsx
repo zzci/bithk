@@ -6,7 +6,7 @@ import { createLazyFileRoute, Outlet, useNavigate, useParams } from "@tanstack/r
 import { useEffect, useMemo } from "react";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
 import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
-import { useProject, useProjectMembers } from "@/shared/lib/api/projects";
+import { hasSection, useProject, useProjectMembers } from "@/shared/lib/api/projects";
 import { ProjectIssuesTab } from "./-project-issues-tab";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/issues")({
@@ -45,7 +45,7 @@ function ProjectIssuesRoute() {
         members={members}
         userNames={userNames}
         canManage={caps.canManageIssues}
-        shipId={projectQuery.data?.shipId ?? null}
+        canReferenceWorklists={hasSection(projectQuery.data, "worklist")}
       />
       <Outlet />
     </>

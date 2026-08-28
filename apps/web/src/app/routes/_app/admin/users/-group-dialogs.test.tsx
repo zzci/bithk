@@ -36,7 +36,7 @@ describe("groupFormDialog", () => {
       <GroupFormDialog onSubmit={vi.fn()} title="New Group" description="desc" submitLabel="Create" />,
     );
     const dialog = await screen.findByRole("dialog");
-    for (const label of ["Documents", "Drive", "Projects", "Ships", "Contacts", "HR"])
+    for (const label of ["Documents", "Drive", "Projects", "Contacts", "HR"])
       expect(within(dialog).getByRole("switch", { name: label })).toBeInTheDocument();
   });
 

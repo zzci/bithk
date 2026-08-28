@@ -1,15 +1,15 @@
 // Global status color system. Maps shared status enums to global semantic
 // tokens (success/warning/info + muted), consumed via the shadcn token + opacity
 // idiom so a single class string covers both themes (the token flips under
-// `.dark`). Ship, project, and contact modules all read from here so the same
-// status reads the same color everywhere.
+// `.dark`). Project, project-section and contact surfaces all read from here so
+// the same status reads the same color everywhere.
 
 import type { ContactVisibility } from "@/shared/lib/api/contacts";
 import type { ProcurementStatus } from "@/shared/lib/api/procurement";
+import type { EquipmentStatus, ShipStatus } from "@/shared/lib/api/project-sections";
 import type { IssueStatus } from "@/shared/lib/api/projects";
-import type { ShipStatus } from "@/shared/lib/api/ships";
 
-/** active vs archived record chip (projects + ships). */
+/** active vs archived record chip (every project-domain record). */
 export const RECORD_STATUS_BADGE: Record<"active" | "archived", string> = {
   active: "bg-success/10 text-success",
   archived: "bg-muted text-muted-foreground",
@@ -46,7 +46,7 @@ export const ISSUE_STATUS_ICON_TINT: Record<IssueStatus, string> = {
   cancel: "text-muted-foreground/60",
 };
 
-/** Ship lifecycle chip colors, one distinct hue per state. */
+/** Vessel lifecycle chip colors (the `ship-profile` section), one hue per state. */
 export const SHIP_STATUS_BADGE: Record<ShipStatus, string> = {
   under_construction: "bg-primary/10 text-primary",
   active: "bg-success/10 text-success",
@@ -54,6 +54,12 @@ export const SHIP_STATUS_BADGE: Record<ShipStatus, string> = {
   in_maintenance: "bg-warning/10 text-warning",
   laid_up: "bg-muted text-muted-foreground",
   retired: "bg-muted-foreground/15 text-muted-foreground",
+};
+
+/** Equipment status chip (in-service vs retired), same hues as records. */
+export const EQUIPMENT_STATUS_BADGE: Record<EquipmentStatus, string> = {
+  active: RECORD_STATUS_BADGE.active,
+  retired: RECORD_STATUS_BADGE.archived,
 };
 
 // Cron run/job status → shadcn Badge variant. Not a Tailwind class map like the

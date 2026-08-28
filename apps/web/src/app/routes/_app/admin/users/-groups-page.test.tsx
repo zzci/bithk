@@ -138,7 +138,7 @@ describe("groupsTab (FEAT-032)", () => {
     await u.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
     await u.type(within(dialog).getByLabelText("Group Name"), "Crew");
-    await u.click(within(dialog).getByRole("switch", { name: "Ships" }));
+    await u.click(within(dialog).getByRole("switch", { name: "Contacts" }));
     await u.click(within(dialog).getByRole("button", { name: "New" }));
 
     await waitFor(() => {
@@ -147,7 +147,7 @@ describe("groupsTab (FEAT-032)", () => {
       expect(String(post![0])).toBe("/api/account/groups");
       const body = JSON.parse(String(post![1]?.body));
       expect(body.name).toBe("Crew");
-      expect(body.modules).toEqual(["ships"]);
+      expect(body.modules).toEqual(["contacts"]);
     });
   });
 
@@ -160,7 +160,7 @@ describe("groupsTab (FEAT-032)", () => {
     await u.click(screen.getByRole("button", { name: "Edit" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("switch", { name: "Documents" })).toBeChecked();
-    expect(within(dialog).getByRole("switch", { name: "Ships" })).not.toBeChecked();
+    expect(within(dialog).getByRole("switch", { name: "Contacts" })).not.toBeChecked();
 
     await u.click(within(dialog).getByRole("switch", { name: "Drive" }));
     await u.click(within(dialog).getByRole("button", { name: "Save" }));

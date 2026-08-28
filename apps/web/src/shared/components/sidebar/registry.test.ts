@@ -21,9 +21,16 @@ describe("getNavItems", () => {
       documents: "documents",
       drive: "drive",
       projects: "projects",
-      ships: "ships",
+      // "Ships" is a preset link into the projects list, not a module of its own.
+      ships: "projects",
       contacts: "contacts",
       hr: "hr",
     });
+  });
+
+  it("gives the ships preset entry the projects path plus its section filter", () => {
+    const ships = getNavItems("overview").find(i => i.key === "ships");
+    expect(ships?.path).toBe("/projects");
+    expect(ships?.search).toEqual({ section: "ship-profile" });
   });
 });

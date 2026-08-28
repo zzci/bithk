@@ -51,7 +51,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     name: "Bridge",
     status: "active",
     description: "A bridge",
-    shipId: null,
+    sections: ["issues", "procurement", "files"],
     tags: [{ id: "t1", name: "infra", usageCount: 1 }],
     coverImageUrl: null,
     creatorId: "u1",

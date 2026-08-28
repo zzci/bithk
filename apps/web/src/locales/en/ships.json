@@ -1,27 +1,4 @@
 {
-  "page": {
-    "title": "Ships",
-    "description": "Manage your fleet of vessels."
-  },
-  "list": {
-    "create": "New",
-    "loading": "Loading ships…",
-    "empty": "No ships yet.",
-    "noMatches": "No ships match your search.",
-    "total": "{{count}} total",
-    "searchPlaceholder": "Search name, hull number, or IMO",
-    "moreTags": "+{{count}}",
-    "tagFilterMore": "Tags",
-    "tagFilterMoreLabel": "Tags",
-    "tagFilterSearchPlaceholder": "Search tags",
-    "tagFilterNoMore": "No more tags",
-    "card": {
-      "ageValue": "{{count}} yr",
-      "imo": "IMO",
-      "mmsi": "MMSI",
-      "location": "Location"
-    }
-  },
   "status": {
     "under_construction": "Under construction",
     "active": "Active",
@@ -37,38 +14,16 @@
     "remove": "Remove tag {{name}}"
   },
   "tabs": {
-    "overview": "Overview",
     "profile": "Details",
     "equipment": "Equipment",
     "worklist": "Checklists",
-    "projects": "Projects",
-    "files": "Files"
-  },
-  "settings": {
-    "openButton": "Settings",
-    "dialogTitle": "Ship settings"
-  },
-  "detail": {
-    "back": "Back to ships",
-    "loading": "Loading ship…",
-    "notFound": "Ship not found.",
-    "baseProject": "Base project",
-    "metrics": {
-      "projects": "Projects",
-      "equipment": "Equipment",
-      "worklists": "Worklists"
-    }
-  },
-  "delete": {
-    "title": "Delete ship",
-    "confirm": "Delete \"{{name}}\"? Its base project and files are preserved."
+    "projects": "Projects"
   },
   "field": {
     "name": "Name",
-    "code": "Hull number",
+    "hullNumber": "Hull number",
     "status": "Status",
     "tags": "Tags",
-    "description": "Description",
     "builder": "Builder",
     "model": "Model",
     "buildYear": "Build year",
@@ -84,33 +39,13 @@
     "registryPort": "Port of registry",
     "ownerName": "Owner"
   },
-  "cover": {
-    "label": "Cover image",
-    "upload": "Upload cover",
-    "replace": "Replace cover",
-    "remove": "Remove cover"
-  },
   "form": {
-    "createTitle": "New ship",
     "editTitle": "Edit ship",
-    "createDescription": "Register a new vessel. A base project is created automatically as its permission and file anchor.",
     "editDescription": "Update the vessel's information.",
-    "namePlaceholder": "e.g. Serenity",
-    "codePlaceholder": "Auto-generated when left blank",
-    "submitCreate": "Create",
     "submitSave": "Save"
   },
   "overview": {
-    "noDescription": "No description provided.",
     "notSet": "Not set",
-    "archive": "Ship archive",
-    "quickStats": "Quick stats",
-    "boundProjects": "Bound projects",
-    "boundProjectsEmpty": "No projects bound yet.",
-    "equipmentCategories": "Equipment categories",
-    "equipmentCategoriesEmpty": "No equipment registered.",
-    "uncategorized": "Uncategorized",
-    "viewAll": "View all",
     "section": {
       "identity": "Identity",
       "classification": "Class & status",
@@ -120,7 +55,8 @@
   "profile": {
     "archive": "Vessel profile",
     "archiveDescription": "Read-only registry and principal specification fields from the ship record.",
-    "age": "Age"
+    "age": "Age",
+    "ageValue": "{{count}} yr"
   },
   "equipment": {
     "title": "Equipment inventory",
@@ -228,13 +164,9 @@
     "bind": "Bind",
     "bound": "Project bound.",
     "empty": "No additional projects bound.",
-    "baseBadge": "Base",
     "open": "Open",
     "unbind": "Unbind",
     "unbindTitle": "Unbind project",
     "unbindConfirm": "Unbind \"{{name}}\" from this ship? Its files and data are preserved."
-  },
-  "files": {
-    "noBaseProject": "This ship has no base project, so there are no files yet."
   }
 }

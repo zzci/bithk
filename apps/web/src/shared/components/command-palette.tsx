@@ -7,7 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/shared/components/sidebar/types";
 import type { SearchHit } from "@/shared/lib/api/search";
 import { useNavigate } from "@tanstack/react-router";
-import { Briefcase, CheckSquare, FileText, HardDrive, Search, Ship, X } from "lucide-react";
+import { Briefcase, CheckSquare, FileText, HardDrive, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hitTarget, matchesQuery } from "@/shared/components/command-palette.logic";
@@ -32,7 +32,6 @@ const HIT_ICON: Record<SearchHit["type"], LucideIcon> = {
   issue: CheckSquare,
   project: Briefcase,
   drive: HardDrive,
-  ship: Ship,
 };
 
 interface PaletteAction {
@@ -93,7 +92,9 @@ export function CommandPalette({
         label: t(item.labelKey ?? `common:nav.${item.key}`),
         icon: item.icon,
         run: () => {
-          void navigate({ to: item.path });
+          // Preset entries carry their own search params (e.g. the "Ships"
+          // entry, which is the projects list narrowed to ship projects).
+          void navigate({ to: item.path, search: item.search ?? {} });
           close();
         },
       }))
@@ -130,7 +131,6 @@ export function CommandPalette({
         ["documents", "documents", data.documents],
         ["issues", "projects", data.issues],
         ["projects", "projects", data.projects],
-        ["ships", "ships", data.ships],
         ["drive", "drive", data.drive],
       ];
       for (const [key, module, hits] of sections) {

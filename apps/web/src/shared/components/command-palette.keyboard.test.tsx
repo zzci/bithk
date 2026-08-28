@@ -10,7 +10,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
 }));
 
-const ALL_MODULES = ["documents", "drive", "projects", "ships", "contacts", "hr"];
+const ALL_MODULES = ["documents", "drive", "projects", "contacts", "hr"];
 
 beforeEach(() => {
   navigateMock.mockReset();
@@ -59,6 +59,6 @@ describe("commandPalette keyboard navigation", () => {
     expect(rows().find(b => b.getAttribute("data-active") === "true")).toHaveTextContent("Overview");
 
     await user.keyboard("{Enter}");
-    expect(navigateMock).toHaveBeenCalledWith({ to: "/overview" });
+    expect(navigateMock).toHaveBeenCalledWith({ to: "/overview", search: {} });
   });
 });
