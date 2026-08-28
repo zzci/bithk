@@ -110,17 +110,11 @@ describe("section route bodies", () => {
   });
 });
 
-// ── Known divergence ──
-//
-// `issues`, `procurement` and `files` are mountable sections too, but their
-// route bodies predate the section registry: they gate on the VIEW CAPABILITY
-// only and bounce to the overview when it is missing, so they never reach
-// `useProjectSectionRoute`. A member who still holds `files.view` on a project
-// that has since unmounted `files` therefore renders the tab, and only its
-// data requests 404 (the API gates those with `requireSection`).
-//
-// These tests pin the behaviour as it actually is rather than as PLAN-108
-// describes it; the divergence is reported, not fixed here (D3 is test-only).
+// `issues`, `procurement` and `files` are mountable sections whose route bodies
+// carry BOTH gates: the mount decides whether the URL exists at all, the view
+// capability decides whether this caller may see it. A missing mount is a 404;
+// a missing capability is a redirect to the overview, so a viewer who simply
+// lost access still lands somewhere they can read.
 const CAPABILITY_GATED = [
   { key: "issues", capability: "issue.view", Body: routeBody(IssuesRoute) },
   { key: "procurement", capability: "procurement.view", Body: routeBody(ProcurementRoute) },
@@ -129,11 +123,18 @@ const CAPABILITY_GATED = [
 
 describe("capability-gated section routes", () => {
   for (const { key, capability, Body } of CAPABILITY_GATED) {
-    it(`renders \`${key}\` on an unmounted section while the caller holds ${capability}`, () => {
+    it(`404s \`${key}\` on an unmounted section even while the caller holds ${capability}`, () => {
       const queryClient = makeTestQueryClient();
       queryClient.setQueryData(projectKeys.detail("p1"), { ...project([]), capabilities: [capability] });
-      // No 404 and no redirect: the guard the four registry routes share is
-      // absent here. See the note above.
+      // Holding the capability is not enough: the section is gone, so the URL
+      // is gone with it rather than rendering a permanently empty tab.
+      expect(() => renderWithProviders(<Body />, { queryClient })).toThrow(NOT_FOUND);
+      expect(navigateMock).not.toHaveBeenCalled();
+    });
+
+    it(`renders \`${key}\` once the section is mounted and ${capability} is held`, () => {
+      const queryClient = makeTestQueryClient();
+      queryClient.setQueryData(projectKeys.detail("p1"), { ...project([key]), capabilities: [capability] });
       expect(() => renderWithProviders(<Body />, { queryClient })).not.toThrow();
       expect(navigateMock).not.toHaveBeenCalled();
     });
@@ -141,10 +142,15 @@ describe("capability-gated section routes", () => {
     it(`redirects \`${key}\` to the overview without ${capability}`, () => {
       const queryClient = makeTestQueryClient();
       queryClient.setQueryData(projectKeys.detail("p1"), { ...project([key]), capabilities: [] });
+      // Mounted but unreadable for this caller: a redirect, never a 404.
       renderWithProviders(<Body />, { queryClient });
       expect(navigateMock).toHaveBeenCalledWith(
         expect.objectContaining({ to: "/projects/$projectId", params: { projectId: "p1" }, replace: true }),
       );
+    });
+
+    it(`does not 404 \`${key}\` while the project is still loading`, () => {
+      expect(() => renderWithProviders(<Body />, { queryClient: seeded(null) })).not.toThrow();
     });
   }
 });
