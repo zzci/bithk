@@ -110,7 +110,7 @@ const TEST_JOURNAL = { lastIdx: 0, lastTag: "0000_test", entryCount: 1 };
 function baseManifest(overrides: Partial<BackupManifestV2> = {}): BackupManifestV2 {
   return {
     format: "bithk-backup",
-    formatVersion: 2,
+    formatVersion: 3,
     exportedAt: "2026-06-10T00:00:00.000Z",
     app: { name: "app", version: "0.0.0", commit: "0000000" },
     schema: { dialect: "sqlite", journal: TEST_JOURNAL },

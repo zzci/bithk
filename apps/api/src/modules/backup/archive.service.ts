@@ -39,7 +39,14 @@ import { getDataModules, getTablesForModules, resolveModulesWithDeps } from "./r
 import { redactSecretFields } from "./secret-fields";
 
 export const BACKUP_FORMAT = "bithk-backup";
-export const BACKUP_FORMAT_VERSION = 2;
+/**
+ * One-time epoch marker, not an incremental format change: 3 records the
+ * PLAN-108 projects-as-sections schema reset. The tar/manifest/ndjson framing
+ * is byte-for-byte what 2 was — the bump exists solely so the exact-match gate
+ * in `import.service.ts` refuses every pre-reset archive, whose rows describe a
+ * schema that no longer exists and cannot be migrated onto this one.
+ */
+export const BACKUP_FORMAT_VERSION = 3;
 
 const STREAM_BATCH_SIZE = 1000;
 /** Tables carrying a blob-typed column batch smaller to bound row-buffer memory. */

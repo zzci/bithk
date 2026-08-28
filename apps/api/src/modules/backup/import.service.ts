@@ -211,8 +211,18 @@ function parseManifest(bytes: Buffer): BackupManifestV2 {
       "UNSUPPORTED_VERSION",
     );
   }
-  if (version !== BACKUP_FORMAT_VERSION)
-    throw new AppError(`Unsupported backup format version ${version}`, 400, "INVALID_FORMAT");
+  // Below the current version: a pre-reset archive. PLAN-108 reset the schema
+  // outright, so there is nothing to migrate onto — say so, and say what the
+  // operator's only remaining option is, rather than a bare version number.
+  if (version !== BACKUP_FORMAT_VERSION) {
+    throw new AppError(
+      `Backup format version ${version} predates the projects-as-sections schema reset (format ${BACKUP_FORMAT_VERSION}). `
+      + "Pre-reset archives cannot be imported or migrated. "
+      + "To recover data from one, run a pre-reset build of the server against a copy of this deployment and read it there.",
+      400,
+      "INVALID_FORMAT",
+    );
+  }
 
   const parsed = manifestSchema.safeParse(raw);
   if (!parsed.success)
