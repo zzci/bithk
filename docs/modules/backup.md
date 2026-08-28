@@ -7,10 +7,59 @@ resolution. Two formats coexist:
   layout: `manifest.json`, `data/<table>.ndjson`) with export jobs, staged
   imports, an exact rollback dry-run, cross-schema mapping, transform hooks,
   and a non-destructive **merge** apply — optionally **wipe-before-merge**
-  (FIX-061) for a conflict-free full restore. The v1-engine replace mode was
-  removed in FIX-062 (wipe+merge supersedes it without the exact-journal
-  schema gate).
+  (FIX-061) for a conflict-free full restore. **Merge is the only apply mode.**
+  The v1-engine replace mode was removed in FIX-062 (wipe+merge supersedes it
+  without the exact-journal schema gate); `mode: "replace"` answers
+  `400 REPLACE_MODE_REMOVED`.
 - **v1** — single-request JSON export / delete-then-insert import.
+
+## Format version 3 — a one-time epoch reset (PLAN-108)
+
+`BACKUP_FORMAT_VERSION` is **3**. This is **not** an incremental format change:
+the tar / manifest / NDJSON framing is byte-for-byte what 2 was. The bump is an
+**epoch marker** for the projects-as-sections schema reset
+([ADR-015](../decisions/015-projects-as-sections.md)) — it exists solely so the
+manifest's exact-match version gate refuses every pre-reset archive, whose rows
+describe a schema that no longer exists and cannot be migrated onto this one.
+
+What the gate does, in `parseManifest`:
+
+| Manifest `formatVersion` | Result |
+|---|---|
+| `> 3` | `400 UNSUPPORTED_VERSION` — "newer than this build supports … upgrade the server before importing." |
+| `< 3` (i.e. any pre-fold archive) | `400 INVALID_FORMAT` — names the reset and states the only remaining option: **run a pre-reset build of the server against a copy of that deployment and read the data there.** |
+| `3` | Proceeds to the shape check. |
+
+The gate runs inside `readAndValidateArchive`, which `prepareImport` calls at
+**upload / staging time** — before the dry-run and long before any apply. Since
+merge is the only apply mode, that single check covers every path: there is no
+second, replace-specific gate to keep in sync.
+
+**The reset is irreversible.** Pre-fold archives cannot be imported, converted
+or partially salvaged. Take a fresh archive immediately after cutting over.
+
+### Contribution regrouping in this release
+
+- `project_sections` joins the **`projects`** contribution (it FKs
+  `project_id`, so it trails `projects`). These are the rows that give a
+  restored project its tabs — an archive without them restores projects with no
+  sections mounted.
+- `procurement_categories` and `global_procurement_categories` move from the
+  `projects` contribution to **`procurement`**: they are procurement-domain
+  data. The importer maps rows by table name, so the move is transparent for
+  post-fold archives (proven by a round-trip test, not assumed). `procurement`
+  already deps on `projects`, so per-project category rows still restore after
+  the `projects` rows their `project_id` points at.
+- The `ships` contribution keeps its name but now carries `ship_profiles`,
+  `ship_equipment_categories`, `ship_equipment`, `worklists` and the two global
+  vocabularies — all keyed by `project_id`.
+- **The `projects <-> ships` dependency cycle is gone.** With
+  `projects.ship_id` removed, `projects` deps are `["users", "tags"]` and
+  `ships` deps are `["users", "projects"]` — a one-way edge. The cycle-tolerant
+  resolver (visiting-set guard) and the `PRAGMA defer_foreign_keys = 1` restore
+  transaction stay in place and are still correct; they are simply no longer
+  load-bearing here. See [ADR-004](../decisions/004-ship-project-cycle-and-restore.md)
+  (superseded).
 
 ## File story (FIX-062): DB backup + storage tree/bucket copy
 
@@ -86,7 +135,7 @@ service token (`SERVICE_TOKEN_BACKUP`) instead of a session cookie.
 | GET | `/api/backup/v2/exports/:jobId` | Admin | Job status + progress + per-artifact sizes. |
 | GET | `/api/backup/v2/exports/:jobId/download?artifact=data` | Admin | Stream the finished data artifact (no blobs artifact is produced anymore). Staging is cleaned after download. |
 | DELETE | `/api/backup/v2/exports/:jobId` | Admin | Cancel a running job / discard a finished one. |
-| POST | `/api/backup/v2/imports` | Admin | Upload an archive; validates (allowlist grammar, size/entry caps) and runs the rollback dry-run; returns the report. |
+| POST | `/api/backup/v2/imports` | Admin | Upload an archive; validates (format version **exact-match 3**, allowlist grammar, size/entry caps) and runs the rollback dry-run; returns the report. A pre-reset archive is rejected here with `400 INVALID_FORMAT`. |
 | GET | `/api/backup/v2/imports/:importId` | Admin | Staged import status + dry-run / final report. |
 | POST | `/api/backup/v2/imports/:importId/apply` | Admin | Apply with `{ wipeExisting? }` (merge is the only mode; `mode: "replace"` answers `400 REPLACE_MODE_REMOVED`). A web wipe re-binds the operator's session to the restored admin inside the same transaction, so the cookie survives. |
 | DELETE | `/api/backup/v2/imports/:importId` | Admin | Discard a staged import. |
