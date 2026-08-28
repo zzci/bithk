@@ -16,8 +16,7 @@
   "tabs": {
     "profile": "Details",
     "equipment": "Equipment",
-    "worklist": "Checklists",
-    "projects": "Projects"
+    "worklist": "Checklists"
   },
   "field": {
     "name": "Name",
@@ -151,23 +150,6 @@
       "checklist": "Checklist",
       "precautions": "Precautions"
     }
-  },
-  "projects": {
-    "callout": "Files and permissions are all anchored on this ship's base project. The base project cannot be unbound.",
-    "pickerTitle": "Bind a project",
-    "searchPlaceholder": "Search by name or code",
-    "bindFromExisting": "Select existing",
-    "bindCreateNew": "Create new",
-    "noCandidates": "No unbound projects.",
-    "newName": "Project name",
-    "newCode": "Code (optional)",
-    "bind": "Bind",
-    "bound": "Project bound.",
-    "empty": "No additional projects bound.",
-    "open": "Open",
-    "unbind": "Unbind",
-    "unbindTitle": "Unbind project",
-    "unbindConfirm": "Unbind \"{{name}}\" from this ship? Its files and data are preserved."
   },
   "list": {
     "filterLabel": "Ships"

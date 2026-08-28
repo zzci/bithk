@@ -40,9 +40,6 @@ const GUARDED = [
   { key: "ship-profile", Body: routeBody(ProfileRoute) },
   { key: "equipment", Body: routeBody(EquipmentRoute) },
   { key: "worklist", Body: routeBody(WorklistRoute) },
-  // Not a mountable section: its tab follows the ship preset, so it gates on
-  // `ship-profile` rather than on a key of its own.
-  { key: "ship-profile", Body: routeBody(SubProjectsRoute) },
 ] as const;
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -107,6 +104,29 @@ describe("section route bodies", () => {
     // every deep link before the payload lands.
     for (const { Body } of GUARDED)
       expect(() => renderWithProviders(<Body />, { queryClient: seeded(null) })).not.toThrow();
+  });
+});
+
+// `sub-projects` is not a mountable section and is NOT gated: `parent_id` is a
+// core column and the API serves `/children` for every project, so the route
+// renders whatever the project mounts.
+describe("sub-projects route body", () => {
+  const Body = routeBody(SubProjectsRoute);
+
+  const CASES = [
+    { label: "a general project", sections: ["issues", "procurement", "files"] },
+    { label: "a ship project", sections: ["issues", "ship-profile", "equipment", "worklist"] },
+    { label: "a project with nothing mounted", sections: [] },
+  ] as const satisfies readonly { label: string; sections: readonly string[] }[];
+
+  for (const { label, sections } of CASES) {
+    it(`renders for ${label} instead of 404ing`, () => {
+      expect(() => renderWithProviders(<Body />, { queryClient: seeded(sections) })).not.toThrow();
+    });
+  }
+
+  it("does not 404 while the project is still loading", () => {
+    expect(() => renderWithProviders(<Body />, { queryClient: seeded(null) })).not.toThrow();
   });
 });
 

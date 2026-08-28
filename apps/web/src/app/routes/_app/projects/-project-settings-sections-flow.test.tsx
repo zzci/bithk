@@ -106,14 +106,15 @@ describe("section mount / unmount success path", () => {
     renderWithProviders(<SectionsHarness />);
 
     await waitFor(() => expect(screen.getByRole("switch", { name: "Equipment" })).not.toBeChecked());
-    expect(tabKeys()).toEqual(["overview", "issues", "procurement", "files"]);
+    // `sub-projects` is core, so it bookends the tab set at every mount state.
+    expect(tabKeys()).toEqual(["overview", "issues", "procurement", "files", "sub-projects"]);
 
     await user.click(screen.getByRole("switch", { name: "Equipment" }));
 
     // The panel refreshes from the invalidated detail query …
     await waitFor(() => expect(screen.getByRole("switch", { name: "Equipment" })).toBeChecked());
     // … and the tab set follows the new mount.
-    expect(tabKeys()).toEqual(["overview", "issues", "procurement", "files", "equipment"]);
+    expect(tabKeys()).toEqual(["overview", "issues", "procurement", "files", "equipment", "sub-projects"]);
   });
 
   it("drops the section's tab once the unmount succeeds", async () => {
@@ -134,7 +135,7 @@ describe("section mount / unmount success path", () => {
     expect(tabKeys()).toEqual(["overview", "issues", "procurement", "files", "ship-profile", "equipment", "sub-projects"]);
   });
 
-  it("takes the sub-projects tab with the ship profile when it is unmounted", async () => {
+  it("keeps the sub-projects tab when the ship profile is unmounted", async () => {
     const user = userEvent.setup();
     mockServer(["issues", "ship-profile"]);
     renderWithProviders(<SectionsHarness />);
@@ -144,8 +145,8 @@ describe("section mount / unmount success path", () => {
 
     await user.click(screen.getByRole("switch", { name: "Details" }));
 
-    // `sub-projects` is not a mountable section — its tab follows the ship
-    // profile's mount, so it disappears with it.
-    await waitFor(() => expect(tabKeys()).toEqual(["overview", "issues"]));
+    // `sub-projects` is not a mountable section and follows no mount: it is
+    // core, so unmounting the ship profile leaves it in place.
+    await waitFor(() => expect(tabKeys()).toEqual(["overview", "issues", "sub-projects"]));
   });
 });
