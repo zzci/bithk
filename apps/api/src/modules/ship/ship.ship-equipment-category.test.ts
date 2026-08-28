@@ -12,13 +12,14 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
-import { addMember } from "@/modules/project/project.service";
+import { addMember, createProject } from "@/modules/project/project.service";
 import { projectRoles } from "@/modules/project/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { shipRoutes } from "./ship.routes";
-import { getShipByShortId } from "./ship.service";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
+// Registers the three maritime sections (ship-profile / equipment / worklist).
+import "./index";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -106,13 +107,15 @@ function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
 
 interface CategoryView { id: string; nameZh: string; nameEn: string; code: string | null; description: string | null }
 
-async function createShipAsAdmin(app: Hono<AppEnv>, name = "Aurora"): Promise<{ adminCookie: string; shipShortId: string; baseProjectInternalId: string }> {
+/**
+ * Create a ship-preset project — the fold's replacement for `POST /ships`. The
+ * creator is seeded as its owner, so `adminCookie` names the project manager
+ * exactly as it did before.
+ */
+async function createShipAsAdmin(_app: Hono<AppEnv>, name = "Aurora"): Promise<{ adminId: string; adminCookie: string; shipShortId: string; baseProjectInternalId: string }> {
   const admin = await sessionFor("admin");
-  const res = await app.request("/ships", jsonReq("POST", admin.cookie, { name }));
-  expect(res.status).toBe(201);
-  const body = await res.json() as { data: { id: string } };
-  const ship = await getShipByShortId(db, body.data.id);
-  return { adminCookie: admin.cookie, shipShortId: body.data.id, baseProjectInternalId: ship!.baseProjectId! };
+  const project = await createProject(db, { name, creatorId: admin.userId, preset: "ship" });
+  return { adminId: admin.userId, adminCookie: admin.cookie, shipShortId: project.shortId, baseProjectInternalId: project.id };
 }
 
 async function dataOf<T>(r: Response): Promise<T> {
@@ -120,7 +123,7 @@ async function dataOf<T>(r: Response): Promise<T> {
 }
 
 async function createCategory(app: Hono<AppEnv>, shipShortId: string, cookie: string, body: Record<string, unknown>): Promise<CategoryView> {
-  const res = await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", cookie, body));
+  const res = await app.request(`/projects/${shipShortId}/equipment-categories`, jsonReq("POST", cookie, body));
   expect(res.status).toBe(201);
   return dataOf<CategoryView>(res);
 }
@@ -139,131 +142,128 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-describe("per-ship equipment categories (ship-access)", () => {
-  test("a newly created ship starts with an empty category set (no global template)", async () => {
+describe("per-project equipment categories (section access)", () => {
+  test("a new ship project copies the global template — empty when none is defined", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const list = await dataOf<CategoryView[]>(await app.request(`/ships/${shipShortId}/equipment-categories`, { headers: { Cookie: adminCookie } }));
+    const list = await dataOf<CategoryView[]>(await app.request(`/projects/${shipShortId}/equipment-categories`, { headers: { Cookie: adminCookie } }));
     expect(list).toHaveLength(0);
   });
 
-  test("ship manager full CRUD round-trip", async () => {
+  test("project manager full CRUD round-trip", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
 
     // Create.
-    const created = await createCategory(app, shipShortId, adminCookie, { nameZh: "导航设备", nameEn: "Navigation", code: "NAV", description: "Bridge nav gear" });
-    expect(created.nameZh).toBe("导航设备");
+    const created = await createCategory(app, shipShortId, adminCookie, { nameZh: "ZH Navigation", nameEn: "Navigation", code: "NAV", description: "Bridge nav gear" });
+    expect(created.nameZh).toBe("ZH Navigation");
     expect(created.nameEn).toBe("Navigation");
     expect(created.code).toBe("NAV");
     expect(created.description).toBe("Bridge nav gear");
 
     // List.
-    const list = await dataOf<CategoryView[]>(await app.request(`/ships/${shipShortId}/equipment-categories`, { headers: { Cookie: adminCookie } }));
+    const list = await dataOf<CategoryView[]>(await app.request(`/projects/${shipShortId}/equipment-categories`, { headers: { Cookie: adminCookie } }));
     expect(list).toHaveLength(1);
     expect(list[0]!.id).toBe(created.id);
 
     // Get :categoryId.
-    const getRes = await app.request(`/ships/${shipShortId}/equipment-categories/${created.id}`, { headers: { Cookie: adminCookie } });
+    const getRes = await app.request(`/projects/${shipShortId}/equipment-categories/${created.id}`, { headers: { Cookie: adminCookie } });
     expect(getRes.status).toBe(200);
     expect((await dataOf<CategoryView>(getRes)).nameEn).toBe("Navigation");
 
     // Patch.
-    const patchRes = await app.request(`/ships/${shipShortId}/equipment-categories/${created.id}`, jsonReq("PATCH", adminCookie, { nameEn: "Nav Systems" }));
+    const patchRes = await app.request(`/projects/${shipShortId}/equipment-categories/${created.id}`, jsonReq("PATCH", adminCookie, { nameEn: "Nav Systems" }));
     expect(patchRes.status).toBe(200);
     expect((await dataOf<CategoryView>(patchRes)).nameEn).toBe("Nav Systems");
 
     // Delete → then 404.
-    const delRes = await app.request(`/ships/${shipShortId}/equipment-categories/${created.id}`, jsonReq("DELETE", adminCookie));
+    const delRes = await app.request(`/projects/${shipShortId}/equipment-categories/${created.id}`, jsonReq("DELETE", adminCookie));
     expect(delRes.status).toBe(200);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories/${created.id}`, { headers: { Cookie: adminCookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories/${created.id}`, { headers: { Cookie: adminCookie } })).status).toBe(404);
   });
 
-  test("a base-project member can read but cannot write", async () => {
+  test("a project member can read but cannot write", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
-    const category = await createCategory(app, shipShortId, adminCookie, { nameZh: "推进系统", nameEn: "Propulsion" });
+    const category = await createCategory(app, shipShortId, adminCookie, { nameZh: "ZH Propulsion", nameEn: "Propulsion" });
 
     const member = await seedUser("user");
     await addMember(db, baseProjectInternalId, { roleId: await memberRoleId(baseProjectInternalId), userId: member });
     const memberCookie = await cookieForUser(member);
 
     // Read: list + get succeed.
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories`, { headers: { Cookie: memberCookie } })).status).toBe(200);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories/${category.id}`, { headers: { Cookie: memberCookie } })).status).toBe(200);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories`, { headers: { Cookie: memberCookie } })).status).toBe(200);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories/${category.id}`, { headers: { Cookie: memberCookie } })).status).toBe(200);
 
     // Write: create / patch / delete all 403 (no project.manage).
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", memberCookie, { nameZh: "x", nameEn: "x" }))).status).toBe(403);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories/${category.id}`, jsonReq("PATCH", memberCookie, { nameEn: "X" }))).status).toBe(403);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories/${category.id}`, jsonReq("DELETE", memberCookie))).status).toBe(403);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories`, jsonReq("POST", memberCookie, { nameZh: "x", nameEn: "x" }))).status).toBe(403);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories/${category.id}`, jsonReq("PATCH", memberCookie, { nameEn: "X" }))).status).toBe(403);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories/${category.id}`, jsonReq("DELETE", memberCookie))).status).toBe(403);
   });
 
   test("a non-member gets fail-closed 404 on read and write", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const category = await createCategory(app, shipShortId, adminCookie, { nameZh: "锚泊设备", nameEn: "Anchoring" });
+    const category = await createCategory(app, shipShortId, adminCookie, { nameZh: "ZH Anchoring", nameEn: "Anchoring" });
 
     const outsider = await sessionFor("user");
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories/${category.id}`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", outsider.cookie, { nameZh: "x", nameEn: "x" }))).status).toBe(404);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories/${category.id}`, jsonReq("PATCH", outsider.cookie, { nameEn: "X" }))).status).toBe(404);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories/${category.id}`, jsonReq("DELETE", outsider.cookie))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories/${category.id}`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories`, jsonReq("POST", outsider.cookie, { nameZh: "x", nameEn: "x" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories/${category.id}`, jsonReq("PATCH", outsider.cookie, { nameEn: "X" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories/${category.id}`, jsonReq("DELETE", outsider.cookie))).status).toBe(404);
   });
 
   test("GET category list → 401 without a session", async () => {
     const app = buildApp(db);
     const { shipShortId } = await createShipAsAdmin(app);
-    expect((await app.request(`/ships/${shipShortId}/equipment-categories`)).status).toBe(401);
+    expect((await app.request(`/projects/${shipShortId}/equipment-categories`)).status).toBe(401);
   });
 
   describe("tenant isolation", () => {
-    test("a category of one ship is not reachable under another (404)", async () => {
+    test("a category of one project is not reachable under another (404)", async () => {
       const app = buildApp(db);
       const shipA = await createShipAsAdmin(app, "A");
-      // Same admin is PM of both base projects → isolates scoping from authz.
-      const resB = await app.request("/ships", jsonReq("POST", shipA.adminCookie, { name: "B" }));
-      const shipBShortId = ((await resB.json()) as { data: { id: string } }).data.id;
+      // Same admin owns both projects → isolates scoping from authz.
+      const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
 
-      const category = await createCategory(app, shipA.shipShortId, shipA.adminCookie, { nameZh: "导航设备", nameEn: "Navigation" });
+      const category = await createCategory(app, shipA.shipShortId, shipA.adminCookie, { nameZh: "ZH Navigation", nameEn: "Navigation" });
 
-      // Cross-ship access of ship A's category id under ship B → 404 on every verb.
-      expect((await app.request(`/ships/${shipBShortId}/equipment-categories/${category.id}`, { headers: { Cookie: shipA.adminCookie } })).status).toBe(404);
-      expect((await app.request(`/ships/${shipBShortId}/equipment-categories/${category.id}`, jsonReq("PATCH", shipA.adminCookie, { nameEn: "X" }))).status).toBe(404);
-      expect((await app.request(`/ships/${shipBShortId}/equipment-categories/${category.id}`, jsonReq("DELETE", shipA.adminCookie))).status).toBe(404);
+      // Cross-project access of project A's category id under project B → 404 on every verb.
+      expect((await app.request(`/projects/${shipBShortId}/equipment-categories/${category.id}`, { headers: { Cookie: shipA.adminCookie } })).status).toBe(404);
+      expect((await app.request(`/projects/${shipBShortId}/equipment-categories/${category.id}`, jsonReq("PATCH", shipA.adminCookie, { nameEn: "X" }))).status).toBe(404);
+      expect((await app.request(`/projects/${shipBShortId}/equipment-categories/${category.id}`, jsonReq("DELETE", shipA.adminCookie))).status).toBe(404);
 
-      // Ship B's own list never contains ship A's category.
-      const listB = await dataOf<CategoryView[]>(await app.request(`/ships/${shipBShortId}/equipment-categories`, { headers: { Cookie: shipA.adminCookie } }));
+      // Project B's own list never contains project A's category.
+      const listB = await dataOf<CategoryView[]>(await app.request(`/projects/${shipBShortId}/equipment-categories`, { headers: { Cookie: shipA.adminCookie } }));
       expect(listB).toHaveLength(0);
     });
 
-    test("a member of one ship cannot touch another ship's categories (404)", async () => {
+    test("a member of one project cannot touch another project's categories (404)", async () => {
       const app = buildApp(db);
       const shipA = await createShipAsAdmin(app, "A");
-      const resB = await app.request("/ships", jsonReq("POST", shipA.adminCookie, { name: "B" }));
-      const shipBShortId = ((await resB.json()) as { data: { id: string } }).data.id;
-      const category = await createCategory(app, shipBShortId, shipA.adminCookie, { nameZh: "推进系统", nameEn: "Propulsion" });
+      const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
+      const category = await createCategory(app, shipBShortId, shipA.adminCookie, { nameZh: "ZH Propulsion", nameEn: "Propulsion" });
 
-      // A user who is a member of ship A only.
+      // A user who is a member of project A only.
       const userA = await seedUser("user");
       await addMember(db, shipA.baseProjectInternalId, { roleId: await memberRoleId(shipA.baseProjectInternalId), userId: userA });
       const cookieA = await cookieForUser(userA);
 
-      expect((await app.request(`/ships/${shipBShortId}/equipment-categories`, { headers: { Cookie: cookieA } })).status).toBe(404);
-      expect((await app.request(`/ships/${shipBShortId}/equipment-categories/${category.id}`, { headers: { Cookie: cookieA } })).status).toBe(404);
-      expect((await app.request(`/ships/${shipBShortId}/equipment-categories`, jsonReq("POST", cookieA, { nameZh: "x", nameEn: "x" }))).status).toBe(404);
-      expect((await app.request(`/ships/${shipBShortId}/equipment-categories/${category.id}`, jsonReq("DELETE", cookieA))).status).toBe(404);
+      expect((await app.request(`/projects/${shipBShortId}/equipment-categories`, { headers: { Cookie: cookieA } })).status).toBe(404);
+      expect((await app.request(`/projects/${shipBShortId}/equipment-categories/${category.id}`, { headers: { Cookie: cookieA } })).status).toBe(404);
+      expect((await app.request(`/projects/${shipBShortId}/equipment-categories`, jsonReq("POST", cookieA, { nameZh: "x", nameEn: "x" }))).status).toBe(404);
+      expect((await app.request(`/projects/${shipBShortId}/equipment-categories/${category.id}`, jsonReq("DELETE", cookieA))).status).toBe(404);
     });
 
-    test("the same name is allowed across different ships", async () => {
+    test("the same name is allowed across different projects", async () => {
       const app = buildApp(db);
       const shipA = await createShipAsAdmin(app, "A");
-      const resB = await app.request("/ships", jsonReq("POST", shipA.adminCookie, { name: "B" }));
-      const shipBShortId = ((await resB.json()) as { data: { id: string } }).data.id;
+      const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
 
-      await createCategory(app, shipA.shipShortId, shipA.adminCookie, { nameZh: "导航设备", nameEn: "Navigation" });
-      // Same bilingual names on a different ship → allowed (uniqueness is per-ship).
-      const onB = await app.request(`/ships/${shipBShortId}/equipment-categories`, jsonReq("POST", shipA.adminCookie, { nameZh: "导航设备", nameEn: "Navigation" }));
+      await createCategory(app, shipA.shipShortId, shipA.adminCookie, { nameZh: "ZH Navigation", nameEn: "Navigation" });
+      // Same bilingual names on a different project → allowed (uniqueness is per-project).
+      const onB = await app.request(`/projects/${shipBShortId}/equipment-categories`, jsonReq("POST", shipA.adminCookie, { nameZh: "ZH Navigation", nameEn: "Navigation" }));
       expect(onB.status).toBe(201);
     });
   });
@@ -272,103 +272,102 @@ describe("per-ship equipment categories (ship-access)", () => {
     test("blank / whitespace name rejected with 422", async () => {
       const app = buildApp(db);
       const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-      expect((await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", adminCookie, { nameZh: "   ", nameEn: "Steering" }))).status).toBe(422);
-      expect((await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", adminCookie, { nameZh: "舵机", nameEn: "" }))).status).toBe(422);
+      expect((await app.request(`/projects/${shipShortId}/equipment-categories`, jsonReq("POST", adminCookie, { nameZh: "   ", nameEn: "Steering" }))).status).toBe(422);
+      expect((await app.request(`/projects/${shipShortId}/equipment-categories`, jsonReq("POST", adminCookie, { nameZh: "ZH Steering", nameEn: "" }))).status).toBe(422);
     });
 
-    test("duplicate name_zh or name_en within a ship rejected with 422", async () => {
+    test("duplicate name_zh or name_en within a project rejected with 422", async () => {
       const app = buildApp(db);
       const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-      await createCategory(app, shipShortId, adminCookie, { nameZh: "主机", nameEn: "Main Engine" });
+      await createCategory(app, shipShortId, adminCookie, { nameZh: "ZH Main Engine", nameEn: "Main Engine" });
 
-      const dupZh = await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", adminCookie, { nameZh: "主机", nameEn: "Different" }));
+      const dupZh = await app.request(`/projects/${shipShortId}/equipment-categories`, jsonReq("POST", adminCookie, { nameZh: "ZH Main Engine", nameEn: "Different" }));
       expect(dupZh.status).toBe(422);
-      const dupEn = await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", adminCookie, { nameZh: "不同", nameEn: "Main Engine" }));
+      const dupEn = await app.request(`/projects/${shipShortId}/equipment-categories`, jsonReq("POST", adminCookie, { nameZh: "ZH Different", nameEn: "Main Engine" }));
       expect(dupEn.status).toBe(422);
     });
 
     test("PATCH with no fields → 422", async () => {
       const app = buildApp(db);
       const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-      const category = await createCategory(app, shipShortId, adminCookie, { nameZh: "甲板设备", nameEn: "Deck" });
-      const res = await app.request(`/ships/${shipShortId}/equipment-categories/${category.id}`, jsonReq("PATCH", adminCookie, {}));
+      const category = await createCategory(app, shipShortId, adminCookie, { nameZh: "ZH Deck", nameEn: "Deck" });
+      const res = await app.request(`/projects/${shipShortId}/equipment-categories/${category.id}`, jsonReq("PATCH", adminCookie, {}));
       expect(res.status).toBe(422);
     });
   });
 });
 
-// Permission PARITY with ship-level worklists: per-ship equipment categories
-// reuse the SAME gates (requireShipRead for GET, requireShipManage for writes),
-// anchored on the ship's base project — they invent no separate membership or
-// capability. Each test drives BOTH `/ships/:shortId/worklists` and
-// `/ships/:shortId/equipment-categories` with the SAME actor and asserts the
-// status codes match verb-for-verb, so the equivalence is literal (both routers
-// are mounted by shipRoutes()).
-describe("permission parity with ship worklists", () => {
+// Permission PARITY with the worklist section: per-project equipment categories
+// reuse the SAME gates (project membership for GET, `project.manage` for
+// writes) — they invent no separate membership or capability. Each test drives
+// BOTH `/projects/:projectId/worklists` and
+// `/projects/:projectId/equipment-categories` with the SAME actor and asserts
+// the status codes match verb-for-verb, so the equivalence is literal (both
+// routers are mounted by shipRoutes()).
+describe("permission parity with project worklists", () => {
   async function status(app: Hono<AppEnv>, method: string, cookie: string, path: string, body?: unknown): Promise<number> {
     return (await app.request(path, jsonReq(method, cookie, body))).status;
   }
 
-  test("a ship-worklist reader/writer has identical access to equipment-categories", async () => {
+  test("a worklist reader/writer has identical access to equipment-categories", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
 
     // Admin (PM) can write both — POST parity.
-    const wlPost = await status(app, "POST", adminCookie, `/ships/${shipShortId}/worklists`, { name: "WL" });
-    const catPost = await status(app, "POST", adminCookie, `/ships/${shipShortId}/equipment-categories`, { nameZh: "主机", nameEn: "Main Engine" });
+    const wlPost = await status(app, "POST", adminCookie, `/projects/${shipShortId}/worklists`, { name: "WL" });
+    const catPost = await status(app, "POST", adminCookie, `/projects/${shipShortId}/equipment-categories`, { nameZh: "ZH Main Engine", nameEn: "Main Engine" });
     expect(catPost).toBe(wlPost);
     expect(catPost).toBe(201);
 
-    // A plain base-project member (Reader) — same read=200 / write=403 on both.
+    // A plain project member (Reader) — same read=200 / write=403 on both.
     const member = await seedUser("user");
     await addMember(db, baseProjectInternalId, { roleId: await memberRoleId(baseProjectInternalId), userId: member });
     const memberCookie = await cookieForUser(member);
 
-    const wlRead = await status(app, "GET", memberCookie, `/ships/${shipShortId}/worklists`);
-    const catRead = await status(app, "GET", memberCookie, `/ships/${shipShortId}/equipment-categories`);
+    const wlRead = await status(app, "GET", memberCookie, `/projects/${shipShortId}/worklists`);
+    const catRead = await status(app, "GET", memberCookie, `/projects/${shipShortId}/equipment-categories`);
     expect(catRead).toBe(wlRead);
     expect(catRead).toBe(200);
 
-    const wlWrite = await status(app, "POST", memberCookie, `/ships/${shipShortId}/worklists`, { name: "Nope" });
-    const catWrite = await status(app, "POST", memberCookie, `/ships/${shipShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
+    const wlWrite = await status(app, "POST", memberCookie, `/projects/${shipShortId}/worklists`, { name: "Nope" });
+    const catWrite = await status(app, "POST", memberCookie, `/projects/${shipShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
     expect(catWrite).toBe(wlWrite);
     expect(catWrite).toBe(403);
   });
 
-  test("a user who cannot access ship worklists is rejected identically on equipment-categories", async () => {
+  test("a user who cannot access project worklists is rejected identically on equipment-categories", async () => {
     const app = buildApp(db);
     const { shipShortId } = await createShipAsAdmin(app);
-    const outsider = await sessionFor("user"); // not a base-project member
+    const outsider = await sessionFor("user"); // not a project member
 
-    const wlRead = await status(app, "GET", outsider.cookie, `/ships/${shipShortId}/worklists`);
-    const catRead = await status(app, "GET", outsider.cookie, `/ships/${shipShortId}/equipment-categories`);
+    const wlRead = await status(app, "GET", outsider.cookie, `/projects/${shipShortId}/worklists`);
+    const catRead = await status(app, "GET", outsider.cookie, `/projects/${shipShortId}/equipment-categories`);
     expect(catRead).toBe(wlRead);
     expect(catRead).toBe(404); // fail-closed, identical to worklists
 
-    const wlWrite = await status(app, "POST", outsider.cookie, `/ships/${shipShortId}/worklists`, { name: "Nope" });
-    const catWrite = await status(app, "POST", outsider.cookie, `/ships/${shipShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
+    const wlWrite = await status(app, "POST", outsider.cookie, `/projects/${shipShortId}/worklists`, { name: "Nope" });
+    const catWrite = await status(app, "POST", outsider.cookie, `/projects/${shipShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
     expect(catWrite).toBe(wlWrite);
     expect(catWrite).toBe(404);
   });
 
-  test("a member of ship A is rejected identically on ship B worklists and equipment-categories", async () => {
+  test("a member of project A is rejected identically on project B worklists and equipment-categories", async () => {
     const app = buildApp(db);
     const shipA = await createShipAsAdmin(app, "A");
-    const resB = await app.request("/ships", jsonReq("POST", shipA.adminCookie, { name: "B" }));
-    const shipBShortId = ((await resB.json()) as { data: { id: string } }).data.id;
+    const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
 
-    // A user who is a member of ship A's base project ONLY.
+    // A user who is a member of project A ONLY.
     const userA = await seedUser("user");
     await addMember(db, shipA.baseProjectInternalId, { roleId: await memberRoleId(shipA.baseProjectInternalId), userId: userA });
     const cookieA = await cookieForUser(userA);
 
-    const wlRead = await status(app, "GET", cookieA, `/ships/${shipBShortId}/worklists`);
-    const catRead = await status(app, "GET", cookieA, `/ships/${shipBShortId}/equipment-categories`);
+    const wlRead = await status(app, "GET", cookieA, `/projects/${shipBShortId}/worklists`);
+    const catRead = await status(app, "GET", cookieA, `/projects/${shipBShortId}/equipment-categories`);
     expect(catRead).toBe(wlRead);
     expect(catRead).toBe(404);
 
-    const wlWrite = await status(app, "POST", cookieA, `/ships/${shipBShortId}/worklists`, { name: "Nope" });
-    const catWrite = await status(app, "POST", cookieA, `/ships/${shipBShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
+    const wlWrite = await status(app, "POST", cookieA, `/projects/${shipBShortId}/worklists`, { name: "Nope" });
+    const catWrite = await status(app, "POST", cookieA, `/projects/${shipBShortId}/equipment-categories`, { nameZh: "x", nameEn: "x" });
     expect(catWrite).toBe(wlWrite);
     expect(catWrite).toBe(404);
   });

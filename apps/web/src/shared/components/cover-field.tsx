@@ -1,7 +1,6 @@
 // Shared cover-image upload/replace/remove control. Presentational only: the
-// caller owns the mutations (and any success/error toast — projects toast, ships
-// do not), passing resolved `pending`/`error` state plus `onPick`/`onRemove`
-// handlers. Replaces the per-module ProjectCoverField / ShipCoverField copies.
+// caller owns the mutations (and any success/error toast), passing resolved
+// `pending`/`error` state plus `onPick`/`onRemove` handlers.
 
 import { Trash2, Upload } from "lucide-react";
 import { CoverImage } from "@/shared/components/cover-image";
@@ -12,8 +11,8 @@ import { Label } from "@/shared/components/ui/label";
 
 // Structurally identical to cover-image's internal CoverKind (kept local so this
 // component adds no export to the existing file). Migrate to a shared export if a
-// third kind appears.
-type CoverKind = "project" | "ship";
+// second kind appears.
+type CoverKind = "project";
 
 interface CoverFieldLabels {
   readonly field: string;

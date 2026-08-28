@@ -116,6 +116,25 @@ Later edits to the global template **do not** propagate to existing ships;
 deleting a ship cascades its own category rows. This mirrors
 `global_procurement_categories` → `procurement_categories` for projects.
 
+## Addendum (2026-08-28) — re-keyed to `project_id` by the section fold
+
+[ADR-015](./015-projects-as-sections.md) folded ships into projects. The
+storage decision above is unchanged — both tables still carry parallel
+`name_zh` / `name_en` columns — but the *keying and route surface* moved:
+
+- read "per-ship" above as **"per project with the `equipment` section
+  mounted"**. `ship_equipment_categories.ship_id` is now `project_id`; the
+  unique indexes are `(project_id, name_zh)` / `(project_id, name_en)`.
+- the copy is seeded by the `equipment` section's `provision` hook
+  (`seedEquipmentCategoriesTx`), which runs on both the create-time preset and
+  a later `mountSection` — not inside a `createShip` transaction, which no
+  longer exists.
+- CRUD moved from `/ships/:shortId/equipment-categories` to
+  **`/projects/:projectId/equipment-categories`** (read = project member, write
+  = `project.manage`), behind `requireSection("equipment")`.
+
+See [modules/ship.md](../modules/ship.md).
+
 The bilingual **parallel-columns** storage decision above (and the third-locale
 sunset / review) is unchanged — both `global_equipment_categories` and
 `ship_equipment_categories` carry the same `name_zh` / `name_en` columns.

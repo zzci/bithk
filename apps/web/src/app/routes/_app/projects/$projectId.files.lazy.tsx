@@ -3,9 +3,8 @@
 
 import { createLazyFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
-import { useProject } from "@/shared/lib/api/projects";
 import { FileBrowser } from "../-file-browser";
+import { useProjectSectionRoute } from "./-project-section-route";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/files")({
   component: ProjectFilesRoute,
@@ -14,9 +13,8 @@ export const Route = createLazyFileRoute("/_app/projects/$projectId/files")({
 function ProjectFilesRoute() {
   const { projectId } = useParams({ from: "/_app/projects/$projectId/files" });
   const navigate = useNavigate();
-  const projectQuery = useProject(projectId);
-  const project = projectQuery.data;
-  const caps = useProjectCapabilities(project);
+  // 404s the deep link when the project does not mount `files`.
+  const { project, caps } = useProjectSectionRoute(projectId, "files");
 
   // Once the project (and thus caps) resolves, bounce viewers without access
   // back to the overview rather than rendering a tab they cannot see.

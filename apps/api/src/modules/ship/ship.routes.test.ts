@@ -15,10 +15,12 @@ import { users } from "@/modules/account/users/schema";
 import { addMember, createProject } from "@/modules/project/project.service";
 import { projectRoles } from "@/modules/project/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
+import { globalEquipmentCategories, shipEquipmentCategories, shipProfiles } from "./schema";
 import { shipRoutes } from "./ship.routes";
-import { getShipByShortId } from "./ship.service";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
+// Registers the three maritime sections (ship-profile / equipment / worklist).
+import "./index";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -104,14 +106,23 @@ function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
   };
 }
 
-/** Create a ship through the route as an admin; return its short id + the admin session. */
-async function createShipAsAdmin(app: Hono<AppEnv>, name = "Aurora"): Promise<{ adminId: string; adminCookie: string; shipShortId: string; baseProjectInternalId: string }> {
-  const admin = await sessionFor("admin");
-  const res = await app.request("/ships", jsonReq("POST", admin.cookie, { name }));
-  expect(res.status).toBe(201);
-  const body = await res.json() as { data: { id: string } };
-  const ship = await getShipByShortId(db, body.data.id);
-  return { adminId: admin.userId, adminCookie: admin.cookie, shipShortId: body.data.id, baseProjectInternalId: ship!.baseProjectId! };
+interface ShipProject {
+  ownerId: string;
+  ownerCookie: string;
+  shortId: string;
+  internalId: string;
+}
+
+/** Create a ship-preset project (the fold's replacement for `POST /ships`). */
+async function createShipProject(name = "Aurora", sectionData?: Record<string, unknown>): Promise<ShipProject> {
+  const ownerId = await seedUser("user");
+  const project = await createProject(db, {
+    name,
+    creatorId: ownerId,
+    preset: "ship",
+    ...(sectionData ? { sectionData } : {}),
+  });
+  return { ownerId, ownerCookie: await cookieForUser(ownerId), shortId: project.shortId, internalId: project.id };
 }
 
 beforeEach(async () => {
@@ -128,237 +139,191 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-describe("auth gating", () => {
-  test("GET /ships → 401 without a session", async () => {
-    const res = await buildApp(db).request("/ships");
+describe("the /ships module is gone", () => {
+  test("every former /ships route 404s", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    for (const path of ["/ships", "/ships/abc12345", "/ships/abc12345/equipment", "/ships/abc12345/worklists"]) {
+      const res = await app.request(path, { headers: { Cookie: cookie } });
+      expect(res.status).toBe(404);
+    }
+  });
+});
+
+describe("provisioning a ship-preset project", () => {
+  test("inserts the profile row and copies the global equipment categories in one transaction", async () => {
+    const now = new Date().toISOString();
+    await db.insert(globalEquipmentCategories).values([
+      { id: nanoid(), nameZh: "ZH Main Engine", nameEn: "Main Engine", code: "ME", description: null, createdAt: now, updatedAt: now },
+      { id: nanoid(), nameZh: "ZH Generator", nameEn: "Generator", code: null, description: null, createdAt: now, updatedAt: now },
+    ]).run();
+
+    const ship = await createShipProject("Aurora", { "ship-profile": { hullNumber: "HULL-9", shipStatus: "active", imoNumber: "IMO-1" } });
+
+    const profile = await db.select().from(shipProfiles).where(eq(shipProfiles.projectId, ship.internalId)).get();
+    expect(profile?.hullNumber).toBe("HULL-9");
+    expect(profile?.shipStatus).toBe("active");
+    expect(profile?.imoNumber).toBe("IMO-1");
+
+    const categories = await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.projectId, ship.internalId)).all();
+    expect(categories.map(c => c.nameEn).sort()).toEqual(["Generator", "Main Engine"]);
+  });
+
+  test("a general-preset project gets neither a profile nor copied categories", async () => {
+    const now = new Date().toISOString();
+    await db.insert(globalEquipmentCategories).values({
+      id: nanoid(),
+      nameZh: "ZH Main Engine",
+      nameEn: "Main Engine",
+      code: null,
+      description: null,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "Plain", creatorId: owner });
+
+    expect(await db.select().from(shipProfiles).where(eq(shipProfiles.projectId, project.id)).get()).toBeUndefined();
+    expect(await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.projectId, project.id)).all()).toHaveLength(0);
+  });
+
+  test("a profile row is created even without a ship-profile payload", async () => {
+    const ship = await createShipProject("Bare");
+    const profile = await db.select().from(shipProfiles).where(eq(shipProfiles.projectId, ship.internalId)).get();
+    expect(profile).toBeTruthy();
+    expect(profile!.shipStatus).toBe("laid_up");
+  });
+
+  test("a duplicate hull number rolls the whole creation back", async () => {
+    await createShipProject("First", { "ship-profile": { hullNumber: "HULL-DUP" } });
+    const owner = await seedUser("user");
+    await expect(createProject(db, {
+      name: "Second",
+      creatorId: owner,
+      preset: "ship",
+      sectionData: { "ship-profile": { hullNumber: "HULL-DUP" } },
+    })).rejects.toThrow();
+  });
+});
+
+describe("requireSection gates every ship surface", () => {
+  test("a general project 404s on ship-profile, equipment and worklists", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "Plain", creatorId: owner });
+    const cookie = await cookieForUser(owner);
+
+    for (const path of ["ship-profile", "equipment", "equipment-categories", "worklists", "referenceable-worklists"]) {
+      const res = await app.request(`/projects/${project.shortId}/${path}`, { headers: { Cookie: cookie } });
+      expect(res.status).toBe(404);
+    }
+  });
+
+  test("an unknown project 404s too (existence is not leaked)", async () => {
+    const app = buildApp(db);
+    const { cookie } = await sessionFor("admin");
+    const res = await app.request("/projects/nope1234/ship-profile", { headers: { Cookie: cookie } });
+    expect(res.status).toBe(404);
+  });
+
+  test("unmounting the section removes the surface", async () => {
+    const app = buildApp(db);
+    const ship = await createShipProject("Aurora");
+    expect((await app.request(`/projects/${ship.shortId}/worklists`, { headers: { Cookie: ship.ownerCookie } })).status).toBe(200);
+
+    const { unmountSection } = await import("@/modules/project/section.service");
+    await unmountSection(db, ship.internalId, "worklist");
+
+    expect((await app.request(`/projects/${ship.shortId}/worklists`, { headers: { Cookie: ship.ownerCookie } })).status).toBe(404);
+  });
+});
+
+describe("GET /projects/:projectId/ship-profile", () => {
+  test("401 without a session", async () => {
+    const ship = await createShipProject();
+    const res = await buildApp(db).request(`/projects/${ship.shortId}/ship-profile`);
     expect(res.status).toBe(401);
   });
 
-  test("POST /ships → 403 for a non-admin user", async () => {
+  test("the owner reads it; a plain member reads it; an outsider gets 404", async () => {
     const app = buildApp(db);
-    const { cookie } = await sessionFor("user");
-    const res = await app.request("/ships", jsonReq("POST", cookie, { name: "P" }));
-    expect(res.status).toBe(403);
-  });
-});
+    const ship = await createShipProject("Aurora", { "ship-profile": { hullNumber: "HULL-3", mmsi: "123456789" } });
 
-describe("POST /ships (admin only)", () => {
-  test("admin creates a ship; the response carries the base project short id", async () => {
+    const ownRes = await app.request(`/projects/${ship.shortId}/ship-profile`, { headers: { Cookie: ship.ownerCookie } });
+    expect(ownRes.status).toBe(200);
+    const body = await ownRes.json() as { data: { hullNumber: string; mmsi: string | null } };
+    expect(body.data.hullNumber).toBe("HULL-3");
+    expect(body.data.mmsi).toBe("123456789");
+
+    const member = await seedUser("user");
+    await addMember(db, ship.internalId, { roleId: await memberRoleId(ship.internalId), userId: member });
+    expect((await app.request(`/projects/${ship.shortId}/ship-profile`, { headers: { Cookie: await cookieForUser(member) } })).status).toBe(200);
+
+    const outsider = await sessionFor("user");
+    expect((await app.request(`/projects/${ship.shortId}/ship-profile`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
+  });
+
+  test("an app admin reads it without being a member", async () => {
     const app = buildApp(db);
+    const ship = await createShipProject();
     const admin = await sessionFor("admin");
-    const res = await app.request("/ships", jsonReq("POST", admin.cookie, { name: "Bridge", code: "HULL-9" }));
-    expect(res.status).toBe(201);
-    const body = await res.json() as { data: { id: string; code: string; baseProjectId: string | null } };
-    expect(body.data.code).toBe("HULL-9");
-    expect(body.data.baseProjectId).not.toBeNull();
-
-    // The creator can read it as the base project's PM.
-    const detail = await app.request(`/ships/${body.data.id}`, { headers: { Cookie: await cookieForUser(admin.userId) } });
-    expect(detail.status).toBe(200);
-  });
-
-  test("rejects an empty name with 422", async () => {
-    const app = buildApp(db);
-    const { cookie } = await sessionFor("admin");
-    const res = await app.request("/ships", jsonReq("POST", cookie, { name: "" }));
-    expect(res.status).toBe(422);
+    expect((await app.request(`/projects/${ship.shortId}/ship-profile`, { headers: { Cookie: admin.cookie } })).status).toBe(200);
   });
 });
 
-describe("input bounds (FIX-AUDIT-016)", () => {
-  test("creating a ship with too many tags is rejected with 422", async () => {
+describe("PUT /projects/:projectId/ship-profile", () => {
+  test("the owner updates; a plain member gets 403; an outsider gets 404", async () => {
     const app = buildApp(db);
-    const { cookie } = await sessionFor("admin");
-    const tags = Array.from({ length: 51 }, (_, i) => `t${i}`);
-    const res = await app.request("/ships", jsonReq("POST", cookie, { name: "Tagged", tags }));
+    const ship = await createShipProject("Aurora", { "ship-profile": { hullNumber: "HULL-4" } });
+
+    const ok = await app.request(`/projects/${ship.shortId}/ship-profile`, jsonReq("PUT", ship.ownerCookie, { hullNumber: "HULL-5", shipStatus: "underway" }));
+    expect(ok.status).toBe(200);
+    const body = await ok.json() as { data: { hullNumber: string; shipStatus: string } };
+    expect(body.data.hullNumber).toBe("HULL-5");
+    expect(body.data.shipStatus).toBe("underway");
+
+    const member = await seedUser("user");
+    await addMember(db, ship.internalId, { roleId: await memberRoleId(ship.internalId), userId: member });
+    expect((await app.request(`/projects/${ship.shortId}/ship-profile`, jsonReq("PUT", await cookieForUser(member), { hullNumber: "X" }))).status).toBe(403);
+
+    const outsider = await sessionFor("user");
+    expect((await app.request(`/projects/${ship.shortId}/ship-profile`, jsonReq("PUT", outsider.cookie, { hullNumber: "X" }))).status).toBe(404);
+  });
+
+  test("an empty patch is rejected with 422", async () => {
+    const app = buildApp(db);
+    const ship = await createShipProject();
+    const res = await app.request(`/projects/${ship.shortId}/ship-profile`, jsonReq("PUT", ship.ownerCookie, {}));
     expect(res.status).toBe(422);
   });
 
-  test("creating a ship with an over-long tag is rejected with 422", async () => {
+  test("a hull number already used by another project is rejected with 422", async () => {
     const app = buildApp(db);
-    const { cookie } = await sessionFor("admin");
-    const res = await app.request("/ships", jsonReq("POST", cookie, { name: "Tagged", tags: ["a".repeat(51)] }));
+    await createShipProject("First", { "ship-profile": { hullNumber: "HULL-TAKEN" } });
+    const second = await createShipProject("Second", { "ship-profile": { hullNumber: "HULL-FREE" } });
+
+    const res = await app.request(`/projects/${second.shortId}/ship-profile`, jsonReq("PUT", second.ownerCookie, { hullNumber: "HULL-TAKEN" }));
     expect(res.status).toBe(422);
   });
 
-  test("an over-long list q query is rejected with 422", async () => {
+  test("the hull number keeps its case, unlike the lowercased project code", async () => {
     const app = buildApp(db);
-    const { cookie } = await sessionFor("admin");
-    const res = await app.request(`/ships?q=${"a".repeat(201)}`, { headers: { Cookie: cookie } });
-    expect(res.status).toBe(422);
-  });
-
-  test("the list clamps an over-limit page size to 100", async () => {
-    const app = buildApp(db);
-    const { cookie } = await sessionFor("admin");
-    const res = await app.request("/ships?limit=999", { headers: { Cookie: cookie } });
+    const ship = await createShipProject();
+    const res = await app.request(`/projects/${ship.shortId}/ship-profile`, jsonReq("PUT", ship.ownerCookie, { hullNumber: "Hull-MixedCase" }));
     expect(res.status).toBe(200);
-    expect((await res.json() as { meta: { limit: number } }).meta.limit).toBe(100);
+    expect((await res.json() as { data: { hullNumber: string } }).data.hullNumber).toBe("Hull-MixedCase");
   });
 });
 
-describe("GET /ships/:shortId (fail-closed read)", () => {
-  test("non-member gets 404 (existence is not leaked); member and admin get 200", async () => {
+describe("deleting a ship-preset project", () => {
+  test("softDeleteProject removes every ship surface (no admin-only ship delete)", async () => {
     const app = buildApp(db);
-    const { adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
+    const ship = await createShipProject();
+    const { softDeleteProject } = await import("@/modules/project/project.service");
+    await softDeleteProject(db, ship.shortId);
 
-    // Outsider: fail-closed 404.
-    const outsider = await sessionFor("user");
-    const outRes = await app.request(`/ships/${shipShortId}`, { headers: { Cookie: outsider.cookie } });
-    expect(outRes.status).toBe(404);
-
-    // Add a member to the base project → can read.
-    const member = await seedUser("user");
-    await addMember(db, baseProjectInternalId, { roleId: await memberRoleId(baseProjectInternalId), userId: member });
-    const memRes = await app.request(`/ships/${shipShortId}`, { headers: { Cookie: await cookieForUser(member) } });
-    expect(memRes.status).toBe(200);
-
-    // Admin (also the creator here) reads fine.
-    const admRes = await app.request(`/ships/${shipShortId}`, { headers: { Cookie: adminCookie } });
-    expect(admRes.status).toBe(200);
-  });
-
-  test("unknown ship → 404", async () => {
-    const app = buildApp(db);
-    const admin = await sessionFor("admin");
-    const res = await app.request("/ships/nope1234", { headers: { Cookie: admin.cookie } });
+    const res = await app.request(`/projects/${ship.shortId}/ship-profile`, { headers: { Cookie: ship.ownerCookie } });
     expect(res.status).toBe(404);
   });
 });
-
-describe("GET /ships (list is member-scoped for non-admins)", () => {
-  test("a non-admin sees only ships whose base project they belong to", async () => {
-    const app = buildApp(db);
-    const a = await createShipAsAdmin(app, "ShipA");
-    await createShipAsAdmin(app, "ShipB");
-
-    // A plain user, member of ShipA's base project only.
-    const member = await seedUser("user");
-    await addMember(db, a.baseProjectInternalId, { roleId: await memberRoleId(a.baseProjectInternalId), userId: member });
-
-    const listRes = await app.request("/ships", { headers: { Cookie: await cookieForUser(member) } });
-    expect(listRes.status).toBe(200);
-    const body = await listRes.json() as { data: { id: string }[]; meta: { total: number } };
-    expect(body.meta.total).toBe(1);
-    expect(body.data).toHaveLength(1);
-    expect(body.data[0]!.id).toBe(a.shipShortId);
-  });
-});
-
-describe("PATCH /ships/:shortId (write needs project.manage)", () => {
-  test("a plain member gets 403; the PM updates; a non-member gets 404", async () => {
-    const app = buildApp(db);
-    const { adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
-
-    // Plain member (no project.manage) → 403.
-    const member = await seedUser("user");
-    await addMember(db, baseProjectInternalId, { roleId: await memberRoleId(baseProjectInternalId), userId: member });
-    const memRes = await app.request(`/ships/${shipShortId}`, jsonReq("PATCH", await cookieForUser(member), { name: "X" }));
-    expect(memRes.status).toBe(403);
-
-    // Non-member → fail-closed 404.
-    const outsider = await sessionFor("user");
-    const outRes = await app.request(`/ships/${shipShortId}`, jsonReq("PATCH", outsider.cookie, { name: "X" }));
-    expect(outRes.status).toBe(404);
-
-    // PM (admin/creator) → 200.
-    const pmRes = await app.request(`/ships/${shipShortId}`, jsonReq("PATCH", adminCookie, { name: "Renamed" }));
-    expect(pmRes.status).toBe(200);
-    expect((await pmRes.json() as { data: { name: string } }).data.name).toBe("Renamed");
-  });
-});
-
-describe("DELETE /ships/:shortId (admin only)", () => {
-  test("non-admin member gets 403; admin soft-deletes", async () => {
-    const app = buildApp(db);
-    const { adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
-
-    const member = await seedUser("user");
-    await addMember(db, baseProjectInternalId, { roleId: await memberRoleId(baseProjectInternalId), userId: member });
-    const memRes = await app.request(`/ships/${shipShortId}`, jsonReq("DELETE", await cookieForUser(member)));
-    expect(memRes.status).toBe(403);
-
-    const delRes = await app.request(`/ships/${shipShortId}`, jsonReq("DELETE", adminCookie));
-    expect(delRes.status).toBe(200);
-    const after = await app.request(`/ships/${shipShortId}`, { headers: { Cookie: adminCookie } });
-    expect(after.status).toBe(404);
-  });
-});
-
-describe("binding routes", () => {
-  test("PM binds/unbinds extra projects; base project is not unbindable", async () => {
-    const app = buildApp(db);
-    const { adminId, adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
-
-    // List: only the base project, flagged isBase.
-    const listRes = await app.request(`/ships/${shipShortId}/projects`, { headers: { Cookie: adminCookie } });
-    expect(listRes.status).toBe(200);
-    const listed = await res(listRes);
-    expect(listed.data).toHaveLength(1);
-    expect(listed.data[0]!.isBase).toBe(true);
-
-    // Bind a standalone project (admin is its PM too).
-    const extra = await createProject(db, { name: "Extra", creatorId: adminId });
-    const bindRes = await app.request(`/ships/${shipShortId}/projects`, jsonReq("POST", adminCookie, { projectShortId: extra.shortId }));
-    expect(bindRes.status).toBe(200);
-    expect((await res(bindRes)).data).toHaveLength(2);
-
-    // The base project cannot be unbound.
-    const { projects } = await import("@/modules/project/schema");
-    const base = await db.select().from(projects).where(eq(projects.id, baseProjectInternalId)).get();
-    const baseUnbind = await app.request(`/ships/${shipShortId}/projects/${base!.shortId}`, jsonReq("DELETE", adminCookie));
-    expect(baseUnbind.status).toBe(403);
-
-    // The extra project can be unbound.
-    const unbind = await app.request(`/ships/${shipShortId}/projects/${extra.shortId}`, jsonReq("DELETE", adminCookie));
-    expect(unbind.status).toBe(200);
-  });
-
-  test("a non-member cannot list a ship's projects (404)", async () => {
-    const app = buildApp(db);
-    const { shipShortId } = await createShipAsAdmin(app);
-    const outsider = await sessionFor("user");
-    const res = await app.request(`/ships/${shipShortId}/projects`, { headers: { Cookie: outsider.cookie } });
-    expect(res.status).toBe(404);
-  });
-
-  // T4: bind error mappings at the route layer.
-  test("binding an unknown project → 404", async () => {
-    const app = buildApp(db);
-    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const res = await app.request(`/ships/${shipShortId}/projects`, jsonReq("POST", adminCookie, { projectShortId: "nope1234" }));
-    expect(res.status).toBe(404);
-  });
-
-  test("binding another ship's base project → 422 (is_base)", async () => {
-    const app = buildApp(db);
-    const a = await createShipAsAdmin(app, "ShipA");
-    // A second ship owned by the same admin; its base project is off-limits.
-    const bRes = await app.request("/ships", jsonReq("POST", a.adminCookie, { name: "ShipB" }));
-    const bBody = await bRes.json() as { data: { baseProjectId: string } };
-    const res = await app.request(`/ships/${a.shipShortId}/projects`, jsonReq("POST", a.adminCookie, { projectShortId: bBody.data.baseProjectId }));
-    expect(res.status).toBe(422);
-    expect((await res.json() as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
-  });
-
-  // T4 / B1 regression: a project already bound to ANOTHER ship as an extra is
-  // refused (mapped to a 422 ValidationError, never silently stolen).
-  test("binding a project already bound to another ship → 422 (bound_elsewhere)", async () => {
-    const app = buildApp(db);
-    const a = await createShipAsAdmin(app, "ShipA");
-    const b = await createShipAsAdmin(app, "ShipB");
-
-    // Bind a standalone project to ship B first.
-    const extra = await createProject(db, { name: "Refit", creatorId: a.adminId });
-    expect((await app.request(`/ships/${b.shipShortId}/projects`, jsonReq("POST", b.adminCookie, { projectShortId: extra.shortId }))).status).toBe(200);
-
-    // Ship A cannot steal it.
-    const res = await app.request(`/ships/${a.shipShortId}/projects`, jsonReq("POST", a.adminCookie, { projectShortId: extra.shortId }));
-    expect(res.status).toBe(422);
-    expect((await res.json() as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
-  });
-});
-
-async function res(r: Response): Promise<{ data: { isBase: boolean }[] }> {
-  return await r.json() as { data: { isBase: boolean }[] };
-}

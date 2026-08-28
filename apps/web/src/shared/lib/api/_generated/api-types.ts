@@ -796,23 +796,6 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/projects/{projectId}/referenceable-worklists": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /** List worklists a project may reference */
-        readonly get: operations["getProjectsByProjectIdReferenceableWorklists"];
-        readonly put?: never;
-        readonly post?: never;
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
     readonly "/projects/{projectId}/issues/{id}": {
         readonly parameters: {
             readonly query?: never;
@@ -1336,42 +1319,6 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/global-procurement-categories": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /** List global procurement categories */
-        readonly get: operations["getGlobalProcurementCategories"];
-        readonly put?: never;
-        /** Create a global procurement category */
-        readonly post: operations["postGlobalProcurementCategories"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/global-procurement-categories/{id}": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        readonly post?: never;
-        /** Delete a global procurement category */
-        readonly delete: operations["deleteGlobalProcurementCategoriesById"];
-        readonly options?: never;
-        readonly head?: never;
-        /** Update a global procurement category */
-        readonly patch: operations["patchGlobalProcurementCategoriesById"];
-        readonly trace?: never;
-    };
     readonly "/admin/project-default-cover": {
         readonly parameters: {
             readonly query?: never;
@@ -1441,6 +1388,63 @@ export interface paths {
         readonly post: operations["postProjectsByIdCoverImage"];
         /** Remove a project cover image */
         readonly delete: operations["deleteProjectsByIdCoverImage"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/projects/{id}/sections/{key}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        /**
+         * Mount a section on a project
+         * @description Mounts the section and runs its provisioning in one transaction, so a late mount is seeded exactly like the create-time preset would have been. The body is optional; when supplied it must be `{ "sectionData": { … } }`, carrying this one section's create payload (e.g. `{ "sectionData": { "hullNumber": "HULL-1" } }` for `ship-profile`).
+         */
+        readonly put: operations["putProjectsByIdSectionsByKey"];
+        readonly post?: never;
+        /** Unmount a section from a project */
+        readonly delete: operations["deleteProjectsByIdSectionsByKey"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/projects/{id}/children": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List a project's sub-projects */
+        readonly get: operations["getProjectsByIdChildren"];
+        readonly put?: never;
+        /** Create a sub-project under a project */
+        readonly post: operations["postProjectsByIdChildren"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/projects/{id}/children/{childId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        /** Link an existing project as a sub-project */
+        readonly put: operations["putProjectsByIdChildrenByChildId"];
+        readonly post?: never;
+        /** Unlink a sub-project from its parent */
+        readonly delete: operations["deleteProjectsByIdChildrenByChildId"];
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
@@ -1516,42 +1520,6 @@ export interface paths {
         readonly head?: never;
         /** Update a project role */
         readonly patch: operations["patchProjectsByIdRolesByRoleId"];
-        readonly trace?: never;
-    };
-    readonly "/projects/{id}/procurement-categories": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /** List project procurement categories */
-        readonly get: operations["getProjectsByIdProcurementCategories"];
-        readonly put?: never;
-        /** Create a project procurement category */
-        readonly post: operations["postProjectsByIdProcurementCategories"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/projects/{id}/procurement-categories/{categoryId}": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        readonly post?: never;
-        /** Delete a project procurement category */
-        readonly delete: operations["deleteProjectsByIdProcurementCategoriesByCategoryId"];
-        readonly options?: never;
-        readonly head?: never;
-        /** Update a project procurement category */
-        readonly patch: operations["patchProjectsByIdProcurementCategoriesByCategoryId"];
         readonly trace?: never;
     };
     readonly "/contact-categories": {
@@ -1956,6 +1924,78 @@ export interface paths {
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/global-procurement-categories": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List global procurement categories */
+        readonly get: operations["getGlobalProcurementCategories"];
+        readonly put?: never;
+        /** Create a global procurement category */
+        readonly post: operations["postGlobalProcurementCategories"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/global-procurement-categories/{id}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /** Delete a global procurement category */
+        readonly delete: operations["deleteGlobalProcurementCategoriesById"];
+        readonly options?: never;
+        readonly head?: never;
+        /** Update a global procurement category */
+        readonly patch: operations["patchGlobalProcurementCategoriesById"];
+        readonly trace?: never;
+    };
+    readonly "/projects/{id}/procurement-categories": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List project procurement categories */
+        readonly get: operations["getProjectsByIdProcurementCategories"];
+        readonly put?: never;
+        /** Create a project procurement category */
+        readonly post: operations["postProjectsByIdProcurementCategories"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/projects/{id}/procurement-categories/{categoryId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /** Delete a project procurement category */
+        readonly delete: operations["deleteProjectsByIdProcurementCategoriesByCategoryId"];
+        readonly options?: never;
+        readonly head?: never;
+        /** Update a project procurement category */
+        readonly patch: operations["patchProjectsByIdProcurementCategoriesByCategoryId"];
         readonly trace?: never;
     };
     readonly "/documents": {
@@ -2973,205 +3013,150 @@ export interface paths {
         readonly patch: operations["patchGlobalEquipmentManufacturersById"];
         readonly trace?: never;
     };
-    readonly "/ships": {
+    readonly "/projects/{projectId}/ship-profile": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** List ships */
-        readonly get: operations["getShips"];
-        readonly put?: never;
-        /** Create a ship */
-        readonly post: operations["postShips"];
+        /** Get a project's ship profile */
+        readonly get: operations["getProjectsByProjectIdShipProfile"];
+        /** Update a project's ship profile */
+        readonly put: operations["putProjectsByProjectIdShipProfile"];
+        readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/ships/{shortId}": {
+    readonly "/projects/{projectId}/equipment": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** Get a ship */
-        readonly get: operations["getShipsByShortId"];
+        /** List a project's equipment */
+        readonly get: operations["getProjectsByProjectIdEquipment"];
         readonly put?: never;
-        readonly post?: never;
-        /** Soft-delete a ship */
-        readonly delete: operations["deleteShipsByShortId"];
-        readonly options?: never;
-        readonly head?: never;
-        /** Update a ship */
-        readonly patch: operations["patchShipsByShortId"];
-        readonly trace?: never;
-    };
-    readonly "/ships/{shortId}/cover-image": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        /** Set or replace a ship's cover image */
-        readonly post: operations["postShipsByShortIdCoverImage"];
-        /** Remove a ship's cover image */
-        readonly delete: operations["deleteShipsByShortIdCoverImage"];
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/ships/{shortId}/projects": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /** List a ship's bound projects */
-        readonly get: operations["getShipsByShortIdProjects"];
-        readonly put?: never;
-        /** Bind a project to a ship */
-        readonly post: operations["postShipsByShortIdProjects"];
+        /** Create a project's equipment item */
+        readonly post: operations["postProjectsByProjectIdEquipment"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/ships/{shortId}/projects/{projectShortId}": {
+    readonly "/projects/{projectId}/equipment/{equipmentId}": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        readonly get?: never;
+        /** Get a project's equipment item */
+        readonly get: operations["getProjectsByProjectIdEquipmentByEquipmentId"];
         readonly put?: never;
         readonly post?: never;
-        /** Unbind a project from a ship */
-        readonly delete: operations["deleteShipsByShortIdProjectsByProjectShortId"];
+        /** Delete a project's equipment item */
+        readonly delete: operations["deleteProjectsByProjectIdEquipmentByEquipmentId"];
         readonly options?: never;
         readonly head?: never;
-        readonly patch?: never;
+        /** Update a project's equipment item */
+        readonly patch: operations["patchProjectsByProjectIdEquipmentByEquipmentId"];
         readonly trace?: never;
     };
-    readonly "/ships/{shortId}/equipment": {
+    readonly "/projects/{projectId}/equipment-categories": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** List a ship's equipment */
-        readonly get: operations["getShipsByShortIdEquipment"];
+        /** List a project's equipment categories */
+        readonly get: operations["getProjectsByProjectIdEquipmentCategories"];
         readonly put?: never;
-        /** Create a ship's equipment item */
-        readonly post: operations["postShipsByShortIdEquipment"];
+        /** Create a project's equipment category */
+        readonly post: operations["postProjectsByProjectIdEquipmentCategories"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/ships/{shortId}/equipment/{equipmentId}": {
+    readonly "/projects/{projectId}/equipment-categories/{categoryId}": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** Get a ship's equipment item */
-        readonly get: operations["getShipsByShortIdEquipmentByEquipmentId"];
+        /** Get a project's equipment category */
+        readonly get: operations["getProjectsByProjectIdEquipmentCategoriesByCategoryId"];
         readonly put?: never;
         readonly post?: never;
-        /** Delete a ship's equipment item */
-        readonly delete: operations["deleteShipsByShortIdEquipmentByEquipmentId"];
+        /** Delete a project's equipment category */
+        readonly delete: operations["deleteProjectsByProjectIdEquipmentCategoriesByCategoryId"];
         readonly options?: never;
         readonly head?: never;
-        /** Update a ship's equipment item */
-        readonly patch: operations["patchShipsByShortIdEquipmentByEquipmentId"];
+        /** Update a project's equipment category */
+        readonly patch: operations["patchProjectsByProjectIdEquipmentCategoriesByCategoryId"];
         readonly trace?: never;
     };
-    readonly "/ships/{shortId}/equipment-categories": {
+    readonly "/projects/{projectId}/worklists": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** List a ship's equipment categories */
-        readonly get: operations["getShipsByShortIdEquipmentCategories"];
+        /** List a project's worklists */
+        readonly get: operations["getProjectsByProjectIdWorklists"];
         readonly put?: never;
-        /** Create a ship's equipment category */
-        readonly post: operations["postShipsByShortIdEquipmentCategories"];
+        /** Create a project's worklist */
+        readonly post: operations["postProjectsByProjectIdWorklists"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/ships/{shortId}/equipment-categories/{categoryId}": {
+    readonly "/projects/{projectId}/referenceable-worklists": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** Get a ship's equipment category */
-        readonly get: operations["getShipsByShortIdEquipmentCategoriesByCategoryId"];
+        /** List worklists a project may reference */
+        readonly get: operations["getProjectsByProjectIdReferenceableWorklists"];
         readonly put?: never;
         readonly post?: never;
-        /** Delete a ship's equipment category */
-        readonly delete: operations["deleteShipsByShortIdEquipmentCategoriesByCategoryId"];
-        readonly options?: never;
-        readonly head?: never;
-        /** Update a ship's equipment category */
-        readonly patch: operations["patchShipsByShortIdEquipmentCategoriesByCategoryId"];
-        readonly trace?: never;
-    };
-    readonly "/ships/{shortId}/worklists": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /** List a ship's worklists */
-        readonly get: operations["getShipsByShortIdWorklists"];
-        readonly put?: never;
-        /** Create a ship's worklist */
-        readonly post: operations["postShipsByShortIdWorklists"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/ships/{shortId}/worklists/{id}": {
+    readonly "/projects/{projectId}/worklists/{id}": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        /** Get a ship's worklist */
-        readonly get: operations["getShipsByShortIdWorklistsById"];
+        /** Get a project's worklist */
+        readonly get: operations["getProjectsByProjectIdWorklistsById"];
         readonly put?: never;
         readonly post?: never;
-        /** Delete a ship's worklist */
-        readonly delete: operations["deleteShipsByShortIdWorklistsById"];
+        /** Delete a project's worklist */
+        readonly delete: operations["deleteProjectsByProjectIdWorklistsById"];
         readonly options?: never;
         readonly head?: never;
-        /** Update a ship's worklist */
-        readonly patch: operations["patchShipsByShortIdWorklistsById"];
+        /** Update a project's worklist */
+        readonly patch: operations["patchProjectsByProjectIdWorklistsById"];
         readonly trace?: never;
     };
     readonly "/worklists": {
@@ -8240,7 +8225,7 @@ export interface operations {
     readonly getTags: {
         readonly parameters: {
             readonly query?: {
-                readonly type?: "project" | "contact" | "document" | "issue" | "procurement" | "ship" | "worklist";
+                readonly type?: "project" | "contact" | "document" | "issue" | "procurement" | "worklist";
             };
             readonly header?: never;
             readonly path?: never;
@@ -8300,7 +8285,7 @@ export interface operations {
                      * @default project
                      * @enum {string}
                      */
-                    readonly type?: "project" | "contact" | "document" | "issue" | "procurement" | "ship" | "worklist";
+                    readonly type?: "project" | "contact" | "document" | "issue" | "procurement" | "worklist";
                 };
             };
         };
@@ -8361,7 +8346,7 @@ export interface operations {
     readonly deleteTagsById: {
         readonly parameters: {
             readonly query?: {
-                readonly type?: "project" | "contact" | "document" | "issue" | "procurement" | "ship" | "worklist";
+                readonly type?: "project" | "contact" | "document" | "issue" | "procurement" | "worklist";
             };
             readonly header?: never;
             readonly path: {
@@ -8437,7 +8422,7 @@ export interface operations {
                      * @default project
                      * @enum {string}
                      */
-                    readonly type?: "project" | "contact" | "document" | "issue" | "procurement" | "ship" | "worklist";
+                    readonly type?: "project" | "contact" | "document" | "issue" | "procurement" | "worklist";
                 };
             };
         };
@@ -8739,91 +8724,6 @@ export interface operations {
             };
             /** @description Validation error */
             readonly 422: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly getProjectsByProjectIdReferenceableWorklists: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly projectId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly ship: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                                readonly tags: readonly {
-                                    readonly id: string;
-                                    readonly name: string;
-                                }[];
-                                readonly checklist: string | null;
-                                readonly precautions: string | null;
-                                readonly createdAt: string;
-                                readonly updatedAt: string;
-                            }[];
-                            readonly global: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                                readonly tags: readonly {
-                                    readonly id: string;
-                                    readonly name: string;
-                                }[];
-                                readonly checklist: string | null;
-                                readonly precautions: string | null;
-                                readonly createdAt: string;
-                                readonly updatedAt: string;
-                            }[];
-                        };
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Project not found or not a member */
-            readonly 404: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
@@ -12875,296 +12775,6 @@ export interface operations {
             };
         };
     };
-    readonly getGlobalProcurementCategories: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: readonly {
-                            readonly id: string;
-                            readonly name: string;
-                            readonly code: string | null;
-                            readonly description: string | null;
-                            readonly createdAt: string;
-                            readonly updatedAt: string;
-                        }[];
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Admin only */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly postGlobalProcurementCategories: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": {
-                    readonly name: string;
-                    readonly code?: string | null;
-                    readonly description?: string | null;
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Created */
-            readonly 201: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly id: string;
-                            readonly name: string;
-                            readonly code: string | null;
-                            readonly description: string | null;
-                            readonly createdAt: string;
-                            readonly updatedAt: string;
-                        };
-                    };
-                };
-            };
-            /** @description Admin only */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Validation error */
-            readonly 422: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly deleteGlobalProcurementCategoriesById: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly id: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: null;
-                    };
-                };
-            };
-            /** @description Admin only */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly patchGlobalProcurementCategoriesById: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly id: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": {
-                    readonly name?: string;
-                    readonly code?: string | null;
-                    readonly description?: string | null;
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly id: string;
-                            readonly name: string;
-                            readonly code: string | null;
-                            readonly description: string | null;
-                            readonly createdAt: string;
-                            readonly updatedAt: string;
-                        };
-                    };
-                };
-            };
-            /** @description Admin only */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Validation error */
-            readonly 422: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
     readonly getAdminProjectDefaultCover: {
         readonly parameters: {
             readonly query?: never;
@@ -13323,6 +12933,7 @@ export interface operations {
             readonly query?: {
                 readonly status?: "active" | "archived";
                 readonly q?: string;
+                readonly section?: "issues" | "procurement" | "files" | "ship-profile" | "equipment" | "worklist";
                 readonly page?: number;
                 readonly limit?: number;
             };
@@ -13348,12 +12959,12 @@ export interface operations {
                             /** @enum {string} */
                             readonly status: "active" | "archived";
                             readonly description: string | null;
-                            readonly shipId: string | null;
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
                                 readonly usageCount: number;
                             }[];
+                            readonly sections: readonly string[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13416,6 +13027,15 @@ export interface operations {
                     readonly code?: string;
                     readonly name: string;
                     readonly description?: string | null;
+                    readonly parentId?: string;
+                    /**
+                     * @default general
+                     * @enum {string}
+                     */
+                    readonly preset?: "general" | "ship";
+                    readonly sectionData?: {
+                        readonly [key: string]: unknown;
+                    };
                     readonly tags?: readonly string[];
                 };
             };
@@ -13437,12 +13057,12 @@ export interface operations {
                             /** @enum {string} */
                             readonly status: "active" | "archived";
                             readonly description: string | null;
-                            readonly shipId: string | null;
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
                                 readonly usageCount: number;
                             }[];
+                            readonly sections: readonly string[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13468,7 +13088,24 @@ export interface operations {
                     };
                 };
             };
-            /** @description Validation error */
+            /** @description Parent project not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error, or a hierarchy more than one level deep */
             readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -13514,12 +13151,12 @@ export interface operations {
                             /** @enum {string} */
                             readonly status: "active" | "archived";
                             readonly description: string | null;
-                            readonly shipId: string | null;
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
                                 readonly usageCount: number;
                             }[];
+                            readonly sections: readonly string[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13663,12 +13300,12 @@ export interface operations {
                             /** @enum {string} */
                             readonly status: "active" | "archived";
                             readonly description: string | null;
-                            readonly shipId: string | null;
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
                                 readonly usageCount: number;
                             }[];
+                            readonly sections: readonly string[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13781,12 +13418,12 @@ export interface operations {
                             /** @enum {string} */
                             readonly status: "active" | "archived";
                             readonly description: string | null;
-                            readonly shipId: string | null;
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
                                 readonly usageCount: number;
                             }[];
+                            readonly sections: readonly string[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13875,12 +13512,12 @@ export interface operations {
                             /** @enum {string} */
                             readonly status: "active" | "archived";
                             readonly description: string | null;
-                            readonly shipId: string | null;
                             readonly tags: readonly {
                                 readonly id: string;
                                 readonly name: string;
                                 readonly usageCount: number;
                             }[];
+                            readonly sections: readonly string[];
                             readonly coverImageUrl: string | null;
                             readonly creatorId: string;
                             readonly version: number;
@@ -13891,6 +13528,599 @@ export interface operations {
             };
             /** @description Unauthenticated */
             readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly putProjectsByIdSectionsByKey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly key: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly sectionData?: {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly string[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Unknown section key, or section data the section rejected */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly deleteProjectsByIdSectionsByKey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly key: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly string[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Section still holds data */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getProjectsByIdChildren: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly {
+                            readonly id: string;
+                            readonly code: string;
+                            readonly name: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
+                            readonly description: string | null;
+                            readonly tags: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                                readonly usageCount: number;
+                            }[];
+                            readonly sections: readonly string[];
+                            readonly coverImageUrl: string | null;
+                            readonly creatorId: string;
+                            readonly version: number;
+                            readonly updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postProjectsByIdChildren: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly code?: string;
+                    readonly name: string;
+                    readonly description?: string | null;
+                    /**
+                     * @default general
+                     * @enum {string}
+                     */
+                    readonly preset?: "general" | "ship";
+                    readonly sectionData?: {
+                        readonly [key: string]: unknown;
+                    };
+                    readonly tags?: readonly string[];
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Created */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly code: string;
+                            readonly name: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
+                            readonly description: string | null;
+                            readonly tags: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                                readonly usageCount: number;
+                            }[];
+                            readonly sections: readonly string[];
+                            readonly coverImageUrl: string | null;
+                            readonly creatorId: string;
+                            readonly version: number;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error, or the parent is itself a sub-project */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly putProjectsByIdChildrenByChildId: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly childId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly code: string;
+                            readonly name: string;
+                            /** @enum {string} */
+                            readonly status: "active" | "archived";
+                            readonly description: string | null;
+                            readonly tags: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                                readonly usageCount: number;
+                            }[];
+                            readonly sections: readonly string[];
+                            readonly coverImageUrl: string | null;
+                            readonly creatorId: string;
+                            readonly version: number;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description The link would make the hierarchy more than one level deep */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly deleteProjectsByIdChildrenByChildId: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly childId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: null;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
@@ -14624,370 +14854,6 @@ export interface operations {
                 };
             };
             /** @description Project role not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Validation error */
-            readonly 422: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly getProjectsByIdProcurementCategories: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly id: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: readonly {
-                            readonly id: string;
-                            readonly name: string;
-                            readonly code: string | null;
-                            readonly description: string | null;
-                            readonly createdAt: string;
-                            readonly updatedAt: string;
-                        }[];
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Project not found or not a member */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly postProjectsByIdProcurementCategories: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly id: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": {
-                    readonly name: string;
-                    readonly code?: string | null;
-                    readonly description?: string | null;
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Created */
-            readonly 201: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly id: string;
-                            readonly name: string;
-                            readonly code: string | null;
-                            readonly description: string | null;
-                            readonly createdAt: string;
-                            readonly updatedAt: string;
-                        };
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Forbidden */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Project not found or not a member */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Validation error */
-            readonly 422: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly deleteProjectsByIdProcurementCategoriesByCategoryId: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly id: string;
-                readonly categoryId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: null;
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Forbidden */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Procurement category not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly patchProjectsByIdProcurementCategoriesByCategoryId: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly id: string;
-                readonly categoryId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": {
-                    readonly name?: string;
-                    readonly code?: string | null;
-                    readonly description?: string | null;
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly id: string;
-                            readonly name: string;
-                            readonly code: string | null;
-                            readonly description: string | null;
-                            readonly createdAt: string;
-                            readonly updatedAt: string;
-                        };
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Forbidden */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Procurement category not found */
             readonly 404: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -18749,6 +18615,660 @@ export interface operations {
             };
             /** @description Not found */
             readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getGlobalProcurementCategories: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly code: string | null;
+                            readonly description: string | null;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postGlobalProcurementCategories: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly name: string;
+                    readonly code?: string | null;
+                    readonly description?: string | null;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Created */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly code: string | null;
+                            readonly description: string | null;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly deleteGlobalProcurementCategoriesById: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: null;
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly patchGlobalProcurementCategoriesById: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly name?: string;
+                    readonly code?: string | null;
+                    readonly description?: string | null;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly code: string | null;
+                            readonly description: string | null;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Admin only */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getProjectsByIdProcurementCategories: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: readonly {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly code: string | null;
+                            readonly description: string | null;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly postProjectsByIdProcurementCategories: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly name: string;
+                    readonly code?: string | null;
+                    readonly description?: string | null;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Created */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly code: string | null;
+                            readonly description: string | null;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Project not found or not a member */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly deleteProjectsByIdProcurementCategoriesByCategoryId: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly categoryId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: null;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Procurement category not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly patchProjectsByIdProcurementCategoriesByCategoryId: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly categoryId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly name?: string;
+                    readonly code?: string | null;
+                    readonly description?: string | null;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly id: string;
+                            readonly name: string;
+                            readonly code: string | null;
+                            readonly description: string | null;
+                            readonly createdAt: string;
+                            readonly updatedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Procurement category not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error */
+            readonly 422: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
@@ -25087,7 +25607,7 @@ export interface operations {
                         readonly data: {
                             readonly documents: readonly {
                                 /** @enum {string} */
-                                readonly type: "document" | "issue" | "project" | "drive" | "ship";
+                                readonly type: "document" | "issue" | "project" | "drive";
                                 readonly id: string;
                                 readonly title: string;
                                 readonly subtitle?: string;
@@ -25095,7 +25615,7 @@ export interface operations {
                             }[];
                             readonly issues: readonly {
                                 /** @enum {string} */
-                                readonly type: "document" | "issue" | "project" | "drive" | "ship";
+                                readonly type: "document" | "issue" | "project" | "drive";
                                 readonly id: string;
                                 readonly title: string;
                                 readonly subtitle?: string;
@@ -25103,7 +25623,7 @@ export interface operations {
                             }[];
                             readonly projects: readonly {
                                 /** @enum {string} */
-                                readonly type: "document" | "issue" | "project" | "drive" | "ship";
+                                readonly type: "document" | "issue" | "project" | "drive";
                                 readonly id: string;
                                 readonly title: string;
                                 readonly subtitle?: string;
@@ -25111,15 +25631,7 @@ export interface operations {
                             }[];
                             readonly drive: readonly {
                                 /** @enum {string} */
-                                readonly type: "document" | "issue" | "project" | "drive" | "ship";
-                                readonly id: string;
-                                readonly title: string;
-                                readonly subtitle?: string;
-                                readonly projectId?: string;
-                            }[];
-                            readonly ships: readonly {
-                                /** @enum {string} */
-                                readonly type: "document" | "issue" | "project" | "drive" | "ship";
+                                readonly type: "document" | "issue" | "project" | "drive";
                                 readonly id: string;
                                 readonly title: string;
                                 readonly subtitle?: string;
@@ -26588,20 +27100,18 @@ export interface operations {
             };
         };
     };
-    readonly getShips: {
+    readonly getProjectsByProjectIdShipProfile: {
         readonly parameters: {
-            readonly query?: {
-                readonly status?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                readonly tagId?: string | readonly string[];
-                readonly q?: string;
-            };
+            readonly query?: never;
             readonly header?: never;
-            readonly path?: never;
+            readonly path: {
+                readonly projectId: string;
+            };
             readonly cookie?: never;
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description Ship list */
+            /** @description Success */
             readonly 200: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -26610,17 +27120,10 @@ export interface operations {
                     readonly "application/json": {
                         /** @constant */
                         readonly success: true;
-                        readonly data: readonly {
-                            readonly id: string;
-                            readonly code: string;
-                            readonly name: string;
+                        readonly data: {
+                            readonly hullNumber: string;
                             /** @enum {string} */
-                            readonly status: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                            readonly tags: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                            }[];
-                            readonly baseProjectId: string | null;
+                            readonly shipStatus: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
                             readonly model: string | null;
                             readonly builder: string | null;
                             readonly buildYear: number | null;
@@ -26635,16 +27138,8 @@ export interface operations {
                             readonly flagState: string | null;
                             readonly registryPort: string | null;
                             readonly ownerName: string | null;
-                            readonly description: string | null;
-                            readonly coverImageUrl: string | null;
-                            readonly creatorId: string;
-                            readonly version: number;
+                            readonly createdAt: string;
                             readonly updatedAt: string;
-                        }[];
-                        readonly meta: {
-                            readonly total: number;
-                            readonly page: number;
-                            readonly limit: number;
                         };
                     };
                 };
@@ -26666,8 +27161,8 @@ export interface operations {
                     };
                 };
             };
-            /** @description Validation error */
-            readonly 422: {
+            /** @description Not found */
+            readonly 404: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
@@ -26685,21 +27180,21 @@ export interface operations {
             };
         };
     };
-    readonly postShips: {
+    readonly putProjectsByProjectIdShipProfile: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
-            readonly path?: never;
+            readonly path: {
+                readonly projectId: string;
+            };
             readonly cookie?: never;
         };
         readonly requestBody: {
             readonly content: {
                 readonly "application/json": {
-                    readonly code?: string;
-                    readonly name: string;
+                    readonly hullNumber?: string;
                     /** @enum {string} */
-                    readonly status?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                    readonly tags?: readonly string[];
+                    readonly shipStatus?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
                     readonly model?: string | null;
                     readonly builder?: string | null;
                     readonly buildYear?: number | null;
@@ -26714,272 +27209,6 @@ export interface operations {
                     readonly flagState?: string | null;
                     readonly registryPort?: string | null;
                     readonly ownerName?: string | null;
-                    readonly description?: string | null;
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Created */
-            readonly 201: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly id: string;
-                            readonly code: string;
-                            readonly name: string;
-                            /** @enum {string} */
-                            readonly status: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                            readonly tags: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                            }[];
-                            readonly baseProjectId: string | null;
-                            readonly model: string | null;
-                            readonly builder: string | null;
-                            readonly buildYear: number | null;
-                            readonly lengthOverall: number | null;
-                            readonly beam: number | null;
-                            readonly draft: number | null;
-                            readonly airDraft: number | null;
-                            readonly grossTonnage: number | null;
-                            readonly imoNumber: string | null;
-                            readonly mmsi: string | null;
-                            readonly callSign: string | null;
-                            readonly flagState: string | null;
-                            readonly registryPort: string | null;
-                            readonly ownerName: string | null;
-                            readonly description: string | null;
-                            readonly coverImageUrl: string | null;
-                            readonly creatorId: string;
-                            readonly version: number;
-                            readonly updatedAt: string;
-                        };
-                    };
-                };
-            };
-            /** @description Admin only */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Validation error */
-            readonly 422: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly getShipsByShortId: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly shortId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly id: string;
-                            readonly code: string;
-                            readonly name: string;
-                            /** @enum {string} */
-                            readonly status: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                            readonly tags: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                            }[];
-                            readonly baseProjectId: string | null;
-                            readonly model: string | null;
-                            readonly builder: string | null;
-                            readonly buildYear: number | null;
-                            readonly lengthOverall: number | null;
-                            readonly beam: number | null;
-                            readonly draft: number | null;
-                            readonly airDraft: number | null;
-                            readonly grossTonnage: number | null;
-                            readonly imoNumber: string | null;
-                            readonly mmsi: string | null;
-                            readonly callSign: string | null;
-                            readonly flagState: string | null;
-                            readonly registryPort: string | null;
-                            readonly ownerName: string | null;
-                            readonly description: string | null;
-                            readonly coverImageUrl: string | null;
-                            readonly creatorId: string;
-                            readonly version: number;
-                            readonly updatedAt: string;
-                        };
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly deleteShipsByShortId: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly shortId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: null;
-                    };
-                };
-            };
-            /** @description Admin only */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly patchShipsByShortId: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly shortId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": {
-                    readonly code?: string;
-                    readonly name?: string;
-                    /** @enum {string} */
-                    readonly status?: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                    readonly tags?: readonly string[];
-                    readonly model?: string | null;
-                    readonly builder?: string | null;
-                    readonly buildYear?: number | null;
-                    readonly lengthOverall?: number | null;
-                    readonly beam?: number | null;
-                    readonly draft?: number | null;
-                    readonly airDraft?: number | null;
-                    readonly grossTonnage?: number | null;
-                    readonly imoNumber?: string | null;
-                    readonly mmsi?: string | null;
-                    readonly callSign?: string | null;
-                    readonly flagState?: string | null;
-                    readonly registryPort?: string | null;
-                    readonly ownerName?: string | null;
-                    readonly description?: string | null;
                 };
             };
         };
@@ -26994,16 +27223,9 @@ export interface operations {
                         /** @constant */
                         readonly success: true;
                         readonly data: {
-                            readonly id: string;
-                            readonly code: string;
-                            readonly name: string;
+                            readonly hullNumber: string;
                             /** @enum {string} */
-                            readonly status: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                            readonly tags: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                            }[];
-                            readonly baseProjectId: string | null;
+                            readonly shipStatus: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
                             readonly model: string | null;
                             readonly builder: string | null;
                             readonly buildYear: number | null;
@@ -27018,10 +27240,7 @@ export interface operations {
                             readonly flagState: string | null;
                             readonly registryPort: string | null;
                             readonly ownerName: string | null;
-                            readonly description: string | null;
-                            readonly coverImageUrl: string | null;
-                            readonly creatorId: string;
-                            readonly version: number;
+                            readonly createdAt: string;
                             readonly updatedAt: string;
                         };
                     };
@@ -27080,456 +27299,12 @@ export interface operations {
             };
         };
     };
-    readonly postShipsByShortIdCoverImage: {
+    readonly getProjectsByProjectIdEquipment: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "multipart/form-data": {
-                    /** Format: binary */
-                    readonly file: string;
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly id: string;
-                            readonly code: string;
-                            readonly name: string;
-                            /** @enum {string} */
-                            readonly status: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                            readonly tags: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                            }[];
-                            readonly baseProjectId: string | null;
-                            readonly model: string | null;
-                            readonly builder: string | null;
-                            readonly buildYear: number | null;
-                            readonly lengthOverall: number | null;
-                            readonly beam: number | null;
-                            readonly draft: number | null;
-                            readonly airDraft: number | null;
-                            readonly grossTonnage: number | null;
-                            readonly imoNumber: string | null;
-                            readonly mmsi: string | null;
-                            readonly callSign: string | null;
-                            readonly flagState: string | null;
-                            readonly registryPort: string | null;
-                            readonly ownerName: string | null;
-                            readonly description: string | null;
-                            readonly coverImageUrl: string | null;
-                            readonly creatorId: string;
-                            readonly version: number;
-                            readonly updatedAt: string;
-                        };
-                    };
-                };
-            };
-            /** @description No file provided */
-            readonly 400: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Forbidden */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly deleteShipsByShortIdCoverImage: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly shortId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: {
-                            readonly id: string;
-                            readonly code: string;
-                            readonly name: string;
-                            /** @enum {string} */
-                            readonly status: "under_construction" | "active" | "underway" | "in_maintenance" | "laid_up" | "retired";
-                            readonly tags: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                            }[];
-                            readonly baseProjectId: string | null;
-                            readonly model: string | null;
-                            readonly builder: string | null;
-                            readonly buildYear: number | null;
-                            readonly lengthOverall: number | null;
-                            readonly beam: number | null;
-                            readonly draft: number | null;
-                            readonly airDraft: number | null;
-                            readonly grossTonnage: number | null;
-                            readonly imoNumber: string | null;
-                            readonly mmsi: string | null;
-                            readonly callSign: string | null;
-                            readonly flagState: string | null;
-                            readonly registryPort: string | null;
-                            readonly ownerName: string | null;
-                            readonly description: string | null;
-                            readonly coverImageUrl: string | null;
-                            readonly creatorId: string;
-                            readonly version: number;
-                            readonly updatedAt: string;
-                        };
-                    };
-                };
-            };
-            /** @description Forbidden */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly getShipsByShortIdProjects: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly shortId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: readonly {
-                            readonly id: string;
-                            readonly code: string;
-                            readonly name: string;
-                            /** @enum {string} */
-                            readonly status: "active" | "archived";
-                            readonly description: string | null;
-                            readonly shipId: string | null;
-                            readonly tags: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                                readonly usageCount: number;
-                            }[];
-                            readonly coverImageUrl: string | null;
-                            readonly creatorId: string;
-                            readonly version: number;
-                            readonly updatedAt: string;
-                            readonly isBase: boolean;
-                        }[];
-                    };
-                };
-            };
-            /** @description Unauthenticated */
-            readonly 401: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly postShipsByShortIdProjects: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly shortId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": {
-                    readonly projectShortId: string;
-                };
-            };
-        };
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: readonly {
-                            readonly id: string;
-                            readonly code: string;
-                            readonly name: string;
-                            /** @enum {string} */
-                            readonly status: "active" | "archived";
-                            readonly description: string | null;
-                            readonly shipId: string | null;
-                            readonly tags: readonly {
-                                readonly id: string;
-                                readonly name: string;
-                                readonly usageCount: number;
-                            }[];
-                            readonly coverImageUrl: string | null;
-                            readonly creatorId: string;
-                            readonly version: number;
-                            readonly updatedAt: string;
-                            readonly isBase: boolean;
-                        }[];
-                    };
-                };
-            };
-            /** @description Forbidden */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Validation error */
-            readonly 422: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly deleteShipsByShortIdProjectsByProjectShortId: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly shortId: string;
-                readonly projectShortId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Success */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: true;
-                        readonly data: null;
-                    };
-                };
-            };
-            /** @description Forbidden */
-            readonly 403: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-            /** @description Not found */
-            readonly 404: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": {
-                        /** @constant */
-                        readonly success: false;
-                        readonly error: {
-                            readonly code: string;
-                            readonly message: string;
-                            readonly details?: unknown;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    readonly getShipsByShortIdEquipment: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
             };
             readonly cookie?: never;
         };
@@ -27601,12 +27376,12 @@ export interface operations {
             };
         };
     };
-    readonly postShipsByShortIdEquipment: {
+    readonly postProjectsByProjectIdEquipment: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
             };
             readonly cookie?: never;
         };
@@ -27710,12 +27485,12 @@ export interface operations {
             };
         };
     };
-    readonly getShipsByShortIdEquipmentByEquipmentId: {
+    readonly getProjectsByProjectIdEquipmentByEquipmentId: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
                 readonly equipmentId: string;
             };
             readonly cookie?: never;
@@ -27788,12 +27563,12 @@ export interface operations {
             };
         };
     };
-    readonly deleteShipsByShortIdEquipmentByEquipmentId: {
+    readonly deleteProjectsByProjectIdEquipmentByEquipmentId: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
                 readonly equipmentId: string;
             };
             readonly cookie?: never;
@@ -27849,12 +27624,12 @@ export interface operations {
             };
         };
     };
-    readonly patchShipsByShortIdEquipmentByEquipmentId: {
+    readonly patchProjectsByProjectIdEquipmentByEquipmentId: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
                 readonly equipmentId: string;
             };
             readonly cookie?: never;
@@ -27959,12 +27734,12 @@ export interface operations {
             };
         };
     };
-    readonly getShipsByShortIdEquipmentCategories: {
+    readonly getProjectsByProjectIdEquipmentCategories: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
             };
             readonly cookie?: never;
         };
@@ -28027,12 +27802,12 @@ export interface operations {
             };
         };
     };
-    readonly postShipsByShortIdEquipmentCategories: {
+    readonly postProjectsByProjectIdEquipmentCategories: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
             };
             readonly cookie?: never;
         };
@@ -28121,12 +27896,12 @@ export interface operations {
             };
         };
     };
-    readonly getShipsByShortIdEquipmentCategoriesByCategoryId: {
+    readonly getProjectsByProjectIdEquipmentCategoriesByCategoryId: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
                 readonly categoryId: string;
             };
             readonly cookie?: never;
@@ -28190,12 +27965,12 @@ export interface operations {
             };
         };
     };
-    readonly deleteShipsByShortIdEquipmentCategoriesByCategoryId: {
+    readonly deleteProjectsByProjectIdEquipmentCategoriesByCategoryId: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
                 readonly categoryId: string;
             };
             readonly cookie?: never;
@@ -28251,12 +28026,12 @@ export interface operations {
             };
         };
     };
-    readonly patchShipsByShortIdEquipmentCategoriesByCategoryId: {
+    readonly patchProjectsByProjectIdEquipmentCategoriesByCategoryId: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
                 readonly categoryId: string;
             };
             readonly cookie?: never;
@@ -28346,14 +28121,14 @@ export interface operations {
             };
         };
     };
-    readonly getShipsByShortIdWorklists: {
+    readonly getProjectsByProjectIdWorklists: {
         readonly parameters: {
             readonly query?: {
                 readonly tagId?: string | readonly string[];
             };
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
             };
             readonly cookie?: never;
         };
@@ -28419,12 +28194,12 @@ export interface operations {
             };
         };
     };
-    readonly postShipsByShortIdWorklists: {
+    readonly postProjectsByProjectIdWorklists: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
             };
             readonly cookie?: never;
         };
@@ -28517,12 +28292,97 @@ export interface operations {
             };
         };
     };
-    readonly getShipsByShortIdWorklistsById: {
+    readonly getProjectsByProjectIdReferenceableWorklists: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: true;
+                        readonly data: {
+                            readonly ship: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                                readonly tags: readonly {
+                                    readonly id: string;
+                                    readonly name: string;
+                                }[];
+                                readonly checklist: string | null;
+                                readonly precautions: string | null;
+                                readonly createdAt: string;
+                                readonly updatedAt: string;
+                            }[];
+                            readonly global: readonly {
+                                readonly id: string;
+                                readonly name: string;
+                                readonly tags: readonly {
+                                    readonly id: string;
+                                    readonly name: string;
+                                }[];
+                                readonly checklist: string | null;
+                                readonly precautions: string | null;
+                                readonly createdAt: string;
+                                readonly updatedAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @constant */
+                        readonly success: false;
+                        readonly error: {
+                            readonly code: string;
+                            readonly message: string;
+                            readonly details?: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readonly getProjectsByProjectIdWorklistsById: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly projectId: string;
                 readonly id: string;
             };
             readonly cookie?: never;
@@ -28589,12 +28449,12 @@ export interface operations {
             };
         };
     };
-    readonly deleteShipsByShortIdWorklistsById: {
+    readonly deleteProjectsByProjectIdWorklistsById: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
                 readonly id: string;
             };
             readonly cookie?: never;
@@ -28650,12 +28510,12 @@ export interface operations {
             };
         };
     };
-    readonly patchShipsByShortIdWorklistsById: {
+    readonly patchProjectsByProjectIdWorklistsById: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly shortId: string;
+                readonly projectId: string;
                 readonly id: string;
             };
             readonly cookie?: never;

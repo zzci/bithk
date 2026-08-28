@@ -86,10 +86,12 @@ apps/api/src/modules/
   document/        # sub-type of item
   drive/           # personal + team file drive (folders, versions, shares)
   file/            # blob storage; pluggable drivers + content dedupe
-  issue/           # sub-type of item
+  issue/           # sub-type of item; owns the `issues` project section
   item/            # base for content sub-types
   policy/
-  ship/            # thin aggregate over project, issue, and drive
+  procurement/     # sub-type of item; owns the `procurement` project section
+  project/         # core project record + the project section registry
+  ship/            # owns the `ship-profile` / `equipment` / `worklist` sections
   settings/
   system/
   tag/             # central tag vocabulary + the shared tags_refs assignment table
@@ -105,35 +107,66 @@ apps/api/src/modules/
 | `document` | Documents, attachments, comments, shares; sub-type of `item`. | [document.md](modules/document.md) |
 | `drive` | Personal + team file drive: folders, file versions, direct / public-link shares. Owns its own tables (not a sub-type of `item`). | [drive.md](modules/drive.md) |
 | `file` | Content-addressable blob storage with pluggable drivers and ref counting. | [file.md](modules/file.md) |
-| `issue` | Issues, attachments, comments; sub-type of `item`. | [issue.md](modules/issue.md) |
+| `issue` | Issues, attachments, comments; sub-type of `item`. Owns the `issues` project section. | [issue.md](modules/issue.md) |
 | `item` | Base primitive for content sub-types (common metadata + comments + permission edges). | [item.md](modules/item.md) |
 | `policy` | Zanzibar-style relation tuples, check, expand, resource groups. | [policy.md](modules/policy.md) |
-| `ship` | Ship aggregate: core ship records, equipment, maintenance templates, project-backed work orders, and base-project files. | - |
+| `procurement` | Project procurement records + the category vocabulary. Owns the `procurement` project section. | [procurement.md](modules/procurement.md) |
+| `project` | The project core record (metadata, sub-projects, roles, members) plus the **section registry** every other project surface mounts through. | [project.md](modules/project.md) |
+| `ship` | The three maritime project sections (`ship-profile`, `equipment`, `worklist`) plus the global equipment / worklist vocabularies. | [ship.md](modules/ship.md) |
 | `settings` | Runtime key/value settings store. | [settings.md](modules/settings.md) |
 | `system` | Health probes, build version, Prometheus metrics, upload limits. | [system.md](modules/system.md) |
 | `tag` | Central tag vocabulary plus the shared `tags_refs` assignment table; owns all tag storage so no other module needs a tag join table. | - |
 
-## Ship Module
+## Projects and Sections
 
-The ship module is a thin aggregate over existing project, issue, and drive
-building blocks. Creating a ship also creates a base project and links the two
-with `ships.base_project_id` and `projects.ship_id`; the creator is seeded as
-that project's Project Owner.
+A **project** is a core record plus a set of **mounted sections**. The core
+(`projects`) owns identity, metadata, `parent_id` (one level of sub-projects)
+and the permission anchor (`project_roles` / `project_members`). Everything
+else is a section: an independent sub-module owning its own tables, routes,
+capabilities, backup contribution and UI tab.
 
-Ship authorization is anchored on the base project. Reading a ship requires
-base-project membership (app admins bypass); writes require `project.manage` on
-the base project. A caller with no base-project relationship receives the
-standard fail-closed `404`.
+```text
+projects                     core: identity, metadata, parent_id, roles, members
+  └─ project_sections        (project_id, key) — a row = the section is mounted
+       issues                → issue module
+       procurement           → procurement module (+ its category vocabulary)
+       files                 → drive module, owner_type='project'
+       ship-profile          ┐
+       equipment             ├ ship module
+       worklist              ┘
+```
 
-Maintenance work orders are ordinary project issues in the ship's bound
-projects. A work order is identified by an `issue_references` soft reference
-with `refType="maintenance_template"` pointing at a ship-level maintenance
-template. Missing template targets degrade to `template: null` so historical
-issues remain readable.
+There is **no project `type` column and no ship table**: a project that mounts
+`ship-profile` *is* a ship. "Ship" is a create-time **preset** — a static map
+naming which sections a new project mounts (`general` = issues + procurement +
+files; `ship` = those plus the three maritime ones). Sections register
+themselves in `modules/project/section.registry.ts` from their OWNING module's
+barrel, so the project module never imports the modules it hosts.
 
-Ship files reuse drive's existing `project` owner type with
-`ownerType=project&ownerId=<baseProjectId>`. The ship module does not add a
-ship-specific file store or change drive behavior.
+Key properties:
+
+- **Provision hooks are synchronous.** A section's copy-on-mount hook (e.g.
+  procurement copying the global category template) runs inside the
+  transaction that writes the mount row. bun:sqlite transactions are
+  synchronous, so an `async` hook would write after COMMIT — the type signature
+  makes that a compile error and the runtime rejects a returned promise.
+- **Provision runs on create AND late mount.** `PUT /projects/:id/sections/:key`
+  mounts and provisions in one transaction, so a project can become a ship
+  after creation and "section mounted" == "the rows it seeds exist" holds on
+  both paths.
+- **`requireSection` is fail-closed.** An unmounted section 404s exactly like a
+  missing project (see [decision 003](decisions/003-fail-closed-404-existence-policy.md)),
+  so a caller cannot probe which projects have which sections. Unmount is
+  refused with `409` while the section still holds data.
+- **Capabilities stay one flat literal**, with a sibling `CAPABILITY_SECTION`
+  map tagging each entry with its owning section (or `core`). The fold added no
+  new capabilities.
+
+The registry's limits are deliberate and binding — no runtime/dynamic loading,
+no per-section config, no section versioning, no per-section membership, no
+permission inheritance parent → child, no hierarchies deeper than one level.
+See [decision 015](decisions/015-projects-as-sections.md), which supersedes
+[decision 004](decisions/004-ship-project-cycle-and-restore.md).
 
 ## Tag Module
 
@@ -218,9 +251,10 @@ engine and per-project roles decide what the user can do inside a module.
 
 Groups are the single grouping concept (FEAT-032): membership (policy
 tuples `group:<id>#member@user:<id>`) drives both sharing targets and module
-visibility. A group optionally grants module keys from the static `MODULES`
-registry (`apps/api/src/shared/modules.ts`): `documents`, `drive`,
-`projects`, `ships`, `contacts`, `hr`. A non-admin user's visible modules
+visibility. A group optionally grants module keys derived from the single
+module manifest (`apps/api/src/shared/module-manifest.ts`): `documents`,
+`drive`, `projects`, `contacts`, `hr`. There is no `ships` key — the maritime
+sections live under `projects`. A non-admin user's visible modules
 are the UNION over their groups' grants; a user in no module-granting group
 sees nothing (the visibility floor). The only built-in is the synthetic
 **Administrators** entry backed by `users.role = "admin"`, which bypasses
@@ -236,8 +270,9 @@ Enforcement:
   routes that do not exist. Admins (`users.role === "admin"`) bypass without
   a role lookup; the resolved module set is cached per request. A route
   coverage test asserts every prefix mounted on the protected router is
-  claimed by exactly one `MODULES` entry or explicitly listed in
-  `UNGATED_PREFIXES`.
+  claimed by exactly one manifest entry or explicitly listed in
+  `UNGATED_PREFIXES`. The same manifest derives the PAT scope registry
+  (`TOKEN_MODULES`), which is a superset of the nav modules.
 - **`/account/me`.** Returns the resolved `modules` list; the web app treats
   it as the single source of truth for module visibility.
 - **Web.** Sidebar items carrying a `module` key, the command palette
@@ -253,6 +288,11 @@ surfaces (`/account`, `/search`, `/tags`, `/files`, `/shares`, …) stay
 ungated. One deliberate consequence: a user who is a member of a project but
 whose groups lack the `projects` module loses project access — the module gate
 wins over membership.
+
+Because the `ships` module key was removed with the section fold, `projects`
+now governs the maritime surfaces too: a group granted `projects` but not
+`ships` **gains** ship access, and a group granted `ships` but not `projects`
+loses everything. Re-check group grants after that cutover.
 
 ### Relation tuples
 

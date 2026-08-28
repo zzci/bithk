@@ -9,17 +9,23 @@ import {
   useAddProjectMember,
   useCreateProcurementCategory,
   useCreateProject,
+  useCreateProjectChild,
   useCreateProjectIssue,
   useCreateProjectRole,
   useDeleteProject,
   useDeleteProjectIssue,
+  useLinkProjectChild,
+  useMountProjectSection,
   useProject,
+  useProjectChildren,
   useProjectIssue,
   useProjectIssues,
   useProjectMembers,
   useProjectRoles,
   useProjects,
   useTags,
+  useUnlinkProjectChild,
+  useUnmountProjectSection,
   useUpdateProject,
   useUpdateProjectIssue,
 } from "./projects";
@@ -49,7 +55,7 @@ function calledUrl(index = 0): string {
 
 describe("projectKeys", () => {
   it("builds stable list and detail keys", () => {
-    expect(projectKeys.list("active", "t1", "atlas", 2, 20)).toEqual(["projects", "list", "active", "t1", "atlas", 2, 20]);
+    expect(projectKeys.list("active", "t1", "atlas", "all", 2, 20)).toEqual(["projects", "list", "active", "t1", "atlas", "all", 2, 20]);
     expect(projectKeys.detail("p1")).toEqual(["projects", "detail", "p1"]);
   });
 });
@@ -316,5 +322,68 @@ describe("uploadIssueAttachment", () => {
     expect(init?.method).toBe("POST");
     expect(init?.body).toBeInstanceOf(FormData);
     expect((init?.body as FormData).get("file")).toBeInstanceOf(File);
+  });
+});
+
+describe("project sections", () => {
+  it("mounts a section with its provisioning payload and unmounts it again", async () => {
+    // A fresh Response per call: a body can only be read once.
+    fetchMock.mockImplementation(async () => jsonResponse({ success: true, data: ["issues", "ship-profile"] }));
+    const mount = renderHook(() => useMountProjectSection(), { wrapper: makeWrapper() });
+    await mount.result.current.mutateAsync({ projectId: "p1", key: "ship-profile", sectionData: { hullNumber: "H-1" } });
+    expect(calledUrl()).toBe("/api/projects/p1/sections/ship-profile");
+    expect(fetchMock.mock.calls[0]![1]?.method).toBe("PUT");
+    expect(JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)).toEqual({ sectionData: { hullNumber: "H-1" } });
+
+    fetchMock.mockImplementation(async () => jsonResponse({ success: true, data: ["issues"] }));
+    const unmount = renderHook(() => useUnmountProjectSection(), { wrapper: makeWrapper() });
+    await unmount.result.current.mutateAsync({ projectId: "p1", key: "ship-profile" });
+    expect(calledUrl(1)).toBe("/api/projects/p1/sections/ship-profile");
+    expect(fetchMock.mock.calls[1]![1]?.method).toBe("DELETE");
+  });
+
+  it("refreshes the detail and list caches after a mount", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ success: true, data: ["issues", "equipment"] }));
+    const queryClient = makeTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useMountProjectSection(), { wrapper: makeWrapper(queryClient) });
+
+    await result.current.mutateAsync({ projectId: "p1", key: "equipment" });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: projectKeys.detail("p1") });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: projectKeys.lists() });
+  });
+});
+
+describe("sub-projects", () => {
+  it("lists, creates, links and unlinks children on the /children routes", async () => {
+    // A fresh Response per call: a body can only be read once.
+    fetchMock.mockImplementation(async () => jsonResponse({ success: true, data: [] }));
+    const list = renderHook(() => useProjectChildren("p1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
+    expect(calledUrl()).toBe("/api/projects/p1/children");
+
+    fetchMock.mockImplementation(async () => jsonResponse({ success: true, data: { id: "p2", name: "Refit" } }));
+    const create = renderHook(() => useCreateProjectChild(), { wrapper: makeWrapper() });
+    await create.result.current.mutateAsync({ parentId: "p1", name: "Refit", preset: "general" });
+    expect(calledUrl(1)).toBe("/api/projects/p1/children");
+    expect(JSON.parse(fetchMock.mock.calls[1]![1]!.body as string)).toEqual({ name: "Refit", preset: "general" });
+
+    const link = renderHook(() => useLinkProjectChild(), { wrapper: makeWrapper() });
+    await link.result.current.mutateAsync({ parentId: "p1", childId: "p3" });
+    expect(calledUrl(2)).toBe("/api/projects/p1/children/p3");
+    expect(fetchMock.mock.calls[2]![1]?.method).toBe("PUT");
+
+    fetchMock.mockImplementation(async () => jsonResponse({ success: true, data: null }));
+    const unlink = renderHook(() => useUnlinkProjectChild(), { wrapper: makeWrapper() });
+    await unlink.result.current.mutateAsync({ parentId: "p1", childId: "p3" });
+    expect(calledUrl(3)).toBe("/api/projects/p1/children/p3");
+    expect(fetchMock.mock.calls[3]![1]?.method).toBe("DELETE");
+  });
+
+  it("stays disabled without a project id", () => {
+    const { result } = renderHook(() => useProjectChildren(undefined), { wrapper: makeWrapper() });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

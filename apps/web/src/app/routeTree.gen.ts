@@ -9,66 +9,55 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TotpVerifyRouteImport } from './routes/totp-verify'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ErrorRouteImport } from './routes/error'
-import { Route as DeniedRouteImport } from './routes/denied'
-import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SharedTokenRouteImport } from './routes/shared.$token'
-import { Route as AppOverviewRouteImport } from './routes/_app/overview'
-import { Route as AppHrRouteImport } from './routes/_app/hr'
-import { Route as AppDriveRouteImport } from './routes/_app/drive'
-import { Route as AppDocumentsRouteImport } from './routes/_app/documents'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as DeniedRouteImport } from './routes/denied'
+import { Route as ErrorRouteImport } from './routes/error'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as TotpVerifyRouteImport } from './routes/totp-verify'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
-import { Route as AppShipsIndexRouteImport } from './routes/_app/ships/index'
-import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
-import { Route as AppHrIndexRouteImport } from './routes/_app/hr/index'
-import { Route as AppDocumentsIndexRouteImport } from './routes/_app/documents/index'
-import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts/index'
-import { Route as AppShipsShipIdRouteImport } from './routes/_app/ships/$shipId'
-import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
-import { Route as AppDocumentsNewRouteImport } from './routes/_app/documents/new'
-import { Route as AppDocumentsDocIdRouteImport } from './routes/_app/documents/$docId'
-import { Route as AppAdminUsersRouteImport } from './routes/_app/admin/users'
-import { Route as AppAdminSettingsRouteImport } from './routes/_app/admin/settings'
-import { Route as AppAdminPoliciesRouteImport } from './routes/_app/admin/policies'
-import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
+import { Route as AppDocumentsRouteImport } from './routes/_app/documents'
+import { Route as AppDriveRouteImport } from './routes/_app/drive'
+import { Route as AppHrRouteImport } from './routes/_app/hr'
+import { Route as AppOverviewRouteImport } from './routes/_app/overview'
+import { Route as SharedTokenRouteImport } from './routes/shared.$token'
 import { Route as AppAdminAuditRouteImport } from './routes/_app/admin/audit'
-import { Route as AppShipsShipIdIndexRouteImport } from './routes/_app/ships/$shipId.index'
-import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId.index'
-import { Route as AppHrPayrollIndexRouteImport } from './routes/_app/hr/payroll/index'
-import { Route as AppHrColleaguesIndexRouteImport } from './routes/_app/hr/colleagues/index'
-import { Route as AppHrApprovalsIndexRouteImport } from './routes/_app/hr/approvals/index'
+import { Route as AppAdminCronRouteImport } from './routes/_app/admin/cron'
+import { Route as AppAdminPoliciesRouteImport } from './routes/_app/admin/policies'
+import { Route as AppAdminSettingsRouteImport } from './routes/_app/admin/settings'
+import { Route as AppAdminUsersRouteImport } from './routes/_app/admin/users'
+import { Route as AppContactsIndexRouteImport } from './routes/_app/contacts/index'
+import { Route as AppDocumentsIndexRouteImport } from './routes/_app/documents/index'
+import { Route as AppDocumentsDocIdRouteImport } from './routes/_app/documents/$docId'
+import { Route as AppDocumentsNewRouteImport } from './routes/_app/documents/new'
+import { Route as AppHrIndexRouteImport } from './routes/_app/hr/index'
+import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
+import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin/users/index'
-import { Route as AppShipsShipIdWorklistRouteImport } from './routes/_app/ships/$shipId.worklist'
-import { Route as AppShipsShipIdProjectsRouteImport } from './routes/_app/ships/$shipId.projects'
-import { Route as AppShipsShipIdProfileRouteImport } from './routes/_app/ships/$shipId.profile'
-import { Route as AppShipsShipIdFilesRouteImport } from './routes/_app/ships/$shipId.files'
-import { Route as AppShipsShipIdEquipmentRouteImport } from './routes/_app/ships/$shipId.equipment'
-import { Route as AppProjectsProjectIdProcurementsRouteImport } from './routes/_app/projects/$projectId.procurements'
-import { Route as AppProjectsProjectIdIssuesRouteImport } from './routes/_app/projects/$projectId.issues'
-import { Route as AppProjectsProjectIdFilesRouteImport } from './routes/_app/projects/$projectId.files'
 import { Route as AppAdminUsersGroupsRouteImport } from './routes/_app/admin/users/groups'
-import { Route as AppProjectsProjectIdProcurementsProcurementIdRouteImport } from './routes/_app/projects/$projectId.procurements.$procurementId'
+import { Route as AppHrApprovalsIndexRouteImport } from './routes/_app/hr/approvals/index'
+import { Route as AppHrColleaguesIndexRouteImport } from './routes/_app/hr/colleagues/index'
+import { Route as AppHrPayrollIndexRouteImport } from './routes/_app/hr/payroll/index'
+import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId.index'
+import { Route as AppProjectsProjectIdEquipmentRouteImport } from './routes/_app/projects/$projectId.equipment'
+import { Route as AppProjectsProjectIdFilesRouteImport } from './routes/_app/projects/$projectId.files'
+import { Route as AppProjectsProjectIdIssuesRouteImport } from './routes/_app/projects/$projectId.issues'
+import { Route as AppProjectsProjectIdProcurementsRouteImport } from './routes/_app/projects/$projectId.procurements'
+import { Route as AppProjectsProjectIdProfileRouteImport } from './routes/_app/projects/$projectId.profile'
+import { Route as AppProjectsProjectIdSubProjectsRouteImport } from './routes/_app/projects/$projectId.sub-projects'
+import { Route as AppProjectsProjectIdWorklistRouteImport } from './routes/_app/projects/$projectId.worklist'
 import { Route as AppProjectsProjectIdIssuesIssueIdRouteImport } from './routes/_app/projects/$projectId.issues.$issueId'
-import { Route as AppProjectsProjectIdFromShipIdRouteImport } from './routes/_app/projects/$projectId.from.$shipId'
-import { Route as AppProjectsProjectIdProcurementsProcurementIdFullRouteImport } from './routes/_app/projects/$projectId_.procurements.$procurementId.full'
+import { Route as AppProjectsProjectIdProcurementsProcurementIdRouteImport } from './routes/_app/projects/$projectId.procurements.$procurementId'
 import { Route as AppProjectsProjectIdIssuesIssueIdFullRouteImport } from './routes/_app/projects/$projectId_.issues.$issueId.full'
+import { Route as AppProjectsProjectIdProcurementsProcurementIdFullRouteImport } from './routes/_app/projects/$projectId_.procurements.$procurementId.full'
 
-const TotpVerifyRoute = TotpVerifyRouteImport.update({
-  id: '/totp-verify',
-  path: '/totp-verify',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ErrorRoute = ErrorRouteImport.update({
-  id: '/error',
-  path: '/error',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeniedRoute = DeniedRouteImport.update({
@@ -76,35 +65,26 @@ const DeniedRoute = DeniedRouteImport.update({
   path: '/denied',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const ErrorRoute = ErrorRouteImport.update({
+  id: '/error',
+  path: '/error',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SharedTokenRoute = SharedTokenRouteImport.update({
-  id: '/shared/$token',
-  path: '/shared/$token',
+const TotpVerifyRoute = TotpVerifyRouteImport.update({
+  id: '/totp-verify',
+  path: '/totp-verify',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppOverviewRoute = AppOverviewRouteImport.update({
-  id: '/overview',
-  path: '/overview',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() => import('./routes/_app/overview.lazy').then((d) => d.Route))
-const AppHrRoute = AppHrRouteImport.update({
-  id: '/hr',
-  path: '/hr',
+const AppAdminRoute = AppAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => AppRoute,
 } as any)
-const AppDriveRoute = AppDriveRouteImport.update({
-  id: '/drive',
-  path: '/drive',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() => import('./routes/_app/drive.lazy').then((d) => d.Route))
 const AppDocumentsRoute = AppDocumentsRouteImport.update({
   id: '/documents',
   path: '/documents',
@@ -112,90 +92,32 @@ const AppDocumentsRoute = AppDocumentsRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/documents.lazy').then((d) => d.Route),
 )
-const AppAdminRoute = AppAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const AppDriveRoute = AppDriveRouteImport.update({
+  id: '/drive',
+  path: '/drive',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() => import('./routes/_app/drive.lazy').then((d) => d.Route))
+const AppHrRoute = AppHrRouteImport.update({
+  id: '/hr',
+  path: '/hr',
   getParentRoute: () => AppRoute,
 } as any)
-const AppShipsIndexRoute = AppShipsIndexRouteImport.update({
-  id: '/ships/',
-  path: '/ships/',
+const AppOverviewRoute = AppOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
   getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/ships/index.lazy').then((d) => d.Route),
-)
-const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
-  id: '/projects/',
-  path: '/projects/',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/projects/index.lazy').then((d) => d.Route),
-)
-const AppHrIndexRoute = AppHrIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppHrRoute,
+} as any).lazy(() => import('./routes/_app/overview.lazy').then((d) => d.Route))
+const SharedTokenRoute = SharedTokenRouteImport.update({
+  id: '/shared/$token',
+  path: '/shared/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AppDocumentsIndexRoute = AppDocumentsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppDocumentsRoute,
-} as any).lazy(() =>
-  import('./routes/_app/documents/index.lazy').then((d) => d.Route),
-)
-const AppContactsIndexRoute = AppContactsIndexRouteImport.update({
-  id: '/contacts/',
-  path: '/contacts/',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/contacts/index.lazy').then((d) => d.Route),
-)
-const AppShipsShipIdRoute = AppShipsShipIdRouteImport.update({
-  id: '/ships/$shipId',
-  path: '/ships/$shipId',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/ships/$shipId.lazy').then((d) => d.Route),
-)
-const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
-  id: '/projects/$projectId',
-  path: '/projects/$projectId',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/projects/$projectId.lazy').then((d) => d.Route),
-)
-const AppDocumentsNewRoute = AppDocumentsNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AppDocumentsRoute,
-} as any).lazy(() =>
-  import('./routes/_app/documents/new.lazy').then((d) => d.Route),
-)
-const AppDocumentsDocIdRoute = AppDocumentsDocIdRouteImport.update({
-  id: '/$docId',
-  path: '/$docId',
-  getParentRoute: () => AppDocumentsRoute,
-} as any).lazy(() =>
-  import('./routes/_app/documents/$docId.lazy').then((d) => d.Route),
-)
-const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => AppAdminRoute,
-} as any)
-const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const AppAdminAuditRoute = AppAdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AppAdminRoute,
 } as any).lazy(() =>
-  import('./routes/_app/admin/settings.lazy').then((d) => d.Route),
-)
-const AppAdminPoliciesRoute = AppAdminPoliciesRouteImport.update({
-  id: '/policies',
-  path: '/policies',
-  getParentRoute: () => AppAdminRoute,
-} as any).lazy(() =>
-  import('./routes/_app/admin/policies.lazy').then((d) => d.Route),
+  import('./routes/_app/admin/audit.lazy').then((d) => d.Route),
 )
 const AppAdminCronRoute = AppAdminCronRouteImport.update({
   id: '/cron',
@@ -204,19 +126,106 @@ const AppAdminCronRoute = AppAdminCronRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/admin/cron.lazy').then((d) => d.Route),
 )
-const AppAdminAuditRoute = AppAdminAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
+const AppAdminPoliciesRoute = AppAdminPoliciesRouteImport.update({
+  id: '/policies',
+  path: '/policies',
   getParentRoute: () => AppAdminRoute,
 } as any).lazy(() =>
-  import('./routes/_app/admin/audit.lazy').then((d) => d.Route),
+  import('./routes/_app/admin/policies.lazy').then((d) => d.Route),
 )
-const AppShipsShipIdIndexRoute = AppShipsShipIdIndexRouteImport.update({
+const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_app/admin/settings.lazy').then((d) => d.Route),
+)
+const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AppAdminRoute,
+} as any)
+const AppContactsIndexRoute = AppContactsIndexRouteImport.update({
+  id: '/contacts/',
+  path: '/contacts/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/contacts/index.lazy').then((d) => d.Route),
+)
+const AppDocumentsIndexRoute = AppDocumentsIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppShipsShipIdRoute,
+  getParentRoute: () => AppDocumentsRoute,
 } as any).lazy(() =>
-  import('./routes/_app/ships/$shipId.index.lazy').then((d) => d.Route),
+  import('./routes/_app/documents/index.lazy').then((d) => d.Route),
+)
+const AppDocumentsDocIdRoute = AppDocumentsDocIdRouteImport.update({
+  id: '/$docId',
+  path: '/$docId',
+  getParentRoute: () => AppDocumentsRoute,
+} as any).lazy(() =>
+  import('./routes/_app/documents/$docId.lazy').then((d) => d.Route),
+)
+const AppDocumentsNewRoute = AppDocumentsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppDocumentsRoute,
+} as any).lazy(() =>
+  import('./routes/_app/documents/new.lazy').then((d) => d.Route),
+)
+const AppHrIndexRoute = AppHrIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppHrRoute,
+} as any)
+const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/projects/index.lazy').then((d) => d.Route),
+)
+const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/projects/$projectId.lazy').then((d) => d.Route),
+)
+const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAdminUsersRoute,
+} as any).lazy(() =>
+  import('./routes/_app/admin/users/index.lazy').then((d) => d.Route),
+)
+const AppAdminUsersGroupsRoute = AppAdminUsersGroupsRouteImport.update({
+  id: '/groups',
+  path: '/groups',
+  getParentRoute: () => AppAdminUsersRoute,
+} as any).lazy(() =>
+  import('./routes/_app/admin/users/groups.lazy').then((d) => d.Route),
+)
+const AppHrApprovalsIndexRoute = AppHrApprovalsIndexRouteImport.update({
+  id: '/approvals/',
+  path: '/approvals/',
+  getParentRoute: () => AppHrRoute,
+} as any).lazy(() =>
+  import('./routes/_app/hr/approvals/index.lazy').then((d) => d.Route),
+)
+const AppHrColleaguesIndexRoute = AppHrColleaguesIndexRouteImport.update({
+  id: '/colleagues/',
+  path: '/colleagues/',
+  getParentRoute: () => AppHrRoute,
+} as any).lazy(() =>
+  import('./routes/_app/hr/colleagues/index.lazy').then((d) => d.Route),
+)
+const AppHrPayrollIndexRoute = AppHrPayrollIndexRouteImport.update({
+  id: '/payroll/',
+  path: '/payroll/',
+  getParentRoute: () => AppHrRoute,
+} as any).lazy(() =>
+  import('./routes/_app/hr/payroll/index.lazy').then((d) => d.Route),
 )
 const AppProjectsProjectIdIndexRoute =
   AppProjectsProjectIdIndexRouteImport.update({
@@ -226,86 +235,13 @@ const AppProjectsProjectIdIndexRoute =
   } as any).lazy(() =>
     import('./routes/_app/projects/$projectId.index.lazy').then((d) => d.Route),
   )
-const AppHrPayrollIndexRoute = AppHrPayrollIndexRouteImport.update({
-  id: '/payroll/',
-  path: '/payroll/',
-  getParentRoute: () => AppHrRoute,
-} as any).lazy(() =>
-  import('./routes/_app/hr/payroll/index.lazy').then((d) => d.Route),
-)
-const AppHrColleaguesIndexRoute = AppHrColleaguesIndexRouteImport.update({
-  id: '/colleagues/',
-  path: '/colleagues/',
-  getParentRoute: () => AppHrRoute,
-} as any).lazy(() =>
-  import('./routes/_app/hr/colleagues/index.lazy').then((d) => d.Route),
-)
-const AppHrApprovalsIndexRoute = AppHrApprovalsIndexRouteImport.update({
-  id: '/approvals/',
-  path: '/approvals/',
-  getParentRoute: () => AppHrRoute,
-} as any).lazy(() =>
-  import('./routes/_app/hr/approvals/index.lazy').then((d) => d.Route),
-)
-const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppAdminUsersRoute,
-} as any).lazy(() =>
-  import('./routes/_app/admin/users/index.lazy').then((d) => d.Route),
-)
-const AppShipsShipIdWorklistRoute = AppShipsShipIdWorklistRouteImport.update({
-  id: '/worklist',
-  path: '/worklist',
-  getParentRoute: () => AppShipsShipIdRoute,
-} as any).lazy(() =>
-  import('./routes/_app/ships/$shipId.worklist.lazy').then((d) => d.Route),
-)
-const AppShipsShipIdProjectsRoute = AppShipsShipIdProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => AppShipsShipIdRoute,
-} as any).lazy(() =>
-  import('./routes/_app/ships/$shipId.projects.lazy').then((d) => d.Route),
-)
-const AppShipsShipIdProfileRoute = AppShipsShipIdProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AppShipsShipIdRoute,
-} as any).lazy(() =>
-  import('./routes/_app/ships/$shipId.profile.lazy').then((d) => d.Route),
-)
-const AppShipsShipIdFilesRoute = AppShipsShipIdFilesRouteImport.update({
-  id: '/files',
-  path: '/files',
-  getParentRoute: () => AppShipsShipIdRoute,
-} as any).lazy(() =>
-  import('./routes/_app/ships/$shipId.files.lazy').then((d) => d.Route),
-)
-const AppShipsShipIdEquipmentRoute = AppShipsShipIdEquipmentRouteImport.update({
-  id: '/equipment',
-  path: '/equipment',
-  getParentRoute: () => AppShipsShipIdRoute,
-} as any).lazy(() =>
-  import('./routes/_app/ships/$shipId.equipment.lazy').then((d) => d.Route),
-)
-const AppProjectsProjectIdProcurementsRoute =
-  AppProjectsProjectIdProcurementsRouteImport.update({
-    id: '/procurements',
-    path: '/procurements',
+const AppProjectsProjectIdEquipmentRoute =
+  AppProjectsProjectIdEquipmentRouteImport.update({
+    id: '/equipment',
+    path: '/equipment',
     getParentRoute: () => AppProjectsProjectIdRoute,
   } as any).lazy(() =>
-    import('./routes/_app/projects/$projectId.procurements.lazy').then(
-      (d) => d.Route,
-    ),
-  )
-const AppProjectsProjectIdIssuesRoute =
-  AppProjectsProjectIdIssuesRouteImport.update({
-    id: '/issues',
-    path: '/issues',
-    getParentRoute: () => AppProjectsProjectIdRoute,
-  } as any).lazy(() =>
-    import('./routes/_app/projects/$projectId.issues.lazy').then(
+    import('./routes/_app/projects/$projectId.equipment.lazy').then(
       (d) => d.Route,
     ),
   )
@@ -317,20 +253,53 @@ const AppProjectsProjectIdFilesRoute =
   } as any).lazy(() =>
     import('./routes/_app/projects/$projectId.files.lazy').then((d) => d.Route),
   )
-const AppAdminUsersGroupsRoute = AppAdminUsersGroupsRouteImport.update({
-  id: '/groups',
-  path: '/groups',
-  getParentRoute: () => AppAdminUsersRoute,
-} as any).lazy(() =>
-  import('./routes/_app/admin/users/groups.lazy').then((d) => d.Route),
-)
-const AppProjectsProjectIdProcurementsProcurementIdRoute =
-  AppProjectsProjectIdProcurementsProcurementIdRouteImport.update({
-    id: '/$procurementId',
-    path: '/$procurementId',
-    getParentRoute: () => AppProjectsProjectIdProcurementsRoute,
+const AppProjectsProjectIdIssuesRoute =
+  AppProjectsProjectIdIssuesRouteImport.update({
+    id: '/issues',
+    path: '/issues',
+    getParentRoute: () => AppProjectsProjectIdRoute,
   } as any).lazy(() =>
-    import('./routes/_app/projects/$projectId.procurements.$procurementId.lazy').then(
+    import('./routes/_app/projects/$projectId.issues.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const AppProjectsProjectIdProcurementsRoute =
+  AppProjectsProjectIdProcurementsRouteImport.update({
+    id: '/procurements',
+    path: '/procurements',
+    getParentRoute: () => AppProjectsProjectIdRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId.procurements.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const AppProjectsProjectIdProfileRoute =
+  AppProjectsProjectIdProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AppProjectsProjectIdRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId.profile.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const AppProjectsProjectIdSubProjectsRoute =
+  AppProjectsProjectIdSubProjectsRouteImport.update({
+    id: '/sub-projects',
+    path: '/sub-projects',
+    getParentRoute: () => AppProjectsProjectIdRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId.sub-projects.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const AppProjectsProjectIdWorklistRoute =
+  AppProjectsProjectIdWorklistRouteImport.update({
+    id: '/worklist',
+    path: '/worklist',
+    getParentRoute: () => AppProjectsProjectIdRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId.worklist.lazy').then(
       (d) => d.Route,
     ),
   )
@@ -344,23 +313,13 @@ const AppProjectsProjectIdIssuesIssueIdRoute =
       (d) => d.Route,
     ),
   )
-const AppProjectsProjectIdFromShipIdRoute =
-  AppProjectsProjectIdFromShipIdRouteImport.update({
-    id: '/from/$shipId',
-    path: '/from/$shipId',
-    getParentRoute: () => AppProjectsProjectIdRoute,
+const AppProjectsProjectIdProcurementsProcurementIdRoute =
+  AppProjectsProjectIdProcurementsProcurementIdRouteImport.update({
+    id: '/$procurementId',
+    path: '/$procurementId',
+    getParentRoute: () => AppProjectsProjectIdProcurementsRoute,
   } as any).lazy(() =>
-    import('./routes/_app/projects/$projectId.from.$shipId.lazy').then(
-      (d) => d.Route,
-    ),
-  )
-const AppProjectsProjectIdProcurementsProcurementIdFullRoute =
-  AppProjectsProjectIdProcurementsProcurementIdFullRouteImport.update({
-    id: '/projects/$projectId_/procurements/$procurementId/full',
-    path: '/projects/$projectId/procurements/$procurementId/full',
-    getParentRoute: () => AppRoute,
-  } as any).lazy(() =>
-    import('./routes/_app/projects/$projectId_.procurements.$procurementId.full.lazy').then(
+    import('./routes/_app/projects/$projectId.procurements.$procurementId.lazy').then(
       (d) => d.Route,
     ),
   )
@@ -371,6 +330,16 @@ const AppProjectsProjectIdIssuesIssueIdFullRoute =
     getParentRoute: () => AppRoute,
   } as any).lazy(() =>
     import('./routes/_app/projects/$projectId_.issues.$issueId.full.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const AppProjectsProjectIdProcurementsProcurementIdFullRoute =
+  AppProjectsProjectIdProcurementsProcurementIdFullRouteImport.update({
+    id: '/projects/$projectId_/procurements/$procurementId/full',
+    path: '/projects/$projectId/procurements/$procurementId/full',
+    getParentRoute: () => AppRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/projects/$projectId_.procurements.$procurementId.full.lazy').then(
       (d) => d.Route,
     ),
   )
@@ -395,28 +364,23 @@ export interface FileRoutesByFullPath {
   '/documents/$docId': typeof AppDocumentsDocIdRoute
   '/documents/new': typeof AppDocumentsNewRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
-  '/ships/$shipId': typeof AppShipsShipIdRouteWithChildren
   '/contacts/': typeof AppContactsIndexRoute
   '/documents/': typeof AppDocumentsIndexRoute
   '/hr/': typeof AppHrIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
-  '/ships/': typeof AppShipsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
+  '/projects/$projectId/equipment': typeof AppProjectsProjectIdEquipmentRoute
   '/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
-  '/ships/$shipId/equipment': typeof AppShipsShipIdEquipmentRoute
-  '/ships/$shipId/files': typeof AppShipsShipIdFilesRoute
-  '/ships/$shipId/profile': typeof AppShipsShipIdProfileRoute
-  '/ships/$shipId/projects': typeof AppShipsShipIdProjectsRoute
-  '/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
+  '/projects/$projectId/profile': typeof AppProjectsProjectIdProfileRoute
+  '/projects/$projectId/sub-projects': typeof AppProjectsProjectIdSubProjectsRoute
+  '/projects/$projectId/worklist': typeof AppProjectsProjectIdWorklistRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
   '/hr/approvals/': typeof AppHrApprovalsIndexRoute
   '/hr/colleagues/': typeof AppHrColleaguesIndexRoute
   '/hr/payroll/': typeof AppHrPayrollIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
-  '/ships/$shipId/': typeof AppShipsShipIdIndexRoute
-  '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/projects/$projectId/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
@@ -442,23 +406,19 @@ export interface FileRoutesByTo {
   '/documents': typeof AppDocumentsIndexRoute
   '/hr': typeof AppHrIndexRoute
   '/projects': typeof AppProjectsIndexRoute
-  '/ships': typeof AppShipsIndexRoute
   '/admin/users/groups': typeof AppAdminUsersGroupsRoute
+  '/projects/$projectId/equipment': typeof AppProjectsProjectIdEquipmentRoute
   '/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
-  '/ships/$shipId/equipment': typeof AppShipsShipIdEquipmentRoute
-  '/ships/$shipId/files': typeof AppShipsShipIdFilesRoute
-  '/ships/$shipId/profile': typeof AppShipsShipIdProfileRoute
-  '/ships/$shipId/projects': typeof AppShipsShipIdProjectsRoute
-  '/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
+  '/projects/$projectId/profile': typeof AppProjectsProjectIdProfileRoute
+  '/projects/$projectId/sub-projects': typeof AppProjectsProjectIdSubProjectsRoute
+  '/projects/$projectId/worklist': typeof AppProjectsProjectIdWorklistRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
   '/hr/approvals': typeof AppHrApprovalsIndexRoute
   '/hr/colleagues': typeof AppHrColleaguesIndexRoute
   '/hr/payroll': typeof AppHrPayrollIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
-  '/ships/$shipId': typeof AppShipsShipIdIndexRoute
-  '/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/projects/$projectId/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
@@ -486,28 +446,23 @@ export interface FileRoutesById {
   '/_app/documents/$docId': typeof AppDocumentsDocIdRoute
   '/_app/documents/new': typeof AppDocumentsNewRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
-  '/_app/ships/$shipId': typeof AppShipsShipIdRouteWithChildren
   '/_app/contacts/': typeof AppContactsIndexRoute
   '/_app/documents/': typeof AppDocumentsIndexRoute
   '/_app/hr/': typeof AppHrIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
-  '/_app/ships/': typeof AppShipsIndexRoute
   '/_app/admin/users/groups': typeof AppAdminUsersGroupsRoute
+  '/_app/projects/$projectId/equipment': typeof AppProjectsProjectIdEquipmentRoute
   '/_app/projects/$projectId/files': typeof AppProjectsProjectIdFilesRoute
   '/_app/projects/$projectId/issues': typeof AppProjectsProjectIdIssuesRouteWithChildren
   '/_app/projects/$projectId/procurements': typeof AppProjectsProjectIdProcurementsRouteWithChildren
-  '/_app/ships/$shipId/equipment': typeof AppShipsShipIdEquipmentRoute
-  '/_app/ships/$shipId/files': typeof AppShipsShipIdFilesRoute
-  '/_app/ships/$shipId/profile': typeof AppShipsShipIdProfileRoute
-  '/_app/ships/$shipId/projects': typeof AppShipsShipIdProjectsRoute
-  '/_app/ships/$shipId/worklist': typeof AppShipsShipIdWorklistRoute
+  '/_app/projects/$projectId/profile': typeof AppProjectsProjectIdProfileRoute
+  '/_app/projects/$projectId/sub-projects': typeof AppProjectsProjectIdSubProjectsRoute
+  '/_app/projects/$projectId/worklist': typeof AppProjectsProjectIdWorklistRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/hr/approvals/': typeof AppHrApprovalsIndexRoute
   '/_app/hr/colleagues/': typeof AppHrColleaguesIndexRoute
   '/_app/hr/payroll/': typeof AppHrPayrollIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
-  '/_app/ships/$shipId/': typeof AppShipsShipIdIndexRoute
-  '/_app/projects/$projectId/from/$shipId': typeof AppProjectsProjectIdFromShipIdRoute
   '/_app/projects/$projectId/issues/$issueId': typeof AppProjectsProjectIdIssuesIssueIdRoute
   '/_app/projects/$projectId/procurements/$procurementId': typeof AppProjectsProjectIdProcurementsProcurementIdRoute
   '/_app/projects/$projectId_/issues/$issueId/full': typeof AppProjectsProjectIdIssuesIssueIdFullRoute
@@ -535,28 +490,23 @@ export interface FileRouteTypes {
     | '/documents/$docId'
     | '/documents/new'
     | '/projects/$projectId'
-    | '/ships/$shipId'
     | '/contacts/'
     | '/documents/'
     | '/hr/'
     | '/projects/'
-    | '/ships/'
     | '/admin/users/groups'
+    | '/projects/$projectId/equipment'
     | '/projects/$projectId/files'
     | '/projects/$projectId/issues'
     | '/projects/$projectId/procurements'
-    | '/ships/$shipId/equipment'
-    | '/ships/$shipId/files'
-    | '/ships/$shipId/profile'
-    | '/ships/$shipId/projects'
-    | '/ships/$shipId/worklist'
+    | '/projects/$projectId/profile'
+    | '/projects/$projectId/sub-projects'
+    | '/projects/$projectId/worklist'
     | '/admin/users/'
     | '/hr/approvals/'
     | '/hr/colleagues/'
     | '/hr/payroll/'
     | '/projects/$projectId/'
-    | '/ships/$shipId/'
-    | '/projects/$projectId/from/$shipId'
     | '/projects/$projectId/issues/$issueId'
     | '/projects/$projectId/procurements/$procurementId'
     | '/projects/$projectId/issues/$issueId/full'
@@ -582,23 +532,19 @@ export interface FileRouteTypes {
     | '/documents'
     | '/hr'
     | '/projects'
-    | '/ships'
     | '/admin/users/groups'
+    | '/projects/$projectId/equipment'
     | '/projects/$projectId/files'
     | '/projects/$projectId/issues'
     | '/projects/$projectId/procurements'
-    | '/ships/$shipId/equipment'
-    | '/ships/$shipId/files'
-    | '/ships/$shipId/profile'
-    | '/ships/$shipId/projects'
-    | '/ships/$shipId/worklist'
+    | '/projects/$projectId/profile'
+    | '/projects/$projectId/sub-projects'
+    | '/projects/$projectId/worklist'
     | '/admin/users'
     | '/hr/approvals'
     | '/hr/colleagues'
     | '/hr/payroll'
     | '/projects/$projectId'
-    | '/ships/$shipId'
-    | '/projects/$projectId/from/$shipId'
     | '/projects/$projectId/issues/$issueId'
     | '/projects/$projectId/procurements/$procurementId'
     | '/projects/$projectId/issues/$issueId/full'
@@ -625,28 +571,23 @@ export interface FileRouteTypes {
     | '/_app/documents/$docId'
     | '/_app/documents/new'
     | '/_app/projects/$projectId'
-    | '/_app/ships/$shipId'
     | '/_app/contacts/'
     | '/_app/documents/'
     | '/_app/hr/'
     | '/_app/projects/'
-    | '/_app/ships/'
     | '/_app/admin/users/groups'
+    | '/_app/projects/$projectId/equipment'
     | '/_app/projects/$projectId/files'
     | '/_app/projects/$projectId/issues'
     | '/_app/projects/$projectId/procurements'
-    | '/_app/ships/$shipId/equipment'
-    | '/_app/ships/$shipId/files'
-    | '/_app/ships/$shipId/profile'
-    | '/_app/ships/$shipId/projects'
-    | '/_app/ships/$shipId/worklist'
+    | '/_app/projects/$projectId/profile'
+    | '/_app/projects/$projectId/sub-projects'
+    | '/_app/projects/$projectId/worklist'
     | '/_app/admin/users/'
     | '/_app/hr/approvals/'
     | '/_app/hr/colleagues/'
     | '/_app/hr/payroll/'
     | '/_app/projects/$projectId/'
-    | '/_app/ships/$shipId/'
-    | '/_app/projects/$projectId/from/$shipId'
     | '/_app/projects/$projectId/issues/$issueId'
     | '/_app/projects/$projectId/procurements/$procurementId'
     | '/_app/projects/$projectId_/issues/$issueId/full'
@@ -665,32 +606,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/totp-verify': {
-      id: '/totp-verify'
-      path: '/totp-verify'
-      fullPath: '/totp-verify'
-      preLoaderRoute: typeof TotpVerifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/error': {
-      id: '/error'
-      path: '/error'
-      fullPath: '/error'
-      preLoaderRoute: typeof ErrorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/denied': {
-      id: '/denied'
-      path: '/denied'
-      fullPath: '/denied'
-      preLoaderRoute: typeof DeniedRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -700,39 +620,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/denied': {
+      id: '/denied'
+      path: '/denied'
+      fullPath: '/denied'
+      preLoaderRoute: typeof DeniedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/shared/$token': {
-      id: '/shared/$token'
-      path: '/shared/$token'
-      fullPath: '/shared/$token'
-      preLoaderRoute: typeof SharedTokenRouteImport
+    '/error': {
+      id: '/error'
+      path: '/error'
+      fullPath: '/error'
+      preLoaderRoute: typeof ErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/overview': {
-      id: '/_app/overview'
-      path: '/overview'
-      fullPath: '/overview'
-      preLoaderRoute: typeof AppOverviewRouteImport
-      parentRoute: typeof AppRoute
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_app/hr': {
-      id: '/_app/hr'
-      path: '/hr'
-      fullPath: '/hr'
-      preLoaderRoute: typeof AppHrRouteImport
-      parentRoute: typeof AppRoute
+    '/totp-verify': {
+      id: '/totp-verify'
+      path: '/totp-verify'
+      fullPath: '/totp-verify'
+      preLoaderRoute: typeof TotpVerifyRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_app/drive': {
-      id: '/_app/drive'
-      path: '/drive'
-      fullPath: '/drive'
-      preLoaderRoute: typeof AppDriveRouteImport
+    '/_app/admin': {
+      id: '/_app/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AppAdminRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/documents': {
@@ -742,95 +662,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDocumentsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/admin': {
-      id: '/_app/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AppAdminRouteImport
+    '/_app/drive': {
+      id: '/_app/drive'
+      path: '/drive'
+      fullPath: '/drive'
+      preLoaderRoute: typeof AppDriveRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/ships/': {
-      id: '/_app/ships/'
-      path: '/ships'
-      fullPath: '/ships/'
-      preLoaderRoute: typeof AppShipsIndexRouteImport
+    '/_app/hr': {
+      id: '/_app/hr'
+      path: '/hr'
+      fullPath: '/hr'
+      preLoaderRoute: typeof AppHrRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/projects/': {
-      id: '/_app/projects/'
-      path: '/projects'
-      fullPath: '/projects/'
-      preLoaderRoute: typeof AppProjectsIndexRouteImport
+    '/_app/overview': {
+      id: '/_app/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof AppOverviewRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/hr/': {
-      id: '/_app/hr/'
-      path: '/'
-      fullPath: '/hr/'
-      preLoaderRoute: typeof AppHrIndexRouteImport
-      parentRoute: typeof AppHrRoute
+    '/shared/$token': {
+      id: '/shared/$token'
+      path: '/shared/$token'
+      fullPath: '/shared/$token'
+      preLoaderRoute: typeof SharedTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_app/documents/': {
-      id: '/_app/documents/'
-      path: '/'
-      fullPath: '/documents/'
-      preLoaderRoute: typeof AppDocumentsIndexRouteImport
-      parentRoute: typeof AppDocumentsRoute
-    }
-    '/_app/contacts/': {
-      id: '/_app/contacts/'
-      path: '/contacts'
-      fullPath: '/contacts/'
-      preLoaderRoute: typeof AppContactsIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/ships/$shipId': {
-      id: '/_app/ships/$shipId'
-      path: '/ships/$shipId'
-      fullPath: '/ships/$shipId'
-      preLoaderRoute: typeof AppShipsShipIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/projects/$projectId': {
-      id: '/_app/projects/$projectId'
-      path: '/projects/$projectId'
-      fullPath: '/projects/$projectId'
-      preLoaderRoute: typeof AppProjectsProjectIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/documents/new': {
-      id: '/_app/documents/new'
-      path: '/new'
-      fullPath: '/documents/new'
-      preLoaderRoute: typeof AppDocumentsNewRouteImport
-      parentRoute: typeof AppDocumentsRoute
-    }
-    '/_app/documents/$docId': {
-      id: '/_app/documents/$docId'
-      path: '/$docId'
-      fullPath: '/documents/$docId'
-      preLoaderRoute: typeof AppDocumentsDocIdRouteImport
-      parentRoute: typeof AppDocumentsRoute
-    }
-    '/_app/admin/users': {
-      id: '/_app/admin/users'
-      path: '/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof AppAdminUsersRouteImport
-      parentRoute: typeof AppAdminRoute
-    }
-    '/_app/admin/settings': {
-      id: '/_app/admin/settings'
-      path: '/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AppAdminSettingsRouteImport
-      parentRoute: typeof AppAdminRoute
-    }
-    '/_app/admin/policies': {
-      id: '/_app/admin/policies'
-      path: '/policies'
-      fullPath: '/admin/policies'
-      preLoaderRoute: typeof AppAdminPoliciesRouteImport
+    '/_app/admin/audit': {
+      id: '/_app/admin/audit'
+      path: '/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AppAdminAuditRouteImport
       parentRoute: typeof AppAdminRoute
     }
     '/_app/admin/cron': {
@@ -840,32 +704,95 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminCronRouteImport
       parentRoute: typeof AppAdminRoute
     }
-    '/_app/admin/audit': {
-      id: '/_app/admin/audit'
-      path: '/audit'
-      fullPath: '/admin/audit'
-      preLoaderRoute: typeof AppAdminAuditRouteImport
+    '/_app/admin/policies': {
+      id: '/_app/admin/policies'
+      path: '/policies'
+      fullPath: '/admin/policies'
+      preLoaderRoute: typeof AppAdminPoliciesRouteImport
       parentRoute: typeof AppAdminRoute
     }
-    '/_app/ships/$shipId/': {
-      id: '/_app/ships/$shipId/'
-      path: '/'
-      fullPath: '/ships/$shipId/'
-      preLoaderRoute: typeof AppShipsShipIdIndexRouteImport
-      parentRoute: typeof AppShipsShipIdRoute
+    '/_app/admin/settings': {
+      id: '/_app/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AppAdminSettingsRouteImport
+      parentRoute: typeof AppAdminRoute
     }
-    '/_app/projects/$projectId/': {
-      id: '/_app/projects/$projectId/'
-      path: '/'
-      fullPath: '/projects/$projectId/'
-      preLoaderRoute: typeof AppProjectsProjectIdIndexRouteImport
-      parentRoute: typeof AppProjectsProjectIdRoute
+    '/_app/admin/users': {
+      id: '/_app/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AppAdminUsersRouteImport
+      parentRoute: typeof AppAdminRoute
     }
-    '/_app/hr/payroll/': {
-      id: '/_app/hr/payroll/'
-      path: '/payroll'
-      fullPath: '/hr/payroll/'
-      preLoaderRoute: typeof AppHrPayrollIndexRouteImport
+    '/_app/contacts/': {
+      id: '/_app/contacts/'
+      path: '/contacts'
+      fullPath: '/contacts/'
+      preLoaderRoute: typeof AppContactsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/documents/': {
+      id: '/_app/documents/'
+      path: '/'
+      fullPath: '/documents/'
+      preLoaderRoute: typeof AppDocumentsIndexRouteImport
+      parentRoute: typeof AppDocumentsRoute
+    }
+    '/_app/documents/$docId': {
+      id: '/_app/documents/$docId'
+      path: '/$docId'
+      fullPath: '/documents/$docId'
+      preLoaderRoute: typeof AppDocumentsDocIdRouteImport
+      parentRoute: typeof AppDocumentsRoute
+    }
+    '/_app/documents/new': {
+      id: '/_app/documents/new'
+      path: '/new'
+      fullPath: '/documents/new'
+      preLoaderRoute: typeof AppDocumentsNewRouteImport
+      parentRoute: typeof AppDocumentsRoute
+    }
+    '/_app/hr/': {
+      id: '/_app/hr/'
+      path: '/'
+      fullPath: '/hr/'
+      preLoaderRoute: typeof AppHrIndexRouteImport
+      parentRoute: typeof AppHrRoute
+    }
+    '/_app/projects/': {
+      id: '/_app/projects/'
+      path: '/projects'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof AppProjectsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/projects/$projectId': {
+      id: '/_app/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof AppProjectsProjectIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/admin/users/': {
+      id: '/_app/admin/users/'
+      path: '/'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AppAdminUsersIndexRouteImport
+      parentRoute: typeof AppAdminUsersRoute
+    }
+    '/_app/admin/users/groups': {
+      id: '/_app/admin/users/groups'
+      path: '/groups'
+      fullPath: '/admin/users/groups'
+      preLoaderRoute: typeof AppAdminUsersGroupsRouteImport
+      parentRoute: typeof AppAdminUsersRoute
+    }
+    '/_app/hr/approvals/': {
+      id: '/_app/hr/approvals/'
+      path: '/approvals'
+      fullPath: '/hr/approvals/'
+      preLoaderRoute: typeof AppHrApprovalsIndexRouteImport
       parentRoute: typeof AppHrRoute
     }
     '/_app/hr/colleagues/': {
@@ -875,67 +802,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHrColleaguesIndexRouteImport
       parentRoute: typeof AppHrRoute
     }
-    '/_app/hr/approvals/': {
-      id: '/_app/hr/approvals/'
-      path: '/approvals'
-      fullPath: '/hr/approvals/'
-      preLoaderRoute: typeof AppHrApprovalsIndexRouteImport
+    '/_app/hr/payroll/': {
+      id: '/_app/hr/payroll/'
+      path: '/payroll'
+      fullPath: '/hr/payroll/'
+      preLoaderRoute: typeof AppHrPayrollIndexRouteImport
       parentRoute: typeof AppHrRoute
     }
-    '/_app/admin/users/': {
-      id: '/_app/admin/users/'
+    '/_app/projects/$projectId/': {
+      id: '/_app/projects/$projectId/'
       path: '/'
-      fullPath: '/admin/users/'
-      preLoaderRoute: typeof AppAdminUsersIndexRouteImport
-      parentRoute: typeof AppAdminUsersRoute
-    }
-    '/_app/ships/$shipId/worklist': {
-      id: '/_app/ships/$shipId/worklist'
-      path: '/worklist'
-      fullPath: '/ships/$shipId/worklist'
-      preLoaderRoute: typeof AppShipsShipIdWorklistRouteImport
-      parentRoute: typeof AppShipsShipIdRoute
-    }
-    '/_app/ships/$shipId/projects': {
-      id: '/_app/ships/$shipId/projects'
-      path: '/projects'
-      fullPath: '/ships/$shipId/projects'
-      preLoaderRoute: typeof AppShipsShipIdProjectsRouteImport
-      parentRoute: typeof AppShipsShipIdRoute
-    }
-    '/_app/ships/$shipId/profile': {
-      id: '/_app/ships/$shipId/profile'
-      path: '/profile'
-      fullPath: '/ships/$shipId/profile'
-      preLoaderRoute: typeof AppShipsShipIdProfileRouteImport
-      parentRoute: typeof AppShipsShipIdRoute
-    }
-    '/_app/ships/$shipId/files': {
-      id: '/_app/ships/$shipId/files'
-      path: '/files'
-      fullPath: '/ships/$shipId/files'
-      preLoaderRoute: typeof AppShipsShipIdFilesRouteImport
-      parentRoute: typeof AppShipsShipIdRoute
-    }
-    '/_app/ships/$shipId/equipment': {
-      id: '/_app/ships/$shipId/equipment'
-      path: '/equipment'
-      fullPath: '/ships/$shipId/equipment'
-      preLoaderRoute: typeof AppShipsShipIdEquipmentRouteImport
-      parentRoute: typeof AppShipsShipIdRoute
-    }
-    '/_app/projects/$projectId/procurements': {
-      id: '/_app/projects/$projectId/procurements'
-      path: '/procurements'
-      fullPath: '/projects/$projectId/procurements'
-      preLoaderRoute: typeof AppProjectsProjectIdProcurementsRouteImport
+      fullPath: '/projects/$projectId/'
+      preLoaderRoute: typeof AppProjectsProjectIdIndexRouteImport
       parentRoute: typeof AppProjectsProjectIdRoute
     }
-    '/_app/projects/$projectId/issues': {
-      id: '/_app/projects/$projectId/issues'
-      path: '/issues'
-      fullPath: '/projects/$projectId/issues'
-      preLoaderRoute: typeof AppProjectsProjectIdIssuesRouteImport
+    '/_app/projects/$projectId/equipment': {
+      id: '/_app/projects/$projectId/equipment'
+      path: '/equipment'
+      fullPath: '/projects/$projectId/equipment'
+      preLoaderRoute: typeof AppProjectsProjectIdEquipmentRouteImport
       parentRoute: typeof AppProjectsProjectIdRoute
     }
     '/_app/projects/$projectId/files': {
@@ -945,19 +830,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdFilesRouteImport
       parentRoute: typeof AppProjectsProjectIdRoute
     }
-    '/_app/admin/users/groups': {
-      id: '/_app/admin/users/groups'
-      path: '/groups'
-      fullPath: '/admin/users/groups'
-      preLoaderRoute: typeof AppAdminUsersGroupsRouteImport
-      parentRoute: typeof AppAdminUsersRoute
+    '/_app/projects/$projectId/issues': {
+      id: '/_app/projects/$projectId/issues'
+      path: '/issues'
+      fullPath: '/projects/$projectId/issues'
+      preLoaderRoute: typeof AppProjectsProjectIdIssuesRouteImport
+      parentRoute: typeof AppProjectsProjectIdRoute
     }
-    '/_app/projects/$projectId/procurements/$procurementId': {
-      id: '/_app/projects/$projectId/procurements/$procurementId'
-      path: '/$procurementId'
-      fullPath: '/projects/$projectId/procurements/$procurementId'
-      preLoaderRoute: typeof AppProjectsProjectIdProcurementsProcurementIdRouteImport
-      parentRoute: typeof AppProjectsProjectIdProcurementsRoute
+    '/_app/projects/$projectId/procurements': {
+      id: '/_app/projects/$projectId/procurements'
+      path: '/procurements'
+      fullPath: '/projects/$projectId/procurements'
+      preLoaderRoute: typeof AppProjectsProjectIdProcurementsRouteImport
+      parentRoute: typeof AppProjectsProjectIdRoute
+    }
+    '/_app/projects/$projectId/profile': {
+      id: '/_app/projects/$projectId/profile'
+      path: '/profile'
+      fullPath: '/projects/$projectId/profile'
+      preLoaderRoute: typeof AppProjectsProjectIdProfileRouteImport
+      parentRoute: typeof AppProjectsProjectIdRoute
+    }
+    '/_app/projects/$projectId/sub-projects': {
+      id: '/_app/projects/$projectId/sub-projects'
+      path: '/sub-projects'
+      fullPath: '/projects/$projectId/sub-projects'
+      preLoaderRoute: typeof AppProjectsProjectIdSubProjectsRouteImport
+      parentRoute: typeof AppProjectsProjectIdRoute
+    }
+    '/_app/projects/$projectId/worklist': {
+      id: '/_app/projects/$projectId/worklist'
+      path: '/worklist'
+      fullPath: '/projects/$projectId/worklist'
+      preLoaderRoute: typeof AppProjectsProjectIdWorklistRouteImport
+      parentRoute: typeof AppProjectsProjectIdRoute
     }
     '/_app/projects/$projectId/issues/$issueId': {
       id: '/_app/projects/$projectId/issues/$issueId'
@@ -966,25 +872,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdIssuesIssueIdRouteImport
       parentRoute: typeof AppProjectsProjectIdIssuesRoute
     }
-    '/_app/projects/$projectId/from/$shipId': {
-      id: '/_app/projects/$projectId/from/$shipId'
-      path: '/from/$shipId'
-      fullPath: '/projects/$projectId/from/$shipId'
-      preLoaderRoute: typeof AppProjectsProjectIdFromShipIdRouteImport
-      parentRoute: typeof AppProjectsProjectIdRoute
-    }
-    '/_app/projects/$projectId_/procurements/$procurementId/full': {
-      id: '/_app/projects/$projectId_/procurements/$procurementId/full'
-      path: '/projects/$projectId/procurements/$procurementId/full'
-      fullPath: '/projects/$projectId/procurements/$procurementId/full'
-      preLoaderRoute: typeof AppProjectsProjectIdProcurementsProcurementIdFullRouteImport
-      parentRoute: typeof AppRoute
+    '/_app/projects/$projectId/procurements/$procurementId': {
+      id: '/_app/projects/$projectId/procurements/$procurementId'
+      path: '/$procurementId'
+      fullPath: '/projects/$projectId/procurements/$procurementId'
+      preLoaderRoute: typeof AppProjectsProjectIdProcurementsProcurementIdRouteImport
+      parentRoute: typeof AppProjectsProjectIdProcurementsRoute
     }
     '/_app/projects/$projectId_/issues/$issueId/full': {
       id: '/_app/projects/$projectId_/issues/$issueId/full'
       path: '/projects/$projectId/issues/$issueId/full'
       fullPath: '/projects/$projectId/issues/$issueId/full'
       preLoaderRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/projects/$projectId_/procurements/$procurementId/full': {
+      id: '/_app/projects/$projectId_/procurements/$procurementId/full'
+      path: '/projects/$projectId/procurements/$procurementId/full'
+      fullPath: '/projects/$projectId/procurements/$procurementId/full'
+      preLoaderRoute: typeof AppProjectsProjectIdProcurementsProcurementIdFullRouteImport
       parentRoute: typeof AppRoute
     }
   }
@@ -1087,46 +993,30 @@ const AppProjectsProjectIdProcurementsRouteWithChildren =
   )
 
 interface AppProjectsProjectIdRouteChildren {
+  AppProjectsProjectIdEquipmentRoute: typeof AppProjectsProjectIdEquipmentRoute
   AppProjectsProjectIdFilesRoute: typeof AppProjectsProjectIdFilesRoute
   AppProjectsProjectIdIssuesRoute: typeof AppProjectsProjectIdIssuesRouteWithChildren
   AppProjectsProjectIdProcurementsRoute: typeof AppProjectsProjectIdProcurementsRouteWithChildren
+  AppProjectsProjectIdProfileRoute: typeof AppProjectsProjectIdProfileRoute
+  AppProjectsProjectIdSubProjectsRoute: typeof AppProjectsProjectIdSubProjectsRoute
+  AppProjectsProjectIdWorklistRoute: typeof AppProjectsProjectIdWorklistRoute
   AppProjectsProjectIdIndexRoute: typeof AppProjectsProjectIdIndexRoute
-  AppProjectsProjectIdFromShipIdRoute: typeof AppProjectsProjectIdFromShipIdRoute
 }
 
 const AppProjectsProjectIdRouteChildren: AppProjectsProjectIdRouteChildren = {
+  AppProjectsProjectIdEquipmentRoute: AppProjectsProjectIdEquipmentRoute,
   AppProjectsProjectIdFilesRoute: AppProjectsProjectIdFilesRoute,
   AppProjectsProjectIdIssuesRoute: AppProjectsProjectIdIssuesRouteWithChildren,
   AppProjectsProjectIdProcurementsRoute:
     AppProjectsProjectIdProcurementsRouteWithChildren,
+  AppProjectsProjectIdProfileRoute: AppProjectsProjectIdProfileRoute,
+  AppProjectsProjectIdSubProjectsRoute: AppProjectsProjectIdSubProjectsRoute,
+  AppProjectsProjectIdWorklistRoute: AppProjectsProjectIdWorklistRoute,
   AppProjectsProjectIdIndexRoute: AppProjectsProjectIdIndexRoute,
-  AppProjectsProjectIdFromShipIdRoute: AppProjectsProjectIdFromShipIdRoute,
 }
 
 const AppProjectsProjectIdRouteWithChildren =
   AppProjectsProjectIdRoute._addFileChildren(AppProjectsProjectIdRouteChildren)
-
-interface AppShipsShipIdRouteChildren {
-  AppShipsShipIdEquipmentRoute: typeof AppShipsShipIdEquipmentRoute
-  AppShipsShipIdFilesRoute: typeof AppShipsShipIdFilesRoute
-  AppShipsShipIdProfileRoute: typeof AppShipsShipIdProfileRoute
-  AppShipsShipIdProjectsRoute: typeof AppShipsShipIdProjectsRoute
-  AppShipsShipIdWorklistRoute: typeof AppShipsShipIdWorklistRoute
-  AppShipsShipIdIndexRoute: typeof AppShipsShipIdIndexRoute
-}
-
-const AppShipsShipIdRouteChildren: AppShipsShipIdRouteChildren = {
-  AppShipsShipIdEquipmentRoute: AppShipsShipIdEquipmentRoute,
-  AppShipsShipIdFilesRoute: AppShipsShipIdFilesRoute,
-  AppShipsShipIdProfileRoute: AppShipsShipIdProfileRoute,
-  AppShipsShipIdProjectsRoute: AppShipsShipIdProjectsRoute,
-  AppShipsShipIdWorklistRoute: AppShipsShipIdWorklistRoute,
-  AppShipsShipIdIndexRoute: AppShipsShipIdIndexRoute,
-}
-
-const AppShipsShipIdRouteWithChildren = AppShipsShipIdRoute._addFileChildren(
-  AppShipsShipIdRouteChildren,
-)
 
 interface AppRouteChildren {
   AppAdminRoute: typeof AppAdminRouteWithChildren
@@ -1135,10 +1025,8 @@ interface AppRouteChildren {
   AppHrRoute: typeof AppHrRouteWithChildren
   AppOverviewRoute: typeof AppOverviewRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRouteWithChildren
-  AppShipsShipIdRoute: typeof AppShipsShipIdRouteWithChildren
   AppContactsIndexRoute: typeof AppContactsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
-  AppShipsIndexRoute: typeof AppShipsIndexRoute
   AppProjectsProjectIdIssuesIssueIdFullRoute: typeof AppProjectsProjectIdIssuesIssueIdFullRoute
   AppProjectsProjectIdProcurementsProcurementIdFullRoute: typeof AppProjectsProjectIdProcurementsProcurementIdFullRoute
 }
@@ -1150,10 +1038,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppHrRoute: AppHrRouteWithChildren,
   AppOverviewRoute: AppOverviewRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRouteWithChildren,
-  AppShipsShipIdRoute: AppShipsShipIdRouteWithChildren,
   AppContactsIndexRoute: AppContactsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
-  AppShipsIndexRoute: AppShipsIndexRoute,
   AppProjectsProjectIdIssuesIssueIdFullRoute:
     AppProjectsProjectIdIssuesIssueIdFullRoute,
   AppProjectsProjectIdProcurementsProcurementIdFullRoute:

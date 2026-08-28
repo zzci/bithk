@@ -16,22 +16,23 @@ import { addMember, createProject } from "@/modules/project/project.service";
 import { projectRoles } from "@/modules/project/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { shipRoutes } from "./ship.routes";
-import { createShip, getShipByShortId } from "./ship.service";
 import {
   createGlobalWorklist,
-  createShipWorklist,
+  createProjectWorklist,
   deleteGlobalWorklist,
   getGlobalWorklist,
-  getShipWorklist,
+  getProjectWorklist,
   listGlobalWorklists,
+  listProjectWorklists,
   listReferenceableWorklists,
-  listShipWorklists,
   updateGlobalWorklist,
-  updateShipWorklist,
+  updateProjectWorklist,
   worklistRoutes,
 } from "./ship.worklist.service";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
+// Registers the three maritime sections (ship-profile / equipment / worklist).
+import "./index";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -118,13 +119,15 @@ function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
   };
 }
 
-async function createShipAsAdmin(app: Hono<AppEnv>, name = "Aurora"): Promise<{ adminCookie: string; shipShortId: string; baseProjectInternalId: string }> {
+/**
+ * Create a ship-preset project — the fold's replacement for `POST /ships`. The
+ * creator is seeded as its owner, so `adminCookie` names the project manager
+ * exactly as it did before.
+ */
+async function createShipAsAdmin(_app: Hono<AppEnv>, name = "Aurora"): Promise<{ adminId: string; adminCookie: string; shipShortId: string; baseProjectInternalId: string }> {
   const admin = await sessionFor("admin");
-  const res = await app.request("/ships", jsonReq("POST", admin.cookie, { name }));
-  expect(res.status).toBe(201);
-  const body = await res.json() as { data: { id: string } };
-  const ship = await getShipByShortId(db, body.data.id);
-  return { adminCookie: admin.cookie, shipShortId: body.data.id, baseProjectInternalId: ship!.baseProjectId! };
+  const project = await createProject(db, { name, creatorId: admin.userId, preset: "ship" });
+  return { adminId: admin.userId, adminCookie: admin.cookie, shipShortId: project.shortId, baseProjectInternalId: project.id };
 }
 
 interface TemplateBody { id: string; name: string; tags: { id: string; name: string }[]; checklist: string | null; precautions: string | null }
@@ -216,13 +219,13 @@ describe("ship-level worklists: isolation from the global KB", () => {
     // Seed a global template (admin) — it must not appear in the ship list.
     await app.request("/worklists", jsonReq("POST", adminCookie, { name: "Global one" }));
 
-    const before = await app.request(`/ships/${shipShortId}/worklists`, { headers: { Cookie: adminCookie } });
+    const before = await app.request(`/projects/${shipShortId}/worklists`, { headers: { Cookie: adminCookie } });
     expect(await dataOf<TemplateBody[]>(before)).toHaveLength(0);
 
-    await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "Ship local" }));
-    const after = await dataOf<TemplateBody[]>(await app.request(`/ships/${shipShortId}/worklists`, { headers: { Cookie: adminCookie } }));
+    await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "Project local" }));
+    const after = await dataOf<TemplateBody[]>(await app.request(`/projects/${shipShortId}/worklists`, { headers: { Cookie: adminCookie } }));
     expect(after).toHaveLength(1);
-    expect(after[0]!.name).toBe("Ship local");
+    expect(after[0]!.name).toBe("Project local");
   });
 
   test("copy-from-global produces an independent row; later global edits do not affect it", async () => {
@@ -236,7 +239,7 @@ describe("ship-level worklists: isolation from the global KB", () => {
       precautions: "dry dock",
     })));
 
-    const copied = await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { fromGlobalId: global.id }));
+    const copied = await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { fromGlobalId: global.id }));
     expect(copied.status).toBe(201);
     const copy = await dataOf<TemplateBody>(copied);
     expect(copy.name).toBe("Hull check");
@@ -248,21 +251,21 @@ describe("ship-level worklists: isolation from the global KB", () => {
     await app.request(`/worklists/${global.id}`, jsonReq("PATCH", adminCookie, { checklist: "REWRITTEN" }));
 
     // The ship copy is unchanged.
-    const reread = await dataOf<TemplateBody>(await app.request(`/ships/${shipShortId}/worklists/${copy.id}`, { headers: { Cookie: adminCookie } }));
+    const reread = await dataOf<TemplateBody>(await app.request(`/projects/${shipShortId}/worklists/${copy.id}`, { headers: { Cookie: adminCookie } }));
     expect(reread.checklist).toBe("step 1; step 2");
   });
 
   test("copy from a non-existent global id → 404", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const res = await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { fromGlobalId: "missing1" }));
+    const res = await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { fromGlobalId: "missing1" }));
     expect(res.status).toBe(404);
   });
 
   test("create from scratch without a name → 422", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const res = await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { checklist: "x" }));
+    const res = await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { checklist: "x" }));
     expect(res.status).toBe(422);
   });
 
@@ -273,21 +276,21 @@ describe("ship-level worklists: isolation from the global KB", () => {
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
     const global = await dataOf<TemplateBody>(await app.request("/worklists", jsonReq("POST", adminCookie, { name: "Src" })));
     const res = await app.request(
-      `/ships/${shipShortId}/worklists`,
+      `/projects/${shipShortId}/worklists`,
       jsonReq("POST", adminCookie, { fromGlobalId: global.id, name: "Override" }),
     );
     expect(res.status).toBe(422);
   });
 });
 
-// T6: the global-knowledge-base getters guard on `isNull(shipId)`, so a
-// ship-level worklist (shipId set) is never reachable through the global API.
-describe("global worklist getters: isNull(shipId) guard", () => {
+// T6: the global-knowledge-base getters guard on `isNull(projectId)`, so a
+// project-level worklist (projectId set) is never reachable through the global API.
+describe("global worklist getters: isNull(projectId) guard", () => {
   test("global getters never see ship-level rows, and vice versa", async () => {
     const creator = await seedUser("admin");
-    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+    const ship = await createProject(db, { name: "Aurora", creatorId: creator, preset: "ship" });
 
-    const shipLevel = await createShipWorklist(db, ship.id, { name: "Ship local", tags: ["engine"] });
+    const shipLevel = await createProjectWorklist(db, ship.id, { name: "Project local", tags: ["engine"] });
     expect(shipLevel.status).toBe("ok");
     const shipWorklistId = shipLevel.status === "ok" ? shipLevel.worklist.id : "";
 
@@ -307,29 +310,29 @@ describe("global worklist getters: isNull(shipId) guard", () => {
     expect(await deleteGlobalWorklist(db, shipWorklistId)).toBe(false);
 
     // The ship-level row survives untouched.
-    const survivor = await getShipWorklist(db, ship.id, shipWorklistId);
-    expect(survivor?.name).toBe("Ship local");
+    const survivor = await getProjectWorklist(db, ship.id, shipWorklistId);
+    expect(survivor?.name).toBe("Project local");
   });
 });
 
-// The references a project may attach to a work order: its ship's worklists
-// (when it is a ship base project) plus the global knowledge base.
+// The references a project may attach to a work order: its own project-level
+// worklists plus the global knowledge base.
 describe("listReferenceableWorklists", () => {
-  test("a ship base project returns its ship worklists + all globals", async () => {
+  test("a project with the worklist section returns its own worklists + all globals", async () => {
     const creator = await seedUser("admin");
-    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+    const ship = await createProject(db, { name: "Aurora", creatorId: creator, preset: "ship" });
 
-    const shipLevel = await createShipWorklist(db, ship.id, { name: "Ship local", tags: ["engine"] });
+    const shipLevel = await createProjectWorklist(db, ship.id, { name: "Project local", tags: ["engine"] });
     expect(shipLevel.status).toBe("ok");
     const g1 = await createGlobalWorklist(db, { name: "Global one" });
     const g2 = await createGlobalWorklist(db, { name: "Global two" });
 
-    const result = await listReferenceableWorklists(db, ship.baseProjectId!);
-    expect(result.ship.map(w => w.name)).toEqual(["Ship local"]);
+    const result = await listReferenceableWorklists(db, ship.id);
+    expect(result.ship.map(w => w.name)).toEqual(["Project local"]);
     expect(result.global.map(w => w.id).sort()).toEqual([g1.id, g2.id].sort());
   });
 
-  test("a project that is not a ship base project returns ship:[] + all globals", async () => {
+  test("a project with no worklists of its own returns ship:[] + all globals", async () => {
     const creator = await seedUser("user");
     const project = await createProject(db, { name: "Plain", creatorId: creator });
     const g = await createGlobalWorklist(db, { name: "Global only" });
@@ -340,85 +343,221 @@ describe("listReferenceableWorklists", () => {
   });
 });
 
-describe("ship-level worklists: authz", () => {
+// The route moved out of the issue module and into the `worklist` section that
+// owns the data (PLAN-108 §5): it is now gated by `requireSection("worklist")`
+// plus project membership, so a project without the section has no such surface.
+describe("GET /projects/:projectId/referenceable-worklists", () => {
+  test("a member of a worklist-section project gets 200 with { ship, global }", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+    const g = await createGlobalWorklist(db, { name: "Global one" });
+    await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "Local" }));
+
+    const res = await app.request(`/projects/${shipShortId}/referenceable-worklists`, { headers: { Cookie: adminCookie } });
+    expect(res.status).toBe(200);
+    const { data } = await res.json() as { data: { ship: { name: string }[]; global: { id: string }[] } };
+    expect(data.ship.map(w => w.name)).toEqual(["Local"]);
+    expect(data.global.map(w => w.id)).toEqual([g.id]);
+  });
+
+  test("a project without the worklist section is 404", async () => {
+    const app = buildApp(db);
+    const owner = await seedUser("user");
+    const project = await createProject(db, { name: "Plain", creatorId: owner });
+    const res = await app.request(`/projects/${project.shortId}/referenceable-worklists`, { headers: { Cookie: await cookieForUser(owner) } });
+    expect(res.status).toBe(404);
+  });
+
+  test("a non-member is fail-closed 404", async () => {
+    const app = buildApp(db);
+    const { shipShortId } = await createShipAsAdmin(app);
+    const outsider = await sessionFor("user");
+    const res = await app.request(`/projects/${shipShortId}/referenceable-worklists`, { headers: { Cookie: outsider.cookie } });
+    expect(res.status).toBe(404);
+  });
+
+  test("an unknown project is 404", async () => {
+    const app = buildApp(db);
+    const { adminCookie } = await createShipAsAdmin(app);
+    const res = await app.request("/projects/does-not-exist/referenceable-worklists", { headers: { Cookie: adminCookie } });
+    expect(res.status).toBe(404);
+  });
+});
+
+// The five verbs of `/projects/:projectId/worklists` as one round-trip. The
+// tests above exercise the copy-from-global and tag paths; this one pins the
+// plain create → list → get → patch → delete contract on the re-keyed surface.
+describe("project worklists: CRUD round-trip", () => {
+  test("a project manager creates, lists, gets, updates and deletes a worklist", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+
+    const createRes = await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, {
+      name: "Hull check",
+      checklist: "step 1; step 2",
+      precautions: "dry dock",
+      tags: ["hull"],
+    }));
+    expect(createRes.status).toBe(201);
+    const created = await dataOf<TemplateBody>(createRes);
+    expect(created.name).toBe("Hull check");
+    expect(created.checklist).toBe("step 1; step 2");
+    expect(created.precautions).toBe("dry dock");
+    expect(created.tags.map(t => t.name)).toEqual(["hull"]);
+
+    const list = await dataOf<TemplateBody[]>(await app.request(`/projects/${shipShortId}/worklists`, { headers: { Cookie: adminCookie } }));
+    expect(list.map(w => w.id)).toEqual([created.id]);
+
+    const getRes = await app.request(`/projects/${shipShortId}/worklists/${created.id}`, { headers: { Cookie: adminCookie } });
+    expect(getRes.status).toBe(200);
+    expect((await dataOf<TemplateBody>(getRes)).name).toBe("Hull check");
+
+    const patchRes = await app.request(`/projects/${shipShortId}/worklists/${created.id}`, jsonReq("PATCH", adminCookie, { name: "Hull survey", precautions: null }));
+    expect(patchRes.status).toBe(200);
+    const patched = await dataOf<TemplateBody>(patchRes);
+    expect(patched.name).toBe("Hull survey");
+    expect(patched.precautions).toBeNull();
+    // Untouched fields survive the patch.
+    expect(patched.checklist).toBe("step 1; step 2");
+
+    const delRes = await app.request(`/projects/${shipShortId}/worklists/${created.id}`, jsonReq("DELETE", adminCookie));
+    expect(delRes.status).toBe(200);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${created.id}`, { headers: { Cookie: adminCookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${created.id}`, jsonReq("DELETE", adminCookie))).status).toBe(404);
+  });
+
+  test("an unknown worklist id 404s on every by-id verb", async () => {
+    const app = buildApp(db);
+    const { adminCookie, shipShortId } = await createShipAsAdmin(app);
+    expect((await app.request(`/projects/${shipShortId}/worklists/missing1`, { headers: { Cookie: adminCookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/missing1`, jsonReq("PATCH", adminCookie, { name: "X" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/missing1`, jsonReq("DELETE", adminCookie))).status).toBe(404);
+  });
+});
+
+describe("project-level worklists: authz", () => {
   test("member reads, project.manage writes, non-member gets 404", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
 
     // Admin (PM) creates a template to read.
-    const tpl = await dataOf<TemplateBody>(await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "T" })));
+    const tpl = await dataOf<TemplateBody>(await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "T" })));
 
     // Plain member: can read, cannot write (403).
     const member = await seedUser("user");
     await addMember(db, baseProjectInternalId, { roleId: await memberRoleId(baseProjectInternalId), userId: member });
     const memberCookie = await cookieForUser(member);
-    expect((await app.request(`/ships/${shipShortId}/worklists`, { headers: { Cookie: memberCookie } })).status).toBe(200);
-    expect((await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", memberCookie, { name: "Nope" }))).status).toBe(403);
-    expect((await app.request(`/ships/${shipShortId}/worklists/${tpl.id}`, jsonReq("PATCH", memberCookie, { name: "Nope" }))).status).toBe(403);
-    expect((await app.request(`/ships/${shipShortId}/worklists/${tpl.id}`, jsonReq("DELETE", memberCookie))).status).toBe(403);
+    expect((await app.request(`/projects/${shipShortId}/worklists`, { headers: { Cookie: memberCookie } })).status).toBe(200);
+    expect((await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", memberCookie, { name: "Nope" }))).status).toBe(403);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("PATCH", memberCookie, { name: "Nope" }))).status).toBe(403);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("DELETE", memberCookie))).status).toBe(403);
 
     // Non-member: fail-closed 404 on read and write.
     const outsider = await sessionFor("user");
-    expect((await app.request(`/ships/${shipShortId}/worklists`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
-    expect((await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", outsider.cookie, { name: "Nope" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", outsider.cookie, { name: "Nope" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, { headers: { Cookie: outsider.cookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("PATCH", outsider.cookie, { name: "Nope" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("DELETE", outsider.cookie))).status).toBe(404);
 
     // PM (admin) writes successfully.
-    expect((await app.request(`/ships/${shipShortId}/worklists/${tpl.id}`, jsonReq("PATCH", adminCookie, { name: "Renamed" }))).status).toBe(200);
-    expect((await app.request(`/ships/${shipShortId}/worklists/${tpl.id}`, jsonReq("DELETE", adminCookie))).status).toBe(200);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("PATCH", adminCookie, { name: "Renamed" }))).status).toBe(200);
+    expect((await app.request(`/projects/${shipShortId}/worklists/${tpl.id}`, jsonReq("DELETE", adminCookie))).status).toBe(200);
+  });
+});
+
+// PLAN-108 re-keyed worklists from `ship_id` to `project_id`. A scoping filter
+// dropped in that rename would be invisible to the authz tests (the actor is
+// allowed on both projects) but would leak or mutate across projects, so every
+// verb is driven with ONE actor who owns BOTH projects.
+describe("project worklists: cross-project isolation", () => {
+  test("a worklist of project A is unreachable and unmodifiable through project B", async () => {
+    const app = buildApp(db);
+    const shipA = await createShipAsAdmin(app, "A");
+    const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
+
+    const tpl = await dataOf<TemplateBody>(await app.request(`/projects/${shipA.shipShortId}/worklists`, jsonReq("POST", shipA.adminCookie, { name: "Hull check" })));
+
+    expect((await app.request(`/projects/${shipBShortId}/worklists/${tpl.id}`, { headers: { Cookie: shipA.adminCookie } })).status).toBe(404);
+    expect((await app.request(`/projects/${shipBShortId}/worklists/${tpl.id}`, jsonReq("PATCH", shipA.adminCookie, { name: "Hijacked" }))).status).toBe(404);
+    expect((await app.request(`/projects/${shipBShortId}/worklists/${tpl.id}`, jsonReq("DELETE", shipA.adminCookie))).status).toBe(404);
+
+    // The refused writes really were no-ops, not silent successes.
+    const reread = await dataOf<TemplateBody>(await app.request(`/projects/${shipA.shipShortId}/worklists/${tpl.id}`, { headers: { Cookie: shipA.adminCookie } }));
+    expect(reread.name).toBe("Hull check");
+  });
+
+  test("project B's list and referenceable set never contain project A's worklists", async () => {
+    const app = buildApp(db);
+    const shipA = await createShipAsAdmin(app, "A");
+    const shipBShortId = (await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" })).shortId;
+
+    await app.request(`/projects/${shipA.shipShortId}/worklists`, jsonReq("POST", shipA.adminCookie, { name: "Only on A" }));
+    await app.request(`/projects/${shipBShortId}/worklists`, jsonReq("POST", shipA.adminCookie, { name: "Only on B" }));
+
+    const listB = await dataOf<TemplateBody[]>(await app.request(`/projects/${shipBShortId}/worklists`, { headers: { Cookie: shipA.adminCookie } }));
+    expect(listB.map(w => w.name)).toEqual(["Only on B"]);
+
+    // `referenceable-worklists` splits into own + global; A's rows belong to neither.
+    const refB = await dataOf<{ ship: TemplateBody[]; global: TemplateBody[] }>(
+      await app.request(`/projects/${shipBShortId}/referenceable-worklists`, { headers: { Cookie: shipA.adminCookie } }),
+    );
+    expect(refB.ship.map(w => w.name)).toEqual(["Only on B"]);
+    expect(refB.global).toHaveLength(0);
   });
 });
 
 describe("worklist tags: sync + filtering", () => {
   test("create returns tags; update replaces; omitting tags leaves them untouched", async () => {
     const creator = await seedUser("admin");
-    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+    const ship = await createProject(db, { name: "Aurora", creatorId: creator, preset: "ship" });
 
-    const created = await createShipWorklist(db, ship.id, { name: "WL", tags: ["engine", "deck"] });
+    const created = await createProjectWorklist(db, ship.id, { name: "WL", tags: ["engine", "deck"] });
     expect(created.status).toBe("ok");
     const wlId = created.status === "ok" ? created.worklist.id : "";
     const createdTags = created.status === "ok" ? created.worklist.tags.map(t => t.name).sort() : [];
     expect(createdTags).toEqual(["deck", "engine"]);
 
     // Supplying tags replaces the whole set.
-    const replaced = await updateShipWorklist(db, ship.id, wlId, { tags: ["safety"] });
+    const replaced = await updateProjectWorklist(db, ship.id, wlId, { tags: ["safety"] });
     expect(replaced?.tags.map(t => t.name)).toEqual(["safety"]);
 
     // Omitting tags leaves them untouched.
-    const renamed = await updateShipWorklist(db, ship.id, wlId, { name: "WL2" });
+    const renamed = await updateProjectWorklist(db, ship.id, wlId, { name: "WL2" });
     expect(renamed?.name).toBe("WL2");
     expect(renamed?.tags.map(t => t.name)).toEqual(["safety"]);
   });
 
-  test("listShipWorklists filters by tagIds: single, multi (OR/union), unknown, empty", async () => {
+  test("listProjectWorklists filters by tagIds: single, multi (OR/union), unknown, empty", async () => {
     const creator = await seedUser("admin");
-    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+    const ship = await createProject(db, { name: "Aurora", creatorId: creator, preset: "ship" });
 
-    await createShipWorklist(db, ship.id, { name: "A", tags: ["engine"] });
-    await createShipWorklist(db, ship.id, { name: "B", tags: ["deck"] });
-    await createShipWorklist(db, ship.id, { name: "C", tags: ["engine", "deck"] });
-    await createShipWorklist(db, ship.id, { name: "D" });
+    await createProjectWorklist(db, ship.id, { name: "A", tags: ["engine"] });
+    await createProjectWorklist(db, ship.id, { name: "B", tags: ["deck"] });
+    await createProjectWorklist(db, ship.id, { name: "C", tags: ["engine", "deck"] });
+    await createProjectWorklist(db, ship.id, { name: "D" });
 
     // Single tag → rows carrying it.
-    expect((await listShipWorklists(db, ship.id, ["engine"])).map(w => w.name).sort()).toEqual(["A", "C"]);
+    expect((await listProjectWorklists(db, ship.id, ["engine"])).map(w => w.name).sort()).toEqual(["A", "C"]);
     // Multiple tags → OR/union.
-    expect((await listShipWorklists(db, ship.id, ["engine", "deck"])).map(w => w.name).sort()).toEqual(["A", "B", "C"]);
+    expect((await listProjectWorklists(db, ship.id, ["engine", "deck"])).map(w => w.name).sort()).toEqual(["A", "B", "C"]);
     // Unknown tag → empty.
-    expect(await listShipWorklists(db, ship.id, ["nope"])).toHaveLength(0);
+    expect(await listProjectWorklists(db, ship.id, ["nope"])).toHaveLength(0);
     // Empty / omitted filter → no filter.
-    expect(await listShipWorklists(db, ship.id, [])).toHaveLength(4);
-    expect(await listShipWorklists(db, ship.id)).toHaveLength(4);
+    expect(await listProjectWorklists(db, ship.id, [])).toHaveLength(4);
+    expect(await listProjectWorklists(db, ship.id)).toHaveLength(4);
   });
 
   test("ship list HTTP route filters by repeated tagId= (OR)", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "A", tags: ["engine"] }));
-    await app.request(`/ships/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "B", tags: ["deck"] }));
+    await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "A", tags: ["engine"] }));
+    await app.request(`/projects/${shipShortId}/worklists`, jsonReq("POST", adminCookie, { name: "B", tags: ["deck"] }));
 
-    const eng = await dataOf<TemplateBody[]>(await app.request(`/ships/${shipShortId}/worklists?tagId=engine`, { headers: { Cookie: adminCookie } }));
+    const eng = await dataOf<TemplateBody[]>(await app.request(`/projects/${shipShortId}/worklists?tagId=engine`, { headers: { Cookie: adminCookie } }));
     expect(eng.map(w => w.name)).toEqual(["A"]);
 
-    const both = await dataOf<TemplateBody[]>(await app.request(`/ships/${shipShortId}/worklists?tagId=engine&tagId=deck`, { headers: { Cookie: adminCookie } }));
+    const both = await dataOf<TemplateBody[]>(await app.request(`/projects/${shipShortId}/worklists?tagId=engine&tagId=deck`, { headers: { Cookie: adminCookie } }));
     expect(both.map(w => w.name).sort()).toEqual(["A", "B"]);
   });
 
@@ -434,10 +573,10 @@ describe("worklist tags: sync + filtering", () => {
 
   test("copy-from-global copies the source's tags onto the new ship row", async () => {
     const creator = await seedUser("admin");
-    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
+    const ship = await createProject(db, { name: "Aurora", creatorId: creator, preset: "ship" });
     const global = await createGlobalWorklist(db, { name: "Tmpl", tags: ["propulsion", "safety"] });
 
-    const copied = await createShipWorklist(db, ship.id, { fromGlobalId: global.id });
+    const copied = await createProjectWorklist(db, ship.id, { fromGlobalId: global.id });
     expect(copied.status).toBe("ok");
     const tags = copied.status === "ok" ? copied.worklist.tags.map(t => t.name).sort() : [];
     expect(tags).toEqual(["propulsion", "safety"]);

@@ -3,7 +3,7 @@
     "key": "all-staff",
     "name": "All Staff",
     "description": "Baseline module access for every staff member.",
-    "modules": ["documents", "drive", "projects", "ships", "contacts"],
+    "modules": ["documents", "drive", "projects", "contacts"],
     "members": [
       "admin",
       "pm-mercer",

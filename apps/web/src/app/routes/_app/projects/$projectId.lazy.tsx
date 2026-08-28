@@ -29,12 +29,13 @@ import {
 } from "@/shared/lib/api/projects";
 import { formatDate } from "@/shared/lib/format";
 import { RECORD_STATUS_BADGE } from "@/shared/lib/status-colors";
+import { visibleProjectSections } from "./-project-sections";
 import { ProjectSettingsDialog } from "./-project-settings-dialog";
 import { activeProjectTab, PROJECT_TAB_TO } from "./-project-tabs";
 
 // Shared trigger styling for the detail tab-nav (line variant): muted resting
-// state that goes solid + bold on the active route. Extracted so all four tabs
-// stay in lockstep instead of repeating the class string per trigger.
+// state that goes solid + bold on the active route. Extracted so every tab
+// stays in lockstep instead of repeating the class string per trigger.
 const TAB_TRIGGER_CLASS
   = "px-0.5 pb-2.5 text-base font-medium text-muted-foreground transition-colors hover:text-foreground data-active:font-semibold data-active:text-foreground";
 
@@ -43,12 +44,10 @@ export const Route = createLazyFileRoute("/_app/projects/$projectId")({
 });
 
 function ProjectDetailLayout() {
-  const { t } = useTranslation(["projects", "common"]);
+  // `ships` supplies the labels of the ship-preset tabs (profile / equipment /
+  // worklist); the registry names the namespace per entry.
+  const { t } = useTranslation(["projects", "ships", "common"]);
   const { projectId } = useParams({ from: "/_app/projects/$projectId" });
-  // `strict: false` reads the ship segment from whichever child is mounted: the
-  // `from/$shipId` route supplies it (entered from a ship), all other tab routes
-  // leave it undefined. Drives the back button's target + label below.
-  const { shipId: fromShipId } = useParams({ strict: false });
   const { settings: settingsParam } = useSearch({ from: "/_app/projects/$projectId" });
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -86,15 +85,8 @@ function ProjectDetailLayout() {
     void navigate({ to: PROJECT_TAB_TO[value], params: { projectId } });
   };
 
-  // Back button returns to the originating ship when the project was opened from
-  // one (`/projects/$projectId/from/$shipId`), otherwise to the project list.
-  const goBack = () => {
-    if (fromShipId)
-      void navigate({ to: "/ships/$shipId", params: { shipId: fromShipId } });
-    else
-      void navigate({ to: "/projects" });
-  };
-  const backLabel = fromShipId ? t("detail.backToShip") : t("detail.back");
+  const goBack = () => void navigate({ to: "/projects" });
+  const backLabel = t("detail.back");
 
   const [settingsOpen, setSettingsOpen] = useState(settingsParam ?? false);
 
@@ -123,6 +115,15 @@ function ProjectDetailLayout() {
   }
 
   const tabCount = (n: number | undefined) => (n === undefined ? "" : ` ${n}`);
+
+  // Which tabs this project offers: the registry filtered by its mounted
+  // sections and the caller's capabilities. Overview and sub-projects are core,
+  // so every project gets them on top of whatever sections it mounts.
+  const tabs = visibleProjectSections({ project, has: caps.has });
+  const tabCounts: Record<string, number | undefined> = {
+    issues: issuesCount,
+    procurement: procurementCount,
+  };
 
   return (
     <div className="space-y-5">
@@ -180,26 +181,12 @@ function ProjectDetailLayout() {
       {/* Tabs promoted to the page's primary navigation; each tab is a route. */}
       <Tabs value={tab} onValueChange={v => v !== null && goToTab(v as ProjectDetailTab)}>
         <TabsList variant="line" className="h-auto gap-6 overflow-x-auto text-base">
-          <TabsTrigger value="overview" className={TAB_TRIGGER_CLASS}>
-            {t("tabs.overview")}
-          </TabsTrigger>
-          {caps.canViewIssues && (
-            <TabsTrigger value="issues" className={TAB_TRIGGER_CLASS}>
-              {t("tabs.issues")}
-              {tabCount(issuesCount)}
+          {tabs.map(section => (
+            <TabsTrigger key={section.key} value={section.key} className={TAB_TRIGGER_CLASS}>
+              {t(`${section.i18nNamespace}:${section.labelKey}`)}
+              {tabCount(tabCounts[section.key])}
             </TabsTrigger>
-          )}
-          {caps.canViewProcurement && (
-            <TabsTrigger value="procurement" className={TAB_TRIGGER_CLASS}>
-              {t("tabs.procurement")}
-              {tabCount(procurementCount)}
-            </TabsTrigger>
-          )}
-          {caps.canViewFiles && (
-            <TabsTrigger value="files" className={TAB_TRIGGER_CLASS}>
-              {t("tabs.files")}
-            </TabsTrigger>
-          )}
+          ))}
         </TabsList>
       </Tabs>
 

@@ -65,7 +65,7 @@ the right, collapsing onto multiple lines when narrow.
 
 Canonical example — `apps/web/src/app/routes/_app/projects/-project-issues-tab.tsx:325`
 (row), `:328` (left cluster), `:333` (right `SearchCreateBar`). Same shape in the
-ship worklist and contacts toolbars.
+project worklist and contacts toolbars.
 
 ## 5. Data tables
 
@@ -78,7 +78,7 @@ instead of overflowing the viewport (or forcing a full-page horizontal scroll).
 </div>
 ```
 
-See `apps/web/src/app/routes/_app/ships/-ship-equipment-tab.tsx:226`.
+See `apps/web/src/app/routes/_app/projects/-project-equipment-tab.tsx:238`.
 
 ## 6. Drawers / side panels
 

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ae037938-bdf0-4ec1-a681-5b791793fac1",
+  "id": "8be45a96-3b27-448e-b499-e9d86581d669",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "contact_categories": {
@@ -3290,6 +3290,139 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "global_procurement_categories": {
+      "name": "global_procurement_categories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "procurement_categories": {
+      "name": "procurement_categories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "procurement_categories_project_idx": {
+          "name": "procurement_categories_project_idx",
+          "columns": [
+            "project_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "procurement_categories_project_id_projects_id_fk": {
+          "name": "procurement_categories_project_id_projects_id_fk",
+          "tableFrom": "procurement_categories",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "procurement_details": {
       "name": "procurement_details",
       "columns": {
@@ -3452,139 +3585,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "global_procurement_categories": {
-      "name": "global_procurement_categories",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "procurement_categories": {
-      "name": "procurement_categories",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "procurement_categories_project_idx": {
-          "name": "procurement_categories_project_idx",
-          "columns": [
-            "project_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "procurement_categories_project_id_projects_id_fk": {
-          "name": "procurement_categories_project_id_projects_id_fk",
-          "tableFrom": "procurement_categories",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -3811,6 +3811,75 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "project_sections": {
+      "name": "project_sections",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "project_sections_key_idx": {
+          "name": "project_sections_key_idx",
+          "columns": [
+            "key",
+            "project_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "project_sections_project_id_projects_id_fk": {
+          "name": "project_sections_project_id_projects_id_fk",
+          "tableFrom": "project_sections",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_sections_project_id_key_pk": {
+          "columns": [
+            "project_id",
+            "key"
+          ],
+          "name": "project_sections_project_id_key_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "projects": {
       "name": "projects",
       "columns": {
@@ -3857,8 +3926,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "ship_id": {
-          "name": "ship_id",
+        "parent_id": {
+          "name": "parent_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3924,21 +3993,21 @@
           ],
           "isUnique": false
         },
-        "projects_ship_idx": {
-          "name": "projects_ship_idx",
+        "projects_parent_idx": {
+          "name": "projects_parent_idx",
           "columns": [
-            "ship_id"
+            "parent_id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "projects_ship_id_ships_id_fk": {
-          "name": "projects_ship_id_ships_id_fk",
+        "projects_parent_id_projects_id_fk": {
+          "name": "projects_parent_id_projects_id_fk",
           "tableFrom": "projects",
-          "tableTo": "ships",
+          "tableTo": "projects",
           "columnsFrom": [
-            "ship_id"
+            "parent_id"
           ],
           "columnsTo": [
             "id"
@@ -4364,8 +4433,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "ship_id": {
-          "name": "ship_id",
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -4451,10 +4520,10 @@
         }
       },
       "indexes": {
-        "ship_equipment_ship_idx": {
-          "name": "ship_equipment_ship_idx",
+        "ship_equipment_project_idx": {
+          "name": "ship_equipment_project_idx",
           "columns": [
-            "ship_id"
+            "project_id"
           ],
           "isUnique": false
         },
@@ -4474,12 +4543,12 @@
         }
       },
       "foreignKeys": {
-        "ship_equipment_ship_id_ships_id_fk": {
-          "name": "ship_equipment_ship_id_ships_id_fk",
+        "ship_equipment_project_id_projects_id_fk": {
+          "name": "ship_equipment_project_id_projects_id_fk",
           "tableFrom": "ship_equipment",
-          "tableTo": "ships",
+          "tableTo": "projects",
           "columnsFrom": [
-            "ship_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -4528,8 +4597,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "ship_id": {
-          "name": "ship_id",
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -4579,37 +4648,37 @@
         }
       },
       "indexes": {
-        "ship_equipment_categories_ship_idx": {
-          "name": "ship_equipment_categories_ship_idx",
+        "ship_equipment_categories_project_idx": {
+          "name": "ship_equipment_categories_project_idx",
           "columns": [
-            "ship_id"
+            "project_id"
           ],
           "isUnique": false
         },
-        "ship_equipment_categories_ship_name_zh_idx": {
-          "name": "ship_equipment_categories_ship_name_zh_idx",
+        "ship_equipment_categories_project_name_zh_idx": {
+          "name": "ship_equipment_categories_project_name_zh_idx",
           "columns": [
-            "ship_id",
+            "project_id",
             "name_zh"
           ],
           "isUnique": true
         },
-        "ship_equipment_categories_ship_name_en_idx": {
-          "name": "ship_equipment_categories_ship_name_en_idx",
+        "ship_equipment_categories_project_name_en_idx": {
+          "name": "ship_equipment_categories_project_name_en_idx",
           "columns": [
-            "ship_id",
+            "project_id",
             "name_en"
           ],
           "isUnique": true
         }
       },
       "foreignKeys": {
-        "ship_equipment_categories_ship_id_ships_id_fk": {
-          "name": "ship_equipment_categories_ship_id_ships_id_fk",
+        "ship_equipment_categories_project_id_projects_id_fk": {
+          "name": "ship_equipment_categories_project_id_projects_id_fk",
           "tableFrom": "ship_equipment_categories",
-          "tableTo": "ships",
+          "tableTo": "projects",
           "columnsFrom": [
-            "ship_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -4622,51 +4691,30 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "ships": {
-      "name": "ships",
+    "ship_profiles": {
+      "name": "ship_profiles",
       "columns": {
-        "id": {
-          "name": "id",
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
-        "short_id": {
-          "name": "short_id",
+        "hull_number": {
+          "name": "hull_number",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
+        "ship_status": {
+          "name": "ship_status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "'laid_up'"
-        },
-        "base_project_id": {
-          "name": "base_project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         },
         "model": {
           "name": "model",
@@ -4766,40 +4814,11 @@
           "notNull": false,
           "autoincrement": false
         },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cover_reference_id": {
-          "name": "cover_reference_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "creator_id": {
-          "name": "creator_id",
+        "created_at": {
+          "name": "created_at",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "updated_at": {
@@ -4811,69 +4830,28 @@
         }
       },
       "indexes": {
-        "ships_short_id_idx": {
-          "name": "ships_short_id_idx",
+        "ship_profiles_hull_number_idx": {
+          "name": "ship_profiles_hull_number_idx",
           "columns": [
-            "short_id"
+            "hull_number"
           ],
           "isUnique": true
         },
-        "ships_code_idx": {
-          "name": "ships_code_idx",
+        "ship_profiles_status_idx": {
+          "name": "ship_profiles_status_idx",
           "columns": [
-            "code"
-          ],
-          "isUnique": true
-        },
-        "ships_status_idx": {
-          "name": "ships_status_idx",
-          "columns": [
-            "status",
-            "deleted_at"
-          ],
-          "isUnique": false
-        },
-        "ships_base_project_idx": {
-          "name": "ships_base_project_idx",
-          "columns": [
-            "base_project_id"
+            "ship_status"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "ships_base_project_id_projects_id_fk": {
-          "name": "ships_base_project_id_projects_id_fk",
-          "tableFrom": "ships",
+        "ship_profiles_project_id_projects_id_fk": {
+          "name": "ship_profiles_project_id_projects_id_fk",
+          "tableFrom": "ship_profiles",
           "tableTo": "projects",
           "columnsFrom": [
-            "base_project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "ships_cover_reference_id_file_references_id_fk": {
-          "name": "ships_cover_reference_id_file_references_id_fk",
-          "tableFrom": "ships",
-          "tableTo": "file_references",
-          "columnsFrom": [
-            "cover_reference_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "ships_creator_id_users_id_fk": {
-          "name": "ships_creator_id_users_id_fk",
-          "tableFrom": "ships",
-          "tableTo": "users",
-          "columnsFrom": [
-            "creator_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -4896,8 +4874,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "ship_id": {
-          "name": "ship_id",
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4940,21 +4918,21 @@
         }
       },
       "indexes": {
-        "worklists_ship_idx": {
-          "name": "worklists_ship_idx",
+        "worklists_project_idx": {
+          "name": "worklists_project_idx",
           "columns": [
-            "ship_id"
+            "project_id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "worklists_ship_id_ships_id_fk": {
-          "name": "worklists_ship_id_ships_id_fk",
+        "worklists_project_id_projects_id_fk": {
+          "name": "worklists_project_id_projects_id_fk",
           "tableFrom": "worklists",
-          "tableTo": "ships",
+          "tableTo": "projects",
           "columnsFrom": [
-            "ship_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"

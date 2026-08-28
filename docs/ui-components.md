@@ -1,5 +1,14 @@
 # Global UI Components
 
+> **Stale since 2026-08-28 (PLAN-108).** Every `routes/_app/ships/**` path
+> referenced below was deleted when ships folded into projects as mounted
+> sections ([ADR-015](decisions/015-projects-as-sections.md)). The maritime
+> surfaces now live under `routes/_app/projects/` (`-project-equipment-tab.tsx`,
+> `-project-worklist-tab.tsx`, …) and the `ShipCoverField` adapter is gone — a
+> ship cover is a plain project cover. Treat the `ships/` file paths and the
+> "projects/ships/contacts" groupings here as a historical snapshot; re-verify
+> against the tree before acting on an item.
+
 Reference for the shared, cross-module frontend components in
 `apps/web/src/shared/components/` (and a few shared utilities in
 `apps/web/src/shared/lib/`). These are the building blocks every feature surface

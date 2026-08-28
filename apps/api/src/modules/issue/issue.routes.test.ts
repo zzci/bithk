@@ -16,7 +16,6 @@ import { auditEvents } from "@/modules/audit/schema";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject } from "@/modules/project/project.service";
-import { createGlobalWorklist } from "@/modules/ship/ship.worklist.service";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { issueRoutes } from "./issue.routes";
 import { createIssue } from "./issue.service";
@@ -201,37 +200,6 @@ describe("auth + membership gating", () => {
     const res = await app.request(`/projects/${project.shortId}/issues`, { headers: { Cookie: await cookieForUser(admin) } });
     expect(res.status).toBe(200);
     expect((await res.json() as { meta: { total: number } }).meta.total).toBe(1);
-  });
-});
-
-describe("GET referenceable-worklists", () => {
-  test("a member gets 200 with { ship, global }", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    const g = await createGlobalWorklist(db, { name: "Global one" });
-    const res = await app.request(`/projects/${project.shortId}/referenceable-worklists`, { headers: { Cookie: await cookieForUser(owner) } });
-    expect(res.status).toBe(200);
-    const { data } = await res.json() as { data: { ship: Array<{ id: string }>; global: Array<{ id: string }> } };
-    // An ordinary project is not a ship base project → no ship worklists.
-    expect(data.ship).toEqual([]);
-    expect(data.global.map(w => w.id)).toEqual([g.id]);
-  });
-
-  test("a non-member is fail-closed 404", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const outsider = await seedUser("user");
-    const project = await createProject(db, { name: "P", creatorId: owner });
-    const res = await app.request(`/projects/${project.shortId}/referenceable-worklists`, { headers: { Cookie: await cookieForUser(outsider) } });
-    expect(res.status).toBe(404);
-  });
-
-  test("an unknown project is 404", async () => {
-    const app = buildApp(db);
-    const owner = await seedUser("user");
-    const res = await app.request(`/projects/does-not-exist/referenceable-worklists`, { headers: { Cookie: await cookieForUser(owner) } });
-    expect(res.status).toBe(404);
   });
 });
 

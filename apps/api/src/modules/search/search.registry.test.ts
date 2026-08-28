@@ -8,7 +8,6 @@ import "@/modules/document";
 import "@/modules/drive";
 import "@/modules/issue";
 import "@/modules/project";
-import "@/modules/ship";
 
 // Snapshot of the real registrations (module indexes imported above). The
 // registry is process-global and module indexes only run once, so mutating
@@ -24,7 +23,7 @@ afterEach(() => {
 describe("registerSearchSource", () => {
   test("every searchable module registers its source on load", () => {
     expect(getSearchSources().map(s => s.key).sort())
-      .toEqual(["documents", "drive", "issues", "projects", "ships"]);
+      .toEqual(["documents", "drive", "issues", "projects"]);
   });
 
   test("a duplicate key throws", () => {

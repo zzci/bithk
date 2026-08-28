@@ -51,7 +51,7 @@ Errors use the shared error handler:
 
 Every "Authenticated" / "Admin" route is mounted under `protectedRoutes`.
 
-Main-area module routes (documents, drive, projects, ships, contacts, hr)
+Main-area module routes (documents, drive, projects, contacts, hr)
 additionally pass the global-role module visibility gate: a non-admin user
 whose role does not grant the module receives 404 (PLAN-076; see the
 [architecture doc](../architecture.md#authorization-model)).
@@ -223,7 +223,8 @@ All document routes require authentication. `:id` is the document's
 
 All issue routes require authentication. Issues are **project-scoped work
 orders** — there is no global `/api/issues`; every route is nested under its
-owning project and gated on project membership (non-member ⇒ fail-closed 404).
+owning project and gated on the project's `issues` **section** plus project
+membership (an unmounted section or a non-member both ⇒ fail-closed 404).
 `:id` is the issue's 8-char short id and must belong to the path project. See
 [`docs/modules/issue.md`](../modules/issue.md) for the model and its intentional
 deltas from the access reference.
@@ -249,15 +250,13 @@ deltas from the access reference.
 | GET    | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` | Download. `?inline=true` opts into inline rendering for safe MIME types.           |
 | DELETE | `/api/projects/:projectId/issues/:id/comments/:cid/attachments/:aid` | Release the reference (uploader or admin). Async GC reclaims the blob.            |
 
-Issue references and ship maintenance orders are top-level (not project-nested)
-and BITHK-only:
+Issue references are top-level (not project-nested) and BITHK-only:
 
 | Method | Path                                          | Description                                                                                                |
 | ------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | GET    | `/api/issues/:issueShortId/references`        | List an issue's generic references (any reader).                                                            |
 | POST   | `/api/issues/:issueShortId/references`        | Add a reference (editor).                                                                                    |
 | DELETE | `/api/issues/:issueShortId/references/:referenceId` | Remove a reference (editor).                                                                           |
-| GET    | `/api/ships/:shipShortId/maintenance-orders`  | Read-only list of maintenance-template issues across a ship's bound projects (ship read gate).             |
 
 ### Files (low-level)
 
@@ -402,9 +401,12 @@ apps/api/src/modules/
   cron/
   document/        # sub-type of item
   file/            # blob storage; pluggable drivers + content dedupe
-  issue/           # sub-type of item
+  issue/           # sub-type of item; owns the `issues` project section
   item/            # base for content sub-types
   policy/
+  procurement/     # sub-type of item; owns the `procurement` project section
+  project/         # project core record + the project section registry
   settings/
+  ship/            # the `ship-profile` / `equipment` / `worklist` project sections
   system/
 ```

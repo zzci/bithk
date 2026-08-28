@@ -1,27 +1,14 @@
 import type { Context } from "hono";
 import type { ProjectCapability } from "./schema";
+import type { ProjectPreset } from "./section.registry";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
+import { describeRoute, errorJson, jsonRequestBody, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { optionalPageQueryFields } from "@/shared/lib/pagination";
 import { parseTagIds } from "@/shared/lib/route-params";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
-import {
-  composeCategory,
-  createCategory,
-  deleteCategory,
-  listCategories,
-  updateCategory,
-} from "./project.categories";
-import {
-  composeGlobalCategory,
-  createGlobalCategory,
-  deleteGlobalCategory,
-  listGlobalCategories,
-  updateGlobalCategory,
-} from "./project.global-categories";
 import {
   composeRole,
   createRole,
@@ -40,6 +27,7 @@ import {
   getProjectByShortId,
   isProjectVersionConflict,
   listMembers,
+  listProjectChildren,
   listProjects,
   removeDefaultProjectCover,
   removeMember,
@@ -47,20 +35,50 @@ import {
   resolveProjectId,
   setDefaultProjectCover,
   setProjectCover,
+  setProjectParent,
   softDeleteProject,
   updateMember,
   updateProject,
 } from "./project.service";
 import { PROJECT_CAPABILITIES, PROJECT_STATUSES } from "./schema";
+import { DEFAULT_PROJECT_PRESET, PRESET_SECTION_KEYS, PROJECT_PRESETS } from "./section.registry";
+import { listSections, mountSection, unmountSection } from "./section.service";
 
 const tagsShape = { tags: z.array(z.string().min(1).max(50)).max(50).optional() };
+
+// Which sections a new project starts with, plus the raw per-section create
+// payload their `provision` hooks read (PLAN-108 §3). `sectionData` is only
+// shape-checked here — each section validates its own slice, so adding a
+// section never edits this file.
+const sectionCreateShape = {
+  preset: z.enum(Object.keys(PROJECT_PRESETS) as ProjectPreset[]).default(DEFAULT_PROJECT_PRESET),
+  sectionData: z.record(z.string(), z.unknown()).optional(),
+};
+
+// The mount body (PLAN-108 §3). Optional in full: `PUT .../sections/:key` with
+// no body at all mounts the section on its own defaults. When present it is
+// always the enveloped form `{ "sectionData": { … } }`, whose value is THIS
+// section's slice — the same payload `POST /projects` would carry under
+// `sectionData[<key>]`, minus the key (the URL already names it). Shape-checked
+// only: each section validates its own slice inside its `provision` hook.
+const mountSectionSchema = z.object({
+  sectionData: z.record(z.string(), z.unknown()).optional(),
+});
 
 const createProjectSchema = z.object({
   code: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(255),
   description: z.string().max(2000).nullable().optional(),
+  // Parent project SHORT id. The hierarchy is one level deep, so the service
+  // rejects a parent that is missing (404) or itself a sub-project (422).
+  parentId: z.string().min(1).optional(),
+  ...sectionCreateShape,
   ...tagsShape,
 });
+
+// Sub-project create takes the same body minus `parentId` — the parent is the
+// route, not the payload.
+const createChildProjectSchema = createProjectSchema.omit({ parentId: true });
 
 const updateProjectSchema = z.object({
   // `code` is immutable after creation — update requests cannot carry it.
@@ -79,6 +97,10 @@ const updateProjectSchema = z.object({
 const listSchema = z.object({
   status: z.enum(PROJECT_STATUSES).optional(),
   q: z.string().min(1).max(200).optional(),
+  // Mounted-section filter (PLAN-108 §8) — the sidebar's "Ships" entry is
+  // `?section=ship-profile`. Enumerated against the known keys on purpose: a
+  // typo must be a loud 422, not a silently empty list.
+  section: z.enum(PRESET_SECTION_KEYS).optional(),
   ...optionalPageQueryFields(100),
 });
 
@@ -108,41 +130,18 @@ const updateRoleSchema = z.object({
   capabilities: capabilitiesSchema.optional(),
 }).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
 
-const createGlobalCategorySchema = z.object({
-  name: z.string().min(1).max(255),
-  code: z.string().max(100).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-});
-
-const updateGlobalCategorySchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  code: z.string().max(100).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
-
-const createCategorySchema = z.object({
-  name: z.string().min(1).max(255),
-  code: z.string().max(100).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-});
-
-const updateCategorySchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  code: z.string().max(100).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-}).refine(v => Object.values(v).some(value => value !== undefined), { message: "At least one field must be provided" });
-
 // Multipart upload (`file` field) request-body doc for cover-image uploads.
 const fileUploadBody = { content: { "multipart/form-data": { schema: { type: "object" as const, properties: { file: { type: "string" as const, format: "binary" } } } } } };
 
 const idParam = z.object({ id: z.string() });
+const sectionParam = z.object({ id: z.string(), key: z.string() });
+const childParam = z.object({ id: z.string(), childId: z.string() });
 const memberParam = z.object({ id: z.string(), memberId: z.string() });
 const roleParam = z.object({ id: z.string(), roleId: z.string() });
-const categoryParam = z.object({ id: z.string(), categoryId: z.string() });
 
 // Response `data` schemas mirroring the project service view composers.
 // Tags carry the type-wide `usageCount` (`ProjectTagView` / the shared
-// `ResourceTagUsageView`), matching the ship module's bound-project rows.
+// `ResourceTagUsageView`).
 const projectTagSchema = z.object({ id: z.string(), name: z.string(), usageCount: z.number() });
 const projectViewSchema = z.object({
   id: z.string(),
@@ -150,8 +149,10 @@ const projectViewSchema = z.object({
   name: z.string(),
   status: z.enum(PROJECT_STATUSES),
   description: z.string().nullable(),
-  shipId: z.string().nullable(),
   tags: z.array(projectTagSchema),
+  // Mounted section keys in tab order (PLAN-108 §2) — the single source of
+  // truth for what this project is.
+  sections: z.array(z.string()),
   coverImageUrl: z.string().nullable(),
   creatorId: z.string(),
   version: z.number(),
@@ -175,15 +176,6 @@ const roleSchema = z.object({
   capabilities: z.array(z.enum(PROJECT_CAPABILITIES)),
   isSystem: z.boolean(),
   kind: z.enum(["owner", "guest"]).nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-// Shared shape for project + global procurement categories.
-const categorySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  code: z.string().nullable(),
-  description: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -240,6 +232,23 @@ interface ProjectAccess {
 }
 
 /**
+ * Read a JSON body that the route treats as optional, returning undefined for a
+ * request that carried none. Only an absent body is tolerated — a body that is
+ * present but malformed is still a 422, not a silent default.
+ */
+async function readOptionalJsonBody(c: Context<ProtectedEnv>): Promise<unknown> {
+  const raw = (await c.req.text()).trim();
+  if (raw === "")
+    return undefined;
+  try {
+    return JSON.parse(raw);
+  }
+  catch {
+    throw new ValidationError("Request body is not valid JSON", { body: "Invalid JSON" });
+  }
+}
+
+/**
  * Resolve the project id from the `:id` short id and assert the actor is a
  * member (and, when `capability` is given, that their role grants it). App
  * admins bypass membership with the full capability set. Fail-closed: a
@@ -267,95 +276,6 @@ async function requireProject(
 export function projectRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
-
-  // ─── Global procurement categories (admin only) ────────────────────
-  // The template set copied into each new project at creation (copy-on-create).
-  router.get(
-    "/global-procurement-categories",
-    describeRoute({
-      tags: ["projects"],
-      summary: "List global procurement categories",
-      responses: {
-        200: okJson(z.array(categorySchema)),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Admin only", ...errorJson },
-      },
-    }),
-    adminRequired,
-    async (c) => {
-      const db = c.get("db");
-      return c.json({ success: true, data: (await listGlobalCategories(db)).map(composeGlobalCategory) });
-    },
-  );
-
-  router.post(
-    "/global-procurement-categories",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Create a global procurement category",
-      responses: {
-        201: okJson(categorySchema, "Created"),
-        403: { description: "Admin only", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
-    }),
-    adminRequired,
-    validator("json", createGlobalCategorySchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const category = await createGlobalCategory(db, body);
-      return c.json({ success: true, data: composeGlobalCategory(category) }, 201);
-    },
-  );
-
-  router.patch(
-    "/global-procurement-categories/:id",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Update a global procurement category",
-      responses: {
-        200: okJson(categorySchema),
-        403: { description: "Admin only", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
-    }),
-    adminRequired,
-    validator("param", idParam, onValidationFailure),
-    validator("json", updateGlobalCategorySchema, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const { id } = c.req.valid("param");
-      const body = c.req.valid("json");
-      const category = await updateGlobalCategory(db, id, body);
-      if (!category)
-        throw new NotFoundError("Global procurement category", id);
-      return c.json({ success: true, data: composeGlobalCategory(category) });
-    },
-  );
-
-  router.delete(
-    "/global-procurement-categories/:id",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Delete a global procurement category",
-      responses: {
-        200: okJson(z.null()),
-        403: { description: "Admin only", ...errorJson },
-        404: { description: "Not found", ...errorJson },
-      },
-    }),
-    adminRequired,
-    validator("param", idParam, onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const { id } = c.req.valid("param");
-      if (!await deleteGlobalCategory(db, id))
-        throw new NotFoundError("Global procurement category", id);
-      return c.json({ success: true, data: null });
-    },
-  );
 
   // ─── Global default project cover (admin only) ────────────────────
   // Backs the admin "Project Defaults" cover picker. The reference id is
@@ -468,7 +388,8 @@ export function projectRoutes() {
       responses: {
         201: okJson(projectViewSchema, "Created"),
         403: { description: "Admin only", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
+        404: { description: "Parent project not found", ...errorJson },
+        422: { description: "Validation error, or a hierarchy more than one level deep", ...errorJson },
       },
     }),
     adminRequired,
@@ -615,6 +536,161 @@ export function projectRoutes() {
       if (!updated)
         throw new NotFoundError("Project", shortId);
       return c.json({ success: true, data: await composeProjectWithTags(db, updated) });
+    },
+  );
+
+  // ─── Sections ──────────────────────────────────────────────────────
+  // The mount rows are the single source of truth for what a project is
+  // (PLAN-108 §3), so both routes answer with the whole section list in tab
+  // order — a caller never has to re-read the project to refresh its tabs.
+  router.put(
+    "/projects/:id/sections/:key",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Mount a section on a project",
+      description: "Mounts the section and runs its provisioning in one transaction, so a late mount is seeded exactly like the create-time preset would have been. The body is optional; when supplied it must be `{ \"sectionData\": { … } }`, carrying this one section's create payload (e.g. `{ \"sectionData\": { \"hullNumber\": \"HULL-1\" } }` for `ship-profile`).",
+      requestBody: jsonRequestBody(mountSectionSchema),
+      responses: {
+        200: okJson(z.array(z.string())),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "Unknown section key, or section data the section rejected", ...errorJson },
+      },
+    }),
+    validator("param", sectionParam, onValidationFailure),
+    async (c) => {
+      const { id, key } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "project.manage");
+      const db = c.get("db");
+      const body = mountSectionSchema.parse(await readOptionalJsonBody(c) ?? {});
+      await mountSection(db, projectId, key, body.sectionData);
+      return c.json({ success: true, data: await listSections(db, projectId) });
+    },
+  );
+
+  router.delete(
+    "/projects/:id/sections/:key",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Unmount a section from a project",
+      responses: {
+        200: okJson(z.array(z.string())),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        409: { description: "Section still holds data", ...errorJson },
+      },
+    }),
+    validator("param", sectionParam, onValidationFailure),
+    async (c) => {
+      const { id, key } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "project.manage");
+      const db = c.get("db");
+      await unmountSection(db, projectId, key);
+      return c.json({ success: true, data: await listSections(db, projectId) });
+    },
+  );
+
+  // ─── Sub-projects ──────────────────────────────────────────────────
+  // Core, not a section: the hierarchy exists for every project (PLAN-108 §3).
+  // One level deep, no permission inheritance, and unlinking a child never
+  // deletes it — the child keeps its own members, roles and sections.
+  router.get(
+    "/projects/:id/children",
+    describeRoute({
+      tags: ["projects"],
+      summary: "List a project's sub-projects",
+      responses: {
+        200: okJson(z.array(projectViewSchema)),
+        401: { description: "Unauthenticated", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    async (c) => {
+      const shortId = c.req.valid("param").id;
+      await requireProject(c, shortId);
+      const db = c.get("db");
+      const children = await listProjectChildren(db, shortId);
+      return c.json({ success: true, data: await Promise.all(children.map(row => composeProjectWithTags(db, row))) });
+    },
+  );
+
+  router.post(
+    "/projects/:id/children",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Create a sub-project under a project",
+      responses: {
+        201: okJson(projectViewSchema, "Created"),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "Validation error, or the parent is itself a sub-project", ...errorJson },
+      },
+    }),
+    validator("param", idParam, onValidationFailure),
+    validator("json", createChildProjectSchema, onValidationFailure),
+    async (c) => {
+      const parentShortId = c.req.valid("param").id;
+      await requireProject(c, parentShortId, "project.manage");
+      const db = c.get("db");
+      const body = c.req.valid("json");
+      const project = await createProject(db, { ...body, parentId: parentShortId, creatorId: actorId(c) });
+      return c.json({ success: true, data: await composeProjectWithTags(db, project) }, 201);
+    },
+  );
+
+  router.put(
+    "/projects/:id/children/:childId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Link an existing project as a sub-project",
+      responses: {
+        200: okJson(projectViewSchema),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+        422: { description: "The link would make the hierarchy more than one level deep", ...errorJson },
+      },
+    }),
+    validator("param", childParam, onValidationFailure),
+    async (c) => {
+      const { id, childId } = c.req.valid("param");
+      await requireProject(c, id, "project.manage");
+      const db = c.get("db");
+      const child = await setProjectParent(db, childId, id);
+      if (!child)
+        throw new NotFoundError("Project", childId);
+      return c.json({ success: true, data: await composeProjectWithTags(db, child) });
+    },
+  );
+
+  router.delete(
+    "/projects/:id/children/:childId",
+    describeRoute({
+      tags: ["projects"],
+      summary: "Unlink a sub-project from its parent",
+      responses: {
+        200: okJson(z.null()),
+        401: { description: "Unauthenticated", ...errorJson },
+        403: { description: "Forbidden", ...errorJson },
+        404: { description: "Project not found or not a member", ...errorJson },
+      },
+    }),
+    validator("param", childParam, onValidationFailure),
+    async (c) => {
+      const { id, childId } = c.req.valid("param");
+      const { projectId } = await requireProject(c, id, "project.manage");
+      const db = c.get("db");
+      // Only this parent's own children are unlinkable here, so `project.manage`
+      // on one project can never reach into another project's hierarchy.
+      const child = await getProjectByShortId(db, childId);
+      if (!child || child.parentId !== projectId)
+        throw new NotFoundError("Project", childId);
+      await setProjectParent(db, childId, null);
+      return c.json({ success: true, data: null });
     },
   );
 
@@ -819,101 +895,6 @@ export function projectRoutes() {
         throw new NotFoundError("Project role", roleId);
       if (result === "system")
         throw new ForbiddenError("System roles cannot be deleted");
-      return c.json({ success: true, data: null });
-    },
-  );
-
-  // ─── Procurement categories ────────────────────────────────────────
-  router.get(
-    "/projects/:id/procurement-categories",
-    describeRoute({
-      tags: ["projects"],
-      summary: "List project procurement categories",
-      responses: {
-        200: okJson(z.array(categorySchema)),
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Project not found or not a member", ...errorJson },
-      },
-    }),
-    validator("param", idParam, onValidationFailure),
-    async (c) => {
-      const { projectId } = await requireProject(c, c.req.valid("param").id);
-      const db = c.get("db");
-      return c.json({ success: true, data: (await listCategories(db, projectId)).map(composeCategory) });
-    },
-  );
-
-  router.post(
-    "/projects/:id/procurement-categories",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Create a project procurement category",
-      responses: {
-        201: okJson(categorySchema, "Created"),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Project not found or not a member", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
-    }),
-    validator("param", idParam, onValidationFailure),
-    validator("json", createCategorySchema, onValidationFailure),
-    async (c) => {
-      const { projectId } = await requireProject(c, c.req.valid("param").id, "categories.manage");
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const category = await createCategory(db, projectId, body);
-      return c.json({ success: true, data: composeCategory(category) }, 201);
-    },
-  );
-
-  router.patch(
-    "/projects/:id/procurement-categories/:categoryId",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Update a project procurement category",
-      responses: {
-        200: okJson(categorySchema),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Procurement category not found", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
-    }),
-    validator("param", categoryParam, onValidationFailure),
-    validator("json", updateCategorySchema, onValidationFailure),
-    async (c) => {
-      const { id, categoryId } = c.req.valid("param");
-      const { projectId } = await requireProject(c, id, "categories.manage");
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const category = await updateCategory(db, projectId, categoryId, body);
-      if (!category)
-        throw new NotFoundError("Procurement category", categoryId);
-      return c.json({ success: true, data: composeCategory(category) });
-    },
-  );
-
-  router.delete(
-    "/projects/:id/procurement-categories/:categoryId",
-    describeRoute({
-      tags: ["projects"],
-      summary: "Delete a project procurement category",
-      responses: {
-        200: okJson(z.null()),
-        401: { description: "Unauthenticated", ...errorJson },
-        403: { description: "Forbidden", ...errorJson },
-        404: { description: "Procurement category not found", ...errorJson },
-      },
-    }),
-    validator("param", categoryParam, onValidationFailure),
-    async (c) => {
-      const { id, categoryId } = c.req.valid("param");
-      const { projectId } = await requireProject(c, id, "categories.manage");
-      const db = c.get("db");
-      const removed = await deleteCategory(db, projectId, categoryId);
-      if (!removed)
-        throw new NotFoundError("Procurement category", categoryId);
       return c.json({ success: true, data: null });
     },
   );

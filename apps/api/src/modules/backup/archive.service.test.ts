@@ -117,7 +117,7 @@ describe("writeArchiveV2 — manifest", () => {
     expect(fromArchive).toEqual(JSON.parse(JSON.stringify(manifest)) as BackupManifestV2);
 
     expect(fromArchive.format).toBe("bithk-backup");
-    expect(fromArchive.formatVersion).toBe(2);
+    expect(fromArchive.formatVersion).toBe(3);
     expect(fromArchive.redacted).toBe(false);
     // FIX-062: bytes are never packed — external marker, alias false.
     expect(fromArchive.blobsMode).toBe("external");

@@ -13,10 +13,10 @@ import { auditEvents } from "@/modules/audit/schema";
 import * as contactService from "@/modules/contact/contact.service";
 import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
-import { createCategory } from "@/modules/project/project.categories";
 import { listRoles } from "@/modules/project/project.roles";
 import { addMember, createProject, getMemberCapabilities, hasCapability } from "@/modules/project/project.service";
 import { listResourceIdsByAnyTag, listTagsWithUsage } from "@/modules/tag/tag.service";
+import { createCategory } from "./procurement.categories";
 import {
   changeStatus,
   createProcurement,

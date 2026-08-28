@@ -1,8 +1,9 @@
 # PLAN-108 - Projects as a composition of mounted sections; ships become a preset
 
-- Status: In Progress (revision v2)
+- Status: Completed (2026-08-28)
 - Task: [REFACTOR-039](../task/REFACTOR-039.md)
-- Campaign: three-tier BKD, started 2026-08-28 (~4k LOC touched)
+- Decision: [ADR-015](../decisions/015-projects-as-sections.md) (supersedes ADR-004)
+- Campaign: `l1-j3b7qibb-20260828044853` (three-tier BKD, lanes A-E)
 - Created: 2026-08-27
 - Revised: 2026-08-27 — v2 supersedes the v1 "project `type` enum + ship-only
   tabs" proposal (kept as an alternative at the end).
@@ -392,7 +393,34 @@ constant.
   where the extensibility the task asks for actually comes from; a smaller
   variant is listed under Alternatives.
 
-## Scope / lane split (proposed)
+## As implemented — deviations from this plan (2026-08-28)
+
+The campaign shipped; where the merged code and this plan differ, **the code is
+right**. Recorded here so the plan is not read as the spec.
+
+- **`ships.description` folded into `projects.description`.** The plan listed a
+  description in both places, which would have given the UI two competing
+  fields. `ship_profiles` has **no** `description` column: one project, one
+  description.
+- **`hull_number` is NOT NULL + UNIQUE**, so a ship-preset create that supplies
+  no hull number auto-generates `S-<last 8 chars of the project ULID,
+  uppercased>` rather than leaving the column empty. The value is mutable and
+  case-preserving (unlike `projects.code`), so an operator renames it later; a
+  collision surfaces as `422 { hullNumber: "Already exists" }`.
+- **`GET /projects/:projectId/referenceable-worklists` kept its
+  `{ ship, global }` payload shape.** The `ship` group now means "**this
+  project's own** worklists" — the key was left alone rather than renamed, so
+  no client change was needed.
+- **The sub-projects TAB is gated on the `ship-profile` section.** Children
+  exist for every project on the API (`/projects/:id/children` is core, not a
+  section); only the web tab follows the ship preset, because it replaced the
+  old ship↔project binding surface and a plain project has no use for it in v1.
+- **The moved procurement-category routes kept `tags: ["projects"]`** in their
+  OpenAPI metadata. Moving them into the procurement module was a *re-home, not
+  a retag*, so the generated API grouping and any client keyed on that tag are
+  unchanged.
+
+## Scope / lane split (as executed)
 
 - **L2-A api-core** (blocking): `parent_id`, `project_sections`, section
   registry + `requireSection`, presets, `POST /projects` provisioning,

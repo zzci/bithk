@@ -5,9 +5,9 @@
 import { createLazyFileRoute, Outlet, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { useVisibleUsers } from "@/shared/components/share/share-helpers";
-import { useProjectCapabilities } from "@/shared/hooks/use-project-capabilities";
-import { useProject, useProjectMembers } from "@/shared/lib/api/projects";
+import { hasSection, useProjectMembers } from "@/shared/lib/api/projects";
 import { ProjectIssuesTab } from "./-project-issues-tab";
+import { useProjectSectionRoute } from "./-project-section-route";
 
 export const Route = createLazyFileRoute("/_app/projects/$projectId/issues")({
   component: ProjectIssuesRoute,
@@ -17,11 +17,11 @@ function ProjectIssuesRoute() {
   const { projectId } = useParams({ from: "/_app/projects/$projectId/issues" });
   const navigate = useNavigate();
 
-  const projectQuery = useProject(projectId);
+  // 404s the deep link when the project does not mount `issues`.
+  const { project, caps } = useProjectSectionRoute(projectId, "issues");
   const membersQuery = useProjectMembers(projectId);
   const usersQuery = useVisibleUsers();
 
-  const caps = useProjectCapabilities(projectQuery.data);
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const userNames = useMemo(
     () => new Map((usersQuery.data ?? []).map(u => [u.id, u.name])),
@@ -31,9 +31,9 @@ function ProjectIssuesRoute() {
   // Once the project (and thus caps) resolves, bounce viewers without access
   // back to the overview rather than rendering a tab they cannot see.
   useEffect(() => {
-    if (projectQuery.data && !caps.canViewIssues)
+    if (project && !caps.canViewIssues)
       void navigate({ to: "/projects/$projectId", params: { projectId }, replace: true });
-  }, [projectQuery.data, caps.canViewIssues, navigate, projectId]);
+  }, [project, caps.canViewIssues, navigate, projectId]);
 
   if (!caps.canViewIssues)
     return null;
@@ -45,7 +45,7 @@ function ProjectIssuesRoute() {
         members={members}
         userNames={userNames}
         canManage={caps.canManageIssues}
-        shipId={projectQuery.data?.shipId ?? null}
+        canReferenceWorklists={hasSection(project, "worklist")}
       />
       <Outlet />
     </>

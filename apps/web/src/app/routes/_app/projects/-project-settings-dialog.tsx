@@ -1,13 +1,16 @@
-// Project settings dialog: a left-nav surface with distinct General, Members,
-// Roles, and Categories sections. Each nav item is gated by the matching
-// capability so a member only sees what they may manage. The dialog has a fixed
-// size — the right pane scrolls internally so switching sections never resizes
-// (or "jumps") the modal.
+// Project settings dialog: a left-nav surface with the CORE panels (General,
+// Members, Roles, Sections, Danger zone) plus the panels each MOUNTED SECTION
+// contributes through `-project-sections.ts` (procurement's categories,
+// equipment's categories). Each nav item is gated by the matching capability so
+// a member only sees what they may manage, and a section's panel disappears
+// with the section itself. The dialog has a fixed size — the right pane scrolls
+// internally so switching panels never resizes (or "jumps") the modal.
 
+import type { LucideIcon } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import type { ProjectCapabilityInfo } from "@/shared/hooks/use-project-capabilities";
 import type { ProjectMemberView, ProjectView } from "@/shared/lib/api/projects";
-import { AlertTriangle, Copy, FolderTree, Settings, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, Blocks, Copy, FolderTree, Settings, ShieldCheck, Users, Wrench } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -18,20 +21,28 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
+import { ProjectEquipmentCategoriesSection } from "./-project-equipment-categories";
+import { mountableProjectSections } from "./-project-sections";
 import { ProjectSettingsCategories } from "./-project-settings-categories";
 import { ProjectSettingsDanger } from "./-project-settings-danger";
 import { ProjectSettingsGeneral } from "./-project-settings-general";
 import { ProjectSettingsMembers } from "./-project-settings-members";
 import { ProjectSettingsRoles } from "./-project-settings-roles";
+import { ProjectSettingsSections } from "./-project-settings-sections";
 
-type SettingsSection = "general" | "members" | "roles" | "categories" | "danger";
+// Core panels, always keyed by a fixed id; a section-contributed panel is keyed
+// by its section key instead ("procurement", "equipment", …).
+type CoreSettingsPanel = "general" | "members" | "roles" | "sections" | "danger";
+type SettingsPanel = string;
 
-const SECTION_ICON: Record<SettingsSection, typeof Settings> = {
+const PANEL_ICON: Record<string, LucideIcon> = {
   general: Settings,
   members: Users,
   roles: ShieldCheck,
-  categories: FolderTree,
+  sections: Blocks,
   danger: AlertTriangle,
+  procurement: FolderTree,
+  equipment: Wrench,
 };
 
 interface ProjectSettingsDialogProps {
@@ -51,50 +62,69 @@ export function ProjectSettingsDialog({
   userNames,
   caps,
 }: ProjectSettingsDialogProps) {
-  const { t } = useTranslation(["projects", "common"]);
+  // `ships` supplies the labels of the maritime sections' contributed panels;
+  // the registry names the namespace per entry.
+  const { t } = useTranslation(["projects", "ships", "common"]);
 
-  const sections = useMemo<readonly SettingsSection[]>(() => [
+  // Section-contributed panels: one per MOUNTED section that declares a
+  // `settingsPanel` and whose panel capability the caller holds. Gated on the
+  // MOUNT plus the PANEL's capability, not the tab's view capability — managing
+  // a section's vocabulary is a separate grant from reading its records.
+  // Ordered by the registry so they follow the detail tabs' order.
+  const contributed = useMemo(
+    () => mountableProjectSections()
+      .filter(entry => entry.settingsPanel !== undefined && project.sections.includes(entry.key))
+      .filter(entry => !entry.settingsPanel!.capability || caps.has(entry.settingsPanel!.capability))
+      .map(entry => ({ key: entry.key, label: `${entry.i18nNamespace}:${entry.settingsPanel!.labelKey}` })),
+    [project.sections, caps],
+  );
+
+  const panels = useMemo<readonly SettingsPanel[]>(() => [
     caps.canManageProject ? "general" : null,
     caps.canManageMembers ? "members" : null,
     caps.canManageRoles ? "roles" : null,
-    caps.canManageCategories ? "categories" : null,
+    caps.canManageProject ? "sections" : null,
+    ...contributed.map(entry => entry.key),
     caps.canManageProject ? "danger" : null,
-  ].filter((value): value is SettingsSection => value !== null), [caps]);
+  ].filter((value): value is SettingsPanel => value !== null), [caps, contributed]);
 
-  const [active, setActive] = useState<SettingsSection>(sections[0] ?? "general");
+  const [active, setActive] = useState<SettingsPanel>(panels[0] ?? "general");
 
-  /* eslint-disable react/set-state-in-effect -- keep the active section valid
-     when the available sections change (different caps / reopened dialog). */
+  /* eslint-disable react/set-state-in-effect -- keep the active panel valid
+     when the available panels change (different caps / reopened dialog). */
   useEffect(() => {
-    if (!sections.includes(active))
-      setActive(sections[0] ?? "general");
-  }, [sections, active]);
+    if (!panels.includes(active))
+      setActive(panels[0] ?? "general");
+  }, [panels, active]);
   /* eslint-enable react/set-state-in-effect */
 
-  const label = (section: SettingsSection) => t(`settings.tabs.${section}` as const);
+  const label = (panel: SettingsPanel) => {
+    const contribution = contributed.find(entry => entry.key === panel);
+    return contribution ? t(contribution.label) : t(`settings.tabs.${panel as CoreSettingsPanel}` as const);
+  };
 
   // Stable ids tie each tab to the shared panel (aria-controls) and let the
   // panel point back to the active tab (aria-labelledby).
   const baseId = useId();
-  const tabId = (section: SettingsSection) => `${baseId}-tab-${section}`;
+  const tabId = (panel: SettingsPanel) => `${baseId}-tab-${panel}`;
   const panelId = `${baseId}-panel`;
 
-  // Roving-tabindex focus targets keyed by section so Arrow/Home/End can move
+  // Roving-tabindex focus targets keyed by panel so Arrow/Home/End can move
   // focus to the newly activated tab.
-  const tabsRef = useRef(new Map<SettingsSection, HTMLButtonElement>());
+  const tabsRef = useRef(new Map<SettingsPanel, HTMLButtonElement>());
 
-  const moveActive = (section: SettingsSection) => {
-    setActive(section);
-    tabsRef.current.get(section)?.focus();
+  const moveActive = (panel: SettingsPanel) => {
+    setActive(panel);
+    tabsRef.current.get(panel)?.focus();
   };
 
   // Vertical tablist: Up/Down cycle through tabs, Home/End jump to the edges.
   // Activation follows focus (only the active tab stays in the Tab sequence).
   const handleTablistKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    const count = sections.length;
+    const count = panels.length;
     if (count === 0)
       return;
-    const current = Math.max(0, sections.indexOf(active));
+    const current = Math.max(0, panels.indexOf(active));
     let nextIndex: number;
     switch (event.key) {
       case "ArrowDown":
@@ -113,7 +143,7 @@ export function ProjectSettingsDialog({
         return;
     }
     event.preventDefault();
-    const next = sections[nextIndex];
+    const next = panels[nextIndex];
     if (next)
       moveActive(next);
   };
@@ -143,26 +173,26 @@ export function ProjectSettingsDialog({
               className="flex flex-col gap-1"
               onKeyDown={handleTablistKeyDown}
             >
-              {sections.map((section) => {
-                const Icon = SECTION_ICON[section];
-                const selected = active === section;
+              {panels.map((panel) => {
+                const Icon = PANEL_ICON[panel] ?? Settings;
+                const selected = active === panel;
                 return (
                   <Button
-                    key={section}
+                    key={panel}
                     ref={(el) => {
                       if (el)
-                        tabsRef.current.set(section, el);
+                        tabsRef.current.set(panel, el);
                       else
-                        tabsRef.current.delete(section);
+                        tabsRef.current.delete(panel);
                     }}
                     type="button"
                     variant="ghost"
                     role="tab"
-                    id={tabId(section)}
+                    id={tabId(panel)}
                     aria-controls={panelId}
                     aria-selected={selected}
                     tabIndex={selected ? 0 : -1}
-                    onClick={() => setActive(section)}
+                    onClick={() => setActive(panel)}
                     className={cn(
                       "h-auto justify-start gap-2 rounded-md px-2 py-1.5 text-left text-sm font-normal transition-colors",
                       selected
@@ -171,7 +201,7 @@ export function ProjectSettingsDialog({
                     )}
                   >
                     <Icon className="size-4" aria-hidden="true" />
-                    {label(section)}
+                    {label(panel)}
                   </Button>
                 );
               })}
@@ -216,11 +246,21 @@ export function ProjectSettingsDialog({
               )}
 
               {active === "roles" && (
-                <ProjectSettingsRoles projectId={project.id} canManage={caps.canManageRoles} />
+                <ProjectSettingsRoles projectId={project.id} sections={project.sections} canManage={caps.canManageRoles} />
               )}
 
-              {active === "categories" && (
+              {active === "sections" && (
+                <ProjectSettingsSections project={project} canManage={caps.canManageProject} />
+              )}
+
+              {/* Section-contributed panels: the registry decides WHETHER the
+                  entry exists, this maps its key to the component that fills it. */}
+              {active === "procurement" && (
                 <ProjectSettingsCategories projectId={project.id} canManage={caps.canManageCategories} />
+              )}
+
+              {active === "equipment" && (
+                <ProjectEquipmentCategoriesSection projectId={project.id} canManage={caps.canManageProject} />
               )}
 
               {active === "danger" && <ProjectSettingsDanger project={project} />}

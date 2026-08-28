@@ -25,11 +25,11 @@ Mounted under `protectedRoutes`; `authRequired`.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/search` | Global search. Query: `q` (search text; empty ⇒ empty result), `limit` (per-bucket cap, default 8, clamped to 1–20). Returns `{ documents, issues, projects, drive, ships }`, each a list of hits. |
+| GET | `/api/search` | Global search. Query: `q` (search text; empty ⇒ empty result), `limit` (per-bucket cap, default 8, clamped to 1–20). Returns `{ documents, issues, projects, drive }`, each a list of hits. |
 
 A hit is `{ type, id, title, subtitle?, projectId? }`:
 
-- `type` ∈ `{document, issue, project, drive, ship}`.
+- `type` ∈ `{document, issue, project, drive}`.
 - `id` is the `short_id` for document / issue / project, or the entry id for drive.
 - `subtitle` carries the issue status or the project code where applicable.
 - `projectId` is the owning project `short_id` for issue hits.
@@ -41,15 +41,17 @@ A hit is `{ type, id, title, subtitle?, projectId? }`:
 - **documents** — `listMyDocuments` (title match).
 - **issues** — `searchIssues` (title / description), tagged with status + owning project.
 - **projects** — `listProjects` (name match), tagged with the project code.
-- **ships** — `listShips` (name match), tagged with the ship code.
+  Ship projects are ordinary projects and surface in this bucket; there is no
+  separate ships source since the section fold
+  ([ADR-015](../decisions/015-projects-as-sections.md)).
 - **drive** — `searchDriveEntriesByOwners` over the caller's resolvable owners:
   their personal drive, every team directory they belong to, and every project
   they are a member of.
 
 Before fanning out, the route resolves the actor's visible modules
 (PLAN-076 global roles) and skips buckets whose module is not granted —
-`documents`, `drive`, `projects`, and `ships` map to their module keys;
-`issues` belong to `projects`. Admins resolve to every module and so search
+`documents`, `drive` and `projects` map to their module keys; `issues` belong
+to `projects`. Admins resolve to every module and so search
 every bucket.
 
 Within visible buckets there is no custom ranking: buckets are returned in

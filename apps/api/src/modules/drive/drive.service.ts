@@ -1063,3 +1063,15 @@ export function throwDuplicateName(err: unknown): never | void {
     cur = (cur as { cause?: unknown }).cause;
   }
 }
+
+/**
+ * Does this project own any drive entry? Backs the `files` section's unmount
+ * guard. Trashed entries count: they are still restorable rows, and dropping
+ * the mount would strand them.
+ */
+export async function hasProjectDriveEntries(db: AppDatabase, projectId: string): Promise<boolean> {
+  const row = await db.select({ id: driveEntries.id }).from(driveEntries).where(
+    and(eq(driveEntries.ownerType, "project"), eq(driveEntries.ownerId, projectId)),
+  ).get();
+  return row !== undefined;
+}

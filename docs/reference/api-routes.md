@@ -5,7 +5,7 @@
 > [`api.md`](api.md); this file is the flat per-route index that CI
 > verifies is up to date.
 
-> 344 routes total.
+> 342 routes total.
 
 | Method | Path |
 |---|---|
@@ -232,6 +232,10 @@
 | DELETE | `/api/projects/:id` |
 | GET | `/api/projects/:id` |
 | PATCH | `/api/projects/:id` |
+| GET | `/api/projects/:id/children` |
+| POST | `/api/projects/:id/children` |
+| DELETE | `/api/projects/:id/children/:childId` |
+| PUT | `/api/projects/:id/children/:childId` |
 | DELETE | `/api/projects/:id/cover-image` |
 | POST | `/api/projects/:id/cover-image` |
 | GET | `/api/projects/:id/members` |
@@ -246,6 +250,18 @@
 | POST | `/api/projects/:id/roles` |
 | DELETE | `/api/projects/:id/roles/:roleId` |
 | PATCH | `/api/projects/:id/roles/:roleId` |
+| DELETE | `/api/projects/:id/sections/:key` |
+| PUT | `/api/projects/:id/sections/:key` |
+| GET | `/api/projects/:projectId/equipment` |
+| POST | `/api/projects/:projectId/equipment` |
+| GET | `/api/projects/:projectId/equipment-categories` |
+| POST | `/api/projects/:projectId/equipment-categories` |
+| DELETE | `/api/projects/:projectId/equipment-categories/:categoryId` |
+| GET | `/api/projects/:projectId/equipment-categories/:categoryId` |
+| PATCH | `/api/projects/:projectId/equipment-categories/:categoryId` |
+| DELETE | `/api/projects/:projectId/equipment/:equipmentId` |
+| GET | `/api/projects/:projectId/equipment/:equipmentId` |
+| PATCH | `/api/projects/:projectId/equipment/:equipmentId` |
 | GET | `/api/projects/:projectId/issues` |
 | POST | `/api/projects/:projectId/issues` |
 | DELETE | `/api/projects/:projectId/issues/:id` |
@@ -294,6 +310,13 @@
 | POST | `/api/projects/:projectId/procurements/:id/status` |
 | POST | `/api/projects/:projectId/procurements/:id/unpin` |
 | GET | `/api/projects/:projectId/referenceable-worklists` |
+| GET | `/api/projects/:projectId/ship-profile` |
+| PUT | `/api/projects/:projectId/ship-profile` |
+| GET | `/api/projects/:projectId/worklists` |
+| POST | `/api/projects/:projectId/worklists` |
+| DELETE | `/api/projects/:projectId/worklists/:id` |
+| GET | `/api/projects/:projectId/worklists/:id` |
+| PATCH | `/api/projects/:projectId/worklists/:id` |
 | GET | `/api/search` |
 | GET | `/api/settings` |
 | DELETE | `/api/settings/:key` |
@@ -312,31 +335,6 @@
 | GET | `/api/shares/links` |
 | GET | `/api/shares/received` |
 | GET | `/api/shares/sent` |
-| GET | `/api/ships` |
-| POST | `/api/ships` |
-| DELETE | `/api/ships/:shortId` |
-| GET | `/api/ships/:shortId` |
-| PATCH | `/api/ships/:shortId` |
-| DELETE | `/api/ships/:shortId/cover-image` |
-| POST | `/api/ships/:shortId/cover-image` |
-| GET | `/api/ships/:shortId/equipment` |
-| POST | `/api/ships/:shortId/equipment` |
-| GET | `/api/ships/:shortId/equipment-categories` |
-| POST | `/api/ships/:shortId/equipment-categories` |
-| DELETE | `/api/ships/:shortId/equipment-categories/:categoryId` |
-| GET | `/api/ships/:shortId/equipment-categories/:categoryId` |
-| PATCH | `/api/ships/:shortId/equipment-categories/:categoryId` |
-| DELETE | `/api/ships/:shortId/equipment/:equipmentId` |
-| GET | `/api/ships/:shortId/equipment/:equipmentId` |
-| PATCH | `/api/ships/:shortId/equipment/:equipmentId` |
-| GET | `/api/ships/:shortId/projects` |
-| POST | `/api/ships/:shortId/projects` |
-| DELETE | `/api/ships/:shortId/projects/:projectShortId` |
-| GET | `/api/ships/:shortId/worklists` |
-| POST | `/api/ships/:shortId/worklists` |
-| DELETE | `/api/ships/:shortId/worklists/:id` |
-| GET | `/api/ships/:shortId/worklists/:id` |
-| PATCH | `/api/ships/:shortId/worklists/:id` |
 | GET | `/api/system/branding` |
 | POST | `/api/system/lode/hold` |
 | POST | `/api/system/lode/restart` |

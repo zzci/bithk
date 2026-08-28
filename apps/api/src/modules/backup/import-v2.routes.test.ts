@@ -51,7 +51,7 @@ function app() {
 function manifest(): BackupManifestV2 {
   return {
     format: "bithk-backup",
-    formatVersion: 2,
+    formatVersion: 3,
     exportedAt: "2026-06-10T00:00:00.000Z",
     app: { name: "app", version: "0.0.0", commit: "0000000" },
     schema: { dialect: "sqlite", journal: { lastIdx: 0, lastTag: "0000_test", entryCount: 1 } },
@@ -204,6 +204,28 @@ describe("POST /backup/v2/imports", () => {
     expect(res.status).toBe(400);
     const body = await res.json() as { error: { code: string } };
     expect(body.error.code).toBe("UNSUPPORTED_VERSION");
+  });
+
+  // PLAN-108: the manifest gate runs at UPLOAD time, before any apply mode is
+  // chosen, so this one check covers every downstream path (merge, and the
+  // wipe-before-merge that superseded replace).
+  test("400 INVALID_FORMAT with an actionable message for a pre-reset v2 archive", async () => {
+    const { cookie } = await sessionCookieFor(db, "admin");
+    const pack = tarPack();
+    const drained = (async () => {
+      const out: Buffer[] = [];
+      for await (const chunk of pack as AsyncIterable<Buffer>)
+        out.push(chunk);
+      return Buffer.concat(out);
+    })();
+    pack.entry({ name: "manifest.json" }, JSON.stringify({ ...manifest(), formatVersion: 2 }));
+    pack.finalize();
+    const res = await upload(cookie, new File([Bun.gzipSync(await drained)], "x.tar.gz"));
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("INVALID_FORMAT");
+    expect(body.error.message).toContain("predates the projects-as-sections schema reset (format 3)");
+    expect(body.error.message).toContain("cannot be imported or migrated");
   });
 });
 

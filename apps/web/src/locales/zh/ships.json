@@ -1,27 +1,4 @@
 {
-  "page": {
-    "title": "船舶",
-    "description": "管理你的船队。"
-  },
-  "list": {
-    "create": "新增",
-    "loading": "正在加载船舶…",
-    "empty": "暂无船舶。",
-    "noMatches": "没有符合搜索条件的船舶。",
-    "total": "共 {{count}} 条",
-    "searchPlaceholder": "搜索船名、船体号或 IMO",
-    "moreTags": "+{{count}}",
-    "tagFilterMore": "标签",
-    "tagFilterMoreLabel": "标签",
-    "tagFilterSearchPlaceholder": "搜索标签",
-    "tagFilterNoMore": "没有更多标签",
-    "card": {
-      "ageValue": "{{count}} 年",
-      "imo": "IMO",
-      "mmsi": "MMSI",
-      "location": "位置"
-    }
-  },
   "status": {
     "under_construction": "制造中",
     "active": "正常",
@@ -37,38 +14,15 @@
     "remove": "移除标签 {{name}}"
   },
   "tabs": {
-    "overview": "概览",
     "profile": "详情",
     "equipment": "设备",
-    "worklist": "清单",
-    "projects": "项目",
-    "files": "文件"
-  },
-  "settings": {
-    "openButton": "设置",
-    "dialogTitle": "船舶设置"
-  },
-  "detail": {
-    "back": "返回船舶列表",
-    "loading": "正在加载船舶…",
-    "notFound": "未找到该船舶。",
-    "baseProject": "基础项目",
-    "metrics": {
-      "projects": "项目",
-      "equipment": "设备",
-      "worklists": "工作清单"
-    }
-  },
-  "delete": {
-    "title": "删除船舶",
-    "confirm": "确定删除“{{name}}”？其基础项目与文件将保留。"
+    "worklist": "清单"
   },
   "field": {
     "name": "名称",
-    "code": "船体编号",
+    "hullNumber": "船体编号",
     "status": "状态",
     "tags": "标签",
-    "description": "描述",
     "builder": "建造方",
     "model": "型号",
     "buildYear": "建造年份",
@@ -84,33 +38,13 @@
     "registryPort": "船籍港",
     "ownerName": "船东"
   },
-  "cover": {
-    "label": "封面图片",
-    "upload": "上传封面",
-    "replace": "更换封面",
-    "remove": "移除封面"
-  },
   "form": {
-    "createTitle": "新增船舶",
     "editTitle": "编辑船舶",
-    "createDescription": "登记一艘新船舶。系统会自动创建一个基础项目作为其权限与文件载体。",
     "editDescription": "更新船舶信息。",
-    "namePlaceholder": "例如：Serenity",
-    "codePlaceholder": "留空时自动生成",
-    "submitCreate": "创建",
     "submitSave": "保存"
   },
   "overview": {
-    "noDescription": "暂无描述。",
     "notSet": "未设置",
-    "archive": "船舶档案",
-    "quickStats": "快捷统计",
-    "boundProjects": "关联项目",
-    "boundProjectsEmpty": "尚未绑定项目。",
-    "equipmentCategories": "设备分类",
-    "equipmentCategoriesEmpty": "暂无设备。",
-    "uncategorized": "未分类",
-    "viewAll": "查看全部",
     "section": {
       "identity": "标识信息",
       "classification": "船型与状态",
@@ -120,7 +54,8 @@
   "profile": {
     "archive": "船体详情",
     "archiveDescription": "来自船舶记录的只读登记信息与主尺度字段。",
-    "age": "船龄"
+    "age": "船龄",
+    "ageValue": "{{count}} 年"
   },
   "equipment": {
     "title": "设备清单",
@@ -216,25 +151,7 @@
       "precautions": "注意事项"
     }
   },
-  "projects": {
-    "callout": "文件与权限都挂在该船舶的基础项目下。基础项目不可解绑。",
-    "pickerTitle": "绑定项目",
-    "searchPlaceholder": "按名称或编码搜索",
-    "bindFromExisting": "选择已有",
-    "bindCreateNew": "新建并绑定",
-    "noCandidates": "没有可绑定的项目。",
-    "newName": "项目名称",
-    "newCode": "编码（可选）",
-    "bind": "绑定",
-    "bound": "项目已绑定。",
-    "empty": "尚未绑定其它项目。",
-    "baseBadge": "基础",
-    "open": "打开",
-    "unbind": "解绑",
-    "unbindTitle": "解绑项目",
-    "unbindConfirm": "确定将“{{name}}”从该船舶解绑？其文件与数据将保留。"
-  },
-  "files": {
-    "noBaseProject": "该船舶没有基础项目，暂无文件。"
+  "list": {
+    "filterLabel": "船舶"
   }
 }

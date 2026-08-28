@@ -45,11 +45,11 @@ interface ProjectIssuesTabProps {
   readonly userNames: ReadonlyMap<string, string>;
   /** Holds `issue.manage` (admins included). Combined with the creator check to gate the pin toggle. */
   readonly canManage?: boolean;
-  /** The project's ship id when it is a ship base project; enables worklist referencing. */
-  readonly shipId?: string | null;
+  /** True when the project mounts the `worklist` section; enables worklist referencing. */
+  readonly canReferenceWorklists?: boolean;
 }
 
-export function ProjectIssuesTab({ projectId, members, userNames, canManage = false, shipId = null }: ProjectIssuesTabProps) {
+export function ProjectIssuesTab({ projectId, members, userNames, canManage = false, canReferenceWorklists = false }: ProjectIssuesTabProps) {
   const { t } = useTranslation(["projects", "common"]);
   const navigate = useNavigate();
   const currentUserId = useAuthStore(s => s.user?.id);
@@ -232,7 +232,7 @@ export function ProjectIssuesTab({ projectId, members, userNames, canManage = fa
           initialStatus={createStatus}
           open={createOpen}
           onOpenChange={setCreateOpen}
-          shipId={shipId}
+          canReferenceWorklists={canReferenceWorklists}
         />
       )}
     </div>

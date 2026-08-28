@@ -51,6 +51,9 @@ afterEach(() => {
 // Procurement-capable caps unless a test opts into the view-only variant.
 const procCaps = computeCapabilities(["procurement.view"], false);
 const noProcCaps = computeCapabilities([], false);
+// Every view capability: the section tiles are gated per section, so a tile
+// test needs the caps that make all mounted sections visible.
+const viewAllCaps = computeCapabilities(["issue.view", "procurement.view", "files.view"], false);
 
 function project(overrides: Partial<ProjectView> = {}): ProjectView {
   return {
@@ -60,6 +63,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     description: "A tall building",
     status: "active",
     creatorId: "u1",
+    sections: ["issues", "procurement", "files"],
     tags: [{ id: "t1", name: "infra" }],
     coverImageUrl: null,
     createdAt: "2026-05-23T00:00:00.000Z",
@@ -129,20 +133,53 @@ describe("projectOverviewTab", () => {
     expect(screen.queryByText("infra")).not.toBeInTheDocument();
   });
 
-  it("no longer renders the work order and procurement summary metrics", async () => {
+  it("renders one section tile per mounted section, contributed by the registry", async () => {
     routeFetch({
       issues: [{ id: "i1", title: "Fix leak", status: "todo", priority: "high", updatedAt: "2026-05-24T00:00:00.000Z" }],
       procurements: [{ id: "pr1", itemName: "Buy steel", status: "draft", updatedAt: "2026-05-24T00:00:00.000Z" }],
     });
     renderWithProviders(
-      <ProjectOverviewTab project={project()} caps={procCaps} onOpenTab={vi.fn()} />,
+      <ProjectOverviewTab project={project()} caps={viewAllCaps} onOpenTab={vi.fn()} />,
     );
-    // Latest lists still load, but the old summary metric tiles are gone.
-    await screen.findByText("Fix leak");
-    await screen.findByText("Buy steel");
-    // The "Work orders" metric label only existed on the removed summary tiles
-    // ("Latest work orders" is a different heading), so it must be absent now.
-    expect(screen.queryByText("Work orders")).not.toBeInTheDocument();
+    // A general project mounts exactly issues / procurement / files, so it gets
+    // exactly those three tiles — no maritime ones.
+    expect(await screen.findByRole("button", { name: "Open Work Orders" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Procurement" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Files" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Equipment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Checklists" })).not.toBeInTheDocument();
+  });
+
+  it("adds the maritime tiles for a ship project with no ship-specific branch", async () => {
+    renderWithProviders(
+      <ProjectOverviewTab
+        project={project({ sections: ["issues", "procurement", "files", "ship-profile", "equipment", "worklist"] })}
+        caps={viewAllCaps}
+        onOpenTab={vi.fn()}
+      />,
+    );
+    // Same code path as the general project above: the mounted set decides.
+    expect(await screen.findByRole("button", { name: "Open Details" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Equipment" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Checklists" })).toBeInTheDocument();
+  });
+
+  it("opens a section's tab from its tile", async () => {
+    const user = userEvent.setup();
+    const onOpenTab = vi.fn();
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} caps={viewAllCaps} onOpenTab={onOpenTab} />,
+    );
+    await user.click(await screen.findByRole("button", { name: "Open Files" }));
+    expect(onOpenTab).toHaveBeenCalledWith("files");
+  });
+
+  it("hides the tile of a mounted section the viewer cannot view", async () => {
+    renderWithProviders(
+      <ProjectOverviewTab project={project()} caps={noProcCaps} onOpenTab={vi.fn()} />,
+    );
+    await screen.findByText("Description");
+    expect(screen.queryByRole("button", { name: "Open Procurement" })).not.toBeInTheDocument();
   });
 
   it("shows the pinned empty state when nothing is pinned", async () => {

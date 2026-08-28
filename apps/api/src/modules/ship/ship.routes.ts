@@ -1,13 +1,12 @@
 import type { Context } from "hono";
-import type { ShipRow } from "./ship.service";
 import type { ProtectedEnv } from "@/shared/lib/types";
 import { Hono } from "hono";
 import { z } from "zod";
 import { auditFromCtx } from "@/modules/audit/audit.context";
-import { PROJECT_STATUSES } from "@/modules/project/schema";
-import { AppError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
-import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
-import { parsePageQuery } from "@/shared/lib/pagination";
+import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
+import { requireSection } from "@/modules/project/section.middleware";
+import { ForbiddenError, NotFoundError } from "@/shared/lib/errors";
+import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { adminRequired, authRequired } from "@/shared/middleware/auth";
 import { EQUIPMENT_STATUSES, SHIP_STATUSES } from "./schema";
 import {
@@ -34,90 +33,29 @@ import {
   updateGlobalEquipmentManufacturer,
 } from "./ship.global-equipment-manufacturer.service";
 import {
-  bindProject,
-  composeShipWithBase,
-  createShip,
-  getShipByShortId,
-  listShipProjects,
-  listShips,
-  removeShipCover,
-  setShipCover,
-  softDeleteShip,
-  unbindProject,
-  updateShip,
-  userCanManageShip,
-  userCanReadShip,
-} from "./ship.service";
+  composeShipProfile,
+  getShipProfile,
+  updateShipProfile,
+  updateShipProfileSchema,
+} from "./ship.profile.service";
 import {
-  composeShipEquipmentCategory,
-  createShipEquipmentCategory,
-  deleteShipEquipmentCategory,
-  listShipEquipmentCategories,
-  resolveShipEquipmentCategory,
-  updateShipEquipmentCategory,
+  composeProjectEquipmentCategory,
+  createProjectEquipmentCategory,
+  deleteProjectEquipmentCategory,
+  listProjectEquipmentCategories,
+  resolveProjectEquipmentCategory,
+  updateProjectEquipmentCategory,
 } from "./ship.ship-equipment-category.service";
 import {
-  createShipWorklist,
-  createShipWorklistSchema,
-  deleteShipWorklist,
-  getShipWorklist,
-  listShipWorklists,
-  updateShipWorklist,
+  createProjectWorklist,
+  createProjectWorklistSchema,
+  deleteProjectWorklist,
+  getProjectWorklist,
+  listProjectWorklists,
+  listReferenceableWorklists,
+  updateProjectWorklist,
   updateWorklistSchema,
 } from "./ship.worklist.service";
-
-const shipCoreShape = {
-  // Per-tag length + array-size caps (mirrors the project tag bound) so
-  // unbounded tag count/length cannot flow into syncResourceTagsTx.
-  tags: z.array(z.string().min(1).max(50)).max(50).optional(),
-  model: z.string().max(255).nullable().optional(),
-  builder: z.string().max(255).nullable().optional(),
-  buildYear: z.number().int().min(1800).max(2200).nullable().optional(),
-  lengthOverall: z.number().nonnegative().nullable().optional(),
-  beam: z.number().nonnegative().nullable().optional(),
-  draft: z.number().nonnegative().nullable().optional(),
-  airDraft: z.number().nonnegative().nullable().optional(),
-  grossTonnage: z.number().nonnegative().nullable().optional(),
-  imoNumber: z.string().max(50).nullable().optional(),
-  mmsi: z.string().max(50).nullable().optional(),
-  callSign: z.string().max(50).nullable().optional(),
-  flagState: z.string().max(100).nullable().optional(),
-  registryPort: z.string().max(100).nullable().optional(),
-  ownerName: z.string().max(255).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-};
-
-const createShipSchema = z.object({
-  code: z.string().min(1).max(100).optional(),
-  name: z.string().min(1).max(255),
-  status: z.enum(SHIP_STATUSES).optional(),
-  ...shipCoreShape,
-});
-
-const updateShipSchema = z.object({
-  code: z.string().min(1).max(100).optional(),
-  name: z.string().min(1).max(255).optional(),
-  status: z.enum(SHIP_STATUSES).optional(),
-  ...shipCoreShape,
-}).refine(
-  v => Object.values(v).some(value => value !== undefined),
-  { message: "At least one field must be provided" },
-);
-
-// `/ships` list query. `tagId` is a repeated query param (OR semantics): a
-// single `tagId=` arrives as a scalar string, multiple as an array — both are
-// normalised to a `tagIds` array in the handler. `status`/`q` mirror the prior
-// inline bounds.
-const listQuerySchema = z.object({
-  status: z.enum(SHIP_STATUSES).optional(),
-  tagId: z.union([
-    z.string().min(1).max(100),
-    z.array(z.string().min(1).max(100)).max(20),
-  ]).optional(),
-  q: z.string().max(200).optional(),
-});
-
-const bindProjectSchema = z.object({ projectShortId: z.string().min(1) });
 
 const equipmentCoreShape = {
   categoryId: z.string().min(1).nullable().optional(),
@@ -145,6 +83,7 @@ const updateEquipmentSchema = z.object({
 );
 
 const idSchema = z.string().min(1);
+const projectIdParam = z.object({ projectId: z.string() });
 
 // Bilingual names are required and unique (1..100, trimmed); code/description
 // are optional metadata (0..200). `.trim()` rejects blank-after-trim names with
@@ -183,15 +122,10 @@ const updateManufacturerSchema = z.object({
 
 // ─── Response schemas (mirror the service view types for the OpenAPI spec) ───
 const tagRefSchema = z.object({ id: z.string(), name: z.string() });
-const projectTagSchema = z.object({ id: z.string(), name: z.string(), usageCount: z.number() });
 
-const shipViewSchema = z.object({
-  id: z.string(),
-  code: z.string(),
-  name: z.string(),
-  status: z.enum(SHIP_STATUSES),
-  tags: z.array(tagRefSchema),
-  baseProjectId: z.string().nullable(),
+const shipProfileViewSchema = z.object({
+  hullNumber: z.string(),
+  shipStatus: z.enum(SHIP_STATUSES),
   model: z.string().nullable(),
   builder: z.string().nullable(),
   buildYear: z.number().nullable(),
@@ -206,26 +140,8 @@ const shipViewSchema = z.object({
   flagState: z.string().nullable(),
   registryPort: z.string().nullable(),
   ownerName: z.string().nullable(),
-  description: z.string().nullable(),
-  coverImageUrl: z.string().nullable(),
-  creatorId: z.string(),
-  version: z.number(),
+  createdAt: z.string(),
   updatedAt: z.string(),
-});
-
-const shipProjectViewSchema = z.object({
-  id: z.string(),
-  code: z.string(),
-  name: z.string(),
-  status: z.enum(PROJECT_STATUSES),
-  description: z.string().nullable(),
-  shipId: z.string().nullable(),
-  tags: z.array(projectTagSchema),
-  coverImageUrl: z.string().nullable(),
-  creatorId: z.string(),
-  version: z.number(),
-  updatedAt: z.string(),
-  isBase: z.boolean(),
 });
 
 const equipmentViewSchema = z.object({
@@ -246,7 +162,7 @@ const equipmentViewSchema = z.object({
   updatedAt: z.string(),
 });
 
-// Global and per-ship equipment categories share an identical external shape.
+// Global and per-project equipment categories share an identical external shape.
 const equipmentCategoryViewSchema = z.object({
   id: z.string(),
   nameZh: z.string(),
@@ -276,34 +192,45 @@ const worklistViewSchema = z.object({
   updatedAt: z.string(),
 });
 
-function actorId(c: Context<ProtectedEnv>): string {
-  return c.get("user").id;
-}
+const referenceableWorklistsSchema = z.object({
+  ship: z.array(worklistViewSchema),
+  global: z.array(worklistViewSchema),
+});
 
 /**
- * Load the ship from its short id and assert the actor may read it (admin or a
- * member of the base project). Fail-closed: an unknown ship and a ship the
- * caller cannot read both surface as 404, so membership is never leaked.
+ * Resolve the internal project id and assert the actor may READ this section:
+ * app admin, or a member of the project. `requireSection` has already proved
+ * the project exists and has the section mounted, so the only remaining check
+ * is membership. Fail-closed: a non-member gets the same 404 (docs/decisions/003).
+ *
+ * The three ship sections add no capabilities of their own (PLAN-108 §4): read
+ * is plain membership and write is `project.manage`, exactly today's gating.
  */
-async function requireShipRead(c: Context<ProtectedEnv>, shortId: string): Promise<{ ship: ShipRow }> {
+async function requireProjectRead(c: Context<ProtectedEnv>, shortId: string): Promise<string> {
   const db = c.get("db");
   const user = c.get("user");
-  const ship = await getShipByShortId(db, shortId);
-  if (!ship)
-    throw new NotFoundError("Ship", shortId);
-  if (await userCanReadShip(db, ship, user.id, user.role === "admin"))
-    return { ship };
-  throw new NotFoundError("Ship", shortId);
+  const projectId = await resolveProjectId(db, shortId);
+  if (!projectId)
+    throw new NotFoundError("Project", shortId);
+  if (user.role === "admin")
+    return projectId;
+  const caps = await getMemberCapabilities(db, projectId, user.id);
+  if (caps === null)
+    throw new NotFoundError("Project", shortId);
+  return projectId;
 }
 
-/** Read access first (404 fail-closed), then `project.manage` on the base project (else 403). */
-async function requireShipManage(c: Context<ProtectedEnv>, shortId: string): Promise<{ ship: ShipRow }> {
-  const { ship } = await requireShipRead(c, shortId);
+/** Read access first (404 fail-closed), then `project.manage` (else 403). */
+async function requireProjectManage(c: Context<ProtectedEnv>, shortId: string): Promise<string> {
   const db = c.get("db");
   const user = c.get("user");
-  if (await userCanManageShip(db, ship, user.id, user.role === "admin"))
-    return { ship };
-  throw new ForbiddenError("Capability 'project.manage' required");
+  const projectId = await requireProjectRead(c, shortId);
+  if (user.role === "admin")
+    return projectId;
+  const caps = await getMemberCapabilities(db, projectId, user.id);
+  if (!caps?.has("project.manage"))
+    throw new ForbiddenError("Capability 'project.manage' required");
+  return projectId;
 }
 
 export function shipRoutes() {
@@ -311,10 +238,11 @@ export function shipRoutes() {
   router.use("*", authRequired);
 
   // ─── Global equipment-category template (bilingual vocabulary, admin only) ───
-  // The admin-maintained template set copied per-ship into
-  // `ship_equipment_categories` on ship create (copy-on-create). Every verb is
-  // admin-only and mutations are audited, matching the global worklist
-  // knowledge-base routes. Mirrors the global procurement-categories pattern.
+  // The admin-maintained template set copied per-project into
+  // `ship_equipment_categories` when the `equipment` section is provisioned.
+  // Every verb is admin-only and mutations are audited, matching the global
+  // worklist knowledge-base routes. Mirrors the global procurement-categories
+  // pattern.
   router.get(
     "/global-equipment-categories",
     describeRoute({
@@ -428,7 +356,7 @@ export function shipRoutes() {
 
   // ─── Global equipment-manufacturer vocabulary (admin only) ───────────────
   // A standalone admin-maintained brand list referenced directly by
-  // `ship_equipment.manufacturer_id` (no per-ship copy). Every verb is
+  // `ship_equipment.manufacturer_id` (no per-project copy). Every verb is
   // admin-only and mutations are audited, matching the global equipment-category
   // routes above.
   router.get(
@@ -542,282 +470,99 @@ export function shipRoutes() {
     },
   );
 
-  // GET /ships — list. Admins see all; others see only ships whose base
-  // project they belong to.
+  // ─── `ship-profile` section ──────────────────────────────────────────────
+  // The vessel particulars of a project created with the `ship` preset. Name,
+  // description, cover, tags and status live on the project itself; only the
+  // maritime attributes are here. `requireSection` 404s a project that has not
+  // mounted the section, so a general project has no ship surface at all.
   router.get(
-    "/ships",
+    "/projects/:projectId/ship-profile",
     describeRoute({
       tags: ["ships"],
-      summary: "List ships",
-      responses: {
-        200: okListJson(shipViewSchema, "Ship list"),
-        401: { description: "Unauthenticated", ...errorJson },
-        422: { description: "Validation error", ...errorJson },
-      },
+      summary: "Get a project's ship profile",
+      responses: { 200: okJson(shipProfileViewSchema), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("query", listQuerySchema, onValidationFailure),
+    validator("param", projectIdParam, onValidationFailure),
+    requireSection("ship-profile"),
     async (c) => {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { status, tagId, q } = c.req.valid("query");
-      // Repeated `tagId=` query params combine with OR semantics (any-of); a
-      // single value arrives as a scalar, so normalise both to an array.
-      const tagIds = tagId === undefined ? undefined : Array.isArray(tagId) ? tagId : [tagId];
-      const { page, limit } = parsePageQuery(c, { limit: 20 });
-      const result = await listShips(db, {
-        status,
-        tagIds,
-        q,
-        page,
-        limit,
-        memberUserId: user.role === "admin" ? undefined : user.id,
-      });
-      return c.json({
-        success: true,
-        data: result.data,
-        meta: { total: result.total, page, limit },
-      });
+      const shortId = c.req.valid("param").projectId;
+      const projectId = await requireProjectRead(c, shortId);
+      const profile = await getShipProfile(c.get("db"), projectId);
+      if (!profile)
+        throw new NotFoundError("Ship profile", shortId);
+      return c.json({ success: true, data: composeShipProfile(profile) });
     },
   );
 
-  // POST /ships — create (admin only); also creates the base project.
-  router.post(
-    "/ships",
+  router.put(
+    "/projects/:projectId/ship-profile",
     describeRoute({
       tags: ["ships"],
-      summary: "Create a ship",
-      responses: { 201: okJson(shipViewSchema, "Created"), 403: { description: "Admin only", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
+      summary: "Update a project's ship profile",
+      responses: { 200: okJson(shipProfileViewSchema), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
-    adminRequired,
-    validator("json", createShipSchema, onValidationFailure),
+    validator("param", projectIdParam, onValidationFailure),
+    validator("json", updateShipProfileSchema, onValidationFailure),
+    requireSection("ship-profile"),
     async (c) => {
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const ship = await createShip(db, { ...body, creatorId: actorId(c) });
-      return c.json({ success: true, data: await composeShipWithBase(db, ship) }, 201);
-    },
-  );
-
-  // GET /ships/:shortId — detail (base-project member).
-  router.get(
-    "/ships/:shortId",
-    describeRoute({
-      tags: ["ships"],
-      summary: "Get a ship",
-      responses: { 200: okJson(shipViewSchema), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
-    }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
-    async (c) => {
-      const { ship } = await requireShipRead(c, c.req.valid("param").shortId);
-      const db = c.get("db");
-      return c.json({ success: true, data: await composeShipWithBase(db, ship) });
-    },
-  );
-
-  // PATCH /ships/:shortId — update (project.manage on the base project).
-  router.patch(
-    "/ships/:shortId",
-    describeRoute({
-      tags: ["ships"],
-      summary: "Update a ship",
-      responses: { 200: okJson(shipViewSchema), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
-    }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
-    validator("json", updateShipSchema, onValidationFailure),
-    async (c) => {
-      const shortId = c.req.valid("param").shortId;
-      await requireShipManage(c, shortId);
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const updated = await updateShip(db, shortId, body);
+      const shortId = c.req.valid("param").projectId;
+      const projectId = await requireProjectManage(c, shortId);
+      const updated = await updateShipProfile(c.get("db"), projectId, c.req.valid("json"));
       if (!updated)
-        throw new NotFoundError("Ship", shortId);
-      return c.json({ success: true, data: await composeShipWithBase(db, updated) });
+        throw new NotFoundError("Ship profile", shortId);
+      return c.json({ success: true, data: composeShipProfile(updated) });
     },
   );
 
-  // DELETE /ships/:shortId — soft delete (admin only).
-  router.delete(
-    "/ships/:shortId",
-    describeRoute({
-      tags: ["ships"],
-      summary: "Soft-delete a ship",
-      responses: { 200: okJson(z.null()), 403: { description: "Admin only", ...errorJson }, 404: { description: "Not found", ...errorJson } },
-    }),
-    adminRequired,
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
-    async (c) => {
-      const db = c.get("db");
-      const shortId = c.req.valid("param").shortId;
-      if (!await getShipByShortId(db, shortId))
-        throw new NotFoundError("Ship", shortId);
-      await softDeleteShip(db, c.get("config"), shortId);
-      return c.json({ success: true, data: null });
-    },
-  );
-
-  // POST /ships/:shortId/cover-image — set / replace the cover (manage).
-  router.post(
-    "/ships/:shortId/cover-image",
-    describeRoute({
-      tags: ["ships"],
-      summary: "Set or replace a ship's cover image",
-      requestBody: {
-        required: true,
-        content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] } } },
-      },
-      responses: { 200: okJson(shipViewSchema), 400: { description: "No file provided", ...errorJson }, 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
-    }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
-    async (c) => {
-      const shortId = c.req.valid("param").shortId;
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-
-      const formData = await c.req.formData();
-      const file = formData.get("file");
-      if (!(file instanceof File))
-        throw new AppError("No file provided", 400, "VALIDATION_ERROR");
-
-      const updated = await setShipCover(db, c.get("config"), ship.id, file, actorId(c));
-      if (!updated)
-        throw new NotFoundError("Ship", shortId);
-      return c.json({ success: true, data: await composeShipWithBase(db, updated) });
-    },
-  );
-
-  // DELETE /ships/:shortId/cover-image — remove the cover (manage).
-  router.delete(
-    "/ships/:shortId/cover-image",
-    describeRoute({
-      tags: ["ships"],
-      summary: "Remove a ship's cover image",
-      responses: { 200: okJson(shipViewSchema), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
-    }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
-    async (c) => {
-      const shortId = c.req.valid("param").shortId;
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-      const updated = await removeShipCover(db, c.get("config"), ship.id);
-      if (!updated)
-        throw new NotFoundError("Ship", shortId);
-      return c.json({ success: true, data: await composeShipWithBase(db, updated) });
-    },
-  );
-
-  // ─── Ship ↔ project binding ──────────────────────────────────────────
+  // ─── `equipment` section: equipment CRUD ─────────────────────────────────
+  // Read = project member (fail-closed 404); write = project.manage (403).
+  // Equipment is scoped to its owning project's internal id, so an equipment id
+  // from another project resolves to 404.
   router.get(
-    "/ships/:shortId/projects",
-    describeRoute({
-      tags: ["ships"],
-      summary: "List a ship's bound projects",
-      responses: { 200: okJson(z.array(shipProjectViewSchema)), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
-    }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
-    async (c) => {
-      const { ship } = await requireShipRead(c, c.req.valid("param").shortId);
-      const db = c.get("db");
-      return c.json({ success: true, data: await listShipProjects(db, ship.id, ship.baseProjectId) });
-    },
-  );
-
-  router.post(
-    "/ships/:shortId/projects",
-    describeRoute({
-      tags: ["ships"],
-      summary: "Bind a project to a ship",
-      responses: { 200: okJson(z.array(shipProjectViewSchema)), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
-    }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
-    validator("json", bindProjectSchema, onValidationFailure),
-    async (c) => {
-      const { ship } = await requireShipManage(c, c.req.valid("param").shortId);
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const result = await bindProject(db, ship.id, body.projectShortId);
-      if (result === "not_found")
-        throw new NotFoundError("Project", body.projectShortId);
-      if (result === "is_base")
-        throw new ValidationError("Project is already a ship's base project", { projectShortId: "Cannot bind a base project" });
-      if (result === "bound_elsewhere")
-        throw new ValidationError("Project is already bound to another ship", { projectShortId: "Already bound to another ship" });
-      return c.json({ success: true, data: await listShipProjects(db, ship.id, ship.baseProjectId) });
-    },
-  );
-
-  router.delete(
-    "/ships/:shortId/projects/:projectShortId",
-    describeRoute({
-      tags: ["ships"],
-      summary: "Unbind a project from a ship",
-      responses: { 200: okJson(z.null()), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
-    }),
-    validator("param", z.object({ shortId: z.string(), projectShortId: z.string() }), onValidationFailure),
-    async (c) => {
-      const { shortId, projectShortId } = c.req.valid("param");
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-      const result = await unbindProject(db, ship.id, ship.baseProjectId, projectShortId);
-      if (result === "not_found")
-        throw new NotFoundError("Bound project", projectShortId);
-      if (result === "is_base")
-        throw new ForbiddenError("The base project cannot be unbound");
-      return c.json({ success: true, data: null });
-    },
-  );
-
-  // ─── Ship equipment CRUD ─────────────────────────────────────────────
-  // Sub-paths of /ships/:shortId. Read = base-project member (fail-closed
-  // 404 via requireShipRead); write = project.manage (403 via
-  // requireShipManage). Equipment is scoped to its parent ship's internal id,
-  // so an equipment id from another ship resolves to 404.
-  router.get(
-    "/ships/:shortId/equipment",
+    "/projects/:projectId/equipment",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "List a ship's equipment",
+      summary: "List a project's equipment",
       responses: { 200: okJson(z.array(equipmentViewSchema)), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
+    validator("param", projectIdParam, onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { ship } = await requireShipRead(c, c.req.valid("param").shortId);
-      const db = c.get("db");
-      return c.json({ success: true, data: await listEquipment(db, ship.id) });
+      const projectId = await requireProjectRead(c, c.req.valid("param").projectId);
+      return c.json({ success: true, data: await listEquipment(c.get("db"), projectId) });
     },
   );
 
   router.post(
-    "/ships/:shortId/equipment",
+    "/projects/:projectId/equipment",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "Create a ship's equipment item",
+      summary: "Create a project's equipment item",
       responses: { 201: okJson(equipmentViewSchema, "Created"), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
+    validator("param", projectIdParam, onValidationFailure),
     validator("json", createEquipmentSchema, onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { ship } = await requireShipManage(c, c.req.valid("param").shortId);
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const created = await createEquipment(db, ship.id, body);
+      const projectId = await requireProjectManage(c, c.req.valid("param").projectId);
+      const created = await createEquipment(c.get("db"), projectId, c.req.valid("json"));
       return c.json({ success: true, data: created }, 201);
     },
   );
 
   router.get(
-    "/ships/:shortId/equipment/:equipmentId",
+    "/projects/:projectId/equipment/:equipmentId",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "Get a ship's equipment item",
+      summary: "Get a project's equipment item",
       responses: { 200: okJson(equipmentViewSchema), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), equipmentId: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), equipmentId: z.string() }), onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { shortId, equipmentId } = c.req.valid("param");
-      const { ship } = await requireShipRead(c, shortId);
-      const db = c.get("db");
-      const view = await getEquipment(db, ship.id, equipmentId);
+      const { projectId: shortId, equipmentId } = c.req.valid("param");
+      const projectId = await requireProjectRead(c, shortId);
+      const view = await getEquipment(c.get("db"), projectId, equipmentId);
       if (!view)
         throw new NotFoundError("Equipment", equipmentId);
       return c.json({ success: true, data: view });
@@ -825,20 +570,19 @@ export function shipRoutes() {
   );
 
   router.patch(
-    "/ships/:shortId/equipment/:equipmentId",
+    "/projects/:projectId/equipment/:equipmentId",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "Update a ship's equipment item",
+      summary: "Update a project's equipment item",
       responses: { 200: okJson(equipmentViewSchema), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), equipmentId: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), equipmentId: z.string() }), onValidationFailure),
     validator("json", updateEquipmentSchema, onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { shortId, equipmentId } = c.req.valid("param");
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const updated = await updateEquipment(db, ship.id, equipmentId, body);
+      const { projectId: shortId, equipmentId } = c.req.valid("param");
+      const projectId = await requireProjectManage(c, shortId);
+      const updated = await updateEquipment(c.get("db"), projectId, equipmentId, c.req.valid("json"));
       if (!updated)
         throw new NotFoundError("Equipment", equipmentId);
       return c.json({ success: true, data: updated });
@@ -846,156 +590,174 @@ export function shipRoutes() {
   );
 
   router.delete(
-    "/ships/:shortId/equipment/:equipmentId",
+    "/projects/:projectId/equipment/:equipmentId",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "Delete a ship's equipment item",
+      summary: "Delete a project's equipment item",
       responses: { 200: okJson(z.null()), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), equipmentId: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), equipmentId: z.string() }), onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { shortId, equipmentId } = c.req.valid("param");
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-      if (!await deleteEquipment(db, ship.id, equipmentId))
+      const { projectId: shortId, equipmentId } = c.req.valid("param");
+      const projectId = await requireProjectManage(c, shortId);
+      if (!await deleteEquipment(c.get("db"), projectId, equipmentId))
         throw new NotFoundError("Equipment", equipmentId);
       return c.json({ success: true, data: null });
     },
   );
 
-  // ─── Per-ship equipment categories ───────────────────────────────────────
-  // Each ship owns its own category set (seeded from the global template on
-  // create). Read = base-project member (404 fail-closed via requireShipRead);
-  // write = project.manage (403 via requireShipManage). Categories are scoped to
-  // their parent ship's internal id, so a category id from another ship resolves
-  // to 404 and one ship cannot touch another's categories.
+  // ─── `equipment` section: per-project equipment categories ───────────────
+  // Each project owns its own category set (seeded from the global template
+  // when the section is provisioned). Categories are scoped to their owning
+  // project's internal id, so a category id from another project resolves to
+  // 404 and one project cannot touch another's categories.
   router.get(
-    "/ships/:shortId/equipment-categories",
+    "/projects/:projectId/equipment-categories",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "List a ship's equipment categories",
+      summary: "List a project's equipment categories",
       responses: { 200: okJson(z.array(equipmentCategoryViewSchema)), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
+    validator("param", projectIdParam, onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { ship } = await requireShipRead(c, c.req.valid("param").shortId);
-      const db = c.get("db");
-      return c.json({ success: true, data: (await listShipEquipmentCategories(db, ship.id)).map(composeShipEquipmentCategory) });
+      const projectId = await requireProjectRead(c, c.req.valid("param").projectId);
+      return c.json({ success: true, data: (await listProjectEquipmentCategories(c.get("db"), projectId)).map(composeProjectEquipmentCategory) });
     },
   );
 
   router.post(
-    "/ships/:shortId/equipment-categories",
+    "/projects/:projectId/equipment-categories",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "Create a ship's equipment category",
+      summary: "Create a project's equipment category",
       responses: { 201: okJson(equipmentCategoryViewSchema, "Created"), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
+    validator("param", projectIdParam, onValidationFailure),
     validator("json", createEquipmentCategorySchema, onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { ship } = await requireShipManage(c, c.req.valid("param").shortId);
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const category = await createShipEquipmentCategory(db, ship.id, body);
-      return c.json({ success: true, data: composeShipEquipmentCategory(category) }, 201);
+      const projectId = await requireProjectManage(c, c.req.valid("param").projectId);
+      const category = await createProjectEquipmentCategory(c.get("db"), projectId, c.req.valid("json"));
+      return c.json({ success: true, data: composeProjectEquipmentCategory(category) }, 201);
     },
   );
 
   router.get(
-    "/ships/:shortId/equipment-categories/:categoryId",
+    "/projects/:projectId/equipment-categories/:categoryId",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "Get a ship's equipment category",
+      summary: "Get a project's equipment category",
       responses: { 200: okJson(equipmentCategoryViewSchema), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), categoryId: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), categoryId: z.string() }), onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { shortId, categoryId } = c.req.valid("param");
-      const { ship } = await requireShipRead(c, shortId);
-      const db = c.get("db");
-      const category = await resolveShipEquipmentCategory(db, ship.id, categoryId);
+      const { projectId: shortId, categoryId } = c.req.valid("param");
+      const projectId = await requireProjectRead(c, shortId);
+      const category = await resolveProjectEquipmentCategory(c.get("db"), projectId, categoryId);
       if (!category)
         throw new NotFoundError("Equipment category", categoryId);
-      return c.json({ success: true, data: composeShipEquipmentCategory(category) });
+      return c.json({ success: true, data: composeProjectEquipmentCategory(category) });
     },
   );
 
   router.patch(
-    "/ships/:shortId/equipment-categories/:categoryId",
+    "/projects/:projectId/equipment-categories/:categoryId",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "Update a ship's equipment category",
+      summary: "Update a project's equipment category",
       responses: { 200: okJson(equipmentCategoryViewSchema), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), categoryId: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), categoryId: z.string() }), onValidationFailure),
     validator("json", updateEquipmentCategorySchema, onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { shortId, categoryId } = c.req.valid("param");
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const category = await updateShipEquipmentCategory(db, ship.id, categoryId, body);
+      const { projectId: shortId, categoryId } = c.req.valid("param");
+      const projectId = await requireProjectManage(c, shortId);
+      const category = await updateProjectEquipmentCategory(c.get("db"), projectId, categoryId, c.req.valid("json"));
       if (!category)
         throw new NotFoundError("Equipment category", categoryId);
-      return c.json({ success: true, data: composeShipEquipmentCategory(category) });
+      return c.json({ success: true, data: composeProjectEquipmentCategory(category) });
     },
   );
 
   router.delete(
-    "/ships/:shortId/equipment-categories/:categoryId",
+    "/projects/:projectId/equipment-categories/:categoryId",
     describeRoute({
       tags: ["ship-equipment"],
-      summary: "Delete a ship's equipment category",
+      summary: "Delete a project's equipment category",
       responses: { 200: okJson(z.null()), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), categoryId: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), categoryId: z.string() }), onValidationFailure),
+    requireSection("equipment"),
     async (c) => {
-      const { shortId, categoryId } = c.req.valid("param");
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-      if (!await deleteShipEquipmentCategory(db, ship.id, categoryId))
+      const { projectId: shortId, categoryId } = c.req.valid("param");
+      const projectId = await requireProjectManage(c, shortId);
+      if (!await deleteProjectEquipmentCategory(c.get("db"), projectId, categoryId))
         throw new NotFoundError("Equipment category", categoryId);
       return c.json({ success: true, data: null });
     },
   );
-  // ─── Ship-level worklists ────────────────────────────────────────────────
-  // Read = base-project member (404 fail-closed); write = project.manage (403).
-  // These return ONLY this ship's worklists (never global knowledge-base rows).
+
+  // ─── `worklist` section ──────────────────────────────────────────────────
+  // Read = project member (404 fail-closed); write = project.manage (403).
+  // These return ONLY this project's worklists (never global knowledge-base
+  // rows), which stay admin-managed under `/worklists`.
   router.get(
-    "/ships/:shortId/worklists",
+    "/projects/:projectId/worklists",
     describeRoute({
       tags: ["worklists"],
-      summary: "List a ship's worklists",
+      summary: "List a project's worklists",
       responses: { 200: okJson(z.array(worklistViewSchema)), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
+    validator("param", projectIdParam, onValidationFailure),
     validator("query", z.object({ tagId: z.union([z.string(), z.array(z.string())]).optional() }), onValidationFailure),
+    requireSection("worklist"),
     async (c) => {
-      const { ship } = await requireShipRead(c, c.req.valid("param").shortId);
-      const db = c.get("db");
+      const projectId = await requireProjectRead(c, c.req.valid("param").projectId);
       // Repeated `tagId=` query params combine with OR semantics (any-of); a
       // single value arrives as a scalar, so normalise both to an array.
       const { tagId } = c.req.valid("query");
       const tagIds = tagId === undefined ? undefined : Array.isArray(tagId) ? tagId : [tagId];
-      return c.json({ success: true, data: await listShipWorklists(db, ship.id, tagIds) });
+      return c.json({ success: true, data: await listProjectWorklists(c.get("db"), projectId, tagIds) });
+    },
+  );
+
+  // The worklists this project may reference when creating a work order: its
+  // own worklists plus the global knowledge base. Lives with the `worklist`
+  // section that owns the data — the issue module keeps only reference
+  // *creation* (PLAN-108 §5).
+  router.get(
+    "/projects/:projectId/referenceable-worklists",
+    describeRoute({
+      tags: ["worklists"],
+      summary: "List worklists a project may reference",
+      responses: { 200: okJson(referenceableWorklistsSchema), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
+    }),
+    validator("param", projectIdParam, onValidationFailure),
+    requireSection("worklist"),
+    async (c) => {
+      const projectId = await requireProjectRead(c, c.req.valid("param").projectId);
+      return c.json({ success: true, data: await listReferenceableWorklists(c.get("db"), projectId) });
     },
   );
 
   router.post(
-    "/ships/:shortId/worklists",
+    "/projects/:projectId/worklists",
     describeRoute({
       tags: ["worklists"],
-      summary: "Create a ship's worklist",
+      summary: "Create a project's worklist",
       responses: { 201: okJson(worklistViewSchema, "Created"), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string() }), onValidationFailure),
-    validator("json", createShipWorklistSchema, onValidationFailure),
+    validator("param", projectIdParam, onValidationFailure),
+    validator("json", createProjectWorklistSchema, onValidationFailure),
+    requireSection("worklist"),
     async (c) => {
-      const { ship } = await requireShipManage(c, c.req.valid("param").shortId);
-      const db = c.get("db");
+      const projectId = await requireProjectManage(c, c.req.valid("param").projectId);
       const body = c.req.valid("json");
-      const result = await createShipWorklist(db, ship.id, body);
+      const result = await createProjectWorklist(c.get("db"), projectId, body);
       if (result.status === "global_not_found")
         throw new NotFoundError("Worklist", body.fromGlobalId);
       return c.json({ success: true, data: result.worklist }, 201);
@@ -1003,18 +765,18 @@ export function shipRoutes() {
   );
 
   router.get(
-    "/ships/:shortId/worklists/:id",
+    "/projects/:projectId/worklists/:id",
     describeRoute({
       tags: ["worklists"],
-      summary: "Get a ship's worklist",
+      summary: "Get a project's worklist",
       responses: { 200: okJson(worklistViewSchema), 401: { description: "Unauthenticated", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), id: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), id: z.string() }), onValidationFailure),
+    requireSection("worklist"),
     async (c) => {
-      const { shortId, id } = c.req.valid("param");
-      const { ship } = await requireShipRead(c, shortId);
-      const db = c.get("db");
-      const wl = await getShipWorklist(db, ship.id, id);
+      const { projectId: shortId, id } = c.req.valid("param");
+      const projectId = await requireProjectRead(c, shortId);
+      const wl = await getProjectWorklist(c.get("db"), projectId, id);
       if (!wl)
         throw new NotFoundError("Worklist", id);
       return c.json({ success: true, data: wl });
@@ -1022,20 +784,19 @@ export function shipRoutes() {
   );
 
   router.patch(
-    "/ships/:shortId/worklists/:id",
+    "/projects/:projectId/worklists/:id",
     describeRoute({
       tags: ["worklists"],
-      summary: "Update a ship's worklist",
+      summary: "Update a project's worklist",
       responses: { 200: okJson(worklistViewSchema), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson }, 422: { description: "Validation error", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), id: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), id: z.string() }), onValidationFailure),
     validator("json", updateWorklistSchema, onValidationFailure),
+    requireSection("worklist"),
     async (c) => {
-      const { shortId, id } = c.req.valid("param");
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-      const body = c.req.valid("json");
-      const updated = await updateShipWorklist(db, ship.id, id, body);
+      const { projectId: shortId, id } = c.req.valid("param");
+      const projectId = await requireProjectManage(c, shortId);
+      const updated = await updateProjectWorklist(c.get("db"), projectId, id, c.req.valid("json"));
       if (!updated)
         throw new NotFoundError("Worklist", id);
       return c.json({ success: true, data: updated });
@@ -1043,23 +804,22 @@ export function shipRoutes() {
   );
 
   router.delete(
-    "/ships/:shortId/worklists/:id",
+    "/projects/:projectId/worklists/:id",
     describeRoute({
       tags: ["worklists"],
-      summary: "Delete a ship's worklist",
+      summary: "Delete a project's worklist",
       responses: { 200: okJson(z.null()), 403: { description: "Forbidden", ...errorJson }, 404: { description: "Not found", ...errorJson } },
     }),
-    validator("param", z.object({ shortId: z.string(), id: z.string() }), onValidationFailure),
+    validator("param", z.object({ projectId: z.string(), id: z.string() }), onValidationFailure),
+    requireSection("worklist"),
     async (c) => {
-      const { shortId, id } = c.req.valid("param");
-      const { ship } = await requireShipManage(c, shortId);
-      const db = c.get("db");
-      if (!await deleteShipWorklist(db, ship.id, id))
+      const { projectId: shortId, id } = c.req.valid("param");
+      const projectId = await requireProjectManage(c, shortId);
+      if (!await deleteProjectWorklist(c.get("db"), projectId, id))
         throw new NotFoundError("Worklist", id);
       return c.json({ success: true, data: null });
     },
   );
-  // ─── end worklists ─────────────────────────────────────────────────────────
 
   return router;
 }

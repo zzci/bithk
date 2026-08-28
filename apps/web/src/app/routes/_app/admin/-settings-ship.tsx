@@ -1,16 +1,20 @@
-// Body of the admin "Ship" settings tab. Manages two global vocabularies used
-// across the ship module:
-//   1. GLOBAL WORKLISTS — knowledge-base worklist templates (rows in the
-//      `worklists` table with shipId NULL) that ships copy from. A worklist IS
-//      the template; it carries tags that are snapshotted into each ship copy.
+// Body of the admin "Ship" settings tab. Manages the global vocabularies the
+// ship-preset project sections copy from:
+//   1. GLOBAL WORKLISTS — knowledge-base worklist templates (`/worklists`, no
+//      owning project) that a project's `worklist` section copies from. A
+//      worklist IS the template; it carries tags that are snapshotted into each
+//      project copy.
 //   2. EQUIPMENT CATEGORY TEMPLATE — the bilingual vocabulary template each
-//      ship copies into its own category set on creation. Each entry holds a
-//      Chinese and an English name; ships then manage their own copies and
-//      equipment views resolve the locale-appropriate name from the per-ship row.
+//      project copies into its own category set when the `equipment` section is
+//      provisioned. Each entry holds a Chinese and an English name; projects
+//      then manage their own copies and equipment views resolve the
+//      locale-appropriate name from the per-project row.
+//   3. EQUIPMENT MANUFACTURERS — a flat global vocabulary equipment references
+//      directly; there is no per-project copy.
 
 import type { GlobalEquipmentCategory } from "@/shared/lib/api/global-equipment-categories";
 import type { GlobalEquipmentManufacturer } from "@/shared/lib/api/global-equipment-manufacturers";
-import type { WorklistInput, WorklistView } from "@/shared/lib/api/ships";
+import type { WorklistInput, WorklistView } from "@/shared/lib/api/project-sections";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -41,7 +45,7 @@ import {
   useGlobalWorklists,
   useUpdateGlobalWorklist,
   useWorklistTags,
-} from "@/shared/lib/api/ships";
+} from "@/shared/lib/api/project-sections";
 import { errorMessage } from "@/shared/lib/errors";
 
 export function ShipSettingsTab() {

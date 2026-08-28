@@ -477,11 +477,11 @@ describe("projectIssuesTab", () => {
     };
   }
 
-  it("shows the worklist pill in the composer only on a ship base project", async () => {
+  it("shows the worklist pill in the composer only when the worklist section is mounted", async () => {
     const user = userEvent.setup();
     routeFetch([]);
     renderWithProviders(
-      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage shipId="s1" />,
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage canReferenceWorklists />,
     );
     await screen.findByText("No work orders found.");
     await user.click(screen.getByRole("button", { name: "New" }));
@@ -489,11 +489,11 @@ describe("projectIssuesTab", () => {
     expect(within(dialog).getByRole("button", { name: "Worklist" })).toBeInTheDocument();
   });
 
-  it("hides the worklist pill when the project is not a ship base project", async () => {
+  it("hides the worklist pill when the worklist section is not mounted", async () => {
     const user = userEvent.setup();
     routeFetch([]);
     renderWithProviders(
-      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage shipId={null} />,
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage canReferenceWorklists={false} />,
     );
     await screen.findByText("No work orders found.");
     await user.click(screen.getByRole("button", { name: "New" }));
@@ -505,13 +505,13 @@ describe("projectIssuesTab", () => {
     const user = userEvent.setup();
     routeFetch([], [], { ship: [worklist()], global: [] });
     renderWithProviders(
-      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage shipId="s1" />,
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage canReferenceWorklists />,
     );
     await screen.findByText("No work orders found.");
     await user.click(screen.getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
 
-    // Open the picker and choose the ship worklist (grouped under "This ship").
+    // Open the picker and choose the project's own worklist (the "ship" group).
     await user.click(within(dialog).getByRole("button", { name: "Worklist" }));
     await user.click(await screen.findByRole("button", { name: /Annual Service/ }));
 
@@ -541,7 +541,7 @@ describe("projectIssuesTab", () => {
     const user = userEvent.setup();
     routeFetch([], [], { ship: [worklist()], global: [] });
     renderWithProviders(
-      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage shipId="s1" />,
+      <ProjectIssuesTab projectId="p1" members={noMembers} userNames={new Map()} canManage canReferenceWorklists />,
     );
     await screen.findByText("No work orders found.");
     await user.click(screen.getByRole("button", { name: "New" }));

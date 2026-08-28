@@ -1,5 +1,5 @@
-// Cover image with a built-in default. Projects and ships render their cover
-// here; when none is set we fall back to a subtle, theme-aware color gradient so
+// Cover image with a built-in default. Projects render their cover here (ships
+// are projects too); when none is set we fall back to a subtle, theme-aware color gradient so
 // cards and detail headers show a quiet placeholder instead of an empty band.
 // When `src` is present it renders as an <img> so it benefits from the Card's
 // first-child full-bleed styling. With `enableLightbox` the cover becomes a
@@ -12,11 +12,11 @@ import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
 
-type CoverKind = "project" | "ship";
+type CoverKind = "project";
 
 // Neutral, low-saturation base hue per kind. Used when no seed is provided so the
 // placeholder stays calm and consistent across both light and dark themes.
-const NEUTRAL_HUE: Record<CoverKind, number> = { project: 220, ship: 200 };
+const NEUTRAL_HUE: Record<CoverKind, number> = { project: 220 };
 
 interface CoverImageProps {
   readonly src: string | null | undefined;

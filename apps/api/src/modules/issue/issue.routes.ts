@@ -7,7 +7,7 @@ import { mountItemAttachmentRoutes } from "@/modules/item/attachment.routes";
 import { mountItemCommentRoutes } from "@/modules/item/comment.routes";
 import { setItemPinned } from "@/modules/item/item.service";
 import { getMemberCapabilities, resolveProjectId } from "@/modules/project/project.service";
-import { listReferenceableWorklists } from "@/modules/ship/ship.worklist.service";
+import { requireSection } from "@/modules/project/section.middleware";
 import { AppError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, okListJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { parsePageQuery } from "@/shared/lib/pagination";
@@ -93,21 +93,6 @@ const issueSchema = z.object({
   tags: z.array(tagRefSchema),
 });
 
-// Mirrors `WorklistView` and the `listReferenceableWorklists` result.
-const worklistViewSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  tags: z.array(tagRefSchema),
-  checklist: z.string().nullable(),
-  precautions: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-const referenceableWorklistsSchema = z.object({
-  ship: z.array(worklistViewSchema),
-  global: z.array(worklistViewSchema),
-});
-
 /**
  * Resolve a project's internal id from its short id and assert the actor is a
  * member with `issue.view`. Fail-closed: a missing project, a non-member, and
@@ -159,6 +144,15 @@ export function issueRoutes() {
   const router = new Hono<ProtectedEnv>();
   router.use("*", authRequired);
 
+  // Section gate (PLAN-108 §3): the whole `/projects/:projectId/issues` surface
+  // — including the attachment / comment routes mounted below from mod-item —
+  // 404s on a project that has not mounted the `issues` section. Registered as
+  // prefix middleware rather than per-route so a route added under the prefix
+  // later cannot silently escape the gate. It is an ADDITIONAL existence check:
+  // every capability gate below is unchanged.
+  router.use("/projects/:projectId/issues", requireSection("issues"));
+  router.use("/projects/:projectId/issues/*", requireSection("issues"));
+
   // ─── List ──────────────────────────────────────────────────────────
   // Member-gated; non-members get a fail-closed 404.
   router.get(
@@ -188,30 +182,6 @@ export function issueRoutes() {
         data: result.data,
         meta: { total: result.total, page, limit },
       });
-    },
-  );
-
-  // ─── Referenceable worklists ───────────────────────────────────────
-  // The worklists this project may reference when creating a work order: its
-  // ship's worklists (when it is a ship base project) plus the global KB.
-  // Member-gated via requireProjectMember (issue.view); non-members get a
-  // fail-closed 404.
-  router.get(
-    "/projects/:projectId/referenceable-worklists",
-    describeRoute({
-      tags: ["issues"],
-      summary: "List worklists a project may reference",
-      responses: {
-        200: okJson(referenceableWorklistsSchema),
-        401: { description: "Unauthenticated", ...errorJson },
-        404: { description: "Project not found or not a member", ...errorJson },
-      },
-    }),
-    validator("param", projectIdParam, onValidationFailure),
-    async (c) => {
-      const projectId = await requireProjectMember(c, c.req.valid("param").projectId);
-      const db = c.get("db");
-      return c.json({ success: true, data: await listReferenceableWorklists(db, projectId) });
     },
   );
 

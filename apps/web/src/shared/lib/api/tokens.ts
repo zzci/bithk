@@ -14,7 +14,6 @@ export const TOKEN_SCOPE_MODULES = [
   "drive",
   "files",
   "projects",
-  "ships",
   "contacts",
   "hr",
   "tags",

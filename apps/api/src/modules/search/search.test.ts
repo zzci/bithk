@@ -19,7 +19,6 @@ import "@/modules/document";
 import "@/modules/drive";
 import "@/modules/issue";
 import "@/modules/project";
-import "@/modules/ship";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -81,7 +80,7 @@ describe("globalSearch", () => {
   test("blank query returns empty groups", async () => {
     const owner = await seedUser("Owner");
     const result = await globalSearch(db, { userId: owner, isAdmin: false, q: "   ", limit: 8, modules: MODULE_KEYS });
-    expect(result).toEqual({ documents: [], issues: [], projects: [], drive: [], ships: [] });
+    expect(result).toEqual({ documents: [], issues: [], projects: [], drive: [] });
   });
 
   test("returns the caller's own document, issue, project and drive file", async () => {
@@ -140,6 +139,5 @@ describe("globalSearch", () => {
     expect(result.issues).toHaveLength(0);
     expect(result.projects).toHaveLength(0);
     expect(result.drive).toHaveLength(0);
-    expect(result.ships).toHaveLength(0);
   });
 });

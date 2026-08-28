@@ -72,15 +72,32 @@ function openFeedback(): void {
 
 // ---------- Helpers ----------
 
+// Nav entries that carry a search preset; consulted by `isNavActive` so a plain
+// entry yields to its preset sibling while that preset's params are applied.
+const NAV_PRESETS = [...getNavItems("overview"), ...getNavItems("admin")].filter(item => item.search);
+
 function isNavActive(
-  item: { path: string; matchPrefix?: string },
+  item: { path: string; matchPrefix?: string; search?: Readonly<Record<string, string>> },
   pathname: string,
+  search: Readonly<Record<string, unknown>>,
 ): boolean {
   const prefix = item.matchPrefix ?? item.path;
-  if (prefix === "/overview" || prefix === "/") {
-    return pathname === prefix || pathname === `${prefix}/`;
-  }
-  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+  const pathMatches = prefix === "/overview" || prefix === "/"
+    ? pathname === prefix || pathname === `${prefix}/`
+    : pathname === prefix || pathname.startsWith(`${prefix}/`);
+  if (!pathMatches)
+    return false;
+  // Preset entries share their path with the plain module entry (e.g. "Ships"
+  // and "Projects" both point at /projects), so the search params decide which
+  // one reads as active: a preset needs its own params present, and the plain
+  // entry only wins when no preset's params are.
+  if (item.search)
+    return searchMatches(item.search, search);
+  return !NAV_PRESETS.some(preset => (preset.matchPrefix ?? preset.path) === prefix && searchMatches(preset.search!, search));
+}
+
+function searchMatches(preset: Readonly<Record<string, string>>, search: Readonly<Record<string, unknown>>): boolean {
+  return Object.entries(preset).every(([key, value]) => search[key] === value);
 }
 
 function getInitials(name: string): string {
@@ -174,6 +191,7 @@ export function AppSidebar() {
   const { user, logout } = useAuthStore();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+  const currentSearch = routerState.location.search as Readonly<Record<string, unknown>>;
   const { setOpenMobile, state } = useSidebar();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -256,8 +274,8 @@ export function AppSidebar() {
                 <Fragment key={item.key}>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={isNavActive(item, currentPath)}
-                      render={<Link to={item.path} />}
+                      isActive={isNavActive(item, currentPath, currentSearch)}
+                      render={<Link to={item.path} search={item.search ?? {}} />}
                       tooltip={t(item.labelKey ?? `common:nav.${item.key}`)}
                     >
                       <item.icon />
@@ -302,7 +320,7 @@ export function AppSidebar() {
                   {adminNav.map(item => (
                     <SidebarMenuItem key={item.key}>
                       <SidebarMenuButton
-                        isActive={isNavActive(item, currentPath)}
+                        isActive={isNavActive(item, currentPath, currentSearch)}
                         render={<Link to={item.path} />}
                         tooltip={t(item.labelKey ?? `common:nav.${item.key}`)}
                       >

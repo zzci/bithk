@@ -8,6 +8,7 @@ import { auditFromCtx } from "@/modules/audit/audit.context";
 import { parseThumbnailWidth } from "@/modules/file";
 import { policyContext } from "@/modules/policy";
 import { hasCapability, isMember, listProjects, resolveProjectId } from "@/modules/project/project.service";
+import { hasSection } from "@/modules/project/section.service";
 import { AppError, ForbiddenError } from "@/shared/lib/errors";
 import { describeRoute, errorJson, okJson, onValidationFailure, validator } from "@/shared/lib/openapi";
 import { authRequired } from "@/shared/middleware/auth";
@@ -227,10 +228,20 @@ function actorOf(c: Context<ProtectedEnv>): DriveAccessActor {
  * Translate an inbound project shortId (the sole external project identifier)
  * to the internal project ULID stored in `drive_entries.owner_id`. Fail-closed:
  * a missing / soft-deleted project surfaces as 404.
+ *
+ * This is the single funnel for every project-scoped drive request, so it is
+ * also where the `files` section gate lives (PLAN-108 §3). The project files
+ * surface is addressed by owner scope (`ownerType=project&ownerId=<shortId>`)
+ * rather than a route param, so it uses `hasSection` directly instead of the
+ * `requireSection` middleware — same fail-closed 404, same policy. The
+ * top-level `/drive` module (personal + team-directory storage) is untouched:
+ * only the `project` owner branch reaches here.
  */
 async function resolveProjectOwnerId(c: Context<ProtectedEnv>, shortId: string): Promise<string> {
   const projectId = await resolveProjectId(c.get("db"), shortId);
   if (!projectId)
+    throw new AppError("Project not found", 404, "NOT_FOUND");
+  if (!await hasSection(c.get("db"), projectId, "files"))
     throw new AppError("Project not found", 404, "NOT_FOUND");
   return projectId;
 }

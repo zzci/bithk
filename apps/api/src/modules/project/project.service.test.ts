@@ -14,16 +14,10 @@ import { items } from "@/modules/item/schema";
 import { relationTuples } from "@/modules/policy/schema";
 import { procurementDetails } from "@/modules/procurement/schema";
 import { setSetting } from "@/modules/settings/settings.service";
-import { listCategories } from "./project.categories";
-import {
-  createGlobalCategory,
-  deleteGlobalCategory,
-  listGlobalCategories,
-  updateGlobalCategory,
-} from "./project.global-categories";
 import { createRole, deleteRole, listRoles, parseCapabilities, resolveGuestRole } from "./project.roles";
 import {
   addMember,
+  composeProjectWithTags,
   createProject,
   getMemberCapabilities,
   getProjectByShortId,
@@ -31,10 +25,12 @@ import {
   isMember,
   isProjectVersionConflict,
   listMembers,
+  listProjectChildren,
   listProjects,
   removeMember,
   resolveAssignableMember,
   resolveProjectId,
+  setProjectParent,
   softDeleteProject,
   updateMember,
   updateProject,
@@ -448,6 +444,69 @@ describe("listProjects", () => {
     const theirs = await listProjects(db, { memberUserId: outsider });
     expect(theirs.total).toBe(0);
   });
+
+  test("section filters in SQL before pagination, so total and every page describe the filtered set", async () => {
+    const creator = await seedUser("Alice");
+    // Interleaved so a page-local filter would drop ships off page 1: with a
+    // limit of 3 the unfiltered first page holds only two of the five ships.
+    for (let i = 1; i <= 5; i++) {
+      await createProject(db, { name: `Ship ${i}`, creatorId: creator, preset: "ship" });
+      if (i <= 4)
+        await createProject(db, { name: `Plain ${i}`, creatorId: creator });
+    }
+
+    const page1 = await listProjects(db, { section: "ship-profile", page: 1, limit: 3 });
+    const page2 = await listProjects(db, { section: "ship-profile", page: 2, limit: 3 });
+
+    // `total` counts the filtered set (5 ships), not the 9 projects that exist.
+    expect(page1.total).toBe(5);
+    expect(page2.total).toBe(5);
+    // A full page, then the remainder — the filter ran before LIMIT/OFFSET.
+    expect(page1.data).toHaveLength(3);
+    expect(page2.data).toHaveLength(2);
+    expect([...page1.data, ...page2.data].map(p => p.name).sort())
+      .toEqual(["Ship 1", "Ship 2", "Ship 3", "Ship 4", "Ship 5"]);
+  });
+
+  test("an unmatched section yields an empty list, not the unfiltered one", async () => {
+    const creator = await seedUser("Alice");
+    await createProject(db, { name: "Plain", creatorId: creator });
+
+    const listed = await listProjects(db, { section: "ship-profile" });
+    expect(listed.total).toBe(0);
+    expect(listed.data).toEqual([]);
+  });
+
+  test("a section-filtered row still carries its full sections array (batch loader intact)", async () => {
+    const creator = await seedUser("Alice");
+    await createProject(db, { name: "Vessel", creatorId: creator, preset: "ship" });
+    await createProject(db, { name: "Plain", creatorId: creator });
+
+    const listed = await listProjects(db, { section: "ship-profile" });
+    expect(listed.data.map(p => p.name)).toEqual(["Vessel"]);
+    // The filter narrows rows; it must not narrow what each row reports.
+    expect(listed.data[0]!.sections)
+      .toEqual(["issues", "procurement", "files", "ship-profile", "equipment", "worklist"]);
+  });
+
+  test("section composes with q and memberUserId instead of widening either", async () => {
+    const owner = await seedUser("Owner");
+    const outsider = await seedUser("Outsider");
+    await createProject(db, { name: "Atlas Refit", creatorId: owner, preset: "ship" });
+    await createProject(db, { name: "Bridge Refit", creatorId: owner, preset: "ship" });
+    await createProject(db, { name: "Atlas Office", creatorId: owner });
+
+    // section ∧ q: only the ship whose name matches.
+    const byBoth = await listProjects(db, { section: "ship-profile", q: "atlas", memberUserId: owner });
+    expect(byBoth.total).toBe(1);
+    expect(byBoth.data.map(p => p.name)).toEqual(["Atlas Refit"]);
+
+    // Member scoping still wins: a section filter must not reveal a project the
+    // caller is not a member of.
+    const stranger = await listProjects(db, { section: "ship-profile", memberUserId: outsider });
+    expect(stranger.total).toBe(0);
+    expect(stranger.data).toEqual([]);
+  });
 });
 
 describe("access helpers", () => {
@@ -624,53 +683,6 @@ async function seedCoverReference(uploadedBy: string): Promise<string> {
   return refId;
 }
 
-describe("global procurement categories", () => {
-  test("CRUD over the global template set", async () => {
-    const created = await createGlobalCategory(db, { name: "Hull", code: "HUL" });
-    expect(created.name).toBe("Hull");
-    expect((await listGlobalCategories(db)).map(c => c.name)).toEqual(["Hull"]);
-
-    const updated = await updateGlobalCategory(db, created.id, { name: "Hull & deck" });
-    expect(updated?.name).toBe("Hull & deck");
-    expect(await updateGlobalCategory(db, "missing", { name: "X" })).toBeUndefined();
-
-    expect(await deleteGlobalCategory(db, created.id)).toBe(true);
-    expect(await deleteGlobalCategory(db, created.id)).toBe(false);
-    expect(await listGlobalCategories(db)).toHaveLength(0);
-  });
-
-  test("a new project is seeded from the current global set (copy-on-create)", async () => {
-    const creator = await seedUser("Alice");
-    await createGlobalCategory(db, { name: "Engine", code: "ENG" });
-    await createGlobalCategory(db, { name: "Safety" });
-
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    const seeded = await listCategories(db, project.id);
-    expect(seeded.map(c => c.name).sort()).toEqual(["Engine", "Safety"]);
-  });
-
-  test("a project created with no globals defined gets none", async () => {
-    const creator = await seedUser("Alice");
-    const project = await createProject(db, { name: "P", creatorId: creator });
-    expect(await listCategories(db, project.id)).toHaveLength(0);
-  });
-
-  test("later global edits do not touch existing projects", async () => {
-    const creator = await seedUser("Alice");
-    const cat = await createGlobalCategory(db, { name: "Original" });
-    const project = await createProject(db, { name: "P", creatorId: creator });
-
-    // Mutate the global set after the project exists.
-    await updateGlobalCategory(db, cat.id, { name: "Renamed" });
-    await createGlobalCategory(db, { name: "Added later" });
-    await deleteGlobalCategory(db, cat.id);
-
-    const seeded = await listCategories(db, project.id);
-    // The project keeps its original copy, unaffected by global churn.
-    expect(seeded.map(c => c.name)).toEqual(["Original"]);
-  });
-});
-
 describe("project defaults on create", () => {
   test("always creates the project active, ignoring any stale default-status setting", async () => {
     const creator = await seedUser("Alice");
@@ -697,5 +709,170 @@ describe("project defaults on create", () => {
 
     const created = await createProject(db, { name: "NoCover", creatorId: creator });
     expect(created.coverReferenceId).toBeNull();
+  });
+});
+
+describe("project sections on create", () => {
+  test("the default preset mounts issues / procurement / files, in tab order", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Plain", creatorId: creator });
+
+    const view = await composeProjectWithTags(db, project);
+    expect(view.sections).toEqual(["issues", "procurement", "files"]);
+  });
+
+  test("the ship preset mounts the six maritime-project sections, in preset order", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Vessel", creatorId: creator, preset: "ship" });
+
+    const view = await composeProjectWithTags(db, project);
+    expect(view.sections).toEqual([
+      "issues",
+      "procurement",
+      "files",
+      "ship-profile",
+      "equipment",
+      "worklist",
+    ]);
+  });
+
+  test("listProjects carries each row's own sections", async () => {
+    const creator = await seedUser("Alice");
+    const plain = await createProject(db, { name: "Plain", creatorId: creator });
+    const vessel = await createProject(db, { name: "Vessel", creatorId: creator, preset: "ship" });
+
+    const listed = await listProjects(db, {});
+
+    expect(listed.data.find(p => p.id === plain.shortId)!.sections)
+      .toEqual(["issues", "procurement", "files"]);
+    expect(listed.data.find(p => p.id === vessel.shortId)!.sections)
+      .toEqual(["issues", "procurement", "files", "ship-profile", "equipment", "worklist"]);
+  });
+});
+
+describe("project hierarchy", () => {
+  test("createProject links the new project under an existing parent", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+
+    const child = await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+
+    expect(child.parentId).toBe(parent.id);
+    expect((await listProjectChildren(db, parent.shortId)).map(p => p.id)).toEqual([child.id]);
+  });
+
+  test("createProject rejects a missing or soft-deleted parent, writing nothing", async () => {
+    const creator = await seedUser("Alice");
+    const gone = await createProject(db, { name: "Gone", creatorId: creator });
+    await softDeleteProject(db, gone.shortId);
+
+    await expect(createProject(db, { name: "Orphan", creatorId: creator, parentId: "nosuchid" }))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+    await expect(createProject(db, { name: "Orphan", creatorId: creator, parentId: gone.shortId }))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+
+    expect((await listProjects(db, {})).data.some(p => p.name === "Orphan")).toBe(false);
+  });
+
+  test("createProject refuses a parent that is itself a sub-project (one level only)", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const child = await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+
+    await expect(createProject(db, { name: "Deep", creatorId: creator, parentId: child.shortId }))
+      .rejects
+      .toMatchObject({ statusCode: 422 });
+  });
+
+  test("setProjectParent links and unlinks, bumping the version each time", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const child = await createProject(db, { name: "Leg", creatorId: creator });
+
+    const linked = await setProjectParent(db, child.shortId, parent.shortId);
+    expect(linked?.parentId).toBe(parent.id);
+    expect(linked?.version).toBe(child.version + 1);
+
+    const unlinked = await setProjectParent(db, child.shortId, null);
+    expect(unlinked?.parentId).toBeNull();
+    expect(await listProjectChildren(db, parent.shortId)).toHaveLength(0);
+  });
+
+  test("setProjectParent returns undefined for an unknown project", async () => {
+    expect(await setProjectParent(db, "nosuchid", null)).toBeUndefined();
+  });
+
+  test("setProjectParent rejects a project parenting itself", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Self", creatorId: creator });
+
+    await expect(setProjectParent(db, project.shortId, project.shortId))
+      .rejects
+      .toMatchObject({ statusCode: 422 });
+    expect((await getProjectByShortId(db, project.shortId))?.parentId).toBeNull();
+  });
+
+  test("setProjectParent rejects a missing or soft-deleted parent", async () => {
+    const creator = await seedUser("Alice");
+    const project = await createProject(db, { name: "Leg", creatorId: creator });
+    const gone = await createProject(db, { name: "Gone", creatorId: creator });
+    await softDeleteProject(db, gone.shortId);
+
+    await expect(setProjectParent(db, project.shortId, "nosuchid"))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+    await expect(setProjectParent(db, project.shortId, gone.shortId))
+      .rejects
+      .toMatchObject({ statusCode: 404 });
+  });
+
+  test("setProjectParent refuses a parent that already has a parent", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const child = await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+    const loose = await createProject(db, { name: "Loose", creatorId: creator });
+
+    await expect(setProjectParent(db, loose.shortId, child.shortId))
+      .rejects
+      .toMatchObject({ statusCode: 422 });
+    expect((await getProjectByShortId(db, loose.shortId))?.parentId).toBeNull();
+  });
+
+  test("setProjectParent refuses to give a parent to a project that already has children", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+    const other = await createProject(db, { name: "Other", creatorId: creator });
+
+    await expect(setProjectParent(db, parent.shortId, other.shortId))
+      .rejects
+      .toMatchObject({ statusCode: 422 });
+    expect((await getProjectByShortId(db, parent.shortId))?.parentId).toBeNull();
+  });
+
+  test("listProjectChildren skips soft-deleted children and unknown parents", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const live = await createProject(db, { name: "Live", creatorId: creator, parentId: parent.shortId });
+    const dead = await createProject(db, { name: "Dead", creatorId: creator, parentId: parent.shortId });
+    await softDeleteProject(db, dead.shortId);
+
+    expect((await listProjectChildren(db, parent.shortId)).map(p => p.id)).toEqual([live.id]);
+    expect(await listProjectChildren(db, "nosuchid")).toEqual([]);
+  });
+
+  test("soft-deleting a parent UNLINKS its children instead of deleting them", async () => {
+    const creator = await seedUser("Alice");
+    const parent = await createProject(db, { name: "Fleet", creatorId: creator });
+    const child = await createProject(db, { name: "Leg", creatorId: creator, parentId: parent.shortId });
+
+    await softDeleteProject(db, parent.shortId);
+
+    const after = await getProjectByShortId(db, child.shortId);
+    expect(after).toBeDefined();
+    expect(after!.deletedAt).toBeNull();
+    expect(after!.parentId).toBeNull();
   });
 });

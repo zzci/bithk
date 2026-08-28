@@ -1,7 +1,8 @@
 # REFACTOR-039 - Projects as a composition of mounted sections; ships become a preset
 
-- Status: In Progress
+- Status: Completed (2026-08-28)
 - Plan: [PLAN-108](../plan/PLAN-108.md)
+- Decision: [ADR-015](../decisions/015-projects-as-sections.md)
 - Created: 2026-08-27
 - Revised: 2026-08-27 (v2 — section registry replaces the project `type` enum)
 
@@ -57,3 +58,30 @@ level, custom-field builders.
   favorites, overview, page titles) work for ship projects.
 - `bun run check` EXIT 0; generated api-docs / api-spec / api-types
   regenerated; seed rebuild green.
+
+## As implemented — deviations from the plan (2026-08-28)
+
+The campaign shipped; where the merged code and this plan differ, **the code is
+right**. Full detail in [PLAN-108](../plan/PLAN-108.md).
+
+- **`ships.description` folded into `projects.description`.** The plan listed a
+  description in both places, which would have given the UI two competing
+  fields. `ship_profiles` has **no** `description` column: one project, one
+  description.
+- **`hull_number` is NOT NULL + UNIQUE**, so a ship-preset create that supplies
+  no hull number auto-generates `S-<last 8 chars of the project ULID,
+  uppercased>` rather than leaving the column empty. The value is mutable and
+  case-preserving (unlike `projects.code`), so an operator renames it later; a
+  collision surfaces as `422 { hullNumber: "Already exists" }`.
+- **`GET /projects/:projectId/referenceable-worklists` kept its
+  `{ ship, global }` payload shape.** The `ship` group now means "**this
+  project's own** worklists" — the key was left alone rather than renamed, so
+  no client change was needed.
+- **The sub-projects TAB is gated on the `ship-profile` section.** Children
+  exist for every project on the API (`/projects/:id/children` is core, not a
+  section); only the web tab follows the ship preset, because it replaced the
+  old ship↔project binding surface and a plain project has no use for it in v1.
+- **The moved procurement-category routes kept `tags: ["projects"]`** in their
+  OpenAPI metadata. Moving them into the procurement module was a *re-home, not
+  a retag*, so the generated API grouping and any client keyed on that tag are
+  unchanged.

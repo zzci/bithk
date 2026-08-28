@@ -10,6 +10,37 @@ the `file` module (`files` / `file_references`); the drive only holds
 references, so dedupe, GC and download streaming all flow through the shared
 file service.
 
+## The `files` project section
+
+This module **owns the `files` section** of the [`project`](./project.md)
+module ([ADR-015](../decisions/015-projects-as-sections.md)), registered from
+its own barrel (`modules/drive/index.ts`) as an import-time side effect
+([ADR-009](../decisions/009-module-barrels.md)):
+
+| Registry field | Value |
+| -------------- | ----- |
+| `key` | `files` |
+| `capabilities` | `files.view`, `files.manage` |
+| `provision` | none — a project starts with an empty root |
+| `hasData` | `hasProjectDriveEntries` — blocks unmount while the project owns entries |
+
+The section governs the **project surface only** — drive entries with
+`owner_type = 'project'`. The top-level `/drive` module is personal and
+team-directory storage and exists independently of any project; it is untouched
+by the section model.
+
+**Where the gate lives.** The project files surface is addressed by owner scope
+(`?ownerType=project&ownerId=<project shortId>`) rather than a route param, so
+there is no `:projectId` for the shared `requireSection` middleware to read.
+`resolveProjectOwnerId` in `drive.routes.ts` — the single funnel every
+project-scoped drive request passes through — calls `hasSection(db, projectId,
+"files")` directly instead. Same fail-closed 404, same policy
+([ADR-003](../decisions/003-fail-closed-404-existence-policy.md)): a project
+that has not mounted `files` is indistinguishable from one that does not exist.
+
+`files` is in both presets, so a project has the section unless it was
+explicitly unmounted. The project file "root" is virtual.
+
 ## File layout
 
 ```text
@@ -114,6 +145,12 @@ no Zanzibar tuples for drive entries, an entry the actor has no capability
 on — **or one that no longer exists** — fails closed with `403` (the
 capability assert runs before the existence check, so a missing id never
 reveals whether it existed).
+
+For the **project** owner branch, capabilities come from the project's
+capability set: `files.manage` grants the full set, `files.view` alone grants
+read + download only, and a non-member gets nothing (fail-closed). The section
+gate runs first — an unmounted `files` section 404s before any capability is
+resolved.
 
 Team-directory **management** (create dir, member add/update/remove,
 rename, delete) is gated on the directory role (`getDirectoryRole`), not on

@@ -40,7 +40,8 @@
 // module mounts at "/" and declares absolute paths):
 //   documents — `/documents` plus `/shared` (share-token access surface).
 //   projects  — `/projects` plus `/issues` (issue references mount at
-//               `/issues/*`; procurements/worklists nest under `/projects/*`).
+//               `/issues/*`; procurement, equipment, ship profiles and
+//               worklists all nest under `/projects/*` as sections).
 //   projects (scope-only) — `/overview` + `/favorites` (FEAT-048 workbench):
 //               every favoritable/aggregated target type in v1 is
 //               projects-domain content.
@@ -60,8 +61,7 @@ export const MODULE_MANIFEST = [
   // Nested under the already-ungated `/admin`; exists only to route PAT scope
   // checks for the project-default-cover setting to `projects` (see above).
   { prefixes: ["/admin/project-default-cover"], tokenScopeKey: "projects" },
-  { prefixes: ["/ships"], navKey: "ships", tokenScopeKey: "ships" },
-  { prefixes: ["/worklists", "/global-equipment-categories", "/global-equipment-manufacturers"], tokenScopeKey: "ships", ungated: true },
+  { prefixes: ["/worklists", "/global-equipment-categories", "/global-equipment-manufacturers"], tokenScopeKey: "projects", ungated: true },
   { prefixes: ["/contacts"], navKey: "contacts", tokenScopeKey: "contacts" },
   { prefixes: ["/contact-categories"], tokenScopeKey: "contacts", ungated: true },
   { prefixes: ["/hr"], navKey: "hr", tokenScopeKey: "hr" },

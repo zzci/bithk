@@ -167,9 +167,9 @@ describe("resolveUserModules", () => {
 
   test("union over groups, deduplicated, in registry order", async () => {
     const { userId } = await sessionCookieFor(db, "user");
-    await grantModules(userId, ["ships", "documents"]);
+    await grantModules(userId, ["hr", "documents"]);
     await grantModules(userId, ["documents", "drive"]);
-    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual(["documents", "drive", "ships"]);
+    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual(["documents", "drive", "hr"]);
   });
 
   test("no groups + no Default modules resolves to the empty floor", async () => {
@@ -206,6 +206,29 @@ describe("moduleForPath", () => {
     expect(moduleForPath("/hrx")).toBeNull();
     expect(moduleForPath("/issues/abc")).toBe("projects");
     expect(moduleForPath("/search")).toBeNull();
+  });
+
+  // PLAN-108 deleted the `ships` nav module: a ship is a project with the three
+  // maritime sections mounted, so its routes live under the `projects` nav key
+  // and the fleet-wide admin prefixes stay ungated behind `adminRequired`.
+  test("there is no ships nav module left to grant", () => {
+    // `ModuleKey` is derived from the manifest, so "ships" is not even a valid
+    // comparison target any more — assert the runtime lists too.
+    expect(MODULE_KEYS).not.toContain("ships");
+    expect(MODULES.flatMap(m => m.prefixes)).not.toContain("/ships");
+    expect(moduleForPath("/ships")).toBeNull();
+    expect(moduleForPath("/ships/abc12345/equipment")).toBeNull();
+  });
+
+  test("the ship surfaces are gated by the projects module, the fleet-wide admin prefixes not at all", () => {
+    expect(moduleForPath("/projects/abc12345/ship-profile")).toBe("projects");
+    expect(moduleForPath("/projects/abc12345/equipment")).toBe("projects");
+    expect(moduleForPath("/projects/abc12345/worklists")).toBe("projects");
+
+    for (const prefix of ["/worklists", "/global-equipment-categories", "/global-equipment-manufacturers"]) {
+      expect(moduleForPath(prefix)).toBeNull();
+      expect(UNGATED_PREFIXES).toContain(prefix);
+    }
   });
 });
 

@@ -8,8 +8,8 @@ import { globalEquipmentCategories, shipEquipmentCategories } from "./schema";
 export type ShipEquipmentCategoryRow = typeof shipEquipmentCategories.$inferSelect;
 
 // ─── External view ──────────────────────────────────────────────────────
-// `shipId` is the internal ship ULID and never leaves the API: per-ship
-// categories are always addressed through their parent ship's short id in the
+// `projectId` is the internal project ULID and never leaves the API: per-project
+// categories are always addressed through their owning project's short id in the
 // URL, so the view omits it and exposes only the category's own (nanoid) id.
 export interface ShipEquipmentCategoryView {
   readonly id: string;
@@ -21,7 +21,7 @@ export interface ShipEquipmentCategoryView {
   readonly updatedAt: string;
 }
 
-export function composeShipEquipmentCategory(row: ShipEquipmentCategoryRow): ShipEquipmentCategoryView {
+export function composeProjectEquipmentCategory(row: ShipEquipmentCategoryRow): ShipEquipmentCategoryView {
   return {
     id: row.id,
     nameZh: row.nameZh,
@@ -42,7 +42,7 @@ function trimOptional(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-// Map a SQLite UNIQUE-constraint violation on (ship_id, name_zh|name_en) to a
+// Map a SQLite UNIQUE-constraint violation on (project_id, name_zh|name_en) to a
 // clean 422 instead of letting it surface as an unhandled 500.
 function rethrowUnique(err: unknown): never {
   const message = err instanceof Error ? err.message : String(err);
@@ -53,32 +53,32 @@ function rethrowUnique(err: unknown): never {
   throw err;
 }
 
-// ─── Per-ship category CRUD (scoped to a ship by internal id) ──────────────
+// ─── Per-project category CRUD (scoped to a project by internal id) ────────
 
-export async function listShipEquipmentCategories(db: AppDatabase, shipInternalId: string): Promise<readonly ShipEquipmentCategoryRow[]> {
-  return await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.shipId, shipInternalId)).orderBy(desc(shipEquipmentCategories.createdAt)).all();
+export async function listProjectEquipmentCategories(db: AppDatabase, projectId: string): Promise<readonly ShipEquipmentCategoryRow[]> {
+  return await db.select().from(shipEquipmentCategories).where(eq(shipEquipmentCategories.projectId, projectId)).orderBy(desc(shipEquipmentCategories.createdAt)).all();
 }
 
-export async function resolveShipEquipmentCategory(db: AppDatabase, shipInternalId: string, id: string): Promise<ShipEquipmentCategoryRow | undefined> {
+export async function resolveProjectEquipmentCategory(db: AppDatabase, projectId: string, id: string): Promise<ShipEquipmentCategoryRow | undefined> {
   return await db.select().from(shipEquipmentCategories).where(
-    and(eq(shipEquipmentCategories.id, id), eq(shipEquipmentCategories.shipId, shipInternalId)),
+    and(eq(shipEquipmentCategories.id, id), eq(shipEquipmentCategories.projectId, projectId)),
   ).get();
 }
 
-export interface CreateShipEquipmentCategoryInput {
+export interface CreateProjectEquipmentCategoryInput {
   readonly nameZh: string;
   readonly nameEn: string;
   readonly code?: string | null | undefined;
   readonly description?: string | null | undefined;
 }
 
-export async function createShipEquipmentCategory(db: AppDatabase, shipInternalId: string, input: CreateShipEquipmentCategoryInput): Promise<ShipEquipmentCategoryRow> {
+export async function createProjectEquipmentCategory(db: AppDatabase, projectId: string, input: CreateProjectEquipmentCategoryInput): Promise<ShipEquipmentCategoryRow> {
   const id = nanoid();
   const now = new Date().toISOString();
   try {
     await db.insert(shipEquipmentCategories).values({
       id,
-      shipId: shipInternalId,
+      projectId,
       nameZh: input.nameZh.trim(),
       nameEn: input.nameEn.trim(),
       code: trimOptional(input.code),
@@ -90,23 +90,23 @@ export async function createShipEquipmentCategory(db: AppDatabase, shipInternalI
   catch (err) {
     rethrowUnique(err);
   }
-  return (await resolveShipEquipmentCategory(db, shipInternalId, id))!;
+  return (await resolveProjectEquipmentCategory(db, projectId, id))!;
 }
 
-export interface UpdateShipEquipmentCategoryInput {
+export interface UpdateProjectEquipmentCategoryInput {
   readonly nameZh?: string | undefined;
   readonly nameEn?: string | undefined;
   readonly code?: string | null | undefined;
   readonly description?: string | null | undefined;
 }
 
-export async function updateShipEquipmentCategory(
+export async function updateProjectEquipmentCategory(
   db: AppDatabase,
-  shipInternalId: string,
+  projectId: string,
   id: string,
-  input: UpdateShipEquipmentCategoryInput,
+  input: UpdateProjectEquipmentCategoryInput,
 ): Promise<ShipEquipmentCategoryRow | undefined> {
-  const existing = await resolveShipEquipmentCategory(db, shipInternalId, id);
+  const existing = await resolveProjectEquipmentCategory(db, projectId, id);
   if (!existing)
     return undefined;
   const now = new Date().toISOString();
@@ -125,28 +125,37 @@ export async function updateShipEquipmentCategory(
   catch (err) {
     rethrowUnique(err);
   }
-  return await resolveShipEquipmentCategory(db, shipInternalId, id);
+  return await resolveProjectEquipmentCategory(db, projectId, id);
 }
 
-export async function deleteShipEquipmentCategory(db: AppDatabase, shipInternalId: string, id: string): Promise<boolean> {
+export async function deleteProjectEquipmentCategory(db: AppDatabase, projectId: string, id: string): Promise<boolean> {
   const result = runWrite(() => db.delete(shipEquipmentCategories)
-    .where(and(eq(shipEquipmentCategories.id, id), eq(shipEquipmentCategories.shipId, shipInternalId)))
+    .where(and(eq(shipEquipmentCategories.id, id), eq(shipEquipmentCategories.projectId, projectId)))
     .run());
   return result.changes > 0;
 }
 
+/** True when the project holds any equipment category — half of the `equipment` section's `hasData`. */
+export async function hasProjectEquipmentCategories(db: AppDatabase, projectId: string): Promise<boolean> {
+  const row = await db.select({ id: shipEquipmentCategories.id })
+    .from(shipEquipmentCategories)
+    .where(eq(shipEquipmentCategories.projectId, projectId))
+    .get();
+  return row !== undefined;
+}
+
 /**
- * Copy the current global equipment-category template into a newly created
- * ship's `ship_equipment_categories`. Synchronous so it composes into the
- * `createShip` transaction (copy-on-create — later global edits never touch
- * this ship). Mirrors `seedProjectCategoriesTx` for procurement categories.
+ * Copy the current global equipment-category template into a project mounting
+ * the `equipment` section. Synchronous so it composes into the project-creation
+ * transaction (copy-on-create — later global edits never touch this project).
+ * Mirrors `seedProjectCategoriesTx` for procurement categories.
  */
-export function seedShipEquipmentCategoriesTx(tx: AppTransaction, shipInternalId: string, now: string): void {
+export function seedEquipmentCategoriesTx(tx: AppTransaction, projectId: string, now: string): void {
   const globals = tx.select().from(globalEquipmentCategories).all();
   for (const g of globals) {
     tx.insert(shipEquipmentCategories).values({
       id: nanoid(),
-      shipId: shipInternalId,
+      projectId,
       nameZh: g.nameZh,
       nameEn: g.nameEn,
       code: g.code,

@@ -19,7 +19,7 @@ import { __resetDriverRegistryForTests, registerDriver, setActiveDriver } from "
 import { settingsBackupContribution } from "@/modules/settings/settings.backup";
 import { AppError } from "@/shared/lib/errors";
 import { testConfig, testNanoid } from "@/shared/test/route-harness";
-import { writeArchiveV2 } from "./archive.service";
+import { BACKUP_FORMAT_VERSION, writeArchiveV2 } from "./archive.service";
 import { getBackupStagingRoot } from "./export-job.service";
 import {
   __resetImportJobsForTests,
@@ -105,7 +105,7 @@ function settingsTableDef(): ManifestTable {
 function baseManifest(overrides: Partial<BackupManifestV2> = {}): BackupManifestV2 {
   return {
     format: "bithk-backup",
-    formatVersion: 2,
+    formatVersion: 3,
     exportedAt: "2026-06-10T00:00:00.000Z",
     app: { name: "app", version: "0.0.0", commit: "0000000" },
     schema: { dialect: "sqlite", journal: { lastIdx: 0, lastTag: "0000_test", entryCount: 1 } },
@@ -129,7 +129,7 @@ function validEntries(manifest: BackupManifestV2 = baseManifest()): TestEntry[] 
   ];
 }
 
-async function expectReject(file: File, code: string): Promise<void> {
+async function expectReject(file: File, code: string): Promise<AppError> {
   try {
     await prepareImport(db, config, file);
     throw new Error("expected prepareImport to reject");
@@ -137,6 +137,7 @@ async function expectReject(file: File, code: string): Promise<void> {
   catch (err) {
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe(code);
+    return err as AppError;
   }
 }
 
@@ -233,9 +234,30 @@ describe("format & manifest gates", () => {
 
   test("a NEWER formatVersion is rejected as UNSUPPORTED_VERSION", async () => {
     await expectReject(
-      await archiveFile(validEntries(baseManifest({ formatVersion: 3 as BackupManifestV2["formatVersion"] }))),
+      await archiveFile(validEntries(baseManifest({ formatVersion: 4 as BackupManifestV2["formatVersion"] }))),
       "UNSUPPORTED_VERSION",
     );
+  });
+
+  test("the current formatVersion still imports", async () => {
+    expect(BACKUP_FORMAT_VERSION).toBe(3);
+    const job = await prepareImport(db, config, await archiveFile(validEntries(baseManifest({ formatVersion: 3 }))));
+    expect(job.state).toBe("validated");
+    expect(job.manifest.formatVersion).toBe(3);
+    discardImportJob(job.id);
+  });
+
+  // PLAN-108: format 2 is the last pre-reset epoch. The message has to name the
+  // reset and the operator's only remaining option — assert the wording so it
+  // cannot silently decay back into a bare version number.
+  test("a pre-reset formatVersion 2 archive is refused with an actionable message", async () => {
+    const err = await expectReject(
+      await archiveFile(validEntries(baseManifest({ formatVersion: 2 as BackupManifestV2["formatVersion"] }))),
+      "INVALID_FORMAT",
+    );
+    expect(err.message).toContain("Backup format version 2 predates the projects-as-sections schema reset (format 3)");
+    expect(err.message).toContain("cannot be imported or migrated");
+    expect(err.message).toContain("run a pre-reset build of the server against a copy");
   });
 
   test("an unknown OLDER formatVersion is rejected as INVALID_FORMAT", async () => {

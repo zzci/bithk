@@ -8,9 +8,7 @@ import { Route } from "./$projectId.lazy";
 
 // Stub the router so the lazy route file imports and exposes its component
 // directly (`createLazyFileRoute(id)(opts)` returns `opts`), and the layout's
-// router hooks resolve to fixed values without a real router tree. `mockParams`
-// is mutable so a test can simulate the `from/$shipId` entry (ship segment
-// present) vs. the plain project route.
+// router hooks resolve to fixed values without a real router tree.
 const navigateMock = vi.fn();
 const mockParams: { current: Record<string, string> } = { current: { projectId: "p1" } };
 vi.mock("@tanstack/react-router", () => ({
@@ -41,7 +39,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
     name: "Atlas Refit",
     status: "active",
     description: null,
-    shipId: null,
+    sections: ["issues", "procurement", "files"],
     tags: [],
     coverImageUrl: null,
     capabilities: ["issue.view"],
@@ -85,6 +83,11 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
+/** Rendered tab labels, in order, with the trailing count suffix stripped. */
+function tabNames(): string[] {
+  return screen.getAllByRole("tab").map(tab => (tab.textContent ?? "").replace(/\s*\d+$/, "").trim());
+}
+
 describe("projectDetailLayout tab gating", () => {
   it("shows only the tabs the caller's capabilities allow", async () => {
     mockRoutes();
@@ -100,24 +103,90 @@ describe("projectDetailLayout tab gating", () => {
     expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
   });
 
-  it("back button returns to the project list when not opened from a ship", async () => {
+  it("hides a section tab the project has not mounted, even with the capability", async () => {
+    // `files.view` is held but the `files` section is absent: the tab is gone.
+    mockRoutes({
+      detail: () => jsonResponse({
+        success: true,
+        data: project({ sections: ["issues"], capabilities: ["issue.view", "files.view"] }),
+      }),
+    });
+    renderWithProviders(<ProjectDetailLayout />);
+
+    expect(await screen.findByRole("tab", { name: /Work Orders/ })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Files/ })).not.toBeInTheDocument();
+  });
+
+  it("renders the ship-preset tabs for a project that mounts those sections", async () => {
+    mockRoutes({
+      detail: () => jsonResponse({
+        success: true,
+        data: project({
+          sections: ["issues", "procurement", "files", "ship-profile", "equipment", "worklist"],
+          capabilities: ["issue.view"],
+        }),
+      }),
+    });
+    renderWithProviders(<ProjectDetailLayout />);
+
+    expect(await screen.findByRole("tab", { name: "Details" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Equipment" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Checklists" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Sub-projects" })).toBeInTheDocument();
+  });
+
+  it("gives a general project its four section tabs plus sub-projects", async () => {
+    mockRoutes({
+      detail: () => jsonResponse({
+        success: true,
+        data: project({
+          sections: ["issues", "procurement", "files"],
+          capabilities: ["issue.view", "procurement.view", "files.view"],
+        }),
+      }),
+    });
+    renderWithProviders(<ProjectDetailLayout />);
+
+    await screen.findByRole("tab", { name: "Overview" });
+    // Sub-projects is core, so it is here without a single ship section mounted.
+    expect(tabNames()).toEqual(["Overview", "Work Orders", "Procurement", "Files", "Sub-projects"]);
+    // No maritime section mounted, so none of the ship-preset tabs appear.
+    for (const absent of ["Details", "Equipment", "Checklists"])
+      expect(screen.queryByRole("tab", { name: absent })).not.toBeInTheDocument();
+  });
+
+  it("gives a ship project all eight tabs in registry order", async () => {
+    mockRoutes({
+      detail: () => jsonResponse({
+        success: true,
+        data: project({
+          sections: ["issues", "procurement", "files", "ship-profile", "equipment", "worklist"],
+          capabilities: ["issue.view", "procurement.view", "files.view"],
+        }),
+      }),
+    });
+    renderWithProviders(<ProjectDetailLayout />);
+
+    await screen.findByRole("tab", { name: "Overview" });
+    expect(tabNames()).toEqual([
+      "Overview",
+      "Work Orders",
+      "Procurement",
+      "Files",
+      "Details",
+      "Equipment",
+      "Checklists",
+      "Sub-projects",
+    ]);
+  });
+
+  it("back button returns to the project list", async () => {
     mockRoutes();
     renderWithProviders(<ProjectDetailLayout />);
 
     const back = await screen.findByRole("button", { name: "Back to projects" });
     fireEvent.click(back);
     expect(navigateMock).toHaveBeenCalledWith({ to: "/projects" });
-  });
-
-  it("back button returns to the originating ship when opened from one", async () => {
-    // The `from/$shipId` route supplies the ship segment via useParams.
-    mockParams.current = { projectId: "p1", shipId: "s1" };
-    mockRoutes();
-    renderWithProviders(<ProjectDetailLayout />);
-
-    const back = await screen.findByRole("button", { name: "Back to ship" });
-    fireEvent.click(back);
-    expect(navigateMock).toHaveBeenCalledWith({ to: "/ships/$shipId", params: { shipId: "s1" } });
   });
 
   it("renders the not-found branch when the project query errors", async () => {
