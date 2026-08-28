@@ -119,7 +119,7 @@ type ListMeta = ApiResponse<"getProjects">["meta"];
 export const projectKeys = {
   all: ["projects"] as const,
   lists: () => ["projects", "list"] as const,
-  list: (status: string, tag: string, q: string, page: number, limit: number) => ["projects", "list", status, tag, q, page, limit] as const,
+  list: (status: string, tag: string, q: string, section: string, page: number, limit: number) => ["projects", "list", status, tag, q, section, page, limit] as const,
   detail: (id: string) => ["projects", "detail", id] as const,
   members: (id: string) => ["projects", id, "members"] as const,
   roles: (id: string) => ["projects", id, "roles"] as const,
@@ -170,6 +170,10 @@ export interface ProjectsQuery {
   readonly q?: string | undefined;
   // Union (OR) filter: a project matches when it carries ANY of these tag ids.
   readonly tagIds?: readonly string[] | undefined;
+  // Narrow to projects that MOUNT this section. Filtered in SQL before
+  // pagination, so `meta.total` counts the narrowed set — never re-filter the
+  // fetched page client-side, which would only ever see page 1's rows.
+  readonly section?: ProjectSectionKey | undefined;
   readonly page?: number | undefined;
   readonly limit?: number | undefined;
 }
@@ -183,19 +187,22 @@ export function useProjects(query: ProjectsQuery = {}) {
   const status = query.status;
   const q = query.q;
   const tagIds = query.tagIds;
+  const section = query.section;
   const page = query.page ?? 1;
   const limit = query.limit ?? 20;
   // Sorted, comma-joined tag ids keep the cache key stable regardless of
   // selection order (the backend union semantics are order-independent).
   const tagsKey = tagIds && tagIds.length > 0 ? [...tagIds].sort().join(",") : "all";
   return useQuery<ProjectsListResult>({
-    queryKey: projectKeys.list(status ?? "all", tagsKey, q ?? "", page, limit),
+    queryKey: projectKeys.list(status ?? "all", tagsKey, q ?? "", section ?? "all", page, limit),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status)
         params.set("status", status);
       if (q)
         params.set("q", q);
+      if (section)
+        params.set("section", section);
       // Repeatable tagIds params, sorted so the request matches the cache key.
       if (tagIds && tagIds.length > 0) {
         for (const id of [...tagIds].sort())

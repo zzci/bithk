@@ -44,6 +44,79 @@ describe("projectFormDialog", () => {
     // Untouched optional fields stay out of the payload entirely.
     expect("description" in payload).toBe(false);
     expect("tags" in payload).toBe(false);
+    // The preset is always explicit; General mounts no maritime sections, so
+    // it carries no section data.
+    expect(payload.preset).toBe("general");
+    expect("sectionData" in payload).toBe(false);
+  });
+
+  it("reveals the ship-profile fields only under the ship preset", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ProjectFormDialog open onOpenChange={vi.fn()} pending={false} onSubmit={vi.fn()} />,
+    );
+    expect(screen.queryByLabelText("Hull number")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Ship" }));
+    expect(screen.getByLabelText("Hull number")).toBeInTheDocument();
+    expect(screen.getByLabelText("IMO number")).toBeInTheDocument();
+
+    // Switching back hides them again.
+    await user.click(screen.getByRole("radio", { name: "General project" }));
+    expect(screen.queryByLabelText("Hull number")).not.toBeInTheDocument();
+  });
+
+  it("submits the ship preset with its particulars under sectionData", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(v: CreateProjectInput) => void>();
+    renderWithProviders(
+      <ProjectFormDialog open onOpenChange={vi.fn()} pending={false} onSubmit={onSubmit} />,
+    );
+    await user.type(screen.getByLabelText("Name"), "Atlas");
+    await user.click(screen.getByRole("radio", { name: "Ship" }));
+    await user.type(screen.getByLabelText("Hull number"), "HULL-7");
+    await user.type(screen.getByLabelText("IMO number"), "IMO-1234567");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const payload = onSubmit.mock.calls[0]![0];
+    expect(payload.preset).toBe("ship");
+    const shipData = payload.sectionData?.["ship-profile"] as Record<string, unknown>;
+    expect(shipData.hullNumber).toBe("HULL-7");
+    expect(shipData.imoNumber).toBe("IMO-1234567");
+    // Untouched particulars clear to null rather than being omitted.
+    expect(shipData.mmsi).toBeNull();
+  });
+
+  it("omits a blank hull number so the API generates one", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(v: CreateProjectInput) => void>();
+    renderWithProviders(
+      <ProjectFormDialog open onOpenChange={vi.fn()} pending={false} onSubmit={onSubmit} />,
+    );
+    await user.type(screen.getByLabelText("Name"), "Atlas");
+    await user.click(screen.getByRole("radio", { name: "Ship" }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    const shipData = onSubmit.mock.calls[0]![0].sectionData?.["ship-profile"] as Record<string, unknown>;
+    expect("hullNumber" in shipData).toBe(false);
+    expect(shipData.shipStatus).toBe("laid_up");
+  });
+
+  it("blocks submit while a ship particular is out of range", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ProjectFormDialog open onOpenChange={vi.fn()} pending={false} onSubmit={onSubmit} />,
+    );
+    await user.type(screen.getByLabelText("Name"), "Atlas");
+    await user.click(screen.getByRole("radio", { name: "Ship" }));
+    // 1500 predates the earliest plausible build year (1900).
+    await user.type(screen.getByLabelText("Build year"), "1500");
+
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    screen.getByRole("dialog").querySelector("form")!.requestSubmit();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("does not submit when the name is only whitespace", async () => {

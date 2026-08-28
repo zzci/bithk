@@ -35,6 +35,8 @@
     "filter": "Filter",
     "filterRemove": "Remove {{label}}",
     "clearFilters": "Clear filters",
+    "sectionAll": "All",
+    "sectionFilter": "Section",
     "searchPlaceholder": "Search projects",
     "openSettings": "Project settings",
     "moreTags": "+{{count}}",
@@ -72,7 +74,11 @@
     "title": "New project",
     "submit": "Create",
     "namePlaceholder": "Project name",
-    "descriptionPlaceholder": "Add a description…"
+    "descriptionPlaceholder": "Add a description…",
+    "shipParticulars": "Vessel particulars",
+    "presetShip": "Ship",
+    "presetGeneral": "General project",
+    "presetLabel": "Type"
   },
   "delete": {
     "title": "Delete project",
@@ -94,6 +100,7 @@
       "general": "General",
       "members": "Members",
       "roles": "Roles",
+      "sections": "Sections",
       "categories": "Procurement Categories",
       "danger": "Danger zone"
     },
@@ -120,7 +127,8 @@
     "unpinAction": "Unpin",
     "latestIssues": "Latest work orders",
     "latestProcurements": "Latest procurements",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "openSection": "Open {{name}}"
   },
   "issues": {
     "create": "New",
@@ -314,7 +322,8 @@
       "comment": "Comment",
       "manage": "Manage"
     },
-    "administration": "Administration"
+    "administration": "Administration",
+    "accessLevel": "Access level"
   },
   "capability": {
     "issue.view": "View work orders",
@@ -368,5 +377,13 @@
     "restoreConfirmDescription": "This project will return to the active list.",
     "deleteConfirmTitle": "Delete project?",
     "deleteConfirmDescription": "This permanently removes the project and its data. This action cannot be undone."
+  },
+  "sections": {
+    "description": "A project is a core record plus the sections it mounts. Mounting a section seeds its data and adds its tab; unmounting removes the tab.",
+    "mountFailed": "Could not mount this section.",
+    "unmountRefused": "\"{{name}}\" still holds data and cannot be removed. Delete its records first.",
+    "unmountFailed": "Could not remove this section.",
+    "toastMounted": "Section added",
+    "toastUnmounted": "Section removed"
   }
 }

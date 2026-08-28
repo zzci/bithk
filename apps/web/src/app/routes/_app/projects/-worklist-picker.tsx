@@ -1,5 +1,5 @@
 // Searchable worklist picker for the create-issue dialog. Lists the project's
-// referenceable worklists grouped into "本船 / 全局" (this ship / global), filters
+// referenceable worklists grouped into "this ship / global", filters
 // by name or tags, and reports the chosen worklist to the caller. Uses the
 // shared shadcn Dialog + Input primitives — no extra UI deps.
 

@@ -168,5 +168,8 @@
     "unbind": "解绑",
     "unbindTitle": "解绑项目",
     "unbindConfirm": "确定将“{{name}}”从该船舶解绑？其文件与数据将保留。"
+  },
+  "list": {
+    "filterLabel": "船舶"
   }
 }

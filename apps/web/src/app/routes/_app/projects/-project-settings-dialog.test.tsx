@@ -57,8 +57,36 @@ describe("projectSettingsDialog", () => {
     expect(screen.getByRole("tab", { name: "Members" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Roles" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Procurement Categories" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Sections" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Danger zone" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Contacts" })).not.toBeInTheDocument();
+    // Equipment is not mounted on a general project, so its contributed panel
+    // is absent.
+    expect(screen.queryByRole("tab", { name: "Equipment categories" })).not.toBeInTheDocument();
+  });
+
+  it("adds a mounted section's contributed panel and drops it with the section", () => {
+    const caps = computeCapabilities(undefined, true);
+    const ship = { ...project, sections: ["issues", "procurement", "files", "ship-profile", "equipment", "worklist"] };
+    renderWithProviders(
+      <ProjectSettingsDialog open onOpenChange={vi.fn()} project={ship} members={[]} userNames={new Map()} caps={caps} />,
+    );
+    // Equipment contributes its category panel once the section is mounted; the
+    // dialog itself knows nothing about ships.
+    expect(screen.getByRole("tab", { name: "Equipment categories" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Procurement Categories" })).toBeInTheDocument();
+  });
+
+  it("hides a contributed panel whose section is unmounted, even for an admin", () => {
+    const caps = computeCapabilities(undefined, true);
+    const bare = { ...project, sections: ["issues"] };
+    renderWithProviders(
+      <ProjectSettingsDialog open onOpenChange={vi.fn()} project={bare} members={[]} userNames={new Map()} caps={caps} />,
+    );
+    expect(screen.queryByRole("tab", { name: "Procurement Categories" })).not.toBeInTheDocument();
+    // The core panels are unaffected.
+    expect(screen.getByRole("tab", { name: "Sections" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Roles" })).toBeInTheDocument();
   });
 
   it("shows only the categories tab to a categories-only member", () => {
@@ -83,6 +111,7 @@ describe("projectSettingsDialog", () => {
     expect(screen.getByRole("tab", { name: "Roles" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Danger zone" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Sections" })).not.toBeInTheDocument();
     // The roles-only viewer lands on the roles section by default: the in-page
     // role editor renders its role-selector dropdown and a create action.
     expect(screen.getByRole("combobox")).toBeInTheDocument();

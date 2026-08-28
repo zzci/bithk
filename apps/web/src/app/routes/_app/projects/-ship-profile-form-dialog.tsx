@@ -4,7 +4,6 @@
 // deliberately absent here.
 
 import type { ShipProfileFormState } from "./-ship-profile-form-logic";
-import type { ShipStatus } from "@/shared/lib/api/project-sections";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
@@ -17,39 +16,8 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { ErrorBanner } from "@/shared/components/ui/error-banner";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
-import { SHIP_STATUSES } from "@/shared/lib/api/project-sections";
-import { EMPTY_SHIP_PROFILE_FORM, SHIP_NUMBER_FIELD_RANGES, shipProfileFormNumberErrors } from "./-ship-profile-form-logic";
-
-// Particulars rendered from a config so the markup stays flat. `kind` drives
-// the input type; the label comes from `ships:field.*`.
-const TEXT_FIELDS = [
-  "builder",
-  "model",
-  "imoNumber",
-  "mmsi",
-  "callSign",
-  "flagState",
-  "registryPort",
-  "ownerName",
-] as const;
-
-const NUMBER_FIELDS = [
-  "buildYear",
-  "lengthOverall",
-  "beam",
-  "draft",
-  "airDraft",
-  "grossTonnage",
-] as const;
+import { ShipProfileFields } from "./-ship-profile-fields";
+import { EMPTY_SHIP_PROFILE_FORM, shipProfileFormNumberErrors } from "./-ship-profile-form-logic";
 
 interface ShipProfileFormDialogProps {
   readonly open: boolean;
@@ -102,65 +70,7 @@ export function ShipProfileFormDialog({
 
           {errorMessage && <ErrorBanner message={errorMessage} />}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="ship-hull-number">{t("field.hullNumber")}</Label>
-              <Input
-                id="ship-hull-number"
-                autoFocus
-                value={form.hullNumber}
-                onChange={e => set("hullNumber", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="ship-status">{t("field.status")}</Label>
-              <Select value={form.shipStatus} onValueChange={v => v !== null && set("shipStatus", v as ShipStatus)}>
-                <SelectTrigger id="ship-status" className="w-full">
-                  <SelectValue>
-                    {(v: string) => t(`status.${v}` as const)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {SHIP_STATUSES.map(s => (
-                    <SelectItem key={s} value={s}>{t(`status.${s}` as const)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {TEXT_FIELDS.map(key => (
-              <div key={key} className="space-y-1.5">
-                <Label htmlFor={`ship-${key}`}>{t(`field.${key}` as const)}</Label>
-                <Input
-                  id={`ship-${key}`}
-                  value={form[key]}
-                  onChange={e => set(key, e.target.value)}
-                />
-              </div>
-            ))}
-
-            {NUMBER_FIELDS.map((key) => {
-              const range = SHIP_NUMBER_FIELD_RANGES[key];
-              const invalid = numberErrors.includes(key);
-              return (
-                <div key={key} className="space-y-1.5">
-                  <Label htmlFor={`ship-${key}`}>{t(`field.${key}` as const)}</Label>
-                  <Input
-                    id={`ship-${key}`}
-                    type="number"
-                    inputMode="decimal"
-                    min={range.min}
-                    max={range.max}
-                    step={key === "buildYear" ? 1 : "any"}
-                    aria-invalid={invalid || undefined}
-                    value={form[key]}
-                    onChange={e => set(key, e.target.value)}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          <ShipProfileFields form={form} onChange={set} numberErrors={numberErrors} autoFocusHullNumber />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

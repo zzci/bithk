@@ -168,5 +168,8 @@
     "unbind": "Unbind",
     "unbindTitle": "Unbind project",
     "unbindConfirm": "Unbind \"{{name}}\" from this ship? Its files and data are preserved."
+  },
+  "list": {
+    "filterLabel": "Ships"
   }
 }
