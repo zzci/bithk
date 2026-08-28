@@ -25,6 +25,20 @@ describe("activeProjectTab", () => {
     expect(activeProjectTab(`/projects/${PID}/procurements/pr9`, PID)).toBe("procurement");
   });
 
+  it("keeps the owning tab for the full-page detail breakout routes", () => {
+    // `$projectId_.issues.$issueId.full` escapes the layout, but the pathname
+    // still starts with the project's own segments.
+    expect(activeProjectTab(`/projects/${PID}/issues/i9/full`, PID)).toBe("issues");
+    expect(activeProjectTab(`/projects/${PID}/procurements/pr9/full`, PID)).toBe("procurement");
+  });
+
+  it("resolves every registry segment from an arbitrarily nested path", () => {
+    // Registry-driven, so a section added later is covered without editing
+    // this test: only its `routeSegment` has to be declared.
+    for (const section of PROJECT_SECTIONS.filter(entry => entry.routeSegment !== ""))
+      expect(activeProjectTab(`/projects/${PID}/${section.routeSegment}/x/y`, PID)).toBe(section.key);
+  });
+
   it("falls back to overview for unknown segments or foreign paths", () => {
     expect(activeProjectTab(`/projects/${PID}/bogus`, PID)).toBe("overview");
     expect(activeProjectTab(`/documents/${PID}/issues`, PID)).toBe("overview");
