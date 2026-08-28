@@ -44,15 +44,14 @@ level, custom-field builders.
   sub-project create / list / unlink; module gate and PAT scope tests updated.
 - Every existing project carries the general preset after migration/seed
   (integrity test), and the project list batch-loads section sets (no N+1).
-- Migration: the one-shot fold script turns a pre-fold database into a new
-  one — ships onto their base projects, sections mounted, equipment /
-  worklists / ship tags / ship covers re-keyed, `ships` module grants and PAT
-  scopes rewritten — verified rule by rule against a committed pre-fold
-  fixture, with a reconciliation report and a non-zero exit on unexplained row
-  loss.
-- Backup: pre-fold archives are refused with an error naming the migration
-  script; round-trip test proving the `procurement_categories` contribution
-  move is transparent for post-fold archives.
+- Schema reset: the Drizzle baseline is re-squashed from the new schema and
+  `bun run seed` builds a working database from scratch, with seeded ship
+  projects going through the normal create path (no hand-inserted section
+  rows). No data migration and no backfill — pre-fold databases are not
+  carried across.
+- Backup: `BACKUP_FORMAT_VERSION` 3 refuses every pre-fold archive with an
+  actionable message; round-trip test proving the `procurement_categories`
+  contribution move is transparent for post-fold archives.
 - Web: `/projects` list filters by section; ship tabs appear only for projects
   with the ship sections; `/ships/*` removed; registries (sidebar, search,
   favorites, overview, page titles) work for ship projects.

@@ -208,8 +208,10 @@ migration and no group re-grant. Splitting `equipment.view/manage` and
   maritime columns, `description`. A 1:1 side table, not 14 nullable columns on
   `projects`; "section mounted" and "profile row exists" stay equivalent.
 - `ship_equipment` / `ship_equipment_categories`: `ship_id` -> `project_id`.
-  Table names keep the `ship_` prefix — they are maritime-domain tables owned
-  by the ship module; only the FK target changes, which keeps the diff small.
+  Table names keep the `ship_` prefix: they are maritime-domain tables owned by
+  the ship module, and the section being called `equipment` does not make its
+  contents generic. (With the baseline re-squashed there is no diff cost either
+  way — the choice is naming, not migration.)
 - `worklists`: `ship_id` -> `project_id` (`NULL` still = global KB entry).
 - Global vocabularies (`global_equipment_categories`,
   `equipment_manufacturers`, global worklists) are unchanged and stay
@@ -248,9 +250,8 @@ separately (both filters stay explicit on the list).
   `global_procurement_categories` + `procurement_categories`; contribution
   `ship` = `global_equipment_categories`, `equipment_manufacturers`,
   `ship_profiles`, `ship_equipment_categories`, `ship_equipment`, `worklists`
-  with `deps: ["projects"]` and no cycle. The archive container format is
-  unchanged (`BACKUP_FORMAT_VERSION` stays 2); pre-fold archives are refused by
-  an explicit guard — see D2.
+  with `deps: ["projects"]` and no cycle. `BACKUP_FORMAT_VERSION` 2 -> 3 marks
+  the epoch reset — see below.
 
 ### 8. Web
 
@@ -282,106 +283,47 @@ sub-project, hierarchies deeper than one level, generic "custom field"
 builders, or a section marketplace. A section is plain code that registers
 itself; the only data is the mount row.
 
-## Migration strategy (decided 2026-08-28)
+## Schema epoch reset (decided 2026-08-28)
 
-**Decision**: no backward compatibility with pre-fold data formats. The live
-database is carried across by a one-shot migration script that writes a
-**brand-new database** built from the re-squashed baseline; pre-fold backup
-archives are rejected outright rather than mapped.
+**Decision**: reset the schema outright. No data migration, no historical
+compatibility, in either direction.
 
-This drops the `importTransforms` work entirely — and with it the verified
+- **Database**: re-squash the Drizzle baseline from the new schema (single
+  fresh `0000_*.sql`, as the current tree already has after the PLAN-105
+  collapse) and rebuild with `bun run seed`. No fold script, no in-place ALTER
+  chain, no backfill of existing rows — there are no rows to carry. Matches the
+  standing "dev phase: reset DB freely" rule.
+- **Archives**: `BACKUP_FORMAT_VERSION` 2 -> 3. The manifest version gate is an
+  exact-match check (`import.service.ts:214`), so every pre-fold archive is
+  refused with `Unsupported backup format version 2` for one line of change,
+  on both the merge and replace paths. Error text should name the reset so the
+  message is actionable.
+- **Seed** becomes the only path into the new schema: `payload/ships.json`
+  turns into ship-preset project payload, and the seeded projects get their
+  `project_sections` rows through the normal create path (not hand-inserted),
+  so the seed doubles as a provisioning test.
+
+Why a version bump rather than a targeted "reject archives containing `ships`"
+guard: with no compatibility obligation the precise guard buys nothing, and
+`formatVersion` is the honest place to record "everything before this line is
+unsupported". This is an explicit **one-time epoch marker**, documented in
+ADR-015 — the cross-schema mapping engine (PLAN-075 rules 1-15,
+`importFallbacks` / `importTransforms`) keeps its full value for v3-and-later
+archives whose schema has drifted, which is what it was built for.
+
+For the record, the reason old archives cannot simply be let through: the
+mapping engine would accept a pre-fold archive and degrade it, mostly
+silently — `ships` skipped wholesale (rule 7), equipment failing on the new
+NOT-NULL `project_id` (rule 5), per-ship worklists silently becoming global KB
+entries (rule 3), and — for *any* pre-fold archive, ship data or not — no
+`project_sections` rows at all (rule 9), leaving every imported project without
+its Issues / Procurement / Files tabs.
+
+This also drops the `importTransforms` work and, with it, the verified
 transform-ordering hazard for vanished parent tables
 (`import-mapping.ts:558-561`, where `ships` would have been processed after the
-child tables that need its id map). No backup-engine change is needed.
-
-### D1 — one-shot migration script
-
-`apps/api/scripts/migrate/plan108-fold.ts`, exposed as
-`bun run --filter @app/api db:fold` (root alias `bun run migrate:fold`).
-
-Contract:
-
-- `--from <old.sqlite>` (default: the configured DB path) is opened
-  **read-only**, so a failed run cannot damage the source. `--to <new.sqlite>`
-  (default `data/db/app.folded.db`) must not exist unless `--force`.
-- The target is created by running the new collapsed baseline through the same
-  `migrate()` path `db/index.ts` uses at boot — never by hand-written DDL.
-- Table copy order is taken from the backup registry
-  (`resolveModulesWithDeps(getModuleNames())` -> `getTablesForModules`), so it
-  stays FK-correct for free as tables move between contributions.
-- Blob storage is untouched: `files` rows keep their content hashes and the
-  storage tree/bucket is shared between old and new DB. Only `file_references`
-  rows are rewritten.
-
-Fold rules applied during the copy:
-
-1. every surviving project gets `project_sections` rows for `issues`,
-   `procurement`, `files`;
-2. each `ships` row -> a `ship_profiles` row keyed by `base_project_id` (hull
-   number from `ships.code`, `ship_status` from `ships.status`, the 14
-   maritime columns) plus `ship-profile` / `equipment` / `worklist` section
-   rows. A ship whose `base_project_id` is NULL is a **hard error**, not a
-   skip — it would silently lose the ship;
-3. `ship_equipment`, `ship_equipment_categories`, `worklists`: `ship_id` ->
-   the ship's `base_project_id` (global worklists keep NULL);
-4. `tags_refs` rows for tag type `ship`: `resource_id` -> base project id and
-   type -> `project`, de-duplicated against a tag the base project already
-   carries (composite PK `(resource_id, tag_id)`);
-5. `file_references` rows with `owner_type = 'ship_cover'` -> `project_cover`
-   on the base project; the project's `cover_reference_id` is filled only when
-   it had none, and the displaced reference is reported;
-6. projects bound to a ship but not its base (`projects.ship_id` set,
-   `ships.base_project_id` different) -> `parent_id` = base project id; the
-   base project itself gets `parent_id = NULL`;
-7. the string `ships` is rewritten to `projects` (merging, not appending) in
-   `groups.modules`, the `account.default_modules` setting row, and
-   `api_tokens.scopes` keys;
-8. nothing is dropped — the target schema simply has no home for `ships`,
-   `projects.ship_id` or `ships.base_project_id`.
-
-Output is a reconciliation report: per-table source rows / written rows /
-rewritten rows / skipped-with-reason, plus a non-zero exit when any table loses
-rows for an unlisted reason. Cutover is manual: run the script, review the
-report, swap the DB file, restart.
-
-Verification: the script's test runs it against a committed minimal fixture
-built with hand-written pre-fold DDL (2 ships, 1 bound project, equipment,
-per-ship + global worklists, ship tags, a ship cover reference, a group with
-the `ships` grant) and asserts every rule above — a fixture rather than a
-seeded snapshot, because after this campaign the old schema no longer exists in
-the repo and cannot be generated from code. A manual dry run against the real
-dev database is part of the L1 merge checklist.
-
-`bun run seed` keeps working independently for fresh dev databases;
-`payload/ships.json` becomes ship-preset project payload.
-
-### D2 — pre-fold archives are rejected
-
-A pre-fold archive must never be imported into the new schema: the mapping
-engine would accept it and degrade it, mostly silently. Verified rule by rule
-(PLAN-075 rules 1-15) against the v3 schema:
-
-| Archive | Live (v3) | Rule | Result if it were allowed |
-| --- | --- | --- | --- |
-| `ships` table | gone | 7 | whole table skipped — profiles, hull numbers, status silently lost |
-| `ship_equipment.ship_id` | `project_id` NOT NULL | 2 + 5 | table-level `missing-required-column`; every row fails (loud) |
-| `worklists.ship_id` | `project_id` nullable | 2 + 3 | **silent semantic corruption**: per-ship worklists become global KB entries |
-| (absent) | `project_sections` | 9 | nothing inserted — **every imported project loses its Issues / Procurement / Files tabs**, ships or not |
-
-Implementation: an explicit guard in the manifest validation
-(`import.service.ts`) that refuses an archive whose `manifest.tables[]` lists
-`ships` or omits `project_sections`, with an error naming the fold and the
-migration script. Replace mode already refuses cross-schema archives (the
-archive must match the live journal position), so merge is the only path that
-needs the guard.
-
-`BACKUP_FORMAT_VERSION` is deliberately **not** bumped. The version gate is an
-exact-match check (`import.service.ts:214`), so bumping it to 3 would be a
-one-line way to reject everything — but `formatVersion` describes the archive
-*container* (v1 JSON vs v2 tar+NDJSON), not the schema epoch. Repurposing it
-would reject archives that are perfectly mappable and make the cross-schema
-mapping engine (PLAN-075 R2) pointless for every future refactor. The targeted
-table guard rejects exactly what is unsafe and says why.
+child tables that need its id map). No backup-engine change beyond the
+constant.
 
 ## Risks
 
@@ -389,26 +331,24 @@ table guard rejects exactly what is unsafe and says why.
   registry stays tiny and static. Review gate: if `section.registry.ts` grows a
   config object or a runtime loader, the design has drifted — see Non-goals.
 - **Missing mount rows**: a project without an `issues` row loses its Issues
-  tab with no error. Mitigations: preset seeding inside the create transaction,
-  a migration/seed backfill, an integrity check in the seed script, and a test
-  asserting every non-deleted project has the general preset mounted.
+  tab with no error. Mitigations: preset seeding inside the create transaction
+  (the only way rows are ever written), an integrity check in the seed script,
+  and a test asserting every non-deleted project has the general preset
+  mounted.
 - **N+1 on the list endpoint**: section sets must be batch-loaded for the page
   (`WHERE project_id IN (...)`), not per row.
 - **Backup contribution regrouping**: `procurement_categories` moves from the
   `projects` contribution to `procurement`. The importer maps rows by table
-  name, so this should be transparent — must be proven by a round-trip test
-  before merge, not assumed. The same move changes the copy order the
-  migration script borrows from the registry, so the script's fixture test
-  must run against the final contribution layout.
-- **The migration script is one-shot and has no rollback.** Mitigations: the
-  source DB is opened read-only and never written, the target is a new file,
-  and cutover is a manual file swap — so the rollback is "keep using the old
-  file". A ship without a base project aborts the run rather than dropping
-  data.
-- **Rejecting pre-fold archives is permanent**: any archive taken before the
-  fold becomes restorable only by restoring the old build and re-running the
-  migration script. Call this out in the changelog and the backup docs, and
-  take a fresh archive immediately after cutover.
+  name, so this should be transparent for post-fold archives — must be proven
+  by a round-trip test before merge, not assumed.
+- **The reset is irreversible and unconditional.** Every existing database and
+  every archive taken before the fold becomes unusable: recovering anything
+  from them means checking out a pre-fold build and running it against a copy.
+  Accepted deliberately under the dev-phase rule — but if any deployed
+  instance is holding data worth keeping, it must be exported to a
+  human-readable form (or that instance abandoned) *before* the campaign
+  starts, not after. Call it out in the changelog and `docs/modules/backup.md`,
+  and take a fresh archive immediately after cutover.
 - **`code` collision**: base projects use `p-<shortId>`; the ship hull number
   (mutable, not lowercased) moves to `ship_profiles.hull_number`, so
   `projects.code` stays immutable/lowercase. UI that showed the ship code as
@@ -434,31 +374,26 @@ table guard rejects exactly what is unsafe and says why.
 - **L2-A api-core** (blocking): `parent_id`, `project_sections`, section
   registry + `requireSection`, presets, `POST /projects` provisioning,
   `/projects/:id/children`, `/projects/:id/sections/:key`,
-  `CAPABILITY_SECTION`, core backup contribution, migration/baseline, and the
-  D2 decision's archive path (`projects` -> `project_sections` transform or the
-  explicit v2 rejection). Trims `project.service.ts` to core +
-  members/roles/hierarchy/sections.
+  `CAPABILITY_SECTION`, core backup contribution, the re-squashed baseline, and
+  `BACKUP_FORMAT_VERSION` 3 + its rejection message. Trims
+  `project.service.ts` to core + members/roles/hierarchy/sections.
 - **L2-B api-ship**: `ship_profiles`, re-key equipment / categories /
   worklists to `project_id`, register the three ship sections, delete
   `/ships/*` + the `ships` table, module manifest, ship backup contribution,
-  cover fold, the ship-side `importTransforms` + transform-ordering fix if D2-b
-  is chosen, tests.
+  cover fold, tests.
 - **L2-C api-move**: procurement categories move into the procurement module,
   register `issues` / `procurement` / `files` sections, re-home
   `referenceable-worklists`, search source removal, tests.
 - **L2-D web**: section registry, tabs, settings panels, list filter, create
   preset dialog, sub-projects tab, delete `/ships/*`, nav/palette/cover
   registries, i18n, tests.
-- **L2-F migrate**: the one-shot migration script, its pre-fold DDL fixture and
-  rule-by-rule test, and the pre-fold archive guard in `import.service.ts`.
-  Depends on the final schema (A + B + C); runs parallel with D.
 - **L2-E data/docs**: seed payload + script, generated api docs/spec/types,
   `docs/modules/project.md` + `ship.md` removal, `docs/modules/backup.md`
   (archives are not portable across the fold), `architecture.md`, ADR-015,
   changelog.
 
-Order: A -> (B, C in parallel) -> (D, F in parallel) -> E, then L1 merge +
-`bun run check` + seed rebuild + a migration dry run against the dev DB.
+Order: A -> (B, C in parallel) -> D -> E, then L1 merge + `bun run check` +
+a from-scratch `bun run seed` rebuild.
 
 ## Alternatives
 
