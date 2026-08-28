@@ -83,6 +83,11 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
+/** Rendered tab labels, in order, with the trailing count suffix stripped. */
+function tabNames(): string[] {
+  return screen.getAllByRole("tab").map(tab => (tab.textContent ?? "").replace(/\s*\d+$/, "").trim());
+}
+
 describe("projectDetailLayout tab gating", () => {
   it("shows only the tabs the caller's capabilities allow", async () => {
     mockRoutes();
@@ -128,6 +133,51 @@ describe("projectDetailLayout tab gating", () => {
     expect(screen.getByRole("tab", { name: "Equipment" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Checklists" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Projects" })).toBeInTheDocument();
+  });
+
+  it("gives a general project exactly the four core tabs", async () => {
+    mockRoutes({
+      detail: () => jsonResponse({
+        success: true,
+        data: project({
+          sections: ["issues", "procurement", "files"],
+          capabilities: ["issue.view", "procurement.view", "files.view"],
+        }),
+      }),
+    });
+    renderWithProviders(<ProjectDetailLayout />);
+
+    await screen.findByRole("tab", { name: "Overview" });
+    expect(tabNames()).toEqual(["Overview", "Work Orders", "Procurement", "Files"]);
+    // No maritime section mounted, so none of the ship-preset tabs appear —
+    // including sub-projects, which follows the ship profile.
+    for (const absent of ["Details", "Equipment", "Checklists", "Projects"])
+      expect(screen.queryByRole("tab", { name: absent })).not.toBeInTheDocument();
+  });
+
+  it("gives a ship project all eight tabs in registry order", async () => {
+    mockRoutes({
+      detail: () => jsonResponse({
+        success: true,
+        data: project({
+          sections: ["issues", "procurement", "files", "ship-profile", "equipment", "worklist"],
+          capabilities: ["issue.view", "procurement.view", "files.view"],
+        }),
+      }),
+    });
+    renderWithProviders(<ProjectDetailLayout />);
+
+    await screen.findByRole("tab", { name: "Overview" });
+    expect(tabNames()).toEqual([
+      "Overview",
+      "Work Orders",
+      "Procurement",
+      "Files",
+      "Details",
+      "Equipment",
+      "Checklists",
+      "Projects",
+    ]);
   });
 
   it("back button returns to the project list", async () => {
