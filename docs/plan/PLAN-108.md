@@ -166,6 +166,28 @@ Gating is one shared middleware, `requireSection(key)`: 404 when the project
 has no such row (fail-closed existence policy, ADR-003). Sections keep today's
 per-route capability gates.
 
+**Core, not sections**: the overview tab (the project index) and the
+sub-projects tab. Both exist for every project by definition — overview is the
+assembly point itself, and sub-projects belong to the core `parent_id`
+hierarchy. Overview renders one tile per *mounted* section, contributed through
+the registry, so it stops hard-coding "issues + procurement" counts.
+
+**Registering the three existing project domains costs almost nothing** — they
+are already independent modules, which is why the section model is a
+formalisation rather than a rewrite:
+
+| Section | Today | Work to register |
+| --- | --- | --- |
+| `issues` | own module, own tables, own routes at `/projects/:projectId/issues*`, own capabilities, own backup contribution, own search source (`module: "projects"`), own tag binding | registry entry + `requireSection` on its routes; no table moves |
+| `procurement` | own module, tables, routes, capabilities, backup contribution — **but** `global_procurement_categories` + `procurement_categories` are declared in `project/schema.ts` and copied inside `createProjectTx` | move those two tables into `procurement/schema.ts`, move the copy into the section's `provision`, move them into the procurement backup contribution; the only real migration in this group |
+| `files` | drive entries with `ownerType = "project"` (`DRIVE_OWNER_TYPES`), `files.view` / `files.manage` capabilities already in `PROJECT_CAPABILITIES` | registry entry only. The section governs the project surface (`/projects/:id/files`), never the top-level `/drive` module |
+
+Out of scope: the top-level `documents` module is not project-scoped at all
+today (documents are Tier-C `items` with no `projectId`), so "project
+documents" is a new feature, not a re-homing. It is the obvious first test of
+whether this design pays off: a future `documents` section should be a new
+module plus one registry entry, with no edit inside the project module.
+
 Presets are a static map, not a table:
 
 ```ts
