@@ -1,9 +1,14 @@
 # FEAT-058 - Project documents: the documents module as a project section
 
-- Status: Proposed
+- Status: Deferred (2026-08-28)
 - Plan: [PLAN-110](../plan/PLAN-110.md)
 - Depends on: [REFACTOR-039](REFACTOR-039.md)
 - Created: 2026-08-28
+
+## Status note
+
+Deferred 2026-08-28: documents remain a top-level global module. See the
+Deferral section of PLAN-110 for the revisit trigger.
 
 ## Goal
 

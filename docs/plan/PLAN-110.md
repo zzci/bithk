@@ -1,10 +1,23 @@
 # PLAN-110 - Project documents: the documents module as a project section
 
-- Status: Proposed
+- Status: Deferred (2026-08-28)
 - Task: [FEAT-058](../task/FEAT-058.md)
 - Depends on: [PLAN-108](PLAN-108.md) (section registry + per-section capabilities)
 - Campaign: single BKD L2 pair (api + web) expected; ~1.2k LOC
 - Created: 2026-08-28
+
+## Deferral (2026-08-28)
+
+Parked by decision: documents stay a **top-level global module** and are not
+brought into projects for now. Nothing here is retracted — the investigation
+and the design below stand, and `document_details` needs no change while this
+is parked.
+
+Revisit when there is an actual demand for project-scoped documents. The
+trigger to watch for: users filing project documents in the project Files tab
+(drive entries) purely to keep them next to the project, which is the workaround
+this plan would remove. Until then the two-authorization-systems problem
+(Zanzibar tuples vs project capabilities) is a cost with no matching benefit.
 
 ## Context (investigation, 2026-08-28)
 
