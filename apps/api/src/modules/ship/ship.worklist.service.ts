@@ -3,7 +3,6 @@ import type { ProtectedEnv } from "@/shared/lib/types";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { projects } from "@/modules/project/schema";
 import {
   deleteResourceTags,
   listResourceIdsByAnyTag,
@@ -24,9 +23,9 @@ export const WORKLIST_TAG_BINDING = {
 } as const;
 
 // ─── External view ──────────────────────────────────────────────────────
-// `shipId` is an internal ULID (or NULL for the global knowledge base) and is
+// `projectId` is an internal ULID (or NULL for the global knowledge base) and is
 // never exposed: global worklists are reached through admin-only routes and
-// ship-level worklists through their owning ship's nested routes, so the
+// project-level worklists through their owning project's nested routes, so the
 // owner is always implied by the path. Tags ride the shared `tags`/`tags_refs`
 // machinery (tag type 'worklist').
 export interface WorklistView {
@@ -81,10 +80,10 @@ export interface UpdateWorklistInput {
 // flow through the generic patch loop.
 const UPDATABLE_KEYS = ["name", "checklist", "precautions"] as const;
 
-// ─── Global knowledge base (ship_id NULL) ──────────────────────────────────
+// ─── Global knowledge base (project_id NULL) ───────────────────────────────
 
 export async function listGlobalWorklists(db: AppDatabase, tagIds?: readonly string[]): Promise<readonly WorklistView[]> {
-  const conditions = [isNull(worklists.shipId)];
+  const conditions = [isNull(worklists.projectId)];
   if (tagIds && tagIds.length > 0) {
     // OR semantics: worklists carrying ANY of the selected tags.
     const ids = await listResourceIdsByAnyTag(db, WORKLIST_TAG_BINDING, tagIds);
@@ -102,7 +101,7 @@ export async function createGlobalWorklist(db: AppDatabase, input: WorklistInput
   db.transaction((tx) => {
     tx.insert(worklists).values({
       id,
-      shipId: null,
+      projectId: null,
       name: input.name,
       checklist: input.checklist ?? null,
       precautions: input.precautions ?? null,
@@ -114,14 +113,14 @@ export async function createGlobalWorklist(db: AppDatabase, input: WorklistInput
   return composeWorklistWithTags(db, (await db.select().from(worklists).where(eq(worklists.id, id)).get())!);
 }
 
-/** Fetch a global worklist (ship_id NULL); ship-level rows are never returned. */
+/** Fetch a global worklist (project_id NULL); project-level rows are never returned. */
 export async function getGlobalWorklist(db: AppDatabase, id: string): Promise<WorklistView | undefined> {
-  const row = await db.select().from(worklists).where(and(eq(worklists.id, id), isNull(worklists.shipId))).get();
+  const row = await db.select().from(worklists).where(and(eq(worklists.id, id), isNull(worklists.projectId))).get();
   return row ? composeWorklistWithTags(db, row) : undefined;
 }
 
 export async function updateGlobalWorklist(db: AppDatabase, id: string, input: UpdateWorklistInput): Promise<WorklistView | undefined> {
-  const existing = await db.select().from(worklists).where(and(eq(worklists.id, id), isNull(worklists.shipId))).get();
+  const existing = await db.select().from(worklists).where(and(eq(worklists.id, id), isNull(worklists.projectId))).get();
   if (!existing)
     return undefined;
   const now = new Date().toISOString();
@@ -140,7 +139,7 @@ export async function updateGlobalWorklist(db: AppDatabase, id: string, input: U
 }
 
 export async function deleteGlobalWorklist(db: AppDatabase, id: string): Promise<boolean> {
-  const existing = await db.select({ id: worklists.id }).from(worklists).where(and(eq(worklists.id, id), isNull(worklists.shipId))).get();
+  const existing = await db.select({ id: worklists.id }).from(worklists).where(and(eq(worklists.id, id), isNull(worklists.projectId))).get();
   if (!existing)
     return false;
   await db.delete(worklists).where(eq(worklists.id, id)).run();
@@ -149,11 +148,11 @@ export async function deleteGlobalWorklist(db: AppDatabase, id: string): Promise
   return true;
 }
 
-// ─── Ship-level worklists (ship_id set) ─────────────────────────────────────
+// ─── Project-level worklists (project_id set) ───────────────────────────────
 
-/** List ONLY the given ship's worklists; global (ship_id NULL) rows are excluded. */
-export async function listShipWorklists(db: AppDatabase, shipInternalId: string, tagIds?: readonly string[]): Promise<readonly WorklistView[]> {
-  const conditions = [eq(worklists.shipId, shipInternalId)];
+/** List ONLY the given project's worklists; global (project_id NULL) rows are excluded. */
+export async function listProjectWorklists(db: AppDatabase, projectId: string, tagIds?: readonly string[]): Promise<readonly WorklistView[]> {
+  const conditions = [eq(worklists.projectId, projectId)];
   if (tagIds && tagIds.length > 0) {
     // OR semantics: worklists carrying ANY of the selected tags.
     const ids = await listResourceIdsByAnyTag(db, WORKLIST_TAG_BINDING, tagIds);
@@ -166,17 +165,18 @@ export async function listShipWorklists(db: AppDatabase, shipInternalId: string,
 }
 
 /**
- * List the worklists a project may reference when creating a work order: the
- * worklists of the ship this project is the base project of (empty when the
- * project is not linked to a ship) plus the global knowledge-base entries.
- * `projectInternalId` is the internal project ULID.
+ * List the worklists a project may reference when creating a work order: its
+ * own project-level worklists (empty when the `worklist` section is not
+ * mounted, since only that section creates them) plus the global
+ * knowledge-base entries. `projectId` is the internal project ULID.
+ *
+ * The `ship` group name is kept so the payload shape is unchanged by the fold.
  */
 export async function listReferenceableWorklists(
   db: AppDatabase,
-  projectInternalId: string,
+  projectId: string,
 ): Promise<{ ship: readonly WorklistView[]; global: readonly WorklistView[] }> {
-  const proj = await db.select({ shipId: projects.shipId }).from(projects).where(eq(projects.id, projectInternalId)).get();
-  const ship = proj?.shipId ? await listShipWorklists(db, proj.shipId) : [];
+  const ship = await listProjectWorklists(db, projectId);
   const global = await listGlobalWorklists(db);
   return { ship, global };
 }
@@ -184,7 +184,7 @@ export async function listReferenceableWorklists(
 // `name` is optional here (unlike the global `WorklistInput`): when
 // `fromGlobalId` is set the name is copied from the source. The route schema
 // guarantees a name is present on the from-scratch path.
-export interface CreateShipWorklistInput {
+export interface CreateProjectWorklistInput {
   readonly name?: string | undefined;
   readonly tags?: readonly string[] | undefined;
   readonly checklist?: string | null | undefined;
@@ -194,18 +194,18 @@ export interface CreateShipWorklistInput {
   readonly fromGlobalId?: string | undefined;
 }
 
-export type CreateShipWorklistResult
+export type CreateProjectWorklistResult
   = | { readonly status: "ok"; readonly worklist: WorklistView }
     | { readonly status: "global_not_found" };
 
 /**
- * Create a ship-level worklist. Either from scratch (body fields) or, when
+ * Create a project-level worklist. Either from scratch (body fields) or, when
  * `fromGlobalId` is set, as a ONE-TIME copy of a global knowledge-base entry:
  * the global row's name/checklist/precautions AND its tags are snapshotted into
- * a new independent ship-level row, so later edits to the global do not affect
- * this copy.
+ * a new independent project-level row, so later edits to the global do not
+ * affect this copy.
  */
-export async function createShipWorklist(db: AppDatabase, shipInternalId: string, input: CreateShipWorklistInput): Promise<CreateShipWorklistResult> {
+export async function createProjectWorklist(db: AppDatabase, projectId: string, input: CreateProjectWorklistInput): Promise<CreateProjectWorklistResult> {
   const id = nanoid();
   const now = new Date().toISOString();
 
@@ -221,14 +221,14 @@ export async function createShipWorklist(db: AppDatabase, shipInternalId: string
     name = source.name;
     checklist = source.checklist;
     precautions = source.precautions;
-    // Copy the source's tag NAMES so the ship row mirrors the FE prefill.
+    // Copy the source's tag NAMES so the project row mirrors the FE prefill.
     tags = source.tags.map(t => t.name);
   }
 
   db.transaction((tx) => {
     tx.insert(worklists).values({
       id,
-      shipId: shipInternalId,
+      projectId,
       name,
       checklist,
       precautions,
@@ -240,13 +240,19 @@ export async function createShipWorklist(db: AppDatabase, shipInternalId: string
   return { status: "ok", worklist: await composeWorklistWithTags(db, (await db.select().from(worklists).where(eq(worklists.id, id)).get())!) };
 }
 
-export async function getShipWorklist(db: AppDatabase, shipInternalId: string, id: string): Promise<WorklistView | undefined> {
-  const row = await db.select().from(worklists).where(and(eq(worklists.id, id), eq(worklists.shipId, shipInternalId))).get();
+/** True when the project holds any non-global worklist — the `worklist` section's `hasData`. */
+export async function hasProjectWorklists(db: AppDatabase, projectId: string): Promise<boolean> {
+  const row = await db.select({ id: worklists.id }).from(worklists).where(eq(worklists.projectId, projectId)).get();
+  return row !== undefined;
+}
+
+export async function getProjectWorklist(db: AppDatabase, projectId: string, id: string): Promise<WorklistView | undefined> {
+  const row = await db.select().from(worklists).where(and(eq(worklists.id, id), eq(worklists.projectId, projectId))).get();
   return row ? composeWorklistWithTags(db, row) : undefined;
 }
 
-export async function updateShipWorklist(db: AppDatabase, shipInternalId: string, id: string, input: UpdateWorklistInput): Promise<WorklistView | undefined> {
-  const existing = await db.select().from(worklists).where(and(eq(worklists.id, id), eq(worklists.shipId, shipInternalId))).get();
+export async function updateProjectWorklist(db: AppDatabase, projectId: string, id: string, input: UpdateWorklistInput): Promise<WorklistView | undefined> {
+  const existing = await db.select().from(worklists).where(and(eq(worklists.id, id), eq(worklists.projectId, projectId))).get();
   if (!existing)
     return undefined;
   const now = new Date().toISOString();
@@ -263,8 +269,8 @@ export async function updateShipWorklist(db: AppDatabase, shipInternalId: string
   return composeWorklistWithTags(db, (await db.select().from(worklists).where(eq(worklists.id, id)).get())!);
 }
 
-export async function deleteShipWorklist(db: AppDatabase, shipInternalId: string, id: string): Promise<boolean> {
-  const existing = await db.select({ id: worklists.id }).from(worklists).where(and(eq(worklists.id, id), eq(worklists.shipId, shipInternalId))).get();
+export async function deleteProjectWorklist(db: AppDatabase, projectId: string, id: string): Promise<boolean> {
+  const existing = await db.select({ id: worklists.id }).from(worklists).where(and(eq(worklists.id, id), eq(worklists.projectId, projectId))).get();
   if (!existing)
     return false;
   await db.delete(worklists).where(eq(worklists.id, id)).run();
@@ -297,7 +303,7 @@ export const updateWorklistSchema = z.object({
   { message: "At least one field must be provided" },
 );
 
-export const createShipWorklistSchema = z.object({
+export const createProjectWorklistSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   fromGlobalId: z.string().min(1).optional(),
   ...worklistFields,

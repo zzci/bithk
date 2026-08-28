@@ -20,7 +20,7 @@ export interface GlobalSearchParams {
 
 /**
  * Result groups keyed by registered source key — `documents` / `issues` /
- * `projects` / `drive` / `ships` with every searchable module loaded. A
+ * `projects` / `drive` with every searchable module loaded. A
  * module that never registered a source is absent, not empty.
  */
 export type GlobalSearchResult = Readonly<Record<string, readonly SearchHit[]>>;

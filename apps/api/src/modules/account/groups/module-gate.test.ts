@@ -167,9 +167,9 @@ describe("resolveUserModules", () => {
 
   test("union over groups, deduplicated, in registry order", async () => {
     const { userId } = await sessionCookieFor(db, "user");
-    await grantModules(userId, ["ships", "documents"]);
+    await grantModules(userId, ["hr", "documents"]);
     await grantModules(userId, ["documents", "drive"]);
-    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual(["documents", "drive", "ships"]);
+    expect(await resolveUserModules(db, { id: userId, role: "user" })).toEqual(["documents", "drive", "hr"]);
   });
 
   test("no groups + no Default modules resolves to the empty floor", async () => {

@@ -9333,7 +9333,6 @@
                 "document",
                 "issue",
                 "procurement",
-                "ship",
                 "worklist"
               ]
             }
@@ -9480,7 +9479,6 @@
                       "document",
                       "issue",
                       "procurement",
-                      "ship",
                       "worklist"
                     ]
                   }
@@ -9681,7 +9679,6 @@
                       "document",
                       "issue",
                       "procurement",
-                      "ship",
                       "worklist"
                     ]
                   }
@@ -9818,7 +9815,6 @@
                 "document",
                 "issue",
                 "procurement",
-                "ship",
                 "worklist"
               ]
             }
@@ -10579,262 +10575,6 @@
             }
           }
         }
-      }
-    },
-    "/projects/{projectId}/referenceable-worklists": {
-      "get": {
-        "operationId": "getProjectsByProjectIdReferenceableWorklists",
-        "tags": [
-          "issues"
-        ],
-        "summary": "List worklists a project may reference",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "ship": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "tags": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "id": {
-                                      "type": "string"
-                                    },
-                                    "name": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": [
-                                    "id",
-                                    "name"
-                                  ]
-                                }
-                              },
-                              "checklist": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "precautions": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "createdAt": {
-                                "type": "string"
-                              },
-                              "updatedAt": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name",
-                              "tags",
-                              "checklist",
-                              "precautions",
-                              "createdAt",
-                              "updatedAt"
-                            ]
-                          }
-                        },
-                        "global": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "tags": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "id": {
-                                      "type": "string"
-                                    },
-                                    "name": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "required": [
-                                    "id",
-                                    "name"
-                                  ]
-                                }
-                              },
-                              "checklist": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "precautions": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "createdAt": {
-                                "type": "string"
-                              },
-                              "updatedAt": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name",
-                              "tags",
-                              "checklist",
-                              "precautions",
-                              "createdAt",
-                              "updatedAt"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "ship",
-                        "global"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthenticated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found or not a member",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projectId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ]
       }
     },
     "/projects/{projectId}/issues/{id}": {
@@ -21488,16 +21228,6 @@
                               }
                             ]
                           },
-                          "shipId": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
                           "tags": {
                             "type": "array",
                             "items": {
@@ -21518,6 +21248,12 @@
                                 "name",
                                 "usageCount"
                               ]
+                            }
+                          },
+                          "sections": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
                             }
                           },
                           "coverImageUrl": {
@@ -21546,8 +21282,8 @@
                           "name",
                           "status",
                           "description",
-                          "shipId",
                           "tags",
+                          "sections",
                           "coverImageUrl",
                           "creatorId",
                           "version",
@@ -21745,16 +21481,6 @@
                             }
                           ]
                         },
-                        "shipId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "tags": {
                           "type": "array",
                           "items": {
@@ -21775,6 +21501,12 @@
                               "name",
                               "usageCount"
                             ]
+                          }
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
                           }
                         },
                         "coverImageUrl": {
@@ -21803,8 +21535,8 @@
                         "name",
                         "status",
                         "description",
-                        "shipId",
                         "tags",
+                        "sections",
                         "coverImageUrl",
                         "creatorId",
                         "version",
@@ -22043,16 +21775,6 @@
                             }
                           ]
                         },
-                        "shipId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "tags": {
                           "type": "array",
                           "items": {
@@ -22073,6 +21795,12 @@
                               "name",
                               "usageCount"
                             ]
+                          }
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
                           }
                         },
                         "coverImageUrl": {
@@ -22121,8 +21849,8 @@
                         "name",
                         "status",
                         "description",
-                        "shipId",
                         "tags",
+                        "sections",
                         "coverImageUrl",
                         "creatorId",
                         "version",
@@ -22270,16 +21998,6 @@
                             }
                           ]
                         },
-                        "shipId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "tags": {
                           "type": "array",
                           "items": {
@@ -22300,6 +22018,12 @@
                               "name",
                               "usageCount"
                             ]
+                          }
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
                           }
                         },
                         "coverImageUrl": {
@@ -22328,8 +22052,8 @@
                         "name",
                         "status",
                         "description",
-                        "shipId",
                         "tags",
+                        "sections",
                         "coverImageUrl",
                         "creatorId",
                         "version",
@@ -22728,16 +22452,6 @@
                             }
                           ]
                         },
-                        "shipId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "tags": {
                           "type": "array",
                           "items": {
@@ -22758,6 +22472,12 @@
                               "name",
                               "usageCount"
                             ]
+                          }
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
                           }
                         },
                         "coverImageUrl": {
@@ -22786,8 +22506,8 @@
                         "name",
                         "status",
                         "description",
-                        "shipId",
                         "tags",
+                        "sections",
                         "coverImageUrl",
                         "creatorId",
                         "version",
@@ -22970,16 +22690,6 @@
                             }
                           ]
                         },
-                        "shipId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "tags": {
                           "type": "array",
                           "items": {
@@ -23000,6 +22710,12 @@
                               "name",
                               "usageCount"
                             ]
+                          }
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
                           }
                         },
                         "coverImageUrl": {
@@ -23028,8 +22744,8 @@
                         "name",
                         "status",
                         "description",
-                        "shipId",
                         "tags",
+                        "sections",
                         "coverImageUrl",
                         "creatorId",
                         "version",
@@ -23576,16 +23292,6 @@
                               }
                             ]
                           },
-                          "shipId": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
                           "tags": {
                             "type": "array",
                             "items": {
@@ -23606,6 +23312,12 @@
                                 "name",
                                 "usageCount"
                               ]
+                            }
+                          },
+                          "sections": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
                             }
                           },
                           "coverImageUrl": {
@@ -23634,8 +23346,8 @@
                           "name",
                           "status",
                           "description",
-                          "shipId",
                           "tags",
+                          "sections",
                           "coverImageUrl",
                           "creatorId",
                           "version",
@@ -23783,16 +23495,6 @@
                             }
                           ]
                         },
-                        "shipId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "tags": {
                           "type": "array",
                           "items": {
@@ -23813,6 +23515,12 @@
                               "name",
                               "usageCount"
                             ]
+                          }
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
                           }
                         },
                         "coverImageUrl": {
@@ -23841,8 +23549,8 @@
                         "name",
                         "status",
                         "description",
-                        "shipId",
                         "tags",
+                        "sections",
                         "coverImageUrl",
                         "creatorId",
                         "version",
@@ -24123,16 +23831,6 @@
                             }
                           ]
                         },
-                        "shipId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
                         "tags": {
                           "type": "array",
                           "items": {
@@ -24153,6 +23851,12 @@
                               "name",
                               "usageCount"
                             ]
+                          }
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
                           }
                         },
                         "coverImageUrl": {
@@ -24181,8 +23885,8 @@
                         "name",
                         "status",
                         "description",
-                        "shipId",
                         "tags",
+                        "sections",
                         "coverImageUrl",
                         "creatorId",
                         "version",
@@ -53288,8 +52992,7 @@
                                   "document",
                                   "issue",
                                   "project",
-                                  "drive",
-                                  "ship"
+                                  "drive"
                                 ]
                               },
                               "id": {
@@ -53323,8 +53026,7 @@
                                   "document",
                                   "issue",
                                   "project",
-                                  "drive",
-                                  "ship"
+                                  "drive"
                                 ]
                               },
                               "id": {
@@ -53358,8 +53060,7 @@
                                   "document",
                                   "issue",
                                   "project",
-                                  "drive",
-                                  "ship"
+                                  "drive"
                                 ]
                               },
                               "id": {
@@ -53393,43 +53094,7 @@
                                   "document",
                                   "issue",
                                   "project",
-                                  "drive",
-                                  "ship"
-                                ]
-                              },
-                              "id": {
-                                "type": "string"
-                              },
-                              "title": {
-                                "type": "string"
-                              },
-                              "subtitle": {
-                                "type": "string"
-                              },
-                              "projectId": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "type",
-                              "id",
-                              "title"
-                            ]
-                          }
-                        },
-                        "ships": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "type": {
-                                "type": "string",
-                                "enum": [
-                                  "document",
-                                  "issue",
-                                  "project",
-                                  "drive",
-                                  "ship"
+                                  "drive"
                                 ]
                               },
                               "id": {
@@ -53457,8 +53122,7 @@
                         "documents",
                         "issues",
                         "projects",
-                        "drive",
-                        "ships"
+                        "drive"
                       ]
                     }
                   },
@@ -57256,436 +56920,16 @@
         ]
       }
     },
-    "/ships": {
+    "/projects/{projectId}/ship-profile": {
       "get": {
-        "operationId": "getShips",
+        "operationId": "getProjectsByProjectIdShipProfile",
         "tags": [
           "ships"
         ],
-        "summary": "List ships",
+        "summary": "Get a project's ship profile",
         "responses": {
           "200": {
-            "description": "Ship list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "code": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "under_construction",
-                              "active",
-                              "underway",
-                              "in_maintenance",
-                              "laid_up",
-                              "retired"
-                            ]
-                          },
-                          "tags": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "name"
-                              ]
-                            }
-                          },
-                          "baseProjectId": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "model": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "builder": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "buildYear": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "lengthOverall": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "beam": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "draft": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "airDraft": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "grossTonnage": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "imoNumber": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "mmsi": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "callSign": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "flagState": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "registryPort": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "ownerName": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "description": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "coverImageUrl": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "creatorId": {
-                            "type": "string"
-                          },
-                          "version": {
-                            "type": "number"
-                          },
-                          "updatedAt": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "code",
-                          "name",
-                          "status",
-                          "tags",
-                          "baseProjectId",
-                          "model",
-                          "builder",
-                          "buildYear",
-                          "lengthOverall",
-                          "beam",
-                          "draft",
-                          "airDraft",
-                          "grossTonnage",
-                          "imoNumber",
-                          "mmsi",
-                          "callSign",
-                          "flagState",
-                          "registryPort",
-                          "ownerName",
-                          "description",
-                          "coverImageUrl",
-                          "creatorId",
-                          "version",
-                          "updatedAt"
-                        ]
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "total": {
-                          "type": "number"
-                        },
-                        "page": {
-                          "type": "number"
-                        },
-                        "limit": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "total",
-                        "page",
-                        "limit"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data",
-                    "meta"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthenticated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "query",
-            "name": "status",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "under_construction",
-                "active",
-                "underway",
-                "in_maintenance",
-                "laid_up",
-                "retired"
-              ]
-            }
-          },
-          {
-            "in": "query",
-            "name": "tagId",
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 100
-                },
-                {
-                  "maxItems": 20,
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "in": "query",
-            "name": "q",
-            "schema": {
-              "type": "string",
-              "maxLength": 200
-            }
-          }
-        ]
-      },
-      "post": {
-        "operationId": "postShips",
-        "tags": [
-          "ships"
-        ],
-        "summary": "Create a ship",
-        "responses": {
-          "201": {
-            "description": "Created",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
@@ -57698,16 +56942,10 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "id": {
+                        "hullNumber": {
                           "type": "string"
                         },
-                        "code": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "status": {
+                        "shipStatus": {
                           "type": "string",
                           "enum": [
                             "under_construction",
@@ -57716,34 +56954,6 @@
                             "in_maintenance",
                             "laid_up",
                             "retired"
-                          ]
-                        },
-                        "tags": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name"
-                            ]
-                          }
-                        },
-                        "baseProjectId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
                           ]
                         },
                         "model": {
@@ -57886,43 +57096,16 @@
                             }
                           ]
                         },
-                        "description": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "coverImageUrl": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "creatorId": {
+                        "createdAt": {
                           "type": "string"
-                        },
-                        "version": {
-                          "type": "number"
                         },
                         "updatedAt": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "id",
-                        "code",
-                        "name",
-                        "status",
-                        "tags",
-                        "baseProjectId",
+                        "hullNumber",
+                        "shipStatus",
                         "model",
                         "builder",
                         "buildYear",
@@ -57937,10 +57120,303 @@
                         "flagState",
                         "registryPort",
                         "ownerName",
-                        "description",
-                        "coverImageUrl",
-                        "creatorId",
-                        "version",
+                        "createdAt",
+                        "updatedAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ]
+      },
+      "put": {
+        "operationId": "putProjectsByProjectIdShipProfile",
+        "tags": [
+          "ships"
+        ],
+        "summary": "Update a project's ship profile",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "hullNumber": {
+                          "type": "string"
+                        },
+                        "shipStatus": {
+                          "type": "string",
+                          "enum": [
+                            "under_construction",
+                            "active",
+                            "underway",
+                            "in_maintenance",
+                            "laid_up",
+                            "retired"
+                          ]
+                        },
+                        "model": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "builder": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "buildYear": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lengthOverall": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "beam": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "draft": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "airDraft": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "grossTonnage": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "imoNumber": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mmsi": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "callSign": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "flagState": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "registryPort": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "ownerName": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "hullNumber",
+                        "shipStatus",
+                        "model",
+                        "builder",
+                        "buildYear",
+                        "lengthOverall",
+                        "beam",
+                        "draft",
+                        "airDraft",
+                        "grossTonnage",
+                        "imoNumber",
+                        "mmsi",
+                        "callSign",
+                        "flagState",
+                        "registryPort",
+                        "ownerName",
+                        "createdAt",
                         "updatedAt"
                       ]
                     }
@@ -57954,7 +57430,43 @@
             }
           },
           "403": {
-            "description": "Admin only",
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -58026,6 +57538,16 @@
             }
           }
         },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -58033,17 +57555,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "code": {
+                  "hullNumber": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 100
                   },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 255
-                  },
-                  "status": {
+                  "shipStatus": {
                     "type": "string",
                     "enum": [
                       "under_construction",
@@ -58053,15 +57570,6 @@
                       "laid_up",
                       "retired"
                     ]
-                  },
-                  "tags": {
-                    "maxItems": 50,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 50
-                    }
                   },
                   "model": {
                     "anyOf": [
@@ -58217,2499 +57725,21 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "description": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 2000
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "name"
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ships/{shortId}": {
-      "get": {
-        "operationId": "getShipsByShortId",
-        "tags": [
-          "ships"
-        ],
-        "summary": "Get a ship",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "under_construction",
-                            "active",
-                            "underway",
-                            "in_maintenance",
-                            "laid_up",
-                            "retired"
-                          ]
-                        },
-                        "tags": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name"
-                            ]
-                          }
-                        },
-                        "baseProjectId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "model": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "builder": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "buildYear": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "lengthOverall": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "beam": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "draft": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "airDraft": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "grossTonnage": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "imoNumber": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "mmsi": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "callSign": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "flagState": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "registryPort": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "ownerName": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "description": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "coverImageUrl": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "creatorId": {
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "number"
-                        },
-                        "updatedAt": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "code",
-                        "name",
-                        "status",
-                        "tags",
-                        "baseProjectId",
-                        "model",
-                        "builder",
-                        "buildYear",
-                        "lengthOverall",
-                        "beam",
-                        "draft",
-                        "airDraft",
-                        "grossTonnage",
-                        "imoNumber",
-                        "mmsi",
-                        "callSign",
-                        "flagState",
-                        "registryPort",
-                        "ownerName",
-                        "description",
-                        "coverImageUrl",
-                        "creatorId",
-                        "version",
-                        "updatedAt"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthenticated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ]
-      },
-      "patch": {
-        "operationId": "patchShipsByShortId",
-        "tags": [
-          "ships"
-        ],
-        "summary": "Update a ship",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "under_construction",
-                            "active",
-                            "underway",
-                            "in_maintenance",
-                            "laid_up",
-                            "retired"
-                          ]
-                        },
-                        "tags": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name"
-                            ]
-                          }
-                        },
-                        "baseProjectId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "model": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "builder": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "buildYear": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "lengthOverall": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "beam": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "draft": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "airDraft": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "grossTonnage": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "imoNumber": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "mmsi": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "callSign": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "flagState": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "registryPort": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "ownerName": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "description": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "coverImageUrl": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "creatorId": {
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "number"
-                        },
-                        "updatedAt": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "code",
-                        "name",
-                        "status",
-                        "tags",
-                        "baseProjectId",
-                        "model",
-                        "builder",
-                        "buildYear",
-                        "lengthOverall",
-                        "beam",
-                        "draft",
-                        "airDraft",
-                        "grossTonnage",
-                        "imoNumber",
-                        "mmsi",
-                        "callSign",
-                        "flagState",
-                        "registryPort",
-                        "ownerName",
-                        "description",
-                        "coverImageUrl",
-                        "creatorId",
-                        "version",
-                        "updatedAt"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 255
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "under_construction",
-                      "active",
-                      "underway",
-                      "in_maintenance",
-                      "laid_up",
-                      "retired"
-                    ]
-                  },
-                  "tags": {
-                    "maxItems": 50,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 50
-                    }
-                  },
-                  "model": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 255
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "builder": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 255
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "buildYear": {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": 1800,
-                        "maximum": 2200
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "lengthOverall": {
-                    "anyOf": [
-                      {
-                        "type": "number",
-                        "minimum": 0
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "beam": {
-                    "anyOf": [
-                      {
-                        "type": "number",
-                        "minimum": 0
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "draft": {
-                    "anyOf": [
-                      {
-                        "type": "number",
-                        "minimum": 0
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "airDraft": {
-                    "anyOf": [
-                      {
-                        "type": "number",
-                        "minimum": 0
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "grossTonnage": {
-                    "anyOf": [
-                      {
-                        "type": "number",
-                        "minimum": 0
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "imoNumber": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 50
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "mmsi": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 50
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "callSign": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 50
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "flagState": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 100
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "registryPort": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 100
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "ownerName": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 255
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "description": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 2000
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
                   }
                 }
               }
             }
           }
         }
-      },
-      "delete": {
-        "operationId": "deleteShipsByShortId",
-        "tags": [
-          "ships"
-        ],
-        "summary": "Soft-delete a ship",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "null"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Admin only",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ]
       }
     },
-    "/ships/{shortId}/cover-image": {
-      "post": {
-        "operationId": "postShipsByShortIdCoverImage",
-        "tags": [
-          "ships"
-        ],
-        "summary": "Set or replace a ship's cover image",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary"
-                  }
-                },
-                "required": [
-                  "file"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "under_construction",
-                            "active",
-                            "underway",
-                            "in_maintenance",
-                            "laid_up",
-                            "retired"
-                          ]
-                        },
-                        "tags": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name"
-                            ]
-                          }
-                        },
-                        "baseProjectId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "model": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "builder": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "buildYear": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "lengthOverall": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "beam": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "draft": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "airDraft": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "grossTonnage": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "imoNumber": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "mmsi": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "callSign": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "flagState": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "registryPort": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "ownerName": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "description": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "coverImageUrl": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "creatorId": {
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "number"
-                        },
-                        "updatedAt": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "code",
-                        "name",
-                        "status",
-                        "tags",
-                        "baseProjectId",
-                        "model",
-                        "builder",
-                        "buildYear",
-                        "lengthOverall",
-                        "beam",
-                        "draft",
-                        "airDraft",
-                        "grossTonnage",
-                        "imoNumber",
-                        "mmsi",
-                        "callSign",
-                        "flagState",
-                        "registryPort",
-                        "ownerName",
-                        "description",
-                        "coverImageUrl",
-                        "creatorId",
-                        "version",
-                        "updatedAt"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "No file provided",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ]
-      },
-      "delete": {
-        "operationId": "deleteShipsByShortIdCoverImage",
-        "tags": [
-          "ships"
-        ],
-        "summary": "Remove a ship's cover image",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "under_construction",
-                            "active",
-                            "underway",
-                            "in_maintenance",
-                            "laid_up",
-                            "retired"
-                          ]
-                        },
-                        "tags": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "name": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name"
-                            ]
-                          }
-                        },
-                        "baseProjectId": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "model": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "builder": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "buildYear": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "lengthOverall": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "beam": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "draft": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "airDraft": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "grossTonnage": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "imoNumber": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "mmsi": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "callSign": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "flagState": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "registryPort": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "ownerName": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "description": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "coverImageUrl": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "creatorId": {
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "number"
-                        },
-                        "updatedAt": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "code",
-                        "name",
-                        "status",
-                        "tags",
-                        "baseProjectId",
-                        "model",
-                        "builder",
-                        "buildYear",
-                        "lengthOverall",
-                        "beam",
-                        "draft",
-                        "airDraft",
-                        "grossTonnage",
-                        "imoNumber",
-                        "mmsi",
-                        "callSign",
-                        "flagState",
-                        "registryPort",
-                        "ownerName",
-                        "description",
-                        "coverImageUrl",
-                        "creatorId",
-                        "version",
-                        "updatedAt"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ]
-      }
-    },
-    "/ships/{shortId}/projects": {
+    "/projects/{projectId}/equipment": {
       "get": {
-        "operationId": "getShipsByShortIdProjects",
-        "tags": [
-          "ships"
-        ],
-        "summary": "List a ship's bound projects",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "code": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "active",
-                              "archived"
-                            ]
-                          },
-                          "description": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "shipId": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "tags": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string"
-                                },
-                                "usageCount": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "name",
-                                "usageCount"
-                              ]
-                            }
-                          },
-                          "coverImageUrl": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "creatorId": {
-                            "type": "string"
-                          },
-                          "version": {
-                            "type": "number"
-                          },
-                          "updatedAt": {
-                            "type": "string"
-                          },
-                          "isBase": {
-                            "type": "boolean"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "code",
-                          "name",
-                          "status",
-                          "description",
-                          "shipId",
-                          "tags",
-                          "coverImageUrl",
-                          "creatorId",
-                          "version",
-                          "updatedAt",
-                          "isBase"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthenticated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ]
-      },
-      "post": {
-        "operationId": "postShipsByShortIdProjects",
-        "tags": [
-          "ships"
-        ],
-        "summary": "Bind a project to a ship",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "code": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "active",
-                              "archived"
-                            ]
-                          },
-                          "description": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "shipId": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "tags": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string"
-                                },
-                                "usageCount": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "name",
-                                "usageCount"
-                              ]
-                            }
-                          },
-                          "coverImageUrl": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "creatorId": {
-                            "type": "string"
-                          },
-                          "version": {
-                            "type": "number"
-                          },
-                          "updatedAt": {
-                            "type": "string"
-                          },
-                          "isBase": {
-                            "type": "boolean"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "code",
-                          "name",
-                          "status",
-                          "description",
-                          "shipId",
-                          "tags",
-                          "coverImageUrl",
-                          "creatorId",
-                          "version",
-                          "updatedAt",
-                          "isBase"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "projectShortId": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": [
-                  "projectShortId"
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ships/{shortId}/projects/{projectShortId}": {
-      "delete": {
-        "operationId": "deleteShipsByShortIdProjectsByProjectShortId",
-        "tags": [
-          "ships"
-        ],
-        "summary": "Unbind a project from a ship",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": true
-                    },
-                    "data": {
-                      "type": "null"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          },
-          {
-            "in": "path",
-            "name": "projectShortId",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ]
-      }
-    },
-    "/ships/{shortId}/equipment": {
-      "get": {
-        "operationId": "getShipsByShortIdEquipment",
+        "operationId": "getProjectsByProjectIdEquipment",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "List a ship's equipment",
+        "summary": "List a project's equipment",
         "responses": {
           "200": {
             "description": "Success",
@@ -60951,7 +57981,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -60960,11 +57990,11 @@
         ]
       },
       "post": {
-        "operationId": "postShipsByShortIdEquipment",
+        "operationId": "postProjectsByProjectIdEquipment",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "Create a ship's equipment item",
+        "summary": "Create a project's equipment item",
         "responses": {
           "201": {
             "description": "Created",
@@ -61239,7 +58269,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -61353,13 +58383,13 @@
         }
       }
     },
-    "/ships/{shortId}/equipment/{equipmentId}": {
+    "/projects/{projectId}/equipment/{equipmentId}": {
       "get": {
-        "operationId": "getShipsByShortIdEquipmentByEquipmentId",
+        "operationId": "getProjectsByProjectIdEquipmentByEquipmentId",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "Get a ship's equipment item",
+        "summary": "Get a project's equipment item",
         "responses": {
           "200": {
             "description": "Success",
@@ -61598,7 +58628,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -61615,11 +58645,11 @@
         ]
       },
       "patch": {
-        "operationId": "patchShipsByShortIdEquipmentByEquipmentId",
+        "operationId": "patchProjectsByProjectIdEquipmentByEquipmentId",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "Update a ship's equipment item",
+        "summary": "Update a project's equipment item",
         "responses": {
           "200": {
             "description": "Success",
@@ -61894,7 +58924,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -62013,11 +59043,11 @@
         }
       },
       "delete": {
-        "operationId": "deleteShipsByShortIdEquipmentByEquipmentId",
+        "operationId": "deleteProjectsByProjectIdEquipmentByEquipmentId",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "Delete a ship's equipment item",
+        "summary": "Delete a project's equipment item",
         "responses": {
           "200": {
             "description": "Success",
@@ -62118,7 +59148,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -62135,13 +59165,13 @@
         ]
       }
     },
-    "/ships/{shortId}/equipment-categories": {
+    "/projects/{projectId}/equipment-categories": {
       "get": {
-        "operationId": "getShipsByShortIdEquipmentCategories",
+        "operationId": "getProjectsByProjectIdEquipmentCategories",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "List a ship's equipment categories",
+        "summary": "List a project's equipment categories",
         "responses": {
           "200": {
             "description": "Success",
@@ -62291,7 +59321,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -62300,11 +59330,11 @@
         ]
       },
       "post": {
-        "operationId": "postShipsByShortIdEquipmentCategories",
+        "operationId": "postProjectsByProjectIdEquipmentCategories",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "Create a ship's equipment category",
+        "summary": "Create a project's equipment category",
         "responses": {
           "201": {
             "description": "Created",
@@ -62487,7 +59517,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -62544,13 +59574,13 @@
         }
       }
     },
-    "/ships/{shortId}/equipment-categories/{categoryId}": {
+    "/projects/{projectId}/equipment-categories/{categoryId}": {
       "get": {
-        "operationId": "getShipsByShortIdEquipmentCategoriesByCategoryId",
+        "operationId": "getProjectsByProjectIdEquipmentCategoriesByCategoryId",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "Get a ship's equipment category",
+        "summary": "Get a project's equipment category",
         "responses": {
           "200": {
             "description": "Success",
@@ -62697,7 +59727,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -62714,11 +59744,11 @@
         ]
       },
       "patch": {
-        "operationId": "patchShipsByShortIdEquipmentCategoriesByCategoryId",
+        "operationId": "patchProjectsByProjectIdEquipmentCategoriesByCategoryId",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "Update a ship's equipment category",
+        "summary": "Update a project's equipment category",
         "responses": {
           "200": {
             "description": "Success",
@@ -62901,7 +59931,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -62962,11 +59992,11 @@
         }
       },
       "delete": {
-        "operationId": "deleteShipsByShortIdEquipmentCategoriesByCategoryId",
+        "operationId": "deleteProjectsByProjectIdEquipmentCategoriesByCategoryId",
         "tags": [
           "ship-equipment"
         ],
-        "summary": "Delete a ship's equipment category",
+        "summary": "Delete a project's equipment category",
         "responses": {
           "200": {
             "description": "Success",
@@ -63067,7 +60097,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -63084,13 +60114,13 @@
         ]
       }
     },
-    "/ships/{shortId}/worklists": {
+    "/projects/{projectId}/worklists": {
       "get": {
-        "operationId": "getShipsByShortIdWorklists",
+        "operationId": "getProjectsByProjectIdWorklists",
         "tags": [
           "worklists"
         ],
-        "summary": "List a ship's worklists",
+        "summary": "List a project's worklists",
         "responses": {
           "200": {
             "description": "Success",
@@ -63255,7 +60285,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -63281,11 +60311,11 @@
         ]
       },
       "post": {
-        "operationId": "postShipsByShortIdWorklists",
+        "operationId": "postProjectsByProjectIdWorklists",
         "tags": [
           "worklists"
         ],
-        "summary": "Create a ship's worklist",
+        "summary": "Create a project's worklist",
         "responses": {
           "201": {
             "description": "Created",
@@ -63483,7 +60513,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -63544,13 +60574,269 @@
         }
       }
     },
-    "/ships/{shortId}/worklists/{id}": {
+    "/projects/{projectId}/referenceable-worklists": {
       "get": {
-        "operationId": "getShipsByShortIdWorklistsById",
+        "operationId": "getProjectsByProjectIdReferenceableWorklists",
         "tags": [
           "worklists"
         ],
-        "summary": "Get a ship's worklist",
+        "summary": "List worklists a project may reference",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ship": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "tags": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ]
+                                }
+                              },
+                              "checklist": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "precautions": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "tags",
+                              "checklist",
+                              "precautions",
+                              "createdAt",
+                              "updatedAt"
+                            ]
+                          }
+                        },
+                        "global": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "tags": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ]
+                                }
+                              },
+                              "checklist": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "precautions": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "tags",
+                              "checklist",
+                              "precautions",
+                              "createdAt",
+                              "updatedAt"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "ship",
+                        "global"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/projects/{projectId}/worklists/{id}": {
+      "get": {
+        "operationId": "getProjectsByProjectIdWorklistsById",
+        "tags": [
+          "worklists"
+        ],
+        "summary": "Get a project's worklist",
         "responses": {
           "200": {
             "description": "Success",
@@ -63712,7 +60998,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -63729,11 +61015,11 @@
         ]
       },
       "patch": {
-        "operationId": "patchShipsByShortIdWorklistsById",
+        "operationId": "patchProjectsByProjectIdWorklistsById",
         "tags": [
           "worklists"
         ],
-        "summary": "Update a ship's worklist",
+        "summary": "Update a project's worklist",
         "responses": {
           "200": {
             "description": "Success",
@@ -63931,7 +61217,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },
@@ -63996,11 +61282,11 @@
         }
       },
       "delete": {
-        "operationId": "deleteShipsByShortIdWorklistsById",
+        "operationId": "deleteProjectsByProjectIdWorklistsById",
         "tags": [
           "worklists"
         ],
-        "summary": "Delete a ship's worklist",
+        "summary": "Delete a project's worklist",
         "responses": {
           "200": {
             "description": "Success",
@@ -64101,7 +61387,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "shortId",
+            "name": "projectId",
             "schema": {
               "type": "string"
             },

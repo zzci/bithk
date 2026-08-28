@@ -262,10 +262,10 @@ describe("GET /account/me modules (PLAN-076, group-based since FEAT-032)", () =>
   test("the union of the user's groups' modules is returned", async () => {
     const member = await sessionForRole("user");
     const a = await createGroup(db, { name: "Drive only", modules: ["drive"] });
-    const b = await createGroup(db, { name: "Ships only", modules: ["ships"] });
+    const b = await createGroup(db, { name: "HR only", modules: ["hr"] });
     await addGroupMember(db, a.id, member.id);
     await addGroupMember(db, b.id, member.id);
-    expect(await meModules(member.cookie)).toEqual(["drive", "ships"]);
+    expect(await meModules(member.cookie)).toEqual(["drive", "hr"]);
   });
 });
 

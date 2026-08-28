@@ -13,10 +13,13 @@ import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
 import { auditEvents } from "@/modules/audit/schema";
+import { createProject } from "@/modules/project/project.service";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { shipRoutes } from "./ship.routes";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
+// Registers the three maritime sections (ship-profile / equipment / worklist).
+import "./index";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -221,14 +224,12 @@ describe("global equipment manufacturer vocabulary (admin only)", () => {
     const app = buildApp(db);
     const admin = await sessionFor("admin");
 
-    // A manufacturer + a ship to attach equipment to.
+    // A manufacturer + a ship-preset project to attach equipment to.
     const manufacturer = await createManufacturer(app, admin.cookie, { name: "MTU" });
-    const shipRes = await app.request("/ships", jsonReq("POST", admin.cookie, { name: "Aurora" }));
-    expect(shipRes.status).toBe(201);
-    const shipShortId = ((await shipRes.json()) as { data: { id: string } }).data.id;
+    const shipShortId = (await createProject(db, { name: "Aurora", creatorId: admin.userId, preset: "ship" })).shortId;
 
     // Attach the manufacturer to a piece of equipment.
-    const createEquipRes = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", admin.cookie, { name: "Main Engine", manufacturerId: manufacturer.id }));
+    const createEquipRes = await app.request(`/projects/${shipShortId}/equipment`, jsonReq("POST", admin.cookie, { name: "Main Engine", manufacturerId: manufacturer.id }));
     expect(createEquipRes.status).toBe(201);
     const equipment = (await createEquipRes.json()) as { data: { id: string; manufacturerId: string | null; manufacturerName: string | null } };
     expect(equipment.data.manufacturerId).toBe(manufacturer.id);
@@ -238,7 +239,7 @@ describe("global equipment manufacturer vocabulary (admin only)", () => {
     const delRes = await app.request(`/global-equipment-manufacturers/${manufacturer.id}`, jsonReq("DELETE", admin.cookie));
     expect(delRes.status).toBe(200);
 
-    const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipment.data.id}`, { headers: { Cookie: admin.cookie } });
+    const getRes = await app.request(`/projects/${shipShortId}/equipment/${equipment.data.id}`, { headers: { Cookie: admin.cookie } });
     const view = (await getRes.json()) as { data: { manufacturerId: string | null; manufacturerName: string | null } };
     expect(view.data.manufacturerId).toBeNull();
     expect(view.data.manufacturerName).toBeNull();

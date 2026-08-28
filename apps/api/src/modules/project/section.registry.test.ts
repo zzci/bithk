@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { CAPABILITY_SECTION, PROJECT_CAPABILITIES, PROJECT_CORE_SECTION } from "./schema";
 import {
   DEFAULT_PROJECT_PRESET,
@@ -10,8 +10,24 @@ import {
   resetProjectSectionRegistry,
 } from "./section.registry";
 
-afterEach(() => {
+// The section registry is process-global and module barrels register into it
+// once per process, so a test that installs its own sections must put the real
+// ones back for the test files that run after it (same convention as
+// `search.registry.test.ts`).
+const realSections = listRegisteredSections();
+
+function restoreProjectSections(): void {
   resetProjectSectionRegistry();
+  for (const def of realSections)
+    registerProjectSection(def);
+}
+
+beforeEach(() => {
+  resetProjectSectionRegistry();
+});
+
+afterEach(() => {
+  restoreProjectSections();
 });
 
 describe("presets", () => {

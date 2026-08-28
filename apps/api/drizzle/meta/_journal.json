@@ -15,6 +15,13 @@
       "when": 1787893337729,
       "tag": "0001_outstanding_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787896611189,
+      "tag": "0002_naive_randall",
+      "breakpoints": true
     }
   ]
 }

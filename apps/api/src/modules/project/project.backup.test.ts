@@ -29,8 +29,10 @@ beforeEach(async () => {
   sourceDb = await createDb(resolvePath(dir, "source.db"));
   restoredDb = await createDb(resolvePath(dir, "restored.db"));
   __resetBackupRegistryForTests();
-  // The project contribution declares `users`, `ships` and `tags` deps for
-  // FK-safe insert ordering; register them so the export resolves the chain.
+  // The project contribution declares `users` and `tags` deps for FK-safe
+  // insert ordering; register them so the export resolves the chain. The ship
+  // contribution is registered too: it now depends on `projects` one way only
+  // (PLAN-108 §7), so it must NOT be pulled in by a projects-only export.
   registerBackupContribution(accountBackupContribution);
   registerBackupContribution(shipBackupContribution);
   registerBackupContribution(tagBackupContribution);
@@ -59,7 +61,7 @@ describe("project backup contribution", () => {
       "project_sections",
       "procurement_categories",
     ]);
-    expect(mod?.deps).toEqual(["users", "ships", "tags"]);
+    expect(mod?.deps).toEqual(["users", "tags"]);
   });
 
   test("project index registers the contribution when imported", async () => {
@@ -116,9 +118,11 @@ describe("project backup contribution", () => {
     const parsed = validateBackupData(JSON.parse(await readStreamToString(body)));
     // Dependencies resolve ahead of `projects` so FK inserts stay valid.
     expect(modules).toContain("users");
-    expect(modules).toContain("ships");
     expect(modules).toContain("tags");
     expect(modules).toContain("projects");
+    // The projects ↔ ships cycle is gone: ships depends on projects, never the
+    // other way round, so a projects-only export never drags ships in.
+    expect(modules).not.toContain("ships");
     expect(parsed.tables.projects).toHaveLength(1);
     expect(parsed.tables.procurement_categories).toHaveLength(1);
 

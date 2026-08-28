@@ -15,7 +15,6 @@ import { fileReferences } from "@/modules/file/schema";
 import { __setLocalDriverRootForTests } from "@/modules/file/storage/local";
 import { __resetDriverRegistryForTests, setActiveDriver } from "@/modules/file/storage/registry";
 import { loadNamespaces } from "@/modules/policy/namespace-config";
-import { createShip, setShipCover } from "@/modules/ship/ship.service";
 import { testConfig as harnessTestConfig, mountRoutes, sessionCookieFor } from "@/shared/test/route-harness";
 import { projectCoverPermissionHook, registerProjectCoverPermissionHook } from "./project.cover.permission";
 import { listRoles } from "./project.roles";
@@ -219,29 +218,20 @@ describe("project cover", () => {
   });
 });
 
-describe("base project inherits the ship cover", () => {
-  test("base project with no own cover shows the ship cover; own cover overrides", async () => {
+describe("ship-preset projects use the plain project cover", () => {
+  // PLAN-108 §5: a ship IS a project, so there is no ship cover to inherit —
+  // the project's own `project_cover` reference is the only source.
+  test("a ship-preset project starts with no cover and shows its own once set", async () => {
     const creator = await seedUser();
-    const ship = await createShip(db, { name: "Aurora", creatorId: creator });
-    const baseProject = (await db.select().from(projects).where(eq(projects.id, ship.baseProjectId!)).get())!;
+    const project = await createProject(db, { name: "Aurora", creatorId: creator, preset: "ship" });
+    expect((await composeProjectWithTags(db, project)).coverImageUrl).toBeNull();
 
-    // No covers yet.
-    expect((await composeProjectWithTags(db, baseProject)).coverImageUrl).toBeNull();
-
-    // Ship gets a cover → the base project inherits it.
-    const shippedRow = await setShipCover(db, testConfig(), ship.id, pngFile(), creator);
-    const inherited = (await composeProjectWithTags(db, baseProject)).coverImageUrl;
-    expect(inherited).toContain(`ref=${shippedRow!.coverReferenceId}`);
-
-    // Base project sets its own cover → it overrides the inherited one.
-    const own = new File([Uint8Array.from([...PNG_1X1, 9, 8, 7])], "own.png", { type: "image/png" });
-    const afterOwn = await setProjectCover(db, testConfig(), baseProject.id, own, creator);
-    const ownUrl = (await composeProjectWithTags(db, afterOwn!)).coverImageUrl;
-    expect(ownUrl).toContain(`ref=${afterOwn!.coverReferenceId}`);
-    expect(ownUrl).not.toContain(`ref=${shippedRow!.coverReferenceId}`);
+    const updated = await setProjectCover(db, testConfig(), project.id, pngFile(), creator);
+    const url = (await composeProjectWithTags(db, updated!)).coverImageUrl;
+    expect(url).toContain(`ref=${updated!.coverReferenceId}`);
   });
 
-  test("a non-base project does not inherit any ship cover", async () => {
+  test("a project with no cover reference resolves to null", async () => {
     const creator = await seedUser();
     const project = await createProject(db, { name: "Standalone", creatorId: creator });
     expect((await composeProjectWithTags(db, project)).coverImageUrl).toBeNull();

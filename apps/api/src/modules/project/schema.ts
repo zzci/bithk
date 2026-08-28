@@ -2,7 +2,6 @@ import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "@/modules/account/users/schema";
 import { fileReferences } from "@/modules/file/schema";
-import { ships } from "@/modules/ship/schema";
 
 export const PROJECT_STATUSES = ["active", "archived"] as const;
 export type ProjectStatus = typeof PROJECT_STATUSES[number];
@@ -69,10 +68,6 @@ export const projects = sqliteTable("projects", {
   name: text("name").notNull(),
   status: text("status", { enum: PROJECT_STATUSES }).notNull().default("active"),
   description: text("description"),
-  // Optional link back to a ship. The base project of a ship points at it; an
-  // additionally bound project also sets this. Nullable circular FK — see
-  // `ships.baseProjectId`.
-  shipId: text("ship_id").references((): AnySQLiteColumn => ships.id, { onDelete: "set null" }),
   // Sub-project link. ONE level only — a project that has a parent cannot
   // itself become a parent — and that rule is enforced in the service, not by
   // the DB. ON DELETE SET NULL: children are unlinked, never cascade-deleted.
@@ -93,7 +88,6 @@ export const projects = sqliteTable("projects", {
   uniqueIndex("projects_short_id_idx").on(t.shortId),
   uniqueIndex("projects_code_idx").on(t.code),
   index("projects_status_idx").on(t.status, t.deletedAt),
-  index("projects_ship_idx").on(t.shipId),
   index("projects_parent_idx").on(t.parentId),
 ]);
 
