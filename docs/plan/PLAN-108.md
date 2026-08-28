@@ -1,8 +1,8 @@
 # PLAN-108 - Projects as a composition of mounted sections; ships become a preset
 
-- Status: Proposed (revision v2)
+- Status: In Progress (revision v2)
 - Task: [REFACTOR-039](../task/REFACTOR-039.md)
-- Campaign: TBD (three-tier BKD expected; ~4k LOC touched)
+- Campaign: three-tier BKD, started 2026-08-28 (~4k LOC touched)
 - Created: 2026-08-27
 - Revised: 2026-08-27 — v2 supersedes the v1 "project `type` enum + ship-only
   tabs" proposal (kept as an alternative at the end).

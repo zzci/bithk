@@ -207,6 +207,6 @@
 | [FEAT-056](FEAT-056.md) | HR colleague list: employment type, department, work location and hire-date filters | [PLAN-107](../plan/PLAN-107.md) | Completed | 2026-08-02 |
 | [FEAT-057](FEAT-057.md) | Payroll history section on the HR colleague detail panel | [PLAN-107](../plan/PLAN-107.md) | Completed | 2026-08-02 |
 | [UI-031](UI-031.md) | Cover lightbox: floating close button, standard preview size, blank-area dismiss | - | Completed | 2026-08-27 |
-| [REFACTOR-039](REFACTOR-039.md) | Projects as a composition of mounted sections; ships become a preset | [PLAN-108](../plan/PLAN-108.md) | Proposed | 2026-08-27 |
+| [REFACTOR-039](REFACTOR-039.md) | Projects as a composition of mounted sections; ships become a preset | [PLAN-108](../plan/PLAN-108.md) | In Progress | 2026-08-28 |
 | [CHORE-005](CHORE-005.md) | Dependabot catch-up: apply open bumps, unpin overrides, fix CI cache staleness | [PLAN-109](../plan/PLAN-109.md) | Completed | 2026-08-27 |
 | [FEAT-058](FEAT-058.md) | Project documents: the documents module as a project section | [PLAN-110](../plan/PLAN-110.md) | Proposed | 2026-08-28 |

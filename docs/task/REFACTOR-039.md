@@ -1,6 +1,6 @@
 # REFACTOR-039 - Projects as a composition of mounted sections; ships become a preset
 
-- Status: Proposed
+- Status: In Progress
 - Plan: [PLAN-108](../plan/PLAN-108.md)
 - Created: 2026-08-27
 - Revised: 2026-08-27 (v2 — section registry replaces the project `type` enum)
