@@ -51,7 +51,7 @@ function mTable(name: string, module: string, columns: ManifestColumn[], primary
 function mManifest(tables: ManifestTable[], journalLastIdx = 0): BackupManifestV2 {
   return {
     format: "bithk-backup",
-    formatVersion: 2,
+    formatVersion: 3,
     exportedAt: "2026-06-10T00:00:00.000Z",
     app: { name: "app", version: "0.0.0", commit: "0000000" },
     schema: { dialect: "sqlite", journal: { lastIdx: journalLastIdx, lastTag: "0000_test", entryCount: journalLastIdx + 1 } },

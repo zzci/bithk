@@ -50,7 +50,7 @@ function mManifest(tables: ManifestTable[], modules?: { name: string; deps: stri
   const moduleNames = modules ?? [...new Set(tables.map(t => t.module))].map(name => ({ name, deps: [] }));
   return {
     format: "bithk-backup",
-    formatVersion: 2,
+    formatVersion: 3,
     exportedAt: "2026-06-10T00:00:00.000Z",
     app: { name: "app", version: "0.0.0", commit: "0000000" },
     schema: { dialect: "sqlite", journal: { lastIdx: 0, lastTag: "0000_test", entryCount: 1 } },
