@@ -182,11 +182,12 @@ formalisation rather than a rewrite:
 | `procurement` | own module, tables, routes, capabilities, backup contribution — **but** `global_procurement_categories` + `procurement_categories` are declared in `project/schema.ts` and copied inside `createProjectTx` | move those two tables into `procurement/schema.ts`, move the copy into the section's `provision`, move them into the procurement backup contribution; the only real migration in this group |
 | `files` | drive entries with `ownerType = "project"` (`DRIVE_OWNER_TYPES`), `files.view` / `files.manage` capabilities already in `PROJECT_CAPABILITIES` | registry entry only. The section governs the project surface (`/projects/:id/files`), never the top-level `/drive` module |
 
-Out of scope: the top-level `documents` module is not project-scoped at all
-today (documents are Tier-C `items` with no `projectId`), so "project
-documents" is a new feature, not a re-homing. It is the obvious first test of
-whether this design pays off: a future `documents` section should be a new
-module plus one registry entry, with no edit inside the project module.
+Out of scope here: the top-level `documents` module is not project-scoped at
+all today (documents are Tier-C `items` with no `projectId`), so "project
+documents" is a new feature, not a re-homing. It is specified separately in
+[PLAN-110](PLAN-110.md), sequenced right after this one and deliberately framed
+as the acceptance test for this design: landing a `documents` section must not
+touch `modules/project/` beyond the preset list.
 
 Presets are a static map, not a table:
 

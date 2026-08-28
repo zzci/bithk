@@ -108,3 +108,4 @@
 | [PLAN-107](PLAN-107.md) | HR completeness: colleague list filters + payroll history on the colleague detail | Completed | 2026-08-02 |
 | [PLAN-108](PLAN-108.md) | Projects as a composition of mounted sections; ships become a preset | Proposed | 2026-08-27 |
 | [PLAN-109](PLAN-109.md) | Dependabot catch-up and CI security-scan baseline fix | Completed | 2026-08-27 |
+| [PLAN-110](PLAN-110.md) | Project documents: the documents module as a project section | Proposed | 2026-08-28 |
