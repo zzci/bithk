@@ -1,5 +1,5 @@
 // Generic, reusable list filter rendered as a Google-Drive-style bar: EACH
-// dimension is its own independent dropdown (状态 ▾ / 优先级 ▾ / 类别 ▾ …).
+// dimension is its own independent dropdown (Status ▾ / Priority ▾ / Category ▾ …).
 //
 // - Unselected single dimension: a neutral outline trigger showing its label.
 // - Selected single dimension: the trigger highlights and shows the chosen

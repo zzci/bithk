@@ -518,7 +518,7 @@ interface ProcurementDetailRowProps {
   readonly children: React.ReactNode;
 }
 
-// One label/value row of the 采购细节 (procurement-details) table. The label is
+// One label/value row of the procurement-details table. The label is
 // a row header for assistive-tech table semantics.
 function ProcurementDetailRow({ label, children }: ProcurementDetailRowProps) {
   return (

@@ -1,5 +1,5 @@
 // Tags live as a single row below the title. With no tags, renders a
-// solo "+ 添加标签" trigger; with one or more, renders chips and a
+// solo "+ add tag" trigger; with one or more, renders chips and a
 // trailing "+" chip as the add affordance. Add is always a chip-shaped
 // inline input — committing on Enter / comma, cancelling on Esc / blur.
 
