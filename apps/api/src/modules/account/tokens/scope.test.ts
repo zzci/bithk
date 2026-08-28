@@ -13,8 +13,8 @@ describe("tokenModuleForPath", () => {
     expect(tokenModuleForPath("/projects")).toBe("projects");
     expect(tokenModuleForPath("/projects/abc/issues")).toBe("projects");
     expect(tokenModuleForPath("/issues/x/references")).toBe("projects");
-    expect(tokenModuleForPath("/ships/abc/worklists")).toBe("ships");
-    expect(tokenModuleForPath("/worklists")).toBe("ships");
+    expect(tokenModuleForPath("/projects/abc/worklists")).toBe("projects");
+    expect(tokenModuleForPath("/worklists")).toBe("projects");
     expect(tokenModuleForPath("/contacts")).toBe("contacts");
     expect(tokenModuleForPath("/contact-categories")).toBe("contacts");
     expect(tokenModuleForPath("/drive/files/upload")).toBe("drive");

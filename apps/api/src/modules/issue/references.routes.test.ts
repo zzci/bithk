@@ -103,12 +103,12 @@ function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
   };
 }
 
-async function seedWorklist(shipId: string | null, name = "Annual Service"): Promise<string> {
+async function seedWorklist(projectId: string | null, name = "Annual Service"): Promise<string> {
   const id = genNanoid();
   const now = new Date().toISOString();
   await db.insert(worklists).values({
     id,
-    shipId,
+    projectId,
     name,
     checklist: "step 1\nstep 2",
     precautions: "wear gloves",

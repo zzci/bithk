@@ -15,7 +15,6 @@ import { relationTuples } from "@/modules/policy/schema";
 import { procurementDetails } from "@/modules/procurement/schema";
 import { settings } from "@/modules/settings/schema";
 import { getSetting } from "@/modules/settings/settings.service";
-import { ships } from "@/modules/ship/schema";
 import {
   listResourceIdsByAnyTag,
   loadResourceTagsByResource,
@@ -107,10 +106,6 @@ export interface ProjectView {
   readonly name: string;
   readonly status: ProjectStatus;
   readonly description: string | null;
-  // Internal ULID of the ship this project is the base project of (or an extra
-  // bound project). Null for ordinary projects. Lets the web tell a ship base
-  // project apart so it can offer the ship's worklists as work-order references.
-  readonly shipId: string | null;
   readonly tags: readonly ProjectTagView[];
   // Mounted section keys in tab order (PLAN-108 §2). The single source of truth
   // for what this project is — the web assembles its tabs from this list.
@@ -144,7 +139,6 @@ export function composeProject(
     name: row.name,
     status: row.status,
     description: row.description,
-    shipId: row.shipId,
     tags: projectTagList,
     sections,
     coverImageUrl,
@@ -201,39 +195,19 @@ async function loadCoverUrlsByReference(db: AppDatabase, referenceIds: readonly 
 
 /**
  * Resolve cover image URLs for a set of project rows, keyed by internal project
- * id. A project shows its own cover when set; otherwise, when it is a ship's
- * base project, it inherits that ship's cover. The inherited URL points at the
- * ship's `ship_cover` reference — the file content route authorizes base-project
- * members through the existing `ship_cover` hook, so the reuse is permission-safe.
+ * id. A ship project's cover IS its project cover (PLAN-108 §5), so there is one
+ * `project_cover` reference per project and no inheritance to resolve.
  */
 async function loadCoverUrlsByProject(db: AppDatabase, rows: readonly ProjectRow[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   if (rows.length === 0)
     return result;
 
-  // Projects lacking an own cover are candidates for the ship fallback.
-  const fallbackProjectIds = rows.filter(r => !r.coverReferenceId).map(r => r.id);
-  const shipCoverByProject = new Map<string, string>(); // base project id → ship cover reference id
-  if (fallbackProjectIds.length > 0) {
-    const shipRows = await db.select({ baseProjectId: ships.baseProjectId, coverReferenceId: ships.coverReferenceId })
-      .from(ships)
-      .where(and(inArray(ships.baseProjectId, fallbackProjectIds), isNull(ships.deletedAt)))
-      .all();
-    for (const s of shipRows) {
-      if (s.baseProjectId && s.coverReferenceId)
-        shipCoverByProject.set(s.baseProjectId, s.coverReferenceId);
-    }
-  }
-
-  const refIds = [
-    ...rows.map(r => r.coverReferenceId).filter((v): v is string => v !== null),
-    ...shipCoverByProject.values(),
-  ];
+  const refIds = rows.map(r => r.coverReferenceId).filter((v): v is string => v !== null);
   const urlByRef = await loadCoverUrlsByReference(db, refIds);
 
   for (const r of rows) {
-    const refId = r.coverReferenceId ?? shipCoverByProject.get(r.id) ?? null;
-    const url = refId ? urlByRef.get(refId) : undefined;
+    const url = r.coverReferenceId ? urlByRef.get(r.coverReferenceId) : undefined;
     if (url)
       result.set(r.id, url);
   }
@@ -260,9 +234,6 @@ export interface CreateProjectInput {
   readonly description?: string | null | undefined;
   readonly tags?: readonly string[] | undefined;
   readonly creatorId: string;
-  // Optional link to a ship. Set by `createShip` so the base project points
-  // back at its ship. Additive — absent for ordinary project creation.
-  readonly shipId?: string | undefined;
   // Optional cover reference. Normally a project gets its cover via the
   // cover-image upload endpoint; `createProject` fills this from the
   // `project.defaults.coverReferenceId` setting when the caller omits it.
@@ -303,7 +274,6 @@ export function createProjectTx(tx: AppTransaction, input: CreateProjectInput): 
     // New projects are always created active; archiving is a later PATCH.
     status: "active",
     description: input.description ?? null,
-    shipId: input.shipId ?? null,
     parentId,
     coverReferenceId: input.coverReferenceId ?? null,
     creatorId: input.creatorId,

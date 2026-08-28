@@ -13,8 +13,9 @@ export const projectBackupContribution: BackupContribution = {
   // `procurement_categories` are copied from (mirrors `global_equipment_categories`
   // in the ship contribution); it has no project FK, so it leads.
   tables: [globalProcurementCategories, projects, projectRoles, projectMembers, projectSections, procurementCategories],
-  // `projects.ship_id` → ships, so ships must be inserted before projects.
   // Project tag assignments live in the shared `tags_refs` table (the `tags`
   // module), listed as a dep so a projects-only export carries them too.
-  deps: ["users", "ships", "tags"],
+  // `ships` is NOT a dep: with `projects.ship_id` gone the ship contribution
+  // depends on `projects` one way only, so the old cycle is dead (PLAN-108 §7).
+  deps: ["users", "tags"],
 };

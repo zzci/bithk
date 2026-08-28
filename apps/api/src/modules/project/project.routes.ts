@@ -166,7 +166,7 @@ const categoryParam = z.object({ id: z.string(), categoryId: z.string() });
 
 // Response `data` schemas mirroring the project service view composers.
 // Tags carry the type-wide `usageCount` (`ProjectTagView` / the shared
-// `ResourceTagUsageView`), matching the ship module's bound-project rows.
+// `ResourceTagUsageView`).
 const projectTagSchema = z.object({ id: z.string(), name: z.string(), usageCount: z.number() });
 const projectViewSchema = z.object({
   id: z.string(),
@@ -174,8 +174,10 @@ const projectViewSchema = z.object({
   name: z.string(),
   status: z.enum(PROJECT_STATUSES),
   description: z.string().nullable(),
-  shipId: z.string().nullable(),
   tags: z.array(projectTagSchema),
+  // Mounted section keys in tab order (PLAN-108 §2) — the single source of
+  // truth for what this project is.
+  sections: z.array(z.string()),
   coverImageUrl: z.string().nullable(),
   creatorId: z.string(),
   version: z.number(),

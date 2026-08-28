@@ -15,7 +15,7 @@ import { errorHandler } from "@/shared/middleware/error-handler";
 import { createRole, listRoles } from "./project.roles";
 import { projectRoutes } from "./project.routes";
 import { addMember, createProject, getProjectByShortId, listMembers, updateProject } from "./project.service";
-import { registerProjectSection, resetProjectSectionRegistry } from "./section.registry";
+import { listRegisteredSections, registerProjectSection, resetProjectSectionRegistry } from "./section.registry";
 // Registers the session-cookie auth provider that `authRequired` resolves
 // through — without it the middleware throws.
 import "@/modules/account";
@@ -143,7 +143,22 @@ function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
   };
 }
 
+// The section registry is process-global and module barrels register into it
+// once per process, so a test that installs its own sections must put the real
+// ones back for the test files that run after it (same convention as
+// `search.registry.test.ts`).
+const realSections = listRegisteredSections();
+
+function restoreProjectSections(): void {
+  resetProjectSectionRegistry();
+  for (const def of realSections)
+    registerProjectSection(def);
+}
+
 beforeEach(async () => {
+  // Start every test from an empty registry: these tests install their own
+  // stand-in sections and must not collide with the real registrations.
+  resetProjectSectionRegistry();
   const dir = resolve(tmpdir(), `test-project-routes-${Date.now()}-${nanoid()}`);
   mkdirSync(dir, { recursive: true });
   dbPath = resolve(dir, "test.db");
@@ -151,6 +166,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  restoreProjectSections();
   db.close();
   const dir = resolve(dbPath, "..");
   if (existsSync(dir))
@@ -755,10 +771,6 @@ describe("global procurement categories (admin only)", () => {
 });
 
 describe("POST /projects (preset, section payload, parent)", () => {
-  afterEach(() => {
-    resetProjectSectionRegistry();
-  });
-
   test("mounts the general three when no preset is given", async () => {
     const app = buildApp(db);
     const { cookie } = await sessionFor("admin");
@@ -831,10 +843,6 @@ describe("POST /projects (preset, section payload, parent)", () => {
 });
 
 describe("section mount / unmount routes", () => {
-  afterEach(() => {
-    resetProjectSectionRegistry();
-  });
-
   test("mounts and unmounts a section, answering with the updated section list", async () => {
     const app = buildApp(db);
     const owner = await seedUser("user");

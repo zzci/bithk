@@ -1,7 +1,7 @@
 import type { AppDatabase } from "@/db";
 import type { ModuleKey } from "@/shared/modules";
 
-export type SearchHitType = "document" | "issue" | "project" | "drive" | "ship";
+export type SearchHitType = "document" | "issue" | "project" | "drive";
 
 export interface SearchHit {
   readonly type: SearchHitType;

@@ -7,10 +7,10 @@ import { equipmentManufacturers, shipEquipment, shipEquipmentCategories } from "
 export type ShipEquipmentRow = typeof shipEquipment.$inferSelect;
 
 // ─── External view ──────────────────────────────────────────────────────
-// `shipId` is the internal ship ULID and never leaves the API: equipment is
-// always addressed through its parent ship's short id in the URL, so the view
-// omits it and exposes only the equipment's own (nanoid) id. The category is a
-// reference into the ship's own `ship_equipment_categories` vocabulary; the
+// `projectId` is the internal project ULID and never leaves the API: equipment
+// is always addressed through its owning project's short id in the URL, so the
+// view omits it and exposes only the equipment's own (nanoid) id. The category
+// is a reference into the project's own `ship_equipment_categories` vocabulary; the
 // view carries both the id and the resolved bilingual names (null when unset or
 // the referenced row is gone). The manufacturer is a reference into the GLOBAL
 // `equipment_manufacturers` vocabulary; the view carries the id and the resolved
@@ -59,34 +59,34 @@ export function composeEquipment(
   };
 }
 
-// ─── Equipment CRUD (scoped to a ship by internal id) ──────────────────────
+// ─── Equipment CRUD (scoped to a project by internal id) ───────────────────
 
-export async function listEquipment(db: AppDatabase, shipInternalId: string): Promise<readonly ShipEquipmentView[]> {
+export async function listEquipment(db: AppDatabase, projectId: string): Promise<readonly ShipEquipmentView[]> {
   const rows = await db
     .select({ equipment: shipEquipment, category: shipEquipmentCategories, manufacturer: equipmentManufacturers })
     .from(shipEquipment)
     .leftJoin(shipEquipmentCategories, eq(shipEquipment.categoryId, shipEquipmentCategories.id))
     .leftJoin(equipmentManufacturers, eq(shipEquipment.manufacturerId, equipmentManufacturers.id))
-    .where(eq(shipEquipment.shipId, shipInternalId))
+    .where(eq(shipEquipment.projectId, projectId))
     .orderBy(desc(shipEquipment.id))
     .all();
   return rows.map(r => composeEquipment(r.equipment, r.category?.nameZh ?? null, r.category?.nameEn ?? null, r.manufacturer?.name ?? null));
 }
 
 // Raw row lookup for internal existence/ownership checks (no category join).
-async function getEquipmentRow(db: AppDatabase, shipInternalId: string, equipmentId: string): Promise<ShipEquipmentRow | undefined> {
+async function getEquipmentRow(db: AppDatabase, projectId: string, equipmentId: string): Promise<ShipEquipmentRow | undefined> {
   return await db.select().from(shipEquipment).where(
-    and(eq(shipEquipment.shipId, shipInternalId), eq(shipEquipment.id, equipmentId)),
+    and(eq(shipEquipment.projectId, projectId), eq(shipEquipment.id, equipmentId)),
   ).get();
 }
 
-export async function getEquipment(db: AppDatabase, shipInternalId: string, equipmentId: string): Promise<ShipEquipmentView | undefined> {
+export async function getEquipment(db: AppDatabase, projectId: string, equipmentId: string): Promise<ShipEquipmentView | undefined> {
   const row = await db
     .select({ equipment: shipEquipment, category: shipEquipmentCategories, manufacturer: equipmentManufacturers })
     .from(shipEquipment)
     .leftJoin(shipEquipmentCategories, eq(shipEquipment.categoryId, shipEquipmentCategories.id))
     .leftJoin(equipmentManufacturers, eq(shipEquipment.manufacturerId, equipmentManufacturers.id))
-    .where(and(eq(shipEquipment.shipId, shipInternalId), eq(shipEquipment.id, equipmentId)))
+    .where(and(eq(shipEquipment.projectId, projectId), eq(shipEquipment.id, equipmentId)))
     .get();
   if (!row)
     return undefined;
@@ -105,12 +105,12 @@ export interface CreateEquipmentInput {
   readonly note?: string | null | undefined;
 }
 
-export async function createEquipment(db: AppDatabase, shipInternalId: string, input: CreateEquipmentInput): Promise<ShipEquipmentView> {
+export async function createEquipment(db: AppDatabase, projectId: string, input: CreateEquipmentInput): Promise<ShipEquipmentView> {
   const id = nanoid();
   const now = new Date().toISOString();
   await db.insert(shipEquipment).values({
     id,
-    shipId: shipInternalId,
+    projectId,
     name: input.name,
     categoryId: input.categoryId ?? null,
     manufacturerId: input.manufacturerId ?? null,
@@ -123,7 +123,7 @@ export async function createEquipment(db: AppDatabase, shipInternalId: string, i
     createdAt: now,
     updatedAt: now,
   }).run();
-  return (await getEquipment(db, shipInternalId, id))!;
+  return (await getEquipment(db, projectId, id))!;
 }
 
 export interface UpdateEquipmentInput {
@@ -150,8 +150,8 @@ const UPDATABLE_EQUIPMENT_KEYS = [
   "note",
 ] as const;
 
-export async function updateEquipment(db: AppDatabase, shipInternalId: string, equipmentId: string, input: UpdateEquipmentInput): Promise<ShipEquipmentView | undefined> {
-  const existing = await getEquipmentRow(db, shipInternalId, equipmentId);
+export async function updateEquipment(db: AppDatabase, projectId: string, equipmentId: string, input: UpdateEquipmentInput): Promise<ShipEquipmentView | undefined> {
+  const existing = await getEquipmentRow(db, projectId, equipmentId);
   if (!existing)
     return undefined;
 
@@ -163,11 +163,17 @@ export async function updateEquipment(db: AppDatabase, shipInternalId: string, e
   }
 
   await db.update(shipEquipment).set(patch).where(eq(shipEquipment.id, existing.id)).run();
-  return await getEquipment(db, shipInternalId, existing.id);
+  return await getEquipment(db, projectId, existing.id);
 }
 
-export async function deleteEquipment(db: AppDatabase, shipInternalId: string, equipmentId: string): Promise<boolean> {
-  const existing = await getEquipmentRow(db, shipInternalId, equipmentId);
+/** True when the project holds any equipment row — half of the `equipment` section's `hasData`. */
+export async function hasProjectEquipment(db: AppDatabase, projectId: string): Promise<boolean> {
+  const row = await db.select({ id: shipEquipment.id }).from(shipEquipment).where(eq(shipEquipment.projectId, projectId)).get();
+  return row !== undefined;
+}
+
+export async function deleteEquipment(db: AppDatabase, projectId: string, equipmentId: string): Promise<boolean> {
+  const existing = await getEquipmentRow(db, projectId, equipmentId);
   if (!existing)
     return false;
   await db.delete(shipEquipment).where(eq(shipEquipment.id, existing.id)).run();

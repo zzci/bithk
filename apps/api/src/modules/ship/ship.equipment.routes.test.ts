@@ -12,13 +12,14 @@ import { customAlphabet } from "nanoid";
 import { createDb } from "@/db";
 import { createSession } from "@/modules/account/auth/auth.service";
 import { users } from "@/modules/account/users/schema";
-import { addMember } from "@/modules/project/project.service";
+import { addMember, createProject } from "@/modules/project/project.service";
 import { projectRoles } from "@/modules/project/schema";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { shipRoutes } from "./ship.routes";
-import { getShipByShortId } from "./ship.service";
 // Registers the session-cookie auth provider that `authRequired` resolves through.
 import "@/modules/account";
+// Registers the three maritime sections (ship-profile / equipment / worklist).
+import "./index";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
@@ -104,13 +105,15 @@ function jsonReq(method: string, cookie: string, body?: unknown): RequestInit {
   };
 }
 
-async function createShipAsAdmin(app: Hono<AppEnv>, name = "Aurora"): Promise<{ adminId: string; adminCookie: string; shipShortId: string; baseProjectInternalId: string }> {
+/**
+ * Create a ship-preset project — the fold's replacement for `POST /ships`. The
+ * creator is seeded as its owner (full capabilities), so `adminCookie` names
+ * the project's manager exactly as it did before.
+ */
+async function createShipAsAdmin(_app: Hono<AppEnv>, name = "Aurora"): Promise<{ adminId: string; adminCookie: string; shipShortId: string; baseProjectInternalId: string }> {
   const admin = await sessionFor("admin");
-  const res = await app.request("/ships", jsonReq("POST", admin.cookie, { name }));
-  expect(res.status).toBe(201);
-  const body = await res.json() as { data: { id: string } };
-  const ship = await getShipByShortId(db, body.data.id);
-  return { adminId: admin.userId, adminCookie: admin.cookie, shipShortId: body.data.id, baseProjectInternalId: ship!.baseProjectId! };
+  const project = await createProject(db, { name, creatorId: admin.userId, preset: "ship" });
+  return { adminId: admin.userId, adminCookie: admin.cookie, shipShortId: project.shortId, baseProjectInternalId: project.id };
 }
 
 interface EquipmentBody {
@@ -136,7 +139,7 @@ interface ManufacturerBody {
 }
 
 async function createCategory(app: Hono<AppEnv>, shipShortId: string, cookie: string, nameZh: string, nameEn: string): Promise<string> {
-  const res = await app.request(`/ships/${shipShortId}/equipment-categories`, jsonReq("POST", cookie, { nameZh, nameEn }));
+  const res = await app.request(`/projects/${shipShortId}/equipment-categories`, jsonReq("POST", cookie, { nameZh, nameEn }));
   expect(res.status).toBe(201);
   return ((await res.json()) as CategoryBody).data.id;
 }
@@ -148,7 +151,7 @@ async function createManufacturer(app: Hono<AppEnv>, cookie: string, name: strin
 }
 
 async function createEquipment(app: Hono<AppEnv>, shipShortId: string, cookie: string, body: unknown): Promise<string> {
-  const res = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", cookie, body));
+  const res = await app.request(`/projects/${shipShortId}/equipment`, jsonReq("POST", cookie, body));
   expect(res.status).toBe(201);
   return ((await res.json()) as EquipmentBody).data.id;
 }
@@ -171,11 +174,11 @@ describe("equipment CRUD", () => {
   test("PM creates, lists, gets, updates and deletes equipment", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const categoryId = await createCategory(app, shipShortId, adminCookie, "推进系统", "Propulsion");
+    const categoryId = await createCategory(app, shipShortId, adminCookie, "ZH Propulsion", "Propulsion");
     const manufacturerId = await createManufacturer(app, adminCookie, "MTU");
 
     // Create.
-    const createRes = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", adminCookie, {
+    const createRes = await app.request(`/projects/${shipShortId}/equipment`, jsonReq("POST", adminCookie, {
       name: "Main Engine",
       categoryId,
       manufacturerId,
@@ -185,7 +188,7 @@ describe("equipment CRUD", () => {
     const created = (await createRes.json()) as EquipmentBody;
     expect(created.data.name).toBe("Main Engine");
     expect(created.data.categoryId).toBe(categoryId);
-    expect(created.data.categoryNameZh).toBe("推进系统");
+    expect(created.data.categoryNameZh).toBe("ZH Propulsion");
     expect(created.data.categoryNameEn).toBe("Propulsion");
     expect(created.data.manufacturerId).toBe(manufacturerId);
     expect(created.data.manufacturerName).toBe("MTU");
@@ -193,19 +196,19 @@ describe("equipment CRUD", () => {
     const equipmentId = created.data.id;
 
     // List.
-    const listRes = await app.request(`/ships/${shipShortId}/equipment`, { headers: { Cookie: adminCookie } });
+    const listRes = await app.request(`/projects/${shipShortId}/equipment`, { headers: { Cookie: adminCookie } });
     expect(listRes.status).toBe(200);
     const listed = (await listRes.json()) as { data: { id: string }[] };
     expect(listed.data).toHaveLength(1);
     expect(listed.data[0]!.id).toBe(equipmentId);
 
     // Get.
-    const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
+    const getRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
     expect(getRes.status).toBe(200);
     expect(((await getRes.json()) as EquipmentBody).data.name).toBe("Main Engine");
 
     // Update.
-    const patchRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, jsonReq("PATCH", adminCookie, {
+    const patchRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, jsonReq("PATCH", adminCookie, {
       status: "retired",
       note: "decommissioned",
     }));
@@ -216,9 +219,9 @@ describe("equipment CRUD", () => {
     expect(patched.data.name).toBe("Main Engine");
 
     // Delete.
-    const delRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, jsonReq("DELETE", adminCookie));
+    const delRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, jsonReq("DELETE", adminCookie));
     expect(delRes.status).toBe(200);
-    const afterRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
+    const afterRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
     expect(afterRes.status).toBe(404);
   });
 
@@ -226,7 +229,7 @@ describe("equipment CRUD", () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
     const equipmentId = await createEquipment(app, shipShortId, adminCookie, { name: "Radar" });
-    const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
+    const getRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
     const view = (await getRes.json()) as EquipmentBody;
     expect(view.data.categoryId).toBeNull();
     expect(view.data.categoryNameZh).toBeNull();
@@ -236,13 +239,13 @@ describe("equipment CRUD", () => {
   test("deleting a referenced category nulls the equipment's category (set null)", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const categoryId = await createCategory(app, shipShortId, adminCookie, "导航设备", "Navigation");
+    const categoryId = await createCategory(app, shipShortId, adminCookie, "ZH Navigation", "Navigation");
     const equipmentId = await createEquipment(app, shipShortId, adminCookie, { name: "Chartplotter", categoryId });
 
-    const delRes = await app.request(`/ships/${shipShortId}/equipment-categories/${categoryId}`, jsonReq("DELETE", adminCookie));
+    const delRes = await app.request(`/projects/${shipShortId}/equipment-categories/${categoryId}`, jsonReq("DELETE", adminCookie));
     expect(delRes.status).toBe(200);
 
-    const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
+    const getRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: adminCookie } });
     const view = (await getRes.json()) as EquipmentBody;
     expect(view.data.categoryId).toBeNull();
     expect(view.data.categoryNameZh).toBeNull();
@@ -252,7 +255,7 @@ describe("equipment CRUD", () => {
   test("rejects an empty name with 422", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
-    const res = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", adminCookie, { name: "" }));
+    const res = await app.request(`/projects/${shipShortId}/equipment`, jsonReq("POST", adminCookie, { name: "" }));
     expect(res.status).toBe(422);
   });
 
@@ -260,30 +263,30 @@ describe("equipment CRUD", () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId } = await createShipAsAdmin(app);
     const equipmentId = await createEquipment(app, shipShortId, adminCookie, { name: "Radar" });
-    const res = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, jsonReq("PATCH", adminCookie, {}));
+    const res = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, jsonReq("PATCH", adminCookie, {}));
     expect(res.status).toBe(422);
   });
 
-  test("equipment of another ship is not reachable (404)", async () => {
+  test("equipment of another project is not reachable (404)", async () => {
     const app = buildApp(db);
     const shipA = await createShipAsAdmin(app, "A");
     const equipmentId = await createEquipment(app, shipA.shipShortId, shipA.adminCookie, { name: "Pump" });
 
-    // Reuse the same admin (PM of both base projects) to isolate scoping from authz.
-    const resB = await app.request("/ships", jsonReq("POST", shipA.adminCookie, { name: "B" }));
-    const shipBShortId = ((await resB.json()) as { data: { id: string } }).data.id;
+    // Reuse the same admin (owner of both projects) to isolate scoping from authz.
+    const projectB = await createProject(db, { name: "B", creatorId: shipA.adminId, preset: "ship" });
+    const shipBShortId = projectB.shortId;
 
-    const crossGet = await app.request(`/ships/${shipBShortId}/equipment/${equipmentId}`, { headers: { Cookie: shipA.adminCookie } });
+    const crossGet = await app.request(`/projects/${shipBShortId}/equipment/${equipmentId}`, { headers: { Cookie: shipA.adminCookie } });
     expect(crossGet.status).toBe(404);
-    const crossPatch = await app.request(`/ships/${shipBShortId}/equipment/${equipmentId}`, jsonReq("PATCH", shipA.adminCookie, { name: "X" }));
+    const crossPatch = await app.request(`/projects/${shipBShortId}/equipment/${equipmentId}`, jsonReq("PATCH", shipA.adminCookie, { name: "X" }));
     expect(crossPatch.status).toBe(404);
-    const crossDelete = await app.request(`/ships/${shipBShortId}/equipment/${equipmentId}`, jsonReq("DELETE", shipA.adminCookie));
+    const crossDelete = await app.request(`/projects/${shipBShortId}/equipment/${equipmentId}`, jsonReq("DELETE", shipA.adminCookie));
     expect(crossDelete.status).toBe(404);
   });
 });
 
 describe("equipment authz", () => {
-  test("a base-project member can read but cannot write", async () => {
+  test("a project member can read but cannot write", async () => {
     const app = buildApp(db);
     const { adminCookie, shipShortId, baseProjectInternalId } = await createShipAsAdmin(app);
     const equipmentId = await createEquipment(app, shipShortId, adminCookie, { name: "Generator" });
@@ -293,17 +296,17 @@ describe("equipment authz", () => {
     const memberCookie = await cookieForUser(member);
 
     // Read: list + get succeed.
-    const listRes = await app.request(`/ships/${shipShortId}/equipment`, { headers: { Cookie: memberCookie } });
+    const listRes = await app.request(`/projects/${shipShortId}/equipment`, { headers: { Cookie: memberCookie } });
     expect(listRes.status).toBe(200);
-    const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: memberCookie } });
+    const getRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: memberCookie } });
     expect(getRes.status).toBe(200);
 
     // Write: create / patch / delete all 403 (no project.manage).
-    const createRes = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", memberCookie, { name: "X" }));
+    const createRes = await app.request(`/projects/${shipShortId}/equipment`, jsonReq("POST", memberCookie, { name: "X" }));
     expect(createRes.status).toBe(403);
-    const patchRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, jsonReq("PATCH", memberCookie, { name: "X" }));
+    const patchRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, jsonReq("PATCH", memberCookie, { name: "X" }));
     expect(patchRes.status).toBe(403);
-    const delRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, jsonReq("DELETE", memberCookie));
+    const delRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, jsonReq("DELETE", memberCookie));
     expect(delRes.status).toBe(403);
   });
 
@@ -314,20 +317,20 @@ describe("equipment authz", () => {
 
     const outsider = await sessionFor("user");
 
-    const listRes = await app.request(`/ships/${shipShortId}/equipment`, { headers: { Cookie: outsider.cookie } });
+    const listRes = await app.request(`/projects/${shipShortId}/equipment`, { headers: { Cookie: outsider.cookie } });
     expect(listRes.status).toBe(404);
-    const getRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: outsider.cookie } });
+    const getRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, { headers: { Cookie: outsider.cookie } });
     expect(getRes.status).toBe(404);
-    const createRes = await app.request(`/ships/${shipShortId}/equipment`, jsonReq("POST", outsider.cookie, { name: "X" }));
+    const createRes = await app.request(`/projects/${shipShortId}/equipment`, jsonReq("POST", outsider.cookie, { name: "X" }));
     expect(createRes.status).toBe(404);
-    const patchRes = await app.request(`/ships/${shipShortId}/equipment/${equipmentId}`, jsonReq("PATCH", outsider.cookie, { name: "X" }));
+    const patchRes = await app.request(`/projects/${shipShortId}/equipment/${equipmentId}`, jsonReq("PATCH", outsider.cookie, { name: "X" }));
     expect(patchRes.status).toBe(404);
   });
 
   test("GET equipment list → 401 without a session", async () => {
     const app = buildApp(db);
     const { shipShortId } = await createShipAsAdmin(app);
-    const res = await app.request(`/ships/${shipShortId}/equipment`);
+    const res = await app.request(`/projects/${shipShortId}/equipment`);
     expect(res.status).toBe(401);
   });
 });

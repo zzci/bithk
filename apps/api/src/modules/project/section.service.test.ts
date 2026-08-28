@@ -13,7 +13,7 @@ import { errorHandler } from "@/shared/middleware/error-handler";
 import { createProject } from "./project.service";
 import { projects, projectSections } from "./schema";
 import { requireSection } from "./section.middleware";
-import { registerProjectSection, resetProjectSectionRegistry } from "./section.registry";
+import { listRegisteredSections, registerProjectSection, resetProjectSectionRegistry } from "./section.registry";
 import {
   hasSection,
   listSections,
@@ -73,15 +73,28 @@ async function countSelects<T>(fn: () => Promise<T>): Promise<[T, number]> {
   }
 }
 
+// The section registry is process-global and module barrels register into it
+// once per process, so a test that installs its own sections must put the real
+// ones back for the test files that run after it (same convention as
+// `search.registry.test.ts`).
+const realSections = listRegisteredSections();
+
+function restoreProjectSections(): void {
+  resetProjectSectionRegistry();
+  for (const def of realSections)
+    registerProjectSection(def);
+}
+
 beforeEach(async () => {
   const dir = resolve(tmpdir(), `test-section-${Date.now()}-${nanoid()}`);
+  resetProjectSectionRegistry();
   mkdirSync(dir, { recursive: true });
   dbPath = resolve(dir, "test.db");
   db = await createDb(dbPath);
 });
 
 afterEach(() => {
-  resetProjectSectionRegistry();
+  restoreProjectSections();
   db.close();
   const dir = resolve(dbPath, "..");
   if (existsSync(dir))

@@ -16,7 +16,7 @@ const searchQuerySchema = z.object({
 });
 
 const searchHitSchema = z.object({
-  type: z.enum(["document", "issue", "project", "drive", "ship"]),
+  type: z.enum(["document", "issue", "project", "drive"]),
   id: z.string(),
   title: z.string(),
   subtitle: z.string().optional(),
@@ -27,7 +27,6 @@ const searchResultSchema = z.object({
   issues: z.array(searchHitSchema),
   projects: z.array(searchHitSchema),
   drive: z.array(searchHitSchema),
-  ships: z.array(searchHitSchema),
 });
 
 export function searchRoutes() {
